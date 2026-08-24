@@ -24,7 +24,8 @@ const settingsSummary: WorkspaceSettingsPayload = {
   unreadCount: 2,
   // The invitation panel renders from the same projection; an empty list is the
   // state a fresh workspace is in.
-  invitations: []
+  invitations: [],
+  planUsage: []
 }
 
 /**

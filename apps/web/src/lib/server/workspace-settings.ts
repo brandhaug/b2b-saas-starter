@@ -1,6 +1,10 @@
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+import {
+  PlanEntitlements,
+  type UsageSnapshot
+} from '@b2b-saas-starter/capabilities/src/governance/plan-entitlements.ts'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
@@ -36,6 +40,12 @@ export type WorkspaceSettingsPayload = {
   readonly apiTokenCount: number | null
   readonly webhookCount: number | null
   readonly invitations: readonly Invitation[] | null
+  /**
+   * Plan usage for every entitled resource. Every member of the workspace may
+   * see how its plan is being spent, so this rides the page's own
+   * `notification:read` gate rather than a permission of its own.
+   */
+  readonly planUsage: readonly UsageSnapshot[]
 }
 
 /**
@@ -52,6 +62,7 @@ const settingsPayload: Effect.Effect<
   | ApiTokenRegistry
   | WebhookEndpoints
   | NotificationFeed
+  | PlanEntitlements
   | WorkspaceInvitations
 > = Effect.gen(function* () {
   yield* requireWorkspacePermission({ notification: ['read'] })
@@ -60,32 +71,36 @@ const settingsPayload: Effect.Effect<
   const tokens = yield* ApiTokenRegistry
   const webhooks = yield* WebhookEndpoints
   const invites = yield* WorkspaceInvitations
-  const [unreadCount, apiTokenCount, webhookCount, invitations] = yield* Effect.all(
-    [
-      feed.unreadCount,
-      whenPermitted(
-        { apiToken: ['list'] },
-        Effect.map(tokens.list, (rows) => rows.length)
-      ),
-      whenPermitted(
-        { webhook: ['list'] },
-        Effect.map(webhooks.list, (rows) => rows.length)
-      ),
-      // Reading the invitation list is the same right as managing it: the
-      // statement has no `read` action, and a pending-invitation list is
-      // workspace security posture in the same way an API-token list is.
-      whenPermitted({ invitation: ['create'] }, invites.list)
-    ],
+  const entitlements = yield* PlanEntitlements
+  const [unreadCount, apiTokenCount, webhookCount, invitations, planUsage] =
+    yield* Effect.all(
+      [
+        feed.unreadCount,
+        whenPermitted(
+          { apiToken: ['list'] },
+          Effect.map(tokens.list, (rows) => rows.length)
+        ),
+        whenPermitted(
+          { webhook: ['list'] },
+          Effect.map(webhooks.list, (rows) => rows.length)
+        ),
+        // Reading the invitation list is the same right as managing it: the
+        // statement has no `read` action, and a pending-invitation list is
+        // workspace security posture in the same way an API-token list is.
+        whenPermitted({ invitation: ['create'] }, invites.list),
+        entitlements.usage
+      ],
 
-    { concurrency: 'unbounded' }
-  )
+      { concurrency: 'unbounded' }
+    )
   return {
     viewer: ctx.actor ? { role: ctx.actor.role } : null,
     workspaceName: ctx.workspace.name,
     unreadCount,
     apiTokenCount,
     webhookCount,
-    invitations
+    invitations,
+    planUsage
   }
 })
 

@@ -7,9 +7,14 @@ import {
 import { Context, DateTime, Effect, Layer, Option, Ref, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 
-import { CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
+import {
+  CapabilityUnavailable,
+  type EntitlementExceeded,
+  MembershipChangeRejected
+} from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { PlanEntitlements } from './plan-entitlements.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { readPluginBindingFailure } from './plugin-binding-failure.ts'
@@ -86,7 +91,7 @@ export type WorkspaceInvitationsInterface = {
     input: CreateInvitationInput
   ) => Effect.Effect<
     Invitation,
-    CapabilityUnavailable | MembershipChangeRejected,
+    CapabilityUnavailable | MembershipChangeRejected | EntitlementExceeded,
     WorkspaceContext
   >
 
@@ -264,9 +269,10 @@ export function SeedWorkspaceInvitations(options: {
   /** The fixture workspace every seed invitation belongs to. */
   readonly workspace: Workspace
   readonly seed?: readonly Invitation[]
-}): Layer.Layer<WorkspaceInvitations> {
+}): Layer.Layer<WorkspaceInvitations, never, PlanEntitlements> {
   return Layer.effect(WorkspaceInvitations)(
     Effect.gen(function* () {
+      const entitlements = yield* PlanEntitlements
       const store = yield* Ref.make<readonly Invitation[]>(options.seed ?? [])
 
       return {
@@ -285,6 +291,7 @@ export function SeedWorkspaceInvitations(options: {
           ),
         create: (input) =>
           Effect.gen(function* () {
+            yield* entitlements.checkLimit('members')
             const current = yield* Ref.get(store)
             const alreadyInvited = current.some(
               (each) => each.email === input.email && each.status === 'pending'
@@ -357,11 +364,16 @@ function toInvitation(row: typeof workspaceInvitations.$inferSelect): Invitation
 
 export function LiveWorkspaceInvitations(
   binding?: WorkspaceInvitationBinding
-): Layer.Layer<WorkspaceInvitations, never, Database | AuditEventLog> {
+): Layer.Layer<
+  WorkspaceInvitations,
+  never,
+  Database | AuditEventLog | PlanEntitlements
+> {
   return Layer.effect(WorkspaceInvitations)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
+      const entitlements = yield* PlanEntitlements
 
       const unavailable = orUnavailable('workspace-invitations')
 
@@ -466,6 +478,9 @@ export function LiveWorkspaceInvitations(
         create: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
+            // The member limit gates the send, before the plugin is touched —
+            // the same pre-check posture `requirePendingInWorkspace` takes.
+            yield* entitlements.checkLimit('members')
             yield* callBinding((bound) =>
               bound.create({
                 workspaceId: ctx.workspace.id,

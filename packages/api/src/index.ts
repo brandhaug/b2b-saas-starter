@@ -7,6 +7,7 @@ import {
 import { AuditEvent } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
 import {
   CapabilityUnavailable,
+  EntitlementExceeded,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import {
@@ -62,6 +63,11 @@ const WORKSPACE_ERRORS = [
   RateLimited,
   CapabilityUnavailable
 ] as const
+
+// The two workspace mutation endpoints that are plan-gated can refuse with
+// 402 on top of the shared set.
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+const PLAN_GATED_ERRORS = [...WORKSPACE_ERRORS, EntitlementExceeded] as const
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const PROTECTED_ERRORS = [
@@ -139,7 +145,7 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
       params: SlugParams,
       payload: CreateApiTokenPayload,
       success: CreatedApiTokenSchema.pipe(HttpApiSchema.status(201)),
-      error: WORKSPACE_ERRORS
+      error: PLAN_GATED_ERRORS
     })
   )
   .add(
@@ -162,7 +168,7 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints').add(
     params: SlugParams,
     payload: CreateWebhookEndpointPayload,
     success: WebhookEndpoint.pipe(HttpApiSchema.status(201)),
-    error: [InvalidWebhookUrl, ...WORKSPACE_ERRORS]
+    error: [InvalidWebhookUrl, ...PLAN_GATED_ERRORS]
   })
 )
 

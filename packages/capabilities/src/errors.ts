@@ -45,3 +45,24 @@ export class WorkspaceChangeRejected extends Schema.TaggedErrorClass<WorkspaceCh
   { reason: Schema.String },
   { httpApiStatus: 409 }
 ) {}
+
+/**
+ * A mutation the workspace's plan does not cover: the resource is at its
+ * entitled count. Answerable and refused — not a store failure — and distinct
+ * from `MembershipChangeRejected`, which names one membership change rather
+ * than the workspace's entitlement. 402 because the refusal is about what the
+ * plan pays for; actual checkout stays env-gated future work (ADR 0023).
+ *
+ * Raised by `PlanEntitlements.checkLimit` and re-raised by every mutation seam
+ * that enforces it (`ApiTokenRegistry.create`, `WebhookEndpoints.create`,
+ * `WorkspaceInvitations.create`), so callers handle one class everywhere.
+ */
+export class EntitlementExceeded extends Schema.TaggedErrorClass<EntitlementExceeded>()(
+  'EntitlementExceeded',
+  {
+    resource: Schema.String,
+    limit: Schema.Number,
+    planId: Schema.String
+  },
+  { httpApiStatus: 402 }
+) {}

@@ -12,6 +12,7 @@ import {
 } from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
 import {
   type CapabilityUnavailable,
+  type EntitlementExceeded,
   type MembershipChangeRejected
 } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
@@ -114,7 +115,10 @@ export function sendInvitation(input: {
   readonly origin: string
 }): Effect.Effect<
   SentInvitation,
-  AuthorizationDenied | CapabilityUnavailable | MembershipChangeRejected,
+  | AuthorizationDenied
+  | CapabilityUnavailable
+  | MembershipChangeRejected
+  | EntitlementExceeded,
   Scope.Scope | WorkspaceContext | WorkspaceInvitations | EmailDispatcher
 > {
   return Effect.gen(function* () {

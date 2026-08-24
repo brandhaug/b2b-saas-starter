@@ -1,6 +1,7 @@
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
 import {
   CapabilityUnavailable,
+  EntitlementExceeded,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import {
@@ -17,11 +18,15 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { notFound } from '@tanstack/react-router'
 import { Cause, Effect, Exit, Option, type Scope } from 'effect'
 
-import { CapabilityUnavailableError, ForbiddenError } from './capability-error'
+import {
+  CapabilityUnavailableError,
+  ForbiddenError,
+  PlanLimitError
+} from './capability-error'
 import { withWebRequestScope } from './observability'
 
 export type { CapabilityServices }
-export { CapabilityUnavailableError, ForbiddenError }
+export { CapabilityUnavailableError, ForbiddenError, PlanLimitError }
 
 /**
  * Plugin-backed write adapters a caller supplies for the duration of one call.
@@ -65,6 +70,10 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
     if (error instanceof AuthorizationDenied) {
       // oxlint-disable-next-line effect/noThrowStatement -- carries the 403 across the Promise boundary with a message the calling form can display
       throw new ForbiddenError(error.reason)
+    }
+    if (error instanceof EntitlementExceeded) {
+      // oxlint-disable-next-line effect/noThrowStatement -- carries the 402 across the Promise boundary with a message the calling form can display
+      throw new PlanLimitError(error.resource, error.limit, error.planId)
     }
     // oxlint-disable-next-line effect/noThrowStatement -- re-raises the original typed failure across the Promise boundary
     throw error

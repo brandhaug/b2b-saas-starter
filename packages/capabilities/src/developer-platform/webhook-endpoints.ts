@@ -5,10 +5,11 @@ import { and, count, eq, sql } from 'drizzle-orm'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
-import { type CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable, type EntitlementExceeded } from '../errors.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { PlanEntitlements } from '../governance/plan-entitlements.ts'
 import { InvalidWebhookUrl, validateWebhookUrl } from './webhook-url.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
@@ -109,7 +110,7 @@ export type WebhookEndpointsInterface = {
     input: CreateWebhookEndpointInput
   ) => Effect.Effect<
     WebhookEndpoint,
-    CapabilityUnavailable | InvalidWebhookUrl,
+    CapabilityUnavailable | InvalidWebhookUrl | EntitlementExceeded,
     WorkspaceContext
   >
 
@@ -170,30 +171,36 @@ function ensureValidWebhookUrl(url: string): Effect.Effect<void, InvalidWebhookU
 
 export function SeedWebhookEndpoints(
   seed: readonly WebhookEndpoint[]
-): Layer.Layer<WebhookEndpoints> {
-  return Layer.succeed(WebhookEndpoints)({
-    list: Effect.succeed(seed),
-    create: Effect.fnUntraced(function* (input) {
-      yield* ensureValidWebhookUrl(input.url)
+): Layer.Layer<WebhookEndpoints, never, PlanEntitlements> {
+  return Layer.effect(WebhookEndpoints)(
+    Effect.gen(function* () {
+      const entitlements = yield* PlanEntitlements
       return {
-        id: yield* newCapabilityId('wh'),
-        url: input.url,
-        enabled: true,
-        events: [...input.events],
-        successRate: 100
+        list: Effect.succeed(seed),
+        create: Effect.fnUntraced(function* (input) {
+          yield* ensureValidWebhookUrl(input.url)
+          yield* entitlements.checkLimit('webhook_endpoints')
+          return {
+            id: yield* newCapabilityId('wh'),
+            url: input.url,
+            enabled: true,
+            events: [...input.events],
+            successRate: 100
+          }
+        }),
+        disable: (input) =>
+          Effect.succeed(seed.some((endpoint) => endpoint.id === input.endpointId)),
+        rotateSecret: (input) => {
+          if (!seed.some((endpoint) => endpoint.id === input.endpointId)) {
+            return Effect.succeed(Option.none())
+          }
+          return Effect.succeed(Option.some({ signingSecret: 'whsec_seed_rotated' }))
+        },
+        getDispatchTarget: () => Effect.succeed(null),
+        recordDeliveryAttempt: () => Effect.void
       }
-    }),
-    disable: (input) =>
-      Effect.succeed(seed.some((endpoint) => endpoint.id === input.endpointId)),
-    rotateSecret: (input) => {
-      if (!seed.some((endpoint) => endpoint.id === input.endpointId)) {
-        return Effect.succeed(Option.none())
-      }
-      return Effect.succeed(Option.some({ signingSecret: 'whsec_seed_rotated' }))
-    },
-    getDispatchTarget: () => Effect.succeed(null),
-    recordDeliveryAttempt: () => Effect.void
-  })
+    })
+  )
 }
 
 function randomSecret(): string {
@@ -211,11 +218,12 @@ const unavailable = orUnavailable('webhook-endpoints')
 export const LiveWebhookEndpoints: Layer.Layer<
   WebhookEndpoints,
   never,
-  Database | AuditEventLog
+  Database | AuditEventLog | PlanEntitlements
 > = Layer.effect(WebhookEndpoints)(
   Effect.gen(function* () {
     const db = yield* Database
     const audit = yield* AuditEventLog
+    const entitlements = yield* PlanEntitlements
 
     function endpointInWorkspace(endpointId: string, workspaceId: string) {
       return unavailable(
@@ -324,6 +332,8 @@ export const LiveWebhookEndpoints: Layer.Layer<
         Effect.gen(function* () {
           yield* ensureValidWebhookUrl(input.url)
           const ctx = yield* WorkspaceContext
+          // The plan gate runs before anything is written or audited.
+          yield* entitlements.checkLimit('webhook_endpoints')
           const signingSecret = randomSecret()
           const createdAt = yield* DateTime.now
           const endpoint = {

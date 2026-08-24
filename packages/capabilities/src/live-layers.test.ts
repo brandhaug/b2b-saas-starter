@@ -1,4 +1,5 @@
 import {
+  apiTokens,
   auditEvents,
   user,
   webhookDeliveries,
@@ -45,6 +46,8 @@ import {
   CONTRACT_UNEXPIRED_AT,
   workspaceInvitationsContractCases
 } from './governance/workspace-invitations.contract.ts'
+import { PLANS, PlanEntitlements } from './governance/plan-entitlements.ts'
+import { planEntitlementContractCases } from './governance/plan-entitlements.contract.ts'
 import { makeLiveCapabilitiesLayer, type CapabilityServices } from './layers.ts'
 import {
   selectCapabilitiesLayer,
@@ -63,6 +66,17 @@ import {
 // the D1 adapters — queries, batches, workspace scoping — behave the same.
 
 const iso = '2026-07-03T09:00:00.000Z'
+
+/** A fixture member row whose `role` stays a literal for drizzle's column type. */
+function memberRow(id: string, userId: string) {
+  return {
+    id,
+    workspaceId: 'wrk_plan',
+    userId,
+    // oxlint-disable-next-line effect/noAs -- `as const` on a literal: drizzle's role column needs the narrowed literal.
+    role: 'member' as const
+  }
+}
 
 /** Workspaces, members, and fixtures every test in this file reads. */
 const insertFixtureRows = Effect.gen(function* () {
@@ -95,8 +109,54 @@ const insertFixtureRows = Effect.gen(function* () {
     // Home of the audit read-contract dataset and the full-page pagination
     // suite — isolated so their rows never leak into other suites' counts.
     { id: 'wrk_audit', slug: 'audit-lab', name: 'Audit Lab' },
-    { id: 'wrk_audit_pages', slug: 'audit-pages-lab', name: 'Audit Pages Lab' }
+    { id: 'wrk_audit_pages', slug: 'audit-pages-lab', name: 'Audit Pages Lab' },
+    // The plan-entitlements contract's own workspace — counts planted below
+    // match the contract's DECLARED_USED exactly.
+    { id: 'wrk_plan', slug: 'plan-lab', name: 'Plan Lab' },
+    // A second workspace on an id this build does not know, so the
+    // fail-closed-to-starter fallback is exercised against real D1.
+    {
+      id: 'wrk_plan_unknown',
+      slug: 'plan-unknown-lab',
+      name: 'Plan Unknown Lab',
+      planId: 'team'
+    }
   ])
+  // The plan contract's declared usage: four members need real user rows (FK).
+  yield* db.insert(user).values(
+    [1, 2, 3, 4].map((n) => ({
+      id: `usr_plan_${n}`,
+      email: `plan${n}@live.test`,
+      name: `Plan Member ${n}`
+    }))
+  )
+  yield* db
+    .insert(workspaceMembers)
+    .values([1, 2, 3, 4].map((n) => memberRow(`mem_plan_${n}`, `usr_plan_${n}`)))
+  yield* db.insert(apiTokens).values(
+    [1, 2].map((n) => ({
+      id: `tok_plan_${n}`,
+      workspaceId: 'wrk_plan',
+      name: `Plan token ${n}`,
+      tokenPrefix: `bsk_live_plan${n}_`,
+      tokenHash: `deadbeef_plan_${n}`,
+      scopes: ['read'] satisfies ReadonlyArray<'read' | 'write' | 'admin'>,
+      lastUsedAt: null,
+      revokedAt: null,
+      createdAt: iso
+    }))
+  )
+  yield* db.insert(webhookEndpoints).values(
+    [1, 2, 3].map((n) => ({
+      id: `wh_plan_${n}`,
+      workspaceId: 'wrk_plan',
+      url: `https://example.com/hooks/${n}`,
+      signingSecret: `whsec_plan_${n}`,
+      enabled: true,
+      events: ['demo.event'],
+      createdAt: iso
+    }))
+  )
   yield* db.insert(auditEvents).values(
     auditEventContractDataset('wrk_audit').map((row) => ({
       id: row.id,
@@ -406,6 +466,30 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
         expect(
           otherEvents.some((event) => event.eventType === 'workspace.created')
         ).toBe(true)
+      })
+    )
+  })
+
+  // The Seed half of this same list runs in index.test.ts. The fixture rows
+  // planted for `wrk_plan` match the contract's DECLARED_USED exactly.
+  describe('live plan entitlements contract', () => {
+    for (const contractCase of planEntitlementContractCases(expect)) {
+      it.effect(contractCase.name, () => inWorkspace('plan-lab', contractCase.assert))
+    }
+
+    it.effect('caps an unknown plan id at starter limits', () =>
+      Effect.gen(function* () {
+        // No rows are planted for this workspace, so every resource is under
+        // its limit and `checkLimit` succeeds — the assertion is that the
+        // *limits* it reports are starter's, not pro's or a refusal.
+        const snapshots = yield* inWorkspace(
+          'plan-unknown-lab',
+          Effect.flatMap(PlanEntitlements, (e) => e.usage)
+        )
+        for (const snapshot of snapshots) {
+          expect(snapshot.planId).toBe('team')
+          expect(snapshot.limit).toBe(PLANS.starter[snapshot.resource])
+        }
       })
     )
   })
@@ -1108,7 +1192,9 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
         )
 
         expect(error).toBeInstanceOf(MembershipChangeRejected)
-        expect(error.reason).toBe('already invited')
+        expect(error instanceof MembershipChangeRejected && error.reason).toBe(
+          'already invited'
+        )
       })
     )
 

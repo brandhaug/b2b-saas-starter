@@ -32,6 +32,11 @@ import {
   type WorkspaceInvitations
 } from './governance/workspace-invitations.ts'
 import {
+  LivePlanEntitlements,
+  SeedPlanEntitlements,
+  type PlanEntitlements
+} from './governance/plan-entitlements.ts'
+import {
   LiveWorkspaceMembership,
   makeSeedRoster,
   SeedWorkspaceMembership,
@@ -65,6 +70,7 @@ export type CapabilityServices =
   | ApiTokenRegistry
   | AuditEventLog
   | NotificationFeed
+  | PlanEntitlements
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceInvitations
@@ -79,6 +85,19 @@ export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
  * disagree about who is in the workspace. Live needs no equivalent — the
  * plugin owns both writes, and both read back from the same tables.
  */
+/**
+ * The fixture entitlements the demo workspace runs on: its own plan id and the
+ * fixture counts every seed mutation gate reads. Built once and provided into
+ * every gated seed adapter, so they and the settings-page read agree about
+ * usage.
+ */
+const seedPlanEntitlements = SeedPlanEntitlements({
+  planId: seedWorkspaceRecord.planId,
+  apiTokens: seedApiTokens.length,
+  webhookEndpoints: seedWebhookEndpoints.length,
+  members: seedMembers.length
+})
+
 const SeedGovernance = Layer.unwrap(
   Effect.gen(function* () {
     const roster = yield* makeSeedRoster(seedMembers)
@@ -90,14 +109,19 @@ const SeedGovernance = Layer.unwrap(
   })
 )
 
-export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
-  SeedApiTokenRegistry(seedApiTokens),
-  SeedAuditEventLog(seedAuditEvents),
-  SeedNotificationFeed(seedNotifications),
-  SeedWebhookEndpoints(seedWebhookEndpoints),
-  SeedWebhookPublisher,
-  SeedGovernance
-)
+export const SeedLayer: CapabilitiesLayer = Layer.merge(
+  Layer.mergeAll(
+    SeedApiTokenRegistry(seedApiTokens),
+    SeedAuditEventLog(seedAuditEvents),
+    SeedNotificationFeed(seedNotifications),
+    SeedWebhookEndpoints(seedWebhookEndpoints),
+    SeedWebhookPublisher,
+    SeedGovernance
+  ),
+  // Merged for direct consumers (the settings-page read) and provided into the
+  // gated adapters above, so one instance answers both roles.
+  seedPlanEntitlements
+).pipe(Layer.provide(seedPlanEntitlements))
 
 export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
@@ -126,21 +150,29 @@ export type LiveCapabilitiesOptions = {
 export function makeLiveCapabilitiesLayer(
   options: LiveCapabilitiesOptions = {}
 ): Layer.Layer<CapabilityServices, never, Database> {
+  // The entitlements service backs every plan-gated mutation seam, so one
+  // instance is provided into each of them (the same shape the audit log uses).
+  const liveEntitlements = LivePlanEntitlements
   return Layer.mergeAll(
-    LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
+    LiveApiTokenRegistry.pipe(
+      Layer.provide(Layer.merge(LiveAuditEventLog, liveEntitlements))
+    ),
     LiveAuditEventLog,
     LiveNotificationFeed,
-    LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
+    LiveWebhookEndpoints.pipe(
+      Layer.provide(Layer.merge(LiveAuditEventLog, liveEntitlements))
+    ),
     LiveWebhookPublisher(options.webhookQueue),
     LiveWorkspaceInvitations(options.invitationBinding).pipe(
-      Layer.provide(LiveAuditEventLog)
+      Layer.provide(Layer.mergeAll(LiveAuditEventLog, liveEntitlements))
     ),
     LiveWorkspaceMembership(options.memberBinding).pipe(
       Layer.provide(LiveAuditEventLog)
     ),
     LiveWorkspaceLifecycle(options.lifecycleBinding).pipe(
       Layer.provide(LiveAuditEventLog)
-    )
+    ),
+    liveEntitlements
   )
 }
 

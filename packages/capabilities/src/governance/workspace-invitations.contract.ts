@@ -1,5 +1,9 @@
 import { Effect, Option } from 'effect'
-import { type CapabilityUnavailable, type MembershipChangeRejected } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  type EntitlementExceeded,
+  type MembershipChangeRejected
+} from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 import { WorkspaceInvitations } from './workspace-invitations.ts'
@@ -68,7 +72,7 @@ export type InvitationContractCase = {
   readonly name: string
   readonly assert: Effect.Effect<
     void,
-    CapabilityUnavailable | MembershipChangeRejected,
+    CapabilityUnavailable | MembershipChangeRejected | EntitlementExceeded,
     WorkspaceInvitations | WorkspaceMembership | WorkspaceContext
   >
 }

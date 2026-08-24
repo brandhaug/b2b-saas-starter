@@ -18,6 +18,14 @@ import {
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
+
+/** Client-side display labels for the capability's resource vocabulary. */
+const PLAN_RESOURCE_LABELS = {
+  api_tokens: 'API tokens',
+  webhook_endpoints: 'Webhook endpoints',
+  members: 'Members'
+} satisfies Record<string, string>
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
   // The loader assembles the payload per actor: a segment the actor may not
   // read is never read, so it arrives as `null` rather than as data the
@@ -68,7 +76,8 @@ export function WorkspaceSettingsPage({
     apiTokenCount,
     webhookCount,
     unreadCount,
-    invitations
+    invitations,
+    planUsage
   } = data
   // A `null` segment is the server's answer that this actor may not read it.
   const canCreateApiToken = viewerCan(viewer, { apiToken: ['create'] })
@@ -115,6 +124,24 @@ export function WorkspaceSettingsPage({
                 Your role cannot change or delete the workspace.
               </p>
             )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Plan &amp; usage</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {/* One row per entitled resource; the server computes every
+                snapshot, the client only renders them. */}
+            {planUsage.map((snapshot) => (
+              <div key={snapshot.resource} className="grid gap-1">
+                <Label>{PLAN_RESOURCE_LABELS[snapshot.resource]}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {snapshot.used} of {snapshot.limit} used on the {snapshot.planId} plan
+                  {snapshot.used >= snapshot.limit ? ' — at the plan limit' : ''}
+                </p>
+              </div>
+            ))}
           </CardContent>
         </Card>
         <Card>

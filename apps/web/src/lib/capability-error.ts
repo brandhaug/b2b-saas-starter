@@ -44,3 +44,34 @@ export class ForbiddenError extends Error {
     this.name = FORBIDDEN_ERROR_NAME
   }
 }
+
+/** Companion discriminant for the 402 plan-limit case, on the same rules. */
+export const PLAN_LIMIT_ERROR_NAME = 'PlanLimitError'
+
+const RESOURCE_LABELS = {
+  api_tokens: 'API tokens',
+  webhook_endpoints: 'webhook endpoints',
+  members: 'members'
+} satisfies Record<string, string>
+
+/**
+ * Thrown when the workspace's plan does not cover the mutation. Built here for
+ * the same reason as its siblings: only `name`/`message` survive the SSR
+ * boundary, and the calling form shows the message verbatim.
+ */
+export class PlanLimitError extends Error {
+  constructor(resource: string, limit: number, planId: string) {
+    // An unknown resource falls back to the raw vocabulary rather than a
+    // second lookup that could itself be undefined.
+    const label =
+      resource === 'api_tokens' ||
+      resource === 'webhook_endpoints' ||
+      resource === 'members'
+        ? RESOURCE_LABELS[resource]
+        : resource
+    super(
+      `Your workspace is already using all ${limit} ${label} included in the ${planId} plan. Upgrade or remove one to continue.`
+    )
+    this.name = PLAN_LIMIT_ERROR_NAME
+  }
+}

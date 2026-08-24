@@ -1,4 +1,5 @@
 import { makeSeedRoster } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
+import { SeedPlanEntitlements } from '@b2b-saas-starter/capabilities/src/governance/plan-entitlements.ts'
 import {
   SeedWorkspaceInvitations,
   WorkspaceInvitations,
@@ -155,6 +156,17 @@ function run<A, E>(
           'actor' in harness ? (harness.actor ?? null) : OWNER
         ),
         emailDispatcher(outbox, harness.emailFails ?? false)
+      ).pipe(
+        Layer.provide(
+          SeedPlanEntitlements({
+            planId: workspace.planId,
+            // Comfortably under every limit: these tests own invitation
+            // semantics, not the plan gate.
+            apiTokens: 0,
+            webhookEndpoints: 0,
+            members: harness.members?.length ?? 1
+          })
+        )
       )
       const result = yield* Effect.scoped(
         Effect.gen(function* () {

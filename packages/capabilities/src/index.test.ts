@@ -2,7 +2,12 @@ import { layerFromD1 } from '@b2b-saas-starter/db/src/service.ts'
 import { DateTime, Effect, Layer, Option } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { SeedLayer } from './layers.ts'
-import { seedMembers, seedWorkspaceRecord } from './seed-fixture.ts'
+import {
+  seedMembers,
+  seedApiTokens,
+  seedWebhookEndpoints,
+  seedWorkspaceRecord
+} from './seed-fixture.ts'
 import { SeedWorkspaceInvitations } from './governance/workspace-invitations.ts'
 import {
   makeSeedRoster,
@@ -41,6 +46,16 @@ import {
   SeedAuditEventLog
 } from './governance/audit-event-log.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
+import {
+  DECLARED_USED,
+  planEntitlementContractCases
+} from './governance/plan-entitlements.contract.ts'
+import {
+  LivePlanEntitlements,
+  PlanEntitlements,
+  SeedPlanEntitlements
+} from './governance/plan-entitlements.ts'
+import { EntitlementExceeded } from './errors.ts'
 import {
   CONTRACT_EXPIRED_AT,
   workspaceInvitationsContractCases
@@ -300,7 +315,7 @@ describe('webhook endpoint workspace scoping', () => {
   function foreignEndpointLayer(fake: ReturnType<typeof makeFakeD1>) {
     return Layer.merge(
       LiveWebhookEndpoints.pipe(
-        Layer.provide(LiveAuditEventLog),
+        Layer.provide(Layer.mergeAll(LiveAuditEventLog, LivePlanEntitlements)),
         Layer.provide(layerFromD1(fake.binding))
       ),
       testWorkspaceContext(workspaceB)
@@ -359,6 +374,53 @@ describe('workspace list projection', () => {
 
 // The Live half of this same list runs in live-layers.test.ts. Two adapters,
 // one contract — capabilities invariant 4.
+describe('seed plan entitlements contract', () => {
+  // A dedicated fixture workspace whose planted counts are the contract's
+  // DECLARED_USED, so the cases read literals rather than demo-fixture drift.
+  const planWorkspace = {
+    id: 'wrk_plan_seed',
+    slug: 'plan-lab',
+    name: 'Plan Lab',
+    planId: 'starter'
+  }
+  const layer = Layer.merge(
+    SeedPlanEntitlements({
+      planId: planWorkspace.planId,
+      apiTokens: DECLARED_USED.api_tokens,
+      webhookEndpoints: DECLARED_USED.webhook_endpoints,
+      members: DECLARED_USED.members
+    }),
+    testWorkspaceContext(planWorkspace)
+  )
+  for (const contractCase of planEntitlementContractCases(expect)) {
+    it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
+  }
+
+  it.effect('caps a workspace on an unknown plan at starter limits', () =>
+    Effect.gen(function* () {
+      // `seed-fixture.ts`'s demo workspace carries the unknown-on-purpose
+      // `'team'` id; the fallback must fail closed to the restrictive plan.
+      const teamLayer = Layer.merge(
+        SeedPlanEntitlements({
+          planId: 'team',
+          apiTokens: 5,
+          webhookEndpoints: 3,
+          members: 6
+        }),
+        testWorkspaceContext({ ...planWorkspace, planId: 'team' })
+      )
+      const error = yield* Effect.flip(
+        Effect.flatMap(PlanEntitlements, (e) => e.checkLimit('members')).pipe(
+          Effect.provide(teamLayer)
+        )
+      )
+      expect(error._tag).toBe('EntitlementExceeded')
+      if (!(error instanceof EntitlementExceeded)) return
+      expect(error.limit).toBe(5)
+    })
+  )
+})
+
 describe('seed workspace membership contract', () => {
   const cases = workspaceMembershipContractCases(
     { member: 'usr_martin', newcomer: 'usr_newcomer', stranger: 'usr_stranger' },
@@ -383,6 +445,12 @@ describe('seed workspace invitations contract', () => {
   // an already-expired invitation and the demo fixture should not carry one.
   // Membership and invitations share a roster for the same reason `layers.ts`
   // gives them one: accepting adds a member.
+  const seedEntitlements = SeedPlanEntitlements({
+    planId: seedWorkspaceRecord.planId,
+    apiTokens: seedApiTokens.length,
+    webhookEndpoints: seedWebhookEndpoints.length,
+    members: seedMembers.length
+  })
   const invitationLayer = Layer.unwrap(
     Effect.gen(function* () {
       const roster = yield* makeSeedRoster(seedMembers)
@@ -404,6 +472,10 @@ describe('seed workspace invitations contract', () => {
         testWorkspaceContext(seedWorkspaceRecord)
       )
     })
+  ).pipe(
+    // Provided from outside the merge — a layer cannot satisfy its own
+    // requirements from inside the same `mergeAll`.
+    Layer.provide(seedEntitlements)
   )
 
   const cases = workspaceInvitationsContractCases(
@@ -494,7 +566,7 @@ describe('bearer verification write throttling', () => {
   it.effect('performs no writes when verification fails', () => {
     const fake = makeFakeD1()
     const layer = LiveApiTokenRegistry.pipe(
-      Layer.provide(LiveAuditEventLog),
+      Layer.provide(Layer.mergeAll(LiveAuditEventLog, LivePlanEntitlements)),
       Layer.provide(layerFromD1(fake.binding))
     )
 

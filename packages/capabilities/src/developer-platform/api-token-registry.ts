@@ -8,10 +8,12 @@ import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { AuthorizationDenied, type CapabilityUnavailable } from '../errors.ts'
+import { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { type CapabilityUnavailable, type EntitlementExceeded } from '../errors.ts'
 import { hashSha256, randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { PlanEntitlements } from '../governance/plan-entitlements.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 export const API_TOKEN_SCOPES = apiTokenScopes
@@ -78,7 +80,11 @@ export type ApiTokenRegistryInterface = {
 
   readonly create: (
     input: CreateApiTokenInput
-  ) => Effect.Effect<CreatedApiToken, CapabilityUnavailable, WorkspaceContext>
+  ) => Effect.Effect<
+    CreatedApiToken,
+    CapabilityUnavailable | EntitlementExceeded,
+    WorkspaceContext
+  >
   /** Resolves `true` when a token was revoked, `false` when nothing matched. */
   readonly revoke: (
     input: RevokeApiTokenInput
@@ -144,38 +150,46 @@ const SEED_TOKEN_SCOPES = new Map<string, readonly ApiTokenScope[]>([
 
 export function SeedApiTokenRegistry(
   seed: readonly ApiToken[]
-): Layer.Layer<ApiTokenRegistry> {
-  return Layer.succeed(ApiTokenRegistry)({
-    list: Effect.succeed(seed),
-    create: Effect.fnUntraced(function* (input) {
-      const id = yield* newCapabilityId('tok')
-      const createdAt = yield* DateTime.now
+): Layer.Layer<ApiTokenRegistry, never, PlanEntitlements> {
+  return Layer.effect(ApiTokenRegistry)(
+    Effect.gen(function* () {
+      // The plan gate is part of the mutation seam itself, so the Seed adapter
+      // enforces it identically to Live (capabilities invariant 4).
+      const entitlements = yield* PlanEntitlements
       return {
-        id,
-        name: input.name,
-        prefix: 'bsk_seed',
-        scopes: [...input.scopes],
-        lastUsedAt: null,
-        createdAt: DateTime.formatIso(createdAt),
-        token: 'bsk_seed_created_token'
+        list: Effect.succeed(seed),
+        create: Effect.fnUntraced(function* (input) {
+          yield* entitlements.checkLimit('api_tokens')
+          const id = yield* newCapabilityId('tok')
+          const createdAt = yield* DateTime.now
+          return {
+            id,
+            name: input.name,
+            prefix: 'bsk_seed',
+            scopes: [...input.scopes],
+            lastUsedAt: null,
+            createdAt: DateTime.formatIso(createdAt),
+            token: 'bsk_seed_created_token'
+          }
+        }),
+        revoke: () => Effect.succeed(true),
+        verifyBearerToken: (token) => {
+          // Authentication only: an unknown token is the single failure. Whether
+          // the reported scopes cover the request is decided at the route boundary.
+          const scopes = SEED_TOKEN_SCOPES.get(token)
+          if (!scopes) {
+            return Effect.fail(new AuthorizationDenied({ reason: 'invalid_token' }))
+          }
+          return Effect.succeed({
+            id: seed[0]?.id ?? 'tok_seed',
+            workspaceId: 'wrk_starter',
+            workspaceSlug: 'starter-lab',
+            scopes
+          })
+        }
       }
-    }),
-    revoke: () => Effect.succeed(true),
-    verifyBearerToken: (token) => {
-      // Authentication only: an unknown token is the single failure. Whether
-      // the reported scopes cover the request is decided at the route boundary.
-      const scopes = SEED_TOKEN_SCOPES.get(token)
-      if (!scopes) {
-        return Effect.fail(new AuthorizationDenied({ reason: 'invalid_token' }))
-      }
-      return Effect.succeed({
-        id: seed[0]?.id ?? 'tok_seed',
-        workspaceId: 'wrk_starter',
-        workspaceSlug: 'starter-lab',
-        scopes
-      })
-    }
-  })
+    })
+  )
 }
 
 /**
@@ -198,11 +212,12 @@ const unavailable = orUnavailable('api-token-registry')
 export const LiveApiTokenRegistry: Layer.Layer<
   ApiTokenRegistry,
   never,
-  Database | AuditEventLog
+  Database | AuditEventLog | PlanEntitlements
 > = Layer.effect(ApiTokenRegistry)(
   Effect.gen(function* () {
     const db = yield* Database
     const audit = yield* AuditEventLog
+    const entitlements = yield* PlanEntitlements
 
     return {
       list: Effect.gen(function* () {
@@ -231,6 +246,8 @@ export const LiveApiTokenRegistry: Layer.Layer<
       create: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
+          // The plan gate runs before anything is minted or audited.
+          yield* entitlements.checkLimit('api_tokens')
           const token = randomToken()
           const createdAt = DateTime.formatIso(yield* DateTime.now)
           const row = {
