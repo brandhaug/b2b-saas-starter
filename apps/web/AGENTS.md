@@ -8,7 +8,7 @@ TanStack Start web app served by a Cloudflare Worker (`vite.config.ts` uses the 
 - `/docs`, `/blog`, `/faq`, `/help`, `/changelog` — checked-in MDX/JSON knowledge content.
 - `/pricing`, `/privacy`, `/terms` — standard B2B SaaS surfaces adapted for the starter.
 - `/sign-in` — email/password via Better Auth. Carries the forgot-password link and the sign-up link.
-- `/sign-up` — public registration (auto sign-in, verification email follows). Turnstile protection is a later wave; the seam is the single `authClient.signUp.email` call in the page's port.
+- `/sign-up` — public registration (auto sign-in, verification email follows). Turnstile-protected when configured: the page's loader fetches the site key server-side, the widget token rides `x-turnstile-token`, and the auth route verifies it via `TurnstileVerifier` (see `lib/server/turnstile.ts`). Unset env = no widget, no gate.
 - `/forgot-password` — request form; the response message is constant whether or not the email exists (non-disclosure rule, same as the endpoint).
 - `/reset-password` — the landing page for the emailed reset link. The link points at `/api/auth/reset-password/:token` (the auth handler), which validates the token and redirects here with `?token=` or `?error=`; one opaque "cannot be used" state for every failure. Success redirects to `/sign-in` — the reset revokes every session.
 - `/verify-email` — the landing page for the verification link. Same hop shape: `/api/auth/verify-email` redirects here (success plain, failure with `?error=`); `autoSignInAfterVerification` means the success arrival carries a session cookie. The unverified state itself surfaces as the `EmailVerificationBanner` on `/workspaces`, with a resend action.

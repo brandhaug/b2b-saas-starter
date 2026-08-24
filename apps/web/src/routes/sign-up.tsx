@@ -10,7 +10,9 @@ import { PublicLayout } from '@/components/public-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
+import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { safeRedirect } from '@/lib/utils'
+import { TurnstileWidget } from '@/components/auth/turnstile-widget'
 
 const SignUpSearch = Schema.Struct({
   redirect: Schema.optional(Schema.String)
@@ -20,6 +22,8 @@ const decodeSearch = Schema.decodeUnknownSync(SignUpSearch)
 
 export const Route = createFileRoute('/sign-up')({
   validateSearch: (search) => decodeSearch(search),
+  // The site key is read on the server only; `null` keeps the widget unmounted.
+  loader: async () => ({ turnstileSiteKey: await getTurnstileSiteKey() }),
   component: SignUpRoute
 })
 
@@ -38,16 +42,20 @@ export type SignUpWithEmail = (input: {
   readonly name: string
   readonly email: string
   readonly password: string
+  /** The Turnstile widget's token — present only when Turnstile is configured. */
+  readonly turnstileToken?: string | undefined
 }) => Promise<{ readonly error?: { readonly message?: string | undefined } | null }>
 
 /**
  * The route's thin wrapper: reads the search param the router validated and
- * hands it to the page. Keeping the two apart is what lets the page be rendered
- * from a test with plain props, no route tree and no mocked router.
+ * the loader's Turnstile site key, then hands both to the page. Keeping the
+ * two apart is what lets the page be rendered from a test with plain props,
+ * no route tree and no mocked router.
  */
 function SignUpRoute() {
   const { redirect } = Route.useSearch()
-  return <SignUpPage redirect={redirect} />
+  const { turnstileSiteKey } = Route.useLoaderData()
+  return <SignUpPage redirect={redirect} turnstileSiteKey={turnstileSiteKey} />
 }
 
 /**
@@ -56,29 +64,43 @@ function SignUpRoute() {
  *
  * `callbackURL` is where Better Auth's verification redirect lands after the
  * emailed token is exchanged — the default ('/') would verify silently and
- * drop the user on the marketing homepage. Turnstile protection of this form
- * is a later wave; the seam is this one client call.
+ * drop the user on the marketing homepage. When Turnstile is configured the
+ * widget's token rides the `x-turnstile-token` header; the auth route's
+ * server-side gate verifies it before Better Auth sees the request.
  */
 function signUpWithAuthClient(
   input: Parameters<SignUpWithEmail>[0]
 ): ReturnType<SignUpWithEmail> {
-  return authClient.signUp.email({
+  const payload = {
     name: input.name,
     email: input.email,
     password: input.password,
     callbackURL: `${window.location.origin}/verify-email`
+  }
+  if (input.turnstileToken === undefined) {
+    return authClient.signUp.email(payload)
+  }
+  return authClient.signUp.email({
+    ...payload,
+    fetchOptions: { headers: { 'x-turnstile-token': input.turnstileToken } }
   })
 }
 
 export function SignUpPage({
   redirect,
-  signUp = signUpWithAuthClient
+  signUp = signUpWithAuthClient,
+  turnstileSiteKey = null
 }: {
   readonly redirect?: string | undefined
   readonly signUp?: SignUpWithEmail
+  /** Server-provided Turnstile site key; `null` renders no widget (provider-light). */
+  readonly turnstileSiteKey?: string | null | undefined
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  // The challenge token; single-use, so a failed sign-up clears it and the
+  // visitor answers a fresh challenge on retry.
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   // Hydration signal for e2e: interacting before React hydrates falls through
   // to a native GET submit, so a smoke test waits for this attribute.
   const hydrated = useHydrated()
@@ -86,13 +108,23 @@ export function SignUpPage({
     defaultValues: { name: '', email: '', password: '' } satisfies SignUpValues,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
+      if (turnstileSiteKey !== null && turnstileToken === null) {
+        setSubmitError('Complete the bot check before creating your account.')
+        return
+      }
       const result = await signUp({
         name: value.name,
         email: value.email,
-        password: value.password
+        password: value.password,
+        turnstileToken: turnstileToken ?? undefined
       })
       if (result.error) {
-        setSubmitError(result.error.message ?? 'Sign-up failed')
+        setTurnstileToken(null)
+        setSubmitError(
+          result.error.message?.includes('captcha') === true
+            ? 'The bot check failed — try the challenge again.'
+            : (result.error.message ?? 'Sign-up failed')
+        )
         return
       }
       // Registration signs the user in (auto sign-in) and emails a
@@ -181,6 +213,13 @@ export function SignUpPage({
                   />
                 )}
               </form.Field>
+
+              {turnstileSiteKey === null ? null : (
+                <TurnstileWidget
+                  siteKey={turnstileSiteKey}
+                  onToken={setTurnstileToken}
+                />
+              )}
 
               <AuthSubmitButton
                 form={form}

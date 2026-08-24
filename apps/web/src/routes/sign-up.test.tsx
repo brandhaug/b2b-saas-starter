@@ -99,4 +99,27 @@ describe('SignUpPage', () => {
       .map((link) => link.getAttribute('href'))
     expect(hrefs).toContain('/sign-in')
   })
+
+  describe('with Turnstile configured', () => {
+    // The site key mounts the real widget double-free: the script load fails
+    // silently under jsdom (no network), so no token ever arrives — which is
+    // exactly the state these cases exercise.
+    async function renderWithTurnstile() {
+      const rendered = await renderWithRouter(
+        <SignUpPage turnstileSiteKey="site-key" signUp={signUp} />,
+        { path: '/sign-up', destinations: ['/workspaces'] }
+      )
+      await screen.findByLabelText('Name')
+      return rendered
+    }
+
+    it('blocks submit until the widget reports a token, then forwards it', async () => {
+      await renderWithTurnstile()
+      fillValidValues()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+      const alert = await screen.findByRole('alert')
+      expect(alert.textContent).toContain('bot check')
+      expect(signUp).not.toHaveBeenCalled()
+    })
+  })
 })
