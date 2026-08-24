@@ -20,7 +20,7 @@ Configuration decisions, stated in code:
 - `sendOnSignUp: true` — the verification email rides sign-up; there is no UI reason to demand a second hop.
 - `autoSignInAfterVerification: true` — the link clicker gets a session: proving mailbox control is the honest reward, not an escalation.
 - `revokeSessionsOnPasswordReset: true` — the sessions that preceded a reset are exactly what the reset exists to distrust.
-- `requireEmailVerification` stays **off**: local dev sends to the log, where nobody could read a gating email; the unverified state surfaces as an app banner instead.
+- `requireEmailVerification` is **env-gated**: on only when `ENVIRONMENT=production` (decided by `requireEmailVerification` in `@b2b-saas-starter/env`, carried on `AuthConfig` — this package never reads env). Local dev sends to the log, where nobody could read a gating email; the unverified state surfaces as an app banner instead.
 
 ## Position in the dependency graph
 

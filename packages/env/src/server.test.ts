@@ -3,6 +3,7 @@ import {
   auditRequiredEnv,
   optionalModuleEnvKeys,
   readServerEnv,
+  requireEmailVerification,
   serverEnvKeys,
   ServerEnvSchema
 } from './server.ts'
@@ -35,6 +36,19 @@ describe('readServerEnv', () => {
     const env = readServerEnv(workerEnv)
     expect(env.CLOUDFLARE_EMAIL_FROM).toBe('no-reply@example.com')
     expect('DB' in env).toBe(false)
+  })
+})
+
+describe('requireEmailVerification', () => {
+  it('is on in production only', () => {
+    expect(requireEmailVerification('production')).toBe(true)
+  })
+
+  it('stays off for local dev and every non-production environment', () => {
+    expect(requireEmailVerification(undefined)).toBe(false)
+    expect(requireEmailVerification('')).toBe(false)
+    expect(requireEmailVerification('staging')).toBe(false)
+    expect(requireEmailVerification('preview')).toBe(false)
   })
 })
 
