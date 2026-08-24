@@ -15,6 +15,7 @@ import {
   workspaceGroup
 } from './handlers.ts'
 import { makeRateLimiterLayer } from './rate-limit.ts'
+import { mcpProtocolLayer } from './mcp.ts'
 
 // Web-standard platform with no filesystem. HttpApiBuilder requires HttpPlatform
 // + FileSystem + Path + Etag for file/multipart responses we never emit; the
@@ -49,6 +50,10 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
 
   return Layer.mergeAll(
     api,
+    // The MCP protocol route rides beside the contract: same router, same
+    // capability layer, but a JSON-RPC wire shape the OpenAPI document must
+    // not describe. See `mcp.ts`.
+    mcpProtocolLayer(env),
     HttpApiScalar.layer(StarterApi, { path: '/reference' })
   ).pipe(
     HttpRouter.provideRequest(capabilities),
