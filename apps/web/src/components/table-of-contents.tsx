@@ -15,7 +15,7 @@ export function TableOfContents({
   return (
     <nav aria-label="Table of contents" className="sticky top-8">
       <p className="mb-3 text-xs font-medium text-foreground">On this page</p>
-      <ul className="space-y-1">
+      <ul className="flex flex-col gap-1">
         {headings.map((heading) => {
           const isActive = activeIds.has(heading.id)
           return (
@@ -32,8 +32,9 @@ export function TableOfContents({
                   })
                   history.replaceState(null, '', `#${heading.id}`)
                 }}
+                aria-current={isActive ? 'location' : undefined}
                 className={cn(
-                  'block border-l-2 py-1 text-xs transition-colors',
+                  'block border-l-2 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                   heading.level === 3 ? 'pl-5' : 'pl-3',
                   isActive
                     ? 'border-foreground font-medium text-foreground'

@@ -4,8 +4,19 @@ import { useRouter } from '@tanstack/react-router'
 import { Cause, Effect, Exit, Option } from 'effect'
 
 import { ApiTokenForm, type CreateApiToken } from '@/components/api-token-form'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle
+} from '@/components/ui/item'
+import { Spinner } from '@/components/ui/spinner'
 import { causeMessage } from '@/lib/cause-message'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { revokeApiTokenServerFn } from '@/lib/server/api-tokens'
@@ -53,6 +64,9 @@ export function ApiTokensPanel({
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [revoking, setRevoking] = useState<string | null>(null)
+  // Revocation is irreversible, so it takes a click to arm and a second to
+  // commit — the same two-step pattern the settings page's delete uses.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
   const canCreate = viewerCan(viewer, { apiToken: ['create'] })
   const canRevoke = viewerCan(viewer, { apiToken: ['revoke'] })
@@ -94,47 +108,72 @@ export function ApiTokensPanel({
       <div className="grid gap-2">
         <h2 className="text-sm font-medium">Active tokens</h2>
         {tokens.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No active tokens.</p>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>No active tokens</EmptyTitle>
+              <EmptyDescription>Create one above to get started.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <ul className="grid gap-2">
+          <ItemGroup>
             {tokens.map((token) => (
-              <li
-                key={token.id}
-                className="flex items-center justify-between gap-4 rounded-md border border-border p-3"
-              >
-                <div className="grid gap-0.5">
-                  <p className="flex items-center gap-2 text-sm font-medium">
+              <Item key={token.id} variant="outline" size="sm">
+                <ItemContent>
+                  <ItemTitle>
                     {token.name}
                     <code className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">
                       {token.prefix}…
                     </code>
-                  </p>
-                  <p className="text-xs text-muted-foreground">
+                  </ItemTitle>
+                  <ItemDescription>
                     Created {formatDate(token.createdAt)} · Last used{' '}
                     {formatDate(token.lastUsedAt)}
-                  </p>
-                  <div className="mt-1 flex flex-wrap gap-1">
+                  </ItemDescription>
+                  <div className="flex flex-wrap gap-1">
                     {token.scopes.map((scope) => (
                       <Badge key={scope} variant="outline">
                         {scope}
                       </Badge>
                     ))}
                   </div>
-                </div>
+                </ItemContent>
                 {canRevoke ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={revoking === token.id}
-                    onClick={() => void revoke(token.id)}
-                  >
-                    Revoke
-                    {revoking === token.id ? '…' : ''}
-                  </Button>
+                  <ItemActions>
+                    {confirmingId === token.id ? (
+                      <>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={revoking === token.id}
+                          onClick={() => void revoke(token.id)}
+                        >
+                          {revoking === token.id ? (
+                            <Spinner data-icon="inline-start" />
+                          ) : null}
+                          Confirm revoke
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setConfirmingId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setConfirmingId(token.id)}
+                      >
+                        Revoke
+                      </Button>
+                    )}
+                  </ItemActions>
                 ) : null}
-              </li>
+              </Item>
             ))}
-          </ul>
+          </ItemGroup>
         )}
         {canRevoke ? null : (
           <p className="text-xs text-muted-foreground">
@@ -144,9 +183,9 @@ export function ApiTokensPanel({
       </div>
 
       {error ? (
-        <p className="text-xs text-destructive" role="alert">
-          {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
     </div>
   )

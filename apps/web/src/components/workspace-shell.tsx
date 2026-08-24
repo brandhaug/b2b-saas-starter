@@ -229,7 +229,7 @@ function WorkspaceNav({
         </span>
         B2B Starter
       </Link>
-      <nav className="mt-8 grid gap-1">
+      <nav aria-label="Workspace" className="mt-8 grid gap-1">
         {workspaceSlug === null ? null : (
           <>
             <NavLink
@@ -299,7 +299,9 @@ function WorkspaceNav({
         <Link
           to="/admin"
           onClick={onNavigate}
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+          className={navLinkClasses}
+          activeOptions={{ exact: true }}
+          activeProps={{ 'aria-current': 'page' }}
         >
           <ShieldIcon className="size-4" />
           System admin
@@ -308,6 +310,12 @@ function WorkspaceNav({
     </>
   )
 }
+
+// Active and inactive treatments for nav links, kept as constants so the
+// active state reads as one statement: the page link is foreground text on
+// muted ground plus `aria-current="page"` (set through `activeProps`).
+const navLinkClasses =
+  'flex items-center gap-2 rounded-md px-3 py-2 text-sm data-[status=active]:bg-muted data-[status=active]:text-foreground text-muted-foreground hover:bg-muted hover:text-foreground'
 
 function NavLink({
   to,
@@ -335,7 +343,11 @@ function NavLink({
       to={to}
       params={{ workspaceSlug }}
       onClick={onNavigate}
-      className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+      className={navLinkClasses}
+      // The overview link must match exactly, or every subpage would also
+      // mark "Overview" current.
+      activeOptions={{ exact: to === '/workspaces/$workspaceSlug' }}
+      activeProps={{ 'aria-current': 'page' }}
     >
       {icon}
       {label}

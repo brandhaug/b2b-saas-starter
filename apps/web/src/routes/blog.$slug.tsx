@@ -114,7 +114,8 @@ function BlogPostPage() {
 
             <article
               ref={articleRef}
-              className="prose prose-neutral max-w-none dark:prose-invert"
+              /* Token-mapped prose colors — see docs.$category.$slug.tsx. */
+              className="prose max-w-none"
             >
               <Component components={mdxComponents} />
             </article>

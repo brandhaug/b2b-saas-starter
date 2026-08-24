@@ -46,11 +46,21 @@ type MdxLineChartProps = {
   readonly xKey: string
   readonly lines: readonly SeriesKey[]
   readonly height?: number
+  /** Text alternative announced to screen readers; charts are otherwise images. */
+  readonly title?: string
 }
 
-export function MdxLineChart({ data, xKey, lines, height = 300 }: MdxLineChartProps) {
+export function MdxLineChart({
+  data,
+  xKey,
+  lines,
+  height = 300,
+  title
+}: MdxLineChartProps) {
   return (
-    <div className="not-prose my-6">
+    <figure className="not-prose my-6">
+      {/* Text alternative for screen readers — the rendered SVG is an image. */}
+      <figcaption className="sr-only">{title ?? 'Line chart'}</figcaption>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={[...data]} margin={CHART_MARGIN}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -73,7 +83,7 @@ export function MdxLineChart({ data, xKey, lines, height = 300 }: MdxLineChartPr
           ))}
         </LineChart>
       </ResponsiveContainer>
-    </div>
+    </figure>
   )
 }
 
@@ -82,11 +92,21 @@ type MdxBarChartProps = {
   readonly xKey: string
   readonly bars: readonly SeriesKey[]
   readonly height?: number
+  /** Text alternative announced to screen readers; charts are otherwise images. */
+  readonly title?: string
 }
 
-export function MdxBarChart({ data, xKey, bars, height = 300 }: MdxBarChartProps) {
+export function MdxBarChart({
+  data,
+  xKey,
+  bars,
+  height = 300,
+  title
+}: MdxBarChartProps) {
   return (
-    <div className="not-prose my-6">
+    <figure className="not-prose my-6">
+      {/* Text alternative for screen readers — the rendered SVG is an image. */}
+      <figcaption className="sr-only">{title ?? 'Bar chart'}</figcaption>
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={[...data]} margin={CHART_MARGIN}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -105,7 +125,7 @@ export function MdxBarChart({ data, xKey, bars, height = 300 }: MdxBarChartProps
           ))}
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </figure>
   )
 }
 
@@ -115,6 +135,8 @@ type MdxPieChartProps = {
   readonly valueKey: string
   readonly height?: number
   readonly colors?: readonly string[]
+  /** Text alternative announced to screen readers; charts are otherwise images. */
+  readonly title?: string
 }
 
 export function MdxPieChart({
@@ -122,12 +144,15 @@ export function MdxPieChart({
   nameKey,
   valueKey,
   height = 300,
-  colors
+  colors,
+  title
 }: MdxPieChartProps) {
   const palette = colors ?? CHART_COLORS
 
   return (
-    <div className="not-prose my-6">
+    <figure className="not-prose my-6">
+      {/* Text alternative for screen readers — the rendered SVG is an image. */}
+      <figcaption className="sr-only">{title ?? 'Pie chart'}</figcaption>
       <ResponsiveContainer width="100%" height={height}>
         <PieChart>
           <Pie
@@ -150,6 +175,6 @@ export function MdxPieChart({
           <Legend wrapperStyle={LEGEND_STYLE} />
         </PieChart>
       </ResponsiveContainer>
-    </div>
+    </figure>
   )
 }

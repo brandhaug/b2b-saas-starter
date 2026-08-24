@@ -17,7 +17,7 @@ const BILL_OF_MATERIALS: readonly string[] = [
 
 function HeroSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
   return (
-    <section className="grid-paper border-b border-border">
+    <section className="border-b border-border">
       <div className="mx-auto max-w-7xl px-4 pt-16 pb-10 sm:px-6 lg:pt-24">
         <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-16">
           <div className="flex max-w-xl flex-col items-start">
@@ -55,7 +55,7 @@ function HeroSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
               </code>
             </div>
           </div>
-          <figure className="rise rise-3 overflow-x-auto border border-border bg-background/85 p-3 sm:p-4">
+          <figure className="rise rise-3 min-w-0 overflow-x-auto border border-border bg-card p-3 sm:p-4">
             <ArchitectureSchematic />
             <figcaption className="sr-only">
               Every label in this diagram is a real path in the repository.

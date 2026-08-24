@@ -86,6 +86,8 @@ type DataTableProps<TData extends RowData> = {
   readonly filterColumnId?: string
   readonly pageSize?: number
   readonly emptyMessage?: string
+  /** Accessible name for the underlying `<table>` element. */
+  readonly tableLabel?: string
 }
 
 export function DataTable<TData extends RowData>({
@@ -94,7 +96,8 @@ export function DataTable<TData extends RowData>({
   filterPlaceholder,
   filterColumnId,
   pageSize = 10,
-  emptyMessage = 'No results.'
+  emptyMessage = 'No results.',
+  tableLabel
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -122,7 +125,7 @@ export function DataTable<TData extends RowData>({
           aria-label={filterPlaceholder ?? 'Filter rows'}
         />
       )}
-      <Table>
+      <Table aria-label={tableLabel}>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id}>

@@ -10,6 +10,7 @@ import { PublicLayout } from '@/components/public-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const ResetPasswordSearch = Schema.Struct({
   token: Schema.optional(Schema.String),
@@ -106,7 +107,7 @@ export function ResetPasswordPage({
         >
           <Card className="w-full">
             <CardHeader>
-              <CardTitle>This link cannot be used</CardTitle>
+              <CardTitle as="h1">This link cannot be used</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4">
               <p className="text-sm text-muted-foreground">
@@ -136,7 +137,7 @@ export function ResetPasswordPage({
       >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>Choose a new password</CardTitle>
+            <CardTitle as="h1">Choose a new password</CardTitle>
             <p className="text-sm text-muted-foreground">
               Every session signed in before this reset will be signed out.
             </p>
@@ -197,9 +198,9 @@ export function ResetPasswordPage({
               />
 
               {submitError ? (
-                <p className="text-xs text-destructive" role="alert">
-                  {submitError}
-                </p>
+                <Alert variant="destructive">
+                  <AlertDescription>{submitError}</AlertDescription>
+                </Alert>
               ) : null}
             </form>
           </CardContent>

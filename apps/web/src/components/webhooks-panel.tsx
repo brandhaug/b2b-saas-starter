@@ -6,8 +6,20 @@ import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { Cause, Effect, Exit, Option } from 'effect'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle
+} from '@/components/ui/item'
+import { Separator } from '@/components/ui/separator'
+import { Spinner } from '@/components/ui/spinner'
 import { WebhookForm, type CreateWebhookEndpoint } from '@/components/webhook-form'
 import { causeMessage } from '@/lib/cause-message'
 import { viewerCan, type Viewer } from '@/lib/permissions'
@@ -111,6 +123,10 @@ export function WebhooksPanel({
     readonly secret: string
   } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  // Disabling an endpoint stops its deliveries with no re-enable control in
+  // this surface, so it takes a click to arm and a second to commit — the same
+  // two-step pattern the settings page's delete uses.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
   const canCreate = viewerCan(viewer, { webhook: ['create'] })
   const canDisable = viewerCan(viewer, { webhook: ['disable'] })
@@ -178,49 +194,54 @@ export function WebhooksPanel({
       <div className="grid gap-2">
         <h2 className="text-sm font-medium">Endpoints</h2>
         {endpoints.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No endpoints registered.</p>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>No endpoints registered</EmptyTitle>
+              <EmptyDescription>Register one above to get started.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <ul className="grid gap-3">
+          <ItemGroup>
             {endpoints.map((endpoint) => (
-              <li
+              <Item
                 key={endpoint.id}
-                className="grid gap-2 rounded-md border border-border p-3"
+                variant="outline"
+                size="sm"
+                className="flex-col items-stretch"
               >
-                <div className="grid gap-0.5">
-                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                <ItemContent>
+                  <ItemTitle className="flex-wrap">
                     <code className="break-all">{endpoint.url}</code>
                     {endpoint.enabled ? (
                       <Badge variant="outline">enabled</Badge>
                     ) : (
                       <Badge variant="secondary">disabled</Badge>
                     )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
+                  </ItemTitle>
+                  <ItemDescription>
                     Success rate {endpoint.successRate}%
-                  </p>
-                  <div className="mt-1 flex flex-wrap gap-1">
+                  </ItemDescription>
+                  <div className="flex flex-wrap gap-1">
                     {endpoint.events.map((event) => (
                       <Badge key={event} variant="outline">
                         {event}
                       </Badge>
                     ))}
                   </div>
-                </div>
+                </ItemContent>
 
                 <Deliveries deliveries={endpoint.deliveries} />
 
                 {(canDisable || canRotate) && endpoint.enabled ? (
-                  <div className="flex flex-wrap gap-2">
+                  <ItemActions className="flex-wrap">
                     {canDisable ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={busy === endpoint.id}
-                        onClick={() => void disable(endpoint.id)}
-                      >
-                        Disable
-                        {busy === endpoint.id ? '…' : ''}
-                      </Button>
+                      <DisableAction
+                        confirming={confirmingId === endpoint.id}
+                        busy={busy === endpoint.id}
+                        onArm={() => setConfirmingId(endpoint.id)}
+                        onCancel={() => setConfirmingId(null)}
+                        onConfirm={() => void disable(endpoint.id)}
+                      />
                     ) : null}
                     {canRotate ? (
                       <Button
@@ -229,31 +250,77 @@ export function WebhooksPanel({
                         disabled={busy === endpoint.id}
                         onClick={() => void rotate(endpoint.id)}
                       >
+                        {busy === endpoint.id ? (
+                          <Spinner data-icon="inline-start" />
+                        ) : null}
                         Rotate secret
                       </Button>
                     ) : null}
-                  </div>
+                  </ItemActions>
                 ) : null}
 
                 {rotatedSecret?.endpointId === endpoint.id ? (
-                  <div className="grid gap-1 p-3 text-xs">
-                    <p className="font-medium">
-                      Secret rotated. Copy it now, it will not be shown again.
-                    </p>
-                    <code className="break-all">{rotatedSecret.secret}</code>
-                  </div>
+                  <>
+                    <Separator />
+                    <Alert>
+                      <AlertTitle>
+                        Secret rotated. Copy it now, it will not be shown again.
+                      </AlertTitle>
+                      <AlertDescription>
+                        <code className="break-all">{rotatedSecret.secret}</code>
+                      </AlertDescription>
+                    </Alert>
+                  </>
                 ) : null}
-              </li>
+              </Item>
             ))}
-          </ul>
+          </ItemGroup>
         )}
       </div>
 
       {error ? (
-        <p className="text-xs text-destructive" role="alert">
-          {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * The disable control's two states: an armed pair (confirm plus cancel) and
+ * the idle button that arms it. Extracted so the panel's row stays flat — a
+ * nested ternary here is exactly the branching this named component owns.
+ */
+function DisableAction({
+  confirming,
+  busy,
+  onArm,
+  onCancel,
+  onConfirm
+}: {
+  readonly confirming: boolean
+  readonly busy: boolean
+  readonly onArm: () => void
+  readonly onCancel: () => void
+  readonly onConfirm: () => void
+}) {
+  if (!confirming) {
+    return (
+      <Button variant="ghost" size="sm" onClick={onArm}>
+        Disable
+      </Button>
+    )
+  }
+  return (
+    <>
+      <Button variant="destructive" size="sm" disabled={busy} onClick={onConfirm}>
+        {busy ? <Spinner data-icon="inline-start" /> : null}
+        Confirm disable
+      </Button>
+      <Button variant="ghost" size="sm" onClick={onCancel}>
+        Cancel
+      </Button>
+    </>
   )
 }

@@ -44,6 +44,16 @@ export function MdxMermaid({ chart }: { readonly chart: string }) {
   }, [processedChart, id])
 
   return (
-    <div ref={containerRef} className="my-6 flex justify-center [&>svg]:max-w-full" />
+    <figure className="not-prose my-6 overflow-x-auto">
+      {/* Text alternative for screen readers — the rendered SVG is an image. */}
+      <figcaption className="sr-only">Diagram</figcaption>
+      <div
+        ref={containerRef}
+        /* max-w-full keeps wide diagrams inside the column; h-auto stops the
+           SVG from distorting when it shrinks, and the scroll container above
+           absorbs anything narrower than its intrinsic width can render. */
+        className="flex min-w-fit justify-center [&>svg]:h-auto [&>svg]:max-w-full"
+      />
+    </figure>
   )
 }

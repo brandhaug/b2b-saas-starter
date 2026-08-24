@@ -86,7 +86,7 @@ export function WorkspaceSettingsPage({
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Workspace</CardTitle>
+            <CardTitle as="h2">Workspace</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-5">
             {/* Rename and delete are gated per action, not per page: an admin
@@ -116,7 +116,7 @@ export function WorkspaceSettingsPage({
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Operational settings</CardTitle>
+            <CardTitle as="h2">Operational settings</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-5">
             {apiTokenCount === null ? null : (

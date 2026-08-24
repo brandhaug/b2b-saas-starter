@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
 import { startCheckoutServerFn } from '@/lib/server/billing'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Spinner } from '@/components/ui/spinner'
 
 const CHECKOUT_DISABLED =
   'Checkout is not available right now: billing is not configured for this deployment.'
@@ -98,7 +100,7 @@ export function WorkspaceBillingPage({
     <div className="grid gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Current plan</CardTitle>
+          <CardTitle as="h2">Current plan</CardTitle>
         </CardHeader>
         <CardContent className="flex items-center gap-3">
           <Badge>{currentPlanId}</Badge>
@@ -117,12 +119,9 @@ export function WorkspaceBillingPage({
         </p>
       )}
       {error ? (
-        <p
-          role="alert"
-          className="rounded-md border border-destructive/50 p-4 text-sm text-destructive"
-        >
-          {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
       <div className="grid gap-4 md:grid-cols-3">
         {plans.map((plan) => (
@@ -145,15 +144,14 @@ export function WorkspaceBillingPage({
                   limit={plan.limits.webhookEndpoints}
                 />
               </ul>
-              {renderPlanAction({
-                planId: plan.id,
-                currentPlanId,
-                canManageBilling,
-                stripeConfigured,
-                pending: pendingPlan !== null,
-                pendingForPlan: pendingPlan === plan.id,
-                onUpgrade: () => void upgrade(plan.id)
-              })}
+              <PlanAction
+                planId={plan.id}
+                currentPlanId={currentPlanId}
+                canManageBilling={canManageBilling}
+                stripeConfigured={stripeConfigured}
+                pendingPlan={pendingPlan}
+                onUpgrade={() => void upgrade(plan.id)}
+              />
             </CardContent>
           </Card>
         ))}
@@ -163,37 +161,73 @@ export function WorkspaceBillingPage({
 }
 
 /**
- * The one decision under each plan card. Extracted so the JSX stays flat:
- * only the self-serve Team plan renders an upgrade button; Starter downgrades
- * ride the provider subscription flow and Enterprise is sold, not self-served.
+ * Which action goes under a plan card: the self-serve Team upgrade button, a
+ * static hint for plans sold outside the product, or nothing. Each branch is
+ * its own named component, so no boolean flags leak between variants.
  */
-function renderPlanAction(input: {
-  planId: string
-  currentPlanId: string
-  canManageBilling: boolean
-  stripeConfigured: boolean
-  pending: boolean
-  pendingForPlan: boolean
-  onUpgrade: () => void
+function PlanAction({
+  planId,
+  currentPlanId,
+  canManageBilling,
+  stripeConfigured,
+  pendingPlan,
+  onUpgrade
+}: {
+  readonly planId: string
+  readonly currentPlanId: string
+  readonly canManageBilling: boolean
+  readonly stripeConfigured: boolean
+  readonly pendingPlan: string | null
+  readonly onUpgrade: () => void
 }) {
-  if (!input.canManageBilling || input.planId === input.currentPlanId) {
+  if (planId === currentPlanId || !canManageBilling) {
     return null
   }
-  if (input.planId === 'team' && input.stripeConfigured) {
+  if (planId === 'team' && stripeConfigured) {
     return (
-      <Button
-        className="mt-2 w-fit"
-        variant="outline"
-        disabled={input.pending}
-        onClick={input.onUpgrade}
-      >
-        {input.pendingForPlan ? 'Redirecting…' : 'Upgrade to Team'}
-      </Button>
+      <TeamUpgradeButton
+        disabled={pendingPlan !== null}
+        busy={pendingPlan === planId}
+        onUpgrade={onUpgrade}
+      />
     )
   }
+  return <StaticPlanHint planId={planId} />
+}
+
+/**
+ * The self-serve upgrade CTA. Only the Team plan is purchasable in-product;
+ * this variant exists so the pending spinner and the disabled-during-any-
+ * checkout behavior live beside the one button that has them.
+ */
+function TeamUpgradeButton({
+  disabled,
+  busy,
+  onUpgrade
+}: {
+  /** Any checkout in flight disables every button, not just its own plan's. */
+  readonly disabled: boolean
+  readonly busy: boolean
+  readonly onUpgrade: () => void
+}) {
+  return (
+    <Button
+      className="mt-2 w-fit"
+      variant="outline"
+      disabled={disabled}
+      onClick={onUpgrade}
+    >
+      {busy ? <Spinner data-icon="inline-start" /> : null}
+      Upgrade to Team
+    </Button>
+  )
+}
+
+/** The copy under plans that are not self-serve upgradable from here. */
+function StaticPlanHint({ planId }: { readonly planId: string }) {
   return (
     <p className="text-xs text-muted-foreground">
-      {input.planId === 'starter'
+      {planId === 'starter'
         ? 'Downgrades are handled by the provider subscription flow.'
         : 'Contact sales to move to Enterprise.'}
     </p>

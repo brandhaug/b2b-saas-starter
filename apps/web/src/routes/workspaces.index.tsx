@@ -38,7 +38,7 @@ function WorkspacesPage() {
         {workspaces.length === 0 ? (
           <Card className="mt-8">
             <CardHeader>
-              <CardTitle>No workspaces yet</CardTitle>
+              <CardTitle as="h2">No workspaces yet</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-5">
               {/* Creating is the way in: the creator becomes the workspace's
@@ -70,7 +70,7 @@ function WorkspacesPage() {
               >
                 <Card className="transition-colors hover:bg-muted/40 group-focus-visible/workspace-link:ring-2 group-focus-visible/workspace-link:ring-ring group-focus-visible/workspace-link:ring-offset-2">
                   <CardHeader>
-                    <CardTitle>{workspace.name}</CardTitle>
+                    <CardTitle as="h2">{workspace.name}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground">

@@ -1,6 +1,13 @@
 import { FilterXIcon, HistoryIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import {
   Table,
@@ -95,10 +102,7 @@ export function WorkspaceAuditPage({
     >
       <Card>
         <CardHeader>
-          <CardTitle>Audit trail</CardTitle>
-          <p className="text-muted-foreground text-sm">
-            Everything this workspace has done, newest first.
-          </p>
+          <CardTitle as="h2">Audit trail</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -160,13 +164,13 @@ export function WorkspaceAuditPage({
             <EmptyTrail hasFilters={hasFilters} />
           ) : (
             <>
-              <Table>
+              <Table aria-label="Audit events, newest first">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>When</TableHead>
-                    <TableHead>Event</TableHead>
-                    <TableHead>Target</TableHead>
-                    <TableHead>Actor</TableHead>
+                    <TableHead scope="col">When</TableHead>
+                    <TableHead scope="col">Event</TableHead>
+                    <TableHead scope="col">Target</TableHead>
+                    <TableHead scope="col">Actor</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -207,24 +211,28 @@ export function WorkspaceAuditPage({
 
 function EmptyTrail({ hasFilters }: { readonly hasFilters: boolean }) {
   return (
-    <div className="grid place-items-center gap-2 rounded-md border border-dashed p-8 text-center">
-      <HistoryIcon aria-hidden className="text-muted-foreground size-6" />
-      {hasFilters ? (
-        <>
-          <p className="text-sm font-medium">No events match these filters</p>
-          <p className="text-muted-foreground text-xs">
-            Widen the date range or clear a filter to see more of the trail.
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="text-sm font-medium">Nothing audited yet</p>
-          <p className="text-muted-foreground text-xs">
-            Actions in this workspace (tokens, webhooks, membership) appear here as they
-            happen.
-          </p>
-        </>
-      )}
-    </div>
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <HistoryIcon aria-hidden />
+        </EmptyMedia>
+        {hasFilters ? (
+          <>
+            <EmptyTitle>No events match these filters</EmptyTitle>
+            <EmptyDescription>
+              Widen the date range or clear a filter to see more of the trail.
+            </EmptyDescription>
+          </>
+        ) : (
+          <>
+            <EmptyTitle>Nothing audited yet</EmptyTitle>
+            <EmptyDescription>
+              Actions in this workspace (tokens, webhooks, membership) appear here as
+              they happen.
+            </EmptyDescription>
+          </>
+        )}
+      </EmptyHeader>
+    </Empty>
   )
 }

@@ -2,7 +2,17 @@ import { createFileRoute } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/public-layout'
 
 export const Route = createFileRoute('/help/')({
-  component: HelpPage
+  component: HelpPage,
+  head: () => ({
+    meta: [
+      { title: 'Help | B2B SaaS Starter' },
+      {
+        name: 'description',
+        content:
+          'How to run the starter locally, configure optional providers, and operate the reference workspace.'
+      }
+    ]
+  })
 })
 
 function HelpPage() {

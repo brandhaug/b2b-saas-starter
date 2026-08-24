@@ -9,10 +9,21 @@ import { useForm } from '@tanstack/react-form'
 import { Cause, Effect, Exit, Option } from 'effect'
 
 import { FormTextField } from '@/components/form-text-field'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import { FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle
+} from '@/components/ui/item'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Spinner } from '@/components/ui/spinner'
 import { causeMessage } from '@/lib/cause-message'
 import {
   cancelInvitationServerFn,
@@ -139,8 +150,8 @@ export function InvitationPanel({
 
         <form.Field name="role">
           {(field) => (
-            <fieldset className="grid gap-2">
-              <legend className="text-sm font-medium leading-none">Role</legend>
+            <FieldSet>
+              <FieldLegend variant="label">Role</FieldLegend>
               <RadioGroup
                 name={field.name}
                 value={field.state.value}
@@ -148,13 +159,13 @@ export function InvitationPanel({
                 className="flex flex-wrap gap-3"
               >
                 {WORKSPACE_ROLES.map((role) => (
-                  <Label key={role} className="text-sm">
+                  <FieldLabel key={role}>
                     <RadioGroupItem value={role} />
                     <span>{role}</span>
-                  </Label>
+                  </FieldLabel>
                 ))}
               </RadioGroup>
-            </fieldset>
+            </FieldSet>
           )}
         </form.Field>
 
@@ -165,47 +176,54 @@ export function InvitationPanel({
           ]}
         >
           {([canSubmit, isSubmitting]) => (
-            <Button type="submit" disabled={!canSubmit} className="justify-self-start">
-              {isSubmitting ? 'Sending…' : 'Send invitation'}
+            <Button
+              type="submit"
+              disabled={!canSubmit || isSubmitting}
+              className="justify-self-start"
+            >
+              {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
+              Send invitation
             </Button>
           )}
         </form.Subscribe>
 
         {sent ? (
-          <div className="grid gap-1 rounded-md border border-border bg-muted/40 p-3 text-xs">
-            <p className="font-medium">
+          <Alert className="justify-self-stretch">
+            <AlertTitle>
               {sent.delivered
                 ? `Invitation sent to ${sent.invitation.email}.`
                 : `Invitation created for ${sent.invitation.email}, but the email could not be sent; share this link instead.`}
-            </p>
-            <code className="break-all">{sent.inviteUrl}</code>
-          </div>
+            </AlertTitle>
+            <AlertDescription>
+              <code className="break-all">{sent.inviteUrl}</code>
+            </AlertDescription>
+          </Alert>
         ) : null}
         {submitError ? (
-          <p className="text-xs text-destructive" role="alert">
-            {submitError}
-          </p>
+          <Alert variant="destructive">
+            <AlertDescription>{submitError}</AlertDescription>
+          </Alert>
         ) : null}
       </form>
 
       <div className="grid gap-2">
-        <p className="text-sm font-medium">Invitations</p>
+        <h3 className="text-sm font-medium">Invitations</h3>
         {invitations.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            No invitations yet. Invite someone above.
-          </p>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>No invitations yet</EmptyTitle>
+              <EmptyDescription>Invite someone above.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <ul className="grid gap-2">
+          <ItemGroup>
             {invitations.map((invitation) => (
-              <li
-                key={invitation.id}
-                className="flex items-center justify-between gap-4 rounded-md border border-border p-3"
-              >
-                <div className="grid gap-0.5">
-                  <p className="text-sm font-medium">{invitation.email}</p>
-                  <p className="text-xs text-muted-foreground">{invitation.role}</p>
-                </div>
-                <div className="flex items-center gap-3">
+              <Item key={invitation.id} variant="outline" size="sm">
+                <ItemContent>
+                  <ItemTitle>{invitation.email}</ItemTitle>
+                  <ItemDescription>{invitation.role}</ItemDescription>
+                </ItemContent>
+                <ItemActions>
                   <Badge variant={statusVariant(invitation.status)}>
                     {invitation.status}
                   </Badge>
@@ -216,18 +234,21 @@ export function InvitationPanel({
                       disabled={cancelling === invitation.id}
                       onClick={() => void cancel(invitation.id)}
                     >
-                      {cancelling === invitation.id ? 'Cancelling…' : 'Cancel'}
+                      {cancelling === invitation.id ? (
+                        <Spinner data-icon="inline-start" />
+                      ) : null}
+                      Cancel
                     </Button>
                   ) : null}
-                </div>
-              </li>
+                </ItemActions>
+              </Item>
             ))}
-          </ul>
+          </ItemGroup>
         )}
         {cancelError ? (
-          <p className="text-xs text-destructive" role="alert">
-            {cancelError}
-          </p>
+          <Alert variant="destructive">
+            <AlertDescription>{cancelError}</AlertDescription>
+          </Alert>
         ) : null}
       </div>
     </div>

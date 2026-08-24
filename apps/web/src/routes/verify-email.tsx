@@ -35,7 +35,7 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
       >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>
+            <CardTitle as="h1">
               {error ? (
                 <span className="flex items-center gap-2">
                   <CircleAlertIcon className="size-5 text-destructive" />

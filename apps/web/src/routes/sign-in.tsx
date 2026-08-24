@@ -6,6 +6,7 @@ import { KeyRoundIcon } from 'lucide-react'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { PublicLayout } from '@/components/public-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
@@ -103,7 +104,7 @@ export function SignInPage({
       >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>Sign in</CardTitle>
+            <CardTitle as="h1">Sign in</CardTitle>
             <p className="text-sm text-muted-foreground">
               Sign in with your email and password.
             </p>
@@ -169,9 +170,9 @@ export function SignInPage({
               </p>
 
               {submitError ? (
-                <p className="text-xs text-destructive" role="alert">
-                  {submitError}
-                </p>
+                <Alert variant="destructive">
+                  <AlertDescription>{submitError}</AlertDescription>
+                </Alert>
               ) : null}
             </form>
             <p className="text-xs text-muted-foreground">

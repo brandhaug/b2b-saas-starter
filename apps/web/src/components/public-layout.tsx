@@ -25,7 +25,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
       >
         Skip to content
       </a>
-      <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur-sm">
+      <header className="sticky top-0 z-40 border-b border-border bg-background">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger
@@ -93,10 +93,25 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
       <footer className="mt-auto border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between">
           <span>B2B SaaS Starter for Cloudflare-first teams.</span>
-          <div className="flex gap-4">
-            <Link to="/privacy">Privacy</Link>
-            <Link to="/terms">Terms</Link>
-            <Link to="/changelog">Changelog</Link>
+          <div className="flex flex-wrap gap-4">
+            <Link
+              to="/privacy"
+              className="underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Privacy
+            </Link>
+            <Link
+              to="/terms"
+              className="underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Terms
+            </Link>
+            <Link
+              to="/changelog"
+              className="underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Changelog
+            </Link>
           </div>
         </div>
       </footer>

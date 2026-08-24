@@ -39,7 +39,7 @@ describe('EmailVerificationBanner', () => {
     expect(sendVerificationEmail).toHaveBeenCalledWith({
       email: 'demo@starter.local'
     })
-    const status = await screen.findByRole('status')
+    const status = await screen.findByRole('alert')
     expect(status.textContent).toContain('demo@starter.local')
     expect(
       screen.queryByRole('button', { name: 'Resend verification email' })

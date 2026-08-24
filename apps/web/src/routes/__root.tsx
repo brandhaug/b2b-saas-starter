@@ -17,8 +17,8 @@ import { readClientTelemetryConfig } from '@/lib/server/telemetry-config'
 import appCss from '../index.css?url'
 
 // Browser `theme-color` meta requires literal color values — cannot use CSS vars.
-const THEME_COLOR_DARK = '#1d1d1d'
-const THEME_COLOR_LIGHT = '#ffffff'
+const THEME_COLOR_DARK = '#1e1e2e'
+const THEME_COLOR_LIGHT = '#eff1f5'
 
 // Named lazy loader: the devtools bundle must stay out of the production
 // graph, so the import is deferred behind this one binding.

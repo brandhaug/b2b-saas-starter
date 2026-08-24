@@ -6,39 +6,40 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Light scheme: Catppuccin Latte */
 :root {
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.3211 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.3211 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.3211 0 0);
-  --primary: oklch(0.6231 0.188 259.8145);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.967 0.0029 264.5419);
-  --secondary-foreground: oklch(0.4461 0.0263 256.8018);
-  --muted: oklch(0.9846 0.0017 247.8389);
-  --muted-foreground: oklch(0.551 0.0234 264.3637);
-  --accent: oklch(0.9514 0.025 236.8242);
-  --accent-foreground: oklch(0.3791 0.1378 265.5222);
-  --destructive: oklch(0.6368 0.2078 25.3313);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.9276 0.0058 264.5313);
-  --input: oklch(0.9276 0.0058 264.5313);
-  --ring: oklch(0.6231 0.188 259.8145);
-  --chart-1: oklch(0.6231 0.188 259.8145);
-  --chart-2: oklch(0.5461 0.2152 262.8809);
-  --chart-3: oklch(0.4882 0.2172 264.3763);
-  --chart-4: oklch(0.4244 0.1809 265.6377);
-  --chart-5: oklch(0.3791 0.1378 265.5222);
-  --sidebar: oklch(0.9846 0.0017 247.8389);
-  --sidebar-foreground: oklch(0.3211 0 0);
-  --sidebar-primary: oklch(0.6231 0.188 259.8145);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.9514 0.025 236.8242);
-  --sidebar-accent-foreground: oklch(0.3791 0.1378 265.5222);
-  --sidebar-border: oklch(0.9276 0.0058 264.5313);
-  --sidebar-ring: oklch(0.6231 0.188 259.8145);
+  --background: oklch(0.9578 0.0058 264.532); /* latte base #eff1f5 */
+  --foreground: oklch(0.4355 0.043 279.325); /* latte text #4c4f69 */
+  --card: oklch(0.9335 0.0087 264.521); /* latte mantle #e6e9ef */
+  --card-foreground: oklch(0.4355 0.043 279.325);
+  --popover: oklch(0.9335 0.0087 264.521);
+  --popover-foreground: oklch(0.4355 0.043 279.325);
+  --primary: oklch(0.5547 0.2503 297.016); /* latte mauve #8839ef */
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.8575 0.0145 268.476); /* latte surface0 #ccd0da */
+  --secondary-foreground: oklch(0.4355 0.043 279.325);
+  --muted: oklch(0.9335 0.0087 264.521);
+  --muted-foreground: oklch(0.492 0.0385 279.299); /* latte subtext1 #5c5f77 */
+  --accent: oklch(0.8083 0.0174 271.198); /* latte surface1 #bcc0cc */
+  --accent-foreground: oklch(0.4355 0.043 279.325);
+  --destructive: oklch(0.5505 0.2155 19.8095); /* latte red #d20f39 */
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.8575 0.0145 268.476);
+  --input: oklch(0.8575 0.0145 268.476);
+  --ring: oklch(0.6638 0.1751 273.135); /* latte lavender #7287fd */
+  --chart-1: oklch(0.5586 0.2255 262.087); /* latte blue #1e66f5 */
+  --chart-2: oklch(0.625 0.1772 140.445); /* latte green #40a02b */
+  --chart-3: oklch(0.714 0.1494 67.7767); /* latte yellow #df8e1d */
+  --chart-4: oklch(0.692 0.2041 42.4293); /* latte peach #fe640b */
+  --chart-5: oklch(0.5547 0.2503 297.016); /* latte mauve #8839ef */
+  --sidebar: oklch(0.9335 0.0087 264.521);
+  --sidebar-foreground: oklch(0.4355 0.043 279.325);
+  --sidebar-primary: oklch(0.5547 0.2503 297.016);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.8575 0.0145 268.476);
+  --sidebar-accent-foreground: oklch(0.4355 0.043 279.325);
+  --sidebar-border: oklch(0.8575 0.0145 268.476);
+  --sidebar-ring: oklch(0.6638 0.1751 273.135);
   --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
   --font-display: 'Archivo Variable', Geist, ui-sans-serif, sans-serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
@@ -59,43 +60,48 @@
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
+  /* Marketing-scope amber signal pair. Intentional non-Catppuccin values:
+     the showcase surface commits to an engineering-paper amber accent.
+     -ink is the AA-on-light variant for text; -signal is reserved for
+     graphic marks and never body text on light surfaces. */
   --signal: oklch(0.72 0.135 65);
-  --signal-ink: oklch(0.5 0.1 55);
+  --signal-ink: oklch(0.41 0.105 55);
 }
 
 .dark {
-  --background: oklch(0.2046 0 0);
-  --foreground: oklch(0.9219 0 0);
-  --card: oklch(0.2686 0 0);
-  --card-foreground: oklch(0.9219 0 0);
-  --popover: oklch(0.2686 0 0);
-  --popover-foreground: oklch(0.9219 0 0);
-  --primary: oklch(0.6231 0.188 259.8145);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.2686 0 0);
-  --secondary-foreground: oklch(0.9219 0 0);
-  --muted: oklch(0.2393 0 0);
-  --muted-foreground: oklch(0.7155 0 0);
-  --accent: oklch(0.3791 0.1378 265.5222);
-  --accent-foreground: oklch(0.8823 0.0571 254.1284);
-  --destructive: oklch(0.6368 0.2078 25.3313);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.3715 0 0);
-  --input: oklch(0.3715 0 0);
-  --ring: oklch(0.6231 0.188 259.8145);
-  --chart-1: oklch(0.7137 0.1434 254.624);
-  --chart-2: oklch(0.6231 0.188 259.8145);
-  --chart-3: oklch(0.5461 0.2152 262.8809);
-  --chart-4: oklch(0.4882 0.2172 264.3763);
-  --chart-5: oklch(0.4244 0.1809 265.6377);
-  --sidebar: oklch(0.2046 0 0);
-  --sidebar-foreground: oklch(0.9219 0 0);
-  --sidebar-primary: oklch(0.6231 0.188 259.8145);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.3791 0.1378 265.5222);
-  --sidebar-accent-foreground: oklch(0.8823 0.0571 254.1284);
-  --sidebar-border: oklch(0.3715 0 0);
-  --sidebar-ring: oklch(0.6231 0.188 259.8145);
+  /* Dark scheme: Catppuccin Mocha */
+  --background: oklch(0.2429 0.0304 283.911); /* mocha base #1e1e2e */
+  --foreground: oklch(0.8787 0.0426 272.277); /* mocha text #cdd6f4 */
+  --card: oklch(0.2155 0.0254 284.065); /* mocha mantle #181825 */
+  --card-foreground: oklch(0.8787 0.0426 272.277);
+  --popover: oklch(0.2155 0.0254 284.065);
+  --popover-foreground: oklch(0.8787 0.0426 272.277);
+  --primary: oklch(0.7871 0.1187 304.769); /* mocha mauve #cba6f7 */
+  --primary-foreground: oklch(0.1828 0.0204 284.204); /* mocha crust #11111b */
+  --secondary: oklch(0.324 0.0319 281.978); /* mocha surface0 #313244 */
+  --secondary-foreground: oklch(0.8787 0.0426 272.277);
+  --muted: oklch(0.324 0.0319 281.978);
+  --muted-foreground: oklch(0.751 0.0396 273.932); /* mocha subtext0 #a6adc8 */
+  --accent: oklch(0.4037 0.032 280.152); /* mocha surface1 #45475a */
+  --accent-foreground: oklch(0.8787 0.0426 272.277);
+  --destructive: oklch(0.7556 0.1297 2.7642); /* mocha red #f38ba8 */
+  --destructive-foreground: oklch(0.1828 0.0204 284.204);
+  --border: oklch(0.324 0.0319 281.978);
+  --input: oklch(0.4037 0.032 280.152);
+  --ring: oklch(0.8166 0.091 277.309); /* mocha lavender #b4befe */
+  --chart-1: oklch(0.7664 0.1113 259.885); /* mocha blue #89b4fa */
+  --chart-2: oklch(0.8577 0.1092 142.715); /* mocha green #a6e3a1 */
+  --chart-3: oklch(0.9193 0.0704 86.5281); /* mocha yellow #f9e2af */
+  --chart-4: oklch(0.8237 0.1015 52.6294); /* mocha peach #fab387 */
+  --chart-5: oklch(0.7871 0.1187 304.769); /* mocha mauve #cba6f7 */
+  --sidebar: oklch(0.2155 0.0254 284.065);
+  --sidebar-foreground: oklch(0.8787 0.0426 272.277);
+  --sidebar-primary: oklch(0.7871 0.1187 304.769);
+  --sidebar-primary-foreground: oklch(0.1828 0.0204 284.204);
+  --sidebar-accent: oklch(0.4037 0.032 280.152);
+  --sidebar-accent-foreground: oklch(0.8787 0.0426 272.277);
+  --sidebar-border: oklch(0.324 0.0319 281.978);
+  --sidebar-ring: oklch(0.8166 0.091 277.309);
   --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
   --font-display: 'Archivo Variable', Geist, ui-sans-serif, sans-serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
@@ -119,9 +125,12 @@
 }
 
 /* Public showcase palette: the marketing surface commits to a deep petrol
-   teal + amber signal color while the workspace app keeps the neutral/blue
-   chrome. Same shadcn token contract, different values — scoped by the
-   `.marketing` wrapper that PublicLayout applies. */
+   teal + amber signal color while the workspace app keeps the Catppuccin
+   neutral/blue chrome. This is an intentional, documented marketing-scope
+   deviation from the Catppuccin token values: same shadcn token contract,
+   different values — scoped by the `.marketing` wrapper that PublicLayout
+   applies. No hardcoded colors are allowed in marketing components; they
+   must go through these tokens (or the documented `--signal` pair). */
 .marketing {
   --background: oklch(1 0 0);
   --foreground: oklch(0.25 0.02 220);
@@ -317,20 +326,60 @@
 
 /* Display voice for the public surface: Archivo drawn wide via its width
    axis — industrial signage lettering to match the schematic identity.
-   Wide letterforms need only gentle negative tracking. */
+   Wide letterforms need only gentle negative tracking (well inside the
+   ≥ -0.04em floor). Display sizes are capped at the Tailwind `text-6xl`
+   step used by the hero (3.75rem), far under the 6rem ceiling. */
 .marketing :is(h1, h2) {
   font-family: var(--font-display);
   font-stretch: 118%;
   letter-spacing: -0.01em;
 }
 
-/* Engineering-paper dot grid, used behind the showcase hero. */
-.grid-paper {
-  background-image: radial-gradient(
-    color-mix(in oklab, var(--border) 80%, transparent) 1px,
-    transparent 1px
-  );
-  background-size: 24px 24px;
+/* Balanced ragged edges on every marketing heading, and a guaranteed
+   focus indicator on links and buttons — many marketing CTAs are raw
+   <a>/<Link> elements without component-level rings. */
+.marketing :is(h1, h2, h3, h4) {
+  text-wrap: balance;
+}
+.marketing :is(a, button, [role='button']):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Map the typography plugin's palette onto theme tokens so long-form
+   marketing prose (privacy, terms) never carries hardcoded grays that
+   clash with the Catppuccin scheme or fail AA in one mode. */
+.marketing .prose {
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-lead: var(--muted-foreground);
+  --tw-prose-links: var(--primary);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: var(--muted-foreground);
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--border);
+  --tw-prose-captions: var(--muted-foreground);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: var(--foreground);
+  --tw-prose-pre-bg: var(--card);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+}
+
+/* Long prose paragraphs get a prettier rag; headings already balance via the
+   rule above. */
+.marketing .prose p {
+  text-wrap: pretty;
+}
+
+/* Wide tables in docs/blog MDX scroll inside their own box instead of
+   stretching the article column on mobile and tablet. */
+.marketing .prose :where(table):not(:where([class~='not-prose'] *)) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 /* Showcase entrance choreography: one staggered hero reveal, nothing else.
@@ -364,6 +413,16 @@
   }
   .schematic-pulse {
     display: none;
+  }
+  /* Hover motion (e.g. the knowledge-list arrow nudge) becomes instant;
+     color transitions stay but resolve immediately. */
+  .marketing *,
+  .marketing *::before,
+  .marketing *::after {
+    transition-duration: 0s !important;
+    transition-property:
+      color, background-color, border-color, outline-color, text-decoration-color, fill,
+      stroke !important;
   }
 }
 

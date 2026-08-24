@@ -11,6 +11,7 @@ type Plan = {
   readonly name: string
   readonly price: string
   readonly description: string
+  readonly featured?: boolean
 }
 
 const plans: readonly Plan[] = [
@@ -22,7 +23,8 @@ const plans: readonly Plan[] = [
   {
     name: 'Team',
     price: '$49',
-    description: 'The shape most B2B SaaS products adapt first.'
+    description: 'The shape most B2B SaaS products adapt first.',
+    featured: true
   },
   {
     name: 'Enterprise',
@@ -43,28 +45,27 @@ function PricingPage() {
         </p>
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {plans.map((plan) => (
-            <Card key={plan.name}>
+            <Card
+              key={plan.name}
+              className={plan.featured ? 'ring-primary ring-2' : undefined}
+            >
               <CardHeader>
-                <CardTitle>{plan.name}</CardTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle as="h2">{plan.name}</CardTitle>
+                  {plan.featured ? (
+                    <Badge variant="secondary">Most adopted</Badge>
+                  ) : null}
+                </div>
                 <p className="text-3xl font-semibold">{plan.price}</p>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <p className="text-sm text-muted-foreground">{plan.description}</p>
-                {plan.name === 'Enterprise' ? (
-                  <Link
-                    to="/sign-up"
-                    className="inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-none border border-border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    Contact sales
-                  </Link>
-                ) : (
-                  <Link
-                    to="/sign-up"
-                    className="inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-none border border-border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    Get started
-                  </Link>
-                )}
+                <Link
+                  to="/sign-up"
+                  className="inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-none border border-border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  {plan.name === 'Enterprise' ? 'Contact sales' : 'Get started'}
+                </Link>
                 <p className="text-xs text-muted-foreground">
                   Checkout completes on your workspace's Billing page. Stripe checkout
                   activates once a billing provider is configured.

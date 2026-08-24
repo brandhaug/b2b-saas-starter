@@ -103,7 +103,7 @@ export function SearchButton() {
         >
           <SearchIcon className="size-4" />
           <span className="flex-1 text-left">Search…</span>
-          <kbd className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-3xs">
+          <kbd className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs">
             {isMac ? '⌘K' : 'Ctrl K'}
           </kbd>
         </Button>

@@ -8,9 +8,11 @@ import { useForm } from '@tanstack/react-form'
 import { Cause, Effect, Exit, Option } from 'effect'
 
 import { FormTextField } from '@/components/form-text-field'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
+import { FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { Spinner } from '@/components/ui/spinner'
 import { causeMessage } from '@/lib/cause-message'
 import { createWebhookEndpointServerFn } from '@/lib/server/webhooks'
 
@@ -129,17 +131,13 @@ export function WebhookForm({
           const hasError = field.state.meta.errors.length > 0
           const errorId = `${field.name}-error`
           return (
-            <fieldset
-              className="grid gap-2"
-              aria-invalid={hasError}
-              aria-describedby={hasError ? errorId : undefined}
-            >
-              <legend className="text-sm font-medium leading-none">Events</legend>
+            <FieldSet data-invalid={hasError || undefined}>
+              <FieldLegend variant="label">Events</FieldLegend>
               <div className="flex flex-wrap gap-3">
                 {WEBHOOK_EVENT_TYPES.map((eventType) => {
                   const checked = field.state.value.includes(eventType)
                   return (
-                    <Label key={eventType} className="text-sm">
+                    <FieldLabel key={eventType}>
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(next) => {
@@ -153,16 +151,16 @@ export function WebhookForm({
                       />
 
                       <span>{eventType}</span>
-                    </Label>
+                    </FieldLabel>
                   )
                 })}
               </div>
               {hasError ? (
-                <p id={errorId} className="text-xs text-destructive">
+                <FieldError id={errorId}>
                   {field.state.meta.errors.join(', ')}
-                </p>
+                </FieldError>
               ) : null}
-            </fieldset>
+            </FieldSet>
           )
         }}
       </form.Field>
@@ -174,24 +172,31 @@ export function WebhookForm({
         ]}
       >
         {([canSubmit, isSubmitting]) => (
-          <Button type="submit" disabled={!canSubmit} className="justify-self-start">
-            {isSubmitting ? 'Creating…' : 'Create endpoint'}
+          <Button
+            type="submit"
+            disabled={!canSubmit || isSubmitting}
+            className="justify-self-start"
+          >
+            {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
+            Create endpoint
           </Button>
         )}
       </form.Subscribe>
 
       {created ? (
-        <div className="grid gap-1 rounded-md border border-border bg-muted/40 p-3 text-xs">
-          <p className="font-medium">
+        <Alert className="justify-self-start">
+          <AlertTitle>
             Endpoint created. Copy the signing secret now, it will not be shown again.
-          </p>
-          <code className="break-all">{created.signingSecret}</code>
-        </div>
+          </AlertTitle>
+          <AlertDescription>
+            <code className="break-all">{created.signingSecret}</code>
+          </AlertDescription>
+        </Alert>
       ) : null}
       {submitError ? (
-        <p className="text-xs text-destructive" role="alert">
-          {submitError}
-        </p>
+        <Alert variant="destructive" className="justify-self-start">
+          <AlertDescription>{submitError}</AlertDescription>
+        </Alert>
       ) : null}
     </form>
   )

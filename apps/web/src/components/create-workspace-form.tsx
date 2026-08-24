@@ -6,6 +6,8 @@ import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { causeMessage } from '@/lib/cause-message'
 import { createWorkspaceServerFn } from '@/lib/server/workspace-lifecycle'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Spinner } from '@/components/ui/spinner'
 
 const CREATE_WORKSPACE_FAILED = 'Failed to create workspace'
 
@@ -146,15 +148,20 @@ export function CreateWorkspaceForm({
         ]}
       >
         {([canSubmit, isSubmitting]) => (
-          <Button type="submit" disabled={!canSubmit} className="justify-self-start">
-            {isSubmitting ? 'Creating…' : 'Create workspace'}
+          <Button
+            type="submit"
+            disabled={!canSubmit || isSubmitting}
+            className="justify-self-start"
+          >
+            {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
+            Create workspace
           </Button>
         )}
       </form.Subscribe>
       {submitError ? (
-        <p className="text-xs text-destructive" role="alert">
-          {submitError}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{submitError}</AlertDescription>
+        </Alert>
       ) : null}
     </form>
   )

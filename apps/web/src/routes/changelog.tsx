@@ -19,7 +19,7 @@ function ChangelogPage() {
                 <p className="text-sm text-muted-foreground">
                   {entry.version} · {entry.date}
                 </p>
-                <CardTitle>{entry.title}</CardTitle>
+                <CardTitle as="h2">{entry.title}</CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="list-disc pl-5 text-sm text-muted-foreground">
