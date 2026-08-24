@@ -9,6 +9,22 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from '@/components/ui/empty'
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle
+} from '@/components/ui/item'
+import { Spinner } from '@/components/ui/spinner'
 
 const REFRESH_FAILED = 'Could not refresh notifications.'
 
@@ -48,8 +64,8 @@ export function LiveNotifications({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <BellIcon className="size-4" />
+        <CardTitle as="h2" className="flex items-center gap-2">
+          <BellIcon data-icon="inline-start" />
           Notifications
         </CardTitle>
         <Button
@@ -63,31 +79,41 @@ export function LiveNotifications({
           disabled={isFetching}
           aria-label="Refresh notifications"
         >
-          <RefreshCwIcon className="size-4" />
+          {isFetching ? (
+            <Spinner data-icon="inline-start" />
+          ) : (
+            <RefreshCwIcon data-icon="inline-start" />
+          )}
         </Button>
       </CardHeader>
       <CardContent className="grid gap-3">
         {error ? (
-          <p className="text-xs text-destructive" role="alert">
-            {causeMessage(error, REFRESH_FAILED)}
-          </p>
+          <Alert variant="destructive">
+            <AlertDescription>{causeMessage(error, REFRESH_FAILED)}</AlertDescription>
+          </Alert>
         ) : null}
         {notifications.length === 0 ? (
-          <div className="rounded-md border border-dashed border-border p-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              You're all caught up: no notifications yet.
-            </p>
-          </div>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <BellIcon />
+              </EmptyMedia>
+              <EmptyTitle>You're all caught up</EmptyTitle>
+              <EmptyDescription>No notifications yet.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : null}
-        {notifications.map((notification) => (
-          <div key={notification.id} className="rounded-md border border-border p-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-medium">{notification.title}</p>
+        <ItemGroup>
+          {notifications.map((notification) => (
+            <Item key={notification.id} variant="outline" size="sm">
+              <ItemContent>
+                <ItemTitle>{notification.title}</ItemTitle>
+                <ItemDescription>{notification.message}</ItemDescription>
+              </ItemContent>
               {!notification.read && <Badge>New</Badge>}
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">{notification.message}</p>
-          </div>
-        ))}
+            </Item>
+          ))}
+        </ItemGroup>
       </CardContent>
     </Card>
   )

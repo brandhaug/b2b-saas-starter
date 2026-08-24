@@ -12,6 +12,7 @@ import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { safeRedirect } from '@/lib/utils'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { TurnstileWidget } from '@/components/auth/turnstile-widget'
 
 const SignUpSearch = Schema.Struct({
@@ -142,7 +143,7 @@ export function SignUpPage({
       >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>Create your account</CardTitle>
+            <CardTitle as="h1">Create your account</CardTitle>
             <p className="text-sm text-muted-foreground">
               Sign up with email and password to run the starter on your own account. A
               verification email follows.
@@ -229,9 +230,9 @@ export function SignUpPage({
               />
 
               {submitError ? (
-                <p className="text-xs text-destructive" role="alert">
-                  {submitError}
-                </p>
+                <Alert variant="destructive">
+                  <AlertDescription>{submitError}</AlertDescription>
+                </Alert>
               ) : null}
             </form>
             <p className="text-center text-sm text-muted-foreground">

@@ -88,7 +88,7 @@ function AdminPage() {
       <div className="grid gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Users</CardTitle>
+            <CardTitle as="h2">Users</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <DataTable
@@ -97,6 +97,8 @@ function AdminPage() {
               filterColumnId="name"
               filterPlaceholder="Filter users…"
               pageSize={5}
+              tableLabel="System users"
+              emptyMessage="No system users."
             />
             <AdminUserActions users={users} />
           </CardContent>
@@ -104,7 +106,7 @@ function AdminPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Audit events</CardTitle>
+            <CardTitle as="h2">Audit events</CardTitle>
           </CardHeader>
           <CardContent>
             <DataTable
@@ -113,6 +115,8 @@ function AdminPage() {
               filterColumnId="eventType"
               filterPlaceholder="Filter events…"
               pageSize={5}
+              tableLabel="Audit events"
+              emptyMessage="No audit events."
             />
           </CardContent>
         </Card>

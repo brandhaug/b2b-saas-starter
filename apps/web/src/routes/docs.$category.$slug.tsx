@@ -98,15 +98,21 @@ function DocArticlePage() {
 
       <div className="flex gap-8">
         <div className="min-w-0 flex-1">
-          <div className="mb-6 flex items-center gap-1 text-xs text-muted-foreground">
-            <Link to="/docs" className="transition-colors hover:text-foreground">
-              Documentation
-            </Link>
-            <span>/</span>
-            <span>{categoryName}</span>
-            <span>/</span>
-            <span className="text-foreground">{frontmatter.title}</span>
-          </div>
+          <nav aria-label="Breadcrumb" className="mb-6 text-xs text-muted-foreground">
+            <ol className="flex flex-wrap items-center gap-1">
+              <li>
+                <Link to="/docs" className="transition-colors hover:text-foreground">
+                  Documentation
+                </Link>
+              </li>
+              <li aria-hidden="true">/</li>
+              <li>{categoryName}</li>
+              <li aria-hidden="true">/</li>
+              <li aria-current="page" className="text-foreground">
+                {frontmatter.title}
+              </li>
+            </ol>
+          </nav>
 
           <header className="mb-8">
             <h1 className="mb-2 text-2xl font-semibold tracking-tight">
@@ -129,12 +135,18 @@ function DocArticlePage() {
 
           <article
             ref={articleRef}
-            className="prose prose-neutral max-w-none dark:prose-invert"
+            /* Colors come from the `.marketing .prose` token map in index.css;
+               `prose-neutral` would hardcode a gray palette that clashes with
+               Catppuccin and can fail AA in dark mode. */
+            className="prose max-w-none"
           >
             <Component components={mdxComponents} />
           </article>
 
-          <nav className="mt-12 flex items-center justify-between gap-4 border-t border-border pt-4">
+          <nav
+            aria-label="Adjacent articles"
+            className="mt-12 flex items-center justify-between gap-4 border-t border-border pt-4"
+          >
             {prevSlug && prevTitle ? (
               <Link
                 to="/docs/$category/$slug"

@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 
 /**
  * The only part of the form API the submit button reads. Structural so it
@@ -18,7 +19,9 @@ type SubscribableForm = {
 
 /**
  * The submit button every auth form renders: disabled until the form can
- * submit, with a submitting label while it is in flight.
+ * submit, with a Spinner while it is in flight. The label never swaps — a
+ * stable accessible name is what a screen-reader user pressed, and the
+ * Spinner's `role="status"` announces the progress.
  */
 export function AuthSubmitButton({
   form,
@@ -29,6 +32,7 @@ export function AuthSubmitButton({
   readonly form: SubscribableForm
   readonly icon?: ReactNode
   readonly label: string
+  /** Announced to assistive tech while submitting; never swaps the visible label. */
   readonly submittingLabel: string
 }) {
   return (
@@ -39,9 +43,13 @@ export function AuthSubmitButton({
       ]}
     >
       {([canSubmit, isSubmitting]) => (
-        <Button type="submit" disabled={!canSubmit}>
-          {icon}
-          {isSubmitting ? submittingLabel : label}
+        <Button type="submit" disabled={!canSubmit || isSubmitting}>
+          {isSubmitting ? (
+            <Spinner data-icon="inline-start" aria-label={submittingLabel} />
+          ) : (
+            icon
+          )}
+          {label}
         </Button>
       )}
     </form.Subscribe>

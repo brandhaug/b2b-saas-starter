@@ -14,15 +14,18 @@ function DocsLayout() {
     <PublicLayout>
       <div className="mx-auto flex w-full max-w-7xl flex-1 gap-8 px-4 py-8 sm:px-6">
         <aside className="hidden w-60 shrink-0 md:block">
-          <nav className="sticky top-20 flex flex-col gap-5">
+          <nav aria-label="Documentation" className="sticky top-20 flex flex-col gap-5">
             {DOC_CATEGORY_ORDER.map((slug) => {
               const articles = getDocsByCategory(slug)
               if (articles.length === 0) return null
               return (
                 <div key={slug}>
-                  <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground">
+                  {/* Group label, not a heading: the page's first heading is the
+                      article <h1> in <main>, and an <h2>/<h3> here would skip
+                      levels in the document outline. */}
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground">
                     {DOC_CATEGORIES[slug]}
-                  </h3>
+                  </p>
                   <ul className="flex flex-col gap-0.5">
                     {articles.map((article) => {
                       const articlePath = `/docs/${slug}/${article.slug}`
@@ -32,6 +35,7 @@ function DocsLayout() {
                           <Link
                             to="/docs/$category/$slug"
                             params={{ category: slug, slug: article.slug }}
+                            aria-current={isActive ? 'page' : undefined}
                             className={
                               isActive
                                 ? 'block rounded-md bg-muted px-2 py-1 text-sm font-medium text-foreground'

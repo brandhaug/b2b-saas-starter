@@ -9,6 +9,7 @@ import { PublicLayout } from '@/components/public-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export const Route = createFileRoute('/forgot-password')({
   component: ForgotPasswordRoute
@@ -79,7 +80,7 @@ export function ForgotPasswordPage({
       >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle>Reset your password</CardTitle>
+            <CardTitle as="h1">Reset your password</CardTitle>
             <p className="text-sm text-muted-foreground">
               Enter the email you sign in with and we will send a reset link.
             </p>
@@ -122,9 +123,9 @@ export function ForgotPasswordPage({
                 />
 
                 {submitError ? (
-                  <p className="text-xs text-destructive" role="alert">
-                    {submitError}
-                  </p>
+                  <Alert variant="destructive">
+                    <AlertDescription>{submitError}</AlertDescription>
+                  </Alert>
                 ) : null}
               </form>
             )}

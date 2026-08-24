@@ -1,6 +1,6 @@
 import { type ComponentProps } from 'react'
+import { Field, FieldError, FieldLabel } from './ui/field'
 import { Input } from './ui/input'
-import { Label } from './ui/label'
 
 type FormTextFieldProps = Omit<
   ComponentProps<typeof Input>,
@@ -27,8 +27,8 @@ export function FormTextField({
   const errorId = `${name}-error`
 
   return (
-    <div className="grid gap-2">
-      <Label htmlFor={name}>{label}</Label>
+    <Field data-invalid={hasError || undefined}>
+      <FieldLabel htmlFor={name}>{label}</FieldLabel>
       <Input
         id={name}
         name={name}
@@ -39,11 +39,7 @@ export function FormTextField({
         aria-describedby={hasError ? errorId : undefined}
         {...inputProps}
       />
-      {hasError ? (
-        <p id={errorId} className="text-xs text-destructive">
-          {errors.join(', ')}
-        </p>
-      ) : null}
-    </div>
+      {hasError ? <FieldError id={errorId}>{errors.join(', ')}</FieldError> : null}
+    </Field>
   )
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { MailWarningIcon } from 'lucide-react'
 import { authClient } from '@/lib/auth-client'
-import { Button } from './ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 
 /**
  * Resending the verification email, as a port. Injected rather than reaching
@@ -46,11 +47,13 @@ export function EmailVerificationBanner({
 
   if (sent) {
     return (
-      <output className="block rounded-none border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-        Verification email sent to{' '}
-        <code className="rounded-sm bg-muted px-1 py-0.5 text-xs">{email}</code>. Check
-        your inbox; the link expires in an hour.
-      </output>
+      <Alert>
+        <AlertDescription>
+          Verification email sent to{' '}
+          <code className="rounded-sm bg-muted px-1 py-0.5 text-xs">{email}</code>.
+          Check your inbox; the link expires in an hour.
+        </AlertDescription>
+      </Alert>
     )
   }
 
@@ -65,20 +68,22 @@ export function EmailVerificationBanner({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-none border border-border bg-muted/40 px-4 py-3">
-      <MailWarningIcon className="size-4 shrink-0 text-muted-foreground" />
-      <p className="flex-1 text-sm text-muted-foreground">
-        Your email address is not verified yet.
-        {sendError ? (
-          <span role="alert" className="text-destructive">
-            {' '}
-            {sendError}
-          </span>
-        ) : null}
-      </p>
-      <Button type="button" variant="outline" size="sm" onClick={() => void resend()}>
-        Resend verification email
-      </Button>
-    </div>
+    <Alert>
+      <MailWarningIcon />
+      <AlertDescription className="flex flex-wrap items-center gap-3">
+        <span className="flex-1">
+          Your email address is not verified yet.
+          {sendError ? (
+            <span role="alert" className="text-destructive">
+              {' '}
+              {sendError}
+            </span>
+          ) : null}
+        </span>
+        <Button type="button" variant="outline" size="sm" onClick={() => void resend()}>
+          Resend verification email
+        </Button>
+      </AlertDescription>
+    </Alert>
   )
 }

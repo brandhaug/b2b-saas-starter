@@ -9,8 +9,9 @@ export function RoutePending() {
   return (
     <output
       className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-10 sm:px-6"
-      aria-label="Loading"
+      aria-live="polite"
     >
+      <span className="sr-only">Loading…</span>
       <div className="grid gap-2">
         <Skeleton className="h-7 w-56" />
         <Skeleton className="h-4 w-96 max-w-full" />

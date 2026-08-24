@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { viewerCan } from '@/lib/permissions'
+import { Spinner } from '@/components/ui/spinner'
+import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty'
 import {
   ASSISTANT_UNCONFIGURED_MESSAGE,
   type AskAssistantOutcome,
@@ -163,7 +165,7 @@ export function WorkspaceAssistantPage({
     >
       <Card className="mx-auto max-w-2xl">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle as="h2" className="flex items-center gap-2">
             <SparklesIcon className="size-5" />
             Assistant
             {canUseAssistant ? (
@@ -202,14 +204,17 @@ export function WorkspaceAssistantPage({
                   type="submit"
                   disabled={pending || question.trim().length === 0}
                 >
-                  {pending ? 'Asking…' : 'Ask'}
+                  {pending ? <Spinner data-icon="inline-start" /> : null}
+                  Ask
                 </Button>
               </div>
             </form>
           ) : (
-            <p className="text-muted-foreground rounded-md border border-dashed border-border px-3 py-2 text-sm">
-              {ASSISTANT_UNCONFIGURED_MESSAGE}
-            </p>
+            <Empty>
+              <EmptyHeader>
+                <EmptyDescription>{ASSISTANT_UNCONFIGURED_MESSAGE}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
         </CardContent>
       </Card>

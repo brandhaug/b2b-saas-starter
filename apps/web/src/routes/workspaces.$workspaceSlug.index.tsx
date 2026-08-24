@@ -69,7 +69,7 @@ export function WorkspaceDashboardPage({
           {webhooks === null ? null : (
             <Card>
               <CardHeader>
-                <CardTitle>Webhook delivery</CardTitle>
+                <CardTitle as="h2">Webhook delivery</CardTitle>
               </CardHeader>
               <CardContent>
                 <WebhookSuccessChart webhooks={webhooks} />

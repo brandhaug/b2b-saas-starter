@@ -10,6 +10,16 @@ import { useRouter } from '@tanstack/react-router'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { causeMessage } from '@/lib/cause-message'
 import {
   banSystemUserServerFn,
@@ -49,10 +59,10 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
     readonly WorkspaceWithMembership[] | null
   >(null)
 
-  async function settle(run: () => Promise<void>, label: string) {
+  async function settle(run: () => Promise<void>, busyKey: string, message: string) {
     setError(null)
-    setBusy(label)
-    const outcome = await callServerFn(run, `${label} failed`)
+    setBusy(busyKey)
+    const outcome = await callServerFn(run, `${message} failed`)
     setBusy(null)
     if (!outcome.ok) {
       setError(outcome.message)
@@ -64,15 +74,23 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
 
   async function toggleBan(user: SystemUser) {
     const banned = user.banned
-    const label = banned ? 'Unban' : 'Ban'
-    await settle(() => {
-      if (banned) {
-        return unbanSystemUserServerFn({ data: { userId: user.id } }).then(
+    const verb = banned ? 'Unban' : 'Ban'
+    // The busy key is scoped to the user so only the acting row shows a
+    // spinner; the visible/accessible label stays stable while pending.
+    await settle(
+      () => {
+        if (banned) {
+          return unbanSystemUserServerFn({ data: { userId: user.id } }).then(
+            () => undefined
+          )
+        }
+        return banSystemUserServerFn({ data: { userId: user.id } }).then(
           () => undefined
         )
-      }
-      return banSystemUserServerFn({ data: { userId: user.id } }).then(() => undefined)
-    }, label)
+      },
+      `${verb}:${user.id}`,
+      verb
+    )
   }
 
   async function loadWorkspaces(userId: string) {
@@ -94,11 +112,15 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
   async function changeRole(workspaceId: string, member: Member, role: WorkspaceRole) {
     // Re-read the memberships after the write so the editor shows the role it
     // just wrote.
-    const settled = await settle(() => {
-      return changeUserWorkspaceRoleServerFn({
-        data: { userId: member.id, workspaceId, role }
-      }).then(() => undefined)
-    }, 'Role change')
+    const settled = await settle(
+      () => {
+        return changeUserWorkspaceRoleServerFn({
+          data: { userId: member.id, workspaceId, role }
+        }).then(() => undefined)
+      },
+      'Role change',
+      'Role change'
+    )
     if (!settled) return
     const read = await listUserWorkspacesServerFn({ data: { userId: member.id } })
     setMemberships(read)
@@ -110,16 +132,24 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
     <div className="grid gap-4">
       <ul className="grid gap-2">
         {users.map((user) => (
-          <li key={user.id} className="flex items-center justify-between gap-4">
-            <span className="text-sm text-muted-foreground">{user.email}</span>
+          <li
+            key={user.id}
+            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
+          >
+            <span className="min-w-0 text-sm break-all text-muted-foreground">
+              {user.email}
+            </span>
             <Button
               variant={user.banned ? 'outline' : 'destructive'}
               size="sm"
               disabled={busy !== null}
+              aria-label={`${user.banned ? 'Unban' : 'Ban'} ${user.email}`}
               onClick={() => void toggleBan(user)}
             >
               {user.banned ? 'Unban' : 'Ban'}
-              {busy === 'Ban' || busy === 'Unban' ? '…' : ''}
+              {busy === `${user.banned ? 'Unban' : 'Ban'}:${user.id}` ? (
+                <Spinner data-icon="inline-end" />
+              ) : null}
             </Button>
           </li>
         ))}
@@ -127,24 +157,39 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
 
       <div className="grid gap-2 rounded-md border border-border p-3">
         <p className="text-xs text-muted-foreground">Workspace roles</p>
-        <select
-          className="rounded-md border border-border bg-background px-2 py-1 text-base"
+        <Select
           value={selectedId}
-          onChange={(event) => void loadWorkspaces(event.target.value)}
+          onValueChange={(value) => void loadWorkspaces(String(value))}
+          items={users.map((user) => ({
+            value: user.id,
+            label: `${user.name} (${user.email})`
+          }))}
         >
-          {users.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.name} ({user.email})
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            aria-label="Select a user"
+            className="w-full"
+            disabled={busy !== null}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {users.map((user) => (
+              <SelectGroup key={user.id}>
+                <SelectItem value={user.id}>
+                  {user.name} ({user.email})
+                </SelectItem>
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
         <Button
           size="sm"
           variant="ghost"
           disabled={busy !== null || !selectedId}
           onClick={() => void loadWorkspaces(selectedId)}
         >
-          Load workspaces{busy === 'Workspaces' ? '…' : ''}
+          Load workspaces
+          {busy === 'Workspaces' ? <Spinner data-icon="inline-end" /> : null}
         </Button>
         {(() => {
           if (memberships === null) return null
@@ -173,9 +218,9 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
       </div>
 
       {error ? (
-        <p className="text-xs text-destructive" role="alert">
-          {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
     </div>
   )
@@ -199,9 +244,9 @@ function MembershipRow(input: {
     if (role !== input.member.role) targets.push(role)
   }
   return (
-    <li className="flex items-center justify-between gap-4">
-      <span className="text-sm">{input.workspaceName}</span>
-      <div className="flex items-center gap-2">
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      <span className="min-w-0 text-sm break-all">{input.workspaceName}</span>
+      <div className="flex flex-wrap items-center gap-2">
         <Badge variant="secondary">{input.member.role}</Badge>
         {targets.map((role) => (
           <Button
@@ -209,6 +254,7 @@ function MembershipRow(input: {
             variant="ghost"
             size="sm"
             disabled={input.busy}
+            aria-label={`Make ${input.workspaceName} role ${role}`}
             onClick={() =>
               void input.onChangeRole(input.workspaceId, input.member, role)
             }

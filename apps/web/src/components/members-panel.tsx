@@ -9,6 +9,17 @@ import { Cause, Effect, Exit, Option } from 'effect'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle
+} from '@/components/ui/item'
+import { Spinner } from '@/components/ui/spinner'
 import { causeMessage } from '@/lib/cause-message'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { changeMemberRoleServerFn } from '@/lib/server/workspace-members'
@@ -67,25 +78,25 @@ export function MembersPanel({
 
   if (members.length === 0) {
     return (
-      <p className="text-xs text-muted-foreground">
-        No members yet. Invite someone from settings.
-      </p>
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>No members yet</EmptyTitle>
+          <EmptyDescription>Invite someone from settings.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   }
 
   return (
     <div className="grid gap-2">
-      <ul className="grid gap-2">
+      <ItemGroup>
         {members.map((member) => (
-          <li
-            key={member.id}
-            className="flex items-center justify-between gap-4 rounded-md border border-border p-3"
-          >
-            <div className="grid gap-0.5">
-              <p className="text-sm font-medium">{member.name}</p>
-              <p className="text-xs text-muted-foreground">{member.email}</p>
-            </div>
-            <div className="flex items-center gap-3">
+          <Item key={member.id} variant="outline" size="sm">
+            <ItemContent>
+              <ItemTitle>{member.name}</ItemTitle>
+              <ItemDescription>{member.email}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
               <Badge variant={roleVariant(member.role)}>{member.role}</Badge>
               {canManage
                 ? otherRoles(member.role).map((role) => (
@@ -96,24 +107,26 @@ export function MembersPanel({
                       disabled={changing === member.id}
                       onClick={() => void changeRole(member.id, role)}
                     >
+                      {changing === member.id ? (
+                        <Spinner data-icon="inline-start" />
+                      ) : null}
                       Make {role}
-                      {changing === member.id ? '…' : ''}
                     </Button>
                   ))
                 : null}
-            </div>
-          </li>
+            </ItemActions>
+          </Item>
         ))}
-      </ul>
+      </ItemGroup>
       {canManage ? null : (
         <p className="text-xs text-muted-foreground">
           Your role cannot change member roles.
         </p>
       )}
       {error ? (
-        <p className="text-xs text-destructive" role="alert">
-          {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
     </div>
   )

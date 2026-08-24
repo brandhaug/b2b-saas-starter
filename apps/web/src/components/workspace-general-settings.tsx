@@ -3,11 +3,13 @@ import { useForm } from '@tanstack/react-form'
 import { Cause, Effect, Exit, Option } from 'effect'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { causeMessage } from '@/lib/cause-message'
 import {
   deleteWorkspaceServerFn,
   renameWorkspaceServerFn
 } from '@/lib/server/workspace-lifecycle'
+import { Spinner } from '@/components/ui/spinner'
 
 const RENAME_FAILED = 'Failed to rename workspace'
 const DELETE_FAILED = 'Failed to delete workspace'
@@ -151,9 +153,9 @@ function RenameForm({
         </p>
       )}
       {submitError ? (
-        <p className="text-xs text-destructive" role="alert">
-          {submitError}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{submitError}</AlertDescription>
+        </Alert>
       ) : null}
     </form>
   )
@@ -210,7 +212,8 @@ function DeleteSection({
             onClick={() => void confirmDelete()}
             disabled={deleting}
           >
-            {deleting ? 'Deleting…' : `Delete ${name} permanently`}
+            {deleting ? <Spinner data-icon="inline-start" /> : null}
+            Delete {name} permanently
           </Button>
           <Button variant="outline" onClick={() => setConfirming(false)}>
             Cancel
@@ -226,9 +229,9 @@ function DeleteSection({
         </Button>
       )}
       {submitError ? (
-        <p className="text-xs text-destructive" role="alert">
-          {submitError}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{submitError}</AlertDescription>
+        </Alert>
       ) : null}
     </div>
   )

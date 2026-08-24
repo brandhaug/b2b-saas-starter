@@ -8,8 +8,10 @@ import { RoutePending } from '@/components/route-pending'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { causeMessage } from '@/lib/cause-message'
 import { requireSession } from '@/lib/server/auth'
+import { Spinner } from '@/components/ui/spinner'
 import {
   acceptInvitationServerFn,
   invitationPreviewServerFn,
@@ -96,25 +98,31 @@ export function AcceptInvitationPage({
 function UnusableInvitation() {
   return (
     <PublicLayout>
-      <Card className="mx-auto mt-16 max-w-lg">
-        <CardHeader>
-          <CardTitle>This invitation cannot be used</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 text-sm text-muted-foreground">
-          {/* Naming which failure it was would tell a link-guesser whether a
+      <main
+        id="main-content"
+        className="mx-auto grid w-full max-w-lg flex-1 place-items-center px-4 py-12"
+      >
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle as="h1">This invitation cannot be used</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 text-sm text-muted-foreground">
+            {/* Naming which failure it was would tell a link-guesser whether a
                 given workspace exists. */}
-          <p>
-            It may have expired, been cancelled, already been accepted, or been sent to
-            a different address. Ask whoever invited you to send a new one.
-          </p>
-          <Link
-            to="/workspaces"
-            className="inline-flex h-9 items-center justify-self-start bg-secondary px-4 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
-          >
-            Go to your workspaces
-          </Link>
-        </CardContent>
-      </Card>
+            <p>
+              It may have expired, been cancelled, already been accepted, or been sent
+              to a different address. Ask whoever invited you to send a new one.
+            </p>
+            <Button
+              render={<Link to="/workspaces" />}
+              variant="secondary"
+              className="justify-self-start"
+            >
+              Go to your workspaces
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
     </PublicLayout>
   )
 }
@@ -158,37 +166,40 @@ function PendingInvitation({
 
   return (
     <PublicLayout>
-      <Card className="mx-auto mt-16 max-w-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MailCheckIcon className="size-5 text-muted-foreground" />
-            Join {preview.workspaceName}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <p className="text-sm text-muted-foreground">
-            You have been invited to {preview.workspaceName} as{' '}
-            <Badge variant="secondary">{preview.role}</Badge>. Accepting adds you to the
-            workspace.
-          </p>
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
+      <main
+        id="main-content"
+        className="mx-auto grid w-full max-w-lg flex-1 place-items-center px-4 py-12"
+      >
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle as="h1" className="flex items-center gap-2">
+              <MailCheckIcon className="size-5 text-muted-foreground" />
+              Join {preview.workspaceName}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <p className="text-sm text-muted-foreground">
+              You have been invited to {preview.workspaceName} as{' '}
+              <Badge variant="secondary">{preview.role}</Badge>. Accepting adds you to
+              the workspace.
             </p>
-          ) : null}
-          <div className="flex items-center gap-3">
-            <Button onClick={() => void accept()} disabled={submitting}>
-              {submitting ? 'Joining…' : 'Accept invitation'}
-            </Button>
-            <Link
-              to="/workspaces"
-              className="inline-flex h-9 items-center px-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Not now
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            <div className="flex items-center gap-3">
+              <Button onClick={() => void accept()} disabled={submitting}>
+                {submitting ? <Spinner data-icon="inline-start" /> : null}
+                Accept invitation
+              </Button>
+              <Button render={<Link to="/workspaces" />} variant="ghost">
+                Not now
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
     </PublicLayout>
   )
 }
