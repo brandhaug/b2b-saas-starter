@@ -14,6 +14,8 @@ import {
   recordAuthAudit,
   type AuthAuditContext
 } from '@/lib/server/auth-audit'
+import { makeTurnstileLayer } from '@/lib/server/turnstile'
+import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/src/governance/turnstile-verification.ts'
 
 /**
  * Everything the audits whose responses never name their actor need, gathered
@@ -49,6 +51,38 @@ async function readAuthAuditContext(
   return { actorUserId: session.user.id, request: requestClone }
 }
 
+/**
+ * The sign-up gate (ADR 0031): when TURNSTILE is configured, the widget's
+ * token must ride the `x-turnstile-token` header and verify against
+ * siteverify before Better Auth sees the request. Unconfigured, `verify`
+ * returns `inactive` and the request passes through untouched — provider-
+ * light local development is unaffected. Returns a JSON error response for
+ * `rejected` / `unavailable`, or `undefined` to let the request proceed.
+ * Runs OUTSIDE the request scope (no `annotateWide` here); the caller
+ * annotates the wide event from the response it gets back.
+ */
+function verifySignUpTurnstile(request: Request): Effect.Effect<Response | null> {
+  const pathname = new URL(request.url).pathname
+  if (request.method !== 'POST' || !pathname.endsWith('/sign-up/email')) {
+    return Effect.succeed(null)
+  }
+  const token = request.headers.get('x-turnstile-token') ?? ''
+  return Effect.gen(function* () {
+    const verifier = yield* TurnstileVerifier
+    const verdict = yield* verifier.verify({ token })
+    if (verdict.outcome === 'inactive' || verdict.outcome === 'verified') {
+      return null
+    }
+    const status = verdict.outcome === 'unavailable' ? 503 : 400
+    const error =
+      verdict.outcome === 'unavailable' ? 'captcha_unavailable' : 'captcha_rejected'
+    return new Response(JSON.stringify({ error }), {
+      status,
+      headers: { 'content-type': 'application/json; charset=utf-8' }
+    })
+  }).pipe(Effect.provide(makeTurnstileLayer()))
+}
+
 async function handleAuth(request: Request): Promise<Response> {
   const bucket = request.method === 'POST' ? 'auth_write' : 'auth_read'
   const rateLimitLayer = makeRateLimiterLayer(env)
@@ -71,6 +105,15 @@ async function handleAuth(request: Request): Promise<Response> {
             status: 429,
             headers: { 'content-type': 'application/json; charset=utf-8' }
           })
+        }
+        // Turnstile gate before Better Auth consumes the request (ADR 0031).
+        const turnstileResponse = yield* verifySignUpTurnstile(request)
+        if (turnstileResponse !== null) {
+          yield* annotateWide({
+            outcome: 'turnstile_blocked',
+            turnstileStatus: turnstileResponse.status
+          })
+          return turnstileResponse
         }
         // Pre-handler audit context before Better Auth runs: it reads the
         // session and — for admin mutations — a body clone that the handler's

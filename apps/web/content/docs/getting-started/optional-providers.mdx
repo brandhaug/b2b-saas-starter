@@ -36,16 +36,20 @@ Verify the domain under your Cloudflare zone → Email Routing. At deploy time, 
 
 ## Turnstile
 
-CAPTCHA env gate. No Turnstile widget is rendered anywhere in the app yet — the variables are validated by the schema, so adding a widget later needs no schema change.
+CAPTCHA protection for the sign-up form. The widget renders on `/sign-up` and its token is verified server-side against Cloudflare's `siteverify` endpoint before Better Auth accepts the registration.
 
 | Variable               | Value                                |
 | ---------------------- | ------------------------------------ |
 | `TURNSTILE_SITE_KEY`   | Widget site key (safe to expose)     |
 | `TURNSTILE_SECRET_KEY` | Widget secret key (server-side only) |
 
-Create a widget under the Cloudflare dashboard → Turnstile.
+Create a widget under the Cloudflare dashboard → Turnstile, with your deployment's hostname in the allowed domains.
 
-**Verify:** set both variables in `.env` and restart — activation is a schema-level check until a widget ships.
+**How it works:** when both variables are set, `/sign-up` renders the challenge widget (server-rendered site key via `getTurnstileSiteKey`) and the auth route verifies each sign-up's token (`x-turnstile-token` header → `TurnstileVerifier.verify`, in [`packages/capabilities/src/governance/turnstile-verification.ts`](../../../packages/capabilities/src/governance/turnstile-verification.ts)). A failed challenge returns `captcha_rejected`; if Cloudflare itself is unreachable, sign-up fails closed with `captcha_unavailable`.
+
+**Unconfigured:** no widget renders, no verification runs — the sign-up form behaves exactly as it does without Turnstile.
+
+**Verify:** set both variables in `.env`, restart, and load `/sign-up` — the challenge widget appears and a valid solution lets sign-up through; submitting without one shows the "bot check" error.
 
 ## Assistant (Workers AI or OpenAI-compatible)
 
