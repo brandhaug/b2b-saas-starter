@@ -53,7 +53,9 @@ beforeAll(
               secret: 'test-secret-at-least-32-characters-long',
               baseURL: 'http://localhost:3071',
               trustedOrigins: [],
-              emails: capturingEmailSender
+              emails: capturingEmailSender,
+              // Local-mode stance: the gate stays off in tests, matching dev.
+              requireEmailVerification: false
             }))
           )
         )

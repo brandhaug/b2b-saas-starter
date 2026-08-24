@@ -1,5 +1,6 @@
 import { createDb } from '@b2b-saas-starter/db/src/client.ts'
 import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
+import { requireEmailVerification } from '@b2b-saas-starter/env/src/server.ts'
 import { env } from 'cloudflare:workers'
 import { Layer, ManagedRuntime, Schema } from 'effect'
 import { makeAuthEmailSender } from './server/auth-emails'
@@ -47,7 +48,10 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
   // The lifecycle-email adapter (reset + verification), built on the same
   // provider-light dispatcher selector as the invitation flow: log mode when
   // no `EMAIL` binding is configured, so the flows stay demoable locally.
-  emails: makeAuthEmailSender()
+  emails: makeAuthEmailSender(),
+  // Production requires verified mailboxes; local dev and previews stay open
+  // because lifecycle emails land in the log there (provider-light rule).
+  requireEmailVerification: requireEmailVerification(env.ENVIRONMENT)
 }))
 
 export const AuthLive = Auth.layer.pipe(Layer.provide(AuthConfigLive))

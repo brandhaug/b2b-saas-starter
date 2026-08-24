@@ -152,6 +152,16 @@ export type RequiredEnvAudit = {
   readonly problems: readonly RequiredEnvProblem[]
 }
 
+/**
+ * The pure decision for Better Auth's `requireEmailVerification`: on only when
+ * `ENVIRONMENT` is exactly `production`. Local dev sends lifecycle emails to
+ * the log, where nobody could read a gating verification link, so the gate
+ * stays off everywhere else — the provider-light rule (see the auth package).
+ */
+export function requireEmailVerification(environment: string | undefined): boolean {
+  return environment === 'production'
+}
+
 function requiredEnvMode(source: RawEnvSource): RequiredEnvAudit['mode'] {
   if (source.ENVIRONMENT === 'production') return 'production'
   if (hasValue(source.ENVIRONMENT)) return 'deployed'

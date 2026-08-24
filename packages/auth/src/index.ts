@@ -43,6 +43,13 @@ export type AuthConfigInterface = {
   readonly baseURL: string
   readonly trustedOrigins: readonly string[]
   readonly emails: AuthEmailSender
+  /**
+   * Better Auth's `requireEmailVerification`, decided by the app from
+   * `ENVIRONMENT` (`requireEmailVerification` in `@b2b-saas-starter/env`):
+   * on only in production. This package never reads env itself — the caller
+   * owns the decision, local dev stays provider-light.
+   */
+  readonly requireEmailVerification: boolean
 }
 
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
@@ -68,10 +75,12 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     }),
     emailAndPassword: {
       enabled: true,
-      // `requireEmailVerification` stays off on purpose: local dev sends to
-      // the log, where nobody can read the verification email, and a gate the
-      // local path cannot pass would break the provider-light rule. The
-      // unverified state is surfaced in the app instead (banner + resend).
+      // Gated by the caller through `AuthConfig.requireEmailVerification`:
+      // on in production, off everywhere else. Local dev sends to the log,
+      // where nobody can read the verification email — a gate the local path
+      // cannot pass would break the provider-light rule. The unverified state
+      // is surfaced in the app instead (banner + resend).
+      requireEmailVerification: options.requireEmailVerification,
       // A reset password is an account-takeover response primitive: once it
       // succeeds, the sessions that preceded it are exactly what the reset
       // exists to distrust.
