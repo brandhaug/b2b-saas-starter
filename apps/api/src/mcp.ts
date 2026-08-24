@@ -1,13 +1,5 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import {
-  type Transport,
-  type TransportSendOptions
-} from '@modelcontextprotocol/sdk/shared/transport.js'
-import {
-  type JSONRPCMessage,
-  type MessageExtraInfo,
-  LATEST_PROTOCOL_VERSION
-} from '@modelcontextprotocol/sdk/types.js'
+import { McpServer } from '@modelcontextprotocol/server'
+import { type JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
 import {
   tokenPrincipal,
   type PermissionRequest
@@ -30,9 +22,11 @@ import {
   HttpServerResponse,
   type HttpServerRequest
 } from 'effect/unstable/http'
-import { Effect, Result, Schema } from 'effect'
+import { Effect, Result, Stream } from 'effect'
 import { type ApiTokenScope } from '@b2b-saas-starter/authz/src/roles.ts'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+import { createMcpHandler } from 'agents/mcp/server'
+import { z } from 'zod'
 
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
@@ -47,39 +41,30 @@ import { type ApiEnv } from './env.ts'
 
 /**
  * The MCP Capability Interface: a real Model Context Protocol server served at
- * `POST /mcp`, built on the official TypeScript SDK
- * (`@modelcontextprotocol/sdk`). The protocol route sits outside the
- * `StarterApi` contract on purpose — JSON-RPC over streamable HTTP is its own
- * wire shape, not a REST operation — so it never appears in the OpenAPI
- * document or the permission matrix. It shares everything that matters with
- * the REST groups: one bearer-token authentication path (`authenticate`), the
- * same `requirePermission` guard per tool, the same `mcp` rate-limit bucket,
- * and the same capability services underneath.
+ * `POST /mcp`, following Cloudflare's recommended path for stateless servers
+ * on Workers — `createMcpHandler()` from the Agents SDK over an MCP SDK v2
+ * server factory (`@modelcontextprotocol/server`). No Durable Object, no
+ * session state, no hand-rolled transport: the Agents handler owns the wire
+ * protocol end to end.
  *
- * Each request is handled statelessly: a fresh `McpServer` instance answers a
- * single JSON-RPC message over an in-memory transport and is discarded. That
- * keeps the Worker free of session state (no Durable Object — ADR 0009),
- * which stock clients handle: they initialize per connection, and every call
- * carries the bearer token that scopes it to one workspace.
+ * The protocol route sits outside the `StarterApi` contract on purpose —
+ * JSON-RPC over streamable HTTP is its own wire shape, not a REST operation —
+ * so it never appears in the OpenAPI document or the permission matrix. It
+ * shares everything that matters with the REST groups: one bearer-token
+ * authentication path (`authenticate`), the same `requirePermission` guard
+ * per tool, the same `mcp` rate-limit bucket, and the same capability
+ * services underneath.
+ *
+ * A fresh handler is created per request (explicitly supported by the Agents
+ * docs for ordinary tools/resources), closing over the verified token's
+ * workspace so every tool reads from the right tenant.
  *
  * `GET /mcp` remains the REST discovery document served by the contract group;
  * it advertises exactly what this module registers.
- *
- * The SDK is Promise-native while this worker is Effect-first. The seam is the
- * transport (`SingleMessageTransport`) and the two dispatch helpers: everything
- * below them stays in Effect, everything above them is SDK-owned code. The
- * lint suppressions in that section mark the boundary itself, matching how the
- * web bindings treat Better Auth ports.
  */
 
 export const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
 const OVERVIEW_RESOURCE_URI = 'workspace://overview'
-
-const EMPTY_OBJECT_SCHEMA = {
-  type: 'object',
-  properties: {},
-  additionalProperties: false
-}
 
 type CapabilityRead = Effect.Effect<
   unknown,
@@ -111,7 +96,11 @@ export const mcpTools: readonly ToolDefinition[] = [
       name: 'list_notifications',
       description:
         "List the API token's workspace notifications, mirroring GET /workspaces/{slug}/notifications.",
-      inputSchema: EMPTY_OBJECT_SCHEMA
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false
+      }
     },
     permission: { notification: ['read'] },
     capability: () => Effect.flatMap(NotificationFeed, (feed) => feed.list)
@@ -121,7 +110,11 @@ export const mcpTools: readonly ToolDefinition[] = [
       name: 'get_workspace_overview',
       description:
         'The workspace record plus its notification feed, mirroring GET /workspaces/{slug}/overview.',
-      inputSchema: EMPTY_OBJECT_SCHEMA
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false
+      }
     },
     permission: { notification: ['read'] },
     capability: () => workspaceOverview
@@ -131,7 +124,11 @@ export const mcpTools: readonly ToolDefinition[] = [
       name: 'list_members',
       description:
         'List the workspace members and their roles, mirroring GET /workspaces/{slug}/members.',
-      inputSchema: EMPTY_OBJECT_SCHEMA
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false
+      }
     },
     permission: { ac: ['read'] },
     capability: () =>
@@ -142,7 +139,11 @@ export const mcpTools: readonly ToolDefinition[] = [
       name: 'list_api_tokens',
       description:
         'List the workspace API token projections (never the secrets), mirroring GET /workspaces/{slug}/api-tokens.',
-      inputSchema: EMPTY_OBJECT_SCHEMA
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false
+      }
     },
     permission: { apiToken: ['list'] },
     capability: () => Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
@@ -152,7 +153,11 @@ export const mcpTools: readonly ToolDefinition[] = [
       name: 'list_webhooks',
       description:
         'List registered webhook endpoints and their success rates, mirroring GET /workspaces/{slug}/webhooks.',
-      inputSchema: EMPTY_OBJECT_SCHEMA
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false
+      }
     },
     permission: { webhook: ['list'] },
     capability: () => Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
@@ -162,7 +167,11 @@ export const mcpTools: readonly ToolDefinition[] = [
       name: 'list_audit_events',
       description:
         'Read a page of the workspace audit trail, mirroring GET /workspaces/{slug}/audit-events.',
-      inputSchema: EMPTY_OBJECT_SCHEMA
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false
+      }
     },
     permission: { auditLog: ['read'] },
     capability: () =>
@@ -187,7 +196,7 @@ export function mcpDiscoveryDocument(): McpDiscovery {
  * values: `unknown` here is the protocol's own payload type, decoded nowhere
  * further because the capability layer produced it.
  */
-// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, effect/noAs, effect/noTernary, anti-slop/require-safety-comment-for-type-assertion -- this block classifies untyped Effect errors crossing the SDK's promise seam; the tag check IS the contract
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, effect/noAs, effect/noTernary, anti-slop/require-safety-comment-for-type-assertion -- this block classifies untyped errors crossing the SDK's promise seam; the tag check IS the contract
 
 // The JSON-RPC wire format carries opaque JSON payloads; serializing the
 // already-typed capability results here IS the encoding step.
@@ -244,6 +253,10 @@ function tagOf(error: unknown): string | undefined {
  * verified token's workspace. Every invocation re-checks its own permission
  * against the token's scopes first — the route gate only proved `mcp:read`;
  * a tool must never serve data its REST counterpart would deny.
+ *
+ * Tool callbacks are the one place this worker leaves Effect-land: the SDK
+ * invokes plain async functions, so each callback bridges back onto the
+ * request-scoped workspace layer with `Effect.runPromise`.
  */
 export function buildMcpServer(
   env: ApiEnv,
@@ -261,7 +274,7 @@ export function buildMcpServer(
       {
         title: tool.descriptor.name,
         description: tool.descriptor.description,
-        inputSchema: {}
+        inputSchema: z.object({})
       },
       () => {
         // One guard + one capability read, bridged onto the request-scoped
@@ -307,124 +320,23 @@ export function buildMcpServer(
   return server
 }
 
-/**
- * An in-memory transport carrying client messages in and capturing the
- * server's replies. This is the whole fetch-to-SDK bridge: the official
- * `McpServer` speaks the protocol; this class only moves bytes between it and
- * the Workers `Request`/`Response` pair. Its Promise-shaped API is dictated by
- * the SDK's `Transport` interface, not chosen.
- */
-
-// oxlint-disable effect/noNewPromise -- the SDK's Transport interface is promise-typed; these methods adapt to it
-class SingleMessageTransport implements Transport {
-  // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- the signature must mirror the SDK's generic Transport.onmessage
-  onmessage?: <T extends JSONRPCMessage>(message: T, extra?: MessageExtraInfo) => void
-
-  onclose?: () => void
-  onerror?: (error: Error) => void
-
-  private readonly replies: JSONRPCMessage[] = []
-  private readonly waiting: ((message: JSONRPCMessage) => void)[] = []
-
-  start(): Promise<void> {
-    return Promise.resolve()
-  }
-
-  send(message: JSONRPCMessage, _options?: TransportSendOptions): Promise<void> {
-    if ('id' in message && message.id !== undefined) {
-      const waiting = this.waiting.shift()
-      if (waiting === undefined) {
-        this.replies.push(message)
-      } else {
-        waiting(message)
-      }
+/** Adapts a fetch `Response` into the Effect response type the router serves. */
+function fromWeb(response: Response): HttpServerResponse.HttpServerResponse {
+  const status = response.status
+  const body = response.body
+  if (body === null) return HttpServerResponse.empty({ status })
+  return HttpServerResponse.stream(
+    Stream.fromReadableStream({
+      evaluate: () => body,
+      onError: (cause) => cause
+    }),
+    {
+      status,
+      contentType: response.headers.get('content-type') ?? 'application/json'
     }
-    // Server-initiated notifications have nowhere to go in stateless mode.
-    return Promise.resolve()
-  }
-
-  close(): Promise<void> {
-    this.onclose?.()
-    return Promise.resolve()
-  }
-
-  /** Simulates the client's message arriving on the wire. */
-  receive(message: JSONRPCMessage): void {
-    this.onmessage?.(message)
-  }
-
-  /** Resolves with the server's next JSON-RPC response, in send order. */
-  nextReply(): Promise<JSONRPCMessage> {
-    const queued = this.replies.shift()
-    if (queued !== undefined) return Promise.resolve(queued)
-    return new Promise<JSONRPCMessage>((resolve) => {
-      this.waiting.push(resolve)
-    })
-  }
-}
-// oxlint-enable effect/noNewPromise
-
-const DISPATCH_TIMEOUT_MS = 30_000
-
-// Statelessness shim: every HTTP request gets a fresh server instance, so a
-// `tools/list` or `tools/call` would be refused with "not initialized" unless
-// this bridge performs the handshake first. Stock clients never see these two
-// synthetic messages — they exist inside one request's lifetime only.
-const SYNTHETIC_CLIENT_INFO = { name: `${MCP_SERVER_NAME}-bridge`, version: '0.0.0' }
-
-function isInitialize(message: JSONRPCMessage): boolean {
-  return 'method' in message && message.method === 'initialize'
+  )
 }
 
-/**
- * Feeds one JSON-RPC request to a fresh server instance and resolves the
- * reply, performing the synthetic handshake first when the message itself is
- * not the `initialize`. Returns `undefined` if the reply timed out.
- */
-
-// oxlint-disable effect/noAsyncFunction, effect/noTryCatch, effect/noNewPromise, effect/noGlobals -- the SDK connect/dispose cycle is promise-based and wall-clock timed; this function is the bridge across it
-async function dispatchMessage(
-  env: ApiEnv,
-  scopes: readonly ApiTokenScope[],
-  workspaceSlug: string,
-  message: JSONRPCMessage
-): Promise<JSONRPCMessage | undefined> {
-  const transport = new SingleMessageTransport()
-  const server = buildMcpServer(env, scopes, workspaceSlug)
-  try {
-    await server.connect(transport)
-    if (!isInitialize(message)) {
-      transport.receive({
-        jsonrpc: '2.0',
-        id: '__handshake',
-        method: 'initialize',
-        params: {
-          protocolVersion: LATEST_PROTOCOL_VERSION,
-          capabilities: {},
-          clientInfo: SYNTHETIC_CLIENT_INFO
-        }
-      })
-      await transport.nextReply()
-      transport.receive({ jsonrpc: '2.0', method: 'notifications/initialized' })
-    }
-    transport.receive(message)
-    // Notifications get no reply: feeding them keeps protocol state
-    // consistent, then the dispatch ends immediately.
-    if (!('id' in message)) return undefined
-    return await Promise.race([
-      transport.nextReply(),
-      new Promise<undefined>((resolve) => {
-        setTimeout(() => resolve(undefined), DISPATCH_TIMEOUT_MS)
-      })
-    ])
-  } finally {
-    await server.close()
-  }
-}
-// oxlint-enable effect/noAsyncFunction, effect/noTryCatch
-
-// The guard errors, passed straight through — same tags, same statuses as the
-// contract groups.
 type ProtocolFailure =
   | Unauthorized
   | AuthorizationDenied
@@ -471,37 +383,14 @@ function failureResponse(
   }
 }
 
-function isNotification(message: JSONRPCMessage): boolean {
-  return !('id' in message)
-}
-
-/**
- * The JSON-RPC wire contract for messages a client may POST here, decoded with
- * Schema so the raw body never enters the handler untyped.
- */
-const IncomingJsonRpc = Schema.Union([
-  Schema.Struct({
-    jsonrpc: Schema.Literal('2.0'),
-    id: Schema.NullOr(Schema.Union([Schema.Number, Schema.String])),
-    method: Schema.String
-  }),
-  Schema.Struct({
-    jsonrpc: Schema.Literal('2.0'),
-    method: Schema.String
-  })
-])
-const IncomingJsonRpcFromString = Schema.fromJsonString(IncomingJsonRpc)
-const decodeIncoming = Schema.decodeUnknownSync(IncomingJsonRpcFromString)
-
 /**
  * The `POST /mcp` handler: rate-limit, authenticate, prove `mcp:read`, then
- * hand the JSON-RPC message to the SDK server. Guard failures escape the body
- * so `observed` records them like any other rejected request; everything else
- * answers inline per the streamable-HTTP rules (202 for notifications, JSON-RPC
- * error bodies for malformed traffic).
+ * hand the request to the Agents SDK handler. Guard failures escape the body
+ * so `observed` records them like any other rejected request; everything past
+ * the gate — parsing included — is the Agents handler's job, fed the
+ * pre-parsed body through `fetch(request, { parsedBody })`.
  */
 function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest) {
-  const parseError = jsonResponse(rpcError(-32_700, 'parse error'), 400)
   return Effect.gen(function* () {
     yield* enforceRateLimit(request, 'mcp')
     const verified = yield* authenticate(request)
@@ -510,39 +399,48 @@ function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest)
 
     const raw = yield* Effect.result(request.text)
     if (Result.isFailure(raw)) {
-      return parseError
-    }
-    // Validate the envelope with Schema, then hand the SDK the parsed body
-    // verbatim — request params are re-validated by the SDK per method, and
-    // stripping them here would corrupt the forwarded message.
-    const checked = yield* Effect.result(Effect.try(() => decodeIncoming(raw.success)))
-    if (Result.isFailure(checked)) {
-      return parseError
-    }
-    const message = yield* Effect.result(
-      Effect.try((): JSONRPCMessage => {
-        // oxlint-disable-next-line effect/noGlobals -- the SDK validates the forwarded body itself; this parse only turns bytes into objects
-        return JSON.parse(raw.success)
-      })
-    )
-    if (Result.isFailure(message)) {
-      return parseError
+      return jsonResponse(rpcError(-32_700, 'parse error'), 400)
     }
 
-    if (isNotification(message.success)) {
-      yield* Effect.promise(() =>
-        dispatchMessage(env, verified.scopes, verified.workspaceSlug, message.success)
-      )
-      return HttpServerResponse.empty({ status: 202 })
-    }
-
-    const reply = yield* Effect.promise(() =>
-      dispatchMessage(env, verified.scopes, verified.workspaceSlug, message.success)
+    const parsed = yield* Effect.result(
+      // oxlint-disable-next-line effect/noTryCatch, effect/noAs, effect/noGlobals -- the Agents SDK validates the forwarded body itself; this parse only turns bytes into objects at the promise seam
+      Effect.try((): JSONRPCMessage => JSON.parse(raw.success))
     )
-    if (reply === undefined) {
-      return jsonResponse(rpcError(-32_000, 'server timed out'), 504)
+    if (Result.isFailure(parsed)) {
+      return jsonResponse(rpcError(-32_700, 'parse error'), 400)
     }
-    return jsonResponse(reply, 200)
+    const parsedBody = parsed.success
+
+    // One handler per request is the documented usage for ordinary tools and
+    // resources; the factory closes over this request's verified token so
+    // every tool lands in the right workspace.
+    const handle = createMcpHandler(
+      () => buildMcpServer(env, verified.scopes, verified.workspaceSlug),
+      {
+        corsOptions: false
+        // Bearer-token auth already ran upstream; nothing for CORS to add.
+        // `legacy` stays at its 'stateless' default so stock SDK v1 clients
+        // are served through the stateless legacy fallback.
+      }
+    )
+    // The router hands us its own request type with a relative URL; rebuild
+    // the standard fetch Request the Agents handler expects, restoring the
+    // absolute URL from the Host header.
+    const host = request.headers['host'] ?? 'localhost'
+    const targetUrl = new URL(request.url, `https://${host}`).toString()
+    const webRequest = new Request(targetUrl, {
+      method: 'POST',
+      headers: {
+        host,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream'
+      },
+      body: raw.success
+    })
+    const response = yield* Effect.promise(() =>
+      handle.fetch(webRequest, { parsedBody })
+    )
+    return fromWeb(response)
   })
 }
 

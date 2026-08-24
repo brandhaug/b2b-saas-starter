@@ -71,12 +71,26 @@ const ResourceReadResult = Schema.Struct({
   contents: Schema.Array(Schema.Struct({ uri: Schema.String, text: Schema.String }))
 })
 
-// Same decode-at-the-boundary helper as `index.test.ts`.
+// Same decode-at-the-boundary idea as `index.test.ts`, plus SSE handling:
+// the streamable-HTTP protocol may answer a single request with an SSE body,
+// so unwrap the `data:` frame before decoding.
 function jsonBody<S extends Schema.Top>(
   response: Response,
   schema: S
 ): Effect.Effect<S['Type'], never, S['DecodingServices']> {
-  return Effect.promise(() => response.json()).pipe(
+  return Effect.promise(() => response.text()).pipe(
+    Effect.flatMap((text) => {
+      // oxlint-disable-next-line effect/noTernary, effect/noGlobals -- tests unwrap the protocol's SSE framing before decoding; there is no Effect codec for SSE frames
+      const raw = response.headers.get('content-type')?.includes('text/event-stream')
+        ? text
+            .split('\n')
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.slice('data:'.length).trim())
+            .join('\n')
+        : text
+      // oxlint-disable-next-line effect/noGlobals -- see above: decoding the wire format this test asserts on
+      return Effect.try(() => JSON.parse(raw))
+    }),
     Effect.flatMap((raw) => Schema.decodeUnknownEffect(schema)(raw)),
     Effect.orDie
   )
@@ -88,7 +102,7 @@ describe('POST /mcp protocol', () => {
       Effect.gen(function* () {
         const res = yield* send(
           rpc('initialize', {
-            protocolVersion: '2025-06-18',
+            protocolVersion: '2026-07-28',
             capabilities: {},
             clientInfo: { name: 'stock-client', version: '1.0.0' }
           })
