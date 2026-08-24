@@ -5,7 +5,7 @@
 `TurnstileVerifier` — server-side verification of Cloudflare Turnstile tokens against `siteverify`, for public forms (sign-up first, ADR 0031).
 
 - `enabled` — true only when built with a non-empty `TURNSTILE_SECRET_KEY`.
-- `verify({ token, remoteIp? })` — `inactive` when unconfigured (provider-light: callers proceed), `verified`, or `rejected` with Cloudflare's error codes. Transport failures and unparseable responses surface as `CapabilityUnavailable('turnstile-verification')` so callers fail closed with infrastructure semantics.
+- `verify({ token, remoteIp? })` — `inactive` when unconfigured (provider-light: callers proceed), `verified`, `rejected` with Cloudflare's error codes, or `unavailable` when siteverify cannot be reached or answers off-shape. `verify` never fails; callers gate on the outcome and fail closed on `unavailable`.
 
 ## Storage
 

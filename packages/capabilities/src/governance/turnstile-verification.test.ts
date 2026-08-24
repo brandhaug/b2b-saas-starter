@@ -1,20 +1,11 @@
 import { Effect } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { CapabilityUnavailable } from '../errors.ts'
-import { failureTag } from '../internal/failure-tag.ts'
 import {
   makeTurnstileVerifier,
   type SiteverifyCaller,
-  type SiteverifyRequest,
-  type TurnstileOutcome
+  type SiteverifyRequest
 } from './turnstile-verification.ts'
-
-function outcomeOf(effect: Effect.Effect<TurnstileOutcome, unknown>) {
-  return Effect.gen(function* () {
-    const exit = yield* Effect.exit(effect)
-    return failureTag(exit)
-  })
-}
 
 function callerRecording(seen: Array<SiteverifyRequest>): SiteverifyCaller {
   return (request) =>
@@ -112,8 +103,9 @@ describe('turnstile verification', () => {
             })
           )
       })
-      const verdict = yield* outcomeOf(verifier.verify({ token: 'tok' }))
-      expect(verdict).toBe('CapabilityUnavailable')
+      expect(yield* verifier.verify({ token: 'tok' })).toEqual({
+        outcome: 'unavailable'
+      })
     })
   )
 

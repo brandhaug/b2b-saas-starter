@@ -45,6 +45,7 @@ export type TurnstileVerificationInput = {
 export type TurnstileOutcome =
   | { readonly outcome: 'inactive' }
   | { readonly outcome: 'verified' }
+  | { readonly outcome: 'unavailable' }
   | {
       readonly outcome: 'rejected'
       /** Cloudflare's own error codes (`invalid-input-response`, …), for logs. */
@@ -57,9 +58,10 @@ export type TurnstileVerifierInterface = {
    * need the gate read this; `verify` returns `inactive` when it is false.
    */
   readonly enabled: boolean
+  /** Never fails: siteverify trouble surfaces as `outcome: 'unavailable'` so callers fail closed without an error channel. */
   readonly verify: (
     input: TurnstileVerificationInput
-  ) => Effect.Effect<TurnstileOutcome, CapabilityUnavailable>
+  ) => Effect.Effect<TurnstileOutcome>
 }
 
 export class TurnstileVerifier extends Context.Service<
@@ -109,6 +111,17 @@ function classify(response: SiteverifyResponse): TurnstileOutcome {
   return { outcome: 'rejected', codes: response['error-codes'] ?? [] }
 }
 
+function buildRequest(
+  secretKey: string,
+  token: string,
+  remoteIp: string | undefined
+): SiteverifyRequest {
+  if (remoteIp === undefined || remoteIp.length === 0) {
+    return { secret: secretKey, response: token }
+  }
+  return { secret: secretKey, response: token, remoteip: remoteIp }
+}
+
 export function makeTurnstileVerifier(options: {
   readonly secretKey?: string | undefined
   readonly siteverify?: SiteverifyCaller | undefined
@@ -116,6 +129,7 @@ export function makeTurnstileVerifier(options: {
   const secretKey = options.secretKey
   const enabled = secretKey !== undefined && secretKey.length > 0
   const siteverify = options.siteverify ?? liveSiteverifyCaller
+  const unavailable: TurnstileOutcome = { outcome: 'unavailable' }
 
   return {
     enabled,
@@ -132,16 +146,13 @@ export function makeTurnstileVerifier(options: {
           }
           return missing
         }
-        if (remoteIp === undefined || remoteIp.length === 0) {
-          return classify(yield* siteverify({ secret: secretKey, response: token }))
-        }
-        return classify(
-          yield* siteverify({
-            secret: secretKey,
-            response: token,
-            remoteip: remoteIp
-          })
+        // Siteverify trouble is infrastructure, not a bot verdict — fold the
+        // typed failure into an `unavailable` outcome so `verify` never fails.
+        const attempted = yield* Effect.result(
+          siteverify(buildRequest(secretKey, token, remoteIp))
         )
+        if (Result.isFailure(attempted)) return unavailable
+        return classify(attempted.success)
       })
   }
 }
