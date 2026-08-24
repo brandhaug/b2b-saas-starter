@@ -187,6 +187,9 @@ export const McpToolDescriptor = Schema.Struct({
 })
 export type McpToolDescriptor = typeof McpToolDescriptor.Type
 
+/** Payload of the one executable MCP tool: list a workspace's audit events. */
+export const ListAuditEventsPayload = Schema.Struct({ slug: Schema.String })
+
 export const McpDiscovery = Schema.Struct({
   name: Schema.String,
   resources: Schema.Array(Schema.String),
@@ -194,12 +197,20 @@ export const McpDiscovery = Schema.Struct({
 })
 export type McpDiscovery = typeof McpDiscovery.Type
 
-export const McpApi = HttpApiGroup.make('mcp').add(
-  HttpApiEndpoint.get('discover', '/mcp', {
-    success: McpDiscovery,
-    error: PROTECTED_ERRORS
-  })
-)
+export const McpApi = HttpApiGroup.make('mcp')
+  .add(
+    HttpApiEndpoint.get('discover', '/mcp', {
+      success: McpDiscovery,
+      error: PROTECTED_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.post('listAuditEvents', '/mcp/tools/list-audit-events', {
+      payload: ListAuditEventsPayload,
+      success: Schema.Struct({ events: Schema.Array(AuditEvent) }),
+      error: WORKSPACE_ERRORS
+    })
+  )
 
 export const StarterApi = HttpApi.make('b2b-saas-starter')
   .add(HealthApi)

@@ -28,7 +28,18 @@ const AssistantAnswerBody = Schema.Struct({
   provider: Schema.String,
   assistantConfigured: Schema.Boolean
 })
-const McpDiscoveryBody = Schema.Struct({ name: Schema.String })
+const McpToolBody = Schema.Struct({
+  name: Schema.String,
+  inputSchema: Schema.Record(Schema.String, Schema.Unknown)
+})
+const McpDiscoveryBody = Schema.Struct({
+  name: Schema.String,
+  resources: Schema.Array(Schema.String),
+  tools: Schema.Array(McpToolBody)
+})
+const McpToolResultBody = Schema.Struct({
+  events: Schema.Array(Schema.Unknown)
+})
 
 // Request payloads leave through the same JSON codec the contract decodes.
 const encodeJsonBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
@@ -240,9 +251,29 @@ describe('contract-served routes', () => {
       Effect.gen(function* () {
         const res = yield* send(get('/mcp', bearer))
         expect(res.status).toBe(200)
-        expect((yield* jsonBody(res, McpDiscoveryBody)).name).toBe(
-          'b2b-saas-starter-mcp'
+        const body = yield* jsonBody(res, McpDiscoveryBody)
+        expect(body.name).toBe('b2b-saas-starter-mcp')
+        // Resources describe the token's own workspace, not a hardcoded slug.
+        expect(body.resources).toContain('workspace://starter-lab/overview')
+        expect(
+          body.resources.some((resource) => !resource.includes('starter-lab'))
+        ).toBe(false)
+        // The one advertised tool is real: it has an execution endpoint.
+        expect(body.tools.map((tool) => tool.name)).toEqual([
+          'list_workspace_audit_events'
+        ])
+      })
+    ))
+
+  test('POST /mcp/tools/list-audit-events executes against the capability', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(
+          post('/mcp/tools/list-audit-events', { slug: 'starter-lab' }, bearer)
         )
+        expect(res.status).toBe(200)
+        const body = yield* jsonBody(res, McpToolResultBody)
+        expect(Array.isArray(body.events)).toBe(true)
       })
     ))
 

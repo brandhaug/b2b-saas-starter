@@ -162,6 +162,14 @@ const MATRIX: readonly GatedOperation[] = [
     permission: 'mcp:read',
     expected: 200,
     request: makeRequest('GET', '/mcp')
+  },
+  // The one MCP tool execution names the permission of the capability it
+  // fronts, not `mcp:read` — discovery reads the menu, execution pays for it.
+  {
+    operation: 'POST /mcp/tools/list-audit-events',
+    permission: 'auditLog:read',
+    expected: 200,
+    request: makeRequest('POST', '/mcp/tools/list-audit-events', { slug: SLUG })
   }
 ]
 

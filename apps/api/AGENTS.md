@@ -20,7 +20,7 @@ Cloudflare Worker for external interfaces. Dev server on `:8787`. **Serves the `
 - **No email wiring here.** With the invitation endpoint gone the worker has no `EmailDispatcher` consumer, so `selectEmailDispatcherLayer` is not in its layer stack and `ApiEnv` carries no `EMAIL` binding. The email path's wired consumer is `apps/web/src/lib/server/invitations.ts`.
 - **Webhook fan-out** — after audit-worthy mutations (token create/revoke, webhook create), handlers call `WebhookPublisher.publish`. Publishing is best-effort: queue outage annotates the wide event but never fails the response. The producer binding is `WEBHOOK_QUEUE`; without it the publisher no-ops.
 - **Rate limiting** — `src/rate-limit.ts` is a config shim over `@b2b-saas-starter/rate-limit`. Four buckets are bound in `wrangler.jsonc`: `rest_read`, `rest_write`, `assistant`, `mcp`. The `invitations` bucket went with the invitation endpoint — a bound rate limiter with no route is dead config.
-- **MCP discovery** — `/mcp` returns a discovery response only. Do not advertise tool execution until handlers are wired through the capability layer.
+- **MCP discovery + one tool** — `GET /mcp` builds its resource URIs from the authenticated token's own workspace slug (`workspace://<slug>/...`) — never a hardcoded name — and advertises exactly one tool, `list_workspace_audit_events`. That tool is real: `POST /mcp/tools/list-audit-events` executes it through the same `AuditEventLog` capability as the REST audit-events route, names `auditLog:read` (not `mcp:read`) via `enforcePermission` with the payload slug, and rides the `mcp` rate-limit bucket like discovery. Do not advertise a tool without an execution endpoint behind it.
 
 ## Conventions
 

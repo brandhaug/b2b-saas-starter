@@ -27,7 +27,7 @@ TanStack Start web application for public showcase pages, docs, blog, FAQ, prici
 
 ### `apps/api`
 
-Separate Cloudflare Worker for public REST and MCP capability interfaces. It exposes a health check, workspace overview, OpenAPI placeholder, and MCP skeleton. The durable behavior should move through `packages/capabilities`.
+Separate Cloudflare Worker for public REST and MCP capability interfaces. It exposes a health check, workspace reads, OpenAPI + Scalar, and MCP discovery (`GET /mcp`) with one executable tool (`POST /mcp/tools/list-audit-events`, backed by the audit-event-log capability). The durable behavior moves through `packages/capabilities`.
 
 ### `apps/background`
 

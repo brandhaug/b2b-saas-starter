@@ -14,7 +14,8 @@ import {
 } from '@b2b-saas-starter/authz/src/client.ts'
 import {
   ApiTokenRegistry,
-  type ApiToken
+  type ApiToken,
+  type VerifiedApiToken
 } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
@@ -28,7 +29,12 @@ import { WebhookPublisher } from '@b2b-saas-starter/capabilities/src/developer-p
 import { workspaceOverview } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
-import { RateLimited, StarterApi, Unauthorized } from '@b2b-saas-starter/api'
+import {
+  type McpToolDescriptor,
+  RateLimited,
+  StarterApi,
+  Unauthorized
+} from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import { Effect, Result, type Scope } from 'effect'
 import { type HttpServerRequest } from 'effect/unstable/http'
@@ -76,13 +82,16 @@ function enforceRateLimit(
  * token scope — the scope-to-permission mapping lives in `@b2b-saas-starter/authz`,
  * so a session in the web app and a bearer token here reach the same decision.
  */
-function enforcePermission(
-  request: HttpServerRequest.HttpServerRequest,
-  permission: PermissionRequest,
-  expectedWorkspaceSlug?: string
+/**
+ * Authenticate the bearer token without asking for a permission. Returns the
+ * verified token so callers that need its workspace identity (MCP discovery
+ * builds resource URIs from it) can read it after the gate.
+ */
+function authenticateToken(
+  request: HttpServerRequest.HttpServerRequest
 ): Effect.Effect<
-  void,
-  Unauthorized | AuthorizationDenied | CapabilityUnavailable,
+  VerifiedApiToken,
+  Unauthorized | CapabilityUnavailable,
   ApiTokenRegistry | Scope.Scope
 > {
   return Effect.gen(function* () {
@@ -109,15 +118,30 @@ function enforcePermission(
       yield* annotateWide({ outcome: 'unauthorized', authReason: failure.reason })
       return yield* Effect.fail(new Unauthorized({ message: failure.reason }))
     }
+    return verified.success
+  })
+}
+
+function enforcePermission(
+  request: HttpServerRequest.HttpServerRequest,
+  permission: PermissionRequest,
+  expectedWorkspaceSlug?: string
+): Effect.Effect<
+  void,
+  Unauthorized | AuthorizationDenied | CapabilityUnavailable,
+  ApiTokenRegistry | Scope.Scope
+> {
+  return Effect.gen(function* () {
+    const verified = yield* authenticateToken(request)
 
     if (
       expectedWorkspaceSlug !== undefined &&
-      verified.success.workspaceSlug !== expectedWorkspaceSlug
+      verified.workspaceSlug !== expectedWorkspaceSlug
     ) {
       yield* annotateWide({
         outcome: 'forbidden',
         authReason: 'token_workspace_mismatch',
-        tokenWorkspaceSlug: verified.success.workspaceSlug
+        tokenWorkspaceSlug: verified.workspaceSlug
       })
       return yield* Effect.fail(
         new AuthorizationDenied({ reason: 'token_workspace_mismatch' })
@@ -125,13 +149,13 @@ function enforcePermission(
     }
 
     yield* annotateWide({
-      tokenId: verified.success.id,
-      workspaceId: verified.success.workspaceId,
-      tokenWorkspaceSlug: verified.success.workspaceSlug,
-      tokenScopes: verified.success.scopes
+      tokenId: verified.id,
+      workspaceId: verified.workspaceId,
+      tokenWorkspaceSlug: verified.workspaceSlug,
+      tokenScopes: verified.scopes
     })
 
-    yield* requirePermission(tokenPrincipal(verified.success.scopes), permission)
+    yield* requirePermission(tokenPrincipal(verified.scopes), permission)
   })
 }
 
@@ -465,24 +489,70 @@ export function assistantGroup(env: ApiEnv) {
   )
 }
 
+/**
+ * The one MCP tool, and the discovery document that advertises it. Discovery
+ * reads only — resources are built from the authenticated token's own
+ * workspace, so a token can never be pointed at another workspace's data by
+ * editing a slug. Execution goes through the same capability and permission
+ * (`auditLog:read`) as the REST route it mirrors.
+ */
 export function mcpGroup(env: ApiEnv) {
+  const auditEventsTool: McpToolDescriptor = {
+    name: 'list_workspace_audit_events',
+    description:
+      'List audit events for a workspace. Execute via POST /mcp/tools/list-audit-events with { "slug": "<workspace-slug>" }. Requires auditLog:read.',
+    inputSchema: {
+      type: 'object',
+      properties: { slug: { type: 'string', description: 'Workspace slug' } },
+      required: ['slug']
+    }
+  }
+
   return HttpApiBuilder.group(StarterApi, 'mcp', (handlers) =>
-    handlers.handle('discover', ({ request }) =>
-      observed(
-        env,
-        request,
-        'mcp.discover',
-        {},
-        Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'mcp')
-          yield* enforcePermission(request, { mcp: ['read'] })
-          return {
-            name: 'b2b-saas-starter-mcp',
-            resources: ['workspace://starter-lab/overview'],
-            tools: []
-          }
-        })
+    handlers
+      .handle('discover', ({ request }) =>
+        observed(
+          env,
+          request,
+          'mcp.discover',
+          {},
+          Effect.gen(function* () {
+            yield* enforceRateLimit(request, 'mcp')
+            const verified = yield* authenticateToken(request)
+            yield* requirePermission(tokenPrincipal(verified.scopes), {
+              mcp: ['read']
+            })
+            const slug = verified.workspaceSlug
+            return {
+              name: 'b2b-saas-starter-mcp',
+              resources: [
+                `workspace://${slug}/overview`,
+                `workspace://${slug}/audit-events`
+              ],
+              tools: [auditEventsTool]
+            }
+          })
+        )
       )
-    )
+      .handle('listAuditEvents', ({ payload, request }) =>
+        observed(
+          env,
+          request,
+          'mcp.tools.list-audit-events',
+          { workspaceSlug: payload.slug },
+          Effect.gen(function* () {
+            yield* enforceRateLimit(request, 'mcp')
+            yield* enforcePermission(request, { auditLog: ['read'] }, payload.slug)
+            const events = yield* provideWorkspace(
+              env,
+              payload.slug,
+              Effect.flatMap(AuditEventLog, (log) =>
+                Effect.map(log.list(), (page) => page.events)
+              )
+            )
+            return { events }
+          })
+        )
+      )
   )
 }
