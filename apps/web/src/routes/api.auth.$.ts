@@ -8,6 +8,7 @@ import { toHttpEffect } from 'effectful-better-auth'
 import { authRuntime } from '@/lib/auth-runtime'
 import { withWebRequestScope } from '@/lib/observability'
 import { clientKey, makeRateLimiterLayer, RateLimiter } from '@/lib/rate-limit'
+import { gateTurnstileProtectedRequest } from '@/lib/server/turnstile'
 import { runCapabilities } from '@/lib/capabilities'
 import {
   needsPreHandlerActor,
@@ -71,6 +72,15 @@ async function handleAuth(request: Request): Promise<Response> {
             status: 429,
             headers: { 'content-type': 'application/json; charset=utf-8' }
           })
+        }
+        // ADR 0031: Turnstile gate on the sign-up mutation path. Inert unless
+        // TURNSTILE_SECRET_KEY is configured; configured, it fails closed.
+        const turnstileResponse = yield* Effect.promise(() =>
+          gateTurnstileProtectedRequest(request, { secret: env.TURNSTILE_SECRET_KEY })
+        )
+        if (turnstileResponse) {
+          yield* annotateWide({ outcome: 'turnstile_rejected' })
+          return turnstileResponse
         }
         // Pre-handler audit context before Better Auth runs: it reads the
         // session and — for admin mutations — a body clone that the handler's

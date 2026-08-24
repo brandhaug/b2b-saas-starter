@@ -8,9 +8,13 @@ import { SignUpPage, type SignUpWithEmail } from './sign-up'
 // whether a `history.push` double was called.
 const signUp = vi.fn<SignUpWithEmail>()
 
-async function renderPage(redirect?: string) {
+async function renderPage(redirect?: string, turnstileSiteKey?: string) {
   const rendered = await renderWithRouter(
-    <SignUpPage {...(redirect === undefined ? {} : { redirect })} signUp={signUp} />,
+    <SignUpPage
+      {...(redirect === undefined ? {} : { redirect })}
+      {...(turnstileSiteKey === undefined ? {} : { turnstileSiteKey })}
+      signUp={signUp}
+    />,
     { path: '/sign-up', destinations: ['/workspaces', '/sign-in'] }
   )
   await screen.findByLabelText('Name')
@@ -64,9 +68,53 @@ describe('SignUpPage', () => {
     expect(signUp).toHaveBeenCalledWith({
       name: 'Ada Lovelace',
       email: 'ada@example.com',
-      password: 'correct-horse-battery'
+      password: 'correct-horse-battery',
+      turnstileToken: undefined
     })
     await waitFor(() => expect(router.state.location.pathname).toBe('/workspaces'))
+  })
+
+  it('renders no Turnstile widget and sends no token when unconfigured', async () => {
+    await renderPage()
+    fillValidValues()
+    expect(screen.queryByTestId('turnstile-widget')).toBeNull()
+  })
+
+  it('passes the solved challenge token through the signUp port', async () => {
+    // Fake the Turnstile Web script environment: `window.turnstile` present
+    // means the widget's loader resolves without any network.
+    let solve: ((token: string) => void) | undefined
+    const previous = window.turnstile
+    window.turnstile = {
+      render: (_container, params) => {
+        solve = params.callback
+        return 'widget-id'
+      },
+      remove: () => {},
+      reset: () => {}
+    }
+    try {
+      await renderPage(undefined, 'site-key')
+      await screen.findByTestId('turnstile-widget')
+      fillValidValues()
+      // First attempt fails server-side (the closed gate) so the form stays
+      // mounted for the retry after the challenge is solved.
+      signUp.mockResolvedValueOnce({ error: { message: 'Human verification failed' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+      await waitFor(() => expect(signUp).toHaveBeenCalledTimes(1))
+      // Unsolved challenge: the port still receives the explicit undefined,
+      // and the server gate is what fails the request closed.
+      expect(signUp.mock.calls[0]?.[0]?.turnstileToken).toBeUndefined()
+
+      solve?.('tok-123')
+      signUp.mockClear()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+      await waitFor(() => expect(signUp).toHaveBeenCalledTimes(1))
+      expect(signUp.mock.calls[0]?.[0]?.turnstileToken).toBe('tok-123')
+    } finally {
+      if (previous) window.turnstile = previous
+      else delete window.turnstile
+    }
   })
 
   it('honours a same-origin redirect search param', async () => {

@@ -5,10 +5,12 @@ import { Schema } from 'effect'
 import { UserPlusIcon } from 'lucide-react'
 import { FormTextField } from '@/components/form-text-field'
 import { PublicLayout } from '@/components/public-layout'
+import { TurnstileWidget } from '@/components/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
+import { turnstileSiteKeyServerFn } from '@/lib/server/turnstile'
 import { safeRedirect } from '@/lib/utils'
 
 const SignUpSearch = Schema.Struct({
@@ -19,6 +21,11 @@ const decodeSearch = Schema.decodeUnknownSync(SignUpSearch)
 
 export const Route = createFileRoute('/sign-up')({
   validateSearch: (search) => decodeSearch(search),
+  // The site key resolves server-side on every navigation; `null` when
+  // Turnstile is unconfigured, in which case the widget never renders.
+  loader: async () => ({
+    turnstileSiteKey: (await turnstileSiteKeyServerFn()) ?? undefined
+  }),
   component: SignUpRoute
 })
 
@@ -37,6 +44,7 @@ export type SignUpWithEmail = (input: {
   readonly name: string
   readonly email: string
   readonly password: string
+  readonly turnstileToken?: string | undefined
 }) => Promise<{ readonly error?: { readonly message?: string | undefined } | null }>
 
 /**
@@ -46,7 +54,13 @@ export type SignUpWithEmail = (input: {
  */
 function SignUpRoute() {
   const { redirect } = Route.useSearch()
-  return <SignUpPage redirect={redirect} />
+  const { turnstileSiteKey } = Route.useLoaderData()
+  return (
+    <SignUpPage
+      {...(redirect === undefined ? {} : { redirect })}
+      turnstileSiteKey={turnstileSiteKey}
+    />
+  )
 }
 
 /**
@@ -55,8 +69,10 @@ function SignUpRoute() {
  *
  * `callbackURL` is where Better Auth's verification redirect lands after the
  * emailed token is exchanged — the default ('/') would verify silently and
- * drop the user on the marketing homepage. Turnstile protection of this form
- * is a later wave; the seam is this one client call.
+ * drop the user on the marketing homepage. The Turnstile token (ADR 0031)
+ * rides an `x-turnstile-token` header: the auth catch-all gate reads it
+ * before Better Auth sees the request, so the body schema stays untouched.
+ * Without a configured server secret the header is simply never set.
  */
 function signUpWithAuthClient(
   input: Parameters<SignUpWithEmail>[0]
@@ -65,19 +81,27 @@ function signUpWithAuthClient(
     name: input.name,
     email: input.email,
     password: input.password,
-    callbackURL: `${window.location.origin}/verify-email`
+    callbackURL: `${window.location.origin}/verify-email`,
+    fetchOptions:
+      input.turnstileToken === undefined
+        ? undefined
+        : { headers: { 'x-turnstile-token': input.turnstileToken } }
   })
 }
 
 export function SignUpPage({
   redirect,
+  turnstileSiteKey,
   signUp = signUpWithAuthClient
 }: {
   readonly redirect?: string | undefined
+  /** Present only when `TURNSTILE_SITE_KEY` is configured (ADR 0031). */
+  readonly turnstileSiteKey?: string | undefined
   readonly signUp?: SignUpWithEmail
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   // Hydration signal for e2e: interacting before React hydrates falls through
   // to a native GET submit, so a smoke test waits for this attribute.
   const hydrated = useHydrated()
@@ -88,7 +112,8 @@ export function SignUpPage({
       const result = await signUp({
         name: value.name,
         email: value.email,
-        password: value.password
+        password: value.password,
+        turnstileToken: turnstileToken ?? undefined
       })
       if (result.error) {
         setSubmitError(result.error.message ?? 'Sign-up failed')
@@ -197,6 +222,13 @@ export function SignUpPage({
                   />
                 )}
               </form.Field>
+
+              {turnstileSiteKey ? (
+                <TurnstileWidget
+                  siteKey={turnstileSiteKey}
+                  onToken={setTurnstileToken}
+                />
+              ) : null}
 
               <form.Subscribe
                 selector={(state): readonly [boolean, boolean] => [
