@@ -54,6 +54,21 @@ export type WebhookPublisherInterface = {
   readonly publish: (
     input: PublishWebhookEventInput
   ) => Effect.Effect<void, CapabilityUnavailable, WorkspaceContext>
+
+  /**
+   * Manual-redelivery surface: enqueue one message for exactly one endpoint.
+   * Unlike `publish` there is no fan-out and no subscription check — the
+   * caller (`redeliverWebhookDelivery`) has already verified the delivery row
+   * belongs to the calling workspace. The current request's trace context is
+   * stamped onto the message so the consumer continues this trace. No-op
+   * without a queue binding (same provider-light posture as `publish`).
+   */
+  readonly requeue: (message: {
+    readonly endpointId: string
+    readonly workspaceId: string
+    readonly eventType: string
+    readonly payload: unknown
+  }) => Effect.Effect<void, CapabilityUnavailable>
 }
 
 export class WebhookPublisher extends Context.Service<
@@ -64,7 +79,8 @@ export class WebhookPublisher extends Context.Service<
 export const SeedWebhookPublisher: Layer.Layer<WebhookPublisher> = Layer.succeed(
   WebhookPublisher
 )({
-  publish: () => Effect.void
+  publish: () => Effect.void,
+  requeue: () => Effect.void
 })
 
 const unavailable = orUnavailable('webhook-publisher')
@@ -119,6 +135,23 @@ export function LiveWebhookPublisher(
                       }
                     }))
                   ),
+                catch: (cause) => cause
+              })
+            )
+          }),
+        requeue: (message) =>
+          Effect.gen(function* () {
+            // Provider-light: without a queue binding the publisher no-ops
+            // instead of failing the app.
+            if (!queue) return
+            const traceparent = yield* currentTraceparent
+            yield* unavailable(
+              Effect.tryPromise({
+                try: () =>
+                  queue.send({
+                    ...message,
+                    traceparent
+                  }),
                 catch: (cause) => cause
               })
             )

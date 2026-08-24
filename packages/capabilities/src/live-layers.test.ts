@@ -13,7 +13,7 @@ import {
   type EffectDatabase
 } from '@b2b-saas-starter/db/src/service.ts'
 import { provisionTestD1 } from '@b2b-saas-starter/db/src/testing.ts'
-import { Context, DateTime, Effect, Layer } from 'effect'
+import { Context, DateTime, Effect, Layer, Option } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 import { count, eq } from 'drizzle-orm'
 import { Billing } from './billing/billing.ts'
@@ -1513,6 +1513,148 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
           })
         )
         expect(applied).toBe(false)
+      })
+    )
+  })
+
+  describe('live webhook redelivery', () => {
+    function prepareRedelivery(deliveryId: string) {
+      return inWorkspace(
+        'live-lab',
+        Effect.flatMap(WebhookEndpoints, (webhooks) =>
+          webhooks.prepareRedelivery({ deliveryId })
+        )
+      )
+    }
+
+    function auditRowsFor(eventType: string) {
+      return Effect.gen(function* () {
+        const db = yield* Database
+        return yield* db
+          .select()
+          .from(auditEvents)
+          .where(eq(auditEvents.eventType, eventType))
+      })
+    }
+
+    it.effect(
+      're-enqueues a terminal delivery from the owning workspace and audits it',
+      () =>
+        Effect.gen(function* () {
+          yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WebhookEndpoints, (webhooks) =>
+              webhooks.recordDeliveryAttempt({
+                id: 'whd_live_redeliver',
+                endpointId: 'wh_live',
+                workspaceId: 'wrk_live',
+                eventType: 'demo.event',
+                status: 'failed_permanent',
+                attempts: 1,
+                responseStatus: 404,
+                nextAttemptAt: null,
+                payload: { hello: 'world' }
+              })
+            )
+          )
+
+          const prepared = yield* prepareRedelivery('whd_live_redeliver')
+          expect(Option.isSome(prepared)).toBe(true)
+          if (Option.isNone(prepared)) return
+          // The re-enqueued message is the original dispatch, retargeted at
+          // the endpoint the verified row points at.
+          expect(prepared.value).toEqual({
+            endpointId: 'wh_live',
+            workspaceId: 'wrk_live',
+            eventType: 'demo.event',
+            payload: { hello: 'world' }
+          })
+
+          const rows = yield* auditRowsFor('webhook.delivery_redelivered')
+          expect(rows).toHaveLength(1)
+          expect(rows[0]).toMatchObject({
+            workspaceId: 'wrk_live',
+            targetType: 'webhook_endpoint',
+            targetId: 'wh_live'
+          })
+          expect(rows[0]?.metadata).toMatchObject({
+            deliveryId: 'whd_live_redeliver'
+          })
+        })
+    )
+
+    it.effect('refuses another workspace´s delivery', () =>
+      Effect.gen(function* () {
+        yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WebhookEndpoints, (webhooks) =>
+            webhooks.recordDeliveryAttempt({
+              id: 'whd_live_foreign',
+              endpointId: 'wh_live',
+              workspaceId: 'wrk_live',
+              eventType: 'demo.event',
+              status: 'dead_lettered',
+              attempts: 4,
+              responseStatus: null,
+              nextAttemptAt: null,
+              payload: {}
+            })
+          )
+        )
+        const prepared = yield* inWorkspace(
+          'other-lab',
+          Effect.flatMap(WebhookEndpoints, (webhooks) =>
+            webhooks.prepareRedelivery({ deliveryId: 'whd_live_foreign' })
+          )
+        )
+        expect(Option.isNone(prepared)).toBe(true)
+      })
+    )
+
+    it.effect('refuses non-terminal rows and rows without a stored payload', () =>
+      Effect.gen(function* () {
+        yield* inWorkspace(
+          'live-lab',
+          Effect.gen(function* () {
+            const webhooks = yield* WebhookEndpoints
+            // Retryable failure: still owned by the queue.
+            yield* webhooks.recordDeliveryAttempt({
+              id: 'whd_live_retrying',
+              endpointId: 'wh_live',
+              workspaceId: 'wrk_live',
+              eventType: 'demo.event',
+              status: 'failed',
+              attempts: 2,
+              responseStatus: 500,
+              nextAttemptAt: '2026-07-03T09:01:00.000Z'
+            })
+            // Terminal but recorded before payloads were persisted.
+            yield* webhooks.recordDeliveryAttempt({
+              id: 'whd_live_legacy',
+              endpointId: 'wh_live',
+              workspaceId: 'wrk_live',
+              eventType: 'demo.event',
+              status: 'dead_lettered',
+              attempts: 4,
+              responseStatus: null,
+              nextAttemptAt: null
+            })
+          })
+        )
+        expect(Option.isNone(yield* prepareRedelivery('whd_live_retrying'))).toBe(true)
+        expect(Option.isNone(yield* prepareRedelivery('whd_live_legacy'))).toBe(true)
+      })
+    )
+
+    it.effect('lists recent deliveries for the calling workspace only', () =>
+      Effect.gen(function* () {
+        const deliveries = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.listRecentDeliveries)
+        )
+        // Every row this file recorded against wh_live; other workspaces' rows
+        // never appear because the join filters on the endpoint's workspace.
+        expect(deliveries.length).toBeGreaterThan(0)
       })
     )
   })

@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Workspace-scoped notification stream: webhook-delivery anomalies and human-authored announcements. Powers the bell icon and the notification panel in the workspace shell. Read-only today — notifications are inserted by background jobs and the seed fixture; there is no in-product authoring path.
+Workspace-scoped notification stream: webhook-delivery anomalies and human-authored announcements. Powers the bell icon and the notification panel in the workspace shell. Notifications are inserted by background jobs and the seed fixture; there is no in-product authoring path.
 
 ## Public surface
 
@@ -10,7 +10,8 @@ Workspace-scoped notification stream: webhook-delivery anomalies and human-autho
 - `NotificationFeed.list` — `readonly Notification[]` for the current `WorkspaceContext`. Newest first.
 - `NotificationFeed.unreadCount` — `number`, computed with a `count(*)` query over rows with `readAt IS NULL` (no in-memory filtering).
 - **Actor scoping:** rows with `userId = NULL` are workspace broadcasts, visible to everyone; rows with a `userId` are only visible to that actor (`WorkspaceContext.actor`). Without an actor in context, only broadcast rows are returned. The Seed layer applies the same filter (seed rows may carry an optional `userId` via `SeedNotification`).
-- Both methods can fail with `CapabilityUnavailable` (503) when D1 is unreachable.
+- `NotificationFeed.record({ workspaceId, title, message })` — trusted-emitter write: inserts one broadcast row (`userId = NULL`, so every member of the workspace sees it). `workspaceId` is explicit because the primary caller is the background worker's terminal-outcome path, which has no `WorkspaceContext`. Seed appends to an internal copy of its fixture array. Fails with `CapabilityUnavailable` (503) when D1 is unreachable.
+- Both read methods can fail with `CapabilityUnavailable` (503) when D1 is unreachable.
 
 ## Storage
 

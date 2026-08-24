@@ -18,8 +18,11 @@ import {
 } from './developer-platform/api-token-registry.ts'
 import {
   LiveWebhookEndpoints,
-  WebhookEndpoints
+  WebhookEndpoints,
+  redeliverWebhookDelivery,
+  type RedeliverableMessage
 } from './developer-platform/webhook-endpoints.ts'
+import { WebhookPublisher } from './developer-platform/webhook-publisher.ts'
 import { selectCapabilitiesLayer, selectWorkspaceLayer } from './runtime.ts'
 import {
   NotificationFeed,
@@ -289,6 +292,103 @@ function makeFakeD1() {
   }
   return { binding, executed, batches }
 }
+
+describe('manual webhook redelivery composition', () => {
+  const workspaceB = {
+    id: 'wrk_b',
+    slug: 'workspace-b',
+    name: 'Workspace B',
+    planId: 'starter'
+  }
+  const preparedMessage: RedeliverableMessage = {
+    endpointId: 'wh_b',
+    workspaceId: workspaceB.id,
+    eventType: 'demo.event',
+    payload: { n: 1 }
+  }
+
+  function stubEndpoints(
+    prepared: Option.Option<RedeliverableMessage>
+  ): Layer.Layer<WebhookEndpoints> {
+    return Layer.succeed(WebhookEndpoints)({
+      list: Effect.die('unused'),
+      create: () => Effect.die('unused'),
+      disable: () => Effect.die('unused'),
+      rotateSecret: () => Effect.die('unused'),
+      getDispatchTarget: () => Effect.die('unused'),
+      recordDeliveryAttempt: () => Effect.die('unused'),
+      listDeliveries: () => Effect.die('unused'),
+      listRecentDeliveries: Effect.die('unused'),
+      prepareRedelivery: () => Effect.succeed(prepared)
+    })
+  }
+
+  function stubPublisher(requeued: Array<typeof preparedMessage>) {
+    return Layer.succeed(WebhookPublisher)({
+      publish: () => Effect.die('unused'),
+      requeue: (message) =>
+        Effect.sync(() => {
+          requeued.push(message)
+        })
+    })
+  }
+
+  it.effect('enqueues the prepared message for its one endpoint', () =>
+    Effect.gen(function* () {
+      const requeued: Array<typeof preparedMessage> = []
+      const accepted = yield* redeliverWebhookDelivery({ deliveryId: 'whd_1' }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            stubEndpoints(Option.some(preparedMessage)),
+            stubPublisher(requeued),
+            testWorkspaceContext(workspaceB)
+          )
+        )
+      )
+      expect(accepted).toBe(true)
+      expect(requeued).toEqual([preparedMessage])
+    })
+  )
+
+  it.effect('requeues nothing when no redeliverable delivery matched', () =>
+    Effect.gen(function* () {
+      const requeued: Array<typeof preparedMessage> = []
+      const accepted = yield* redeliverWebhookDelivery({ deliveryId: 'whd_404' }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            stubEndpoints(Option.none()),
+            stubPublisher(requeued),
+            testWorkspaceContext(workspaceB)
+          )
+        )
+      )
+      expect(accepted).toBe(false)
+      expect(requeued).toEqual([])
+    })
+  )
+})
+
+describe('notification feed record', () => {
+  it.effect('appends a broadcast row visible to every member', () =>
+    Effect.gen(function* () {
+      const feed = yield* NotificationFeed
+      yield* feed.record({
+        workspaceId: seedWorkspaceRecord.id,
+        title: 'Webhook dead-lettered',
+        message: 'Event "demo.event" exhausted its retries.'
+      })
+      const items = yield* feed.list
+      expect(items[0]).toMatchObject({
+        title: 'Webhook dead-lettered',
+        read: false
+      })
+    }).pipe(
+      Effect.provide(
+        Layer.merge(SeedNotificationFeed([]), testWorkspaceContext(seedWorkspaceRecord))
+      )
+    )
+  )
+})
 
 describe('webhook endpoint workspace scoping', () => {
   const workspaceB = {

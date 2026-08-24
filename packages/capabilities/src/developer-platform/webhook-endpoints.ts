@@ -1,7 +1,7 @@
 import { batch, Database } from '@b2b-saas-starter/db/src/service.ts'
 import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/src/schema.ts'
 import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect'
-import { and, count, eq, sql } from 'drizzle-orm'
+import { and, count, desc, eq, sql } from 'drizzle-orm'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
@@ -10,6 +10,7 @@ import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { InvalidWebhookUrl, validateWebhookUrl } from './webhook-url.ts'
+import { WebhookPublisher } from './webhook-publisher.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 export const WebhookEndpoint = Schema.Struct({
@@ -31,19 +32,6 @@ export type CreatedWebhookEndpoint = {
   readonly endpoint: WebhookEndpoint
   readonly signingSecret: string
 }
-
-/** A recorded delivery attempt, newest first in `listDeliveries`. */
-export const WebhookDelivery = Schema.Struct({
-  id: Schema.String,
-  endpointId: Schema.String,
-  eventType: Schema.String,
-  status: Schema.String,
-  attempts: Schema.Number,
-  lastAttemptAt: Schema.NullOr(Schema.String),
-  nextAttemptAt: Schema.NullOr(Schema.String),
-  responseStatus: Schema.NullOr(Schema.Number)
-})
-export type WebhookDelivery = typeof WebhookDelivery.Type
 
 export type ListWebhookDeliveriesInput = {
   readonly endpointId: string
@@ -83,6 +71,12 @@ export type WebhookDeliveryAttemptInput = {
   readonly attempts: number
   readonly responseStatus?: number | null
   readonly nextAttemptAt?: string | null
+  /**
+   * The exact event payload that was dispatched. Persisted so a terminal
+   * delivery can be manually redelivered with its original body; omit it only
+   * where no payload exists (legacy rows).
+   */
+  readonly payload?: unknown
 }
 
 /**
@@ -142,6 +136,37 @@ export type DisableWebhookEndpointInput = {
 export type RotateWebhookSecretInput = {
   readonly endpointId: string
   readonly actorUserId?: string
+}
+
+/** Wire/UI DTO for one delivery attempt row. */
+export const WebhookDelivery = Schema.Struct({
+  id: Schema.String,
+  endpointId: Schema.String,
+  eventType: Schema.String,
+  status: Schema.String,
+  attempts: Schema.Number,
+  lastAttemptAt: Schema.NullOr(Schema.String),
+  nextAttemptAt: Schema.NullOr(Schema.String),
+  responseStatus: Schema.NullOr(Schema.Number)
+})
+export type WebhookDelivery = typeof WebhookDelivery.Type
+
+export type RedeliverDeliveryInput = {
+  readonly deliveryId: string
+  readonly actorUserId?: string
+}
+
+/**
+ * The queue message a redelivery re-enqueues: the original dispatch, retyped
+ * against `WebhookQueueMessage`'s producer-side fields (the publisher stamps
+ * `traceparent`). `workspaceId` is the owning workspace verified by the
+ * lookup, not caller input.
+ */
+export type RedeliverableMessage = {
+  readonly endpointId: string
+  readonly workspaceId: string
+  readonly eventType: string
+  readonly payload: unknown
 }
 
 export type WebhookEndpointsInterface = {
@@ -212,6 +237,29 @@ export type WebhookEndpointsInterface = {
   readonly recordDeliveryAttempt: (
     input: WebhookDeliveryAttemptInput
   ) => Effect.Effect<void, CapabilityUnavailable>
+
+  /** Recent delivery attempts for the calling workspace, newest first. */
+  readonly listRecentDeliveries: Effect.Effect<
+    readonly WebhookDelivery[],
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
+
+  /**
+   * Manual-redelivery, first half: verify a terminal delivery row
+   * (`failed_permanent` / `dead_lettered`) belongs to the calling workspace
+   * and carries its original payload, batch the `webhook.delivery_redelivered`
+   * audit event with that check, and return the queue message to re-enqueue.
+   * `Option.none()` when no redeliverable row matched. Enqueueing is the
+   * publisher's half — see `redeliverWebhookDelivery`.
+   */
+  readonly prepareRedelivery: (
+    input: RedeliverDeliveryInput
+  ) => Effect.Effect<
+    Option.Option<RedeliverableMessage>,
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
 }
 
 export class WebhookEndpoints extends Context.Service<
@@ -243,7 +291,6 @@ export function SeedWebhookEndpoints(
       }
       return { endpoint, signingSecret: 'whsec_seed_created' }
     }),
-    listDeliveries: () => Effect.succeed([]),
     disable: (input) =>
       Effect.succeed(seed.some((endpoint) => endpoint.id === input.endpointId)),
     rotateSecret: (input) => {
@@ -253,7 +300,10 @@ export function SeedWebhookEndpoints(
       return Effect.succeed(Option.some({ signingSecret: 'whsec_seed_rotated' }))
     },
     getDispatchTarget: () => Effect.succeed(null),
-    recordDeliveryAttempt: () => Effect.void
+    recordDeliveryAttempt: () => Effect.void,
+    listDeliveries: () => Effect.succeed([]),
+    listRecentDeliveries: Effect.succeed([]),
+    prepareRedelivery: () => Effect.succeed(Option.none())
   })
 }
 
@@ -497,7 +547,8 @@ export const LiveWebhookEndpoints: Layer.Layer<
           attempts: input.attempts,
           lastAttemptAt: DateTime.formatIso(lastAttemptAt),
           nextAttemptAt: input.nextAttemptAt ?? null,
-          responseStatus: input.responseStatus ?? null
+          responseStatus: input.responseStatus ?? null,
+          payload: input.payload ?? null
         })
         const auditEventType = terminalDeliveryAuditEventType.get(input.status)
         if (auditEventType === undefined) {
@@ -524,7 +575,109 @@ export const LiveWebhookEndpoints: Layer.Layer<
         return yield* unavailable(batch(db, [deliveryInsert, auditStatement])).pipe(
           Effect.asVoid
         )
-      })
+      }),
+      listRecentDeliveries: Effect.gen(function* () {
+        const ctx = yield* WorkspaceContext
+        const rows = yield* unavailable(
+          db
+            .select({
+              id: webhookDeliveries.id,
+              endpointId: webhookDeliveries.endpointId,
+              eventType: webhookDeliveries.eventType,
+              status: webhookDeliveries.status,
+              attempts: webhookDeliveries.attempts,
+              lastAttemptAt: webhookDeliveries.lastAttemptAt,
+              nextAttemptAt: webhookDeliveries.nextAttemptAt,
+              responseStatus: webhookDeliveries.responseStatus
+            })
+            .from(webhookDeliveries)
+            .innerJoin(
+              webhookEndpoints,
+              eq(webhookDeliveries.endpointId, webhookEndpoints.id)
+            )
+            .where(eq(webhookEndpoints.workspaceId, ctx.workspace.id))
+            // Newest first; the dashboard panel shows a bounded recent window.
+            .orderBy(desc(webhookDeliveries.lastAttemptAt))
+            .limit(20)
+        )
+        return rows
+      }),
+      prepareRedelivery: (input) =>
+        Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          const rows = yield* unavailable(
+            db
+              .select({
+                endpointId: webhookDeliveries.endpointId,
+                workspaceId: webhookEndpoints.workspaceId,
+                eventType: webhookDeliveries.eventType,
+                payload: webhookDeliveries.payload,
+                status: webhookDeliveries.status
+              })
+              .from(webhookDeliveries)
+              .innerJoin(
+                webhookEndpoints,
+                eq(webhookDeliveries.endpointId, webhookEndpoints.id)
+              )
+              .where(
+                and(
+                  eq(webhookDeliveries.id, input.deliveryId),
+                  eq(webhookEndpoints.workspaceId, ctx.workspace.id)
+                )
+              )
+              .limit(1)
+          )
+          const row = rows[0]
+          // Only terminal rows are redeliverable — a retryable failure is
+          // still owned by the queue — and only with the original payload.
+          if (
+            !row ||
+            (row.status !== 'failed_permanent' && row.status !== 'dead_lettered') ||
+            row.payload === null
+          ) {
+            return Option.none()
+          }
+          const auditStatement = yield* audit.prepareRecord({
+            workspaceId: ctx.workspace.id,
+            actorUserId: input.actorUserId ?? null,
+            eventType: 'webhook.delivery_redelivered',
+            targetType: 'webhook_endpoint',
+            targetId: row.endpointId,
+            metadata: { deliveryId: input.deliveryId }
+          })
+          yield* unavailable(batch(db, [auditStatement]))
+          return Option.some({
+            endpointId: row.endpointId,
+            workspaceId: row.workspaceId,
+            eventType: row.eventType,
+            payload: row.payload
+          })
+        })
     }
   })
 )
+
+/**
+ * Manual redelivery, whole operation: verify + audit via
+ * `WebhookEndpoints.prepareRedelivery`, then re-enqueue the original message
+ * for its one endpoint via `WebhookPublisher.requeue`. Resolves `false` when
+ * no redeliverable delivery matched in this workspace (nothing was written to
+ * the queue and no audit row committed). Permission gating happens above this
+ * effect, at the route/server-function boundary, like every other mutation.
+ */
+export function redeliverWebhookDelivery(
+  input: RedeliverDeliveryInput
+): Effect.Effect<
+  boolean,
+  CapabilityUnavailable,
+  WorkspaceContext | WebhookEndpoints | WebhookPublisher
+> {
+  return Effect.gen(function* () {
+    const webhooks = yield* WebhookEndpoints
+    const prepared = yield* webhooks.prepareRedelivery(input)
+    if (Option.isNone(prepared)) return false
+    const publisher = yield* WebhookPublisher
+    yield* publisher.requeue(prepared.value)
+    return true
+  })
+}

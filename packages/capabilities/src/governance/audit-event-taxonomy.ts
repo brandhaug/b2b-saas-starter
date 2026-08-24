@@ -35,6 +35,7 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'webhook_endpoint.secret_rotated',
   'webhook.delivery_failed',
   'webhook.delivery_dead_lettered',
+  'webhook.delivery_redelivered',
   // governance — workspace lifecycle
   'workspace.created',
   'workspace.renamed',

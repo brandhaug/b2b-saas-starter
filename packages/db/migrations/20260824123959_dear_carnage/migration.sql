@@ -1,0 +1,1 @@
+ALTER TABLE `webhook_deliveries` ADD `payload` text;

@@ -294,7 +294,12 @@ export const webhookDeliveries = sqliteTable(
     attempts: integer('attempts').default(0).notNull(),
     lastAttemptAt: text('last_attempt_at'),
     nextAttemptAt: text('next_attempt_at'),
-    responseStatus: integer('response_status')
+    responseStatus: integer('response_status'),
+    // The exact event payload that was signed and POSTed, kept so a terminal
+    // delivery can be manually redelivered with its original body. Null for
+    // rows recorded before the column existed (and malformed-message paths,
+    // which never reach a delivery row).
+    payload: text('payload', { mode: 'json' }).$type<unknown>()
   },
   (table) => [index('webhook_deliveries_endpoint_id_idx').on(table.endpointId)]
 )

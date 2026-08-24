@@ -1,8 +1,9 @@
 import { Database } from '@b2b-saas-starter/db/src/service.ts'
 import { notifications } from '@b2b-saas-starter/db/src/schema.ts'
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { and, count, desc, eq, isNull, or } from 'drizzle-orm'
 import { type CapabilityUnavailable } from '../errors.ts'
+import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext, type Actor } from '../workspace-context.ts'
 
@@ -31,6 +32,18 @@ export type NotificationFeedInterface = {
   >
 
   readonly unreadCount: Effect.Effect<number, CapabilityUnavailable, WorkspaceContext>
+
+  /**
+   * Trusted-emitter surface (background worker, server functions): insert one
+   * broadcast row. `workspaceId` is taken explicitly because the queue
+   * consumer has no `WorkspaceContext`; the row carries no `userId`, so every
+   * member of the workspace — admins included — sees it.
+   */
+  readonly record: (input: {
+    readonly workspaceId: string
+    readonly title: string
+    readonly message: string
+  }) => Effect.Effect<void, CapabilityUnavailable>
 }
 
 export class NotificationFeed extends Context.Service<
@@ -48,11 +61,13 @@ function visibleToActor(
 export function SeedNotificationFeed(
   seed: readonly SeedNotification[]
 ): Layer.Layer<NotificationFeed> {
+  // Own copy: `record` appends, and the caller's array must not change.
+  const rows: Array<SeedNotification> = [...seed]
   return Layer.succeed(NotificationFeed)({
     list: Effect.gen(function* () {
       const ctx = yield* WorkspaceContext
       const visible: Array<Omit<SeedNotification, 'userId'>> = []
-      for (const entry of seed) {
+      for (const entry of rows) {
         const { userId, ...notification } = entry
         if (visibleToActor(userId, ctx.actor)) visible.push(notification)
       }
@@ -60,11 +75,21 @@ export function SeedNotificationFeed(
     }),
     unreadCount: Effect.gen(function* () {
       const ctx = yield* WorkspaceContext
-      return seed.filter(
+      return rows.filter(
         (notification) =>
           !notification.read && visibleToActor(notification.userId, ctx.actor)
       ).length
-    })
+    }),
+    record: (input) =>
+      Effect.gen(function* () {
+        const now = yield* DateTime.now
+        rows.push({
+          ...input,
+          id: `ntf_seed_${rows.length + 1}`,
+          read: false,
+          createdAt: DateTime.formatIso(now)
+        })
+      })
   })
 }
 
@@ -125,7 +150,20 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
               )
           )
           return rows[0]?.value ?? 0
-        })
+        }),
+        record: (input) =>
+          Effect.gen(function* () {
+            const createdAt = yield* DateTime.now
+            yield* unavailable(
+              db.insert(notifications).values({
+                id: yield* newCapabilityId('ntf'),
+                workspaceId: input.workspaceId,
+                title: input.title,
+                message: input.message,
+                createdAt: DateTime.formatIso(createdAt)
+              })
+            )
+          })
       }
     })
   )

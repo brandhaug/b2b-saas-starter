@@ -146,6 +146,12 @@ const MATRIX: readonly GatedOperation[] = [
       events: ['api_token.created']
     })
   },
+  {
+    operation: 'POST /workspaces/{slug}/webhooks/{deliveryId}/redeliver',
+    permission: 'webhook:create',
+    expected: 403,
+    request: makeRequest('POST', `/workspaces/${SLUG}/webhooks/whd_seed/redeliver`)
+  },
 
   // The assistant and MCP surfaces each carry their own statement now.
   {

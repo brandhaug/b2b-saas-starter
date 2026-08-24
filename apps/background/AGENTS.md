@@ -26,7 +26,11 @@ The column is free-text; keep this vocabulary consistent (also documented on `We
 
 `nextAttemptAt` is derived from the same `backoffSeconds(attempts)` (`min(attempts, 6) × 30s`) used for the actual `message.retry({ delaySeconds })`, so the persisted schedule matches reality. Terminal rows have `nextAttemptAt: null`.
 
-Terminal statuses also emit an audit event: the worker passes the queue message's `workspaceId` in every `recordDeliveryAttempt` call, and the Live capability batches an `AuditEventLog` insert (`webhook.delivery_failed` for `failed_permanent`, `webhook.delivery_dead_lettered` for `dead_lettered`; `targetType: 'webhook_endpoint'`, `actorUserId: null`) with the attempt row so both commit or roll back together. Don't emit these from the worker directly — the mapping lives on `terminalDeliveryAuditEventType` in `packages/capabilities/src/developer-platform/webhook-endpoints.ts`.
+Terminal statuses also emit an audit event and an in-app notification. The worker passes the queue message's `workspaceId` in every `recordDeliveryAttempt` call, and the Live capability batches an `AuditEventLog` insert (`webhook.delivery_failed` for `failed_permanent`, `webhook.delivery_dead_lettered` for `dead_lettered`; `targetType: 'webhook_endpoint'`, `actorUserId: null`) with the attempt row so both commit or roll back together. Don't emit these from the worker directly — the mapping lives on `terminalDeliveryAuditEventType` in `packages/capabilities/src/developer-platform/webhook-endpoints.ts`. The notification half is the worker's `notifyTerminalFailure`: one broadcast row via `NotificationFeed.record`, best-effort by design (a notification outage must not turn an acked terminal outcome into a queue retry loop), so its failures are swallowed onto the wide event (`outcome: 'notification_failed'`).
+
+### Manual redelivery
+
+Delivery rows persist the exact signed `payload` (`webhook_deliveries.payload`), so a terminal delivery can be replayed with its original body. The composed operation is `redeliverWebhookDelivery({ deliveryId })` in the capability: `WebhookEndpoints.prepareRedelivery` verifies the row is terminal, belongs to the calling workspace, and carries a payload — batching the `webhook.delivery_redelivered` audit event — and `WebhookPublisher.requeue` enqueues the original message for that one endpoint (no fan-out; the consumer dispatches it like any other message and appends a fresh attempt row). Permission-gated as a write (`webhook:create`) at both consumers: the API route `POST /workspaces/:slug/webhooks/:deliveryId/redeliver` (404 `DeliveryNotFound` when nothing matched) and the web app's retry button in the dashboard's webhook deliveries panel.
 
 ### SSRF guard
 
@@ -57,7 +61,6 @@ Pure helpers (`backoffSeconds`, `classifyResponseStatus`, `computeWebhookSignatu
 ## Planned, not wired
 
 - Email fan-out is referenced in the starter narrative but has no handler in `src/index.ts` yet. Wire alongside its capability counterpart (`@b2b-saas-starter/email`).
-- Notification emission on `failed_permanent` and `dead_lettered` deliveries (the audit events are wired — see the delivery contract above).
 
 ## Conventions
 

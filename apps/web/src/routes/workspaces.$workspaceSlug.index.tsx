@@ -4,6 +4,7 @@ import {
   type ListNotifications
 } from '@/components/live-notifications'
 import { RoutePending } from '@/components/route-pending'
+import { WebhookDeliveriesPanel } from '@/components/webhook-deliveries-panel'
 import { WebhookSuccessChart } from '@/components/charts/webhook-success-chart'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { viewerCan } from '@/lib/permissions'
@@ -45,7 +46,8 @@ export function WorkspaceDashboardPage({
   /** The one server call this page's children make, forwarded for tests. */
   readonly ports?: { readonly listNotifications?: ListNotifications }
 }) {
-  const { workspace, notifications, webhooks, unreadCount, viewer } = data
+  const { workspace, notifications, webhooks, webhookDeliveries, unreadCount, viewer } =
+    data
 
   return (
     <WorkspaceShell
@@ -71,8 +73,14 @@ export function WorkspaceDashboardPage({
               <CardHeader>
                 <CardTitle as="h2">Webhook delivery</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="grid gap-6">
                 <WebhookSuccessChart webhooks={webhooks} />
+                {webhookDeliveries === null ? null : (
+                  <WebhookDeliveriesPanel
+                    workspaceSlug={workspace.slug}
+                    deliveries={webhookDeliveries}
+                  />
+                )}
               </CardContent>
             </Card>
           )}

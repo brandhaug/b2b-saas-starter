@@ -23,6 +23,7 @@ import {
 } from '@b2b-saas-starter/capabilities/src/runtime.ts'
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-url.ts'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
 import {
   WebhookQueueMessage,
   type WebhookQueueBinding
@@ -165,6 +166,50 @@ function recordedResponseStatus(status: number): number | null {
 }
 
 /**
+ * In-app failure notice for a terminal delivery: one broadcast row so every
+ * member of the owning workspace — admins included — sees the failure in the
+ * notification feed. Best-effort by design: the attempt row and its audit
+ * event have already committed, so a notification outage must not turn an
+ * acked terminal outcome into a queue retry loop.
+ */
+function notifyTerminalFailure(input: {
+  readonly workspaceId: string
+  readonly eventType: string
+  readonly status: 'failed_permanent' | 'dead_lettered'
+  readonly attempts: number
+  readonly responseStatus: number | null
+}): Effect.Effect<void, never, NotificationFeed | Scope.Scope> {
+  let title: string
+  let message: string
+  if (input.status === 'dead_lettered') {
+    title = 'Webhook dead-lettered'
+    message = `Event "${input.eventType}" exhausted its retries (${input.attempts} attempts) and was moved to the dead-letter queue. Redeliver it from the webhook deliveries panel.`
+  } else {
+    let httpPart = ''
+    if (input.responseStatus === null) {
+      httpPart = ''
+    } else {
+      httpPart = ` (HTTP ${input.responseStatus})`
+    }
+    title = 'Webhook delivery failed permanently'
+    message = `Event "${input.eventType}" failed permanently${httpPart}. Redeliver it from the webhook deliveries panel.`
+  }
+  return Effect.gen(function* () {
+    const feed = yield* NotificationFeed
+    yield* feed.record({
+      workspaceId: input.workspaceId,
+      title,
+      message
+    })
+  }).pipe(
+    // Best-effort: swallow any failure (already surfaced on the wide event).
+    Effect.catchCause(() =>
+      annotateWide({ outcome: 'notification_failed' }).pipe(Effect.asVoid)
+    )
+  )
+}
+
+/**
  * Persisted schedule for the next attempt, derived from the same backoff the
  * queue retry uses. Terminal outcomes have no next attempt.
  */
@@ -281,7 +326,8 @@ function terminalAttemptRow(input: {
     status: input.status,
     attempts: input.attempts,
     responseStatus: null,
-    nextAttemptAt: null
+    nextAttemptAt: null,
+    payload: input.message.payload
   }
 }
 
@@ -298,7 +344,7 @@ export function processWebhookMessage(
 ): Effect.Effect<
   DeliveryOutcome,
   CapabilityUnavailable,
-  WebhookEndpoints | HttpClient.HttpClient | Scope.Scope
+  WebhookEndpoints | NotificationFeed | HttpClient.HttpClient | Scope.Scope
 > {
   return Effect.gen(function* () {
     // Queue payloads are `unknown` at runtime — decode at the boundary. A
@@ -338,6 +384,13 @@ export function processWebhookMessage(
           status: 'failed_permanent'
         })
       )
+      yield* notifyTerminalFailure({
+        workspaceId: message.workspaceId,
+        eventType: message.eventType,
+        status: 'failed_permanent',
+        attempts,
+        responseStatus: null
+      })
       yield* annotateWide({
         outcome: 'failed_permanent',
         skipReason: `invalid_url: ${urlCheck.reason}`
@@ -391,8 +444,18 @@ export function processWebhookMessage(
       status,
       attempts,
       responseStatus: recordedResponseStatus(responseStatus),
-      nextAttemptAt: nextAttemptAt(decision, now, attempts)
+      nextAttemptAt: nextAttemptAt(decision, now, attempts),
+      payload: message.payload
     })
+    if (status === 'failed_permanent') {
+      yield* notifyTerminalFailure({
+        workspaceId: message.workspaceId,
+        eventType: message.eventType,
+        status,
+        attempts,
+        responseStatus: recordedResponseStatus(responseStatus)
+      })
+    }
     yield* annotateWide({ outcome: status, responseStatus })
     return deliveryOutcome(decision)
   })
@@ -435,7 +498,11 @@ function deliverWebhook(
  */
 export function processDeadLetterMessage(
   envelope: WebhookQueueEnvelope
-): Effect.Effect<void, CapabilityUnavailable, WebhookEndpoints | Scope.Scope> {
+): Effect.Effect<
+  void,
+  CapabilityUnavailable,
+  WebhookEndpoints | NotificationFeed | Scope.Scope
+> {
   return Effect.gen(function* () {
     // Same boundary decode as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.
@@ -452,6 +519,13 @@ export function processDeadLetterMessage(
         status: 'dead_lettered'
       })
     )
+    yield* notifyTerminalFailure({
+      workspaceId: message.workspaceId,
+      eventType: message.eventType,
+      status: 'dead_lettered',
+      attempts: envelope.attempts,
+      responseStatus: null
+    })
     yield* annotateWide({ outcome: 'dead_lettered' })
   })
 }

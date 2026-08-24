@@ -3,6 +3,7 @@ import {
   WebhookEndpoints,
   type WebhookDeliveryAttemptInput
 } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { describe, expect, it } from 'vitest'
 import { Effect, Layer, type Scope } from 'effect'
@@ -102,6 +103,12 @@ function resolveTarget(
   return null
 }
 
+type RecordedNotification = {
+  readonly workspaceId: string
+  readonly title: string
+  readonly message: string
+}
+
 function stubEndpoints(
   dispatchTarget: typeof target | null,
   recorded: WebhookDeliveryAttemptInput[]
@@ -112,11 +119,28 @@ function stubEndpoints(
     disable: () => Effect.die('unused in delivery tests'),
     rotateSecret: () => Effect.die('unused in delivery tests'),
     listDeliveries: () => Effect.die('unused in delivery tests'),
+    listRecentDeliveries: Effect.die('unused in delivery tests'),
     getDispatchTarget: (endpointId, workspaceId) =>
       Effect.succeed(resolveTarget(dispatchTarget, endpointId, workspaceId)),
     recordDeliveryAttempt: (input) =>
       Effect.sync(() => {
         recorded.push(input)
+      }),
+    // Read/mutation surface of the dashboard and redelivery flows — unused by
+    // the queue consumers under test.
+    prepareRedelivery: () => Effect.die('unused in delivery tests')
+  })
+}
+
+function stubNotifications(
+  recordedNotifications: RecordedNotification[]
+): Layer.Layer<NotificationFeed> {
+  return Layer.succeed(NotificationFeed)({
+    list: Effect.die('unused in delivery tests'),
+    unreadCount: Effect.die('unused in delivery tests'),
+    record: (input) =>
+      Effect.sync(() => {
+        recordedNotifications.push(input)
       })
   })
 }
@@ -158,17 +182,19 @@ describe('processWebhookMessage', () => {
     input: unknown = message
   ) {
     const recorded: WebhookDeliveryAttemptInput[] = []
+    const notified: RecordedNotification[] = []
     const captured: CapturedRequest = {}
     return runScoped(
       processWebhookMessage({ body: input, attempts }, 'trace-test').pipe(
         Effect.provide(
           Layer.mergeAll(
             stubEndpoints(dispatchTarget, recorded),
-            stubHttp(status, captured)
+            stubHttp(status, captured),
+            stubNotifications(notified)
           )
         )
       )
-    ).pipe(Effect.map((outcome) => ({ outcome, recorded, captured })))
+    ).pipe(Effect.map((outcome) => ({ outcome, recorded, captured, notified })))
   }
 
   it('delivers on 2xx, signs the request, and persists a delivered row', () =>
@@ -204,10 +230,10 @@ describe('processWebhookMessage', () => {
       })
     ))
 
-  it('acks a non-retryable 4xx as failed_permanent with the audit workspace id', () =>
+  it('acks a non-retryable 4xx as failed_permanent with the audit workspace id and notifies', () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const { outcome, recorded } = yield* run(target, 404)
+        const { outcome, recorded, notified } = yield* run(target, 404)
         expect(outcome).toBe('ack')
         expect(recorded[0]).toMatchObject({
           status: 'failed_permanent',
@@ -216,6 +242,21 @@ describe('processWebhookMessage', () => {
           // The Live capability scopes the batched audit event with this id.
           workspaceId: 'ws_1'
         })
+        expect(notified).toHaveLength(1)
+        expect(notified[0]).toMatchObject({
+          workspaceId: 'ws_1',
+          title: 'Webhook delivery failed permanently'
+        })
+      })
+    ))
+
+  it('does not notify on delivered or retryable outcomes', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const delivered = yield* run(target, 200)
+        expect(delivered.notified).toHaveLength(0)
+        const retried = yield* run(target, 500, 2)
+        expect(retried.notified).toHaveLength(0)
       })
     ))
 
@@ -291,19 +332,25 @@ describe('processDeadLetterMessage', () => {
   function runDeadLetter(
     input: unknown,
     attempts = 4
-  ): Effect.Effect<WebhookDeliveryAttemptInput[]> {
+  ): Effect.Effect<{
+    recorded: WebhookDeliveryAttemptInput[]
+    notified: RecordedNotification[]
+  }> {
     const recorded: WebhookDeliveryAttemptInput[] = []
+    const notified: RecordedNotification[] = []
     return runScoped(
       processDeadLetterMessage({ body: input, attempts }).pipe(
-        Effect.provide(stubEndpoints(target, recorded))
+        Effect.provide(
+          Layer.mergeAll(stubEndpoints(target, recorded), stubNotifications(notified))
+        )
       )
-    ).pipe(Effect.map(() => recorded))
+    ).pipe(Effect.map(() => ({ recorded, notified })))
   }
 
-  it('records a dead_lettered row carrying the audit workspace id', () =>
+  it('records a dead_lettered row carrying the audit workspace id and notifies the workspace', () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const recorded = yield* runDeadLetter(message)
+        const { recorded, notified } = yield* runDeadLetter(message)
         expect(recorded).toHaveLength(1)
         expect(recorded[0]).toMatchObject({
           endpointId: 'wh_1',
@@ -314,16 +361,32 @@ describe('processDeadLetterMessage', () => {
           responseStatus: null,
           nextAttemptAt: null
         })
+        expect(notified).toHaveLength(1)
+        expect(notified[0]).toMatchObject({
+          workspaceId: 'ws_1',
+          title: 'Webhook dead-lettered'
+        })
+        expect(notified[0]?.message).toContain('api_token.created')
       })
     ))
 
-  it('acks a malformed dead letter without recording', () =>
-    Effect.runPromise(
+  it('acks a malformed dead letter without recording or notifying', () => {
+    // The malformed path has no trusted workspace id, so no notification row
+    // can be scoped — asserted through the empty captures below.
+    const recorded: WebhookDeliveryAttemptInput[] = []
+    const notified: RecordedNotification[] = []
+    return Effect.runPromise(
       Effect.gen(function* () {
-        const recorded = yield* runDeadLetter({ endpointId: 42 })
+        yield* processDeadLetterMessage({ body: { endpointId: 42 }, attempts: 4 }).pipe(
+          Effect.provide(
+            Layer.mergeAll(stubEndpoints(target, recorded), stubNotifications(notified))
+          )
+        )
         expect(recorded).toHaveLength(0)
-      })
-    ))
+        expect(notified).toHaveLength(0)
+      }).pipe(Effect.scoped, Effect.orDie)
+    )
+  })
 })
 
 describe('validateWebhookUrl (dispatch-time SSRF guard)', () => {

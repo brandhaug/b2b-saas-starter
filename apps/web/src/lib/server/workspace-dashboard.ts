@@ -2,6 +2,7 @@ import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
 import { type NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
 import {
   WebhookEndpoints,
+  type WebhookDelivery,
   type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
@@ -26,6 +27,8 @@ import { requireWorkspacePermission, whenPermitted } from './authorize'
 export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
   readonly viewer: WorkspaceViewer | null
   readonly webhooks: readonly WebhookEndpoint[] | null
+  /** Same `webhook:list` gate as `webhooks`; `null` when the actor lacks it. */
+  readonly webhookDeliveries: readonly WebhookDelivery[] | null
 }
 
 const dashboardPayload: Effect.Effect<
@@ -36,14 +39,19 @@ const dashboardPayload: Effect.Effect<
   yield* requireWorkspacePermission({ notification: ['read'] })
   const ctx = yield* WorkspaceContext
   const webhooks = yield* WebhookEndpoints
-  const [core, endpoints] = yield* Effect.all(
-    [workspaceDashboard, whenPermitted({ webhook: ['list'] }, webhooks.list)],
+  const [core, endpoints, deliveries] = yield* Effect.all(
+    [
+      workspaceDashboard,
+      whenPermitted({ webhook: ['list'] }, webhooks.list),
+      whenPermitted({ webhook: ['list'] }, webhooks.listRecentDeliveries)
+    ],
     { concurrency: 'unbounded' }
   )
   return {
     ...core,
     viewer: ctx.actor ? { role: ctx.actor.role } : null,
-    webhooks: endpoints
+    webhooks: endpoints,
+    webhookDeliveries: deliveries
   }
 })
 

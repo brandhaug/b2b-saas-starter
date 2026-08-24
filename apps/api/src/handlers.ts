@@ -9,13 +9,14 @@ import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/aud
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
 import {
   type WebhookEndpoint,
-  WebhookEndpoints
+  WebhookEndpoints,
+  redeliverWebhookDelivery
 } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { WebhookPublisher } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
 import { workspaceOverview } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
-import { StarterApi } from '@b2b-saas-starter/api'
+import { DeliveryNotFound, StarterApi } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import { Effect, Result, type Scope } from 'effect'
 import { type HttpServerRequest } from 'effect/unstable/http'
@@ -37,6 +38,9 @@ import { mcpDiscoveryDocument } from './mcp.ts'
  */
 const HEALTH_OK = { status: 'ok' } satisfies { readonly status: 'ok' }
 const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
+const REDRIVERED_OK = { status: 'redelivered' } satisfies {
+  readonly status: 'redelivered'
+}
 
 /**
  * The webhook events this worker publishes, paired with the payload shape each
@@ -261,45 +265,74 @@ export function apiTokenGroup(env: ApiEnv) {
 
 export function webhookGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'webhook-endpoints', (handlers) =>
-    handlers.handle('create', ({ params, payload, request }) =>
-      observed(
-        env,
-        request,
-        'webhooks.create',
-        { workspaceSlug: params.slug },
-        Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'rest_write')
-          yield* enforcePermission(request, { webhook: ['create'] }, params.slug)
-          const created = yield* provideWorkspace(
-            env,
-            params.slug,
-            Effect.gen(function* () {
-              const webhooks = yield* WebhookEndpoints
-              // Entitlement gate: the plan caps endpoint count (billing rule
-              // owned by the billing capability).
-              const existing = yield* webhooks.list
-              yield* assertWithinPlanLimit({
-                resource: 'webhook_endpoint',
-                used: existing.length
+    handlers
+      .handle('create', ({ params, payload, request }) =>
+        observed(
+          env,
+          request,
+          'webhooks.create',
+          { workspaceSlug: params.slug },
+          Effect.gen(function* () {
+            yield* enforceRateLimit(request, 'rest_write')
+            yield* enforcePermission(request, { webhook: ['create'] }, params.slug)
+            const created = yield* provideWorkspace(
+              env,
+              params.slug,
+              Effect.gen(function* () {
+                const webhooks = yield* WebhookEndpoints
+                // Entitlement gate: the plan caps endpoint count (billing rule
+                // owned by the billing capability).
+                const existing = yield* webhooks.list
+                yield* assertWithinPlanLimit({
+                  resource: 'webhook_endpoint',
+                  used: existing.length
+                })
+                const createdEndpoint = yield* webhooks.create({
+                  url: payload.url,
+                  events: payload.events,
+                  description: payload.description
+                })
+                yield* publishWebhookEvent({
+                  eventType: 'webhook_endpoint.created',
+                  // The projection, never the signing secret.
+                  payload: createdEndpoint.endpoint
+                })
+                return createdEndpoint.endpoint
               })
-              const createdEndpoint = yield* webhooks.create({
-                url: payload.url,
-                events: payload.events,
-                description: payload.description
-              })
-              yield* publishWebhookEvent({
-                eventType: 'webhook_endpoint.created',
-                // The projection, never the signing secret.
-                payload: createdEndpoint.endpoint
-              })
-              return createdEndpoint.endpoint
-            })
-          )
-          yield* annotateWide({ webhookEndpointId: created.id })
-          return created
-        })
+            )
+            yield* annotateWide({ webhookEndpointId: created.id })
+            return created
+          })
+        )
       )
-    )
+      // Manual redelivery. Re-enqueueing is a write (it dispatches real HTTP
+      // from the background worker), so it is gated like the other webhook
+      // mutations rather than `webhook:list`.
+      .handle('redeliver', ({ params, request }) =>
+        observed(
+          env,
+          request,
+          'webhooks.redeliver',
+          { workspaceSlug: params.slug },
+          Effect.gen(function* () {
+            yield* enforceRateLimit(request, 'rest_write')
+            yield* enforcePermission(request, { webhook: ['create'] }, params.slug)
+            const redelivered = yield* provideWorkspace(
+              env,
+              params.slug,
+              redeliverWebhookDelivery({ deliveryId: params.deliveryId })
+            )
+            if (!redelivered) {
+              yield* annotateWide({ outcome: 'not_redeliverable' })
+              return yield* Effect.fail(
+                new DeliveryNotFound({ message: params.deliveryId })
+              )
+            }
+            yield* annotateWide({ deliveryId: params.deliveryId })
+            return REDRIVERED_OK
+          })
+        )
+      )
   )
 }
 

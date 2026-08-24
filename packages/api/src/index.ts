@@ -161,14 +161,45 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
     })
   )
 
-export const WebhookApi = HttpApiGroup.make('webhook-endpoints').add(
-  HttpApiEndpoint.post('create', '/workspaces/:slug/webhooks', {
-    params: SlugParams,
-    payload: CreateWebhookEndpointPayload,
-    success: WebhookEndpoint.pipe(HttpApiSchema.status(201)),
-    error: [InvalidWebhookUrl, PlanLimitExceeded, ...WORKSPACE_ERRORS]
-  })
-)
+const DeliveryIdParams = Schema.Struct({
+  slug: Schema.String,
+  deliveryId: Schema.String
+})
+const RedeliveredResponse = Schema.Struct({
+  status: Schema.Literal('redelivered')
+})
+
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class DeliveryNotFound extends Schema.TaggedError<DeliveryNotFound>()(
+  'DeliveryNotFound',
+  { message: Schema.String },
+  { httpApiStatus: 404 }
+) {}
+
+export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
+  .add(
+    HttpApiEndpoint.post('create', '/workspaces/:slug/webhooks', {
+      params: SlugParams,
+      payload: CreateWebhookEndpointPayload,
+      success: WebhookEndpoint.pipe(HttpApiSchema.status(201)),
+      error: [InvalidWebhookUrl, PlanLimitExceeded, ...WORKSPACE_ERRORS]
+    })
+  )
+  // Manual redelivery of a terminal (`failed_permanent` / `dead_lettered`)
+  // delivery. Resolves `redelivered` only when a redeliverable row matched;
+  // an unknown, foreign-workspace, or non-terminal id is a 404 via
+  // `DeliveryNotFound`.
+  .add(
+    HttpApiEndpoint.post(
+      'redeliver',
+      '/workspaces/:slug/webhooks/:deliveryId/redeliver',
+      {
+        params: DeliveryIdParams,
+        success: RedeliveredResponse,
+        error: [DeliveryNotFound, ...WORKSPACE_ERRORS]
+      }
+    )
+  )
 
 export const AssistantApi = HttpApiGroup.make('assistant').add(
   HttpApiEndpoint.post('answer', '/assistant/answer', {
