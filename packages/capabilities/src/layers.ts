@@ -51,6 +51,14 @@ import {
   type PlatformUserAdminBinding
 } from './governance/platform-user-admin.ts'
 
+// billing
+import {
+  type Billing,
+  LiveBilling,
+  SeedBilling,
+  type LiveBillingOptions
+} from './billing/billing.ts'
+
 // notifications
 import {
   LiveNotificationFeed,
@@ -72,6 +80,7 @@ import {
 export type CapabilityServices =
   | ApiTokenRegistry
   | AuditEventLog
+  | Billing
   | NotificationFeed
   | PlatformUserAdmin
   | WebhookEndpoints
@@ -99,9 +108,18 @@ const SeedGovernance = Layer.unwrap(
   })
 )
 
+/**
+ * Billing rides the governance seed so its audit writes land in the same
+ * fixture log every other capability reads.
+ */
+const SeedBillingLayer = SeedBilling().pipe(
+  Layer.provide(SeedAuditEventLog(seedAuditEvents))
+)
+
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedApiTokenRegistry(seedApiTokens),
   SeedAuditEventLog(seedAuditEvents),
+  SeedBillingLayer,
   SeedNotificationFeed(seedNotifications),
   SeedWebhookEndpoints(seedWebhookEndpoints),
   SeedWebhookPublisher,
@@ -111,6 +129,13 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
 
 export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
+  /**
+   * Stripe checkout configuration (`STRIPE_SECRET_KEY` plus per-plan price
+   * ids). Absent, checkout fails `provider_not_configured` and every other
+   * surface keeps working — the same provider-light posture `webhookQueue`
+   * takes (CLAUDE.md rule 3).
+   */
+  readonly billing?: LiveBillingOptions | undefined
   /**
    * Adapter onto the organization plugin's member endpoints. Absent, membership
    * reads still work and mutations fail `CapabilityUnavailable` — the same
@@ -145,6 +170,7 @@ export function makeLiveCapabilitiesLayer(
   return Layer.mergeAll(
     LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
     LiveAuditEventLog,
+    LiveBilling(options.billing).pipe(Layer.provide(LiveAuditEventLog)),
     LiveNotificationFeed,
     LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
     LiveWebhookPublisher(options.webhookQueue),
