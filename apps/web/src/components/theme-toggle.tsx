@@ -1,12 +1,11 @@
 import { MoonIcon, SunIcon } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+import { useHydrated } from '@/lib/client-only-value'
 import { Button } from '@/components/ui/button'
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const mounted = useHydrated()
   const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
   const label = mounted ? `Switch to ${nextTheme} mode` : 'Toggle theme'
   return (
