@@ -117,6 +117,7 @@
     "@mdx-js/rollup": "3.1.1",
     "@modelcontextprotocol/sdk": "1.30.0",
     "@modelcontextprotocol/server": "2.0.0",
+    "@modelcontextprotocol/client": "2.0.0",
     "agents": "0.21.0",
     "@oxlint/plugins": "1.78.0",
     "@playwright/test": "1.62.1",

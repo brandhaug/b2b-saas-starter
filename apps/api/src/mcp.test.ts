@@ -2,7 +2,7 @@ import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/src/developer-pla
 import { describe, expect, test } from 'vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
-import { MCP_SERVER_NAME, mcpDiscoveryDocument, mcpTools } from './mcp.ts'
+import { mcpDiscoveryDocument, mcpTools } from './mcp.ts'
 
 /**
  * The MCP protocol surface at `POST /mcp`, driven as a stock streamable-HTTP
@@ -32,13 +32,55 @@ type JsonRpcWireRequest = {
   params?: Json
 }
 
-function rpc(method: string, params?: Json): Request {
+/**
+ * The server runs strict stateless-only (`legacy: 'reject'`), so requests
+ * must speak the 2026-07-28 modern protocol revision, exactly what a stock
+ * MCP SDK v2 client sends:
+ *
+ * - a per-request `_meta` envelope naming the protocol version and the
+ *   client capabilities (no session, no handshake), and
+ * - the reserved cross-check headers: `Mcp-Method` always, plus `Mcp-Name`
+ *   whenever the params carry a `name`/`uri`.
+ */
+const MODERN_PROTOCOL_VERSION = '2026-07-28'
+
+// oxlint-disable eslint/no-underscore-dangle -- `_meta` is the protocol's own reserved key
+const MODERN_ENVELOPE = {
+  'io.modelcontextprotocol/protocolVersion': MODERN_PROTOCOL_VERSION,
+  'io.modelcontextprotocol/clientCapabilities': {}
+}
+// oxlint-enable eslint/no-underscore-dangle
+
+type RpcHeaders = {
+  authorization: string
+  'content-type': string
+  'mcp-method': string
+  'mcp-name'?: string
+}
+
+function rpc(method: string, params?: Json, name?: string): Request {
   nextId += 1
-  const envelope: JsonRpcWireRequest = { jsonrpc: '2.0', id: nextId, method }
-  if (params !== undefined) envelope.params = params
+  const envelopeParams: Record<string, Json> = {}
+  if (params !== undefined) Object.assign(envelopeParams, params)
+  // oxlint-disable-next-line eslint/no-underscore-dangle -- protocol-reserved key
+  envelopeParams._meta = MODERN_ENVELOPE
+  const envelope: JsonRpcWireRequest = {
+    jsonrpc: '2.0',
+    id: nextId,
+    method,
+    params: envelopeParams
+  }
+  const headers: RpcHeaders = {
+    authorization: bearer.authorization,
+    'content-type': bearer['content-type'],
+    'mcp-method': method
+  }
+  // The handler rejects a modern request whose Mcp-Name header disagrees
+  // with (or is missing next to) params.name / params.uri.
+  if (name !== undefined) headers['mcp-name'] = name
   return new Request('https://api.test/mcp', {
     method: 'POST',
-    headers: bearer,
+    headers,
     body: encodeJsonBody(envelope)
   })
 }
@@ -56,10 +98,6 @@ function Ok<Result extends Schema.Top>(result: Result) {
   })
 }
 
-const InitializeResult = Schema.Struct({
-  serverInfo: Schema.Struct({ name: Schema.String }),
-  capabilities: Schema.Record(Schema.String, Schema.Unknown)
-})
 const ToolListResult = Schema.Struct({
   tools: Schema.Array(Schema.Struct({ name: Schema.String }))
 })
@@ -96,23 +134,59 @@ function jsonBody<S extends Schema.Top>(
   )
 }
 
+const RpcErrorBody = Schema.Struct({
+  jsonrpc: Schema.Literal('2.0'),
+  id: Schema.NullOr(Schema.Unknown),
+  error: Schema.Struct({ code: Schema.Number, message: Schema.String })
+})
+
 describe('POST /mcp protocol', () => {
-  test('a stock initialize handshake answers server info and capabilities', () =>
+  test('the modern era has no handshake: an initialize is answered method-not-found', () =>
     Effect.runPromise(
       Effect.gen(function* () {
+        // Identity, version, and capabilities travel with every request's
+        // envelope — there is nothing for an initialize to negotiate.
         const res = yield* send(
           rpc('initialize', {
-            protocolVersion: '2026-07-28',
+            protocolVersion: MODERN_PROTOCOL_VERSION,
             capabilities: {},
             clientInfo: { name: 'stock-client', version: '1.0.0' }
           })
         )
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, Ok(InitializeResult))
-        expect(body.result.serverInfo.name).toBe(MCP_SERVER_NAME)
-        expect(Object.keys(body.result.capabilities)).toEqual(
-          expect.arrayContaining(['tools', 'resources'])
+        // The SDK maps the modern method-not-found to an HTTP 404 carrying
+        // the JSON-RPC error.
+        expect(res.status).toBe(404)
+        const body = yield* jsonBody(res, RpcErrorBody)
+        expect(body.error.code).toBe(-32_601)
+      })
+    ))
+
+  test('a legacy-style initialize without the envelope claim is rejected', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        // Strict stateless-only posture: the 2025-era handshake gets the
+        // unsupported-protocol-version error naming what the endpoint serves,
+        // so a legacy client learns the answer from the rejection alone.
+        const res = yield* send(
+          new Request('https://api.test/mcp', {
+            method: 'POST',
+            headers: bearer,
+            body: encodeJsonBody({
+              jsonrpc: '2.0',
+              id: 99,
+              method: 'initialize',
+              params: {
+                protocolVersion: '2025-11-25',
+                capabilities: {},
+                clientInfo: { name: 'legacy-client', version: '1.0.0' }
+              }
+            })
+          })
         )
+        expect(res.status).toBe(400)
+        const body = yield* jsonBody(res, RpcErrorBody)
+        expect(body.error.code).toBe(-32_022)
+        expect(body.error.message).toContain('2025-11-25')
       })
     ))
 
@@ -135,7 +209,11 @@ describe('POST /mcp protocol', () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const res = yield* send(
-          rpc('tools/call', { name: 'list_notifications', arguments: {} })
+          rpc(
+            'tools/call',
+            { name: 'list_notifications', arguments: {} },
+            'list_notifications'
+          )
         )
         expect(res.status).toBe(200)
         const body = yield* jsonBody(res, Ok(CallToolResult))
@@ -147,7 +225,9 @@ describe('POST /mcp protocol', () => {
   test('resources/read serves the workspace overview resource', () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const res = yield* send(rpc('resources/read', { uri: 'workspace://overview' }))
+        const res = yield* send(
+          rpc('resources/read', { uri: 'workspace://overview' }, 'workspace://overview')
+        )
         expect(res.status).toBe(200)
         const body = yield* jsonBody(res, Ok(ResourceReadResult))
         expect(body.result.contents[0]?.uri).toBe('workspace://overview')
