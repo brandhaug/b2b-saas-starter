@@ -17,6 +17,7 @@
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
     "@b2b-saas-starter/rate-limit": "workspace:*",
+    "@sentry/cloudflare": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {

@@ -11,6 +11,11 @@ import {
   WideEventLoggerLive,
   withTriggerScope
 } from '@b2b-saas-starter/logger'
+import {
+  makeSentryOptions,
+  wireWideEventProviders
+} from '@b2b-saas-starter/logger/src/providers.ts'
+import * as Sentry from '@sentry/cloudflare'
 import { bytesToHex } from '@b2b-saas-starter/capabilities/src/crypto.ts'
 import {
   selectCapabilitiesLayer,
@@ -593,10 +598,7 @@ function handleStripeWebhook(
   ).pipe(Effect.catchCause((_cause) => Effect.void))
 }
 
-export default {
-  // The handler is not `async`: the Workers runtime awaits the promise it
-  // returns, and there is nothing to await before returning it.
-
+export default Sentry.withSentry((env: Env) => makeSentryOptions('background', env), {
   // Inbound Stripe webhooks (see docs/integrations/stripe-billing.mdx). The
   // route verifies Stripe's signature scheme against `STRIPE_WEBHOOK_SECRET`
   // and applies subscription changes to `workspaces.planId` through the
@@ -604,6 +606,7 @@ export default {
   // state change.
   // oxlint-disable-next-line effect/noAsyncFunction -- the Workers fetch handler contract is a plain async function; this is the platform adapter boundary
   async fetch(request: Request, env: Env): Promise<Response> {
+    wireWideEventProviders(env)
     const { pathname } = new URL(request.url)
     if (pathname !== '/webhooks/stripe') {
       return new Response('Not found', { status: 404 })
@@ -636,6 +639,7 @@ export default {
   // `processDeadLetterMessage` decode the envelope at their boundary. The batch
   // runs concurrently as one Effect instead of a raw `Promise.all`.
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+    wireWideEventProviders(env)
     if (batch.queue === DEAD_LETTER_QUEUE) {
       return runInvocation(
         env,
@@ -669,4 +673,4 @@ export default {
       )
     )
   }
-}
+})
