@@ -1,7 +1,6 @@
 import { Effect, Layer, Result } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
-import { type PlanLimitExceeded } from '../errors.ts'
 import {
   AuditEventLog,
   type RecordAuditEventInput
