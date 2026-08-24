@@ -26,7 +26,6 @@
     "@fontsource-variable/geist": "catalog:",
     "@fontsource-variable/geist-mono": "catalog:",
     "@mdx-js/rollup": "catalog:",
-    "@sentry/react": "catalog:",
     "@tailwindcss/typography": "catalog:",
     "@tanstack/devtools-vite": "catalog:",
     "@tanstack/react-form": "catalog:",

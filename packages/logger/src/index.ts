@@ -15,6 +15,17 @@ import {
 import { FetchHttpClient, Headers, HttpTraceContext } from 'effect/unstable/http'
 import { Otlp } from 'effect/unstable/observability'
 
+export {
+  makeTelemetryProviders,
+  telemetryProvidersFromEnv,
+  type AnalyticsEvent,
+  type EventPoster,
+  type ReportedFailure,
+  type TelemetryProviderEnv,
+  type TelemetryProviders
+} from './providers.ts'
+import { telemetryProvidersFromEnv } from './providers.ts'
+
 function newTraceId(): string {
   return globalThis.crypto.randomUUID()
 }
@@ -197,6 +208,11 @@ export type WideEventScopeOptions = TraceContinuation & {
   readonly event: string
   readonly traceId?: string | undefined
   readonly environment?: WideEventEnvironment | undefined
+  /**
+   * The worker env bag, mined for the env-gated error reporters (Sentry DSN,
+   * PostHog key). Unset vars leave the providers inert — see `providers.ts`.
+   */
+  readonly env?: object | undefined
   readonly metadata?: Record<string, unknown> | undefined
 }
 
@@ -277,7 +293,9 @@ export function withRequestScope<A, E, R>(
           // `withParentSpan` wraps the finalizer too, so the canonical line is
           // also recorded as an event on this span by `Logger.tracerLogger`.
           return yield* body.pipe(
-            Effect.onExit((exit) => emitWideEvent(options, span, startedAt, exit)),
+            Effect.onExit((exit) =>
+              emitWideEvent(options, span, traceId, startedAt, exit)
+            ),
             Effect.withParentSpan(span, { captureStackTrace: false })
           )
         })
@@ -295,6 +313,7 @@ export function withRequestScope<A, E, R>(
 function emitWideEvent(
   options: WideEventScopeOptions,
   span: Tracer.Span,
+  traceId: string,
   startedAt: number,
   exit: Exit.Exit<unknown, unknown>
 ): Effect.Effect<void> {
@@ -308,6 +327,19 @@ function emitWideEvent(
       { service: options.service, event: options.event, status: outcome.status },
       Duration.millis(durationMs)
     )
+    // Env-gated error reporting (Sentry / PostHog): a failed scope is reported
+    // while the invocation can still perform I/O, and never fails the request.
+    if (outcome.status === 'error') {
+      yield* telemetryProvidersFromEnv(options.env).reportError({
+        service: options.service,
+        event: options.event,
+        message: outcome.error ?? outcome.errorKind,
+        kind: outcome.errorKind,
+        traceId,
+        environment: options.environment?.environment,
+        commitHash: options.environment?.commitHash
+      })
+    }
     const annotated = Effect.annotateLogs({ durationMs, ...outcome })
     if (Exit.isFailure(exit)) {
       yield* Effect.logError(options.event, exit.cause).pipe(annotated)
@@ -383,6 +415,7 @@ export function withHttpRequestScope<A, E, R>(
       traceId: readTraceHeader(options.request),
       parent: parentSpanFromRequest(options.request),
       spanKind: 'server',
+      env: options.env,
       environment: readWideEventEnvironment(options.env, coloHint(colo)),
       metadata: {
         pathname: url.pathname,
@@ -420,6 +453,7 @@ export function withTriggerScope<A, E, R>(
       traceId: options.traceId,
       parent: options.parent,
       spanKind: options.spanKind,
+      env: options.env,
       environment: readWideEventEnvironment(options.env),
       metadata: options.metadata
     },

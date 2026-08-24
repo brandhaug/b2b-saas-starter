@@ -22,22 +22,25 @@ Inside the scope, handlers add business context with `annotateWide(fields)` (an 
 3. **Two levels.** `info` on success, `error` on failure with the `Cause` attached. No debug, no warn.
 4. **The OTLP layer is per invocation; the loggers are per isolate.** `makeOtlpLayer` is provided with `Effect.provide(..., { local: true })` at each entry point. A Cloudflare Worker may not perform I/O on behalf of a request that already ended, and the exporters flush from a background fiber and a scope finalizer — an exporter that outlives its invocation stops exporting, silently. `WideEventLoggerLive` (console JSON + tracer logger) is isolate-safe because it does no I/O, so every worker holds it on a module-scope `ManagedRuntime` (or, in apps/api, on the router layer) and provides the OTLP layer _inside_ it. That nesting is load-bearing: `loggerMergeWithExisting` keeps the console JSON event only if the loggers are already in context when the OTLP layer builds.
 5. **Metric attributes stay low cardinality** — `service`, `event`, `status`, and nothing else. Workspace, token, and endpoint ids go on the wide event and on span attributes, where cardinality is free.
+6. **Sentry/PostHog are fetch-based ingestion from the scope's exit path, never SDKs or background fibers.** `providers.ts` posts envelopes/batches while the invocation can still perform I/O (same rule as invariant 4) and swallows transport failures. Unset `SENTRY_DSN`/`POSTHOG_KEY` select a shared inert provider set — no network, no state.
 
 ## Public surface
 
-| Export                                      | Use                                                                         |
-| ------------------------------------------- | --------------------------------------------------------------------------- |
-| `withHttpRequestScope` / `withTriggerScope` | Open the one scope per invocation                                           |
-| `withRequestScope`                          | The primitive both wrap; reach for it only for a genuinely new trigger kind |
-| `annotateWide`                              | Add business context to the current event                                   |
-| `currentTraceparent`                        | Stamp trace context onto a non-HTTP hop (queue messages)                    |
-| `currentTraceId`                            | The id to hand a caller or forward as `x-trace-id`                          |
-| `traceparentFor` / `parentSpanFromHeaders`  | Encode / decode W3C + B3 trace context                                      |
-| `readWideEventEnvironment`                  | Deployment identity from a worker env bag                                   |
-| `makeOtlpLayer`                             | Per-invocation OTLP export — see invariant 4                                |
-| `WideEventLoggerLive`                       | Console JSON + tracer logger, isolate-level                                 |
-| `TraceContinuation`                         | The `{ parent?, spanKind? }` pair a scope continues an upstream trace with  |
-| `TRACE_HEADER` / `readTraceHeader`          | The `x-trace-id` correlation key                                            |
+| Export                                      | Use                                                                          |
+| ------------------------------------------- | ---------------------------------------------------------------------------- |
+| `withHttpRequestScope` / `withTriggerScope` | Open the one scope per invocation                                            |
+| `withRequestScope`                          | The primitive both wrap; reach for it only for a genuinely new trigger kind  |
+| `annotateWide`                              | Add business context to the current event                                    |
+| `currentTraceparent`                        | Stamp trace context onto a non-HTTP hop (queue messages)                     |
+| `currentTraceId`                            | The id to hand a caller or forward as `x-trace-id`                           |
+| `traceparentFor` / `parentSpanFromHeaders`  | Encode / decode W3C + B3 trace context                                       |
+| `readWideEventEnvironment`                  | Deployment identity from a worker env bag                                    |
+| `makeOtlpLayer`                             | Per-invocation OTLP export — see invariant 4                                 |
+| `telemetryProvidersFromEnv`                 | The env-gated Sentry/PostHog reporters a scope reports failed events through |
+| `captureEvent` (on `TelemetryProviders`)    | Explicit PostHog product-analytics event                                     |
+| `WideEventLoggerLive`                       | Console JSON + tracer logger, isolate-level                                  |
+| `TraceContinuation`                         | The `{ parent?, spanKind? }` pair a scope continues an upstream trace with   |
+| `TRACE_HEADER` / `readTraceHeader`          | The `x-trace-id` correlation key                                             |
 
 ## Anti-patterns
 

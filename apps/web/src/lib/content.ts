@@ -37,7 +37,7 @@ export const optionalProviderModules: readonly OptionalProviderModule[] = [
   {
     id: 'posthog',
     name: 'PostHog',
-    role: 'Product analytics in the web Worker',
+    role: 'Product analytics across all three Workers',
     icon: BarChart3
   },
   {

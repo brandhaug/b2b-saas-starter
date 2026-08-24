@@ -93,13 +93,19 @@ Verify activation: with all three set, the Billing page shows an "Upgrade to Tea
 
 ## Sentry and PostHog (observability)
 
-Error monitoring and product analytics. No SDK is initialized in the Workers yet; the env gate exists so init can land without a schema change. Live telemetry today goes through `OTEL_EXPORTER_OTLP_ENDPOINT` instead.
+Error monitoring and product analytics, wired fetch-first through `packages/logger/src/providers.ts` — no vendor SDK runs in the Workers, just two ingestion POSTs built the same way as the OTLP export (ADR 0050). Both are consumed by the wide-event scope itself: every failed scope in all three workers is reported to Sentry and captured as a `$exception` event in PostHog when their variables are set.
 
 | Variable       | Value                                                           |
 | -------------- | --------------------------------------------------------------- |
 | `SENTRY_DSN`   | Sentry project → Settings → Client Keys (DSN)                   |
 | `POSTHOG_KEY`  | PostHog project settings → project API key                      |
 | `POSTHOG_HOST` | Optional; `.env.example` defaults to `https://us.i.posthog.com` |
+
+**How it works:** a malformed DSN or unset key disables only that provider — never the request. Reports ride the wide-event scope's exit path (`emitWideEvent`), so they fire while the Worker invocation can still perform I/O and are swallowed on transport failure; observability can't fail a request. Each report carries the service, event name, classified error kind, and the `x-trace-id` correlation key, so a Sentry issue links back to the wide-event log stream. For product analytics beyond failures, `captureEvent` from `@b2b-saas-starter/logger` posts any event to PostHog's `/batch/` endpoint with a distinct id and properties.
+
+**Unconfigured:** nothing is sent anywhere — no SDK is loaded, no state kept, and failed scopes surface exactly as before (console JSON wide event plus OTLP if configured).
+
+**Verify:** set `SENTRY_DSN` (and optionally the PostHog pair), restart, then force a failure — for example stop the D1 binding locally or call an endpoint that errors — and confirm the exception appears in Sentry with tags `service`/`event`/`traceId`, and a `$exception` event lands in PostHog.
 
 ## Adding a provider variable
 

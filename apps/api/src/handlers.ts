@@ -159,6 +159,7 @@ function observed<A, E, R>(
       traceId: request.headers[TRACE_HEADER],
       parent: parentSpanFromHeaders(request.headers),
       spanKind: 'server',
+      env,
       environment: readWideEventEnvironment(env),
       metadata: { pathname: request.url, method: request.method, ...metadata }
     },
