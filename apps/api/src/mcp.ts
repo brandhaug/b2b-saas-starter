@@ -417,23 +417,32 @@ function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest)
     const handle = createMcpHandler(
       () => buildMcpServer(env, verified.scopes, verified.workspaceSlug),
       {
-        corsOptions: false
+        corsOptions: false,
         // Bearer-token auth already ran upstream; nothing for CORS to add.
-        // `legacy` stays at its 'stateless' default so stock SDK v1 clients
-        // are served through the stateless legacy fallback.
+        // Strict stateless-only: legacy-protocol clients are rejected rather
+        // than served through the v1 compatibility fallback.
+        legacy: 'reject'
       }
     )
     // The router hands us its own request type with a relative URL; rebuild
     // the standard fetch Request the Agents handler expects, restoring the
-    // absolute URL from the Host header.
+    // absolute URL from the Host header and forwarding the reserved modern-
+    // era headers (`Mcp-Method`, `Mcp-Name`, `MCP-Protocol-Version`) the
+    // handler cross-checks against the body.
     const host = request.headers['host'] ?? 'localhost'
     const targetUrl = new URL(request.url, `https://${host}`).toString()
+    const modernHeaders: Record<string, string> = {}
+    for (const name of ['mcp-method', 'mcp-name', 'mcp-protocol-version']) {
+      const value = request.headers[name]
+      if (value !== undefined) modernHeaders[name] = value
+    }
     const webRequest = new Request(targetUrl, {
       method: 'POST',
       headers: {
         host,
         'content-type': 'application/json',
-        accept: 'application/json, text/event-stream'
+        accept: 'application/json, text/event-stream',
+        ...modernHeaders
       },
       body: raw.success
     })

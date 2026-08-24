@@ -27,7 +27,7 @@ TanStack Start web application for public showcase pages, docs, blog, FAQ, prici
 
 ### `apps/api`
 
-Separate Cloudflare Worker for public REST and MCP capability interfaces. It exposes a health check, workspace reads and writes, an OpenAPI document with a Scalar reference UI, and a stateless MCP server at `POST /mcp` (Cloudflare Agents SDK `createMcpHandler`) whose tools dispatch through the same capability layer as the REST routes. The durable behavior should move through `packages/capabilities`.
+Separate Cloudflare Worker for public REST and MCP capability interfaces. It exposes a health check, workspace reads and writes, an OpenAPI document with a Scalar reference UI, and a strictly stateless-only MCP server at `POST /mcp` (Cloudflare Agents SDK `createMcpHandler`; modern 2026-07-28 protocol only) whose tools dispatch through the same capability layer as the REST routes. The durable behavior should move through `packages/capabilities`.
 
 ### `apps/background`
 
