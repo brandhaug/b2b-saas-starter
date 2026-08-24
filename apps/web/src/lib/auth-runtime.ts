@@ -9,7 +9,8 @@ import { makeAuthEmailSender } from './server/auth-emails'
  * workers shim does not provide. Tagged so the wide-event logger reports
  * `errorTag` instead of an opaque message.
  */
-export class MissingD1Binding extends Schema.TaggedErrorClass<MissingD1Binding>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class MissingD1Binding extends Schema.TaggedError<MissingD1Binding>()(
   'MissingD1Binding',
   { property: Schema.String }
 ) {}

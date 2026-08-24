@@ -9,7 +9,8 @@ import { Schema } from 'effect'
  * This error lives here, below `auth` and `capabilities`, so both raise the
  * same tag. `@b2b-saas-starter/capabilities` re-exports it for consumers.
  */
-export class AuthorizationDenied extends Schema.TaggedErrorClass<AuthorizationDenied>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class AuthorizationDenied extends Schema.TaggedError<AuthorizationDenied>()(
   'AuthorizationDenied',
   { reason: Schema.String },
   { httpApiStatus: 403 }

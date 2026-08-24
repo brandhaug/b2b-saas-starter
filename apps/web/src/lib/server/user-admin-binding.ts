@@ -26,7 +26,8 @@ type AuthService = Service<AuthOptions>
  * from. No `statusCode`, deliberately: the capability classifies it on the
  * unavailable side (the store is not refusing — there was no store to ask).
  */
-class MissingRequestHeaders extends Schema.TaggedErrorClass<MissingRequestHeaders>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+class MissingRequestHeaders extends Schema.TaggedError<MissingRequestHeaders>()(
   'MissingRequestHeaders',
   { message: Schema.String }
 ) {}

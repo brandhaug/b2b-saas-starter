@@ -38,12 +38,14 @@ export type SendEmailBinding = {
   readonly send: (message: SendEmailBuilderArgs) => Promise<void>
 }
 
-export class EmailRenderError extends Schema.TaggedErrorClass<EmailRenderError>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class EmailRenderError extends Schema.TaggedError<EmailRenderError>()(
   'EmailRenderError',
   { message: Schema.String }
 ) {}
 
-export class EmailSendError extends Schema.TaggedErrorClass<EmailSendError>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class EmailSendError extends Schema.TaggedError<EmailSendError>()(
   'EmailSendError',
   { message: Schema.String, to: Schema.String, subject: Schema.String }
 ) {}

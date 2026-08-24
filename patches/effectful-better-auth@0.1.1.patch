@@ -1,0 +1,20 @@
+diff --git a/dist/errors.js b/dist/errors.js
+index 001bb1696a45adf5502e50f8f40ff16058346630..3b2a44b798ad93295b9bb2574fc840cbf5105a8b 100644
+--- a/dist/errors.js
++++ b/dist/errors.js
+@@ -6,7 +6,7 @@ const HeadersInitSchema = Schema.declare((u) => typeof u === 'object' && u !== n
+  * Discriminate on `statusCode` or `code` — never on `message`, which is
+  * human-readable text and may be localized.
+  */
+-export class BetterAuthApiError extends Schema.TaggedErrorClass('BetterAuthApiError')('BetterAuthApiError', {
++export class BetterAuthApiError extends Schema.TaggedError('BetterAuthApiError')('BetterAuthApiError', {
+     statusCode: Schema.Number,
+     code: Schema.UndefinedOr(Schema.String),
+     message: Schema.String,
+@@ -18,5 +18,5 @@ export class BetterAuthApiError extends Schema.TaggedErrorClass('BetterAuthApiEr
+  * `null` (SPEC §5). Better Auth does not throw for missing sessions; the
+  * middleware owns this error. Rendered as 401 on HttpApi contracts.
+  */
+-export class Unauthorized extends Schema.TaggedErrorClass('Unauthorized')('Unauthorized', {}, { httpApiStatus: 401 }) {
++export class Unauthorized extends Schema.TaggedError('Unauthorized')('Unauthorized', {}, { httpApiStatus: 401 }) {
+ }

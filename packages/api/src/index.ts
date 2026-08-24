@@ -35,19 +35,22 @@ import {
   OpenApi
 } from 'effect/unstable/httpapi'
 
-export class InternalError extends Schema.TaggedErrorClass<InternalError>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class InternalError extends Schema.TaggedError<InternalError>()(
   'InternalError',
   { traceId: Schema.String },
   { httpApiStatus: 500 }
 ) {}
 
-export class Unauthorized extends Schema.TaggedErrorClass<Unauthorized>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   'Unauthorized',
   { message: Schema.String },
   { httpApiStatus: 401 }
 ) {}
 
-export class RateLimited extends Schema.TaggedErrorClass<RateLimited>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class RateLimited extends Schema.TaggedError<RateLimited>()(
   'RateLimited',
   { bucket: Schema.String },
   { httpApiStatus: 429 }

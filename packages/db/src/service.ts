@@ -32,10 +32,10 @@ export function layerFromD1(d1: D1Client.D1ClientConfig['db']): Layer.Layer<Data
   )
 }
 
-export class DbBatchError extends Schema.TaggedErrorClass<DbBatchError>()(
-  'DbBatchError',
-  { reason: Schema.String }
-) {}
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class DbBatchError extends Schema.TaggedError<DbBatchError>()('DbBatchError', {
+  reason: Schema.String
+}) {}
 
 /**
  * A drizzle statement (insert/update/delete/select builder) that can be

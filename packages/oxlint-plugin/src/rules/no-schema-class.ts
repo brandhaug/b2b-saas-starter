@@ -10,7 +10,7 @@ import { getPropertyName, isIdentifier, unwrapExpression } from '../internal/ast
  *
  * The starter passes decoded values across worker, queue and HTTP boundaries as
  * plain objects, so struct schemas are the shape that survives. `ErrorClass` and
- * `TaggedErrorClass` stay allowed: they are how Effect models typed errors.
+ * `TaggedError` stay allowed: they are how Effect models typed errors.
  *
  * Ported from oxlint-plugin-executor/rules/no-schema-class.js (MIT).
  */

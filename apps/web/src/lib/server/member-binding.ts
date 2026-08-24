@@ -32,7 +32,8 @@ type AuthService = Service<AuthOptions>
  * from "the store is unreachable", and nothing about the membership is wrong
  * here — so it must land on the unavailable side.
  */
-class MissingRequestHeaders extends Schema.TaggedErrorClass<MissingRequestHeaders>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+class MissingRequestHeaders extends Schema.TaggedError<MissingRequestHeaders>()(
   'MissingRequestHeaders',
   { message: Schema.String }
 ) {}

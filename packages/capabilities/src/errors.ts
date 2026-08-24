@@ -8,13 +8,15 @@ import { Schema } from 'effect'
  */
 export { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
 
-export class WorkspaceNotFound extends Schema.TaggedErrorClass<WorkspaceNotFound>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()(
   'WorkspaceNotFound',
   { slug: Schema.String },
   { httpApiStatus: 404 }
 ) {}
 
-export class CapabilityUnavailable extends Schema.TaggedErrorClass<CapabilityUnavailable>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class CapabilityUnavailable extends Schema.TaggedError<CapabilityUnavailable>()(
   'CapabilityUnavailable',
   { capability: Schema.String, reason: Schema.String },
   { httpApiStatus: 503 }
@@ -26,7 +28,8 @@ export class CapabilityUnavailable extends Schema.TaggedErrorClass<CapabilityUna
  * and the answer is no — distinct from `CapabilityUnavailable`, which says the
  * store is unreachable and the caller should retry.
  */
-export class MembershipChangeRejected extends Schema.TaggedErrorClass<MembershipChangeRejected>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class MembershipChangeRejected extends Schema.TaggedError<MembershipChangeRejected>()(
   'MembershipChangeRejected',
   { reason: Schema.String },
   { httpApiStatus: 409 }
@@ -47,13 +50,15 @@ export class MembershipChangeRejected extends Schema.TaggedErrorClass<Membership
  * — but it names a user account at system level (`/admin`) rather than one of a
  * workspace's members.
  */
-export class UserAdminRejected extends Schema.TaggedErrorClass<UserAdminRejected>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class UserAdminRejected extends Schema.TaggedError<UserAdminRejected>()(
   'UserAdminRejected',
   { reason: Schema.String },
   { httpApiStatus: 409 }
 ) {}
 
-export class WorkspaceChangeRejected extends Schema.TaggedErrorClass<WorkspaceChangeRejected>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class WorkspaceChangeRejected extends Schema.TaggedError<WorkspaceChangeRejected>()(
   'WorkspaceChangeRejected',
   { reason: Schema.String },
   { httpApiStatus: 409 }
@@ -64,7 +69,8 @@ export class WorkspaceChangeRejected extends Schema.TaggedErrorClass<WorkspaceCh
  * second webhook endpoint on Starter, a third API token. The request was
  * answerable and the plan says no — an upgrade, not a retry, resolves it.
  */
-export class PlanLimitExceeded extends Schema.TaggedErrorClass<PlanLimitExceeded>()(
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class PlanLimitExceeded extends Schema.TaggedError<PlanLimitExceeded>()(
   'PlanLimitExceeded',
   {
     planId: Schema.String,
