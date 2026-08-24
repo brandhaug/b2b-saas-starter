@@ -12,7 +12,9 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "effect": "catalog:"
+    "@sentry/cloudflare": "catalog:",
+    "effect": "catalog:",
+    "posthog-node": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",

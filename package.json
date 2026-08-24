@@ -169,6 +169,7 @@
     "oxlint-plugin-react-doctor": "0.9.12",
     "oxlint-tsgolint": "7.0.2001",
     "posthog-js": "1.417.4",
+    "posthog-node": "5.50.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-email": "6.9.2",
