@@ -1,42 +1,34 @@
-import {
-  annotateWide,
-  makeOtlpLayer,
-  parentSpanFromHeaders,
-  readWideEventEnvironment,
-  TRACE_HEADER,
-  withRequestScope
-} from '@b2b-saas-starter/logger'
-import { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { annotateWide } from '@b2b-saas-starter/logger'
 import { assertWithinPlanLimit } from '@b2b-saas-starter/capabilities/src/billing/billing.ts'
-import { requirePermission } from '@b2b-saas-starter/authz/src/guard.ts'
-import {
-  tokenPrincipal,
-  type PermissionRequest
-} from '@b2b-saas-starter/authz/src/client.ts'
+import { type PermissionRequest } from '@b2b-saas-starter/authz/src/client.ts'
 import {
   ApiTokenRegistry,
   type ApiToken
 } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
-import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/src/runtime.ts'
 import {
   type WebhookEndpoint,
   WebhookEndpoints
 } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { WebhookPublisher } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
 import { workspaceOverview } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
-import { RateLimited, StarterApi, Unauthorized } from '@b2b-saas-starter/api'
+import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+import { StarterApi } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import { Effect, Result, type Scope } from 'effect'
 import { type HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 
-import { providerEnv, starterEnv, type ApiEnv } from './env.ts'
-import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
+import { providerEnv, type ApiEnv } from './env.ts'
+import {
+  enforcePermission,
+  enforceRateLimit,
+  observed,
+  provideWorkspace
+} from './request-guards.ts'
+import { mcpDiscoveryDocument } from './mcp.ts'
 
 /**
  * Contract response literals. Each is declared with the literal type the
@@ -45,137 +37,6 @@ import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
  */
 const HEALTH_OK = { status: 'ok' } satisfies { readonly status: 'ok' }
 const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
-
-function clientKey(request: HttpServerRequest.HttpServerRequest): string {
-  return request.headers['cf-connecting-ip'] ?? `unkeyed:${request.url}`
-}
-
-function bearerToken(request: HttpServerRequest.HttpServerRequest): string | null {
-  const header = request.headers.authorization
-  if (!header?.startsWith('Bearer ')) return null
-  return header.slice('Bearer '.length).trim()
-}
-
-function enforceRateLimit(
-  request: HttpServerRequest.HttpServerRequest,
-  bucket: RateLimitBucket
-): Effect.Effect<void, RateLimited, RateLimiter | Scope.Scope> {
-  return Effect.gen(function* () {
-    const limiter = yield* RateLimiter
-    const allowed = yield* limiter.take({ bucket, key: clientKey(request) })
-    if (!allowed) {
-      yield* annotateWide({ outcome: 'rate_limited', rateLimitBucket: bucket })
-      return yield* Effect.fail(new RateLimited({ bucket }))
-    }
-  })
-}
-
-/**
- * The worker's enforcement point: authenticate the bearer token, confine it to
- * its own workspace, then ask the one `authorize()` path whether it may do what
- * it asked. Endpoints name a *permission* (`{ apiToken: ['create'] }`), not a
- * token scope — the scope-to-permission mapping lives in `@b2b-saas-starter/authz`,
- * so a session in the web app and a bearer token here reach the same decision.
- */
-function enforcePermission(
-  request: HttpServerRequest.HttpServerRequest,
-  permission: PermissionRequest,
-  expectedWorkspaceSlug?: string
-): Effect.Effect<
-  void,
-  Unauthorized | AuthorizationDenied | CapabilityUnavailable,
-  ApiTokenRegistry | Scope.Scope
-> {
-  return Effect.gen(function* () {
-    const token = bearerToken(request)
-    if (!token) {
-      yield* annotateWide({ outcome: 'missing_bearer_token' })
-      return yield* Effect.fail(new Unauthorized({ message: 'missing_bearer_token' }))
-    }
-
-    const registry = yield* ApiTokenRegistry
-    const verified = yield* Effect.result(registry.verifyBearerToken(token))
-    if (Result.isFailure(verified)) {
-      const failure = verified.failure
-      if (failure._tag === 'CapabilityUnavailable') {
-        yield* annotateWide({
-          outcome: 'capability_unavailable',
-          capability: failure.capability,
-          capabilityReason: failure.reason
-        })
-        return yield* Effect.fail(failure)
-      }
-      // Verification only ever fails for an unknown or revoked token, which is
-      // an authentication failure: 401, not 403.
-      yield* annotateWide({ outcome: 'unauthorized', authReason: failure.reason })
-      return yield* Effect.fail(new Unauthorized({ message: failure.reason }))
-    }
-
-    if (
-      expectedWorkspaceSlug !== undefined &&
-      verified.success.workspaceSlug !== expectedWorkspaceSlug
-    ) {
-      yield* annotateWide({
-        outcome: 'forbidden',
-        authReason: 'token_workspace_mismatch',
-        tokenWorkspaceSlug: verified.success.workspaceSlug
-      })
-      return yield* Effect.fail(
-        new AuthorizationDenied({ reason: 'token_workspace_mismatch' })
-      )
-    }
-
-    yield* annotateWide({
-      tokenId: verified.success.id,
-      workspaceId: verified.success.workspaceId,
-      tokenWorkspaceSlug: verified.success.workspaceSlug,
-      tokenScopes: verified.success.scopes
-    })
-
-    yield* requirePermission(tokenPrincipal(verified.success.scopes), permission)
-  })
-}
-
-/**
- * Extra wide-event fields a handler contributes on top of the envelope's
- * `pathname`/`method`. Workspace routes name the slug they resolved; the
- * account-wide routes have nothing to add.
- */
-type RequestMetadata = {
-  readonly workspaceSlug?: string
-}
-
-function observed<A, E, R>(
-  env: ApiEnv,
-  request: HttpServerRequest.HttpServerRequest,
-  event: string,
-  metadata: RequestMetadata,
-  body: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
-  return withRequestScope(
-    {
-      service: 'api',
-      event: `request.${event}`,
-      traceId: request.headers[TRACE_HEADER],
-      parent: parentSpanFromHeaders(request.headers),
-      spanKind: 'server',
-      environment: readWideEventEnvironment(env),
-      metadata: { pathname: request.url, method: request.method, ...metadata }
-    },
-    body.pipe(Effect.tap(() => annotateWide({ outcome: 'ok' })))
-    // `local: true` forces a fresh build per request: the OTLP exporters must
-    // live and die inside one invocation (see `makeOtlpLayer`), and a shared
-    // memo map would hand every later request the first request's exporters.
-  ).pipe(Effect.provide(makeOtlpLayer('api', env), { local: true }))
-}
-
-function provideWorkspace<A, E, R>(
-  env: ApiEnv,
-  slug: string,
-  body: Effect.Effect<A, E, R>
-) {
-  return body.pipe(Effect.provide(selectWorkspaceLayer(starterEnv(env), slug)))
-}
 
 /**
  * The webhook events this worker publishes, paired with the payload shape each
@@ -479,11 +340,7 @@ export function mcpGroup(env: ApiEnv) {
         Effect.gen(function* () {
           yield* enforceRateLimit(request, 'mcp')
           yield* enforcePermission(request, { mcp: ['read'] })
-          return {
-            name: 'b2b-saas-starter-mcp',
-            resources: ['workspace://starter-lab/overview'],
-            tools: []
-          }
+          return mcpDiscoveryDocument()
         })
       )
     )

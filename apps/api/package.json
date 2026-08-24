@@ -17,8 +17,12 @@
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
     "@b2b-saas-starter/rate-limit": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@modelcontextprotocol/server": "catalog:",
     "@sentry/cloudflare": "catalog:",
-    "effect": "catalog:"
+    "agents": "catalog:",
+    "effect": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
