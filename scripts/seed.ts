@@ -181,6 +181,8 @@ function demoMemberRows(demoPasswordHash: string): readonly string[] {
       id: 'acc_member_credential',
       accountId: demoMemberIdentity.id,
       providerId: 'credential',
+      // better-auth 1.7 keys credential accounts on this synthetic issuer.
+      issuer: 'local:credential',
       userId: demoMemberIdentity.id,
       password: demoPasswordHash,
       createdAt: 1_778_918_400,
@@ -206,6 +208,8 @@ function demoUserRows(fixture: Fixture, demoPasswordHash: string): readonly stri
       id: 'acc_demo_credential',
       accountId: demoUserIdentity.id,
       providerId: 'credential',
+      // better-auth 1.7 keys credential accounts on this synthetic issuer.
+      issuer: 'local:credential',
       userId: demoUserIdentity.id,
       password: demoPasswordHash,
       createdAt: 1_778_918_400,
