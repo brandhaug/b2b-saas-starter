@@ -53,9 +53,9 @@ Create a widget under the Cloudflare dashboard → Turnstile, with your deployme
 
 ## Assistant (Workers AI or OpenAI-compatible)
 
-The starter assistant answers `POST /assistant/answer` on the API worker. `selectAssistantLayer` in `packages/ai` picks the provider in order:
+The starter assistant answers `POST /assistant/answer` on the API worker and, in the web app, at `/workspaces/$slug/assistant` — a chat page that calls `AssistantService` directly through a TanStack Start server function (no REST round-trip). Both surfaces pick the provider with `selectAssistantLayer` from `packages/ai`, in order:
 
-1. Workers AI, when `WORKERS_AI_ENABLED` is `true` and the `AI` binding exists (default model `@cf/meta/llama-3.1-8b-instruct`). The binding is declared in `apps/api/wrangler.jsonc` and attached to the deployed API worker by `alchemy.run.ts` — no API key involved.
+1. Workers AI, when `WORKERS_AI_ENABLED` is `true` and the `AI` binding exists (default model `@cf/meta/llama-3.1-8b-instruct`). The binding is declared in `apps/{api,web}/wrangler.jsonc` and attached to the deployed workers by `alchemy.run.ts` — no API key involved.
 2. OpenAI-compatible, when `OPENAI_API_KEY` is set (defaults: base URL `https://api.openai.com/v1`, model `gpt-4o-mini`). Any OpenAI-compatible endpoint works via `OPENAI_BASE_URL`.
 3. A mock provider otherwise.
 
@@ -66,7 +66,7 @@ The starter assistant answers `POST /assistant/answer` on the API worker. `selec
 | `OPENAI_BASE_URL`    | Optional override, defaults to `https://api.openai.com/v1` |
 | `OPENAI_MODEL_ID`    | Optional override, defaults to `gpt-4o-mini`               |
 
-**Unconfigured:** the endpoint still answers. The reply comes from the mock provider (`provider: "mock"`, `assistantConfigured: false`) and its text names the variables that enable a real provider. There is no assistant UI in the web app yet.
+**Unconfigured:** the API endpoint still answers from the mock provider (`provider: "mock"`, `assistantConfigured: false`), and the web assistant page hides its form behind honest copy naming the variables that enable a real provider (`assistantConfigured`-equivalent comes from the loader's `configured` field).
 
 **Verify:** on a stack where the API worker has the variables, call the endpoint with a workspace API Token:
 

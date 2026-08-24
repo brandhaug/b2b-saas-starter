@@ -19,6 +19,12 @@ export const env = {
   CLOUDFLARE_EMAIL_FROM: process.env.CLOUDFLARE_EMAIL_FROM,
   TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY,
   TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+  // Assistant provider env: passed through so local dev matches what a
+  // deployed worker receives. Unset/absent leaves the mock provider active.
+  WORKERS_AI_ENABLED: process.env.WORKERS_AI_ENABLED,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+  OPENAI_MODEL_ID: process.env.OPENAI_MODEL_ID,
   // Observability: with an OTLP endpoint set, `bun run dev` exports traces,
   // metrics, and the canonical log records to a local collector exactly as a
   // deployed worker does. Unset, the console JSON event is the whole story.

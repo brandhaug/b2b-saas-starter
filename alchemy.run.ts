@@ -219,6 +219,8 @@ export const Stack = Alchemy.Stack(
 
     yield* attachRateLimits(web, webRateLimits)
 
+    yield* attachWorkersAi(web)
+
     return {
       api,
       background,

@@ -12,6 +12,7 @@ import {
   MenuIcon,
   SettingsIcon,
   ShieldIcon,
+  SparklesIcon,
   UsersIcon,
   WebhookIcon
 } from 'lucide-react'
@@ -246,6 +247,13 @@ function WorkspaceNav({
               onNavigate={onNavigate}
             />
             <NavLink
+              to="/workspaces/$workspaceSlug/assistant"
+              workspaceSlug={workspaceSlug}
+              label="Assistant"
+              icon={<SparklesIcon className="size-4" />}
+              onNavigate={onNavigate}
+            />
+            <NavLink
               to="/workspaces/$workspaceSlug/settings"
               workspaceSlug={workspaceSlug}
               label="Settings"
@@ -310,6 +318,7 @@ function NavLink({
 }: {
   readonly to:
     | '/workspaces/$workspaceSlug'
+    | '/workspaces/$workspaceSlug/assistant'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
