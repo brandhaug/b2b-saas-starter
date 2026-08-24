@@ -6,19 +6,34 @@ order: 30
 tags: [sentry, posthog, observability]
 ---
 
-Sentry and PostHog are optional, env-gated providers: they activate when their environment variables exist and stay absent when they do not.
+Sentry and PostHog are optional, env-gated providers: they activate when their environment variables exist and stay absent when they do not. Unset, nothing changes — no network traffic, no failures, identical local dev.
 
-Telemetry export does not depend on either of them: setting `OTEL_EXPORTER_OTLP_ENDPOINT` ships traces, metrics, and the canonical log records to any OTLP collector, which is the supported path today.
+Telemetry export does not depend on either of them: `OTEL_EXPORTER_OTLP_ENDPOINT` ships traces, metrics, and the canonical log records to any OTLP collector, which remains the supported path for wide-event telemetry. Sentry and PostHog add vendor-native error inboxes and product analytics on top.
 
 ## Sentry
 
-`SENTRY_DSN` is an optional field in `packages/env/src/server.ts`'s schema. No Worker-side Sentry SDK is initialized — the wiring point is reserved. Tagged-error → Sentry mapping and Alchemy source-map upload are explicit non-goals for the first slice.
+| Variable     | Where it works                           |
+| ------------ | ---------------------------------------- |
+| `SENTRY_DSN` | all three workers (web, api, background) |
+
+Server-side, each worker entry is wrapped with the official [`@sentry/cloudflare`](https://docs.sentry.io/platforms/javascript/guides/cloudflare/) SDK (`Sentry.withSentry`). Without a DSN the SDK initializes disabled — no transport is configured, so nothing leaves the worker.
+
+Every failed wide event becomes one Sentry exception, tagged with `service`, `event`, `errorKind`, and the error's `_tag` when it has one, and joined back to the request's OTel trace id. The glue lives in `packages/logger/src/providers.ts` — the same observability seam that owns OTLP export (see `packages/logger/AGENTS.md` and ADR 0050 for the invocation-scoping rules).
+
+In the browser, the web app lazily loads [`@sentry/react`](https://docs.sentry.io/platforms/javascript/guides/react/) only when the root route's loader passes a DSN through (DSNs are public ingest identifiers by design). Client-side errors then report to the same project.
+
+Releases are derived from `SERVICE_VERSION` / `GIT_COMMIT_SHA`; source-map upload is an explicit non-goal for now.
 
 ## PostHog
 
-`POSTHOG_KEY` (and optionally `POSTHOG_HOST`) behaves the same way. The PostHog browser SDK is not initialized in `apps/web`; the env gate is in place so init can be added without a code change.
+| Variable       | Where it works                                                  |
+| -------------- | --------------------------------------------------------------- |
+| `POSTHOG_KEY`  | web browser analytics + server-side capture                     |
+| `POSTHOG_HOST` | Optional; `.env.example` defaults to `https://us.i.posthog.com` |
 
-Neither var activates anything today — no Sentry or PostHog SDK is wired to receive the data. Only `OTEL_EXPORTER_OTLP_ENDPOINT` produces live telemetry end to end.
+Server-side follows PostHog's documented [Cloudflare Workers pattern](https://posthog.com/docs/libraries/cloudflare-workers): the official `posthog-node` client with `flushAt: 1` / `flushInterval: 0`, created per invocation and shut down before the invocation ends — the same invocation-scoped I/O rule ADR 0050 applies to OTLP export. One event per wide-event scope is captured, keyed by the trace id, with `service`, `status`, and `durationMs` properties.
+
+In the browser, `posthog-js` initializes from the same root-route loader data, with history-based page-view capture suited to the SPA router.
 
 ## Local development
 

@@ -25,19 +25,21 @@ Inside the scope, handlers add business context with `annotateWide(fields)` (an 
 
 ## Public surface
 
-| Export                                      | Use                                                                         |
-| ------------------------------------------- | --------------------------------------------------------------------------- |
-| `withHttpRequestScope` / `withTriggerScope` | Open the one scope per invocation                                           |
-| `withRequestScope`                          | The primitive both wrap; reach for it only for a genuinely new trigger kind |
-| `annotateWide`                              | Add business context to the current event                                   |
-| `currentTraceparent`                        | Stamp trace context onto a non-HTTP hop (queue messages)                    |
-| `currentTraceId`                            | The id to hand a caller or forward as `x-trace-id`                          |
-| `traceparentFor` / `parentSpanFromHeaders`  | Encode / decode W3C + B3 trace context                                      |
-| `readWideEventEnvironment`                  | Deployment identity from a worker env bag                                   |
-| `makeOtlpLayer`                             | Per-invocation OTLP export — see invariant 4                                |
-| `WideEventLoggerLive`                       | Console JSON + tracer logger, isolate-level                                 |
-| `TraceContinuation`                         | The `{ parent?, spanKind? }` pair a scope continues an upstream trace with  |
-| `TRACE_HEADER` / `readTraceHeader`          | The `x-trace-id` correlation key                                            |
+| Export                                         | Use                                                                         |
+| ---------------------------------------------- | --------------------------------------------------------------------------- |
+| `withHttpRequestScope` / `withTriggerScope`    | Open the one scope per invocation                                           |
+| `withRequestScope`                             | The primitive both wrap; reach for it only for a genuinely new trigger kind |
+| `annotateWide`                                 | Add business context to the current event                                   |
+| `currentTraceparent`                           | Stamp trace context onto a non-HTTP hop (queue messages)                    |
+| `currentTraceId`                               | The id to hand a caller or forward as `x-trace-id`                          |
+| `traceparentFor` / `parentSpanFromHeaders`     | Encode / decode W3C + B3 trace context                                      |
+| `readWideEventEnvironment`                     | Deployment identity from a worker env bag                                   |
+| `makeOtlpLayer`                                | Per-invocation OTLP export — see invariant 4                                |
+| `WideEventLoggerLive`                          | Console JSON + tracer logger, isolate-level                                 |
+| `addWideEventSink`                             | Register a per-scope sink (Sentry/PostHog glue uses this)                   |
+| `makeSentryOptions` / `wireWideEventProviders` | Vendor provider glue — `./src/providers.ts`; call the latter per invocation |
+| `TraceContinuation`                            | The `{ parent?, spanKind? }` pair a scope continues an upstream trace with  |
+| `TRACE_HEADER` / `readTraceHeader`             | The `x-trace-id` correlation key                                            |
 
 ## Anti-patterns
 
@@ -45,5 +47,7 @@ Inside the scope, handlers add business context with `annotateWide(fields)` (an 
 - Don't build `traceparent` by hand or read it off an inbound header when producing a message. `currentTraceparent` is the encoder, and the span to continue is the one open now.
 - Don't set `traceparent`/`b3` on outbound HTTP. Effect's `HttpClient` injects them.
 - Don't hoist `makeOtlpLayer` to module scope in a worker, and don't merge it beside `WideEventLoggerLive` (invariant 4).
+- Don't call vendor SDKs (Sentry, PostHog) ad hoc from handlers or capabilities — failed scopes already reach Sentry and every scope already becomes a PostHog event through `wireWideEventProviders` (`src/providers.ts`). Both stay inert until `SENTRY_DSN` / `POSTHOG_KEY` exist. Like the OTLP layer, the PostHog client is per invocation; never hoist one to module scope.
+- Don't import `src/providers.ts` from code that reaches the browser bundle — its SDK imports are lazy for exactly that reason.
 - Don't mint a correlation id by hand. `currentTraceId` is the only source; the id generator behind it is deliberately not exported.
 - Don't add a log level. Two is the contract.

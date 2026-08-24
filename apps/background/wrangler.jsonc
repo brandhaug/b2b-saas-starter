@@ -3,6 +3,8 @@
   "name": "b2b-saas-starter-background",
   "main": "src/index.ts",
   "compatibility_date": "2026-05-16",
+  // `@sentry/cloudflare` needs AsyncLocalStorage (see packages/logger/src/providers.ts).
+  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1

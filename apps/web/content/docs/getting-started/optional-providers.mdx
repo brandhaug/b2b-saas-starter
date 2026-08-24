@@ -93,7 +93,7 @@ Verify activation: with all three set, the Billing page shows an "Upgrade to Tea
 
 ## Sentry and PostHog (observability)
 
-Error monitoring and product analytics. No SDK is initialized in the Workers yet; the env gate exists so init can land without a schema change. Live telemetry today goes through `OTEL_EXPORTER_OTLP_ENDPOINT` instead.
+Error monitoring and product analytics, wired through the official SDKs (`@sentry/cloudflare` / `@sentry/react` and `posthog-node` / `posthog-js`) as env-gated providers: set the variables below and both activate across web, api, and background plus the web browser bundle; leave them unset and nothing changes. See the [Sentry and PostHog guide](../integrations/sentry-posthog.mdx) for what each activates. Wide-event telemetry still goes through `OTEL_EXPORTER_OTLP_ENDPOINT`.
 
 | Variable       | Value                                                           |
 | -------------- | --------------------------------------------------------------- |

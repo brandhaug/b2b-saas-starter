@@ -205,6 +205,73 @@ type WideEventOutcome =
   | { readonly status: 'ok' }
   | ({ readonly status: 'error' } & WideEventFailure)
 
+/**
+ * What one finished wide-event scope looks like to external sinks (Sentry,
+ * PostHog — see `providers.ts`). `error` is the raw failure value, not a
+ * stringified one, so error SDKs keep their stack traces; it is only present
+ * on failures.
+ */
+export type WideEventRecord = {
+  readonly service: string
+  readonly event: string
+  /** Always present: the scope's own OTel trace id, or the caller override. */
+  readonly traceId: string
+  readonly spanId: string
+  readonly durationMs: number
+  readonly status: 'ok' | 'error'
+  readonly errorKind?: 'fail' | 'interrupt' | 'defect' | undefined
+  readonly errorTag?: unknown
+  readonly environment?: WideEventEnvironment | undefined
+  readonly error?: unknown
+}
+
+type WideEventSink = (record: WideEventRecord) => Promise<void> | void
+
+/** Write-side view of {@link WideEventRecord}; absent fields stay absent. */
+type MutableWideEventRecord = {
+  -readonly [K in keyof WideEventRecord]: WideEventRecord[K]
+}
+
+const wideEventSinks: Array<WideEventSink> = []
+
+/**
+ * Register a sink invoked once per completed wide-event scope. Sinks must not
+ * throw (rejections are swallowed) and must finish within the invocation —
+ * the same ADR 0050 rule the OTLP exporters follow. Returns an unregister
+ * function.
+ */
+export function addWideEventSink(sink: WideEventSink): () => void {
+  wideEventSinks.push(sink)
+  return () => {
+    const index = wideEventSinks.indexOf(sink)
+    if (index !== -1) wideEventSinks.splice(index, 1)
+  }
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-returns -- the raw failure value goes to vendor SDKs that accept `unknown`; parsing it here would destroy the stack trace
+function failureValue(cause: Cause.Cause<unknown>): unknown {
+  return Option.getOrUndefined(Cause.findErrorOption(cause))
+}
+
+// Sink dispatch is promise-native vendor glue (see providers.ts); wrapping it
+// in Effect would only re-wrap the same awaits one layer down. Each sink runs
+// behind its own catch: a failing vendor must never fail the request it
+// reported on.
+// Sink dispatch is promise-native vendor glue (see providers.ts); wrapping it
+// in Effect would only re-wrap the same awaits one layer down. Each sink runs
+// behind its own catch: a failing vendor must never fail the request it
+// reported on.
+// oxlint-disable effect/noAsyncFunction, effect/noTryCatch, unicorn/noAwaitInLoop, eslint/no-await-in-loop, react-doctor/async-await-in-loop
+async function runWideEventSinks(record: WideEventRecord): Promise<void> {
+  for (const sink of wideEventSinks) {
+    try {
+      await sink(record)
+    } catch {
+      // ignored by contract above
+    }
+  }
+}
+
 function outcomeMetadata(exit: Exit.Exit<unknown, unknown>): WideEventOutcome {
   if (Exit.isFailure(exit)) {
     return { status: 'error', ...causeMetadata(exit.cause) }
@@ -311,9 +378,26 @@ function emitWideEvent(
     const annotated = Effect.annotateLogs({ durationMs, ...outcome })
     if (Exit.isFailure(exit)) {
       yield* Effect.logError(options.event, exit.cause).pipe(annotated)
-      return
+    } else {
+      yield* Effect.log(options.event).pipe(annotated)
     }
-    yield* Effect.log(options.event).pipe(annotated)
+    if (wideEventSinks.length > 0) {
+      const record: MutableWideEventRecord = {
+        service: options.service,
+        event: options.event,
+        traceId: options.traceId ?? span.traceId,
+        spanId: span.spanId,
+        durationMs,
+        status: outcome.status
+      }
+      if (outcome.status === 'error') {
+        record.errorKind = outcome.errorKind
+        if (outcome.errorTag !== undefined) record.errorTag = outcome.errorTag
+        if (Exit.isFailure(exit)) record.error = failureValue(exit.cause)
+      }
+      if (options.environment) record.environment = options.environment
+      yield* Effect.promise(() => runWideEventSinks(record))
+    }
   })
 }
 
