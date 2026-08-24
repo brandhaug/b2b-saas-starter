@@ -376,6 +376,21 @@
     "react/no-unknown-property": "error",
     // Automatic JSX runtime, so React is never in scope by hand (851 would-be reports).
     "react-in-jsx-scope": "off",
+    // React Compiler rules (eslint-plugin-react-hooks compiler set)
+    "react/error-boundaries": "error",
+    "react/globals": "error",
+    "react/immutability": "error",
+    "react/incompatible-library": "error",
+    "react/preserve-manual-memoization": "error",
+    "react/purity": "error",
+    "react/refs": "error",
+    "react/set-state-in-effect": "error",
+    "react/set-state-in-render": "error",
+    "react/static-components": "error",
+    "react/unsupported-syntax": "error",
+    "react/use-memo": "error",
+    "react/void-use-memo": "error",
+
     "react-hooks/exhaustive-deps": "error",
     "react-hooks/rules-of-hooks": "error",
 
