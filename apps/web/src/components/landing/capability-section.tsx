@@ -12,8 +12,12 @@ const REST_SNIPPET = `curl -H "Authorization: Bearer bsk_live_xxx" \\
 
 const MCP_SNIPPET = `{
   "name": "b2b-saas-starter-mcp",
-  "resources": ["workspace://starter-lab/overview"],
-  "tools": []
+  "resources": ["workspace://overview"],
+  "tools": [
+    { "name": "list_notifications", ... },
+    { "name": "get_workspace_overview", ... },
+    { "name": "list_audit_events", ... }
+  ]
 }`
 
 function CapabilitySection() {

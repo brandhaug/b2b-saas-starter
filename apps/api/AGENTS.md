@@ -8,6 +8,7 @@ Cloudflare Worker for external interfaces. Dev server on `:8787`. **Serves the `
 - `src/env.ts` — Cloudflare bindings + env type, plus `starterEnv(env)` for the capability layer.
 - `src/http.ts` — assembles the app layer: `HttpApiBuilder.layer(StarterApi, { openapiPath: '/openapi.json' })`, the Scalar UI (`/reference`), Workers-safe platform services, and request-scoped capabilities via `HttpRouter.provideRequest`.
 - `src/handlers.ts` — one `HttpApiBuilder.group(...)` per contract group: health, workspace, api-token-registry, webhook-endpoints, assistant, mcp.
+- `src/request-guards.ts` — the per-request enforcement helpers (`authenticate`, `enforcePermission`, `enforceRateLimit`, `observed`, `provideWorkspace`) shared by the contract groups and the MCP protocol route.
 
 ## Owned today
 
@@ -20,7 +21,8 @@ Cloudflare Worker for external interfaces. Dev server on `:8787`. **Serves the `
 - **No email wiring here.** With the invitation endpoint gone the worker has no `EmailDispatcher` consumer, so `selectEmailDispatcherLayer` is not in its layer stack and `ApiEnv` carries no `EMAIL` binding. The email path's wired consumer is `apps/web/src/lib/server/invitations.ts`.
 - **Webhook fan-out** — after audit-worthy mutations (token create/revoke, webhook create), handlers call `WebhookPublisher.publish`. Publishing is best-effort: queue outage annotates the wide event but never fails the response. The producer binding is `WEBHOOK_QUEUE`; without it the publisher no-ops.
 - **Rate limiting** — `src/rate-limit.ts` is a config shim over `@b2b-saas-starter/rate-limit`. Four buckets are bound in `wrangler.jsonc`: `rest_read`, `rest_write`, `assistant`, `mcp`. The `invitations` bucket went with the invitation endpoint — a bound rate limiter with no route is dead config.
-- **MCP discovery** — `/mcp` returns a discovery response only. Do not advertise tool execution until handlers are wired through the capability layer.
+- **MCP protocol** — `src/mcp.ts` serves a real MCP server at `POST /mcp` (official `@modelcontextprotocol/sdk`, stateless per request — no session, no Durable Object). The route rides beside the contract via `HttpRouter.add`; it never appears in the OpenAPI document. Tools are read-only projections over the same capability services REST uses, and each invocation re-checks its own permission (`mcpTools[i].permission`) against the token's scopes after the route gate proved `mcp:read`. Because every request gets a fresh server instance, `dispatchMessage` performs a synthetic initialize handshake before non-initialize messages — stock clients don't see it. `GET /mcp` remains the contract-served discovery document; it is derived from the same descriptor table (`mcpDiscoveryDocument()`), so the two surfaces cannot drift.
+- **Shared request guards** — `src/request-guards.ts` holds `authenticate`, `enforcePermission`, `enforceRateLimit`, `observed`, and `provideWorkspace`. Both the contract groups in `handlers.ts` and the MCP route in `mcp.ts` compose them; do not grow a second auth path for a new surface.
 
 ## Conventions
 
