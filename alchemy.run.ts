@@ -160,7 +160,7 @@ export const Stack = Alchemy.Stack(
         ...emailBinding
       },
       env: optionalProviderEnv,
-      compatibility: { date: '2026-05-16' },
+      compatibility: { date: '2026-05-16', flags: ['nodejs_compat'] },
       observability,
       placement: smartPlacement
     })
@@ -178,7 +178,7 @@ export const Stack = Alchemy.Stack(
         ...emailBinding
       },
       env: optionalProviderEnv,
-      compatibility: { date: '2026-05-16' },
+      compatibility: { date: '2026-05-16', flags: ['nodejs_compat'] },
       observability,
       placement: smartPlacement
     })

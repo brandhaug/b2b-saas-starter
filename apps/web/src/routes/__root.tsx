@@ -12,6 +12,8 @@ import {
 import { ThemeProvider } from 'next-themes'
 import { CommandPaletteProvider } from '@/components/command-palette'
 import { Toaster } from '@/components/ui/sonner'
+import { ClientTelemetry } from '@/lib/client-telemetry'
+import { readClientTelemetryConfig } from '@/lib/server/telemetry-config'
 import appCss from '../index.css?url'
 
 // Browser `theme-color` meta requires literal color values — cannot use CSS vars.
@@ -34,6 +36,11 @@ type RouterAppContext = {
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
+  // Server-side only: hands the browser SDKs their public config. Undefined
+  // fields keep Sentry/PostHog inactive in the browser (see
+  // lib/client-telemetry.tsx). The loader runs on the server for SSR and
+  // client navigations alike, so `cloudflare:workers` env is always readable.
+  loader: () => readClientTelemetryConfig(),
   head: () => ({
     meta: [
       { charSet: 'utf8' },
@@ -69,8 +76,10 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 })
 
 function RootComponent() {
+  const telemetryConfig = Route.useLoaderData()
   return (
     <RootDocument>
+      <ClientTelemetry config={telemetryConfig} />
       <Outlet />
     </RootDocument>
   )
