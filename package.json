@@ -171,7 +171,7 @@
     "next-themes": "0.4.6",
     "oxfmt": "0.64.0",
     "oxlint": "1.79.0",
-    "oxlint-plugin-effect": "0.10.0",
+    "oxlint-plugin-effect": "0.11.0",
     "oxlint-plugin-react-doctor": "0.9.12",
     "oxlint-tsgolint": "7.0.2001",
     "posthog-js": "1.418.8",
