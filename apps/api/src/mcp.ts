@@ -5,12 +5,7 @@ import {
   type PermissionRequest
 } from '@b2b-saas-starter/authz/src/client.ts'
 import { requirePermission } from '@b2b-saas-starter/authz/src/guard.ts'
-import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
-import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
-import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
-import { workspaceOverview } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
+import { READ_OPERATIONS, readOperations, type CapabilityRead } from './operations.ts'
 import {
   type RateLimited,
   type Unauthorized,
@@ -24,7 +19,6 @@ import {
 } from 'effect/unstable/http'
 import { Effect, Result, Stream } from 'effect'
 import { type ApiTokenScope } from '@b2b-saas-starter/authz/src/roles.ts'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
 import { createMcpHandler } from 'agents/mcp/server'
 import { z } from 'zod'
 
@@ -66,23 +60,13 @@ import { type ApiEnv } from './env.ts'
 export const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
 const OVERVIEW_RESOURCE_URI = 'workspace://overview'
 
-type CapabilityRead = Effect.Effect<
-  unknown,
-  unknown,
-  | NotificationFeed
-  | WorkspaceMembership
-  | ApiTokenRegistry
-  | WebhookEndpoints
-  | AuditEventLog
-  | WorkspaceContext
->
-
 /**
- * The advertised tools, in one place: `GET /mcp` discovery serves these exact
- * descriptors, and `tools/list` answers from registrations built beside them.
+ * The advertised tools — derived from the shared operation table
+ * (operations.ts) rather than hand-mirrored: each tool is exactly one REST
+ * workspace read, with the same permission and the same capability read.
  * Every tool is a read over a surviving capability — MCP exposes what REST
- * exposes, nothing resurrected. Each entry also names the permission enforced
- * per invocation, mirroring its REST counterpart.
+ * exposes, nothing resurrected. The mirrored operation is named on the wire
+ * so a tool's description points at its REST twin.
  */
 type ToolDefinition = {
   readonly descriptor: McpToolDescriptor
@@ -90,97 +74,21 @@ type ToolDefinition = {
   readonly capability: () => CapabilityRead
 }
 
-export const mcpTools: readonly ToolDefinition[] = [
-  {
+export const mcpTools: readonly ToolDefinition[] = readOperations().map(
+  (operation) => ({
     descriptor: {
-      name: 'list_notifications',
-      description:
-        "List the API token's workspace notifications, mirroring GET /workspaces/{slug}/notifications.",
+      name: operation.toolName,
+      description: `${operation.toolDescription} Mirrors GET /workspaces/{slug}/${operation.path}.`,
       inputSchema: {
         type: 'object',
         properties: {},
         additionalProperties: false
       }
     },
-    permission: { notification: ['read'] },
-    capability: () => Effect.flatMap(NotificationFeed, (feed) => feed.list)
-  },
-  {
-    descriptor: {
-      name: 'get_workspace_overview',
-      description:
-        'The workspace record plus its notification feed, mirroring GET /workspaces/{slug}/overview.',
-      inputSchema: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false
-      }
-    },
-    permission: { notification: ['read'] },
-    capability: () => workspaceOverview
-  },
-  {
-    descriptor: {
-      name: 'list_members',
-      description:
-        'List the workspace members and their roles, mirroring GET /workspaces/{slug}/members.',
-      inputSchema: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false
-      }
-    },
-    permission: { ac: ['read'] },
-    capability: () =>
-      Effect.flatMap(WorkspaceMembership, (membership) => membership.listMembers)
-  },
-  {
-    descriptor: {
-      name: 'list_api_tokens',
-      description:
-        'List the workspace API token projections (never the secrets), mirroring GET /workspaces/{slug}/api-tokens.',
-      inputSchema: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false
-      }
-    },
-    permission: { apiToken: ['list'] },
-    capability: () => Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
-  },
-  {
-    descriptor: {
-      name: 'list_webhooks',
-      description:
-        'List registered webhook endpoints and their success rates, mirroring GET /workspaces/{slug}/webhooks.',
-      inputSchema: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false
-      }
-    },
-    permission: { webhook: ['list'] },
-    capability: () => Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
-  },
-  {
-    descriptor: {
-      name: 'list_audit_events',
-      description:
-        'Read a page of the workspace audit trail, mirroring GET /workspaces/{slug}/audit-events.',
-      inputSchema: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false
-      }
-    },
-    permission: { auditLog: ['read'] },
-    capability: () =>
-      Effect.map(
-        Effect.flatMap(AuditEventLog, (log) => log.list()),
-        (page) => page.events
-      )
-  }
-]
+    permission: operation.permission,
+    capability: operation.read
+  })
+)
 
 /** What `GET /mcp` advertises — derived from the same table `tools/list` serves. */
 export function mcpDiscoveryDocument(): McpDiscovery {
@@ -214,23 +122,26 @@ type ToolResult = {
 }
 
 function errorResult(error: unknown): ToolResult {
-  // Typed failures keep their meaning across the JSON-RPC boundary; anything
-  // else is reported without internals leaking into the client's transcript.
-  const tag = tagOf(error)
-  if (tag === 'AuthorizationDenied') {
-    const reason =
-      error !== null && typeof error === 'object' && 'reason' in error
-        ? String(error.reason)
-        : 'not permitted'
-    return {
-      content: [{ type: 'text', text: `denied: ${reason}` }],
-      isError: true
-    }
-  }
-  if (tag === 'CapabilityUnavailable') {
-    return {
-      content: [{ type: 'text', text: 'capability unavailable in this environment' }],
-      isError: true
+  // Known typed failures keep their meaning across the JSON-RPC boundary —
+  // this is the same union the contract maps to 403/503, checked by the
+  // compiler when a new case is added. Anything else is reported without
+  // internals leaking into the client's transcript.
+  if (isTypedToolFailure(error)) {
+    switch (error._tag) {
+      case 'AuthorizationDenied': {
+        return {
+          content: [{ type: 'text', text: `denied: ${error.reason}` }],
+          isError: true
+        }
+      }
+      case 'CapabilityUnavailable': {
+        return {
+          content: [
+            { type: 'text', text: 'capability unavailable in this environment' }
+          ],
+          isError: true
+        }
+      }
     }
   }
   return {
@@ -239,12 +150,19 @@ function errorResult(error: unknown): ToolResult {
   }
 }
 
-/** Reads the `_tag` discriminant off an Effect typed error crossing the seam. */
-function tagOf(error: unknown): string | undefined {
-  if (typeof error === 'object' && error !== null && '_tag' in error) {
-    return String(error._tag)
-  }
-  return undefined
+/**
+ * The typed failures a tool callback can reject with, narrowed off the SDK's
+ * promise seam (`unknown` once it crosses into plain async land).
+ */
+type TypedToolFailure = AuthorizationDenied | CapabilityUnavailable
+
+function isTypedToolFailure(error: unknown): error is TypedToolFailure {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    '_tag' in error &&
+    (error._tag === 'AuthorizationDenied' || error._tag === 'CapabilityUnavailable')
+  )
 }
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, effect/noAs, effect/noTernary, anti-slop/require-safety-comment-for-type-assertion
 
@@ -303,12 +221,26 @@ export function buildMcpServer(
         "The API token's workspace record with its notification feed, as JSON."
     },
     () => {
-      const guarded = Effect.map(workspaceOverview, (overview) => ({
+      // The resource projects the same overview read the REST route and the
+      // tool serve — pulled from the shared operation table like both of
+      // them. The channel widening mirrors handlers.ts: `provideWorkspace`
+      // and the ambient capability layer narrow the requirements back.
+      // SAFETY: same channel widening as handlers.ts `workspaceRead` — the
+      // table stores the natural capability effect; `provideWorkspace` and
+      // the ambient capability layer re-narrow the requirements before this
+      // runs. No value is asserted away.
+      // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion, anti-slop/require-safety-comment-for-type-assertion -- see SAFETY above
+      const overview = READ_OPERATIONS.overview.read() as Effect.Effect<
+        unknown,
+        unknown,
+        never
+      >
+      const guarded = Effect.map(overview, (value) => ({
         contents: [
           {
             uri: OVERVIEW_RESOURCE_URI,
             // oxlint-disable-next-line effect/noGlobals -- MCP resource contents are JSON text by protocol definition
-            text: JSON.stringify(overview, null, 2),
+            text: JSON.stringify(value, null, 2),
             mimeType: 'application/json'
           }
         ]
