@@ -152,7 +152,7 @@
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.1.0",
     "@vitest/coverage-v8": "4.1.11",
-    "alchemy": "2.0.0-beta.72",
+    "alchemy": "2.0.0-beta.74",
     "babel-plugin-react-compiler": "1.0.0",
     "better-auth": "1.7.1",
     "bun-types": "1.4.0",
