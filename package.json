@@ -174,7 +174,7 @@
     "oxlint-plugin-effect": "0.10.0",
     "oxlint-plugin-react-doctor": "0.9.12",
     "oxlint-tsgolint": "7.0.2001",
-    "posthog-js": "1.418.8",
+    "posthog-js": "1.418.10",
     "posthog-node": "5.50.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
