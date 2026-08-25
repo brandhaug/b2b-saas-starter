@@ -2,6 +2,7 @@ import {
   SeedApiTokenRegistry,
   type ApiToken
 } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+import { SeedWebhookPublisher } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
 import {
   testWorkspaceContext,
   type Actor
@@ -62,7 +63,7 @@ function outcome<A, E extends { readonly _tag: string; readonly reason?: string 
 
 describe('revokeApiToken', () => {
   const layer = Layer.mergeAll(
-    SeedApiTokenRegistry(seedTokens),
+    SeedApiTokenRegistry(seedTokens).pipe(Layer.provide(SeedWebhookPublisher)),
     testWorkspaceContext(workspace, OWNER)
   )
 
@@ -77,7 +78,7 @@ describe('revokeApiToken', () => {
 
   it('denies a plain member — apiToken:revoke is withheld from member', async () => {
     const memberLayer = Layer.mergeAll(
-      SeedApiTokenRegistry(seedTokens),
+      SeedApiTokenRegistry(seedTokens).pipe(Layer.provide(SeedWebhookPublisher)),
       testWorkspaceContext(workspace, MEMBER)
     )
     const result = await Effect.runPromise(
@@ -93,7 +94,7 @@ describe('revokeApiToken', () => {
 
   it('fails closed with no resolved actor', async () => {
     const anonymousLayer = Layer.mergeAll(
-      SeedApiTokenRegistry(seedTokens),
+      SeedApiTokenRegistry(seedTokens).pipe(Layer.provide(SeedWebhookPublisher)),
       testWorkspaceContext(workspace, null)
     )
     const result = await Effect.runPromise(

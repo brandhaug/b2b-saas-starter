@@ -5,13 +5,19 @@ import {
 } from '@b2b-saas-starter/db/src/schema.ts'
 import { batch, Database } from '@b2b-saas-starter/db/src/service.ts'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, count, desc, eq, isNull } from 'drizzle-orm'
 
+import { assertWithinPlanLimit } from '../billing/billing.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { AuthorizationDenied, type CapabilityUnavailable } from '../errors.ts'
+import {
+  AuthorizationDenied,
+  type CapabilityUnavailable,
+  type PlanLimitExceeded
+} from '../errors.ts'
 import { hashSha256, randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 export const API_TOKEN_SCOPES = apiTokenScopes
@@ -78,7 +84,11 @@ export type ApiTokenRegistryInterface = {
 
   readonly create: (
     input: CreateApiTokenInput
-  ) => Effect.Effect<CreatedApiToken, CapabilityUnavailable, WorkspaceContext>
+  ) => Effect.Effect<
+    CreatedApiToken,
+    CapabilityUnavailable | PlanLimitExceeded,
+    WorkspaceContext
+  >
   /** Resolves `true` when a token was revoked, `false` when nothing matched. */
   readonly revoke: (
     input: RevokeApiTokenInput
@@ -144,38 +154,66 @@ const SEED_TOKEN_SCOPES = new Map<string, readonly ApiTokenScope[]>([
 
 export function SeedApiTokenRegistry(
   seed: readonly ApiToken[]
-): Layer.Layer<ApiTokenRegistry> {
-  return Layer.succeed(ApiTokenRegistry)({
-    list: Effect.succeed(seed),
-    create: Effect.fnUntraced(function* (input) {
-      const id = yield* newCapabilityId('tok')
-      const createdAt = yield* DateTime.now
+): Layer.Layer<ApiTokenRegistry, never, WebhookPublisher> {
+  return Layer.effect(ApiTokenRegistry)(
+    Effect.gen(function* () {
+      const publisher = yield* WebhookPublisher
       return {
-        id,
-        name: input.name,
-        prefix: 'bsk_seed',
-        scopes: [...input.scopes],
-        lastUsedAt: null,
-        createdAt: DateTime.formatIso(createdAt),
-        token: 'bsk_seed_created_token'
+        list: Effect.succeed(seed),
+        create: Effect.fnUntraced(function* (input) {
+          // Same entitlement gate as Live: the fixture workspace sits on a
+          // paid plan, so the cap never trips in tests, but both adapters
+          // satisfy the same interface behavior.
+          yield* assertWithinPlanLimit({ resource: 'api_token', used: seed.length })
+          const id = yield* newCapabilityId('tok')
+          const createdAt = yield* DateTime.now
+          const created = {
+            id,
+            name: input.name,
+            prefix: 'bsk_seed',
+            scopes: [...input.scopes],
+            lastUsedAt: null,
+            createdAt: DateTime.formatIso(createdAt),
+            token: 'bsk_seed_created_token'
+          }
+          // The projection, never the minted secret.
+          yield* publishWebhookEventWith(publisher, {
+            eventType: 'api_token.created',
+            payload: {
+              id: created.id,
+              name: created.name,
+              prefix: created.prefix,
+              scopes: created.scopes,
+              createdAt: created.createdAt
+            }
+          })
+          return created
+        }),
+        revoke: (input) =>
+          Effect.gen(function* () {
+            yield* publishWebhookEventWith(publisher, {
+              eventType: 'api_token.revoked',
+              payload: { tokenId: input.tokenId }
+            })
+            return true
+          }),
+        verifyBearerToken: (token) => {
+          // Authentication only: an unknown token is the single failure. Whether
+          // the reported scopes cover the request is decided at the route boundary.
+          const scopes = SEED_TOKEN_SCOPES.get(token)
+          if (!scopes) {
+            return Effect.fail(new AuthorizationDenied({ reason: 'invalid_token' }))
+          }
+          return Effect.succeed({
+            id: seed[0]?.id ?? 'tok_seed',
+            workspaceId: 'wrk_starter',
+            workspaceSlug: 'starter-lab',
+            scopes
+          })
+        }
       }
-    }),
-    revoke: () => Effect.succeed(true),
-    verifyBearerToken: (token) => {
-      // Authentication only: an unknown token is the single failure. Whether
-      // the reported scopes cover the request is decided at the route boundary.
-      const scopes = SEED_TOKEN_SCOPES.get(token)
-      if (!scopes) {
-        return Effect.fail(new AuthorizationDenied({ reason: 'invalid_token' }))
-      }
-      return Effect.succeed({
-        id: seed[0]?.id ?? 'tok_seed',
-        workspaceId: 'wrk_starter',
-        workspaceSlug: 'starter-lab',
-        scopes
-      })
-    }
-  })
+    })
+  )
 }
 
 /**
@@ -198,11 +236,12 @@ const unavailable = orUnavailable('api-token-registry')
 export const LiveApiTokenRegistry: Layer.Layer<
   ApiTokenRegistry,
   never,
-  Database | AuditEventLog
+  Database | AuditEventLog | WebhookPublisher
 > = Layer.effect(ApiTokenRegistry)(
   Effect.gen(function* () {
     const db = yield* Database
     const audit = yield* AuditEventLog
+    const publisher = yield* WebhookPublisher
 
     return {
       list: Effect.gen(function* () {
@@ -231,6 +270,24 @@ export const LiveApiTokenRegistry: Layer.Layer<
       create: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
+          // Entitlement gate: the workspace's plan caps token count. The rule
+          // lives in the billing capability; the counting lives here, so no
+          // caller can forget the gate.
+          const existingCount = yield* unavailable(
+            db
+              .select({ value: count() })
+              .from(apiTokens)
+              .where(
+                and(
+                  eq(apiTokens.workspaceId, ctx.workspace.id),
+                  isNull(apiTokens.revokedAt)
+                )
+              )
+          )
+          yield* assertWithinPlanLimit({
+            resource: 'api_token',
+            used: existingCount[0]?.value ?? 0
+          })
           const token = randomToken()
           const createdAt = DateTime.formatIso(yield* DateTime.now)
           const row = {
@@ -256,6 +313,18 @@ export const LiveApiTokenRegistry: Layer.Layer<
           yield* unavailable(
             batch(db, [db.insert(apiTokens).values(row), auditCreated])
           )
+          // Fan-out sits beside the audit write, below the interface: the
+          // projection only — never the minted secret.
+          yield* publishWebhookEventWith(publisher, {
+            eventType: 'api_token.created',
+            payload: {
+              id: row.id,
+              name: row.name,
+              prefix: row.tokenPrefix,
+              scopes: row.scopes,
+              createdAt
+            }
+          })
           return {
             id: row.id,
             name: row.name,
@@ -309,6 +378,10 @@ export const LiveApiTokenRegistry: Layer.Layer<
               auditRevoked
             ])
           )
+          yield* publishWebhookEventWith(publisher, {
+            eventType: 'api_token.revoked',
+            payload: { tokenId: input.tokenId }
+          })
           return true
         }),
       verifyBearerToken: (token) =>

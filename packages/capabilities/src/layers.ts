@@ -117,11 +117,13 @@ const SeedBillingLayer = SeedBilling().pipe(
 )
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
-  SeedApiTokenRegistry(seedApiTokens),
+  // The mutating developer-platform capabilities fan out webhooks below their
+  // interface, so both Seed adapters are built with the no-op Seed publisher.
+  SeedApiTokenRegistry(seedApiTokens).pipe(Layer.provide(SeedWebhookPublisher)),
   SeedAuditEventLog(seedAuditEvents),
   SeedBillingLayer,
   SeedNotificationFeed(seedNotifications),
-  SeedWebhookEndpoints(seedWebhookEndpoints),
+  SeedWebhookEndpoints(seedWebhookEndpoints).pipe(Layer.provide(SeedWebhookPublisher)),
   SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships)
@@ -168,11 +170,17 @@ export function makeLiveCapabilitiesLayer(
   options: LiveCapabilitiesOptions = {}
 ): Layer.Layer<CapabilityServices, never, Database> {
   return Layer.mergeAll(
-    LiveApiTokenRegistry.pipe(Layer.provide(LiveAuditEventLog)),
+    LiveApiTokenRegistry.pipe(
+      Layer.provide(LiveAuditEventLog),
+      Layer.provide(LiveWebhookPublisher(options.webhookQueue))
+    ),
     LiveAuditEventLog,
     LiveBilling(options.billing).pipe(Layer.provide(LiveAuditEventLog)),
     LiveNotificationFeed,
-    LiveWebhookEndpoints.pipe(Layer.provide(LiveAuditEventLog)),
+    LiveWebhookEndpoints.pipe(
+      Layer.provide(LiveAuditEventLog),
+      Layer.provide(LiveWebhookPublisher(options.webhookQueue))
+    ),
     LiveWebhookPublisher(options.webhookQueue),
     LiveWorkspaceInvitations(options.invitationBinding).pipe(
       Layer.provide(LiveAuditEventLog)

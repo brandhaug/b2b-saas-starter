@@ -20,6 +20,7 @@ import {
   LiveWebhookEndpoints,
   WebhookEndpoints
 } from './developer-platform/webhook-endpoints.ts'
+import { LiveWebhookPublisher } from './developer-platform/webhook-publisher.ts'
 import { selectCapabilitiesLayer, selectWorkspaceLayer } from './runtime.ts'
 import {
   NotificationFeed,
@@ -302,6 +303,7 @@ describe('webhook endpoint workspace scoping', () => {
     return Layer.merge(
       LiveWebhookEndpoints.pipe(
         Layer.provide(LiveAuditEventLog),
+        Layer.provide(LiveWebhookPublisher()),
         Layer.provide(layerFromD1(fake.binding))
       ),
       testWorkspaceContext(workspaceB)
@@ -513,6 +515,7 @@ describe('bearer verification write throttling', () => {
     const fake = makeFakeD1()
     const layer = LiveApiTokenRegistry.pipe(
       Layer.provide(LiveAuditEventLog),
+      Layer.provide(LiveWebhookPublisher()),
       Layer.provide(layerFromD1(fake.binding))
     )
 
