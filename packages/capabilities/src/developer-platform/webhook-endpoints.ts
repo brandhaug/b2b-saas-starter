@@ -1,6 +1,6 @@
 import { batch, Database } from '@b2b-saas-starter/db/src/service.ts'
 import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/src/schema.ts'
-import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect'
+import { Context, DateTime, Duration, Effect, Layer, Option, Schema } from 'effect'
 import { and, count, eq, sql } from 'drizzle-orm'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -66,6 +66,77 @@ export type WebhookDeliveryStatus =
   | 'failed'
   | 'failed_permanent'
   | 'dead_lettered'
+
+/**
+ * Redelivery backoff: 30s per attempt, capped at six attempts (180s). The
+ * queue retry delay and the persisted `nextAttemptAt` are derived from this
+ * one function, so the stored schedule matches when Cloudflare will actually
+ * redeliver.
+ */
+export function backoffSeconds(attempts: number): number {
+  return Math.min(attempts, 6) * 30
+}
+
+export type DeliveryDecision = 'delivered' | 'retry' | 'terminal'
+
+/**
+ * Ack/retry/terminal decision per response status. `0` means no HTTP response
+ * (network error or timeout) and is retryable. 4xx responses are permanent
+ * failures except 408 (request timeout) and 429 (rate limited).
+ */
+export function classifyResponseStatus(status: number): DeliveryDecision {
+  if (status >= 200 && status < 300) return 'delivered'
+  if (status === 408 || status === 429) return 'retry'
+  if (status >= 400 && status < 500) return 'terminal'
+  return 'retry'
+}
+
+/** Persisted `webhookDeliveries.status` for a dispatch decision. */
+function deliveryStatus(
+  decision: DeliveryDecision
+): 'delivered' | 'failed_permanent' | 'failed' {
+  if (decision === 'delivered') return 'delivered'
+  if (decision === 'terminal') return 'failed_permanent'
+  return 'failed'
+}
+
+/** `0` stands for "no HTTP response at all", which is persisted as null. */
+function recordedResponseStatus(status: number): number | null {
+  if (status === 0) return null
+  return status
+}
+
+/** Everything a dispatch needs to persist its attempt row and answer the queue. */
+export type DeliveryAttemptPlan = {
+  readonly status: 'delivered' | 'failed_permanent' | 'failed'
+  readonly responseStatus: number | null
+  readonly nextAttemptAt: string | null
+  readonly outcome: 'ack' | 'retry'
+}
+
+/**
+ * The dispatch half of the delivery state machine, pure and owned here so the
+ * background worker never re-derives it: classify the response status, map it
+ * to the persisted vocabulary above, and derive the retry schedule from the
+ * same `backoffSeconds` the queue consumer passes to `message.retry`. Terminal
+ * outcomes have no next attempt.
+ */
+export function planDeliveryAttempt(
+  responseStatus: number,
+  attempts: number,
+  now: DateTime.Utc
+): DeliveryAttemptPlan {
+  const decision = classifyResponseStatus(responseStatus)
+  const status = deliveryStatus(decision)
+  const recorded = recordedResponseStatus(responseStatus)
+  if (decision !== 'retry') {
+    return { status, responseStatus: recorded, nextAttemptAt: null, outcome: 'ack' }
+  }
+  const nextAttemptAt = DateTime.formatIso(
+    DateTime.addDuration(now, Duration.seconds(backoffSeconds(attempts)))
+  )
+  return { status, responseStatus: recorded, nextAttemptAt, outcome: 'retry' }
+}
 
 export type WebhookDeliveryAttemptInput = {
   /**
@@ -215,6 +286,22 @@ export type WebhookEndpointsInterface = {
   readonly recordDeliveryAttempt: (
     input: WebhookDeliveryAttemptInput
   ) => Effect.Effect<void, CapabilityUnavailable>
+
+  /**
+   * Terminal delivery rows for outcomes that never dispatched (the SSRF guard
+   * rejected the endpoint URL at dispatch time) or exhausted the queue (dead
+   * letter). The capability owns the whole row — delivery id minting, the
+   * timestamp, and the terminal audit event batched with it — so callers hand
+   * over only what the queue message carries and cannot assemble a half-shaped
+   * attempt input.
+   */
+  readonly recordTerminalDeliveryAttempt: (input: {
+    readonly endpointId: string
+    readonly workspaceId: string
+    readonly eventType: string
+    readonly attempts: number
+    readonly status: 'failed_permanent' | 'dead_lettered'
+  }) => Effect.Effect<{ readonly deliveryId: string }, CapabilityUnavailable>
 }
 
 export class WebhookEndpoints extends Context.Service<
@@ -230,47 +317,273 @@ function ensureValidWebhookUrl(url: string): Effect.Effect<void, InvalidWebhookU
   return Effect.fail(new InvalidWebhookUrl({ url, reason: check.reason }))
 }
 
+/**
+ * A Seed fixture row: the wire projection plus the storage columns the
+ * projection deliberately hides but the delivery path needs (the plaintext
+ * signing secret `getDispatchTarget` hands the worker, and the owning
+ * workspace so cross-workspace messages resolve `null` like Live). Absent
+ * fields take fixed fixture defaults.
+ */
+export type SeedWebhookEndpointFixture = WebhookEndpoint & {
+  readonly signingSecret?: string
+  readonly workspaceId?: string
+}
+
+/** Owning workspace of fixture endpoints without an explicit one. Matches `seedWorkspaceRecord.id`; kept literal to avoid a fixture import cycle. */
+const SEED_WORKSPACE_ID = 'wrk_starter'
+
+type SeedEndpointRow = {
+  readonly id: string
+  readonly workspaceId: string
+  readonly url: string
+  enabled: boolean
+  readonly events: readonly string[]
+  readonly successRate: number
+  signingSecret: string
+}
+
+type SeedDeliveryRow = {
+  readonly id: string
+  readonly endpointId: string
+  readonly workspaceId: string
+  readonly eventType: string
+  readonly status: WebhookDeliveryStatus
+  readonly attempts: number
+  readonly lastAttemptAt: string
+  readonly nextAttemptAt: string | null
+  readonly responseStatus: number | null
+  /** Insertion order — the tie-break when rows share a `lastAttemptAt`. */
+  readonly seq: number
+}
+
 export function SeedWebhookEndpoints(
-  seed: readonly WebhookEndpoint[]
-): Layer.Layer<WebhookEndpoints, never, WebhookPublisher> {
+  seedFixtures: readonly SeedWebhookEndpointFixture[]
+): Layer.Layer<WebhookEndpoints, never, AuditEventLog | WebhookPublisher> {
   return Layer.effect(WebhookEndpoints)(
     Effect.gen(function* () {
+      const audit = yield* AuditEventLog
       const publisher = yield* WebhookPublisher
+      // Mutable stores, so Seed mirrors Live's post-conditions — a created
+      // endpoint becomes dispatchable, a recorded attempt becomes listable,
+      // the plan gate can actually trip. The membership seed roster sets the
+      // same precedent; contract cases run unmodified against both adapters.
+      const endpoints: SeedEndpointRow[] = seedFixtures.map((fixture) => ({
+        id: fixture.id,
+        workspaceId: fixture.workspaceId ?? SEED_WORKSPACE_ID,
+        url: fixture.url,
+        enabled: fixture.enabled,
+        events: [...fixture.events],
+        successRate: fixture.successRate,
+        signingSecret: fixture.signingSecret ?? 'whsec_seed_fixture'
+      }))
+      const deliveries: SeedDeliveryRow[] = []
+      let deliverySeq = 0
+
+      /** Next insertion sequence — the newest-first tie-break in listDeliveries. */
+      function nextSeq(): number {
+        deliverySeq += 1
+        return deliverySeq
+      }
+
+      function endpointFor(endpointId: string, workspaceId: string) {
+        return (
+          endpoints.find(
+            (endpoint) =>
+              endpoint.id === endpointId && endpoint.workspaceId === workspaceId
+          ) ?? null
+        )
+      }
+
+      function inWorkspace(endpointId: string) {
+        return Effect.map(WorkspaceContext, (ctx) =>
+          endpointFor(endpointId, ctx.workspace.id)
+        )
+      }
+
+      /** Shared persistence for both attempt surfaces, terminal audits included. */
+      const persistAttempt = Effect.fnUntraced(function* (row: SeedDeliveryRow) {
+        deliveries.push(row)
+        const auditEventType = terminalDeliveryAuditEventType.get(row.status)
+        if (auditEventType !== undefined) {
+          yield* audit.record({
+            workspaceId: row.workspaceId,
+            actorUserId: null,
+            eventType: auditEventType,
+            targetType: 'webhook_endpoint',
+            targetId: row.endpointId,
+            metadata: {
+              deliveryId: row.id,
+              eventType: row.eventType,
+              attempts: row.attempts,
+              responseStatus: row.responseStatus
+            }
+          })
+        }
+      })
+
       return {
-        list: Effect.succeed(seed),
+        list: Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          const projections: WebhookEndpoint[] = []
+          for (const endpoint of endpoints) {
+            if (endpoint.workspaceId !== ctx.workspace.id) continue
+            projections.push({
+              id: endpoint.id,
+              url: endpoint.url,
+              enabled: endpoint.enabled,
+              events: [...endpoint.events],
+              successRate: endpoint.successRate
+            })
+          }
+          return projections
+        }),
         create: Effect.fnUntraced(function* (input) {
           yield* ensureValidWebhookUrl(input.url)
-          // Same entitlement gate as Live; the fixture workspace is on a paid
-          // plan, so the cap never trips in tests.
+          const ctx = yield* WorkspaceContext
+          // Same entitlement gate as Live — and because the store mutates, the
+          // cap can actually trip here instead of being unreachable.
           yield* assertWithinPlanLimit({
             resource: 'webhook_endpoint',
-            used: seed.length
+            used: endpoints.filter(
+              (endpoint) => endpoint.workspaceId === ctx.workspace.id
+            ).length
           })
-          const endpoint: WebhookEndpoint = {
+          const endpoint: SeedEndpointRow = {
             id: yield* newCapabilityId('wh'),
+            workspaceId: ctx.workspace.id,
             url: input.url,
             enabled: true,
             events: [...input.events],
-            successRate: 100
+            successRate: 100,
+            signingSecret: 'whsec_seed_created'
           }
+          endpoints.push(endpoint)
+          yield* audit.record({
+            workspaceId: ctx.workspace.id,
+            actorUserId: input.actorUserId ?? null,
+            eventType: 'webhook_endpoint.created',
+            targetType: 'webhook_endpoint',
+            targetId: endpoint.id,
+            metadata: { url: input.url, events: input.events }
+          })
           // The projection, never the signing secret.
           yield* publishWebhookEventWith(publisher, {
             eventType: 'webhook_endpoint.created',
-            payload: endpoint
+            payload: {
+              id: endpoint.id,
+              url: endpoint.url,
+              enabled: endpoint.enabled,
+              events: [...endpoint.events],
+              successRate: endpoint.successRate
+            }
           })
-          return { endpoint, signingSecret: 'whsec_seed_created' }
-        }),
-        listDeliveries: () => Effect.succeed([]),
-        disable: (input) =>
-          Effect.succeed(seed.some((endpoint) => endpoint.id === input.endpointId)),
-        rotateSecret: (input) => {
-          if (!seed.some((endpoint) => endpoint.id === input.endpointId)) {
-            return Effect.succeed(Option.none())
+          return {
+            endpoint: {
+              id: endpoint.id,
+              url: endpoint.url,
+              enabled: endpoint.enabled,
+              events: [...endpoint.events],
+              successRate: endpoint.successRate
+            },
+            signingSecret: endpoint.signingSecret
           }
-          return Effect.succeed(Option.some({ signingSecret: 'whsec_seed_rotated' }))
-        },
-        getDispatchTarget: () => Effect.succeed(null),
-        recordDeliveryAttempt: () => Effect.void
+        }),
+        listDeliveries: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            // Same join semantics as Live: the endpoint's owning workspace is
+            // resolved from context, so a foreign endpoint id yields nothing.
+            const owned = new Set<string>()
+            for (const endpoint of endpoints) {
+              if (endpoint.workspaceId === ctx.workspace.id) {
+                owned.add(endpoint.id)
+              }
+            }
+            const matched = deliveries.filter(
+              (row) => row.endpointId === input.endpointId && owned.has(row.endpointId)
+            )
+            // `lastAttemptAt` DESC, insertion recency as the tie-break —
+            // mirrors Live's `orderBy(lastAttemptAt desc)` read.
+            matched.sort((a, b) => {
+              if (a.lastAttemptAt > b.lastAttemptAt) return -1
+              if (a.lastAttemptAt < b.lastAttemptAt) return 1
+              return b.seq - a.seq
+            })
+            return matched.slice(0, 20)
+          }),
+        disable: (input) =>
+          Effect.gen(function* () {
+            const endpoint = yield* inWorkspace(input.endpointId)
+            if (!endpoint || !endpoint.enabled) return false
+            endpoint.enabled = false
+            const ctx = yield* WorkspaceContext
+            yield* audit.record({
+              workspaceId: ctx.workspace.id,
+              actorUserId: input.actorUserId ?? null,
+              eventType: 'webhook_endpoint.disabled',
+              targetType: 'webhook_endpoint',
+              targetId: endpoint.id,
+              metadata: {}
+            })
+            return true
+          }),
+        rotateSecret: (input) =>
+          Effect.gen(function* () {
+            const endpoint = yield* inWorkspace(input.endpointId)
+            if (!endpoint) return Option.none()
+            endpoint.signingSecret = 'whsec_seed_rotated'
+            const ctx = yield* WorkspaceContext
+            yield* audit.record({
+              workspaceId: ctx.workspace.id,
+              actorUserId: input.actorUserId ?? null,
+              eventType: 'webhook_endpoint.secret_rotated',
+              targetType: 'webhook_endpoint',
+              targetId: endpoint.id,
+              metadata: {}
+            })
+            return Option.some({ signingSecret: endpoint.signingSecret })
+          }),
+        getDispatchTarget: (endpointId, workspaceId) =>
+          Effect.sync(() => {
+            const endpoint = endpointFor(endpointId, workspaceId)
+            if (!endpoint || !endpoint.enabled) return null
+            return {
+              id: endpoint.id,
+              url: endpoint.url,
+              signingSecret: endpoint.signingSecret
+            }
+          }),
+        recordDeliveryAttempt: Effect.fnUntraced(function* (input) {
+          const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
+          yield* persistAttempt({
+            id: deliveryId,
+            endpointId: input.endpointId,
+            workspaceId: input.workspaceId,
+            eventType: input.eventType,
+            status: input.status,
+            attempts: input.attempts,
+            lastAttemptAt: DateTime.formatIso(yield* DateTime.now),
+            nextAttemptAt: input.nextAttemptAt ?? null,
+            responseStatus: input.responseStatus ?? null,
+            seq: nextSeq()
+          })
+        }),
+        recordTerminalDeliveryAttempt: Effect.fnUntraced(function* (input) {
+          const deliveryId = yield* newCapabilityId('whd')
+          yield* persistAttempt({
+            id: deliveryId,
+            endpointId: input.endpointId,
+            workspaceId: input.workspaceId,
+            eventType: input.eventType,
+            status: input.status,
+            attempts: input.attempts,
+            lastAttemptAt: DateTime.formatIso(yield* DateTime.now),
+            nextAttemptAt: null,
+            responseStatus: null,
+            seq: nextSeq()
+          })
+          return { deliveryId }
+        })
       }
     })
   )
@@ -363,6 +676,62 @@ export const LiveWebhookEndpoints: Layer.Layer<
           ])
         )
         return Option.some(set)
+      })
+    }
+
+    /**
+     * One attempt row; terminal statuses batch their audit event with it.
+     * Resolves the persisted delivery id so `recordTerminalDeliveryAttempt`
+     * can hand back what it minted.
+     */
+    function recordAttempt(input: {
+      readonly id?: string
+      readonly endpointId: string
+      readonly workspaceId: string
+      readonly eventType: string
+      readonly status: WebhookDeliveryStatus
+      readonly attempts: number
+      readonly responseStatus?: number | null
+      readonly nextAttemptAt?: string | null
+    }) {
+      return Effect.gen(function* () {
+        const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
+        const lastAttemptAt = yield* DateTime.now
+        const deliveryInsert = db.insert(webhookDeliveries).values({
+          id: deliveryId,
+          endpointId: input.endpointId,
+          eventType: input.eventType,
+          status: input.status,
+          attempts: input.attempts,
+          lastAttemptAt: DateTime.formatIso(lastAttemptAt),
+          nextAttemptAt: input.nextAttemptAt ?? null,
+          responseStatus: input.responseStatus ?? null
+        })
+        const auditEventType = terminalDeliveryAuditEventType.get(input.status)
+        if (auditEventType === undefined) {
+          yield* unavailable(deliveryInsert)
+          return deliveryId
+        }
+        // Terminal outcome: the attempt row and its audit event commit or roll
+        // back together, mirroring ApiTokenRegistry's mutation+audit batches.
+        // `workspaceId` comes from the queue message — verified against the
+        // endpoint by `getDispatchTarget` on the delivery path, trusted as
+        // stamped by our own publisher on the dead-letter path.
+        const auditStatement = yield* audit.prepareRecord({
+          workspaceId: input.workspaceId,
+          actorUserId: null,
+          eventType: auditEventType,
+          targetType: 'webhook_endpoint',
+          targetId: input.endpointId,
+          metadata: {
+            deliveryId,
+            eventType: input.eventType,
+            attempts: input.attempts,
+            responseStatus: input.responseStatus ?? null
+          }
+        })
+        yield* unavailable(batch(db, [deliveryInsert, auditStatement]))
+        return deliveryId
       })
     }
 
@@ -530,44 +899,12 @@ export const LiveWebhookEndpoints: Layer.Layer<
             }
           })
         ),
-      recordDeliveryAttempt: Effect.fnUntraced(function* (input) {
-        const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
-        const lastAttemptAt = yield* DateTime.now
-        const deliveryInsert = db.insert(webhookDeliveries).values({
-          id: deliveryId,
-          endpointId: input.endpointId,
-          eventType: input.eventType,
-          status: input.status,
-          attempts: input.attempts,
-          lastAttemptAt: DateTime.formatIso(lastAttemptAt),
-          nextAttemptAt: input.nextAttemptAt ?? null,
-          responseStatus: input.responseStatus ?? null
-        })
-        const auditEventType = terminalDeliveryAuditEventType.get(input.status)
-        if (auditEventType === undefined) {
-          return yield* unavailable(deliveryInsert).pipe(Effect.asVoid)
-        }
-        // Terminal outcome: the attempt row and its audit event commit or roll
-        // back together, mirroring ApiTokenRegistry's mutation+audit batches.
-        // `workspaceId` comes from the queue message — verified against the
-        // endpoint by `getDispatchTarget` on the delivery path, trusted as
-        // stamped by our own publisher on the dead-letter path.
-        const auditStatement = yield* audit.prepareRecord({
-          workspaceId: input.workspaceId,
-          actorUserId: null,
-          eventType: auditEventType,
-          targetType: 'webhook_endpoint',
-          targetId: input.endpointId,
-          metadata: {
-            deliveryId,
-            eventType: input.eventType,
-            attempts: input.attempts,
-            responseStatus: input.responseStatus ?? null
-          }
-        })
-        return yield* unavailable(batch(db, [deliveryInsert, auditStatement])).pipe(
-          Effect.asVoid
-        )
+      recordDeliveryAttempt: (input) => recordAttempt(input).pipe(Effect.asVoid),
+      recordTerminalDeliveryAttempt: Effect.fnUntraced(function* (input) {
+        // The capability mints the row id — there is no signed payload to keep
+        // in step with on a never-dispatched or exhausted message.
+        const deliveryId = yield* recordAttempt(input)
+        return { deliveryId }
       })
     }
   })
