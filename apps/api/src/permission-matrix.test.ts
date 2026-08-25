@@ -2,6 +2,7 @@ import { SEED_READONLY_API_TOKEN } from '@b2b-saas-starter/capabilities/src/deve
 import { describe, expect, test } from 'vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
+import { permissionLabel, readOperations } from './operations.ts'
 
 /**
  * The route-to-permission table of `handlers.ts`, asserted end to end.
@@ -68,49 +69,20 @@ type GatedOperation = {
 
 const SLUG = 'starter-lab'
 
+/**
+ * The workspace-read rows come from the shared operation table
+ * (`operations.ts`) — the same rows the REST handlers and the MCP tools are
+ * derived from — so the matrix cannot disagree with either surface.
+ */
+const READ_ROWS: readonly GatedOperation[] = readOperations().map((op) => ({
+  operation: `GET /workspaces/{slug}/${op.path}`,
+  permission: permissionLabel(op.permission),
+  expected: 200,
+  request: makeRequest('GET', `/workspaces/${SLUG}/${op.path}`)
+}))
+
 const MATRIX: readonly GatedOperation[] = [
-  // The workspace reads, all through the `read(event, permission, slug, ...)`
-  // helper in `workspaceGroup`.
-  {
-    operation: 'GET /workspaces/{slug}/overview',
-    permission: 'notification:read',
-    expected: 200,
-    request: makeRequest('GET', `/workspaces/${SLUG}/overview`)
-  },
-  // Listing members exposes who holds which role, which is `ac:read` — the
-  // plugin's `member` statement has no read action at all.
-  {
-    operation: 'GET /workspaces/{slug}/members',
-    permission: 'ac:read',
-    expected: 200,
-    request: makeRequest('GET', `/workspaces/${SLUG}/members`)
-  },
-  {
-    operation: 'GET /workspaces/{slug}/notifications',
-    permission: 'notification:read',
-    expected: 200,
-    request: makeRequest('GET', `/workspaces/${SLUG}/notifications`)
-  },
-  // A read token may LIST tokens — wider than the `member` role, which cannot:
-  // a token is minted by an owner or admin (see `readScopeStatements`).
-  {
-    operation: 'GET /workspaces/{slug}/api-tokens',
-    permission: 'apiToken:list',
-    expected: 200,
-    request: makeRequest('GET', `/workspaces/${SLUG}/api-tokens`)
-  },
-  {
-    operation: 'GET /workspaces/{slug}/webhooks',
-    permission: 'webhook:list',
-    expected: 200,
-    request: makeRequest('GET', `/workspaces/${SLUG}/webhooks`)
-  },
-  {
-    operation: 'GET /workspaces/{slug}/audit-events',
-    permission: 'auditLog:read',
-    expected: 200,
-    request: makeRequest('GET', `/workspaces/${SLUG}/audit-events`)
-  },
+  ...READ_ROWS,
 
   // Minting is the one mutation a `write` token is refused as well: a token
   // allowed to create tokens could issue itself an `admin` one.

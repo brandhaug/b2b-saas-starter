@@ -1,11 +1,7 @@
 import { annotateWide } from '@b2b-saas-starter/logger'
 import { type PermissionRequest } from '@b2b-saas-starter/authz/src/client.ts'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
-import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
-import { workspaceOverview } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
-import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
 import { StarterApi } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import { Effect } from 'effect'
@@ -20,6 +16,7 @@ import {
   provideWorkspace
 } from './request-guards.ts'
 import { mcpDiscoveryDocument } from './mcp.ts'
+import { READ_OPERATIONS, type ReadOperationEndpoint } from './operations.ts'
 
 /**
  * Contract response literals. Each is declared with the literal type the
@@ -59,69 +56,49 @@ export function workspaceGroup(env: ApiEnv) {
       )
     }
 
-    return (
-      handlers
-        .handle('overview', ({ params, request }) =>
-          read(
-            'overview',
-            { notification: ['read'] },
-            params.slug,
-            request,
-            workspaceOverview
-          )
-        )
-        // Listing members exposes who holds which role, which is what `ac`
-        // (Better Auth's abbreviation of "access control") names. The key is
-        // fixed by the plugin; see statements.ts. The plugin's `member`
-        // statement covers mutations only — it has no `read` action.
-        .handle('members', ({ params, request }) =>
-          read(
-            'members',
-            { ac: ['read'] },
-            params.slug,
-            request,
-            Effect.flatMap(WorkspaceMembership, (membership) => membership.listMembers)
-          )
-        )
-        .handle('notifications', ({ params, request }) =>
-          read(
-            'notifications',
-            { notification: ['read'] },
-            params.slug,
-            request,
-            Effect.flatMap(NotificationFeed, (feed) => feed.list)
-          )
-        )
-        .handle('api-tokens', ({ params, request }) =>
-          read(
-            'api-tokens',
-            { apiToken: ['list'] },
-            params.slug,
-            request,
-            Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
-          )
-        )
-        .handle('webhooks', ({ params, request }) =>
-          read(
-            'webhooks',
-            { webhook: ['list'] },
-            params.slug,
-            request,
-            Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
-          )
-        )
-        .handle('audit-events', ({ params, request }) =>
-          read(
-            'audit-events',
-            { auditLog: ['read'] },
-            params.slug,
-            request,
-            Effect.flatMap(AuditEventLog, (log) =>
-              Effect.map(log.list(), (page) => page.events)
-            )
-          )
-        )
-    )
+    // The operation table stores each read as its natural capability effect;
+    // this boundary widens the channels to `never` so the contract handler's
+    // own success/error schema narrows them back — the same covariance the
+    // inline effects relied on before the shared table existed.
+    function workspaceRead(
+      endpoint: ReadOperationEndpoint,
+      params: { readonly slug: string },
+      request: HttpServerRequest.HttpServerRequest
+    ) {
+      const op = READ_OPERATIONS[endpoint]
+      // SAFETY: the table stores each read as its natural capability effect;
+      // this boundary widens the channels to `never` so the contract handler's
+      // own success/error schema narrows them back — the same covariance the
+      // inline effects relied on before the shared table existed. No value is
+      // asserted away: only the type channel is widened, and `observed` +
+      // `provideWorkspace` re-narrow it before the handler returns.
+      // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion, anti-slop/require-safety-comment-for-type-assertion -- see SAFETY above
+      const body = op.read() as Effect.Effect<never, never, never>
+      return read(endpoint, op.permission, params.slug, request, body)
+    }
+
+    // Every read composes gate + capability from the shared operation
+    // table (operations.ts) — the same rows the MCP tools are derived from,
+    // so the two Capability Interfaces cannot disagree about permissions.
+    return handlers
+      .handle('overview', ({ params, request }) =>
+        workspaceRead('overview', params, request)
+      )
+      .handle('members', ({ params, request }) =>
+        workspaceRead('members', params, request)
+      )
+      .handle('notifications', ({ params, request }) =>
+        workspaceRead('notifications', params, request)
+      )
+      .handle('api-tokens', ({ params, request }) =>
+        workspaceRead('api-tokens', params, request)
+      )
+      .handle('webhooks', ({ params, request }) =>
+        workspaceRead('webhooks', params, request)
+      )
+      .handle('audit-events', ({ params, request }) =>
+        workspaceRead('audit-events', params, request)
+      )
   })
 }
 

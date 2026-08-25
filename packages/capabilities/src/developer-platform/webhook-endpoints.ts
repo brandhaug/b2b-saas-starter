@@ -1,8 +1,9 @@
-import { batch, Database } from '@b2b-saas-starter/db/src/service.ts'
+import { Database } from '@b2b-saas-starter/db/src/service.ts'
 import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/src/schema.ts'
 import { Context, DateTime, Duration, Effect, Layer, Option, Schema } from 'effect'
 import { and, count, eq, sql } from 'drizzle-orm'
 
+import { auditedMutations } from '../governance/audited-mutation.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
 import { assertWithinPlanLimit } from '../billing/billing.ts'
@@ -611,7 +612,16 @@ export const LiveWebhookEndpoints: Layer.Layer<
     const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
 
-    function endpointInWorkspace(endpointId: string, workspaceId: string) {
+    // The shared mutate+audit combinator — one implementation of the batched
+    // write, its zero-match skip, and the phantom-audit caveat (see
+    // governance/audited-mutation.ts).
+    const auditedMutation = auditedMutations({
+      db,
+      prepareAuditRecord: audit.prepareRecord,
+      unavailable
+    })
+
+    function endpointExists(endpointId: string, workspaceId: string) {
       return unavailable(
         db
           .select({ id: webhookEndpoints.id })
@@ -624,59 +634,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
           )
           .limit(1)
       ).pipe(Effect.map((rows) => rows.length > 0))
-    }
-
-    /**
-     * One audited endpoint mutation: verify the endpoint belongs to the
-     * calling workspace, then run the update and its audit insert as one D1
-     * batch. Resolves the applied `set` values, or `Option.none()` (skipping
-     * both writes and the `makeSet` thunk) when no endpoint matched.
-     *
-     * This is check-then-act, not atomic: a concurrent delete between the
-     * lookup and the batch can make the UPDATE match zero rows while the
-     * audit insert still commits — a phantom audit row. `batch` discards
-     * per-statement results, so the update's row count can't gate the audit
-     * insert inside the same batch; the starter accepts that narrow race.
-     * What the shape does guarantee is workspace scoping: every mutation's
-     * where clause re-applies `(id, workspaceId)`, so a foreign workspace's
-     * endpoint is never mutated even when this pre-check goes stale.
-     */
-    function auditedEndpointUpdate<
-      S extends Partial<typeof webhookEndpoints.$inferInsert>
-    >(
-      input: { readonly endpointId: string; readonly actorUserId?: string },
-      eventType: AuditEventType,
-      makeSet: () => S
-    ): Effect.Effect<Option.Option<S>, CapabilityUnavailable, WorkspaceContext> {
-      return Effect.gen(function* () {
-        const ctx = yield* WorkspaceContext
-        const exists = yield* endpointInWorkspace(input.endpointId, ctx.workspace.id)
-        if (!exists) return Option.none()
-        const set = makeSet()
-        const auditStatement = yield* audit.prepareRecord({
-          workspaceId: ctx.workspace.id,
-          actorUserId: input.actorUserId ?? null,
-          eventType,
-          targetType: 'webhook_endpoint',
-          targetId: input.endpointId,
-          metadata: {}
-        })
-        yield* unavailable(
-          batch(db, [
-            db
-              .update(webhookEndpoints)
-              .set(set)
-              .where(
-                and(
-                  eq(webhookEndpoints.id, input.endpointId),
-                  eq(webhookEndpoints.workspaceId, ctx.workspace.id)
-                )
-              ),
-            auditStatement
-          ])
-        )
-        return Option.some(set)
-      })
     }
 
     /**
@@ -713,24 +670,27 @@ export const LiveWebhookEndpoints: Layer.Layer<
           return deliveryId
         }
         // Terminal outcome: the attempt row and its audit event commit or roll
-        // back together, mirroring ApiTokenRegistry's mutation+audit batches.
-        // `workspaceId` comes from the queue message — verified against the
-        // endpoint by `getDispatchTarget` on the delivery path, trusted as
-        // stamped by our own publisher on the dead-letter path.
-        const auditStatement = yield* audit.prepareRecord({
-          workspaceId: input.workspaceId,
-          actorUserId: null,
-          eventType: auditEventType,
-          targetType: 'webhook_endpoint',
-          targetId: input.endpointId,
-          metadata: {
-            deliveryId,
-            eventType: input.eventType,
-            attempts: input.attempts,
-            responseStatus: input.responseStatus ?? null
-          }
+        // back together — the shared audited-mutation shape. `workspaceId`
+        // comes from the queue message — verified against the endpoint by
+        // `getDispatchTarget` on the delivery path, trusted as stamped by our
+        // own publisher on the dead-letter path.
+        yield* auditedMutation({
+          matched: Effect.succeed(true),
+          auditEvent: {
+            workspaceId: input.workspaceId,
+            actorUserId: null,
+            eventType: auditEventType,
+            targetType: 'webhook_endpoint',
+            targetId: input.endpointId,
+            metadata: {
+              deliveryId,
+              eventType: input.eventType,
+              attempts: input.attempts,
+              responseStatus: input.responseStatus ?? null
+            }
+          },
+          write: () => deliveryInsert
         })
-        yield* unavailable(batch(db, [deliveryInsert, auditStatement]))
         return deliveryId
       })
     }
@@ -798,17 +758,20 @@ export const LiveWebhookEndpoints: Layer.Layer<
             events: [...input.events],
             createdAt: DateTime.formatIso(createdAt)
           }
-          const auditCreated = yield* audit.prepareRecord({
-            workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
-            eventType: 'webhook_endpoint.created',
-            targetType: 'webhook_endpoint',
-            targetId: endpoint.id,
-            metadata: { url: input.url, events: input.events }
+          // Insert + audit insert as one batch — the shared audited-mutation
+          // shape with an unconditional match.
+          yield* auditedMutation({
+            matched: Effect.succeed(true),
+            auditEvent: {
+              workspaceId: ctx.workspace.id,
+              actorUserId: input.actorUserId ?? null,
+              eventType: 'webhook_endpoint.created',
+              targetType: 'webhook_endpoint',
+              targetId: endpoint.id,
+              metadata: { url: input.url, events: input.events }
+            },
+            write: () => db.insert(webhookEndpoints).values(endpoint)
           })
-          yield* unavailable(
-            batch(db, [db.insert(webhookEndpoints).values(endpoint), auditCreated])
-          )
           // Fan-out sits beside the audit write, below the interface: the
           // projection only — never the signing secret.
           yield* publishWebhookEventWith(publisher, {
@@ -865,17 +828,62 @@ export const LiveWebhookEndpoints: Layer.Layer<
           )
         }),
       disable: (input) =>
-        auditedEndpointUpdate(input, 'webhook_endpoint.disabled', () => ({
-          enabled: false
-        })).pipe(Effect.map(Option.isSome)),
+        Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          return yield* auditedMutation({
+            matched: endpointExists(input.endpointId, ctx.workspace.id),
+            auditEvent: {
+              workspaceId: ctx.workspace.id,
+              actorUserId: input.actorUserId ?? null,
+              eventType: 'webhook_endpoint.disabled',
+              targetType: 'webhook_endpoint',
+              targetId: input.endpointId,
+              metadata: {}
+            },
+            write: () =>
+              db
+                .update(webhookEndpoints)
+                .set({ enabled: false })
+                .where(
+                  and(
+                    eq(webhookEndpoints.id, input.endpointId),
+                    eq(webhookEndpoints.workspaceId, ctx.workspace.id)
+                  )
+                )
+          })
+        }),
       rotateSecret: (input) =>
-        auditedEndpointUpdate(input, 'webhook_endpoint.secret_rotated', () => ({
-          signingSecret: randomSecret()
-        })).pipe(
-          Effect.map((applied) =>
-            Option.map(applied, (set) => ({ signingSecret: set.signingSecret }))
-          )
-        ),
+        Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          // The replacement secret is minted inside `write`, so a zero-match
+          // mutation still mints nothing — the interface promises that.
+          let signingSecret = ''
+          const applied = yield* auditedMutation({
+            matched: endpointExists(input.endpointId, ctx.workspace.id),
+            auditEvent: {
+              workspaceId: ctx.workspace.id,
+              actorUserId: input.actorUserId ?? null,
+              eventType: 'webhook_endpoint.secret_rotated',
+              targetType: 'webhook_endpoint',
+              targetId: input.endpointId,
+              metadata: {}
+            },
+            write: () => {
+              signingSecret = randomSecret()
+              return db
+                .update(webhookEndpoints)
+                .set({ signingSecret })
+                .where(
+                  and(
+                    eq(webhookEndpoints.id, input.endpointId),
+                    eq(webhookEndpoints.workspaceId, ctx.workspace.id)
+                  )
+                )
+            }
+          })
+          if (!applied) return Option.none()
+          return Option.some({ signingSecret })
+        }),
       getDispatchTarget: (endpointId, workspaceId) =>
         unavailable(
           db

@@ -3,6 +3,31 @@ import { describe, expect, test } from 'vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
 import { mcpDiscoveryDocument, mcpTools } from './mcp.ts'
+import { readOperations } from './operations.ts'
+
+/**
+ * The MCP tool table must stay a projection of the shared operation table:
+ * one tool per workspace read, same permission. A hand-added tool would
+ * resurrect a surface REST never advertised; this fails until it is either
+ * derived again or deliberately given a row of its own.
+ */
+describe('mcp ↔ rest operation mirror', () => {
+  test('tools are exactly the shared read operations, in order', () => {
+    expect(mcpTools.map((tool) => tool.descriptor.name)).toEqual(
+      readOperations().map((op) => op.toolName)
+    )
+    expect(mcpTools.map((tool) => tool.permission)).toEqual(
+      readOperations().map((op) => op.permission)
+    )
+  })
+
+  test('discovery advertises exactly those tools', () => {
+    const doc = mcpDiscoveryDocument()
+    expect(doc.tools.map((tool) => tool.name)).toEqual(
+      readOperations().map((op) => op.toolName)
+    )
+  })
+})
 
 /**
  * The MCP protocol surface at `POST /mcp`, driven as a stock streamable-HTTP

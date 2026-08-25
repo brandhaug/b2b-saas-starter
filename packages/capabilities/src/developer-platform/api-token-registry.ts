@@ -3,11 +3,12 @@ import {
   apiTokenScopes,
   workspaces
 } from '@b2b-saas-starter/db/src/schema.ts'
-import { batch, Database } from '@b2b-saas-starter/db/src/service.ts'
+import { Database } from '@b2b-saas-starter/db/src/service.ts'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { and, count, desc, eq, isNull } from 'drizzle-orm'
 
 import { assertWithinPlanLimit } from '../billing/billing.ts'
+import { auditedMutations } from '../governance/audited-mutation.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import {
   AuthorizationDenied,
@@ -316,6 +317,15 @@ export const LiveApiTokenRegistry: Layer.Layer<
     const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
 
+    // The shared mutate+audit combinator — one implementation of the batched
+    // write, its zero-match skip, and the phantom-audit caveat (see
+    // governance/audited-mutation.ts).
+    const auditedMutation = auditedMutations({
+      db,
+      prepareAuditRecord: audit.prepareRecord,
+      unavailable
+    })
+
     return {
       list: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
@@ -375,17 +385,20 @@ export const LiveApiTokenRegistry: Layer.Layer<
             createdAt,
             createdByUserId: input.actorUserId ?? null
           }
-          const auditCreated = yield* audit.prepareRecord({
-            workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
-            eventType: 'api_token.created',
-            targetType: 'api_token',
-            targetId: row.id,
-            metadata: { name: input.name, scopes: input.scopes }
+          // Insert + audit insert as one batch — the shared audited-mutation
+          // shape with an unconditional match.
+          yield* auditedMutation({
+            matched: Effect.succeed(true),
+            auditEvent: {
+              workspaceId: ctx.workspace.id,
+              actorUserId: input.actorUserId ?? null,
+              eventType: 'api_token.created',
+              targetType: 'api_token',
+              targetId: row.id,
+              metadata: { name: input.name, scopes: input.scopes }
+            },
+            write: () => db.insert(apiTokens).values(row)
           })
-          yield* unavailable(
-            batch(db, [db.insert(apiTokens).values(row), auditCreated])
-          )
           // Fan-out sits beside the audit write, below the interface: the
           // projection only — never the minted secret.
           yield* publishWebhookEventWith(publisher, {
@@ -411,33 +424,33 @@ export const LiveApiTokenRegistry: Layer.Layer<
       revoke: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
-          const matched = yield* unavailable(
-            db
-              .select({ id: apiTokens.id })
-              .from(apiTokens)
-              .where(
-                and(
-                  eq(apiTokens.id, input.tokenId),
-                  eq(apiTokens.workspaceId, ctx.workspace.id),
-                  isNull(apiTokens.revokedAt)
-                )
-              )
-              .limit(1)
-          )
-          // No row in this workspace to revoke — skip both the update and the
-          // audit event instead of recording a phantom revocation.
-          if (matched.length === 0) return false
           const revokedAt = yield* DateTime.now
-          const auditRevoked = yield* audit.prepareRecord({
-            workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
-            eventType: 'api_token.revoked',
-            targetType: 'api_token',
-            targetId: input.tokenId,
-            metadata: {}
-          })
-          yield* unavailable(
-            batch(db, [
+          // Update + audit insert as one batch; a token that is absent,
+          // foreign, or already revoked matches nothing and skips both — no
+          // phantom revocation.
+          const applied = yield* auditedMutation({
+            matched: unavailable(
+              db
+                .select({ id: apiTokens.id })
+                .from(apiTokens)
+                .where(
+                  and(
+                    eq(apiTokens.id, input.tokenId),
+                    eq(apiTokens.workspaceId, ctx.workspace.id),
+                    isNull(apiTokens.revokedAt)
+                  )
+                )
+                .limit(1)
+            ).pipe(Effect.map((rows) => rows.length > 0)),
+            auditEvent: {
+              workspaceId: ctx.workspace.id,
+              actorUserId: input.actorUserId ?? null,
+              eventType: 'api_token.revoked',
+              targetType: 'api_token',
+              targetId: input.tokenId,
+              metadata: {}
+            },
+            write: () =>
               db
                 .update(apiTokens)
                 .set({ revokedAt: DateTime.formatIso(revokedAt) })
@@ -447,10 +460,9 @@ export const LiveApiTokenRegistry: Layer.Layer<
                     eq(apiTokens.workspaceId, ctx.workspace.id),
                     isNull(apiTokens.revokedAt)
                   )
-                ),
-              auditRevoked
-            ])
-          )
+                )
+          })
+          if (!applied) return false
           yield* publishWebhookEventWith(publisher, {
             eventType: 'api_token.revoked',
             payload: { tokenId: input.tokenId }
