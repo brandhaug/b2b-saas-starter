@@ -3,6 +3,7 @@ import {
   type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { SeedWebhookPublisher } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
+import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
 import {
   testWorkspaceContext,
   type Actor
@@ -32,7 +33,9 @@ import {
  */
 
 const workspace: Workspace = {
-  id: 'wrk_test',
+  // The Seed adapters scope fixture rows to the seed workspace, so this test
+  // context must use its id.
+  id: 'wrk_starter',
   slug: 'test-lab',
   name: 'Test Lab',
   planId: 'starter'
@@ -72,7 +75,10 @@ function outcome<A, E extends { readonly _tag: string; readonly reason?: string 
 describe('disableWebhookEndpoint', () => {
   it('lets an actor with webhook:disable disable', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(Layer.provide(SeedWebhookPublisher)),
+      SeedWebhookEndpoints(seedEndpoints).pipe(
+        Layer.provide(SeedAuditEventLog([])),
+        Layer.provide(SeedWebhookPublisher)
+      ),
       testWorkspaceContext(workspace, ADMIN)
     )
     const result = await Effect.runPromise(
@@ -87,7 +93,10 @@ describe('disableWebhookEndpoint', () => {
 
   it('denies a plain member — webhook:disable is withheld from member', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(Layer.provide(SeedWebhookPublisher)),
+      SeedWebhookEndpoints(seedEndpoints).pipe(
+        Layer.provide(SeedAuditEventLog([])),
+        Layer.provide(SeedWebhookPublisher)
+      ),
       testWorkspaceContext(workspace, MEMBER)
     )
     const result = await Effect.runPromise(
@@ -105,7 +114,10 @@ describe('disableWebhookEndpoint', () => {
 
   it('fails closed with no resolved actor', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(Layer.provide(SeedWebhookPublisher)),
+      SeedWebhookEndpoints(seedEndpoints).pipe(
+        Layer.provide(SeedAuditEventLog([])),
+        Layer.provide(SeedWebhookPublisher)
+      ),
       testWorkspaceContext(workspace, null)
     )
     const result = await Effect.runPromise(
@@ -122,7 +134,10 @@ describe('disableWebhookEndpoint', () => {
 describe('rotateWebhookSecret', () => {
   it('returns the new secret to an actor with webhook:rotateSecret', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(Layer.provide(SeedWebhookPublisher)),
+      SeedWebhookEndpoints(seedEndpoints).pipe(
+        Layer.provide(SeedAuditEventLog([])),
+        Layer.provide(SeedWebhookPublisher)
+      ),
       testWorkspaceContext(workspace, OWNER)
     )
     const result = await Effect.runPromise(
@@ -137,7 +152,10 @@ describe('rotateWebhookSecret', () => {
 
   it('denies a plain member — webhook:rotateSecret is withheld from member', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(Layer.provide(SeedWebhookPublisher)),
+      SeedWebhookEndpoints(seedEndpoints).pipe(
+        Layer.provide(SeedAuditEventLog([])),
+        Layer.provide(SeedWebhookPublisher)
+      ),
       testWorkspaceContext(workspace, MEMBER)
     )
     const result = await Effect.runPromise(
@@ -155,7 +173,10 @@ describe('rotateWebhookSecret', () => {
 
   it('resolves no secret for an unknown endpoint — none is minted', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(Layer.provide(SeedWebhookPublisher)),
+      SeedWebhookEndpoints(seedEndpoints).pipe(
+        Layer.provide(SeedAuditEventLog([])),
+        Layer.provide(SeedWebhookPublisher)
+      ),
       testWorkspaceContext(workspace, OWNER)
     )
     const result = await Effect.runPromise(

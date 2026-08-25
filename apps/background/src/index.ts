@@ -22,7 +22,11 @@ import {
   type StarterEnv
 } from '@b2b-saas-starter/capabilities/src/runtime.ts'
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-url.ts'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import {
+  backoffSeconds,
+  planDeliveryAttempt,
+  WebhookEndpoints
+} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import {
   WebhookQueueMessage,
   type WebhookQueueBinding
@@ -32,7 +36,6 @@ import { type ServerEnv } from '@b2b-saas-starter/env/src/server.ts'
 import {
   Clock,
   DateTime,
-  Duration,
   Effect,
   Layer,
   ManagedRuntime,
@@ -122,66 +125,6 @@ function queueParentSpan(envelope: WebhookQueueEnvelope) {
 }
 
 /**
- * Redelivery backoff. Also used to derive the persisted `nextAttemptAt` so
- * the delivery row matches when Cloudflare will actually retry.
- */
-export function backoffSeconds(attempts: number): number {
-  return Math.min(attempts, 6) * 30
-}
-
-export type DeliveryDecision = 'delivered' | 'retry' | 'terminal'
-
-/**
- * Ack/retry/terminal decision per response status. `0` means no HTTP response
- * (network error or timeout) and is retryable. 4xx responses are permanent
- * failures except 408 (request timeout) and 429 (rate limited).
- */
-export function classifyResponseStatus(status: number): DeliveryDecision {
-  if (status >= 200 && status < 300) return 'delivered'
-  if (status === 408 || status === 429) return 'retry'
-  if (status >= 400 && status < 500) return 'terminal'
-  return 'retry'
-}
-
-/** Persisted `webhookDeliveries.status` for a dispatch decision. */
-function deliveryStatus(
-  decision: DeliveryDecision
-): 'delivered' | 'failed_permanent' | 'failed' {
-  if (decision === 'delivered') return 'delivered'
-  if (decision === 'terminal') return 'failed_permanent'
-  return 'failed'
-}
-
-/** Queue action for a dispatch decision: only a retryable failure goes back. */
-function deliveryOutcome(decision: DeliveryDecision): DeliveryOutcome {
-  if (decision === 'retry') return 'retry'
-  return 'ack'
-}
-
-/** `0` stands for "no HTTP response at all", which is persisted as null. */
-function recordedResponseStatus(status: number): number | null {
-  if (status === 0) return null
-  return status
-}
-
-/**
- * Persisted schedule for the next attempt, derived from the same backoff the
- * queue retry uses. Terminal outcomes have no next attempt.
- */
-function nextAttemptAt(
-  decision: DeliveryDecision,
-  now: DateTime.Utc,
-  attempts: number
-): string | null {
-  if (decision === 'retry') {
-    return DateTime.formatIso(
-      DateTime.addDuration(now, Duration.seconds(backoffSeconds(attempts)))
-    )
-  }
-  return null
-}
-
-/**
  * Stripe-style signature: HMAC-SHA256 over `"<timestamp>.<body>"` with the
  * endpoint's plaintext signing secret, hex-encoded. Signing the timestamp
  * makes captured deliveries non-replayable once the receiver enforces a
@@ -262,30 +205,6 @@ function annotateMessageFields(message: WebhookMessage) {
 }
 
 /**
- * A terminal delivery row: no HTTP response to record and no next attempt.
- * Shared by the invalid-URL branch of `processWebhookMessage` and
- * `processDeadLetterMessage`.
- */
-function terminalAttemptRow(input: {
-  readonly deliveryId: string
-  readonly endpointId: string
-  readonly message: WebhookMessage
-  readonly attempts: number
-  readonly status: 'failed_permanent' | 'dead_lettered'
-}) {
-  return {
-    id: input.deliveryId,
-    endpointId: input.endpointId,
-    workspaceId: input.message.workspaceId,
-    eventType: input.message.eventType,
-    status: input.status,
-    attempts: input.attempts,
-    responseStatus: null,
-    nextAttemptAt: null
-  }
-}
-
-/**
  * Delivers one webhook message: resolve the dispatch target, re-check the
  * SSRF guard, sign, POST, persist the attempt row, and decide ack/retry.
  * Capability and HTTP requirements stay open so tests inject stub
@@ -329,15 +248,15 @@ export function processWebhookMessage(
     // starter (see validateWebhookUrl).
     const urlCheck = validateWebhookUrl(target.url)
     if (!urlCheck.valid) {
-      yield* webhooks.recordDeliveryAttempt(
-        terminalAttemptRow({
-          deliveryId: yield* newDeliveryId,
-          endpointId: target.id,
-          message,
-          attempts,
-          status: 'failed_permanent'
-        })
-      )
+      // Never-dispatched terminal row: the capability owns the id, timestamp,
+      // and the batched audit event.
+      yield* webhooks.recordTerminalDeliveryAttempt({
+        endpointId: target.id,
+        workspaceId: message.workspaceId,
+        eventType: message.eventType,
+        attempts,
+        status: 'failed_permanent'
+      })
       yield* annotateWide({
         outcome: 'failed_permanent',
         skipReason: `invalid_url: ${urlCheck.reason}`
@@ -379,8 +298,10 @@ export function processWebhookMessage(
       onSuccess: (response) => response.status,
       onFailure: () => 0
     })
-    const decision = classifyResponseStatus(responseStatus)
-    const status = deliveryStatus(decision)
+    // The dispatch half of the delivery state machine lives below the
+    // capability interface: classification, persisted status, and the
+    // backoff-aligned retry schedule all come from the capability.
+    const plan = planDeliveryAttempt(responseStatus, attempts, now)
     yield* webhooks.recordDeliveryAttempt({
       id: deliveryId,
       endpointId: target.id,
@@ -388,13 +309,13 @@ export function processWebhookMessage(
       // the capability; the workspace id scopes it to the endpoint's owner.
       workspaceId: message.workspaceId,
       eventType: message.eventType,
-      status,
+      status: plan.status,
       attempts,
-      responseStatus: recordedResponseStatus(responseStatus),
-      nextAttemptAt: nextAttemptAt(decision, now, attempts)
+      responseStatus: plan.responseStatus,
+      nextAttemptAt: plan.nextAttemptAt
     })
-    yield* annotateWide({ outcome: status, responseStatus })
-    return deliveryOutcome(decision)
+    yield* annotateWide({ outcome: plan.status, responseStatus })
+    return plan.outcome satisfies DeliveryOutcome
   })
 }
 
@@ -443,15 +364,13 @@ export function processDeadLetterMessage(
     if (!message) return
     yield* annotateMessageFields(message)
     const webhooks = yield* WebhookEndpoints
-    yield* webhooks.recordDeliveryAttempt(
-      terminalAttemptRow({
-        deliveryId: yield* newDeliveryId,
-        endpointId: message.endpointId,
-        message,
-        attempts: envelope.attempts,
-        status: 'dead_lettered'
-      })
-    )
+    yield* webhooks.recordTerminalDeliveryAttempt({
+      endpointId: message.endpointId,
+      workspaceId: message.workspaceId,
+      eventType: message.eventType,
+      attempts: envelope.attempts,
+      status: 'dead_lettered'
+    })
     yield* annotateWide({ outcome: 'dead_lettered' })
   })
 }

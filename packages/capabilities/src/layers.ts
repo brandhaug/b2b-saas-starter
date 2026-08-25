@@ -116,14 +116,28 @@ const SeedBillingLayer = SeedBilling().pipe(
   Layer.provide(SeedAuditEventLog(seedAuditEvents))
 )
 
+/**
+ * One fixture audit-log instance, shared by the Seed adapters that write
+ * audit events below their interface — separate instances would each hold a
+ * private store and recorded events would not read back.
+ */
+const SeedAuditLog = SeedAuditEventLog(seedAuditEvents)
+
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
-  // The mutating developer-platform capabilities fan out webhooks below their
-  // interface, so both Seed adapters are built with the no-op Seed publisher.
-  SeedApiTokenRegistry(seedApiTokens).pipe(Layer.provide(SeedWebhookPublisher)),
-  SeedAuditEventLog(seedAuditEvents),
+  // The mutating developer-platform capabilities write audit events and fan
+  // out webhooks below their interface, so both Seed adapters are built with
+  // the shared fixture audit log plus the no-op Seed publisher.
+  SeedApiTokenRegistry(seedApiTokens).pipe(
+    Layer.provide(SeedAuditLog),
+    Layer.provide(SeedWebhookPublisher)
+  ),
+  SeedAuditLog,
   SeedBillingLayer,
   SeedNotificationFeed(seedNotifications),
-  SeedWebhookEndpoints(seedWebhookEndpoints).pipe(Layer.provide(SeedWebhookPublisher)),
+  SeedWebhookEndpoints(seedWebhookEndpoints).pipe(
+    Layer.provide(SeedAuditLog),
+    Layer.provide(SeedWebhookPublisher)
+  ),
   SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships)

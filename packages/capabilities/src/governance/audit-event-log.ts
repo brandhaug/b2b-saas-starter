@@ -201,6 +201,10 @@ function pagedSeedRows(
 export function SeedAuditEventLog(
   seed: readonly SeedAuditEventRow[]
 ): Layer.Layer<AuditEventLog> {
+  // A private copy: `record` appends without mutating the caller's fixture
+  // array. Sharing state across adapters happens by providing one instance of
+  // this layer (see layers.ts), not by sharing the fixture array.
+  const rows: SeedAuditEventRow[] = [...seed]
   return Layer.succeed(AuditEventLog)({
     // Same scoping as Live: the per-workspace read filters on the resolved
     // workspace from `WorkspaceContext` (invariant 1) — never an unscoped pass
@@ -210,10 +214,27 @@ export function SeedAuditEventLog(
     list: (input) =>
       Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
-        return pagedSeedRows(seed, ctx.workspace.id, input)
+        return pagedSeedRows(rows, ctx.workspace.id, input)
       }),
-    listGlobal: Effect.succeed(toWire(seed)),
-    record: () => Effect.void,
+    listGlobal: Effect.succeed(toWire(rows)),
+    record: (input) =>
+      Effect.gen(function* () {
+        // Appends into this instance's store so recorded events read back
+        // through `list`/`listGlobal` exactly as Live's inserts do —
+        // mutating-capability Seeds depend on this to satisfy the same
+        // interface behavior.
+        const row: SeedAuditEventRow = {
+          id: yield* newCapabilityId('aud'),
+          eventType: input.eventType,
+          targetType: input.targetType,
+          targetId: input.targetId ?? null,
+          actor: input.actorUserId ?? 'system',
+          actorUserId: input.actorUserId ?? null,
+          workspaceId: input.workspaceId ?? null,
+          createdAt: DateTime.formatIso(yield* DateTime.now)
+        }
+        rows.push(row)
+      }),
     prepareRecord: () => Effect.succeed(noopStatement)
   })
 }

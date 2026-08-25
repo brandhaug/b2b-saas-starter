@@ -152,30 +152,84 @@ const SEED_TOKEN_SCOPES = new Map<string, readonly ApiTokenScope[]>([
   [SEED_READONLY_API_TOKEN, ['read']]
 ])
 
+/** Owning workspace of fixture tokens. Matches `seedWorkspaceRecord.id`; kept literal to avoid a fixture import cycle. */
+const SEED_WORKSPACE_ID = 'wrk_starter'
+
+/**
+ * A Seed store entry: the fixture projection plus the columns the wire shape
+ * hides but the mutation contract needs (owning workspace for scoping, and
+ * revocation state so revoke/list agree like Live's `revokedAt` filter).
+ */
+type SeedTokenEntry = {
+  readonly token: ApiToken
+  readonly workspaceId: string
+  revokedAt: string | null
+}
+
 export function SeedApiTokenRegistry(
   seed: readonly ApiToken[]
-): Layer.Layer<ApiTokenRegistry, never, WebhookPublisher> {
+): Layer.Layer<ApiTokenRegistry, never, AuditEventLog | WebhookPublisher> {
   return Layer.effect(ApiTokenRegistry)(
     Effect.gen(function* () {
+      const audit = yield* AuditEventLog
       const publisher = yield* WebhookPublisher
+      // Mutable store, so Seed mirrors Live's post-conditions: created tokens
+      // list back, revoked ones disappear from `list` and cannot be revoked
+      // twice, audit events land in the shared fixture log, and the plan gate
+      // can actually trip instead of being unreachable.
+      const entries: SeedTokenEntry[] = seed.map((token) => ({
+        token,
+        workspaceId: SEED_WORKSPACE_ID,
+        revokedAt: null
+      }))
+
+      function activeIn(workspaceId: string) {
+        return entries.filter(
+          (entry) => entry.workspaceId === workspaceId && entry.revokedAt === null
+        )
+      }
+
       return {
-        list: Effect.succeed(seed),
+        list: Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          return activeIn(ctx.workspace.id)
+            .map((entry) => entry.token)
+            .toSorted((a, b) => {
+              if (a.createdAt > b.createdAt) return -1
+              if (a.createdAt < b.createdAt) return 1
+              return 0
+            })
+        }),
         create: Effect.fnUntraced(function* (input) {
-          // Same entitlement gate as Live: the fixture workspace sits on a
-          // paid plan, so the cap never trips in tests, but both adapters
-          // satisfy the same interface behavior.
-          yield* assertWithinPlanLimit({ resource: 'api_token', used: seed.length })
+          const ctx = yield* WorkspaceContext
+          // Same entitlement gate as Live, over the same live count semantics.
+          yield* assertWithinPlanLimit({
+            resource: 'api_token',
+            used: activeIn(ctx.workspace.id).length
+          })
           const id = yield* newCapabilityId('tok')
           const createdAt = yield* DateTime.now
-          const created = {
+          const created: ApiToken = {
             id,
             name: input.name,
             prefix: 'bsk_seed',
             scopes: [...input.scopes],
             lastUsedAt: null,
-            createdAt: DateTime.formatIso(createdAt),
-            token: 'bsk_seed_created_token'
+            createdAt: DateTime.formatIso(createdAt)
           }
+          entries.push({
+            token: created,
+            workspaceId: ctx.workspace.id,
+            revokedAt: null
+          })
+          yield* audit.record({
+            workspaceId: ctx.workspace.id,
+            actorUserId: input.actorUserId ?? null,
+            eventType: 'api_token.created',
+            targetType: 'api_token',
+            targetId: id,
+            metadata: { name: input.name, scopes: input.scopes }
+          })
           // The projection, never the minted secret.
           yield* publishWebhookEventWith(publisher, {
             eventType: 'api_token.created',
@@ -187,10 +241,29 @@ export function SeedApiTokenRegistry(
               createdAt: created.createdAt
             }
           })
-          return created
+          return { ...created, token: 'bsk_seed_created_token' }
         }),
         revoke: (input) =>
           Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const entry = entries.find(
+              (candidate) =>
+                candidate.token.id === input.tokenId &&
+                candidate.workspaceId === ctx.workspace.id &&
+                candidate.revokedAt === null
+            )
+            // No active token in this workspace to revoke — skip both the write
+            // and the audit event instead of recording a phantom revocation.
+            if (!entry) return false
+            entry.revokedAt = DateTime.formatIso(yield* DateTime.now)
+            yield* audit.record({
+              workspaceId: ctx.workspace.id,
+              actorUserId: input.actorUserId ?? null,
+              eventType: 'api_token.revoked',
+              targetType: 'api_token',
+              targetId: input.tokenId,
+              metadata: {}
+            })
             yield* publishWebhookEventWith(publisher, {
               eventType: 'api_token.revoked',
               payload: { tokenId: input.tokenId }

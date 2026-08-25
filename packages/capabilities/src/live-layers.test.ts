@@ -15,7 +15,7 @@ import {
 import { provisionTestD1 } from '@b2b-saas-starter/db/src/testing.ts'
 import { Context, DateTime, Effect, Layer } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { Billing } from './billing/billing.ts'
 import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
 import {
@@ -32,6 +32,10 @@ import {
   type WorkspaceMemberBinding
 } from './governance/workspace-membership.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
+import {
+  developerPlatformContractCases,
+  planLimitContractCases
+} from './developer-platform/developer-platform.contract.ts'
 import { type PlatformUserAdminBinding } from './governance/platform-user-admin.ts'
 import { platformUserAdminContractCases } from './governance/platform-user-admin.contract.ts'
 import {
@@ -98,8 +102,32 @@ const insertFixtureRows = Effect.gen(function* () {
     // Home of the audit read-contract dataset and the full-page pagination
     // suite — isolated so their rows never leak into other suites' counts.
     { id: 'wrk_audit', slug: 'audit-lab', name: 'Audit Lab' },
-    { id: 'wrk_audit_pages', slug: 'audit-pages-lab', name: 'Audit Pages Lab' }
+    { id: 'wrk_audit_pages', slug: 'audit-pages-lab', name: 'Audit Pages Lab' },
+    // The developer-platform plan-limit contract runs its create loop here:
+    // the starter plan caps tokens, so `PlanLimitExceeded` is reachable.
+    { id: 'wrk_capped', slug: 'capped-lab', name: 'Capped Lab', planId: 'starter' },
+    // Home of the developer-platform mutation contract: an isolated,
+    // uncapped workspace so its creates never collide with other suites'
+    // fixtures or entitlement ceilings.
+    {
+      id: 'wrk_dev_contract',
+      slug: 'dev-contract-lab',
+      name: 'Dev Contract Lab',
+      planId: 'team'
+    }
   ])
+  yield* db.insert(workspaceMembers).values({
+    id: 'mem_dev_contract_owner',
+    workspaceId: 'wrk_dev_contract',
+    userId: 'usr_owner',
+    role: 'owner'
+  })
+  yield* db.insert(workspaceMembers).values({
+    id: 'mem_capped_owner',
+    workspaceId: 'wrk_capped',
+    userId: 'usr_owner',
+    role: 'owner'
+  })
   yield* db.insert(auditEvents).values(
     auditEventContractDataset('wrk_audit').map((row) => ({
       id: row.id,
@@ -1286,6 +1314,27 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
     )
   })
 
+  // The Seed half of this same list runs in index.test.ts.
+  describe('live developer-platform contract', () => {
+    for (const contractCase of developerPlatformContractCases(expect)) {
+      it.effect(contractCase.name, () =>
+        inWorkspace('dev-contract-lab', contractCase.assert, {
+          userId: 'usr_owner'
+        })
+      )
+    }
+  })
+
+  // Runs against a capped-plan workspace (see `insertFixtureRows`) so the
+  // create loop actually reaches the gate. The Seed half runs in index.test.ts.
+  describe('live developer-platform plan-limit contract', () => {
+    for (const contractCase of planLimitContractCases(expect)) {
+      it.effect(contractCase.name, () =>
+        inWorkspace('capped-lab', contractCase.assert, { userId: 'usr_owner' })
+      )
+    }
+  })
+
   // Real-D1 coverage for the terminal-outcome audit contract: LiveWebhookEndpoints
   // batches the audit insert with the delivery row, so these assert the actual
   // audit_events rows rather than a stub's recorded inputs.
@@ -1302,10 +1351,17 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
     function auditRowsFor(eventType: string) {
       return Effect.gen(function* () {
         const db = yield* Database
+        // Scoped to this suite's workspace: the developer-platform contract
+        // dead-letters its own endpoints in a sibling workspace.
         return yield* db
           .select()
           .from(auditEvents)
-          .where(eq(auditEvents.eventType, eventType))
+          .where(
+            and(
+              eq(auditEvents.eventType, eventType),
+              eq(auditEvents.workspaceId, 'wrk_live')
+            )
+          )
       })
     }
 

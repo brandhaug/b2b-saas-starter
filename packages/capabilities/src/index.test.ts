@@ -14,13 +14,22 @@ import {
   LiveApiTokenRegistry,
   SEED_API_TOKEN,
   SEED_READONLY_API_TOKEN,
+  SeedApiTokenRegistry,
   shouldBumpLastUsedAt
 } from './developer-platform/api-token-registry.ts'
 import {
   LiveWebhookEndpoints,
+  SeedWebhookEndpoints,
   WebhookEndpoints
 } from './developer-platform/webhook-endpoints.ts'
-import { LiveWebhookPublisher } from './developer-platform/webhook-publisher.ts'
+import {
+  developerPlatformContractCases,
+  planLimitContractCases
+} from './developer-platform/developer-platform.contract.ts'
+import {
+  LiveWebhookPublisher,
+  SeedWebhookPublisher
+} from './developer-platform/webhook-publisher.ts'
 import { selectCapabilitiesLayer, selectWorkspaceLayer } from './runtime.ts'
 import {
   NotificationFeed,
@@ -57,6 +66,45 @@ const seedWorkspaceLayer = Layer.merge(
   SeedLayer,
   testWorkspaceContext(seedWorkspaceRecord)
 )
+
+// The Live half of this same list runs in live-layers.test.ts. One contract,
+// two adapters — capabilities invariant 4. Fresh fixture stores (empty token /
+// endpoint lists, a dedicated audit-log instance) so cases never lean on the
+// demo SeedLayer fixtures.
+describe('seed developer-platform contract', () => {
+  const auditLog = SeedAuditEventLog([])
+  const publisher = SeedWebhookPublisher
+  const layer = Layer.mergeAll(
+    Layer.merge(auditLog, testWorkspaceContext(seedWorkspaceRecord)),
+    SeedApiTokenRegistry([]).pipe(Layer.provide(auditLog), Layer.provide(publisher)),
+    SeedWebhookEndpoints([]).pipe(Layer.provide(auditLog), Layer.provide(publisher))
+  )
+  for (const contractCase of developerPlatformContractCases(expect)) {
+    it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
+  }
+})
+
+// The plan-limit gate needs a workspace whose plan actually caps the resource;
+// the demo fixture sits on `team` (uncapped).
+describe('seed developer-platform plan-limit contract', () => {
+  const auditLog = SeedAuditEventLog([])
+  const layer = Layer.mergeAll(
+    auditLog,
+    testWorkspaceContext({
+      id: 'wrk_capped_seed',
+      slug: 'capped-seed-lab',
+      name: 'Capped Seed Lab',
+      planId: 'starter'
+    }),
+    SeedApiTokenRegistry([]).pipe(
+      Layer.provide(auditLog),
+      Layer.provide(SeedWebhookPublisher)
+    )
+  )
+  for (const contractCase of planLimitContractCases(expect)) {
+    it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
+  }
+})
 
 describe('seed audit event log contract', () => {
   const workspaceId = 'wrk_audit_contract'

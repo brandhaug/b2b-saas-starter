@@ -20,6 +20,8 @@ Workspace-scoped programmatic-access tokens for the REST + MCP surface. Tokens c
 
 ## Seed semantics
 
+The Seed layer is a **stateful mirror of Live's post-conditions**, not a static fixture: `create` appends (and audits + fans out), `revoke` stamps revocation on a mutable store entry, and `list` reads the store scoped to `WorkspaceContext` — so the plan gate can actually trip and contract cases (`developer-platform.contract.ts`) run unmodified against both adapters. Fixture tokens belong to the seed workspace (`wrk_starter`).
+
 The Seed layer's `verifyBearerToken` accepts **exactly two** documented fixture credentials, both resolving to the seed workspace:
 
 - `SEED_API_TOKEN` (`'bsk_seed_0000000000000000'`) — all scopes (`read`, `write`, `admin`).

@@ -3,6 +3,7 @@ import {
   type ApiToken
 } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { SeedWebhookPublisher } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
+import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
 import {
   testWorkspaceContext,
   type Actor
@@ -27,7 +28,9 @@ import { loadWorkspaceApiTokens, revokeApiToken } from './api-tokens'
  */
 
 const workspace: Workspace = {
-  id: 'wrk_test',
+  // The Seed adapters scope fixture rows to the seed workspace, so this test
+  // context must use its id.
+  id: 'wrk_starter',
   slug: 'test-lab',
   name: 'Test Lab',
   planId: 'starter'
@@ -63,7 +66,10 @@ function outcome<A, E extends { readonly _tag: string; readonly reason?: string 
 
 describe('revokeApiToken', () => {
   const layer = Layer.mergeAll(
-    SeedApiTokenRegistry(seedTokens).pipe(Layer.provide(SeedWebhookPublisher)),
+    SeedApiTokenRegistry(seedTokens).pipe(
+      Layer.provide(SeedAuditEventLog([])),
+      Layer.provide(SeedWebhookPublisher)
+    ),
     testWorkspaceContext(workspace, OWNER)
   )
 
@@ -78,7 +84,10 @@ describe('revokeApiToken', () => {
 
   it('denies a plain member — apiToken:revoke is withheld from member', async () => {
     const memberLayer = Layer.mergeAll(
-      SeedApiTokenRegistry(seedTokens).pipe(Layer.provide(SeedWebhookPublisher)),
+      SeedApiTokenRegistry(seedTokens).pipe(
+        Layer.provide(SeedAuditEventLog([])),
+        Layer.provide(SeedWebhookPublisher)
+      ),
       testWorkspaceContext(workspace, MEMBER)
     )
     const result = await Effect.runPromise(
@@ -94,7 +103,10 @@ describe('revokeApiToken', () => {
 
   it('fails closed with no resolved actor', async () => {
     const anonymousLayer = Layer.mergeAll(
-      SeedApiTokenRegistry(seedTokens).pipe(Layer.provide(SeedWebhookPublisher)),
+      SeedApiTokenRegistry(seedTokens).pipe(
+        Layer.provide(SeedAuditEventLog([])),
+        Layer.provide(SeedWebhookPublisher)
+      ),
       testWorkspaceContext(workspace, null)
     )
     const result = await Effect.runPromise(

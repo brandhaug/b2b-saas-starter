@@ -1,11 +1,14 @@
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-url.ts'
 import {
+  backoffSeconds,
+  classifyResponseStatus,
+  planDeliveryAttempt,
   WebhookEndpoints,
   type WebhookDeliveryAttemptInput
 } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { describe, expect, it } from 'vitest'
-import { Effect, Layer, type Scope } from 'effect'
+import { DateTime, Effect, Layer, type Scope } from 'effect'
 import {
   HttpClient,
   HttpClientResponse,
@@ -13,8 +16,6 @@ import {
 } from 'effect/unstable/http'
 
 import {
-  backoffSeconds,
-  classifyResponseStatus,
   computeWebhookSignature,
   processDeadLetterMessage,
   processWebhookMessage,
@@ -56,6 +57,38 @@ describe('classifyResponseStatus', () => {
     expect(classifyResponseStatus(500)).toBe('retry')
     expect(classifyResponseStatus(503)).toBe('retry')
     expect(classifyResponseStatus(0)).toBe('retry')
+  })
+})
+
+describe('planDeliveryAttempt', () => {
+  const now = DateTime.makeUnsafe(Date.UTC(2026, 7, 25, 0, 0, 0))
+
+  it('delivers 2xx without a next attempt', () => {
+    expect(planDeliveryAttempt(200, 1, now)).toMatchObject({
+      status: 'delivered',
+      responseStatus: 200,
+      nextAttemptAt: null,
+      outcome: 'ack'
+    })
+  })
+
+  it('persists no-response failures as a null status and schedules the backoff', () => {
+    const plan = planDeliveryAttempt(0, 2, now)
+    expect(plan).toMatchObject({
+      status: 'failed',
+      responseStatus: null,
+      outcome: 'retry'
+    })
+    expect(plan.nextAttemptAt).toBe('2026-08-25T00:01:00.000Z')
+  })
+
+  it('acks terminal 4xx with no next attempt', () => {
+    expect(planDeliveryAttempt(404, 1, now)).toMatchObject({
+      status: 'failed_permanent',
+      responseStatus: 404,
+      nextAttemptAt: null,
+      outcome: 'ack'
+    })
   })
 })
 
@@ -106,6 +139,7 @@ function stubEndpoints(
   dispatchTarget: typeof target | null,
   recorded: WebhookDeliveryAttemptInput[]
 ): Layer.Layer<WebhookEndpoints> {
+  let terminalSeq = 0
   return Layer.succeed(WebhookEndpoints)({
     list: Effect.die('unused in delivery tests'),
     create: () => Effect.die('unused in delivery tests'),
@@ -117,6 +151,18 @@ function stubEndpoints(
     recordDeliveryAttempt: (input) =>
       Effect.sync(() => {
         recorded.push(input)
+      }),
+    recordTerminalDeliveryAttempt: (input) =>
+      Effect.sync(() => {
+        terminalSeq += 1
+        const deliveryId = `whd_stub_terminal_${terminalSeq}`
+        recorded.push({
+          id: deliveryId,
+          ...input,
+          responseStatus: null,
+          nextAttemptAt: null
+        })
+        return { deliveryId }
       })
   })
 }
