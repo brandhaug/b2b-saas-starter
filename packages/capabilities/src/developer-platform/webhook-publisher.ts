@@ -1,7 +1,7 @@
 import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { Database } from '@b2b-saas-starter/db/src/service.ts'
 import { webhookEndpoints } from '@b2b-saas-starter/db/src/schema.ts'
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, Layer, Result, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
@@ -66,6 +66,31 @@ export const SeedWebhookPublisher: Layer.Layer<WebhookPublisher> = Layer.succeed
 )({
   publish: () => Effect.void
 })
+
+/**
+ * Best-effort fan-out to subscribed endpoints: a queue outage annotates the
+ * wide event but never fails the mutation that produced the event. The
+ * mutating capabilities call this with the publisher they were built with, so
+ * `WebhookPublisher` never appears in any capability's interface — fan-out is
+ * implementation detail below the seam, identical for every surface (REST,
+ * MCP bearer flows, and the web app's session surface).
+ */
+export function publishWebhookEventWith(
+  publisher: WebhookPublisherInterface,
+  input: PublishWebhookEventInput
+): Effect.Effect<void, never, WorkspaceContext> {
+  return Effect.gen(function* () {
+    const published = yield* Effect.result(publisher.publish(input))
+    if (Result.isFailure(published)) {
+      yield* Effect.void.pipe(
+        Effect.annotateLogs({
+          webhookPublish: 'failed',
+          webhookPublishReason: published.failure.reason
+        })
+      )
+    }
+  })
+}
 
 const unavailable = orUnavailable('webhook-publisher')
 

@@ -5,10 +5,12 @@ import { and, count, eq, sql } from 'drizzle-orm'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
-import { type CapabilityUnavailable } from '../errors.ts'
+import { assertWithinPlanLimit } from '../billing/billing.ts'
+import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { InvalidWebhookUrl, validateWebhookUrl } from './webhook-url.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
@@ -109,10 +111,11 @@ export type CreateWebhookEndpointInput = {
 }
 
 /**
- * The event types this starter currently publishes (see the API worker's
- * `publishWebhookEvent` call sites). Subscriptions are free-text strings so a
- * producer can grow without a migration; this list is what the management UI
- * offers as checkboxes.
+ * The event types this starter currently publishes (the mutating capabilities
+ * fan out below their interface — `ApiTokenRegistry` and this module's
+ * `create`). Subscriptions are free-text strings so a producer can grow
+ * without a migration; this list is what the management UI offers as
+ * checkboxes.
  */
 export type WebhookEventType =
   | 'api_token.created'
@@ -155,7 +158,7 @@ export type WebhookEndpointsInterface = {
     input: CreateWebhookEndpointInput
   ) => Effect.Effect<
     CreatedWebhookEndpoint,
-    CapabilityUnavailable | InvalidWebhookUrl,
+    CapabilityUnavailable | InvalidWebhookUrl | PlanLimitExceeded,
     WorkspaceContext
   >
 
@@ -229,32 +232,48 @@ function ensureValidWebhookUrl(url: string): Effect.Effect<void, InvalidWebhookU
 
 export function SeedWebhookEndpoints(
   seed: readonly WebhookEndpoint[]
-): Layer.Layer<WebhookEndpoints> {
-  return Layer.succeed(WebhookEndpoints)({
-    list: Effect.succeed(seed),
-    create: Effect.fnUntraced(function* (input) {
-      yield* ensureValidWebhookUrl(input.url)
-      const endpoint: WebhookEndpoint = {
-        id: yield* newCapabilityId('wh'),
-        url: input.url,
-        enabled: true,
-        events: [...input.events],
-        successRate: 100
+): Layer.Layer<WebhookEndpoints, never, WebhookPublisher> {
+  return Layer.effect(WebhookEndpoints)(
+    Effect.gen(function* () {
+      const publisher = yield* WebhookPublisher
+      return {
+        list: Effect.succeed(seed),
+        create: Effect.fnUntraced(function* (input) {
+          yield* ensureValidWebhookUrl(input.url)
+          // Same entitlement gate as Live; the fixture workspace is on a paid
+          // plan, so the cap never trips in tests.
+          yield* assertWithinPlanLimit({
+            resource: 'webhook_endpoint',
+            used: seed.length
+          })
+          const endpoint: WebhookEndpoint = {
+            id: yield* newCapabilityId('wh'),
+            url: input.url,
+            enabled: true,
+            events: [...input.events],
+            successRate: 100
+          }
+          // The projection, never the signing secret.
+          yield* publishWebhookEventWith(publisher, {
+            eventType: 'webhook_endpoint.created',
+            payload: endpoint
+          })
+          return { endpoint, signingSecret: 'whsec_seed_created' }
+        }),
+        listDeliveries: () => Effect.succeed([]),
+        disable: (input) =>
+          Effect.succeed(seed.some((endpoint) => endpoint.id === input.endpointId)),
+        rotateSecret: (input) => {
+          if (!seed.some((endpoint) => endpoint.id === input.endpointId)) {
+            return Effect.succeed(Option.none())
+          }
+          return Effect.succeed(Option.some({ signingSecret: 'whsec_seed_rotated' }))
+        },
+        getDispatchTarget: () => Effect.succeed(null),
+        recordDeliveryAttempt: () => Effect.void
       }
-      return { endpoint, signingSecret: 'whsec_seed_created' }
-    }),
-    listDeliveries: () => Effect.succeed([]),
-    disable: (input) =>
-      Effect.succeed(seed.some((endpoint) => endpoint.id === input.endpointId)),
-    rotateSecret: (input) => {
-      if (!seed.some((endpoint) => endpoint.id === input.endpointId)) {
-        return Effect.succeed(Option.none())
-      }
-      return Effect.succeed(Option.some({ signingSecret: 'whsec_seed_rotated' }))
-    },
-    getDispatchTarget: () => Effect.succeed(null),
-    recordDeliveryAttempt: () => Effect.void
-  })
+    })
+  )
 }
 
 function randomSecret(): string {
@@ -272,11 +291,12 @@ const unavailable = orUnavailable('webhook-endpoints')
 export const LiveWebhookEndpoints: Layer.Layer<
   WebhookEndpoints,
   never,
-  Database | AuditEventLog
+  Database | AuditEventLog | WebhookPublisher
 > = Layer.effect(WebhookEndpoints)(
   Effect.gen(function* () {
     const db = yield* Database
     const audit = yield* AuditEventLog
+    const publisher = yield* WebhookPublisher
 
     function endpointInWorkspace(endpointId: string, workspaceId: string) {
       return unavailable(
@@ -385,6 +405,18 @@ export const LiveWebhookEndpoints: Layer.Layer<
         Effect.gen(function* () {
           yield* ensureValidWebhookUrl(input.url)
           const ctx = yield* WorkspaceContext
+          // Entitlement gate: the workspace's plan caps endpoint count. The
+          // rule lives in the billing capability; the counting lives here.
+          const existingCount = yield* unavailable(
+            db
+              .select({ value: count() })
+              .from(webhookEndpoints)
+              .where(eq(webhookEndpoints.workspaceId, ctx.workspace.id))
+          )
+          yield* assertWithinPlanLimit({
+            resource: 'webhook_endpoint',
+            used: existingCount[0]?.value ?? 0
+          })
           const signingSecret = randomSecret()
           const createdAt = yield* DateTime.now
           const endpoint = {
@@ -408,6 +440,18 @@ export const LiveWebhookEndpoints: Layer.Layer<
           yield* unavailable(
             batch(db, [db.insert(webhookEndpoints).values(endpoint), auditCreated])
           )
+          // Fan-out sits beside the audit write, below the interface: the
+          // projection only — never the signing secret.
+          yield* publishWebhookEventWith(publisher, {
+            eventType: 'webhook_endpoint.created',
+            payload: {
+              id: endpoint.id,
+              url: endpoint.url,
+              enabled: endpoint.enabled,
+              events: endpoint.events,
+              successRate: 100
+            }
+          })
           return {
             endpoint: {
               id: endpoint.id,

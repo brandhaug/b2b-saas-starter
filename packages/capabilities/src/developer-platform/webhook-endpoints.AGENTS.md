@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Workspace-scoped registry of outbound webhook destinations plus a delivery-success ratio computed from recent deliveries. Powers the Webhooks tab in the workspace shell. Endpoint creation, disabling, and secret rotation are wired here; the actual outbound dispatch lives in the background worker (enqueued via [`webhook-publisher`](./webhook-publisher.AGENTS.md)).
+Workspace-scoped registry of outbound webhook destinations plus a delivery-success ratio computed from recent deliveries. Powers the Webhooks tab in the workspace shell. Endpoint creation, disabling, and secret rotation are wired here; `create` enforces the plan's endpoint ceiling (`assertWithinPlanLimit` from the billing capability — counting lives here so callers cannot forget the gate) and fans out a best-effort `webhook_endpoint.created` event (projection only — never the signing secret) via [`webhook-publisher`](./webhook-publisher.AGENTS.md), which both Seed and Live layers are built with. The actual outbound dispatch lives in the background worker (enqueued via the same publisher).
 
 ## Public surface
 

@@ -1,23 +1,14 @@
 import { annotateWide } from '@b2b-saas-starter/logger'
-import { assertWithinPlanLimit } from '@b2b-saas-starter/capabilities/src/billing/billing.ts'
 import { type PermissionRequest } from '@b2b-saas-starter/authz/src/client.ts'
-import {
-  ApiTokenRegistry,
-  type ApiToken
-} from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
-import {
-  type WebhookEndpoint,
-  WebhookEndpoints
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
-import { WebhookPublisher } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { workspaceOverview } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
 import { StarterApi } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
-import { Effect, Result, type Scope } from 'effect'
+import { Effect } from 'effect'
 import { type HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 
@@ -37,41 +28,6 @@ import { mcpDiscoveryDocument } from './mcp.ts'
  */
 const HEALTH_OK = { status: 'ok' } satisfies { readonly status: 'ok' }
 const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
-
-/**
- * The webhook events this worker publishes, paired with the payload shape each
- * one carries. The queue wire schema types `payload` as unknown because it is
- * event-specific; this union is where the shapes actually published from here
- * are pinned down, so a handler cannot enqueue an unintended body.
- */
-type PublishedWebhookEvent =
-  | {
-      readonly eventType: 'api_token.created'
-      readonly payload: Omit<ApiToken, 'lastUsedAt'>
-    }
-  | {
-      readonly eventType: 'api_token.revoked'
-      readonly payload: { readonly tokenId: string }
-    }
-  | {
-      readonly eventType: 'webhook_endpoint.created'
-      readonly payload: WebhookEndpoint
-    }
-
-function publishWebhookEvent(
-  event: PublishedWebhookEvent
-): Effect.Effect<void, never, WebhookPublisher | WorkspaceContext | Scope.Scope> {
-  return Effect.gen(function* () {
-    const publisher = yield* WebhookPublisher
-    const published = yield* Effect.result(publisher.publish(event))
-    if (Result.isFailure(published)) {
-      yield* annotateWide({
-        webhookPublish: 'failed',
-        webhookPublishReason: published.failure.reason
-      })
-    }
-  })
-}
 
 export function healthGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'health', (handlers) =>
@@ -191,13 +147,7 @@ export function apiTokenGroup(env: ApiEnv) {
           params.slug,
           Effect.gen(function* () {
             const tokens = yield* ApiTokenRegistry
-            const revoked = yield* tokens.revoke({ tokenId: params.tokenId })
-            if (revoked) {
-              yield* publishWebhookEvent({
-                eventType: 'api_token.revoked',
-                payload: { tokenId: params.tokenId }
-              })
-            }
+            yield* tokens.revoke({ tokenId: params.tokenId })
           })
         )
         return TOKEN_REVOKED
@@ -221,26 +171,12 @@ export function apiTokenGroup(env: ApiEnv) {
               params.slug,
               Effect.gen(function* () {
                 const tokens = yield* ApiTokenRegistry
-                // Entitlement gate: the plan caps token count (billing rule
-                // owned by the billing capability).
-                const existing = yield* tokens.list
-                yield* assertWithinPlanLimit({
-                  resource: 'api_token',
-                  used: existing.length
-                })
+                // The entitlement gate and the webhook fan-out live inside the
+                // capability, below the interface — identical for every
+                // surface.
                 const next = yield* tokens.create({
                   name: payload.name,
                   scopes: payload.scopes
-                })
-                yield* publishWebhookEvent({
-                  eventType: 'api_token.created',
-                  payload: {
-                    id: next.id,
-                    name: next.name,
-                    prefix: next.prefix,
-                    scopes: next.scopes,
-                    createdAt: next.createdAt
-                  }
                 })
                 return next
               })
@@ -275,22 +211,10 @@ export function webhookGroup(env: ApiEnv) {
             params.slug,
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
-              // Entitlement gate: the plan caps endpoint count (billing rule
-              // owned by the billing capability).
-              const existing = yield* webhooks.list
-              yield* assertWithinPlanLimit({
-                resource: 'webhook_endpoint',
-                used: existing.length
-              })
               const createdEndpoint = yield* webhooks.create({
                 url: payload.url,
                 events: payload.events,
                 description: payload.description
-              })
-              yield* publishWebhookEvent({
-                eventType: 'webhook_endpoint.created',
-                // The projection, never the signing secret.
-                payload: createdEndpoint.endpoint
               })
               return createdEndpoint.endpoint
             })

@@ -81,9 +81,9 @@ function limitFor(plan: Plan, resource: EntitlementResource): number | null {
 /**
  * Entitlement gate over the workspace in context. Pure composition — it reads
  * the resolved workspace's `planId` and compares `used` against the plan's
- * ceiling — so any caller that already holds a count (a web server function,
- * an API handler) can compose it before its create call. The *rule* lives
- * here; only the counting lives with the caller.
+ * ceiling. The mutating capabilities compose this themselves (counting their
+ * own rows), so callers cannot forget the gate and no route handler or server
+ * function re-derives the idiom.
  */
 export const assertWithinPlanLimit = Effect.fnUntraced(function* (input: {
   readonly resource: EntitlementResource

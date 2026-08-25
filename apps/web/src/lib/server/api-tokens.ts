@@ -11,7 +11,6 @@ import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-c
 import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
 import { createServerFn } from '@tanstack/react-start'
-import { assertWithinPlanLimit } from '@b2b-saas-starter/capabilities/src/billing/billing.ts'
 import { Effect, Schema, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
@@ -40,10 +39,8 @@ export const createApiTokenServerFn = createServerFn({ method: 'POST' })
         // The session gate above proves who is asking; this proves they may.
         yield* requireWorkspacePermission({ apiToken: ['create'] })
         const tokens = yield* ApiTokenRegistry
-        // Entitlement gate: the workspace's plan caps token count. Counting
-        // happens here; the rule lives in the billing capability.
-        const existing = yield* tokens.list
-        yield* assertWithinPlanLimit({ resource: 'api_token', used: existing.length })
+        // The entitlement gate and webhook fan-out live inside the capability,
+        // below the interface — identical for every surface.
         return yield* tokens.create({
           name: data.name,
           scopes: data.scopes,
