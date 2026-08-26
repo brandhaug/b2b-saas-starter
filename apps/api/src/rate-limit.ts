@@ -1,8 +1,6 @@
 import {
-  clientKey,
   makeRateLimiter,
   type CloudflareRateLimit,
-  type RateLimitInput as GenericRateLimitInput,
   type RateLimiterInterface as GenericRateLimiterInterface
 } from '@b2b-saas-starter/rate-limit'
 import { Context, Layer } from 'effect'
@@ -20,8 +18,6 @@ export type RateLimitBindings = {
 }
 
 export type RateLimitBucket = 'rest_read' | 'rest_write' | 'assistant' | 'mcp'
-
-export type RateLimitInput = GenericRateLimitInput<RateLimitBucket>
 
 export type RateLimiterInterface = GenericRateLimiterInterface<RateLimitBucket>
 
@@ -64,5 +60,3 @@ export function makeRateLimiterLayer(env: RateLimitBindings): Layer.Layer<RateLi
     })
   )
 }
-
-export { clientKey }

@@ -30,3 +30,13 @@ jobs:
             ci
             revert
           requireSubject: true
+
+  fallow-dead-code:
+    name: Fallow dead-code regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: npm install -g fallow@3
+      - run: bun run dead-code

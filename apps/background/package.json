@@ -18,7 +18,6 @@
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
-    "@effect/vitest": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "wrangler": "catalog:"

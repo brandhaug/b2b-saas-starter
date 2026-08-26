@@ -5,19 +5,91 @@
   "ignoreDependencies": [
     "@b2b-saas-starter/config",
     "@b2b-saas-starter/db",
+    "@base-ui/react",
+    "@effect/language-service",
+    "@effect/platform-node",
     "@tailwindcss/typography",
     "babel-plugin-react-compiler",
-    "@effect/language-service",
+    "class-variance-authority",
+    "cmdk",
+    "eslint-plugin-better-tailwindcss",
+    // Root-level deploy/seed tooling: alchemy.run.ts and scripts/seed.ts are
+    // infrastructure entries, not production runtime.
+    "alchemy",
+    "effect",
     "shadcn",
-    "tw-animate-css"
+    "sonner",
+    "tw-animate-css",
+    "ultracite"
   ],
-  "ignorePatterns": ["apps/web/src/index.css", "scripts/seed.ts"],
+  // apps/web/src/components/ui is vendored shadcn output: every primitive stays
+  // exported even when a given screen uses only some of them, and its deps
+  // (@base-ui/react, cva, cmdk, sonner) are consumed only from there.
+  "ignorePatterns": [
+    "apps/web/src/index.css",
+    "apps/web/src/components/ui/**",
+    "scripts/seed.ts"
+  ],
   "dynamicallyLoaded": [
     "apps/web/content/blog/*.mdx",
     "apps/web/content/docs/**/*.mdx",
-    "apps/web/src/lib/cloudflare-workers-shim.ts"
+    "apps/web/src/lib/cloudflare-workers-shim.ts",
+    "apps/web/src/lib/cloudflare-workers-shim-dev.ts"
   ],
   "resolve": {
     "conditions": ["style"]
+  },
+  "regression": {
+    "baseline": {
+      "totalIssues": 0,
+      "unusedFiles": 0,
+      "unusedExports": 0,
+      "unusedTypes": 0,
+      "unusedDependencies": 0,
+      "unusedDevDependencies": 0,
+      "unusedOptionalDependencies": 0,
+      "unusedEnumMembers": 0,
+      "unusedClassMembers": 0,
+      "unresolvedImports": 0,
+      "unlistedDependencies": 0,
+      "duplicateExports": 0,
+      "circularDependencies": 0,
+      "typeOnlyDependencies": 0,
+      "testOnlyDependencies": 0,
+      "boundaryViolations": 0
+    }
+  },
+  "regression": {
+    "baseline": {
+      "analysisIdentity": {
+        "mode": "syntactic",
+        "semantic_schema_version": 1,
+        "capabilities": [],
+        "project_config_hash": "",
+        "backend_family": "",
+        "completeness": "complete"
+      },
+      "totalIssues": 0,
+      "unusedFiles": 0,
+      "unusedExports": 0,
+      "unusedTypes": 0,
+      "unusedDependencies": 0,
+      "unusedDevDependencies": 0,
+      "unusedOptionalDependencies": 0,
+      "unusedEnumMembers": 0,
+      "unusedClassMembers": 0,
+      "unresolvedImports": 0,
+      "unlistedDependencies": 0,
+      "duplicateExports": 0,
+      "circularDependencies": 0,
+      "reExportCycles": 0,
+      "typeOnlyDependencies": 0,
+      "testOnlyDependencies": 0,
+      "devDependenciesInProduction": 0,
+      "boundaryViolations": 0,
+      "boundaryCoverageViolations": 0,
+      "boundaryCallViolations": 0,
+      "policyViolations": 0
+    }
   }
 }
