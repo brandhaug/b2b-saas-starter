@@ -1,16 +1,17 @@
 import { Data, Effect, Exit, Logger, Metric, type Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
+import { readWideEventEnvironment } from './environment.ts'
 import {
-  annotateWide,
   currentTraceId,
   currentTraceparent,
   parentSpanFromHeaders,
-  readWideEventEnvironment,
-  traceparentFor,
+  traceparentFor
+} from './trace.ts'
+import {
   withHttpRequestScope,
   withRequestScope,
   withTriggerScope
-} from './index.ts'
+} from './wide-event.ts'
 
 /** One captured log record, in the shape `Logger.consoleJson` would print. */
 type Captured = {
@@ -65,7 +66,7 @@ describe('withRequestScope', () => {
           environment: { environment: 'test', commitHash: 'abc123' },
           metadata: { pathname: '/health', method: 'GET' }
         },
-        annotateWide({ workspaceId: 'ws_1', plan: 'pro' })
+        Effect.annotateLogsScoped({ workspaceId: 'ws_1', plan: 'pro' })
       )
 
       const record = only(records)

@@ -1,5 +1,4 @@
 import {
-  annotateWide,
   makeOtlpLayer,
   WideEventLoggerLive,
   withHttpRequestScope,
@@ -155,8 +154,10 @@ function registerAndRun(
     const ambient = lookupRequest()
     if (ambient && ambient !== request) registry.set(ambient, telemetry)
     const response = yield* runNext(next)
-    yield* annotateWide({ statusCode: response.status })
-    if (telemetry.nested.length > 0) yield* annotateWide({ nested: telemetry.nested })
+    yield* Effect.annotateLogsScoped({ statusCode: response.status })
+    if (telemetry.nested.length > 0) {
+      yield* Effect.annotateLogsScoped({ nested: telemetry.nested })
+    }
     return response
   })
 }
@@ -213,10 +214,10 @@ function nested<A, E, R>(
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
   const body = Effect.gen(function* () {
-    yield* annotateWide({ ...options.metadata })
+    yield* Effect.annotateLogsScoped({ ...options.metadata })
     // Same `onExit` reasoning as the logger's own scope: a finalizer would run
     // after the scoped annotations were restored, losing everything the nested
-    // code added with `annotateWide`.
+    // code added with `Effect.annotateLogsScoped`.
     return yield* Effect.onExit(effect, (exit) => record(telemetry, options, exit))
   })
   return Effect.scoped(body).pipe(

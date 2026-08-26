@@ -1,4 +1,3 @@
-import { annotateWide } from '@b2b-saas-starter/logger'
 import { Clock, Effect, Result, Schema, type Scope } from 'effect'
 
 // Cloudflare Rate Limiting binding shape (subset). The actual bindings are
@@ -107,13 +106,15 @@ export function makeRateLimiter<Bucket extends string>(
           }
           // Carry the binding's own failure reason onto the wide event before
           // degrading — the fallback must never hide why the binding failed.
-          yield* annotateWide({ rateLimitBindingError: attempt.failure.reason })
+          yield* Effect.annotateLogsScoped({
+            rateLimitBindingError: attempt.failure.reason
+          })
         }
         // Falling back to the per-isolate in-memory map — either the binding
         // is missing (local dev, tests) or its call failed (transient
         // platform error). Don't fail open; flag the degraded mode on the
         // request's wide event so fallback traffic is queryable.
-        yield* annotateWide({
+        yield* Effect.annotateLogsScoped({
           rateLimitDegraded: true,
           rateLimitFallback: fallbackReason(binding),
           rateLimitBucket: input.bucket

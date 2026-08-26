@@ -1,4 +1,3 @@
-import { annotateWide } from '@b2b-saas-starter/logger'
 import { Effect, Schema } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -79,7 +78,7 @@ describe('runWebRequestScope', () => {
         await Effect.runPromise(
           withWebRequestScope(
             { event: 'capability.workspace', metadata: { workspaceSlug: 'acme' } },
-            annotateWide({ unreadCount: 42 }),
+            Effect.annotateLogsScoped({ unreadCount: 42 }),
             lookupRequest
           )
         )

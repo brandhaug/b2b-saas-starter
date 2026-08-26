@@ -13,11 +13,11 @@ Workers do not call it directly. Two envelopes wrap it:
 - `withHttpRequestScope({ service, event, request, env, metadata })` — HTTP handlers. Owns the whole recipe: `traceparent`/`b3` continuation, the `x-trace-id` correlation key, env + cf-colo enrichment, `pathname`/`method`.
 - `withTriggerScope({ service, event, env, parent?, spanKind?, metadata })` — cron ticks and queue messages, where there is no `Request`. `parent`/`spanKind` are the `TraceContinuation` pair both option types share.
 
-Inside the scope, handlers add business context with `annotateWide(fields)` (an alias of `Effect.annotateLogsScoped`). It requires a `Scope`, which is how the type system keeps annotations from outliving the event they belong to.
+Inside the scope, handlers add business context with `Effect.annotateLogsScoped(fields)` (an alias of `Effect.annotateLogsScoped`). It requires a `Scope`, which is how the type system keeps annotations from outliving the event they belong to.
 
 ## Invariants
 
-1. **One event per request per service.** If you find yourself opening a second scope inside a first, you want a child span and `annotateWide`, not another event.
+1. **One event per request per service.** If you find yourself opening a second scope inside a first, you want a child span and `Effect.annotateLogsScoped`, not another event.
 2. **The event is emitted from `Effect.onExit`, never a scope finalizer.** Finalizers are LIFO, so a finalizer runs _after_ `annotateLogsScoped` restores the previous annotations — silently dropping every field handlers added. This has regressed before; the test `emits exactly one canonical line carrying handler annotations` guards it.
 3. **Two levels.** `info` on success, `error` on failure with the `Cause` attached. No debug, no warn.
 4. **The OTLP layer is per invocation; the loggers are per isolate.** `makeOtlpLayer` is provided with `Effect.provide(..., { local: true })` at each entry point. A Cloudflare Worker may not perform I/O on behalf of a request that already ended, and the exporters flush from a background fiber and a scope finalizer — an exporter that outlives its invocation stops exporting, silently. `WideEventLoggerLive` (console JSON + tracer logger) is isolate-safe because it does no I/O, so every worker holds it on a module-scope `ManagedRuntime` (or, in apps/api, on the router layer) and provides the OTLP layer _inside_ it. That nesting is load-bearing: `loggerMergeWithExisting` keeps the console JSON event only if the loggers are already in context when the OTLP layer builds.
@@ -29,7 +29,7 @@ Inside the scope, handlers add business context with `annotateWide(fields)` (an 
 | ---------------------------------------------- | --------------------------------------------------------------------------- |
 | `withHttpRequestScope` / `withTriggerScope`    | Open the one scope per invocation                                           |
 | `withRequestScope`                             | The primitive both wrap; reach for it only for a genuinely new trigger kind |
-| `annotateWide`                                 | Add business context to the current event                                   |
+| `Effect.annotateLogsScoped`                    | Add business context to the current event                                   |
 | `currentTraceparent`                           | Stamp trace context onto a non-HTTP hop (queue messages)                    |
 | `currentTraceId`                               | The id to hand a caller or forward as `x-trace-id`                          |
 | `traceparentFor` / `parentSpanFromHeaders`     | Encode / decode W3C + B3 trace context                                      |
