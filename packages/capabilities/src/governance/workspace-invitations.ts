@@ -194,8 +194,13 @@ function requireUnexpired(
 ): Effect.Effect<void, MembershipChangeRejected> {
   return Effect.gen(function* () {
     const now = yield* DateTime.now
-    const expiresAt = DateTime.makeUnsafe(invitation.expiresAt)
-    if (DateTime.toEpochMillis(expiresAt) < DateTime.toEpochMillis(now)) {
+    // Mapping-boundary parse: a malformed stored timestamp must not crash the
+    // read path — it lands on the expired rejection like a stale one.
+    const parsed = DateTime.make(invitation.expiresAt)
+    if (
+      Option.isNone(parsed) ||
+      DateTime.toEpochMillis(parsed.value) < DateTime.toEpochMillis(now)
+    ) {
       return yield* Effect.fail(
         new MembershipChangeRejected({ reason: 'invitation_expired' })
       )

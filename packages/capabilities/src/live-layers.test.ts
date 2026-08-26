@@ -10,7 +10,8 @@ import {
 import {
   Database,
   layerFromD1,
-  type EffectDatabase
+  type EffectDatabase,
+  type RawD1
 } from '@b2b-saas-starter/db/src/service.ts'
 import { provisionTestD1 } from '@b2b-saas-starter/db/src/testing.ts'
 import { Context, DateTime, Effect, Layer } from 'effect'
@@ -18,10 +19,8 @@ import { describe, expect, layer } from '@effect/vitest'
 import { and, count, eq } from 'drizzle-orm'
 import { Billing } from './billing/billing.ts'
 import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
-import {
-  WebhookEndpoints,
-  type WebhookDeliveryAttemptInput
-} from './developer-platform/webhook-endpoints.ts'
+import { WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
+import { type WebhookDeliveryAttemptInput } from './developer-platform/webhook-delivery-plan.ts'
 import { AUDIT_EVENT_PAGE_SIZE, AuditEventLog } from './governance/audit-event-log.ts'
 import {
   auditEventContractDataset,
@@ -181,7 +180,7 @@ const insertFixtureRows = Effect.gen(function* () {
     url: 'https://example.com/hook',
     signingSecret: 'whsec_live_test',
     enabled: true,
-    events: ['demo.event'],
+    events: ['webhook_endpoint.created'],
     createdAt: iso
   })
 })
@@ -227,7 +226,7 @@ function inWorkspace<A, E>(
     readonly lifecycleBinding?: WorkspaceLifecycleBinding
     readonly userAdminBinding?: PlatformUserAdminBinding
   }
-): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database> {
+): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {
   return Effect.provide(
     effect,
     Layer.merge(

@@ -5,7 +5,6 @@ import {
 } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
-import { Cause, Effect, Exit, Option } from 'effect'
 
 import { FormTextField } from '@/components/form-text-field'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -13,8 +12,8 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
-import { causeMessage } from '@/lib/cause-message'
 import { createApiTokenServerFn } from '@/lib/server/api-tokens'
+import { callServerFn } from '@/lib/server-call'
 
 const CREATE_TOKEN_FAILED = 'Failed to create token'
 
@@ -63,31 +62,27 @@ export function ApiTokenForm({
     defaultValues: DEFAULT_TOKEN_VALUES,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      // The server function rejects when the capability fails. `Effect.tryPromise`
-      // moves that rejection into the error channel as a display message, so the
-      // failure path is a value instead of a try/catch.
-      const exit = await Effect.runPromiseExit(
-        Effect.tryPromise({
-          try: () =>
-            createToken({
-              data: {
-                workspaceSlug,
-                name: value.name,
-                scopes: value.scopes
-              }
-            }),
-          catch: (cause) => causeMessage(cause, CREATE_TOKEN_FAILED)
-        })
+      // The server function rejects when the capability fails. `callServerFn`
+      // moves that rejection into the error channel as a display message, so
+      // the failure path is a value instead of a try/catch.
+      const outcome = await callServerFn(
+        () =>
+          createToken({
+            data: {
+              workspaceSlug,
+              name: value.name,
+              scopes: value.scopes
+            }
+          }),
+        CREATE_TOKEN_FAILED
       )
 
-      if (Exit.isFailure(exit)) {
-        setSubmitError(
-          Option.getOrElse(Cause.findErrorOption(exit.cause), () => CREATE_TOKEN_FAILED)
-        )
+      if (!outcome.ok) {
+        setSubmitError(outcome.message)
         return
       }
-      setCreated(exit.value)
-      onCreated?.(exit.value)
+      setCreated(outcome.value)
+      onCreated?.(outcome.value)
       form.reset()
     }
   })

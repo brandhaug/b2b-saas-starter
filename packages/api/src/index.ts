@@ -35,25 +35,44 @@ import {
   OpenApi
 } from 'effect/unstable/httpapi'
 
+/**
+ * The canonical tag-to-HTTP-status table. Every `httpApiStatus` annotation on
+ * the shared error classes below reads its status from here, and non-contract
+ * surfaces (the MCP protocol route) map failures through `statusForTag` — so
+ * REST and every other wire encoding cannot disagree about what a failure
+ * means.
+ */
+export const ERROR_STATUS_BY_TAG = {
+  InternalError: 500,
+  Unauthorized: 401,
+  AuthorizationDenied: 403,
+  RateLimited: 429,
+  CapabilityUnavailable: 503
+}
+
+export function statusForTag(tag: keyof typeof ERROR_STATUS_BY_TAG): number {
+  return ERROR_STATUS_BY_TAG[tag]
+}
+
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class InternalError extends Schema.TaggedError<InternalError>()(
   'InternalError',
   { traceId: Schema.String },
-  { httpApiStatus: 500 }
+  { httpApiStatus: ERROR_STATUS_BY_TAG.InternalError }
 ) {}
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   'Unauthorized',
   { message: Schema.String },
-  { httpApiStatus: 401 }
+  { httpApiStatus: ERROR_STATUS_BY_TAG.Unauthorized }
 ) {}
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class RateLimited extends Schema.TaggedError<RateLimited>()(
   'RateLimited',
   { bucket: Schema.String },
-  { httpApiStatus: 429 }
+  { httpApiStatus: ERROR_STATUS_BY_TAG.RateLimited }
 ) {}
 
 // HttpApi reads these tuple element types to build each endpoint's error union.

@@ -11,6 +11,30 @@ export function hashSha256(value: string): Promise<string> {
     .then(bytesToHex)
 }
 
+// oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto's HMAC API is promise-based; see hashSha256 above — this module is the single Web Crypto boundary for the package.
+export async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
+  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
+  const signed = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(payload)
+  )
+  return bytesToHex(signed)
+}
+
+/** Canonical `t=<ts>,v1=<hex>` header form shared by signature schemes. */
+export function signatureHeader(timestamp: string, signature: string): string {
+  return `t=${timestamp},v1=${signature}`
+}
+
 export function randomHex(byteLength: number): string {
   const bytes = new Uint8Array(byteLength)
   // oxlint-disable-next-line effect/noGlobals -- platform adapter: signing secrets and bearer tokens need a CSPRNG; Effect's Random is a seedable PRNG and must not back credential material.

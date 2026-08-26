@@ -1,12 +1,10 @@
 import { type ApiToken } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import { Cause, Effect, Exit, Option } from 'effect'
 
 import { ApiTokenForm, type CreateApiToken } from '@/components/api-token-form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import {
   Item,
@@ -16,10 +14,10 @@ import {
   ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
-import { Spinner } from '@/components/ui/spinner'
-import { causeMessage } from '@/lib/cause-message'
+import { ConfirmButton } from '@/components/confirm-button'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { revokeApiTokenServerFn } from '@/lib/server/api-tokens'
+import { callServerFn } from '@/lib/server-call'
 
 const REVOKE_FAILED = 'Failed to revoke token'
 
@@ -74,15 +72,13 @@ export function ApiTokensPanel({
   async function revoke(tokenId: string) {
     setError(null)
     setRevoking(tokenId)
-    const exit = await Effect.runPromiseExit(
-      Effect.tryPromise({
-        try: () => revokeToken({ data: { workspaceSlug, tokenId } }),
-        catch: (cause) => causeMessage(cause, REVOKE_FAILED)
-      })
+    const outcome = await callServerFn(
+      () => revokeToken({ data: { workspaceSlug, tokenId } }),
+      REVOKE_FAILED
     )
     setRevoking(null)
-    if (Exit.isFailure(exit)) {
-      setError(Option.getOrElse(Cause.findErrorOption(exit.cause), () => REVOKE_FAILED))
+    if (!outcome.ok) {
+      setError(outcome.message)
       return
     }
     // The loader owns the list, so re-run it rather than mirroring the
@@ -139,36 +135,15 @@ export function ApiTokensPanel({
                 </ItemContent>
                 {canRevoke ? (
                   <ItemActions>
-                    {confirmingId === token.id ? (
-                      <>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          disabled={revoking === token.id}
-                          onClick={() => void revoke(token.id)}
-                        >
-                          {revoking === token.id ? (
-                            <Spinner data-icon="inline-start" />
-                          ) : null}
-                          Confirm revoke
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setConfirmingId(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setConfirmingId(token.id)}
-                      >
-                        Revoke
-                      </Button>
-                    )}
+                    <ConfirmButton
+                      label="Revoke"
+                      confirmLabel="Confirm revoke"
+                      armed={confirmingId === token.id}
+                      busy={revoking === token.id}
+                      onArm={() => setConfirmingId(token.id)}
+                      onCancel={() => setConfirmingId(null)}
+                      onConfirm={() => void revoke(token.id)}
+                    />
                   </ItemActions>
                 ) : null}
               </Item>

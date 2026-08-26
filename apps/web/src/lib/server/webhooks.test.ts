@@ -1,7 +1,5 @@
-import {
-  SeedWebhookEndpoints,
-  type WebhookEndpoint
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import { SeedWebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.seed.ts'
+import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { SeedWebhookPublisher } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
 import {

@@ -1,11 +1,10 @@
 import { type CreatedWorkspace } from '@b2b-saas-starter/capabilities/src/governance/workspace-lifecycle.ts'
 import { useRef, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
-import { Cause, Effect, Exit, Option } from 'effect'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
-import { causeMessage } from '@/lib/cause-message'
 import { createWorkspaceServerFn } from '@/lib/server/workspace-lifecycle'
+import { callServerFn } from '@/lib/server-call'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -71,25 +70,15 @@ export function CreateWorkspaceForm({
     defaultValues: DEFAULT_VALUES,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      const exit = await Effect.runPromiseExit(
-        Effect.tryPromise({
-          try: () =>
-            createWorkspace({
-              data: { name: value.name, slug: value.slug, userId }
-            }),
-          catch: (cause) => causeMessage(cause, CREATE_WORKSPACE_FAILED)
-        })
+      const outcome = await callServerFn(
+        () => createWorkspace({ data: { name: value.name, slug: value.slug, userId } }),
+        CREATE_WORKSPACE_FAILED
       )
-      if (Exit.isFailure(exit)) {
-        setSubmitError(
-          Option.getOrElse(
-            Cause.findErrorOption(exit.cause),
-            () => CREATE_WORKSPACE_FAILED
-          )
-        )
+      if (!outcome.ok) {
+        setSubmitError(outcome.message)
         return
       }
-      onCreated?.(exit.value)
+      onCreated?.(outcome.value)
       form.reset()
     }
   })

@@ -1,6 +1,5 @@
 import { type ReactNode, useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
-import { Cause, Effect, Exit, Option } from 'effect'
 import {
   BellIcon,
   BoxesIcon,
@@ -29,7 +28,7 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet'
 import { authClient } from '@/lib/auth-client'
-import { causeMessage } from '@/lib/cause-message'
+import { callServerFn } from '@/lib/server-call'
 
 const SIGN_OUT_FAILED = 'Sign-out failed'
 
@@ -165,28 +164,18 @@ export function WorkspaceShell({
 function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
   const router = useRouter()
   const [signingOut, setSigningOut] = useState(false)
-  // `Effect.tryPromise` keeps the Better Auth rejection in the error channel;
-  // `Effect.ensuring` re-enables the button either way, so a failed sign-out
-  // can be retried instead of leaving the header stuck.
-  const endSession = Effect.ensuring(
-    Effect.tryPromise({
-      try: async () => {
-        await signOut()
-        await router.navigate({ to: '/sign-in' })
-      },
-      catch: (cause) => causeMessage(cause, SIGN_OUT_FAILED)
-    }),
-    Effect.sync(() => setSigningOut(false))
-  )
-  // The button is the platform edge: report the failure instead of letting it
-  // escape as an unhandled rejection.
+  // `callServerFn` keeps the Better Auth rejection in the error channel and
+  // never rejects itself, so the flag below is cleared on every path — a
+  // failed sign-out can be retried instead of leaving the header stuck.
+  // The failure is reported rather than escaping as an unhandled rejection.
   async function runSignOut() {
-    const exit = await Effect.runPromiseExit(endSession)
-    if (Exit.isFailure(exit)) {
-      console.error(
-        'Sign-out failed',
-        Option.getOrElse(Cause.findErrorOption(exit.cause), () => SIGN_OUT_FAILED)
-      )
+    const outcome = await callServerFn(async () => {
+      await signOut()
+      await router.navigate({ to: '/sign-in' })
+    }, SIGN_OUT_FAILED)
+    setSigningOut(false)
+    if (!outcome.ok) {
+      console.error('Sign-out failed', outcome.message)
     }
   }
   return (

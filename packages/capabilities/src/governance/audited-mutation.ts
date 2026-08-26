@@ -1,7 +1,7 @@
 import {
   batch,
   type BatchStatement,
-  type EffectDatabase
+  type D1Binding
 } from '@b2b-saas-starter/db/src/service.ts'
 import { Effect } from 'effect'
 
@@ -27,9 +27,9 @@ import { type RecordAuditEventInput } from './audit-event-log.ts'
  * no phantom revocation, no phantom disable.
  */
 
-/** What a Live layer hands over once: its `Database`, the audit preparer, and its own `orUnavailable` wrapper (so a 503 names the failing capability). */
+/** What a Live layer hands over once: the raw D1 binding for the batch, its `Database`, the audit preparer, and its own `orUnavailable` wrapper (so a 503 names the failing capability). */
 export type AuditedMutationDeps = {
-  readonly db: EffectDatabase
+  readonly d1: D1Binding
   readonly prepareAuditRecord: (
     input: RecordAuditEventInput
   ) => Effect.Effect<BatchStatement>
@@ -66,7 +66,7 @@ export function auditedMutations(deps: AuditedMutationDeps) {
     return Effect.gen(function* () {
       if (!(yield* input.matched)) return false
       const auditStatement = yield* deps.prepareAuditRecord(input.auditEvent)
-      yield* deps.unavailable(batch(deps.db, [input.write(), auditStatement]))
+      yield* deps.unavailable(batch(deps.d1, [input.write(), auditStatement]))
       return true
     })
   }

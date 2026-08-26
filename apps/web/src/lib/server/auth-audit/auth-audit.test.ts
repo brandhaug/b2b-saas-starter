@@ -1,16 +1,17 @@
 import { Effect } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  adminAuditInput,
   authAuditInput,
-  isAdminAuthExchange,
   isAuditedAuthExchange,
   needsPreHandlerActor,
-  recordAuthAudit,
+  recordAuthAudit
+} from './lifecycle'
+import { adminAuditInput, isAdminAuthExchange } from './admin'
+import {
   type AuthAuditContext,
   type AuthAuditOutcome,
   type RunAuditCapabilities
-} from './auth-audit'
+} from './shared'
 
 /**
  * The capability runner `recordAuthAudit` writes through, handed in as its third

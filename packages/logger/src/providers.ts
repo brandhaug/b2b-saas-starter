@@ -29,7 +29,7 @@
 import { type CloudflareOptions } from '@sentry/cloudflare'
 import { Option, Schema } from 'effect'
 
-import { addWideEventSink, type WideEventRecord } from './index.ts'
+import { addWideEventSink, type WideEventRecord } from './wide-event.ts'
 
 /** Env fields the vendor glue reads. All optional; absence disables the vendor. */
 export type ProviderGlueEnv = {

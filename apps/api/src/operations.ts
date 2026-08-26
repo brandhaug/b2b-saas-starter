@@ -1,4 +1,9 @@
 import { type PermissionRequest } from '@b2b-saas-starter/authz/src/client.ts'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import {
+  type CapabilityUnavailable,
+  type WorkspaceNotFound
+} from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
@@ -20,9 +25,20 @@ import { Effect } from 'effect'
  * reviewed there — rather than appearing in MCP for free.
  */
 
+/**
+ * Everything a table row can fail with: the guard's denial, the workspace
+ * layer's 404, and the capability layer's 503. Kept as a named union so MCP
+ * can classify tool failures exhaustively instead of sniffing `_tag` off an
+ * untyped promise rejection.
+ */
+export type CapabilityReadError =
+  | AuthorizationDenied
+  | WorkspaceNotFound
+  | CapabilityUnavailable
+
 export type CapabilityRead = Effect.Effect<
   unknown,
-  unknown,
+  CapabilityReadError,
   | NotificationFeed
   | WorkspaceMembership
   | ApiTokenRegistry
@@ -113,6 +129,26 @@ export const READ_OPERATIONS = {
 /** The table rows in contract order — what MCP tools and tests derive from. */
 export function readOperations(): readonly WorkspaceReadOperation[] {
   return Object.values(READ_OPERATIONS)
+}
+
+/**
+ * The single sanctioned channel widening for serving a table row. The table
+ * stores each read as its natural capability effect; this boundary widens the
+ * type channels to `never` so the consuming surface's own schema (the REST
+ * contract's success/error schemas, or MCP's resource shape) narrows them
+ * back — the same covariance the inline effects relied on before the shared
+ * table existed. No value is asserted away: only the type channel is widened,
+ * and the request guards plus `provideWorkspace` re-narrow the requirements
+ * before the effect runs. Both Capability Interfaces (REST and MCP) go
+ * through here so there is exactly one place documenting the trick.
+ */
+export function serveRead(
+  op: WorkspaceReadOperation
+): Effect.Effect<never, never, never> {
+  // SAFETY: see doc comment above — type-channel widening only, re-narrowed
+  // by the consuming surface before the effect ever runs.
+  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see SAFETY above
+  return op.read() as Effect.Effect<never, never, never>
 }
 
 /** `notification:read`-style label, used by the permission matrix output. */

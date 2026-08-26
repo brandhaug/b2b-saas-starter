@@ -9,7 +9,6 @@ const SCRIPT_ID = 'cf-turnstile-script'
 // widget waits on the same promise.
 let scriptPromise: Promise<TurnstileApi> | undefined
 
-// oxlint-disable-next-line effect/noNewPromise -- a browser script tag has no Effect wrapper; this is DOM platform code, not application logic
 function loadTurnstileScript(): Promise<TurnstileApi> {
   if (scriptPromise !== undefined) return scriptPromise
   scriptPromise = new Promise((resolve, reject) => {

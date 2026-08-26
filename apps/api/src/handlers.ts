@@ -1,4 +1,3 @@
-import { annotateWide } from '@b2b-saas-starter/logger'
 import { type PermissionRequest } from '@b2b-saas-starter/authz/src/client.ts'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
@@ -16,7 +15,7 @@ import {
   provideWorkspace
 } from './request-guards.ts'
 import { mcpDiscoveryDocument } from './mcp.ts'
-import { READ_OPERATIONS, type ReadOperationEndpoint } from './operations.ts'
+import { READ_OPERATIONS, serveRead, type ReadOperationEndpoint } from './operations.ts'
 
 /**
  * Contract response literals. Each is declared with the literal type the
@@ -56,25 +55,15 @@ export function workspaceGroup(env: ApiEnv) {
       )
     }
 
-    // The operation table stores each read as its natural capability effect;
-    // this boundary widens the channels to `never` so the contract handler's
-    // own success/error schema narrows them back — the same covariance the
-    // inline effects relied on before the shared table existed.
+    // Every read goes through `serveRead` — the one documented channel
+    // widening, owned by the shared operation table.
     function workspaceRead(
       endpoint: ReadOperationEndpoint,
       params: { readonly slug: string },
       request: HttpServerRequest.HttpServerRequest
     ) {
       const op = READ_OPERATIONS[endpoint]
-      // SAFETY: the table stores each read as its natural capability effect;
-      // this boundary widens the channels to `never` so the contract handler's
-      // own success/error schema narrows them back — the same covariance the
-      // inline effects relied on before the shared table existed. No value is
-      // asserted away: only the type channel is widened, and `observed` +
-      // `provideWorkspace` re-narrow it before the handler returns.
-      // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion, anti-slop/require-safety-comment-for-type-assertion -- see SAFETY above
-      const body = op.read() as Effect.Effect<never, never, never>
-      return read(endpoint, op.permission, params.slug, request, body)
+      return read(endpoint, op.permission, params.slug, request, serveRead(op))
     }
 
     // Every read composes gate + capability from the shared operation
@@ -158,7 +147,10 @@ export function apiTokenGroup(env: ApiEnv) {
                 return next
               })
             )
-            yield* annotateWide({ tokenId: created.id, tokenScopes: created.scopes })
+            yield* Effect.annotateLogsScoped({
+              tokenId: created.id,
+              tokenScopes: created.scopes
+            })
             return created
           })
         )
@@ -196,7 +188,7 @@ export function webhookGroup(env: ApiEnv) {
               return createdEndpoint.endpoint
             })
           )
-          yield* annotateWide({ webhookEndpointId: created.id })
+          yield* Effect.annotateLogsScoped({ webhookEndpointId: created.id })
           return created
         })
       )

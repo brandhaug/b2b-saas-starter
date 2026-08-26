@@ -1,4 +1,3 @@
-import { annotateWide } from '@b2b-saas-starter/logger'
 import { Auth } from '@b2b-saas-starter/auth'
 import { env } from 'cloudflare:workers'
 import { createFileRoute } from '@tanstack/react-router'
@@ -11,9 +10,9 @@ import { clientKey, makeRateLimiterLayer, RateLimiter } from '@/lib/rate-limit'
 import { runCapabilities } from '@/lib/capabilities'
 import {
   needsPreHandlerActor,
-  recordAuthAudit,
-  type AuthAuditContext
-} from '@/lib/server/auth-audit'
+  recordAuthAudit
+} from '@/lib/server/auth-audit/lifecycle'
+import { type AuthAuditContext } from '@/lib/server/auth-audit/shared'
 import { makeTurnstileLayer } from '@/lib/server/turnstile'
 import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/src/governance/turnstile-verification.ts'
 
@@ -58,7 +57,7 @@ async function readAuthAuditContext(
  * returns `inactive` and the request passes through untouched — provider-
  * light local development is unaffected. Returns a JSON error response for
  * `rejected` / `unavailable`, or `undefined` to let the request proceed.
- * Runs OUTSIDE the request scope (no `annotateWide` here); the caller
+ * Runs OUTSIDE the request scope (no `Effect.annotateLogsScoped` here); the caller
  * annotates the wide event from the response it gets back.
  */
 function verifySignUpTurnstile(request: Request): Effect.Effect<Response | null> {
@@ -100,7 +99,7 @@ async function handleAuth(request: Request): Promise<Response> {
           key: clientKey(request)
         })
         if (!allowed) {
-          yield* annotateWide({ outcome: 'rate_limited' })
+          yield* Effect.annotateLogsScoped({ outcome: 'rate_limited' })
           return new Response(JSON.stringify({ error: 'rate_limited' }), {
             status: 429,
             headers: { 'content-type': 'application/json; charset=utf-8' }
@@ -109,7 +108,7 @@ async function handleAuth(request: Request): Promise<Response> {
         // Turnstile gate before Better Auth consumes the request (ADR 0031).
         const turnstileResponse = yield* verifySignUpTurnstile(request)
         if (turnstileResponse !== null) {
-          yield* annotateWide({
+          yield* Effect.annotateLogsScoped({
             outcome: 'turnstile_blocked',
             turnstileStatus: turnstileResponse.status
           })
@@ -140,9 +139,9 @@ async function handleAuth(request: Request): Promise<Response> {
           context
         )
         if (authAudit !== 'skipped') {
-          yield* annotateWide({ authAudit })
+          yield* Effect.annotateLogsScoped({ authAudit })
         }
-        yield* annotateWide({ outcome: 'ok', statusCode: response.status })
+        yield* Effect.annotateLogsScoped({ outcome: 'ok', statusCode: response.status })
         return response
       }).pipe(Effect.provide(rateLimitLayer))
     )

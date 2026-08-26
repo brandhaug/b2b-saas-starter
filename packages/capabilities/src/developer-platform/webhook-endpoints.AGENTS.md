@@ -2,7 +2,16 @@
 
 ## Purpose & Scope
 
-Workspace-scoped registry of outbound webhook destinations plus a delivery-success ratio computed from recent deliveries. Powers the Webhooks tab in the workspace shell. Endpoint creation, disabling, and secret rotation are wired here; `create` enforces the plan's endpoint ceiling (`assertWithinPlanLimit` from the billing capability — counting lives here so callers cannot forget the gate) and fans out a best-effort `webhook_endpoint.created` event (projection only — never the signing secret) via [`webhook-publisher`](./webhook-publisher.AGENTS.md), which both Seed and Live layers are built with. The actual outbound dispatch lives in the background worker (enqueued via the same publisher).
+Workspace-scoped registry of outbound webhook destinations plus a delivery-success ratio computed from recent deliveries. Powers the Webhooks tab in the workspace shell. Endpoint creation, disabling, and secret rotation are wired here; `create` enforces the plan's endpoint ceiling (`assertWithinPlanLimitFor` from the billing capability — the rule and its counting query live there so callers cannot forget the gate) and fans out a best-effort `webhook_endpoint.created` event (projection only — never the signing secret) via [`webhook-publisher`](./webhook-publisher.AGENTS.md), which both Seed and Live layers are built with. The actual outbound dispatch lives in the background worker (enqueued via the same publisher).
+
+## Module layout
+
+The capability is split along its section seams — no barrel file; consumers import the specific module:
+
+- `webhook-endpoints.ts` — shared contract: schemas (`WebhookEndpoint`, `CreateWebhookEndpointPayload`), input types, `WebhookEndpointsInterface` + service class, `ensureValidWebhookUrl`.
+- `webhook-delivery-plan.ts` — pure delivery state machine + delivery types: `WebhookDelivery`, `WebhookDeliveryStatus`, `backoffSeconds`, `classifyResponseStatus`, `planDeliveryAttempt`, `DeliveryAttemptPlan`, `terminalDeliveryAuditEventType`, `WebhookDeliveryAttemptInput`. Dependency-free of storage.
+- `webhook-endpoints.seed.ts` — `SeedWebhookEndpoints` + `SeedWebhookEndpointFixture`.
+- `webhook-endpoints.live.ts` — `LiveWebhookEndpoints` (plus `toEndpointProjection`, reused by both the fan-out payload and the create return).
 
 ## Public surface
 

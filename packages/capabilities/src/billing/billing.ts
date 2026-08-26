@@ -1,10 +1,16 @@
-import { Database, batch } from '@b2b-saas-starter/db/src/service.ts'
 import { workspaces, type JsonObject } from '@b2b-saas-starter/db/src/schema.ts'
+import {
+  batch,
+  Database,
+  type EffectDatabase,
+  RawD1
+} from '@b2b-saas-starter/db/src/service.ts'
 import { Context, Effect, Layer, Ref, Result, Schema } from 'effect'
-import { eq } from 'drizzle-orm'
+import { count, eq, type SQL } from 'drizzle-orm'
+import { type SQLiteTable } from 'drizzle-orm/sqlite-core'
 
 import { CapabilityUnavailable, PlanLimitExceeded } from '../errors.ts'
-import { bytesToHex } from '../internal/crypto.ts'
+import { hmacSha256Hex } from '../internal/crypto.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -102,6 +108,31 @@ export const assertWithinPlanLimit = Effect.fnUntraced(function* (input: {
     )
   }
 })
+
+/**
+ * The entitlement gate with its counting query beside it: counts the rows of
+ * `table` matching `where` in the caller's store and asserts the workspace in
+ * context is within the plan ceiling. Both mutating capabilities compose this,
+ * so the "count active rows → compare against the plan" idiom exists once.
+ */
+export function assertWithinPlanLimitFor(input: {
+  readonly resource: EntitlementResource
+  readonly db: EffectDatabase
+  /** Which capability name surfaces on a `CapabilityUnavailable` count failure. */
+  readonly capability: string
+  readonly table: SQLiteTable
+  readonly where?: SQL | undefined
+}): Effect.Effect<void, CapabilityUnavailable | PlanLimitExceeded, WorkspaceContext> {
+  return Effect.gen(function* () {
+    const rows = yield* orUnavailable(input.capability)(
+      input.db.select({ value: count() }).from(input.table).where(input.where)
+    )
+    yield* assertWithinPlanLimit({
+      resource: input.resource,
+      used: rows[0]?.value ?? 0
+    })
+  })
+}
 
 /** The checkout handoff: where Stripe should send the browser afterwards. */
 export type CheckoutInput = {
@@ -239,11 +270,6 @@ export type LiveBillingOptions = {
   readonly priceIds?: Readonly<Record<string, string>> | undefined
 }
 
-/**
- * One form-encoded Stripe API call, via the Workers global `fetch` — the REST
- * API needs no SDK, and keeping the dependency out keeps the worker bundle
- * small and the failure surface explicit. Exported for tests.
- */
 /** The part of Stripe's checkout-session reply this capability acts on. */
 const StripeCheckoutResponse = Schema.Struct({
   url: Schema.optionalKey(Schema.String),
@@ -325,12 +351,40 @@ export function stripePriceEnvName(planId: string): string | null {
   return null
 }
 
+// ---------------------------------------------------------------------------
+// Stripe event → plan policy
+// ---------------------------------------------------------------------------
+
+/** How a handled Stripe event determines the workspace's new plan. */
+export type StripeEventPlan =
+  /** The plan rides in the event's `metadata.planId` (checkout sessions). */
+  | { readonly kind: 'from_metadata' }
+  /** The event pins one catalog plan (subscription deletions downgrade). */
+  | { readonly kind: 'fixed'; readonly planId: string }
+
+/**
+ * The policy the background worker applies to inbound Stripe events: which
+ * event types are billing-relevant, and what plan change each carries. Any
+ * type absent from the table is ignored by the worker. Owned here so the
+ * provider vocabulary and the plan catalog evolve together.
+ */
+const STRIPE_EVENT_PLANS = new Map<string, StripeEventPlan>([
+  ['checkout.session.completed', { kind: 'from_metadata' }],
+  ['customer.subscription.deleted', { kind: 'fixed', planId: STARTER_PLAN.id }]
+])
+
+/** Resolves the plan change an event type carries, or `null` when unhandled. */
+export function planForStripeEvent(eventType: string): StripeEventPlan | null {
+  return STRIPE_EVENT_PLANS.get(eventType) ?? null
+}
+
 export function LiveBilling(
   options: LiveBillingOptions = {}
-): Layer.Layer<Billing, never, Database | AuditEventLog> {
+): Layer.Layer<Billing, never, Database | RawD1 | AuditEventLog> {
   return Layer.effect(Billing)(
     Effect.gen(function* () {
       const db = yield* Database
+      const d1 = yield* RawD1
       const audit = yield* AuditEventLog
       const unavailable = orUnavailable('billing')
 
@@ -409,7 +463,7 @@ export function LiveBilling(
             if (existing.length === 0) return false
             const auditRecorded = yield* audit.prepareRecord({
               // A system event: the actor is the provider webhook, not a user.
-              workspaceId: null,
+              workspaceId: input.workspaceId,
               actorUserId: null,
               eventType: 'billing.plan_changed',
               targetType: 'workspace',
@@ -417,7 +471,7 @@ export function LiveBilling(
               metadata: planChangeMetadata(input.planId, input.detail)
             })
             yield* unavailable(
-              batch(db, [
+              batch(d1, [
                 db
                   .update(workspaces)
                   .set({ planId: input.planId })
@@ -463,20 +517,7 @@ export async function verifyStripeSignature(input: {
   if (!Number.isFinite(age)) return false
   if (age > (input.toleranceSeconds ?? 300)) return false
   // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(input.secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
-  const signed = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    new TextEncoder().encode(`${timestamp}.${input.payload}`)
-  )
-  const expected = bytesToHex(signed)
+  const expected = await hmacSha256Hex(input.secret, `${timestamp}.${input.payload}`)
   if (expected.length !== signature.length) return false
   let diff = 0
   for (let i = 0; i < expected.length; i++) {

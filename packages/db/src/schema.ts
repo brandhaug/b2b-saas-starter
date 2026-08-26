@@ -72,6 +72,34 @@ function isoCreatedAt() {
   return text('created_at').notNull()
 }
 
+/** Nullable sibling of {@link isoCreatedAt} for optional ISO timestamps. */
+function isoTimestamp(column: string) {
+  return text(column)
+}
+
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const webhookEventTypes = [
+  'api_token.created',
+  'api_token.revoked',
+  'webhook_endpoint.created'
+] as const
+export type WebhookEventType = (typeof webhookEventTypes)[number]
+
+/**
+ * The delivery state machine written by the background worker through
+ * `WebhookEndpoints.recordDeliveryAttempt` / `recordTerminalDeliveryAttempt`:
+ * `delivered` on a 2xx, `failed` while retries remain, `failed_permanent` on a
+ * non-retryable response, `dead_lettered` once attempts are exhausted.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const deliveryStatuses = [
+  'delivered',
+  'failed',
+  'failed_permanent',
+  'dead_lettered'
+] as const
+export type DeliveryStatus = (typeof deliveryStatuses)[number]
+
 /**
  * The three workspace tables are owned by the organization plugin, so their
  * columns follow Better Auth's camelCase field names (`workspaceId`) rather
@@ -286,8 +314,8 @@ export const apiTokens = sqliteTable(
     scopes: text('scopes', { mode: 'json' })
       .$type<readonly ApiTokenScopeValue[]>()
       .notNull(),
-    lastUsedAt: text('last_used_at'),
-    revokedAt: text('revoked_at'),
+    lastUsedAt: isoTimestamp('last_used_at'),
+    revokedAt: isoTimestamp('revoked_at'),
     createdAt: isoCreatedAt(),
     createdByUserId: text('created_by_user_id').references(() => user.id)
   },
@@ -308,7 +336,9 @@ export const webhookEndpoints = sqliteTable(
     // plaintext secret. See webhook-endpoints.AGENTS.md in packages/capabilities.
     signingSecret: text('signing_secret').notNull(),
     enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
-    events: text('events', { mode: 'json' }).$type<readonly string[]>().notNull(),
+    events: text('events', { mode: 'json' })
+      .$type<readonly WebhookEventType[]>()
+      .notNull(),
     createdAt: isoCreatedAt()
   },
   (table) => [workspaceIdIndex('webhook_endpoints', table.workspaceId)]
@@ -322,10 +352,10 @@ export const webhookDeliveries = sqliteTable(
       .notNull()
       .references(() => webhookEndpoints.id, { onDelete: 'cascade' }),
     eventType: text('event_type').notNull(),
-    status: text('status').notNull(),
+    status: text('status', { enum: deliveryStatuses }).notNull(),
     attempts: integer('attempts').default(0).notNull(),
-    lastAttemptAt: text('last_attempt_at'),
-    nextAttemptAt: text('next_attempt_at'),
+    lastAttemptAt: isoTimestamp('last_attempt_at'),
+    nextAttemptAt: isoTimestamp('next_attempt_at'),
     responseStatus: integer('response_status')
   },
   (table) => [index('webhook_deliveries_endpoint_id_idx').on(table.endpointId)]

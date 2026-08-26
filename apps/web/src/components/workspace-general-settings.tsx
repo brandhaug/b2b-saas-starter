@@ -1,15 +1,14 @@
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
-import { Cause, Effect, Exit, Option } from 'effect'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { causeMessage } from '@/lib/cause-message'
 import {
   deleteWorkspaceServerFn,
   renameWorkspaceServerFn
 } from '@/lib/server/workspace-lifecycle'
-import { Spinner } from '@/components/ui/spinner'
+import { callServerFn } from '@/lib/server-call'
+import { ConfirmButton } from '@/components/confirm-button'
 
 const RENAME_FAILED = 'Failed to rename workspace'
 const DELETE_FAILED = 'Failed to delete workspace'
@@ -89,16 +88,12 @@ function RenameForm({
     onSubmit: async ({ value }) => {
       setSubmitError(null)
       setRenamed(null)
-      const exit = await Effect.runPromiseExit(
-        Effect.tryPromise({
-          try: () => rename({ data: { workspaceSlug, name: value.name.trim() } }),
-          catch: (cause) => causeMessage(cause, RENAME_FAILED)
-        })
+      const outcome = await callServerFn(
+        () => rename({ data: { workspaceSlug, name: value.name.trim() } }),
+        RENAME_FAILED
       )
-      if (Exit.isFailure(exit)) {
-        setSubmitError(
-          Option.getOrElse(Cause.findErrorOption(exit.cause), () => RENAME_FAILED)
-        )
+      if (!outcome.ok) {
+        setSubmitError(outcome.message)
         return
       }
       setRenamed(value.name.trim())
@@ -170,25 +165,20 @@ function DeleteSection({
   readonly name: string
   readonly remove: DeleteWorkspace
 }) {
-  const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   async function confirmDelete() {
     setSubmitError(null)
     setDeleting(true)
-    // The reset rides `finally` so every path — success, failure, and the
-    // promise itself rejecting — clears the flag.
-    const exit = await Effect.runPromiseExit(
-      Effect.tryPromise({
-        try: () => remove({ data: { workspaceSlug } }),
-        catch: (cause) => causeMessage(cause, DELETE_FAILED)
-      })
+    // The reset rides `finally` so every path clears the flag; `callServerFn`
+    // never rejects, but the flag must not survive either outcome.
+    const outcome = await callServerFn(
+      () => remove({ data: { workspaceSlug } }),
+      DELETE_FAILED
     ).finally(() => setDeleting(false))
-    if (Exit.isFailure(exit)) {
-      setSubmitError(
-        Option.getOrElse(Cause.findErrorOption(exit.cause), () => DELETE_FAILED)
-      )
+    if (!outcome.ok) {
+      setSubmitError(outcome.message)
       return
     }
     // The workspace is gone; its routes no longer resolve. The workspaces list
@@ -203,31 +193,17 @@ function DeleteSection({
         Removing <span className="font-medium">{name}</span> removes every member,
         invitation, API token, and webhook with it. This cannot be undone.
       </p>
-      {confirming ? (
-        <div className="flex flex-wrap items-center gap-2">
-          {/* The confirm step names what is about to be removed, so a stray
-              click on the destructive button deletes nothing by itself. */}
-          <Button
-            variant="destructive"
-            onClick={() => void confirmDelete()}
-            disabled={deleting}
-          >
-            {deleting ? <Spinner data-icon="inline-start" /> : null}
-            Delete {name} permanently
-          </Button>
-          <Button variant="outline" onClick={() => setConfirming(false)}>
-            Cancel
-          </Button>
-        </div>
-      ) : (
-        <Button
-          variant="destructive"
-          className="justify-self-start"
-          onClick={() => setConfirming(true)}
-        >
-          Delete workspace
-        </Button>
-      )}
+      {/* The confirm step names what is about to be removed, so a stray click
+          on the destructive button deletes nothing by itself. */}
+      <ConfirmButton
+        label="Delete workspace"
+        confirmLabel={`Delete ${name} permanently`}
+        variant="destructive"
+        cancelVariant="outline"
+        className="justify-self-start"
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+      />
       {submitError ? (
         <Alert variant="destructive">
           <AlertDescription>{submitError}</AlertDescription>

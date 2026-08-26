@@ -1,4 +1,4 @@
-import { type StarterEnv } from '@b2b-saas-starter/capabilities/src/runtime.ts'
+import { starterEnv } from '@b2b-saas-starter/capabilities/src/runtime.ts'
 import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
 import { type ServerEnv } from '@b2b-saas-starter/env/src/server.ts'
 import { type ProviderEnv, type WorkersAIBinding } from '@b2b-saas-starter/ai'
@@ -28,10 +28,6 @@ export function providerEnv(env: ApiEnv): ProviderEnv {
 }
 
 // Capability env: the D1 binding selects Live vs Seed, and the webhook queue
-// binding enables real fan-out.
-export function starterEnv(env: ApiEnv): StarterEnv {
-  return {
-    DB: env.DB,
-    WEBHOOK_QUEUE: env.WEBHOOK_QUEUE
-  }
-}
+// binding enables real fan-out. The projection lives beside `StarterEnv` in
+// the capabilities package; this re-export keeps the local import path stable.
+export { starterEnv }

@@ -1,4 +1,3 @@
-import { annotateWide } from '@b2b-saas-starter/logger'
 import { Effect, type Scope } from 'effect'
 import { AuthorizationDenied } from './errors.ts'
 import { authorize, type PermissionRequest, type Principal } from './principal.ts'
@@ -45,7 +44,7 @@ export function requirePermission(
 ): Effect.Effect<void, AuthorizationDenied, Scope.Scope> {
   return Effect.gen(function* () {
     if (!principal) {
-      yield* annotateWide({
+      yield* Effect.annotateLogsScoped({
         outcome: 'forbidden',
         authReason: 'no_principal',
         permission: describe(request)
@@ -56,7 +55,7 @@ export function requirePermission(
     const decision = authorize(principal, request)
     if (decision.success) return
 
-    yield* annotateWide({
+    yield* Effect.annotateLogsScoped({
       outcome: 'forbidden',
       authReason: 'insufficient_permission',
       authDetail: decision.error,

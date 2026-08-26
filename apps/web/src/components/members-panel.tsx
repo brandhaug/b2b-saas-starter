@@ -5,7 +5,6 @@ import {
 } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import { Cause, Effect, Exit, Option } from 'effect'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,9 +19,9 @@ import {
   ItemTitle
 } from '@/components/ui/item'
 import { Spinner } from '@/components/ui/spinner'
-import { causeMessage } from '@/lib/cause-message'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { changeMemberRoleServerFn } from '@/lib/server/workspace-members'
+import { callServerFn } from '@/lib/server-call'
 
 const CHANGE_FAILED = 'Failed to change the role'
 
@@ -60,15 +59,13 @@ export function MembersPanel({
   async function changeRole(userId: string, role: WorkspaceRole) {
     setError(null)
     setChanging(userId)
-    const exit = await Effect.runPromiseExit(
-      Effect.tryPromise({
-        try: () => changeMemberRoleServerFn({ data: { workspaceSlug, userId, role } }),
-        catch: (cause) => causeMessage(cause, CHANGE_FAILED)
-      })
+    const outcome = await callServerFn(
+      () => changeMemberRoleServerFn({ data: { workspaceSlug, userId, role } }),
+      CHANGE_FAILED
     )
     setChanging(null)
-    if (Exit.isFailure(exit)) {
-      setError(Option.getOrElse(Cause.findErrorOption(exit.cause), () => CHANGE_FAILED))
+    if (!outcome.ok) {
+      setError(outcome.message)
       return
     }
     // The loader owns the roster, so re-run it rather than mirroring the

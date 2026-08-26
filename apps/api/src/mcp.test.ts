@@ -69,12 +69,10 @@ type JsonRpcWireRequest = {
  */
 const MODERN_PROTOCOL_VERSION = '2026-07-28'
 
-// oxlint-disable eslint/no-underscore-dangle -- `_meta` is the protocol's own reserved key
 const MODERN_ENVELOPE = {
   'io.modelcontextprotocol/protocolVersion': MODERN_PROTOCOL_VERSION,
   'io.modelcontextprotocol/clientCapabilities': {}
 }
-// oxlint-enable eslint/no-underscore-dangle
 
 type RpcHeaders = {
   authorization: string
@@ -143,7 +141,7 @@ function jsonBody<S extends Schema.Top>(
 ): Effect.Effect<S['Type'], never, S['DecodingServices']> {
   return Effect.promise(() => response.text()).pipe(
     Effect.flatMap((text) => {
-      // oxlint-disable-next-line effect/noTernary, effect/noGlobals -- tests unwrap the protocol's SSE framing before decoding; there is no Effect codec for SSE frames
+      // oxlint-disable-next-line effect/noTernary -- tests unwrap the protocol's SSE framing before decoding; there is no Effect codec for SSE frames
       const raw = response.headers.get('content-type')?.includes('text/event-stream')
         ? text
             .split('\n')

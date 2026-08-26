@@ -166,7 +166,6 @@ describe('entitlement gate', () => {
       if (Result.isFailure(result)) {
         expect(result.failure._tag).toBe('PlanLimitExceeded')
         // SAFETY: the tag assertion above proves the cast.
-        // oxlint-disable-next-line effect/noAs -- test-only narrowing proven by the tag assertion directly above
         const error = result.failure
         expect(error.limit).toBe(2)
         expect(error.planId).toBe('starter')

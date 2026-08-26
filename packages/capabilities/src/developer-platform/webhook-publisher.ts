@@ -127,7 +127,7 @@ export function LiveWebhookPublisher(
                 )
             )
             const subscribed = endpoints.filter((endpoint) =>
-              endpoint.events.includes(input.eventType)
+              endpoint.events.some((event) => event === input.eventType)
             )
             if (subscribed.length === 0) return
             yield* unavailable(

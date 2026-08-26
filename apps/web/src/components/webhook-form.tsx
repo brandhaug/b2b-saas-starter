@@ -5,7 +5,6 @@ import {
 } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
-import { Cause, Effect, Exit, Option } from 'effect'
 
 import { FormTextField } from '@/components/form-text-field'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -13,8 +12,8 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
-import { causeMessage } from '@/lib/cause-message'
 import { createWebhookEndpointServerFn } from '@/lib/server/webhooks'
+import { callServerFn } from '@/lib/server-call'
 
 const CREATE_WEBHOOK_FAILED = 'Failed to create webhook endpoint'
 
@@ -63,33 +62,26 @@ export function WebhookForm({
     onSubmit: async ({ value }) => {
       setSubmitError(null)
       // The server function rejects when the capability or the SSRF guard
-      // fails. `Effect.tryPromise` moves that rejection into the error channel
+      // fails. `callServerFn` moves that rejection into the error channel
       // as a display message, so the failure path is a value not a try/catch.
-      const exit = await Effect.runPromiseExit(
-        Effect.tryPromise({
-          try: () =>
-            createEndpoint({
-              data: {
-                workspaceSlug,
-                url: value.url,
-                events: value.events
-              }
-            }),
-          catch: (cause) => causeMessage(cause, CREATE_WEBHOOK_FAILED)
-        })
+      const outcome = await callServerFn(
+        () =>
+          createEndpoint({
+            data: {
+              workspaceSlug,
+              url: value.url,
+              events: value.events
+            }
+          }),
+        CREATE_WEBHOOK_FAILED
       )
 
-      if (Exit.isFailure(exit)) {
-        setSubmitError(
-          Option.getOrElse(
-            Cause.findErrorOption(exit.cause),
-            () => CREATE_WEBHOOK_FAILED
-          )
-        )
+      if (!outcome.ok) {
+        setSubmitError(outcome.message)
         return
       }
-      setCreated(exit.value)
-      onCreated?.(exit.value)
+      setCreated(outcome.value)
+      onCreated?.(outcome.value)
       form.reset()
     }
   })
