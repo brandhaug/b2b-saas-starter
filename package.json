@@ -105,7 +105,7 @@
     "@babel/core": "8.0.1",
     "@base-ui/react": "1.7.0",
     "@cloudflare/vite-plugin": "1.53.1",
-    "@cloudflare/workers-types": "5.20260822.1",
+    "@cloudflare/workers-types": "5.20260823.1",
     "@rolldown/plugin-babel": "0.2.3",
     "@types/babel__core": "7.20.5",
     "@effect/atom-react": "4.0.0-rc.111",
