@@ -7,8 +7,20 @@ export type EffectDatabase = SQLiteD1Drizzle.EffectSQLiteD1Database & {
   readonly $client: D1Client.D1Client
 }
 
+/** The raw Cloudflare `D1Database` binding behind the drizzle client. */
+export type D1Binding = D1Client.D1ClientConfig['db']
+
 export class Database extends Context.Service<Database, EffectDatabase>()(
   '@b2b-saas-starter/db/Database'
+) {}
+
+/**
+ * The raw D1 binding, as a service alongside {@link Database}. Batch writes
+ * need it because the effect-d1 driver has no batch API — depend on this
+ * instead of tunneling through `db.$client.config`.
+ */
+export class RawD1 extends Context.Service<RawD1, D1Binding>()(
+  '@b2b-saas-starter/db/RawD1'
 ) {}
 
 export function layerFromDb(db: EffectDatabase): Layer.Layer<Database> {
@@ -24,11 +36,14 @@ export function layerFromDb(db: EffectDatabase): Layer.Layer<Database> {
  * `SqlError` onto every consumer of the database layer for a case none of them can
  * act on.
  */
-export function layerFromD1(d1: D1Client.D1ClientConfig['db']): Layer.Layer<Database> {
-  return Layer.effect(Database)(SQLiteD1Drizzle.makeWithDefaults({})).pipe(
-    Layer.provide(D1Client.layer({ db: d1 })),
-    // oxlint-disable-next-line starter/no-effect-escape-hatch -- see the note above
-    Layer.orDie
+export function layerFromD1(d1: D1Binding): Layer.Layer<Database | RawD1> {
+  return Layer.mergeAll(
+    Layer.succeed(RawD1)(d1),
+    Layer.effect(Database)(SQLiteD1Drizzle.makeWithDefaults({})).pipe(
+      Layer.provide(D1Client.layer({ db: d1 })),
+      // oxlint-disable-next-line starter/no-effect-escape-hatch -- see the note above
+      Layer.orDie
+    )
   )
 }
 
@@ -49,7 +64,8 @@ export type BatchStatement = {
  * Executes multiple statements as a single atomic D1 batch (implicit
  * transaction — all statements commit or roll back together). The effect-d1
  * drizzle driver has no batch API, so this compiles the builders and runs them
- * through the raw `D1Database` binding held by the underlying `D1Client`.
+ * through the raw `D1Database` binding passed explicitly — resolve it from the
+ * `RawD1` service where a layer only holds the `Database` service.
  */
 function batchFailureReason(cause: unknown): string {
   if (cause instanceof Error) return cause.message
@@ -57,19 +73,17 @@ function batchFailureReason(cause: unknown): string {
 }
 
 export function batch(
-  db: EffectDatabase,
+  d1: D1Binding,
   statements: readonly BatchStatement[]
 ): Effect.Effect<void, DbBatchError> {
   return Effect.tryPromise({
-    try: () => {
-      const raw = db.$client.config.db
-      return raw.batch(
+    try: () =>
+      d1.batch(
         statements.map((statement) => {
           const query = statement.toSQL()
-          return raw.prepare(query.sql).bind(...query.params)
+          return d1.prepare(query.sql).bind(...query.params)
         })
-      )
-    },
+      ),
     catch: (cause) => new DbBatchError({ reason: batchFailureReason(cause) })
   }).pipe(Effect.asVoid)
 }

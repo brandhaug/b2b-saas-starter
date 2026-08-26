@@ -399,7 +399,7 @@ describe('batch atomicity over live D1', () => {
         // Second statement violates the primary key, so the whole batch —
         // including the valid first insert — must roll back.
         const error = yield* Effect.flip(
-          batch(database, [
+          batch(test.d1, [
             database.insert(workspaces).values({
               id: 'wrk_batch_new',
               slug: 'batch-new',

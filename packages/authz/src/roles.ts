@@ -1,7 +1,7 @@
 import {
   type ApiTokenScopeValue,
   type workspaceRoles
-} from '@b2b-saas-starter/db/src/schema.ts'
+} from '@b2b-saas-starter/db/schema'
 import { type Role, type Statements } from 'better-auth/plugins/access'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import {
