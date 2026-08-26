@@ -5,8 +5,15 @@ import {
   type PermissionRequest
 } from '@b2b-saas-starter/authz/src/client.ts'
 import { requirePermission } from '@b2b-saas-starter/authz/src/guard.ts'
-import { READ_OPERATIONS, readOperations, type CapabilityRead } from './operations.ts'
 import {
+  READ_OPERATIONS,
+  readOperations,
+  serveRead,
+  type CapabilityRead,
+  type CapabilityReadError
+} from './operations.ts'
+import {
+  statusForTag,
   type RateLimited,
   type Unauthorized,
   type McpDiscovery,
@@ -99,16 +106,18 @@ export function mcpDiscoveryDocument(): McpDiscovery {
   }
 }
 
-/**
- * Tool results are the JSON-RPC wire encoding of already-typed capability
- * values: `unknown` here is the protocol's own payload type, decoded nowhere
- * further because the capability layer produced it.
- */
-// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, effect/noAs, effect/noTernary, anti-slop/require-safety-comment-for-type-assertion -- this block classifies untyped errors crossing the SDK's promise seam; the tag check IS the contract
+type ToolResult = {
+  content: [{ type: 'text'; text: string }]
+  isError?: boolean
+}
+
+/** What a settled tool invocation hands the wire encoder. */
+type ToolOutcome = Result.Result<unknown, CapabilityReadError>
 
 // The JSON-RPC wire format carries opaque JSON payloads; serializing the
 // already-typed capability results here IS the encoding step.
 // oxlint-disable-next-line effect/noGlobals -- JSON-RPC wire serialization of typed capability results
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- `unknown` is the protocol's own payload type; the capability layer already produced it
 function textResult(data: unknown): ToolResult {
   return {
     // oxlint-disable-next-line effect/noGlobals -- see above: this is the wire encoding
@@ -116,21 +125,14 @@ function textResult(data: unknown): ToolResult {
   }
 }
 
-type ToolResult = {
-  content: [{ type: 'text'; text: string }]
-  isError?: boolean
-}
-
-function errorResult(error: unknown): ToolResult {
-  // Known typed failures keep their meaning across the JSON-RPC boundary —
-  // this is the same union the contract maps to 403/503, checked by the
-  // compiler when a new case is added. Anything else is reported without
-  // internals leaking into the client's transcript.
-  if (isTypedToolFailure(error)) {
-    switch (error._tag) {
+function errorResult(outcome: ToolOutcome): ToolResult {
+  if (Result.isFailure(outcome)) {
+    // Exhaustive over the known typed failures; anything else falls through to
+    // the generic body so internals never leak into the client's transcript.
+    switch (outcome.failure._tag) {
       case 'AuthorizationDenied': {
         return {
-          content: [{ type: 'text', text: `denied: ${error.reason}` }],
+          content: [{ type: 'text', text: `denied: ${outcome.failure.reason}` }],
           isError: true
         }
       }
@@ -142,6 +144,12 @@ function errorResult(error: unknown): ToolResult {
           isError: true
         }
       }
+      case 'WorkspaceNotFound': {
+        return {
+          content: [{ type: 'text', text: 'workspace not found' }],
+          isError: true
+        }
+      }
     }
   }
   return {
@@ -150,21 +158,10 @@ function errorResult(error: unknown): ToolResult {
   }
 }
 
-/**
- * The typed failures a tool callback can reject with, narrowed off the SDK's
- * promise seam (`unknown` once it crosses into plain async land).
- */
-type TypedToolFailure = AuthorizationDenied | CapabilityUnavailable
-
-function isTypedToolFailure(error: unknown): error is TypedToolFailure {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    '_tag' in error &&
-    (error._tag === 'AuthorizationDenied' || error._tag === 'CapabilityUnavailable')
-  )
+function outcomeToToolResult(outcome: ToolOutcome): ToolResult {
+  if (Result.isSuccess(outcome)) return textResult(outcome.success)
+  return errorResult(outcome)
 }
-// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, effect/noAs, effect/noTernary, anti-slop/require-safety-comment-for-type-assertion
 
 /**
  * Builds one stateless server instance for a single request, bound to the
@@ -204,10 +201,15 @@ export function buildMcpServer(
           return yield* tool.capability()
         }).pipe(Effect.scoped)
 
-        return Effect.runPromise(provideWorkspace(env, workspaceSlug, guarded)).then(
-          textResult,
-          errorResult
-        )
+        // `Effect.result` moves the typed error channel into the value before
+        // the promise seam, so classification stays compiler-checked. The
+        // rejection handler only sees defects — never a typed failure.
+        return Effect.runPromise(
+          provideWorkspace(env, workspaceSlug, Effect.result(guarded))
+        ).then(outcomeToToolResult, () => ({
+          content: [{ type: 'text', text: 'tool failed; see the API worker logs' }],
+          isError: true
+        }))
       }
     )
   }
@@ -222,19 +224,9 @@ export function buildMcpServer(
     },
     () => {
       // The resource projects the same overview read the REST route and the
-      // tool serve — pulled from the shared operation table like both of
-      // them. The channel widening mirrors handlers.ts: `provideWorkspace`
-      // and the ambient capability layer narrow the requirements back.
-      // SAFETY: same channel widening as handlers.ts `workspaceRead` — the
-      // table stores the natural capability effect; `provideWorkspace` and
-      // the ambient capability layer re-narrow the requirements before this
-      // runs. No value is asserted away.
-      // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion, anti-slop/require-safety-comment-for-type-assertion -- see SAFETY above
-      const overview = READ_OPERATIONS.overview.read() as Effect.Effect<
-        unknown,
-        unknown,
-        never
-      >
+      // tools serve — pulled from the shared operation table like both of
+      // them, through the one sanctioned channel widening (`serveRead`).
+      const overview = serveRead(READ_OPERATIONS.overview)
       const guarded = Effect.map(overview, (value) => ({
         contents: [
           {
@@ -295,24 +287,11 @@ function rpcError(code: number, message: string): RpcErrorBody {
   return { jsonrpc: '2.0', id: null, error: { code, message } }
 }
 
-/** Maps guard failures to HTTP statuses, the same semantics the contract has. */
+/** Maps guard failures to HTTP statuses via the contract's canonical table. */
 function failureResponse(
   error: ProtocolFailure
 ): HttpServerResponse.HttpServerResponse {
-  switch (error._tag) {
-    case 'Unauthorized': {
-      return jsonResponse({ _tag: 'Unauthorized' }, 401)
-    }
-    case 'AuthorizationDenied': {
-      return jsonResponse({ _tag: 'AuthorizationDenied' }, 403)
-    }
-    case 'RateLimited': {
-      return jsonResponse({ _tag: 'RateLimited' }, 429)
-    }
-    case 'CapabilityUnavailable': {
-      return jsonResponse({ _tag: 'CapabilityUnavailable' }, 503)
-    }
-  }
+  return jsonResponse({ _tag: error._tag }, statusForTag(error._tag))
 }
 
 /**

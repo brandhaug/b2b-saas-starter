@@ -1,5 +1,4 @@
 import {
-  annotateWide,
   makeOtlpLayer,
   parentSpanFromHeaders,
   readWideEventEnvironment,
@@ -50,7 +49,10 @@ export function enforceRateLimit(
     const limiter = yield* RateLimiter
     const allowed = yield* limiter.take({ bucket, key: clientKey(request) })
     if (!allowed) {
-      yield* annotateWide({ outcome: 'rate_limited', rateLimitBucket: bucket })
+      yield* Effect.annotateLogsScoped({
+        outcome: 'rate_limited',
+        rateLimitBucket: bucket
+      })
       return yield* Effect.fail(new RateLimited({ bucket }))
     }
   })
@@ -77,7 +79,7 @@ export function authenticate(
   return Effect.gen(function* () {
     const token = bearerToken(request)
     if (!token) {
-      yield* annotateWide({ outcome: 'missing_bearer_token' })
+      yield* Effect.annotateLogsScoped({ outcome: 'missing_bearer_token' })
       return yield* Effect.fail(new Unauthorized({ message: 'missing_bearer_token' }))
     }
 
@@ -86,7 +88,7 @@ export function authenticate(
     if (Result.isFailure(verified)) {
       const failure = verified.failure
       if (failure._tag === 'CapabilityUnavailable') {
-        yield* annotateWide({
+        yield* Effect.annotateLogsScoped({
           outcome: 'capability_unavailable',
           capability: failure.capability,
           capabilityReason: failure.reason
@@ -95,11 +97,14 @@ export function authenticate(
       }
       // Verification only ever fails for an unknown or revoked token, which is
       // an authentication failure: 401, not 403.
-      yield* annotateWide({ outcome: 'unauthorized', authReason: failure.reason })
+      yield* Effect.annotateLogsScoped({
+        outcome: 'unauthorized',
+        authReason: failure.reason
+      })
       return yield* Effect.fail(new Unauthorized({ message: failure.reason }))
     }
 
-    yield* annotateWide({
+    yield* Effect.annotateLogsScoped({
       tokenId: verified.success.id,
       workspaceId: verified.success.workspaceId,
       tokenWorkspaceSlug: verified.success.workspaceSlug,
@@ -134,7 +139,7 @@ export function enforcePermission(
       expectedWorkspaceSlug !== undefined &&
       verified.workspaceSlug !== expectedWorkspaceSlug
     ) {
-      yield* annotateWide({
+      yield* Effect.annotateLogsScoped({
         outcome: 'forbidden',
         authReason: 'token_workspace_mismatch',
         tokenWorkspaceSlug: verified.workspaceSlug
@@ -174,7 +179,7 @@ export function observed<A, E, R>(
       environment: readWideEventEnvironment(env),
       metadata: { pathname: request.url, method: request.method, ...metadata }
     },
-    body.pipe(Effect.tap(() => annotateWide({ outcome: 'ok' })))
+    body.pipe(Effect.tap(() => Effect.annotateLogsScoped({ outcome: 'ok' })))
     // `local: true` forces a fresh build per request: the OTLP exporters must
     // live and die inside one invocation (see `makeOtlpLayer`), and a shared
     // memo map would hand every later request the first request's exporters.
