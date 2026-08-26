@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { CheckIcon, CopyIcon } from 'lucide-react'
 
@@ -14,6 +14,16 @@ export function CodeBlock({
   readonly className?: string
 }) {
   const [copied, setCopied] = useState(false)
+  const resetTimerRef = useRef<number | undefined>(undefined)
+
+  // Unmounting within the 2-second feedback window must not schedule a
+  // post-unmount state update.
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current !== undefined)
+        {window.clearTimeout(resetTimerRef.current)}
+    }
+  }, [])
 
   function copy() {
     // Clipboard access can reject (permissions/insecure context); the code is
@@ -22,7 +32,8 @@ export function CodeBlock({
       .writeText(code)
       .then(() => {
         setCopied(true)
-        return window.setTimeout(() => setCopied(false), 2000)
+        resetTimerRef.current = window.setTimeout(() => setCopied(false), 2000)
+        return resetTimerRef.current
       })
       .catch(() => null)
   }

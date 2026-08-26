@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   SessionsPanel,
@@ -6,6 +7,13 @@ import {
   type RevokeOtherSessions,
   type RevokeSession
 } from './sessions-panel'
+
+function renderWithQueryClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } }
+  })
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
+}
 
 const listSessions = vi.fn<ListSessions>()
 const revokeSession = vi.fn<RevokeSession>()
@@ -49,7 +57,7 @@ describe('SessionsPanel', () => {
         })
       ]
     })
-    render(
+    renderWithQueryClient(
       <SessionsPanel
         currentSessionToken="tok_current"
         listSessions={listSessions}
@@ -76,7 +84,7 @@ describe('SessionsPanel', () => {
         ]
       })
       .mockResolvedValueOnce({ data: [session({ token: 'tok_current' })] })
-    render(
+    renderWithQueryClient(
       <SessionsPanel
         currentSessionToken="tok_current"
         listSessions={listSessions}
@@ -101,7 +109,7 @@ describe('SessionsPanel', () => {
         session({ token: 'tok_b' })
       ]
     })
-    render(
+    renderWithQueryClient(
       <SessionsPanel
         currentSessionToken="tok_current"
         listSessions={listSessions}
@@ -123,7 +131,7 @@ describe('SessionsPanel', () => {
     revokeOtherSessions.mockResolvedValue({
       error: { message: 'Could not revoke sessions' }
     })
-    render(
+    renderWithQueryClient(
       <SessionsPanel
         currentSessionToken="tok_current"
         listSessions={listSessions}
