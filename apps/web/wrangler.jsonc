@@ -38,6 +38,12 @@
         "type": "ratelimit",
         "namespace_id": "2002",
         "simple": { "limit": 20, "period": 60 }
+      },
+      {
+        "name": "RATE_LIMITER_AUTH_SIGN_IN",
+        "type": "ratelimit",
+        "namespace_id": "2003",
+        "simple": { "limit": 5, "period": 60 }
       }
     ]
   }

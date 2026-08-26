@@ -91,6 +91,12 @@ function writeAuditEvent(
  */
 export type AuthAuditContext = {
   readonly actorUserId: string
+  /**
+   * The actor's address, from the same pre-handler session read as
+   * `actorUserId`. The two-factor security notification mails it on a
+   * successful enable/disable (`two-factor-notification.ts`).
+   */
+  readonly actorEmail?: string
   /** A clone of the request, gathered before the handler consumed the body. Only `json()` is read. */
   readonly request?: { readonly json: <T>() => Promise<T> }
 }

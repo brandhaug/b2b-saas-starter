@@ -11,7 +11,7 @@ tags: [cloudflare, workers]
 - TanStack Start with SSR, served by Vite via the `@cloudflare/vite-plugin` locally and deployed as a Cloudflare Worker
 - Public Showcase Site routes (landing, docs, blog, FAQ, pricing, changelog)
 - Reference Application routes (`/workspaces`, `/workspaces/$workspaceSlug`, `/workspaces/$workspaceSlug/settings`, `/admin`)
-- Better Auth catchall at `/api/auth/$`, with Cloudflare `RATE_LIMITER_AUTH_READ` and `RATE_LIMITER_AUTH_WRITE` bindings enforcing per-IP limits via `apps/web/src/lib/rate-limit.ts`
+- Better Auth catchall at `/api/auth/$`, with Cloudflare `RATE_LIMITER_AUTH_READ`, `RATE_LIMITER_AUTH_WRITE`, and `RATE_LIMITER_AUTH_SIGN_IN` bindings enforcing per-IP limits via `apps/web/src/lib/rate-limit.ts`
 - Server functions today resolve against `SeedLayer`; the `DB` binding is wired in wrangler/alchemy and will switch to `makeLiveLayerFromD1` when the live readers are adopted
 
 The web Worker can call `@b2b-saas-starter/capabilities` directly. It does not call the API Worker for its own UI — that would add a round trip without value.

@@ -29,4 +29,29 @@ describe('makeAuthOptions', () => {
         .emailAndPassword
     ).toMatchObject({ requireEmailVerification: true })
   })
+
+  it('requires verification before two-factor counts as enabled', () => {
+    // skipVerificationOnEnable must stay false: without a verified first code,
+    // a hijacked session could enroll its own authenticator and lock out the
+    // real owner. See the security review in PR history. Better Auth keeps the
+    // option on the plugin's `options` bag.
+    const options = makeAuthOptions(baseConfig)
+    const twoFactor = options.plugins.find(
+      (plugin) => 'id' in plugin && plugin.id === 'two-factor'
+    )
+    // SAFETY: the two-factor plugin is in the array above by construction;
+    // this reads the one option this file pins off its `options` bag, which
+    // the plugin's declared type omits.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, effect/noAs -- reading an option Better Auth's plugin type does not declare
+    const twoFactorOptions = twoFactor as {
+      options: { skipVerificationOnEnable: boolean | undefined } | undefined
+    }
+    expect(twoFactorOptions.options?.skipVerificationOnEnable).toBe(false)
+  })
+
+  it('sets a one-hour fresh window for sensitive actions', () => {
+    expect(makeAuthOptions(baseConfig).session).toMatchObject({
+      freshAge: 60 * 60
+    })
+  })
 })

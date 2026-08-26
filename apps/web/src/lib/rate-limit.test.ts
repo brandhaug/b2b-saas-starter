@@ -1,6 +1,11 @@
 import { Effect, type Scope } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { clientKey, makeRateLimiterLayer, RateLimiter } from './rate-limit'
+import {
+  authRateLimitBucket,
+  clientKey,
+  makeRateLimiterLayer,
+  RateLimiter
+} from './rate-limit'
 
 function request(headers: Record<string, string>): Request {
   return new Request('http://localhost:3071/api/auth/sign-in', { headers })
@@ -33,6 +38,36 @@ describe('rate limiter fallback (no Cloudflare bindings)', () => {
     expect(outcomes[20]).toBe(false)
     // A different key is unaffected.
     expect(await runScoped(take(`${key}-other`))).toBe(true)
+  })
+})
+
+describe('authRateLimitBucket', () => {
+  it.each([
+    ['POST', '/api/auth/sign-in/email', 'auth_sign_in'],
+    ['POST', '/api/auth/sign-in/username', 'auth_sign_in'],
+    // Session-management and other POSTs keep the generic write bucket.
+    ['POST', '/api/auth/list-sessions', 'auth_write'],
+    ['POST', '/api/auth/two-factor/enable', 'auth_write'],
+    ['GET', '/api/auth/get-session', 'auth_read']
+  ])('%s %s → %s', (method, pathname, expected) => {
+    expect(authRateLimitBucket(method, pathname)).toBe(expected)
+  })
+
+  it('enforces the tighter auth_sign_in fallback limit', async () => {
+    function take(key: string) {
+      return Effect.gen(function* () {
+        const limiter = yield* RateLimiter
+        return yield* limiter.take({ bucket: 'auth_sign_in', key })
+      }).pipe(Effect.provide(makeRateLimiterLayer({})))
+    }
+    const key = `sign-in-${Date.now()}-${Math.random()}`
+    const outcomes: boolean[] = []
+    for (let i = 0; i < 6; i += 1) {
+      outcomes.push(await runScoped(take(key)))
+    }
+    // auth_sign_in allows 5 per window; the 6th take is denied.
+    expect(outcomes.slice(0, 5).every(Boolean)).toBe(true)
+    expect(outcomes[5]).toBe(false)
   })
 })
 

@@ -142,8 +142,8 @@ function isPlaceholderAuthUrl(value: string): boolean {
 }
 
 export type RequiredEnvProblem = {
-  readonly key: 'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL'
-  readonly reason: 'missing' | 'placeholder' | 'too-short'
+  readonly key: 'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL' | 'BETTER_AUTH_TRUSTED_ORIGINS'
+  readonly reason: 'missing' | 'placeholder' | 'too-short' | 'malformed'
 }
 
 export type RequiredEnvAudit = {
@@ -194,6 +194,36 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
     problems.push({ key: 'BETTER_AUTH_URL', reason: 'missing' })
   } else if (isPlaceholderAuthUrl(url)) {
     problems.push({ key: 'BETTER_AUTH_URL', reason: 'placeholder' })
+  }
+
+  // A malformed trusted origin silently weakens Better Auth's origin checks —
+  // `https:/app.example.com` matches nothing, so the intended origin loses its
+  // CSRF carve-out. Flag any entry that does not parse as an http(s) URL.
+  const trustedOrigins = source.BETTER_AUTH_TRUSTED_ORIGINS
+  if (trustedOrigins !== undefined && trustedOrigins.length > 0) {
+    for (const entry of trustedOrigins.split(',')) {
+      const origin = entry.trim()
+      let valid = false
+      // oxlint-disable-next-line effect/noTryCatch -- `new URL` throws on a malformed value and "not a URL" is the answer, not a failure to handle; there is no Effect context here to lift it into
+      try {
+        if (origin.startsWith('*.')) {
+          // Better Auth's scheme-less wildcard form (`*.example.com`).
+          valid = !origin.slice(2).includes('*')
+        } else {
+          const parsed = new URL(origin)
+          valid = parsed.protocol === 'https:' || parsed.protocol === 'http:'
+        }
+      } catch {
+        // A throw IS the answer here: the entry is not a URL, so it stays
+        // `valid: false` and is flagged below.
+      }
+      if (origin.length === 0 || !valid) {
+        problems.push({
+          key: 'BETTER_AUTH_TRUSTED_ORIGINS',
+          reason: 'malformed'
+        })
+      }
+    }
   }
 
   return { mode, problems }

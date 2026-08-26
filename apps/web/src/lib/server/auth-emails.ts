@@ -2,7 +2,8 @@ import { type AuthEmailSender } from '@b2b-saas-starter/auth'
 import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import {
   EmailVerificationEmail,
-  PasswordResetEmail
+  PasswordResetEmail,
+  TwoFactorChangedEmail
 } from '@b2b-saas-starter/email/templates'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { Effect } from 'effect'
@@ -77,4 +78,20 @@ export function makeAuthEmailSender(): AuthEmailSender {
         element: EmailVerificationEmail({ url })
       })
   }
+}
+
+/**
+ * The two-factor security notification (`two-factor-notification.ts` drives
+ * it): best-effort by contract, so a dispatcher rejection never fails the
+ * enable/disable exchange it observes — the caller swallows it.
+ */
+export function sendTwoFactorChangedEmail(input: {
+  readonly email: string
+  readonly enabled: boolean
+}): Promise<void> {
+  return dispatch({
+    to: input.email,
+    subject: 'Two-factor authentication changed',
+    element: TwoFactorChangedEmail({ enabled: input.enabled })
+  })
 }

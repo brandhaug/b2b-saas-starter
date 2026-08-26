@@ -19,9 +19,13 @@ import { Label } from '@/components/ui/label'
  */
 export type EnableTwoFactor = (input: { readonly password: string }) => Promise<{
   // Better Auth's enable response is a discriminated union on `method`
-  // ('otp' | 'totp'); only the 'totp' variant carries `totpURI`.
+  // ('otp' | 'totp'); only the 'totp' variant carries `totpURI`, and the
+  // plugin generates one-time backup codes alongside it.
   readonly data?:
-    | { readonly totpURI?: string | undefined }
+    | {
+        readonly totpURI?: string | undefined
+        readonly backupCodes?: string[] | undefined
+      }
     | { readonly method?: string }
     | null
     | undefined
@@ -45,6 +49,7 @@ type PanelState = {
   /** 'idle' → 'enrolling' (one-time QR reveal) → idle with the enabled flag. */
   readonly step: 'idle' | 'enrolling'
   readonly totpURI: string | null
+  readonly backupCodes: readonly string[] | null
   readonly password: string
   readonly code: string
   readonly submitError: string | null
@@ -61,7 +66,11 @@ function parseSecretFromUri(uri: string | null): string | null {
 type PanelAction =
   | { readonly type: 'password'; readonly value: string }
   | { readonly type: 'code'; readonly value: string }
-  | { readonly type: 'enrolled'; readonly totpURI: string }
+  | {
+      readonly type: 'enrolled'
+      readonly totpURI: string
+      readonly backupCodes: readonly string[] | null
+    }
   | { readonly type: 'verified' }
   | { readonly type: 'disabled' }
   | { readonly type: 'failed'; readonly message: string }
@@ -76,14 +85,21 @@ function reducer(state: PanelState, action: PanelAction): PanelState {
       return { ...state, code: action.value }
     }
     case 'enrolled': {
-      // The one-time reveal starts here; the secret lives in the URI.
-      return { ...state, step: 'enrolling', totpURI: action.totpURI }
+      // The one-time reveal starts here; the secret lives in the URI and the
+      // backup codes ride the same response.
+      return {
+        ...state,
+        step: 'enrolling',
+        totpURI: action.totpURI,
+        backupCodes: action.backupCodes
+      }
     }
     case 'verified': {
       return {
         ...state,
         step: 'idle',
         totpURI: null,
+        backupCodes: null,
         code: '',
         password: '',
         statusMessage: 'Two-factor authentication is now on.'
@@ -126,6 +142,7 @@ export function TwoFactorPanel({
   const [state, dispatch] = useReducer(reducer, {
     step: 'idle',
     totpURI: null,
+    backupCodes: null,
     password: '',
     code: '',
     submitError: null,
@@ -160,21 +177,30 @@ export function TwoFactorPanel({
     | {
         readonly error?: { readonly message?: string | undefined } | null
         readonly totpURI: string | null
+        readonly backupCodes: readonly string[] | null
       }
   > {
     const result = await enableTwoFactor({ password: state.password })
     const totpURI =
       result.data && 'totpURI' in result.data ? (result.data.totpURI ?? null) : null
+    const backupCodes =
+      result.data && 'backupCodes' in result.data
+        ? (result.data.backupCodes ?? null)
+        : null
     if (!result.error && totpURI === null) {
       return { error: { message: 'Setup response was incomplete' } }
     }
-    return { totpURI }
+    return { totpURI, backupCodes }
   }
 
   function startSetup() {
     void runAction(beginEnrollment, 'Could not start setup', (result) => {
       if (!('totpURI' in result) || result.totpURI === null) return
-      dispatch({ type: 'enrolled', totpURI: result.totpURI })
+      dispatch({
+        type: 'enrolled',
+        totpURI: result.totpURI,
+        backupCodes: result.backupCodes
+      })
     })
   }
 
@@ -253,7 +279,8 @@ export function TwoFactorPanel({
         </header>
         {/* The one-time reveal: scan the QR — or type the secret into an
             authenticator that cannot scan — then confirm with a first code.
-            Neither is shown again after this. */}
+            Neither is shown again after this, and neither are the backup
+            codes below. */}
         <div className="flex flex-wrap items-start gap-6">
           <figure aria-label="Two-factor secret QR code">
             <QRCodeSVG value={state.totpURI} size={144} />
@@ -267,6 +294,23 @@ export function TwoFactorPanel({
             </code>
           </div>
         </div>
+        {state.backupCodes !== null && state.backupCodes.length > 0 ? (
+          <section
+            aria-label="Backup codes"
+            className="grid gap-2 rounded-sm border border-border bg-muted/40 p-4"
+          >
+            <p className="text-sm font-medium">
+              Save these one-time backup codes now. They are shown only once:
+            </p>
+            <ul className="flex flex-wrap gap-x-4 gap-y-1">
+              {state.backupCodes.map((backupCode) => (
+                <li key={backupCode}>
+                  <code className="font-mono text-xs">{backupCode}</code>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
         <form
           onSubmit={(event) => {
             event.preventDefault()

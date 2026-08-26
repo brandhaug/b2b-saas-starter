@@ -145,4 +145,36 @@ describe('auditRequiredEnv', () => {
     expect(staging.mode).toBe('deployed')
     expect(staging.problems.length).toBeGreaterThan(0)
   })
+
+  it('accepts well-formed trusted origins, including Better Auth wildcards', () => {
+    expect(
+      auditRequiredEnv({
+        ENVIRONMENT: 'production',
+        BETTER_AUTH_SECRET: realSecret,
+        BETTER_AUTH_URL: realUrl,
+        BETTER_AUTH_TRUSTED_ORIGINS:
+          'https://app.acme.test, https://admin.acme.test, *.preview.acme.test, https://*.acme.test'
+      }).problems
+    ).toEqual([])
+  })
+
+  it('flags malformed trusted-origin entries', () => {
+    for (const origins of [
+      'not-a-url',
+      // A scheme-less entry that is not the wildcard form.
+      'app.acme.test',
+      // A wildcard with nowhere valid to anchor.
+      '*'
+    ]) {
+      const audit = auditRequiredEnv({
+        ENVIRONMENT: 'production',
+        BETTER_AUTH_SECRET: realSecret,
+        BETTER_AUTH_URL: realUrl,
+        BETTER_AUTH_TRUSTED_ORIGINS: origins
+      })
+      expect(audit.problems).toEqual([
+        { key: 'BETTER_AUTH_TRUSTED_ORIGINS', reason: 'malformed' }
+      ])
+    }
+  })
 })
