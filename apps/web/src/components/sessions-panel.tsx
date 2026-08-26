@@ -124,6 +124,7 @@ export function SessionsPanel({
   const {
     data: rows,
     error: queryError,
+    isPending,
     refetch
   } = useQuery({
     queryKey: SESSIONS_QUERY_KEY,
@@ -198,7 +199,7 @@ export function SessionsPanel({
         </p>
       ) : null}
 
-      {rows === null && !loadError ? (
+      {hydrated && isPending ? (
         <ul className="grid gap-2" aria-busy="true">
           {[0, 1].map((index) => (
             <li key={index} className="rounded-sm border border-border px-3 py-2">
