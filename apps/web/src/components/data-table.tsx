@@ -102,10 +102,14 @@ export function DataTable<TData extends RowData>({
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
 
+  // `useTable` keys its internal state on input identities. Consumers pass
+  // module-scope constants or stable loader arrays, so the props are handed
+  // straight through — copying (`[...data]`) would re-allocate (and
+  // re-notify) every render.
   const table = useTable({
     features: dataTableFeatures,
-    data: [...data],
-    columns: [...columns],
+    data,
+    columns,
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,

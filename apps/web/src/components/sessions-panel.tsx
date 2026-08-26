@@ -1,12 +1,14 @@
 import { LaptopIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { authClient } from '@/lib/auth-client'
+import { useHydrated } from '@/lib/client-only-value'
 import { Button } from '@/components/ui/button'
 
 /**
  * One row of the panel's own view model: a Better Auth session plus the
- * expiry label, which is formatted at load time (inside the post-mount
- * effect) so server rendering never formats dates.
+ * expiry label, which is formatted inside the query function (client-side
+ * only) so server rendering never formats dates.
  */
 export type SessionRowView = {
   readonly token: string
@@ -88,6 +90,15 @@ function toViewModels(sessions: readonly SessionRecord[]): SessionRowView[] {
  * and cannot be revoked from here — signing out of it is the shell's
  * sign-out button.
  */
+/**
+ * The sessions query is shared cache, not component state: TanStack Query
+ * deduplicates concurrent reads and keeps the list across mounts, so the
+ * panel renders from cache on revisits instead of re-fetching after every
+ * hydration. `enabled` waits for hydration — the Better Auth client endpoint
+ * is browser-only (relative fetch), so the server render must not fetch.
+ */
+const SESSIONS_QUERY_KEY: readonly unknown[] = ['account', 'sessions']
+
 export function SessionsPanel({
   currentSessionToken,
   listSessions = listSessionsWithAuthClient,
@@ -99,30 +110,26 @@ export function SessionsPanel({
   readonly revokeSession?: RevokeSession
   readonly revokeOtherSessions?: RevokeOtherSessions
 }) {
-  const [rows, setRows] = useState<readonly SessionRowView[] | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
-  // Bumped by every successful action: refetch without manual memoization.
-  const [reloadKey, setReloadKey] = useState(0)
-
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      setLoadError(null)
+  const hydrated = useHydrated()
+  const {
+    data: rows,
+    error: queryError,
+    refetch
+  } = useQuery({
+    queryKey: SESSIONS_QUERY_KEY,
+    queryFn: async (): Promise<readonly SessionRowView[]> => {
       const result = await listSessions()
-      if (cancelled) return
       if (result.error) {
-        setLoadError(result.error.message ?? 'Could not load sessions')
-        return
+        // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- TanStack Query surfaces failure states by rejecting the query function; there is no Effect channel here
+        throw new Error(result.error.message ?? 'Could not load sessions')
       }
-      setRows(toViewModels(result.data ?? []))
-    }
-    void load()
-    return () => {
-      cancelled = true
-    }
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `reloadKey` is the refetch trigger: every successful action bumps it to re-run this fetch
-  }, [listSessions, reloadKey])
+      return toViewModels(result.data ?? [])
+    },
+    enabled: hydrated,
+    retry: false
+  })
+  const loadError = queryError?.message ?? null
+  const [actionError, setActionError] = useState<string | null>(null)
 
   async function act(
     action: () => Promise<{
@@ -135,7 +142,7 @@ export function SessionsPanel({
       setActionError(result.error.message ?? 'The change could not be made')
       return
     }
-    setReloadKey((key) => key + 1)
+    void refetch()
   }
 
   const othersExist = rows?.some((row) => row.token !== currentSessionToken)

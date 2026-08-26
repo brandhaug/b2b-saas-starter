@@ -1,7 +1,12 @@
 import { lazy } from 'react'
 
 import { MdxLink } from '@/components/mdx-link'
-import { MdxMermaid } from '@/components/mdx-mermaid'
+
+// Mermaid's wrapper is lazy like its chart siblings, so nothing eager can
+// sneak the (heavy) module graph into the docs/blog chunks.
+const MdxMermaid = lazy(() =>
+  import('@/components/mdx-mermaid').then((m) => ({ default: m.MdxMermaid }))
+)
 
 const MdxLineChart = lazy(() =>
   import('@/components/mdx-chart').then((m) => ({ default: m.MdxLineChart }))

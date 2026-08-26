@@ -1,10 +1,10 @@
 import { Auth, type Session } from '@b2b-saas-starter/auth'
 import { notFound, redirect } from '@tanstack/react-router'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
-import { getRequest } from '@tanstack/react-start/server'
 import { Effect } from 'effect'
 import { authRuntime } from '../auth-runtime'
 import { withWebRequestScope } from '../observability'
+import { currentRequest } from '../request-context'
 
 /**
  * The session read every gate below is built on. `authRuntime` carries the
@@ -13,13 +13,28 @@ import { withWebRequestScope } from '../observability'
  * the gate's outcome into that request's one wide event. Without it the gate
  * that runs first on every gated route would be invisible.
  */
+// One session read per request: the registry is keyed by the request object
+// (an isolate interleaves concurrent requests, so a module-level "current"
+// would race — same pattern as request-context.ts). A route whose `beforeLoad`
+// gate and a server function both read the session must not pay two DB
+// round-trips for one document request.
+const sessionCache = new WeakMap<Request, Promise<Session | null>>()
+
 const readSession = createServerOnlyFn((): Promise<Session | null> => {
-  const request = getRequest()
-  return authRuntime.runPromise(
+  const request = currentRequest()
+  const cached = request === undefined ? undefined : sessionCache.get(request)
+  if (cached !== undefined) return cached
+  const pending = authRuntime.runPromise(
     withWebRequestScope(
       { event: 'auth.session' },
       Effect.gen(function* () {
         const auth = yield* Auth.Tag
+        // No ambient request (unit tests, scripts) means no cookie jar to
+        // read — that is an unauthenticated caller, not a crash.
+        if (request === undefined) {
+          yield* Effect.annotateLogsScoped({ authenticated: false })
+          return null
+        }
         const session = yield* auth.api.getSession({ headers: request.headers })
         // Whether the gate found a session is the useful fact. Never the token,
         // never the email.
@@ -28,22 +43,62 @@ const readSession = createServerOnlyFn((): Promise<Session | null> => {
       })
     )
   )
+  if (request !== undefined) sessionCache.set(request, pending)
+  return pending
 })
 
 const getSessionServerFn = createServerFn({ method: 'GET' }).handler(readSession)
 
 /**
- * Route gate for `beforeLoad`. Redirects unauthenticated visitors to
- * `/sign-in` and returns the session so loaders can pass the actor to
- * `runWorkspaceCapabilities`.
+ * The session projection route context carries. `beforeLoad` results are
+ * serialized into the client payload of every gated route, so this is
+ * deliberately narrow: the user fields the UI and loaders read, and nothing
+ * else — no session token, no IP address, no user agent, no expiry. The
+ * current session token for `/account`'s sessions panel comes from
+ * `authClient.useSession()` instead (client-side, never in the SSR payload).
  */
-export async function requireSession(redirectTo: string): Promise<Session> {
+export type RouteSession = {
+  readonly user: {
+    readonly id: string
+    readonly email: string
+    readonly emailVerified: boolean
+    readonly role: string
+    readonly twoFactorEnabled: boolean
+  }
+}
+
+/**
+ * Strips a Better Auth session down to `RouteSession`. Exported so the
+ * projection's shape is asserted by test rather than trusted.
+ */
+export function toRouteSession(session: Session): RouteSession {
+  return {
+    user: {
+      id: session.user.id,
+      email: session.user.email,
+      // The plugin schema marks these optional; the gate only ever reads
+      // them as scalars, so normalize to definite values here.
+      // The plugin schema marks some of these optional; normalize to
+      // definite values here.
+      emailVerified: session.user.emailVerified,
+      role: session.user.role ?? '',
+      twoFactorEnabled: session.user.twoFactorEnabled ?? false
+    }
+  }
+}
+
+/**
+ * Route gate for `beforeLoad`. Redirects unauthenticated visitors to
+ * `/sign-in` and returns the projected session so loaders can pass the actor
+ * to `runWorkspaceCapabilities`.
+ */
+export async function requireSession(redirectTo: string): Promise<RouteSession> {
   const session = await getSessionServerFn()
   if (!session) {
     // oxlint-disable-next-line effect/noThrowStatement -- `throw redirect()` is TanStack Router's navigation control-flow API
     throw redirect({ to: '/sign-in', search: { redirect: redirectTo } })
   }
-  return session
+  return toRouteSession(session)
 }
 
 /**
@@ -52,7 +107,7 @@ export async function requireSession(redirectTo: string): Promise<Session> {
  * packages/auth). Non-admins get a 404 rather than a 403 so the route's
  * existence is not disclosed.
  */
-export async function requireAdmin(redirectTo: string): Promise<Session> {
+export async function requireAdmin(redirectTo: string): Promise<RouteSession> {
   const session = await requireSession(redirectTo)
   if (session.user.role !== 'admin') {
     // oxlint-disable-next-line effect/noThrowStatement -- `throw notFound()` is TanStack Router's 404 control-flow API

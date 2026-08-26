@@ -3,6 +3,7 @@ import { TwoFactorPanel } from '@/components/two-factor-panel'
 import { SessionsPanel } from '@/components/sessions-panel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { WorkspaceShell } from '@/components/workspace-shell'
+import { authClient } from '@/lib/auth-client'
 import { requireSession } from '@/lib/server/auth'
 
 // Account settings live outside the /workspaces subtree on purpose: they are
@@ -19,6 +20,9 @@ export const Route = createFileRoute('/account')({
 
 function AccountRoute() {
   const { session } = Route.useRouteContext()
+  // The current session token never rides the SSR payload (see `RouteSession`
+  // in lib/server/auth.ts) — the panel reads it from the client session hook.
+  const currentSession = authClient.useSession()
   return (
     <WorkspaceShell
       title="Account"
@@ -48,7 +52,9 @@ function AccountRoute() {
             </p>
           </CardHeader>
           <CardContent>
-            <SessionsPanel currentSessionToken={session.session.token} />
+            <SessionsPanel
+              currentSessionToken={currentSession.data?.session.token ?? ''}
+            />
           </CardContent>
         </Card>
       </div>

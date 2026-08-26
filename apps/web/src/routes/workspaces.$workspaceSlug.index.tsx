@@ -1,10 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { lazy, Suspense } from 'react'
 import {
   LiveNotifications,
   type ListNotifications
 } from '@/components/live-notifications'
 import { RoutePending } from '@/components/route-pending'
-import { WebhookSuccessChart } from '@/components/charts/webhook-success-chart'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { viewerCan } from '@/lib/permissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,6 +15,17 @@ import {
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
+// Lazy: recharts (and its d3 dependencies) is the heaviest module on this
+// route, and the chart is below-fold secondary content — it must not sit in
+// the dashboard's first chunk. `defaultPreload: 'intent'` warms the chunk on
+// navigation intent.
+async function loadWebhookSuccessChart() {
+  const chart = await import('@/components/charts/webhook-success-chart')
+  return { default: chart.WebhookSuccessChart }
+}
+
+const WebhookSuccessChart = lazy(loadWebhookSuccessChart)
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
   // The `workspaceDashboard` projection — shared with the REST `overview`
   // endpoint so app and Capability Interface views cannot drift — plus the
@@ -72,7 +83,9 @@ export function WorkspaceDashboardPage({
                 <CardTitle as="h2">Webhook delivery</CardTitle>
               </CardHeader>
               <CardContent>
-                <WebhookSuccessChart webhooks={webhooks} />
+                <Suspense fallback={null}>
+                  <WebhookSuccessChart webhooks={webhooks} />
+                </Suspense>
               </CardContent>
             </Card>
           )}
