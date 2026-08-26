@@ -26,7 +26,7 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "test:e2e": "bun --cwd apps/web test:e2e",
-    "lint": "oxlint --type-aware --ignore-pattern '.context/**' --report-unused-disable-directives-severity=error",
+    "lint": "oxlint --type-aware --ignore-pattern '.context/**'",
     "lint:fix": "oxlint --type-aware --ignore-pattern '.context/**' --fix",
     "format": "oxfmt --write",
     "format:check": "oxfmt --check",

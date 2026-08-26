@@ -36,6 +36,10 @@ bun run test
 - Formatting: `oxfmt`
 - Linting: `oxlint`
 
+## Dependencies
+
+- Versions are single-sourced in the root `package.json` `catalog`. When adding or upgrading a dependency, install with `bun add --catalog <pkg>` (Bun >= 1.4) so the workspace resolves `"catalog:"` instead of pinning a version.
+
 ## Cross-Cutting Rules
 
 1. Use Effect v4 typed errors, services, schemas, and HTTP API contracts for application behavior.
