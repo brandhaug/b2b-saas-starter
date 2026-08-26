@@ -1,7 +1,7 @@
-import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
+import { Auth } from '@b2b-saas-starter/auth'
 import { type PlatformUserAdminBinding } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
-import { Effect, Result, Schema } from 'effect'
-import { type Service } from 'effectful-better-auth'
+import { Schema } from 'effect'
+import { runAuth } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'
 import { currentRequest } from '../request-context'
 
@@ -18,8 +18,6 @@ import { currentRequest } from '../request-context'
  * the request's own session — so headers are read at call time and one
  * module-level adapter serves every request without capturing one.
  */
-
-type AuthService = Service<AuthOptions>
 
 /**
  * A plugin call attempted with no in-flight request to take session headers
@@ -38,50 +36,48 @@ function requireHeaders(headers: Headers | undefined): Headers {
   return headers
 }
 
-/**
- * Rejects with the underlying failure itself rather than a wrapped cause, so
- * `classifyBindingFailure` in the capability can read its `statusCode`.
- */
-async function runBinding(
-  build: (
-    auth: AuthService,
-    headers: Headers | undefined
-  ) => Effect.Effect<unknown, unknown, never>
-): Promise<void> {
-  const request = currentRequest()
-  const result = await authRuntime.runPromise(
-    Effect.result(Effect.flatMap(Auth.Tag, (auth) => build(auth, request?.headers)))
-  )
-  if (Result.isFailure(result)) {
-    // oxlint-disable-next-line effect/noThrowStatement -- same boundary as webMemberBinding: the capability classifies this value by its statusCode
-    throw result.failure
-  }
-}
-
 export const webUserAdminBinding: PlatformUserAdminBinding = {
-  banUser: (input) =>
-    runBinding((auth, headers) =>
-      auth.api.banUser({
-        body: { userId: input.userId },
-        headers: requireHeaders(headers)
-      })
-    ),
-  unbanUser: (input) =>
-    runBinding((auth, headers) =>
-      auth.api.unbanUser({
-        body: { userId: input.userId },
-        headers: requireHeaders(headers)
-      })
-    ),
-  setMemberRole: (input) =>
-    runBinding((auth, headers) =>
-      auth.api.updateMemberRole({
-        body: {
-          role: input.role,
-          memberId: input.memberId,
-          organizationId: input.workspaceId
-        },
-        headers: requireHeaders(headers)
-      })
-    )
+  banUser: async (input) => {
+    const headers = requireHeaders(currentRequest()?.headers)
+    await runAuth({
+      tag: Auth.Tag,
+      runtime: authRuntime,
+      headers,
+      build: (api) =>
+        api.banUser({
+          body: { userId: input.userId },
+          headers
+        })
+    })
+  },
+  unbanUser: async (input) => {
+    const headers = requireHeaders(currentRequest()?.headers)
+    await runAuth({
+      tag: Auth.Tag,
+      runtime: authRuntime,
+      headers,
+      build: (api) =>
+        api.unbanUser({
+          body: { userId: input.userId },
+          headers
+        })
+    })
+  },
+  setMemberRole: async (input) => {
+    const headers = requireHeaders(currentRequest()?.headers)
+    await runAuth({
+      tag: Auth.Tag,
+      runtime: authRuntime,
+      headers,
+      build: (api) =>
+        api.updateMemberRole({
+          body: {
+            role: input.role,
+            memberId: input.memberId,
+            organizationId: input.workspaceId
+          },
+          headers
+        })
+    })
+  }
 }

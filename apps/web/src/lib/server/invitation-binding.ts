@@ -1,7 +1,7 @@
-import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
+import { Auth } from '@b2b-saas-starter/auth'
 import { type WorkspaceInvitationBinding } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import { Effect, Result, Schema } from 'effect'
-import { type Service } from 'effectful-better-auth'
+import { Schema } from 'effect'
+import { runAuth } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'
 import { currentRequest } from '../request-context'
 
@@ -22,8 +22,6 @@ import { currentRequest } from '../request-context'
  * one module-level adapter serves every request without capturing one.
  */
 
-type AuthService = Service<AuthOptions>
-
 /**
  * A plugin call attempted with no in-flight request to take session headers
  * from. It carries an explicit `message` and, deliberately, no `statusCode`:
@@ -37,60 +35,56 @@ class MissingRequestHeaders extends Schema.TaggedError<MissingRequestHeaders>()(
   { message: Schema.String }
 ) {}
 
-/**
- * Rejects with the `BetterAuthApiError` itself rather than a wrapped cause, so
- * `classifyBindingFailure` in the capability can read its `statusCode`. Getting
- * this wrong turns every "the workspace refuses" into a 503 telling the caller
- * to retry something that can never succeed.
- *
- * `async` + `throw` rather than `Promise.reject`: this function *is* the promise
- * boundary the port asks for, and throwing inside an async function is how it
- * rejects without reaching for a Promise constructor.
- */
-async function runBinding<A>(
-  build: (auth: AuthService, headers: Headers) => Effect.Effect<A, unknown, never>
-): Promise<void> {
-  const request = currentRequest()
-  if (!request) {
-    // oxlint-disable-next-line effect/noThrowStatement -- rejects the promise the WorkspaceInvitationBinding port returns; there is no Effect error channel on this side of it
-    throw new MissingRequestHeaders({ message: 'no_request_headers' })
-  }
-  const headers = request.headers
-  const result = await authRuntime.runPromise(
-    Effect.result(Effect.flatMap(Auth.Tag, (auth) => build(auth, headers)))
-  )
-  if (Result.isFailure(result)) {
-    // oxlint-disable-next-line effect/noThrowStatement -- same boundary: the capability classifies this value by its statusCode, so it must arrive as the rejection
-    throw result.failure
-  }
+function requireHeaders(headers: Headers | undefined): Headers {
+  // oxlint-disable-next-line effect/noThrowStatement -- rejects the promise the WorkspaceInvitationBinding port returns; there is no Effect error channel on this side of it
+  if (!headers) throw new MissingRequestHeaders({ message: 'no_request_headers' })
+  return headers
 }
 
 export const webInvitationBinding: WorkspaceInvitationBinding = {
-  create: (input) =>
-    runBinding((auth, headers) =>
-      auth.api.createInvitation({
-        body: {
-          email: input.email,
-          role: input.role,
-          organizationId: input.workspaceId
-        },
-        headers
-      })
-    ),
-  cancel: (input) =>
-    runBinding((auth, headers) =>
-      auth.api.cancelInvitation({
-        body: { invitationId: input.invitationId },
-        headers
-      })
-    ),
+  create: async (input) => {
+    const headers = requireHeaders(currentRequest()?.headers)
+    await runAuth({
+      tag: Auth.Tag,
+      runtime: authRuntime,
+      headers,
+      build: (api) =>
+        api.createInvitation({
+          body: {
+            email: input.email,
+            role: input.role,
+            organizationId: input.workspaceId
+          },
+          headers
+        })
+    })
+  },
+  cancel: async (input) => {
+    const headers = requireHeaders(currentRequest()?.headers)
+    await runAuth({
+      tag: Auth.Tag,
+      runtime: authRuntime,
+      headers,
+      build: (api) =>
+        api.cancelInvitation({
+          body: { invitationId: input.invitationId },
+          headers
+        })
+    })
+  },
   // The plugin reads the accepting user from this session and refuses an
   // invitation addressed to anyone else, which is why the port passes no user.
-  accept: (input) =>
-    runBinding((auth, headers) =>
-      auth.api.acceptInvitation({
-        body: { invitationId: input.invitationId },
-        headers
-      })
-    )
+  accept: async (input) => {
+    const headers = requireHeaders(currentRequest()?.headers)
+    await runAuth({
+      tag: Auth.Tag,
+      runtime: authRuntime,
+      headers,
+      build: (api) =>
+        api.acceptInvitation({
+          body: { invitationId: input.invitationId },
+          headers
+        })
+    })
+  }
 }
