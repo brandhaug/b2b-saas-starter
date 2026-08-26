@@ -1,4 +1,3 @@
-import { annotateWide } from '@b2b-saas-starter/logger'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
 import {
   WORKSPACE_ROLES,
@@ -20,6 +19,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { Effect, Option, Result, Schema, type Scope } from 'effect'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { currentRequest } from '../request-context'
+import { EMAIL_PATTERN } from '../email-pattern'
 import { emailDispatcherLayer } from './auth-emails'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
@@ -53,7 +53,7 @@ const SendInvitationInput = Schema.Struct({
   email: Schema.String.check(
     Schema.isMinLength(3),
     Schema.isMaxLength(320),
-    Schema.isPattern(/^[^\s@]+@[^\s@]+$/)
+    Schema.isPattern(EMAIL_PATTERN)
   ),
   role: WorkspaceRoleInput
 })
@@ -132,7 +132,7 @@ export function sendInvitation(input: {
       })
     )
     if (Result.isFailure(delivery)) {
-      yield* annotateWide({
+      yield* Effect.annotateLogsScoped({
         outcome: 'invitation_email_failed',
         emailError: delivery.failure.message
       })

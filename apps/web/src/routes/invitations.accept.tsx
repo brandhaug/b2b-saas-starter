@@ -1,7 +1,7 @@
 import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
 import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import { Cause, Effect, Exit, Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import { MailCheckIcon } from 'lucide-react'
 import { PublicLayout } from '@/components/public-layout'
 import { RoutePending } from '@/components/route-pending'
@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { causeMessage } from '@/lib/cause-message'
 import { requireSession } from '@/lib/server/auth'
 import { Spinner } from '@/components/ui/spinner'
 import {
@@ -17,6 +16,7 @@ import {
   invitationPreviewServerFn,
   type InvitationPreview
 } from '@/lib/server/invitations'
+import { callServerFn } from '@/lib/server-call'
 
 const ACCEPT_FAILED = 'Could not accept the invitation'
 
@@ -143,21 +143,17 @@ function PendingInvitation({
     setError(null)
     // oxlint-disable-next-line effect/noTryCatch -- an event handler resetting a loading flag, not Effect control flow: `finally` clears the flag on rejection too, so a failed accept never leaves the button disabled forever.
     try {
-      const exit = await Effect.runPromiseExit(
-        Effect.tryPromise({
-          try: () => acceptInvitation({ data: { invitationId: preview.invitationId } }),
-          catch: (cause) => causeMessage(cause, ACCEPT_FAILED)
-        })
+      const outcome = await callServerFn(
+        () => acceptInvitation({ data: { invitationId: preview.invitationId } }),
+        ACCEPT_FAILED
       )
-      if (Exit.isFailure(exit)) {
-        setError(
-          Option.getOrElse(Cause.findErrorOption(exit.cause), () => ACCEPT_FAILED)
-        )
+      if (!outcome.ok) {
+        setError(outcome.message)
         return
       }
       await router.navigate({
         to: '/workspaces/$workspaceSlug',
-        params: { workspaceSlug: exit.value.workspaceSlug }
+        params: { workspaceSlug: outcome.value.workspaceSlug }
       })
     } finally {
       setSubmitting(false)

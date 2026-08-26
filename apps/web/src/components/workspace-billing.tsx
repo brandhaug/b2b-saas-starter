@@ -1,11 +1,11 @@
 import { Check, Minus } from 'lucide-react'
 import { useState } from 'react'
-import { Cause, Effect, Exit, Option } from 'effect'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
+import { callServerFn } from '@/lib/server-call'
 import { startCheckoutServerFn } from '@/lib/server/billing'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
@@ -14,10 +14,10 @@ const CHECKOUT_DISABLED =
   'Checkout is not available right now: billing is not configured for this deployment.'
 const CHECKOUT_FAILED = 'Something went wrong starting checkout.'
 
-/** The server function the Upgrade button calls; a test supplies its own. */
-export type StartCheckout = (input: {
-  readonly data: { readonly workspaceSlug: string; readonly planId: string }
-}) => Promise<{ url: string }>
+/** The server function the Upgrade button calls; a test supplies its own. */ export type StartCheckout =
+  (input: {
+    readonly data: { readonly workspaceSlug: string; readonly planId: string }
+  }) => Promise<{ url: string }>
 
 export type BillingPlan = {
   readonly id: string
@@ -77,23 +77,19 @@ export function WorkspaceBillingPage({
   async function upgrade(planId: string) {
     setError(null)
     setPendingPlan(planId)
-    // The server function rejects when the capability fails. `Effect.tryPromise`
-    // moves that rejection into the error channel as a display message, so the
-    // failure path is a value instead of a try/catch.
-    const exit = await Effect.runPromiseExit(
-      Effect.tryPromise({
-        try: () => startCheckout({ data: { workspaceSlug, planId } }),
-        catch: (thrown) => checkoutErrorText(thrown)
-      })
+    // The server function rejects when the capability fails; `callServerFn`
+    // folds that rejection into a displayable message via checkoutErrorText.
+    const result = await callServerFn(
+      () => startCheckout({ data: { workspaceSlug, planId } }),
+      CHECKOUT_FAILED,
+      checkoutErrorText
     )
     setPendingPlan(null)
-    if (Exit.isFailure(exit)) {
-      setError(
-        Option.getOrElse(Cause.findErrorOption(exit.cause), () => CHECKOUT_FAILED)
-      )
+    if (!result.ok) {
+      setError(result.message)
       return
     }
-    window.location.assign(exit.value.url)
+    window.location.assign(result.value.url)
   }
 
   return (

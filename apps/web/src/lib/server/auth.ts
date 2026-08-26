@@ -1,4 +1,3 @@
-import { annotateWide } from '@b2b-saas-starter/logger'
 import { Auth, type Session } from '@b2b-saas-starter/auth'
 import { notFound, redirect } from '@tanstack/react-router'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
@@ -24,7 +23,7 @@ const readSession = createServerOnlyFn((): Promise<Session | null> => {
         const session = yield* auth.api.getSession({ headers: request.headers })
         // Whether the gate found a session is the useful fact. Never the token,
         // never the email.
-        yield* annotateWide({ authenticated: session !== null })
+        yield* Effect.annotateLogsScoped({ authenticated: session !== null })
         return session
       })
     )

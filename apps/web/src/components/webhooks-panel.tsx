@@ -1,10 +1,7 @@
-import {
-  type WebhookDelivery,
-  type WebhookEndpoint
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-delivery-plan.ts'
+import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import { Cause, Effect, Exit, Option } from 'effect'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -21,12 +18,14 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { WebhookForm, type CreateWebhookEndpoint } from '@/components/webhook-form'
-import { causeMessage } from '@/lib/cause-message'
+import { ConfirmButton } from '@/components/confirm-button'
+import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import {
   disableWebhookEndpointServerFn,
   rotateWebhookSecretServerFn
 } from '@/lib/server/webhooks'
+import { callServerFn } from '@/lib/server-call'
 
 const DISABLE_FAILED = 'Failed to disable endpoint'
 const ROTATE_FAILED = 'Failed to rotate secret'
@@ -57,15 +56,6 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleString('en-US', { timeZone: 'UTC' })
 }
 
-// A fallback keeps unknown free-text statuses visible rather than crashing
-// the render — the column is free-text by design.
-type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline'
-function statusVariant(status: string): BadgeVariant {
-  if (status === 'delivered') return 'default'
-  if (status === 'failed') return 'secondary'
-  return 'destructive'
-}
-
 function Deliveries({
   deliveries
 }: {
@@ -78,7 +68,9 @@ function Deliveries({
     <ul className="grid gap-1">
       {deliveries.map((delivery) => (
         <li key={delivery.id} className="flex items-center gap-2 text-xs">
-          <Badge variant={statusVariant(delivery.status)}>{delivery.status}</Badge>
+          <Badge variant={webhookDeliveryStatusVariant(delivery.status)}>
+            {delivery.status}
+          </Badge>
           <span className="font-mono">{delivery.eventType}</span>
           <span className="text-muted-foreground">
             attempt {delivery.attempts}
@@ -135,17 +127,13 @@ export function WebhooksPanel({
   async function disable(endpointId: string) {
     setError(null)
     setBusy(endpointId)
-    const exit = await Effect.runPromiseExit(
-      Effect.tryPromise({
-        try: () => disableEndpoint({ data: { workspaceSlug, endpointId } }),
-        catch: (cause) => causeMessage(cause, DISABLE_FAILED)
-      })
+    const outcome = await callServerFn(
+      () => disableEndpoint({ data: { workspaceSlug, endpointId } }),
+      DISABLE_FAILED
     )
     setBusy(null)
-    if (Exit.isFailure(exit)) {
-      setError(
-        Option.getOrElse(Cause.findErrorOption(exit.cause), () => DISABLE_FAILED)
-      )
+    if (!outcome.ok) {
+      setError(outcome.message)
       return
     }
     // The loader owns the list, so re-run it rather than mirroring the change
@@ -157,20 +145,18 @@ export function WebhooksPanel({
     setError(null)
     setRotatedSecret(null)
     setBusy(endpointId)
-    const exit = await Effect.runPromiseExit(
-      Effect.tryPromise({
-        try: () => rotateSecret({ data: { workspaceSlug, endpointId } }),
-        catch: (cause) => causeMessage(cause, ROTATE_FAILED)
-      })
+    const outcome = await callServerFn(
+      () => rotateSecret({ data: { workspaceSlug, endpointId } }),
+      ROTATE_FAILED
     )
     setBusy(null)
-    if (Exit.isFailure(exit)) {
-      setError(Option.getOrElse(Cause.findErrorOption(exit.cause), () => ROTATE_FAILED))
+    if (!outcome.ok) {
+      setError(outcome.message)
       return
     }
     // `null` means no endpoint matched in this workspace — nothing was
     // rotated and there is no secret to show.
-    if (exit.value !== null) setRotatedSecret({ endpointId, secret: exit.value })
+    if (outcome.value !== null) setRotatedSecret({ endpointId, secret: outcome.value })
     await router.invalidate()
   }
 
@@ -235,8 +221,10 @@ export function WebhooksPanel({
                 {(canDisable || canRotate) && endpoint.enabled ? (
                   <ItemActions className="flex-wrap">
                     {canDisable ? (
-                      <DisableAction
-                        confirming={confirmingId === endpoint.id}
+                      <ConfirmButton
+                        label="Disable"
+                        confirmLabel="Confirm disable"
+                        armed={confirmingId === endpoint.id}
                         busy={busy === endpoint.id}
                         onArm={() => setConfirmingId(endpoint.id)}
                         onCancel={() => setConfirmingId(null)}
@@ -284,43 +272,5 @@ export function WebhooksPanel({
         </Alert>
       ) : null}
     </div>
-  )
-}
-
-/**
- * The disable control's two states: an armed pair (confirm plus cancel) and
- * the idle button that arms it. Extracted so the panel's row stays flat — a
- * nested ternary here is exactly the branching this named component owns.
- */
-function DisableAction({
-  confirming,
-  busy,
-  onArm,
-  onCancel,
-  onConfirm
-}: {
-  readonly confirming: boolean
-  readonly busy: boolean
-  readonly onArm: () => void
-  readonly onCancel: () => void
-  readonly onConfirm: () => void
-}) {
-  if (!confirming) {
-    return (
-      <Button variant="ghost" size="sm" onClick={onArm}>
-        Disable
-      </Button>
-    )
-  }
-  return (
-    <>
-      <Button variant="destructive" size="sm" disabled={busy} onClick={onConfirm}>
-        {busy ? <Spinner data-icon="inline-start" /> : null}
-        Confirm disable
-      </Button>
-      <Button variant="ghost" size="sm" onClick={onCancel}>
-        Cancel
-      </Button>
-    </>
   )
 }

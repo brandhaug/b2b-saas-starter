@@ -4,7 +4,6 @@ import {
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
 import { type WorkspaceWithMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
-import { Cause, Effect, Exit, Option } from 'effect'
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 
@@ -20,7 +19,6 @@ import {
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { causeMessage } from '@/lib/cause-message'
 import {
   banSystemUserServerFn,
   changeUserWorkspaceRoleServerFn,
@@ -28,21 +26,7 @@ import {
   unbanSystemUserServerFn,
   type SystemUser
 } from '@/lib/server/admin'
-
-/** Runs one server fn, folding any failure into a displayable message. */
-async function callServerFn<A>(
-  run: () => Promise<A>,
-  fallback: string
-): Promise<{ ok: true; value: A } | { ok: false; message: string }> {
-  const exit = await Effect.runPromiseExit(
-    Effect.tryPromise({ try: run, catch: (cause) => causeMessage(cause, fallback) })
-  )
-  if (Exit.isSuccess(exit)) return { ok: true, value: exit.value }
-  return {
-    ok: false,
-    message: Option.getOrElse(Cause.findErrorOption(exit.cause), () => fallback)
-  }
-}
+import { callServerFn } from '@/lib/server-call'
 
 /**
  * Per-user admin actions under `/admin`'s users table: ban/unban, and a
@@ -122,8 +106,16 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
       'Role change'
     )
     if (!settled) return
-    const read = await listUserWorkspacesServerFn({ data: { userId: member.id } })
-    setMemberships(read)
+    // Re-read the memberships through the same folded call so a read failure
+    // lands in error state instead of escaping as an unhandled rejection.
+    const read = await callServerFn(() => {
+      return listUserWorkspacesServerFn({ data: { userId: member.id } })
+    }, 'Failed to load workspaces')
+    if (!read.ok) {
+      setError(read.message)
+      return
+    }
+    setMemberships(read.value)
   }
 
   const selected = users.find((user) => user.id === selectedId)

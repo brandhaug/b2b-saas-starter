@@ -55,6 +55,13 @@ type PanelState = {
   readonly statusMessage: string | null
 }
 
+/** Reads the `secret` query parameter off a TOTP URI; an unparseable URI or
+ * one without a secret yields null rather than a mangled substring. */
+function parseSecretFromUri(uri: string | null): string | null {
+  if (uri === null || !URL.canParse(uri)) return null
+  return new URL(uri).searchParams.get('secret')
+}
+
 type PanelAction =
   | { readonly type: 'password'; readonly value: string }
   | { readonly type: 'code'; readonly value: string }
@@ -130,58 +137,70 @@ export function TwoFactorPanel({
   })
   const [busy, setBusy] = useState(false)
 
-  async function startSetup() {
+  /**
+   * The one action shape all three flows share: clear the status line, run the
+   * endpoint with the busy flag up, fold a plugin failure into `failed`, and
+   * hand the success result to the caller.
+   */
+  async function runAction<
+    A extends { readonly error?: { readonly message?: string | undefined } | null }
+  >(run: () => Promise<A>, fallbackMessage: string, onSuccess: (result: A) => void) {
     dispatch({ type: 'clearStatus' })
     setBusy(true)
-    const result = await enableTwoFactor({ password: state.password }).finally(() =>
-      setBusy(false)
+    const result = await run().finally(() => setBusy(false))
+    if (result.error) {
+      dispatch({
+        type: 'failed',
+        message: result.error.message ?? fallbackMessage
+      })
+      return
+    }
+    onSuccess(result)
+  }
+
+  /** Wraps `enableTwoFactor` so an incomplete response is a failure too. */
+  async function beginEnrollment(): Promise<
+    | { readonly error: { readonly message: string } }
+    | {
+        readonly error?: { readonly message?: string | undefined } | null
+        readonly totpURI: string | null
+      }
+  > {
+    const result = await enableTwoFactor({ password: state.password })
+    const totpURI =
+      result.data && 'totpURI' in result.data ? (result.data.totpURI ?? null) : null
+    if (!result.error && totpURI === null) {
+      return { error: { message: 'Setup response was incomplete' } }
+    }
+    return { totpURI }
+  }
+
+  function startSetup() {
+    void runAction(beginEnrollment, 'Could not start setup', (result) => {
+      if (!('totpURI' in result) || result.totpURI === null) return
+      dispatch({ type: 'enrolled', totpURI: result.totpURI })
+    })
+  }
+
+  function confirmCode() {
+    void runAction(
+      () => verifyTotp({ code: state.code }),
+      'Invalid code',
+      () => dispatch({ type: 'verified' })
     )
-    if (result.error) {
-      dispatch({
-        type: 'failed',
-        message: result.error.message ?? 'Could not start setup'
-      })
-      return
-    }
-    const data = result.data
-    if (!data || !('totpURI' in data) || !data.totpURI) {
-      dispatch({ type: 'failed', message: 'Setup response was incomplete' })
-      return
-    }
-    dispatch({ type: 'enrolled', totpURI: data.totpURI })
   }
 
-  async function confirmCode() {
-    dispatch({ type: 'clearStatus' })
-    setBusy(true)
-    const result = await verifyTotp({ code: state.code }).finally(() => setBusy(false))
-    if (result.error) {
-      dispatch({
-        type: 'failed',
-        message: result.error.message ?? 'Invalid code'
-      })
-      return
-    }
-    dispatch({ type: 'verified' })
-  }
-
-  async function turnOff() {
-    dispatch({ type: 'clearStatus' })
-    setBusy(true)
-    const result = await disableTwoFactor({ password: state.password }).finally(() =>
-      setBusy(false)
+  function turnOff() {
+    void runAction(
+      () => disableTwoFactor({ password: state.password }),
+      'Could not turn off two-factor',
+      () => dispatch({ type: 'disabled' })
     )
-    if (result.error) {
-      dispatch({
-        type: 'failed',
-        message: result.error.message ?? 'Could not turn off two-factor'
-      })
-      return
-    }
-    dispatch({ type: 'disabled' })
   }
 
-  const secretFromUri = state.totpURI?.split('secret=')[1]?.split('&')[0] ?? null
+  // The secret lives in the URI's query string; an unparseable URI yields no
+  // secret rather than a mangled substring.
+  const secretFromUri = parseSecretFromUri(state.totpURI)
 
   if (twoFactorEnabled && state.step === 'idle') {
     return (
@@ -197,7 +216,7 @@ export function TwoFactorPanel({
         <form
           onSubmit={(event) => {
             event.preventDefault()
-            void turnOff()
+            turnOff()
           }}
           className="grid gap-3"
         >
@@ -249,7 +268,7 @@ export function TwoFactorPanel({
         <form
           onSubmit={(event) => {
             event.preventDefault()
-            void confirmCode()
+            confirmCode()
           }}
           className="grid gap-3"
         >
@@ -289,7 +308,7 @@ export function TwoFactorPanel({
       <form
         onSubmit={(event) => {
           event.preventDefault()
-          void startSetup()
+          startSetup()
         }}
         className="grid gap-3"
       >

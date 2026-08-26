@@ -1,9 +1,9 @@
 import {
   type CreatedWebhookEndpoint,
   WebhookEndpoints,
-  type WebhookDelivery,
   type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-delivery-plan.ts'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'

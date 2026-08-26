@@ -6,7 +6,6 @@ import { type Invitation } from '@b2b-saas-starter/capabilities/src/governance/w
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
-import { Cause, Effect, Exit, Option } from 'effect'
 
 import { FormTextField } from '@/components/form-text-field'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -24,12 +23,14 @@ import {
 } from '@/components/ui/item'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
-import { causeMessage } from '@/lib/cause-message'
 import {
   cancelInvitationServerFn,
   sendInvitationServerFn,
   type SentInvitation
 } from '@/lib/server/invitations'
+import { callServerFn } from '@/lib/server-call'
+import { EMAIL_PATTERN } from '@/lib/email-pattern'
+import { invitationStatusVariant } from '@/lib/badge-variants'
 
 const SEND_FAILED = 'Failed to send the invitation'
 const CANCEL_FAILED = 'Failed to cancel the invitation'
@@ -46,17 +47,8 @@ const DEFAULT_INVITATION_VALUES: InvitationValues = {
 
 function validateEmail(value: string): string | undefined {
   if (value.trim().length === 0) return 'Email is required'
-  if (!/^[^\s@]+@[^\s@]+$/.test(value)) return 'Enter a valid email address'
+  if (!EMAIL_PATTERN.test(value)) return 'Enter a valid email address'
   return
-}
-
-type BadgeVariant = 'default' | 'secondary' | 'outline'
-
-/** `pending` is the only status a workspace can still act on, so it leads. */
-function statusVariant(status: Invitation['status']): BadgeVariant {
-  if (status === 'pending') return 'default'
-  if (status === 'accepted') return 'secondary'
-  return 'outline'
 }
 
 export function InvitationPanel({
@@ -76,25 +68,21 @@ export function InvitationPanel({
     defaultValues: DEFAULT_INVITATION_VALUES,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      // Same shape as `ApiTokenForm`: the server function rejects on failure and
-      // `Effect.tryPromise` turns that rejection into a display message, so the
+      // Same shape as `ApiTokenForm`: the server function rejects on failure
+      // and `callServerFn` folds that rejection into a display message, so the
       // failure path is a value rather than a try/catch.
-      const exit = await Effect.runPromiseExit(
-        Effect.tryPromise({
-          try: () =>
-            sendInvitationServerFn({
-              data: { workspaceSlug, email: value.email, role: value.role }
-            }),
-          catch: (cause) => causeMessage(cause, SEND_FAILED)
-        })
+      const outcome = await callServerFn(
+        () =>
+          sendInvitationServerFn({
+            data: { workspaceSlug, email: value.email, role: value.role }
+          }),
+        SEND_FAILED
       )
-      if (Exit.isFailure(exit)) {
-        setSubmitError(
-          Option.getOrElse(Cause.findErrorOption(exit.cause), () => SEND_FAILED)
-        )
+      if (!outcome.ok) {
+        setSubmitError(outcome.message)
         return
       }
-      setSent(exit.value)
+      setSent(outcome.value)
       form.reset()
       // The loader owns the invitation list, so re-run it rather than mirroring
       // the new row into local state.
@@ -105,17 +93,13 @@ export function InvitationPanel({
   async function cancel(invitationId: string) {
     setCancelError(null)
     setCancelling(invitationId)
-    const exit = await Effect.runPromiseExit(
-      Effect.tryPromise({
-        try: () => cancelInvitationServerFn({ data: { workspaceSlug, invitationId } }),
-        catch: (cause) => causeMessage(cause, CANCEL_FAILED)
-      })
+    const outcome = await callServerFn(
+      () => cancelInvitationServerFn({ data: { workspaceSlug, invitationId } }),
+      CANCEL_FAILED
     )
     setCancelling(null)
-    if (Exit.isFailure(exit)) {
-      setCancelError(
-        Option.getOrElse(Cause.findErrorOption(exit.cause), () => CANCEL_FAILED)
-      )
+    if (!outcome.ok) {
+      setCancelError(outcome.message)
       return
     }
     await router.invalidate()
@@ -224,7 +208,7 @@ export function InvitationPanel({
                   <ItemDescription>{invitation.role}</ItemDescription>
                 </ItemContent>
                 <ItemActions>
-                  <Badge variant={statusVariant(invitation.status)}>
+                  <Badge variant={invitationStatusVariant(invitation.status)}>
                     {invitation.status}
                   </Badge>
                   {invitation.status === 'pending' ? (
