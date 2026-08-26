@@ -44,6 +44,12 @@ type RequestTelemetry = {
   readonly baseKeys: ReadonlySet<string>
   /** Nested work, appended in completion order, flushed onto the wide event. */
   readonly nested: Array<Record<string, unknown>>
+  /**
+   * Per-request memoization slots (`memoizePerRequest`). Lives on the telemetry
+   * object — not a separate WeakMap — so it dies with the request *and* is
+   * shared across the `Request` instances Start may substitute mid-flight.
+   */
+  readonly memo: Map<string, Promise<unknown>>
 }
 
 // Keyed by the request object so entries die with the request; a Worker isolate
@@ -103,6 +109,41 @@ type WebRequestMetadata = {
 }
 
 /**
+ * One promise per (request, key): the request-scoped memoization every gate
+ * or loader that reads the same expensive thing more than once joins.
+ *
+ * Outside a request scope — unit tests, scripts, client-side navigations —
+ * there is nothing to dedupe against, so `make` runs on every call. Within a
+ * request, slots live on the request's telemetry object, so they die with the
+ * request (no cross-request leakage on an interleaved isolate) and are shared
+ * across the `Request` instances Start may substitute mid-flight, exactly like
+ * the telemetry join above.
+ *
+ * This is the sanctioned home for request-scoped memoization in this app; new
+ * call sites join it instead of adding another module-level WeakMap.
+ */
+export function memoizePerRequest<A>(
+  key: string,
+  make: () => Promise<A>,
+  lookupRequest: CurrentRequest = currentRequest
+): Promise<A> {
+  const request = lookupRequest()
+  const telemetry = request === undefined ? undefined : registry.get(request)
+  if (!telemetry) return make()
+  const existing = telemetry.memo.get(key)
+  if (existing) {
+    // SAFETY: slots are keyed by the caller's `key`, so every promise stored
+    // under one key came from that caller's own `make` — the value type is a
+    // property of the key, checked at this single boundary.
+    // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see above
+    return existing as Promise<A>
+  }
+  const pending = make()
+  telemetry.memo.set(key, pending)
+  return pending
+}
+
+/**
  * Wraps one web request in the single wide-event scope every nested run joins.
  * Called only from the global request middleware.
  *
@@ -146,7 +187,13 @@ function registerAndRun(
     // request's identity (service, traceId, pathname) for free.
     const services = yield* Effect.context<never>()
     const baseKeys = new Set(Object.keys(yield* References.CurrentLogAnnotations))
-    const telemetry: RequestTelemetry = { span, services, baseKeys, nested: [] }
+    const telemetry: RequestTelemetry = {
+      span,
+      services,
+      baseKeys,
+      nested: [],
+      memo: new Map()
+    }
     registry.set(request, telemetry)
     // The middleware and the loaders may see different `Request` instances
     // (Start re-wraps the request as it flows through the handler chain), so
