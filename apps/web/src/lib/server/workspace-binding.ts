@@ -1,7 +1,7 @@
-import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
+import { Auth } from '@b2b-saas-starter/auth'
 import { type WorkspaceLifecycleBinding } from '@b2b-saas-starter/capabilities/governance/workspace-lifecycle'
-import { Effect, Result, Schema } from 'effect'
-import { type Service } from 'effectful-better-auth'
+import { Schema } from 'effect'
+import { runAuth } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'
 import { currentRequest } from '../request-context'
 
@@ -16,31 +16,14 @@ import { currentRequest } from '../request-context'
  * plugin error's `statusCode`.
  *
  * Only `create` runs headerless (the plugin accepts a `userId` body field);
- * rename and delete demand the session cookie, which is why they go through
- * `runBinding` like every invitation endpoint does.
+ * rename and delete demand the session cookie.
  */
-
-type AuthService = Service<AuthOptions>
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 class MissingRequestHeaders extends Schema.TaggedError<MissingRequestHeaders>()(
   'MissingRequestHeaders',
   { message: Schema.String }
 ) {}
-
-async function runBinding<A>(
-  build: (auth: AuthService, headers?: Headers) => Effect.Effect<A, unknown, never>
-): Promise<void> {
-  const request = currentRequest()
-  const headers = request?.headers
-  const result = await authRuntime.runPromise(
-    Effect.result(Effect.flatMap(Auth.Tag, (auth) => build(auth, headers)))
-  )
-  if (Result.isFailure(result)) {
-    // oxlint-disable-next-line effect/noThrowStatement -- the capability classifies this value by its statusCode, so it must arrive as the rejection
-    throw result.failure
-  }
-}
 
 function requireHeaders(headers: Headers | undefined): Headers {
   if (!headers) {
@@ -51,32 +34,44 @@ function requireHeaders(headers: Headers | undefined): Headers {
 }
 
 export const webWorkspaceLifecycleBinding: WorkspaceLifecycleBinding = {
-  create: (input) =>
-    runBinding((auth, headers) => {
-      const options = {
-        body: { name: input.name, slug: input.slug, userId: input.userId }
-      }
-      // Create alone is headerless; the plugin takes the creator from the body.
-      if (headers) {
-        return auth.api.createOrganization({ ...options, headers })
-      }
-      return auth.api.createOrganization(options)
-    }),
-  rename: (input) =>
-    runBinding((auth, headers) =>
-      auth.api.updateOrganization({
-        body: {
-          data: { name: input.name },
-          organizationId: input.workspaceId
-        },
-        headers: requireHeaders(headers)
-      })
-    ),
-  remove: (input) =>
-    runBinding((auth, headers) =>
-      auth.api.deleteOrganization({
-        body: { organizationId: input.workspaceId },
-        headers: requireHeaders(headers)
-      })
-    )
+  // Create alone is headerless; the plugin takes the creator from the body.
+  create: async (input) => {
+    await runAuth({
+      tag: Auth.Tag,
+      runtime: authRuntime,
+      build: (api) =>
+        api.createOrganization({
+          body: { name: input.name, slug: input.slug, userId: input.userId }
+        })
+    })
+  },
+  rename: async (input) => {
+    const headers = requireHeaders(currentRequest()?.headers)
+    await runAuth({
+      tag: Auth.Tag,
+      runtime: authRuntime,
+      headers,
+      build: (api) =>
+        api.updateOrganization({
+          body: {
+            data: { name: input.name },
+            organizationId: input.workspaceId
+          },
+          headers
+        })
+    })
+  },
+  remove: async (input) => {
+    const headers = requireHeaders(currentRequest()?.headers)
+    await runAuth({
+      tag: Auth.Tag,
+      runtime: authRuntime,
+      headers,
+      build: (api) =>
+        api.deleteOrganization({
+          body: { organizationId: input.workspaceId },
+          headers
+        })
+    })
+  }
 }

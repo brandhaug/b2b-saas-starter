@@ -335,9 +335,6 @@
       },
     },
   },
-  "patchedDependencies": {
-    "effectful-better-auth@0.1.1": "patches/effectful-better-auth@0.1.1.patch",
-  },
   "overrides": {
     "@hono/node-server@<1.19.10": {
       ".": "1.19.17",
@@ -427,7 +424,7 @@
     "drizzle-kit": "1.0.0-rc.5-ab785fc",
     "drizzle-orm": "1.0.0-rc.5-ab785fc",
     "effect": "4.0.0-rc.111",
-    "effectful-better-auth": "0.1.1",
+    "effectful-better-auth": "0.2.0",
     "eslint-plugin-better-tailwindcss": "4.7.0",
     "jsdom": "30.0.1",
     "lint-staged": "17.3.0",
@@ -2105,7 +2102,7 @@
 
     "effect": ["effect@4.0.0-rc.111", "", { "dependencies": { "@standard-schema/spec": "^1.1.0", "fast-check": "^4.9.0", "msgpackr": "^2.0.5" } }, "sha512-ASd5L58EIR0CUNueZNKKjSsyOCd+2alxOAIaTcHaqkJkPsaYSsw5Cg/cfANk5K4Jr2YsX756xvX11shzqsreWA=="],
 
-    "effectful-better-auth": ["effectful-better-auth@0.1.1", "", { "peerDependencies": { "better-auth": "^1.6.0", "effect": "^4.0.0-beta.93" } }, "sha512-vU70ebLdTACYxpipIH7kPgmCR9et5MlrAvMuQjfLhXYAnxmzorWjIiyHs7gwMz6ha68IaRfNXwSVEt6M3hj0Tg=="],
+    "effectful-better-auth": ["effectful-better-auth@0.2.0", "", { "peerDependencies": { "better-auth": "^1.6.0", "effect": "^4.0.0-rc.111" } }, "sha512-maTX2RoLhfR42E88TDeTKWV5XT3QY3NJAKIPx4ebjkYCqbbvzbYGDFOYK+eOKX6P9IjQ2LzNIUsgU/uUnCdWcQ=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.412", "", {}, "sha512-z4rMe3esBzlzovKHj4gxJnsCGZRK5l4baUvm+gCGJBPE+gsyUMKsuU9tnEUtI1dOebXz1ytAPGjvXhmQ7rIPwA=="],
 

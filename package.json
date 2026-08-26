@@ -162,7 +162,7 @@
     "drizzle-kit": "1.0.0-rc.5-ab785fc",
     "drizzle-orm": "1.0.0-rc.5-ab785fc",
     "effect": "4.0.0-rc.111",
-    "effectful-better-auth": "0.1.1",
+    "effectful-better-auth": "0.2.0",
     "eslint-plugin-better-tailwindcss": "4.7.0",
     "jsdom": "30.0.1",
     "lint-staged": "17.3.0",
@@ -198,8 +198,5 @@
     "vitest": "4.1.11",
     "wrangler": "4.125.0",
     "zod": "4.4.3"
-  },
-  "patchedDependencies": {
-    "effectful-better-auth@0.1.1": "patches/effectful-better-auth@0.1.1.patch"
   }
 }
