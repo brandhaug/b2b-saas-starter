@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { type AuthConfigInterface, makeAuthOptions } from './index.ts'
 
 // The email-verification gate is decided by the caller (from `ENVIRONMENT`)
@@ -54,4 +54,108 @@ describe('makeAuthOptions', () => {
       freshAge: 60 * 60
     })
   })
+
+  it('pins the password policy above Better Auth defaults', () => {
+    expect(makeAuthOptions(baseConfig).emailAndPassword).toMatchObject({
+      minPasswordLength: 12,
+      maxPasswordLength: 256
+    })
+  })
+
+  it('pins the reset-token window to thirty minutes', () => {
+    // Explicit so a Better Auth default change cannot silently lengthen the
+    // window in which a leaked reset link is live.
+    expect(makeAuthOptions(baseConfig).emailAndPassword).toMatchObject({
+      resetPasswordTokenExpiresIn: 60 * 30
+    })
+  })
+
+  it('states the session lifetime instead of trusting defaults', () => {
+    expect(makeAuthOptions(baseConfig).session).toMatchObject({
+      expiresIn: 60 * 60 * 24 * 7,
+      updateAge: 60 * 60 * 24
+    })
+  })
+
+  describe('background tasks', () => {
+    it('runs detached promises inline without crashing when they reject', () => {
+      const handler = makeAuthOptions(baseConfig).advanced.backgroundTasks.handler
+      // The fallback must attach handlers (so an unhandled rejection cannot
+      // take the isolate down) without awaiting, rethrowing, or throwing on
+      // the synchronous path.
+      expect(() => {
+        handler(Promise.resolve())
+        handler(Promise.reject(new Error('send failed')))
+      }).not.toThrow()
+    })
+
+    it('delegates to runBackground when the app provides one', () => {
+      const runBackground = vi.fn()
+      const handler = makeAuthOptions({ ...baseConfig, runBackground }).advanced
+        .backgroundTasks.handler
+      const promise = Promise.resolve()
+      handler(promise)
+      expect(runBackground).toHaveBeenCalledWith(promise)
+    })
+  })
+
+  describe('two-factor knobs', () => {
+    it('pins the challenge-cookie and trusted-device windows', () => {
+      const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'two-factor')
+      expect(options.twoFactorCookieMaxAge).toBe(600)
+      expect(options.trustDeviceMaxAge).toBe(60 * 60 * 24 * 30)
+    })
+  })
+
+  describe('organization knobs', () => {
+    it('caps workspaces per user and pins invitation hygiene', () => {
+      const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'organization')
+      expect(options.organizationLimit).toBe(5)
+      expect(options.invitationExpiresIn).toBe(60 * 60 * 24 * 7)
+      expect(options.invitationLimit).toBe(50)
+      expect(options.cancelPendingInvitationsOnReInvite).toBe(true)
+    })
+
+    it('lets unverified users create workspaces while verification is off', () => {
+      const allowUserToCreateOrganization = allowCreateOrganization(
+        makeAuthOptions(baseConfig)
+      )
+      expect(allowUserToCreateOrganization({ emailVerified: false })).toBe(true)
+    })
+
+    it('gates workspace creation on a verified mailbox when verification is enforced', () => {
+      const allowUserToCreateOrganization = allowCreateOrganization(
+        makeAuthOptions({ ...baseConfig, requireEmailVerification: true })
+      )
+      expect(allowUserToCreateOrganization({ emailVerified: false })).toBe(false)
+      expect(allowUserToCreateOrganization({ emailVerified: true })).toBe(true)
+    })
+  })
 })
+
+/**
+ * Reads a Better Auth plugin's `options` bag, which the plugin's declared
+ * type omits — the same access the skipVerificationOnEnable test above makes.
+ */
+function pluginOptions(
+  plugins: ReturnType<typeof makeAuthOptions>['plugins'],
+  id: string
+): Record<string, unknown> {
+  const plugin = plugins.find((candidate) => 'id' in candidate && candidate.id === id)
+  // SAFETY: every option read through this helper lives on that bag by
+  // construction of `makeAuthOptions`.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, effect/noAs -- reading an options bag Better Auth's plugin types do not declare
+  return (plugin as { options?: Record<string, unknown> }).options ?? {}
+}
+
+/** The creation gate, read off the organization plugin's bag and typed. */
+function allowCreateOrganization(options: ReturnType<typeof makeAuthOptions>) {
+  const raw = pluginOptions(
+    options.plugins,
+    'organization'
+  ).allowUserToCreateOrganization
+  // SAFETY: `makeAuthOptions` passes the predicate straight through; this is
+  // its own declared shape, just re-asserted for the test's call site.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, effect/noAs -- re-typing a value stored as unknown by pluginOptions
+  return raw as (user: { emailVerified: boolean }) => boolean
+}

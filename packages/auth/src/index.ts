@@ -48,6 +48,13 @@ export type AuthConfigInterface = {
    * owns the decision, local dev stays provider-light.
    */
   readonly requireEmailVerification: boolean
+  /**
+   * Better Auth's `advanced.backgroundTasks.handler` (verification and reset
+   * emails are sent as detached background promises). On a Worker this should
+   * be `ctx.waitUntil` so a send survives its response; when absent the
+   * fallback runs the promise inline — still correct, just not crash-proof.
+   */
+  readonly runBackground?: ((promise: Promise<unknown>) => void) | undefined
 }
 
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
@@ -79,6 +86,14 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // cannot pass would break the provider-light rule. The unverified state
       // is surfaced in the app instead (banner + resend).
       requireEmailVerification: options.requireEmailVerification,
+      // Stated rather than defaulted: B2B accounts are phishing targets, so
+      // the floor is above Better Auth's 8-character default.
+      minPasswordLength: 12,
+      maxPasswordLength: 256,
+      // Pinned explicitly so a Better Auth default change cannot silently
+      // extend the window in which a leaked reset link is live. Single-use
+      // either way; thirty minutes is ample for an email round trip.
+      resetPasswordTokenExpiresIn: 60 * 30,
       // A reset password is an account-takeover response primitive: once it
       // succeeds, the sessions that preceded it are exactly what the reset
       // exists to distrust.
@@ -102,9 +117,27 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         await options.emails.sendPasswordReset({ email: user.email, url })
       }
     },
+    advanced: {
+      backgroundTasks: {
+        // Verification and reset sends ride this instead of the response
+        // chain: the endpoint must not hang on SMTP, and on Workers only
+        // `waitUntil` keeps the promise alive past the response. The inline
+        // fallback keeps local/test honest without an execution context.
+        handler: (promise: Promise<unknown>) => {
+          if (options.runBackground) {
+            options.runBackground(promise)
+            return
+          }
+          void promise.catch(() => undefined)
+        }
+      }
+    },
     session: {
-      // Defaults for expiresIn (7 days) and updateAge (24 hours) are kept;
-      // `freshAge` is the one knob the starter states: an hour after each
+      // Same values Better Auth defaults to, stated so a default change is a
+      // visible diff rather than a silent session-lifetime shift.
+      expiresIn: 60 * 60 * 24 * 7,
+      updateAge: 60 * 60 * 24,
+      // The knob the starter states beyond the defaults: an hour after each
       // session's last fresh authentication, sensitive account actions
       // (password change, 2FA enable/disable) can demand re-authentication
       // instead of trusting a long-lived cookie alone.
@@ -144,12 +177,30 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         // enroll their own authenticator and lock the real owner out. The
         // account panel already runs enable → QR → first-code as its flow,
         // and a database hook emails the user on every state change.
-        skipVerificationOnEnable: false
+        skipVerificationOnEnable: false,
+        // Both pinned to the values Better Auth defaults to, so a default
+        // change cannot silently lengthen the challenge window or the
+        // trusted-device grace period.
+        twoFactorCookieMaxAge: 600,
+        trustDeviceMaxAge: 60 * 60 * 24 * 30
       }),
       admin({
         adminRoles: ['admin']
       }),
       organization({
+        // One workspace set per plan is billing's business; five is the
+        // starter's sanity cap on free creation.
+        organizationLimit: 5,
+        // Unverified mailboxes do not get to mint workspaces — but only when
+        // verification is actually enforced. Local dev (log-mode email) could
+        // never pass the gate, which would break the provider-light rule.
+        allowUserToCreateOrganization: (user) =>
+          !options.requireEmailVerification || user.emailVerified,
+        // Invitations are stated rather than left on Better Auth's implicit
+        // 48-hour default, and a re-invite cancels the stale link it replaces.
+        invitationExpiresIn: 60 * 60 * 24 * 7,
+        invitationLimit: 50,
+        cancelPendingInvitationsOnReInvite: true,
         // One statement set, one role table, shared with every non-plugin
         // permission check. `requirePermission` reads the same objects, so the
         // plugin's own endpoints and the starter's guard can never disagree.

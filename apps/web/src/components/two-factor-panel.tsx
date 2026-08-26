@@ -37,12 +37,21 @@ export type DisableTwoFactor = (input: { readonly password: string }) => Promise
   readonly error?: { readonly message?: string | undefined } | null
 }>
 
+export type GenerateBackupCodes = (input: { readonly password: string }) => Promise<{
+  readonly data?: { readonly backupCodes?: string[] | undefined } | null | undefined
+  readonly error?: { readonly message?: string | undefined } | null
+}>
+
 function enableWithAuthClient(input: Parameters<EnableTwoFactor>[0]) {
   return authClient.twoFactor.enable(input)
 }
 
 function disableWithAuthClient(input: Parameters<DisableTwoFactor>[0]) {
   return authClient.twoFactor.disable(input)
+}
+
+function generateBackupCodesWithAuthClient(input: Parameters<GenerateBackupCodes>[0]) {
+  return authClient.twoFactor.generateBackupCodes(input)
 }
 
 type PanelState = {
@@ -73,6 +82,8 @@ type PanelAction =
     }
   | { readonly type: 'verified' }
   | { readonly type: 'disabled' }
+  | { readonly type: 'regenerated'; readonly backupCodes: readonly string[] }
+  | { readonly type: 'dismissCodes' }
   | { readonly type: 'failed'; readonly message: string }
   | { readonly type: 'clearStatus' }
 
@@ -112,6 +123,19 @@ function reducer(state: PanelState, action: PanelAction): PanelState {
         statusMessage: 'Two-factor authentication is now off.'
       }
     }
+    case 'regenerated': {
+      // New codes invalidate every previous one; they get the same one-time
+      // reveal as enrollment, until the user dismisses them.
+      return {
+        ...state,
+        password: '',
+        backupCodes: action.backupCodes,
+        statusMessage: null
+      }
+    }
+    case 'dismissCodes': {
+      return { ...state, backupCodes: null }
+    }
     case 'failed': {
       return { ...state, submitError: action.message }
     }
@@ -130,7 +154,8 @@ export function TwoFactorPanel({
   twoFactorEnabled,
   enableTwoFactor = enableWithAuthClient,
   verifyTotp = verifyTotpWithAuthClient,
-  disableTwoFactor = disableWithAuthClient
+  disableTwoFactor = disableWithAuthClient,
+  generateBackupCodes = generateBackupCodesWithAuthClient
 }: {
   // Optional/nullable to match the plugin's declared field shape; anything
   // truthy means "on".
@@ -138,6 +163,7 @@ export function TwoFactorPanel({
   readonly enableTwoFactor?: EnableTwoFactor
   readonly verifyTotp?: VerifyTotpCode
   readonly disableTwoFactor?: DisableTwoFactor
+  readonly generateBackupCodes?: GenerateBackupCodes
 }) {
   const [state, dispatch] = useReducer(reducer, {
     step: 'idle',
@@ -226,6 +252,27 @@ export function TwoFactorPanel({
     )
   }
 
+  function regenerateCodes() {
+    void runAction(
+      async () => {
+        const result = await generateBackupCodes({ password: state.password })
+        const backupCodes =
+          result.data && !result.error ? (result.data.backupCodes ?? null) : null
+        if (!result.error && (backupCodes === null || backupCodes.length === 0)) {
+          return {
+            error: { message: 'Regeneration response was incomplete' }
+          }
+        }
+        return { ...result, backupCodes }
+      },
+      'Could not regenerate backup codes',
+      (result) => {
+        if (!('backupCodes' in result) || result.backupCodes === null) return
+        dispatch({ type: 'regenerated', backupCodes: result.backupCodes })
+      }
+    )
+  }
+
   // The secret lives in the URI's query string; an unparseable URI yields no
   // secret rather than a mangled substring.
   const secretFromUri = parseSecretFromUri(state.totpURI)
@@ -265,6 +312,18 @@ export function TwoFactorPanel({
             Turn off
           </Button>
         </form>
+        {state.backupCodes !== null && state.backupCodes.length > 0 ? (
+          <BackupCodesSection
+            codes={state.backupCodes}
+            onDismiss={() => dispatch({ type: 'dismissCodes' })}
+          />
+        ) : null}
+        <RegenerateBackupCodesForm
+          password={state.password}
+          busy={busy}
+          onPasswordChange={(value) => dispatch({ type: 'password', value })}
+          onSubmit={regenerateCodes}
+        />
         <PanelMessages state={state} />
       </section>
     )
@@ -295,21 +354,10 @@ export function TwoFactorPanel({
           </div>
         </div>
         {state.backupCodes !== null && state.backupCodes.length > 0 ? (
-          <section
-            aria-label="Backup codes"
-            className="grid gap-2 rounded-sm border border-border bg-muted/40 p-4"
-          >
-            <p className="text-sm font-medium">
-              Save these one-time backup codes now. They are shown only once:
-            </p>
-            <ul className="flex flex-wrap gap-x-4 gap-y-1">
-              {state.backupCodes.map((backupCode) => (
-                <li key={backupCode}>
-                  <code className="font-mono text-xs">{backupCode}</code>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <BackupCodesSection
+            codes={state.backupCodes}
+            intro="Save these one-time backup codes now. They are shown only once:"
+          />
         ) : null}
         <form
           onSubmit={(event) => {
@@ -395,5 +443,88 @@ function PanelMessages({ state }: { readonly state: PanelState }) {
         </p>
       ) : null}
     </>
+  )
+}
+
+/**
+ * The one-time backup-code reveal, shared by enrollment and regeneration.
+ * `onDismiss` (the "I saved my codes" button) is only offered where the codes
+ * can come back — regeneration — so the enrollment reveal keeps its hard
+ * once-only shape.
+ */
+function BackupCodesSection({
+  codes,
+  intro,
+  onDismiss
+}: {
+  readonly codes: readonly string[]
+  readonly intro?: string
+  readonly onDismiss?: () => void
+}) {
+  return (
+    <section
+      aria-label="Backup codes"
+      className="grid gap-2 rounded-sm border border-border bg-muted/40 p-4"
+    >
+      <p className="text-sm font-medium">
+        {intro ??
+          'Save these one-time backup codes now. They are shown only once, and every previous code is now invalid:'}
+      </p>
+      <ul className="flex flex-wrap gap-x-4 gap-y-1">
+        {codes.map((backupCode) => (
+          <li key={backupCode}>
+            <code className="font-mono text-xs">{backupCode}</code>
+          </li>
+        ))}
+      </ul>
+      {onDismiss ? (
+        <Button type="button" variant="outline" className="w-fit" onClick={onDismiss}>
+          I saved my codes
+        </Button>
+      ) : null}
+    </section>
+  )
+}
+
+/**
+ * The regeneration form: a fresh password confirmation feeding the same
+ * shared password state as turn-off. Neither action should trust the other's
+ * input; the distinct label keeps the two fields addressable while one value
+ * feeds both.
+ */
+function RegenerateBackupCodesForm({
+  password,
+  busy,
+  onPasswordChange,
+  onSubmit
+}: {
+  readonly password: string
+  readonly busy: boolean
+  readonly onPasswordChange: (value: string) => void
+  readonly onSubmit: () => void
+}) {
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSubmit()
+      }}
+      className="grid gap-3"
+    >
+      <div className="grid gap-1.5">
+        <Label htmlFor="twofactor-password-regen">Confirm password</Label>
+        <Input
+          id="twofactor-password-regen"
+          type="password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => onPasswordChange(event.target.value)}
+          required
+        />
+      </div>
+      <Button type="submit" variant="outline" className="w-fit" disabled={busy}>
+        Regenerate backup codes
+      </Button>
+    </form>
   )
 }

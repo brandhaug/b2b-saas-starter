@@ -41,7 +41,7 @@ describe('SignInPage', () => {
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'short' }
     })
-    await screen.findByText('Password must be at least 8 characters')
+    await screen.findByText('Password must be at least 12 characters')
     const submit = screen.getByRole<HTMLButtonElement>('button', { name: 'Continue' })
     expect(submit.disabled).toBe(true)
     expect(signIn).not.toHaveBeenCalled()
