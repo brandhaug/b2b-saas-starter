@@ -3,9 +3,9 @@ import {
   backoffSeconds,
   classifyResponseStatus,
   planDeliveryAttempt,
-  WebhookEndpoints,
   type WebhookDeliveryAttemptInput
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-delivery-plan.ts'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { describe, expect, it } from 'vitest'
 import { DateTime, Effect, Layer, type Scope } from 'effect'
@@ -15,13 +15,12 @@ import {
   type HttpClientRequest
 } from 'effect/unstable/http'
 
+import { signatureHeaderValue, computeWebhookSignature } from './webhook-signing.ts'
 import {
-  computeWebhookSignature,
   processDeadLetterMessage,
   processWebhookMessage,
-  signatureHeaderValue,
   type WebhookMessage
-} from './index.ts'
+} from './webhook-consumer.ts'
 
 describe('backoffSeconds', () => {
   it('backs off linearly at 30s per attempt', () => {
@@ -201,12 +200,16 @@ describe('processWebhookMessage', () => {
     dispatchTarget: typeof target | null,
     status: number,
     attempts = 1,
-    input: unknown = message
+    input: unknown = message,
+    messageId?: string
   ) {
     const recorded: WebhookDeliveryAttemptInput[] = []
     const captured: CapturedRequest = {}
     return runScoped(
-      processWebhookMessage({ body: input, attempts }, 'trace-test').pipe(
+      processWebhookMessage(
+        { id: messageId, body: input, attempts },
+        'trace-test'
+      ).pipe(
         Effect.provide(
           Layer.mergeAll(
             stubEndpoints(dispatchTarget, recorded),
@@ -247,6 +250,22 @@ describe('processWebhookMessage', () => {
         expect(outcome).toBe('retry')
         expect(recorded[0]).toMatchObject({ status: 'failed', responseStatus: 500 })
         expect(recorded[0]?.nextAttemptAt).toBeTruthy()
+      })
+    ))
+
+  it('derives one stable deliveryId per queue message across redeliveries', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        // Two independent runs stand in for attempt 1 and its redelivery: the
+        // envelope id is the identity, so both must persist — and sign — the
+        // same deliveryId even though each run is a fresh invocation.
+        const firstAttempt = yield* run(target, 500, 1, message, 'qmsg_1')
+        const redelivery = yield* run(target, 200, 2, message, 'qmsg_1')
+        expect(firstAttempt.recorded[0]?.id).toBe('whd_qmsg_1')
+        expect(redelivery.recorded[0]?.id).toBe('whd_qmsg_1')
+        // The signed body carries the same id it persists (same variable in
+        // processWebhookMessage), so receiver dedup on the body's deliveryId
+        // collapses both attempts.
       })
     ))
 
