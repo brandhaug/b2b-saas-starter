@@ -74,10 +74,6 @@ export function ResetPasswordPage({
     defaultValues: { password: '', confirm: '' } satisfies ResetPasswordValues,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      if (value.password !== value.confirm) {
-        setSubmitError('Passwords do not match')
-        return
-      }
       const result = await resetPassword({
         newPassword: value.password,
         token: token ?? ''
@@ -152,8 +148,13 @@ export function ResetPasswordPage({
       <form.Field
         name="confirm"
         validators={{
-          onChange: ({ value }) =>
-            value.length === 0 ? 'Confirm your password' : undefined
+          onChange: ({ value, fieldApi }) => {
+            if (value.length === 0) return 'Confirm your password'
+            if (value !== fieldApi.form.getFieldValue('password')) {
+              return 'Passwords do not match'
+            }
+            return null
+          }
         }}
       >
         {(field) => (

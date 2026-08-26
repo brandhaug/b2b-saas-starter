@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useHydrated } from '@/lib/client-only-value'
 import { PublicLayout } from '@/components/public-layout'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -48,6 +48,10 @@ export function AuthCardForm({
   // Hydration signal for e2e: interacting before React hydrates falls through
   // to a native GET submit, so the smoke test waits for this attribute.
   const hydrated = useHydrated()
+  const errorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (error) errorRef.current?.focus()
+  }, [error])
   return (
     <PublicLayout>
       {/* `flex-1` fills the space PublicLayout's `min-h-dvh flex-col` leaves
@@ -79,7 +83,7 @@ export function AuthCardForm({
                 {children}
                 {submit}
                 {error ? (
-                  <Alert variant="destructive">
+                  <Alert ref={errorRef} tabIndex={-1} variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 ) : null}

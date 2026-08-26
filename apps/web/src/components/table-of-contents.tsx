@@ -34,7 +34,7 @@ export function TableOfContents({
                 }}
                 aria-current={isActive ? 'location' : undefined}
                 className={cn(
-                  'block border-l-2 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                  'block border-l-2 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                   heading.level === 3 ? 'pl-5' : 'pl-3',
                   isActive
                     ? 'border-foreground font-medium text-foreground'

@@ -138,7 +138,7 @@ function DocArticlePage() {
             /* Colors come from the `.marketing .prose` token map in index.css;
                `prose-neutral` would hardcode a gray palette that clashes with
                Catppuccin and can fail AA in dark mode. */
-            className="prose max-w-none"
+            className="prose max-w-3xl"
           >
             <Component components={mdxComponents} />
           </article>
@@ -151,7 +151,7 @@ function DocArticlePage() {
               <Link
                 to="/docs/$category/$slug"
                 params={{ category, slug: prevSlug }}
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex items-center gap-1 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 <ArrowLeftIcon className="size-3" />
                 {prevTitle}
@@ -163,7 +163,7 @@ function DocArticlePage() {
               <Link
                 to="/docs/$category/$slug"
                 params={{ category, slug: nextSlug }}
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                className="py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 {nextTitle} &rarr;
               </Link>

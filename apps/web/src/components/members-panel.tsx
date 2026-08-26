@@ -102,6 +102,7 @@ export function MembersPanel({
                       variant="ghost"
                       size="sm"
                       disabled={changing === member.id}
+                      aria-label={`Make ${role}: ${member.name}`}
                       onClick={() => void changeRole(member.id, role)}
                     >
                       {changing === member.id ? (

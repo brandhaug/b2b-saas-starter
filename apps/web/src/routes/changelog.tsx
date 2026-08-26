@@ -4,7 +4,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { changelog } from '@/lib/content'
 
 export const Route = createFileRoute('/changelog')({
-  component: ChangelogPage
+  component: ChangelogPage,
+  head: () => ({
+    meta: [
+      { title: 'Changelog | B2B SaaS Starter' },
+      {
+        name: 'description',
+        content:
+          'Release history for the B2B SaaS Starter: new capabilities, fixes, and breaking changes by version.'
+      },
+      { property: 'og:title', content: 'Changelog | B2B SaaS Starter' },
+      {
+        property: 'og:description',
+        content:
+          'Release history for the B2B SaaS Starter: new capabilities, fixes, and breaking changes by version.'
+      }
+    ]
+  })
 })
 
 function ChangelogPage() {
@@ -17,7 +33,7 @@ function ChangelogPage() {
             <Card key={entry.version}>
               <CardHeader>
                 <p className="text-sm text-muted-foreground">
-                  {entry.version} · {entry.date}
+                  {entry.version} · <time dateTime={entry.date}>{entry.date}</time>
                 </p>
                 <CardTitle as="h2">{entry.title}</CardTitle>
               </CardHeader>

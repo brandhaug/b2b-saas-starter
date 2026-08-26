@@ -66,7 +66,7 @@ export function WorkspaceDashboardPage({
       unreadCount={unreadCount}
       canReadAuditLog={viewerCan(viewer, { auditLog: ['read'] })}
     >
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
+      <div className="grid gap-6">
         <div className="grid gap-6">
           <LiveNotifications
             workspaceSlug={workspace.slug}

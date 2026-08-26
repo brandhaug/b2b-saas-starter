@@ -72,7 +72,10 @@ describe('SessionsPanel', () => {
       screen.getByRole('button', { name: 'Sign out everywhere else' })
     ).toBeDefined()
     // The current session has no per-row revoke button.
-    expect(screen.queryByRole('button', { name: 'Revoke' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Revoke Mac session' })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Revoke Mobile browser session' })
+    ).toBeDefined()
   })
 
   it('revokes a single other session and refreshes the list', async () => {
@@ -93,7 +96,12 @@ describe('SessionsPanel', () => {
       />
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Revoke' }))
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Revoke Mobile browser session'
+      })
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Revoke session' }))
     await waitFor(() =>
       expect(revokeSession).toHaveBeenCalledWith({ token: 'tok_other' })
     )
@@ -120,6 +128,7 @@ describe('SessionsPanel', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Sign out everywhere else' })
     )
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
     await waitFor(() => expect(revokeOtherSessions).toHaveBeenCalledTimes(1))
     expect(revokeSession).not.toHaveBeenCalled()
   })
@@ -142,6 +151,7 @@ describe('SessionsPanel', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Sign out everywhere else' })
     )
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('Could not revoke sessions')
   })

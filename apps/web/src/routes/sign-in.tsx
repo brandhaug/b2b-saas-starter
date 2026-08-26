@@ -132,35 +132,39 @@ export function SignInPage({
               Forgot your password?
             </Link>
           </p>
-          <p className="text-xs text-muted-foreground">
-            Seeded a local database? Sign in with{' '}
-            <code className="rounded-sm bg-muted px-1 py-0.5">
-              {DEMO_CREDENTIALS.email}
-            </code>{' '}
-            /{' '}
-            <code className="rounded-sm bg-muted px-1 py-0.5">
-              {DEMO_CREDENTIALS.password}
-            </code>
-            .
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Or as a plain member, to see the role-gated view:{' '}
-            <code className="rounded-sm bg-muted px-1 py-0.5">
-              {DEMO_MEMBER_CREDENTIALS.email}
-            </code>{' '}
-            /{' '}
-            <code className="rounded-sm bg-muted px-1 py-0.5">
-              {DEMO_MEMBER_CREDENTIALS.password}
-            </code>
-            .
-          </p>
-          <Link
-            to="/workspaces/$workspaceSlug"
-            params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
-            className="text-center text-sm text-primary underline underline-offset-4"
-          >
-            Open seeded workspace instead
-          </Link>
+          {import.meta.env.DEV ? (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Seeded a local database? Sign in with{' '}
+                <code className="rounded-sm bg-muted px-1 py-0.5">
+                  {DEMO_CREDENTIALS.email}
+                </code>{' '}
+                /{' '}
+                <code className="rounded-sm bg-muted px-1 py-0.5">
+                  {DEMO_CREDENTIALS.password}
+                </code>
+                .
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Or as a plain member, to see the role-gated view:{' '}
+                <code className="rounded-sm bg-muted px-1 py-0.5">
+                  {DEMO_MEMBER_CREDENTIALS.email}
+                </code>{' '}
+                /{' '}
+                <code className="rounded-sm bg-muted px-1 py-0.5">
+                  {DEMO_MEMBER_CREDENTIALS.password}
+                </code>
+                .
+              </p>
+              <Link
+                to="/workspaces/$workspaceSlug"
+                params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
+                className="text-center text-sm text-primary underline underline-offset-4"
+              >
+                Open seeded workspace instead
+              </Link>
+            </>
+          ) : null}
           <p className="text-center text-sm text-muted-foreground">
             No account yet?{' '}
             <Link

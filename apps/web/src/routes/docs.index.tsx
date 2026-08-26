@@ -55,7 +55,7 @@ function DocsIndex() {
                     <Link
                       to="/docs/$category/$slug"
                       params={{ category: slug, slug: article.slug }}
-                      className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      className="block py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                     >
                       {article.frontmatter.title}
                     </Link>

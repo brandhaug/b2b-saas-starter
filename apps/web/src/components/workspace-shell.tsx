@@ -103,7 +103,7 @@ export function WorkspaceShell({
       >
         Skip to content
       </a>
-      <aside className="hidden border-r border-border p-4 lg:block">
+      <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
         <WorkspaceNav
           workspaceSlug={workspaceSlug}
           canReadAuditLog={canReadAuditLog}
@@ -122,7 +122,10 @@ export function WorkspaceShell({
                 </Button>
               }
             />
-            <SheetContent side="left" className="flex flex-col gap-0">
+            <SheetContent
+              side="left"
+              className="flex flex-col gap-0 bg-sidebar text-sidebar-foreground border-sidebar-border"
+            >
               <SheetHeader>
                 <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
                 <SheetDescription className="sr-only">
@@ -145,7 +148,11 @@ export function WorkspaceShell({
             <p className="truncate text-sm text-muted-foreground">{description}</p>
           </div>
           {unreadCount === undefined ? null : (
-            <Badge variant="secondary" className="gap-1">
+            <Badge
+              variant="secondary"
+              className="gap-1 font-mono tabular-nums"
+              aria-label={`${unreadCount} unread notifications`}
+            >
               <BellIcon className="size-3" />
               {unreadCount}
             </Badge>
@@ -164,33 +171,42 @@ export function WorkspaceShell({
 function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
   const router = useRouter()
   const [signingOut, setSigningOut] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   // `callServerFn` keeps the Better Auth rejection in the error channel and
   // never rejects itself, so the flag below is cleared on every path — a
   // failed sign-out can be retried instead of leaving the header stuck.
   // The failure is reported rather than escaping as an unhandled rejection.
   async function runSignOut() {
+    setError(null)
     const outcome = await callServerFn(async () => {
       await signOut()
       await router.navigate({ to: '/sign-in' })
     }, SIGN_OUT_FAILED)
     setSigningOut(false)
     if (!outcome.ok) {
-      console.error('Sign-out failed', outcome.message)
+      setError(outcome.message)
     }
   }
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label="Sign out"
-      disabled={signingOut}
-      onClick={() => {
-        setSigningOut(true)
-        void runSignOut()
-      }}
-    >
-      <LogOutIcon className="size-4" />
-    </Button>
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Sign out"
+        disabled={signingOut}
+        onClick={() => {
+          setSigningOut(true)
+          void runSignOut()
+        }}
+      >
+        <LogOutIcon className="size-4" />
+      </Button>
+      {error ? (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </>
   )
 }
 

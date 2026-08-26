@@ -20,6 +20,14 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
+import {
   banSystemUserServerFn,
   changeUserWorkspaceRoleServerFn,
   listUserWorkspacesServerFn,
@@ -29,11 +37,84 @@ import {
 import { callServerFn } from '@/lib/server-call'
 
 /**
- * Per-user admin actions under `/admin`'s users table: ban/unban, and a
- * cross-workspace role editor keyed by the selected user. Presentation only —
- * every change is re-gated by the admin role in the server fn and again
- * inside Better Auth's plugin.
+ * Cross-workspace role editor under `/admin`'s users table, keyed by the
+ * selected user. Ban/unban lives in `BanUserAction` on the table rows.
+ * Presentation only — every change is re-gated by the admin role in the
+ * server fn and again inside Better Auth's plugin.
  */
+/**
+ * Row-level ban/unban for `/admin`'s users table: a confirmed destructive
+ * action — the dialog names the user, cancel is the safe default. Every change
+ * is re-gated by the admin role in the server fn and again inside Better
+ * Auth's plugin.
+ */
+export function BanUserAction({ user }: { readonly user: SystemUser }) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const banned = user.banned
+  const verb = banned ? 'Unban' : 'Ban'
+
+  async function confirm() {
+    setError(null)
+    setBusy(true)
+    const outcome = await callServerFn(() => {
+      const write = banned
+        ? unbanSystemUserServerFn({ data: { userId: user.id } })
+        : banSystemUserServerFn({ data: { userId: user.id } })
+      return write.then(() => undefined)
+    }, `${verb} failed`).finally(() => setBusy(false))
+    if (!outcome.ok) {
+      setError(outcome.message)
+      return
+    }
+    setOpen(false)
+    await router.invalidate()
+  }
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={`${verb} ${user.email}`}
+        onClick={() => setOpen(true)}
+      >
+        {verb}
+      </Button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogTitle>
+            {verb} {user.email}?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {banned
+              ? 'The user will be able to sign in again.'
+              : 'The user will be signed out and blocked from signing in.'}
+          </AlertDialogDescription>
+          {error ? (
+            <p role="alert" className="text-xs text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant={banned ? 'default' : 'destructive'}
+              disabled={busy}
+              onClick={() => void confirm()}
+            >
+              {busy ? <Spinner data-icon="inline-start" /> : null}
+              {verb}
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
 export function AdminUserActions({ users }: { readonly users: readonly SystemUser[] }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
@@ -54,27 +135,6 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
     }
     await router.invalidate()
     return true
-  }
-
-  async function toggleBan(user: SystemUser) {
-    const banned = user.banned
-    const verb = banned ? 'Unban' : 'Ban'
-    // The busy key is scoped to the user so only the acting row shows a
-    // spinner; the visible/accessible label stays stable while pending.
-    await settle(
-      () => {
-        if (banned) {
-          return unbanSystemUserServerFn({ data: { userId: user.id } }).then(
-            () => undefined
-          )
-        }
-        return banSystemUserServerFn({ data: { userId: user.id } }).then(
-          () => undefined
-        )
-      },
-      `${verb}:${user.id}`,
-      verb
-    )
   }
 
   async function loadWorkspaces(userId: string) {
@@ -122,32 +182,7 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
 
   return (
     <div className="grid gap-4">
-      <ul className="grid gap-2">
-        {users.map((user) => (
-          <li
-            key={user.id}
-            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
-          >
-            <span className="min-w-0 text-sm break-all text-muted-foreground">
-              {user.email}
-            </span>
-            <Button
-              variant={user.banned ? 'outline' : 'destructive'}
-              size="sm"
-              disabled={busy !== null}
-              aria-label={`${user.banned ? 'Unban' : 'Ban'} ${user.email}`}
-              onClick={() => void toggleBan(user)}
-            >
-              {user.banned ? 'Unban' : 'Ban'}
-              {busy === `${user.banned ? 'Unban' : 'Ban'}:${user.id}` ? (
-                <Spinner data-icon="inline-end" />
-              ) : null}
-            </Button>
-          </li>
-        ))}
-      </ul>
-
-      <div className="grid gap-2 rounded-md border border-border p-3">
+      <div className="grid gap-2 rounded-none bg-muted p-3">
         <p className="text-xs text-muted-foreground">Workspace roles</p>
         <Select
           value={selectedId}
@@ -165,13 +200,13 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {users.map((user) => (
-              <SelectGroup key={user.id}>
-                <SelectItem value={user.id}>
+            <SelectGroup>
+              {users.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
                   {user.name} ({user.email})
                 </SelectItem>
-              </SelectGroup>
-            ))}
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         <Button

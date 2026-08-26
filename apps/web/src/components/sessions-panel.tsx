@@ -4,6 +4,16 @@ import { useQuery } from '@tanstack/react-query'
 import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from '@/components/ui/alert-dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 
 /**
  * One row of the panel's own view model: a Better Auth session plus the
@@ -114,6 +124,7 @@ export function SessionsPanel({
   const {
     data: rows,
     error: queryError,
+    isPending,
     refetch
   } = useQuery({
     queryKey: SESSIONS_QUERY_KEY,
@@ -155,13 +166,25 @@ export function SessionsPanel({
           <h3 className="text-sm font-medium">Active sessions</h3>
         </div>
         {othersExist ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void act(() => revokeOtherSessions())}
-          >
-            Sign out everywhere else
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger render={<Button variant="outline" size="sm" />}>
+              Sign out everywhere else
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogTitle>Sign out everywhere else?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Every session except this device will be revoked.
+              </AlertDialogDescription>
+              <div className="flex justify-end gap-2">
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => void act(() => revokeOtherSessions())}
+                >
+                  Sign out
+                </AlertDialogAction>
+              </div>
+            </AlertDialogContent>
+          </AlertDialog>
         ) : null}
       </header>
 
@@ -176,38 +199,75 @@ export function SessionsPanel({
         </p>
       ) : null}
 
-      <ul className="grid gap-2">
-        {(rows ?? []).map((row) => {
-          const isCurrent = row.token === currentSessionToken
-          return (
-            <li
-              key={row.token}
-              className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-border px-3 py-2"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm">
-                  {row.deviceLabel}{' '}
-                  {isCurrent ? (
-                    <span className="text-muted-foreground">· This device</span>
-                  ) : null}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {row.ipAddress ? `${row.ipAddress} · ` : ''}Expires {row.expiresLabel}
-                </p>
-              </div>
-              {isCurrent ? null : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void act(() => revokeSession({ token: row.token }))}
-                >
-                  Revoke
-                </Button>
-              )}
+      {hydrated && isPending ? (
+        <ul className="grid gap-2" aria-busy="true">
+          {[0, 1].map((index) => (
+            <li key={index} className="rounded-sm border border-border px-3 py-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="mt-1 h-3 w-56" />
             </li>
-          )
-        })}
-      </ul>
+          ))}
+        </ul>
+      ) : null}
+      {Array.isArray(rows) ? (
+        <ul className="grid gap-2">
+          {rows.map((row) => {
+            const isCurrent = row.token === currentSessionToken
+            return (
+              <li
+                key={row.token}
+                className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-border px-3 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm">
+                    {row.deviceLabel}{' '}
+                    {isCurrent ? (
+                      <span className="text-muted-foreground">· This device</span>
+                    ) : null}
+                  </p>
+                  <p className="text-xs font-mono tabular-nums text-muted-foreground">
+                    {row.ipAddress ? `${row.ipAddress} · ` : ''}Expires{' '}
+                    {row.expiresLabel}
+                  </p>
+                </div>
+                {isCurrent ? null : (
+                  <AlertDialog>
+                    <AlertDialogTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`Revoke ${row.deviceLabel} session`}
+                        />
+                      }
+                    >
+                      Revoke
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogTitle>
+                        Revoke the {row.deviceLabel} session?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        That device will be signed out.
+                      </AlertDialogDescription>
+                      <div className="flex justify-end gap-2">
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() =>
+                            void act(() => revokeSession({ token: row.token }))
+                          }
+                        >
+                          Revoke session
+                        </AlertDialogAction>
+                      </div>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
     </section>
   )
 }

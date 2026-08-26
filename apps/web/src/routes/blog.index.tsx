@@ -49,7 +49,10 @@ function BlogIndexPage() {
               <p className="mt-1 text-xs text-muted-foreground">
                 {post.frontmatter.description}
               </p>
-              <time className="mt-auto pt-2 text-xs text-muted-foreground">
+              <time
+                dateTime={post.frontmatter.date}
+                className="mt-auto pt-2 text-xs text-muted-foreground"
+              >
                 {new Date(post.frontmatter.date).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',

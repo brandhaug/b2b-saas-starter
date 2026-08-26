@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Textarea } from '@/components/ui/textarea'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { viewerCan } from '@/lib/permissions'
 import { Spinner } from '@/components/ui/spinner'
@@ -31,22 +32,19 @@ const PROVIDER_LABELS = {
 } satisfies Record<AssistantPageProvider, string>
 
 type TranscriptEntry = {
-  readonly id: number
+  readonly id: string
   readonly role: 'user' | 'assistant'
   readonly text: string
   /** Set on assistant entries that carry a real provider reply. */
   readonly provider: AssistantPageProvider | null
 }
 
-let nextEntryId = 0
-
 function entry(
   role: TranscriptEntry['role'],
   text: string,
   provider: AssistantPageProvider | null = null
 ): TranscriptEntry {
-  nextEntryId += 1
-  return { id: nextEntryId, role, text, provider }
+  return { id: crypto.randomUUID(), role, text, provider }
 }
 
 function outcomeToEntry(outcome: AskAssistantOutcome): TranscriptEntry {
@@ -86,7 +84,7 @@ function TranscriptBubble({ item }: { readonly item: TranscriptEntry }) {
   const isUser = item.role === 'user'
   return (
     <li className="grid gap-1">
-      <div className="text-muted-foreground text-xs uppercase tracking-wide">
+      <div className="text-muted-foreground text-xs font-medium">
         {isUser ? 'You' : 'Assistant'}
       </div>
       <div
@@ -185,18 +183,13 @@ export function WorkspaceAssistantPage({
                 void submit()
               }}
             >
-              {/* Plain textarea on purpose: the shadcn set has no textarea
-                  primitive, and the audit page sets the same precedent for
-                  one-off inputs. `text-base` keeps the control at 16px on
-                  mobile for readable focus. */}
-              <textarea
+              <Textarea
                 aria-label="Your question"
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
                 maxLength={2000}
                 rows={3}
                 placeholder="e.g. Summarize what changed recently"
-                className="rounded-md border border-input bg-transparent px-3 py-2 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm disabled:opacity-50"
                 disabled={pending}
               />
               <div className="flex justify-end">

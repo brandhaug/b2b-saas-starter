@@ -14,6 +14,6 @@ export function invitationStatusVariant(status: Invitation['status']): BadgeVari
 // the render — the column is free-text by design.
 export function webhookDeliveryStatusVariant(status: string): BadgeVariant {
   if (status === 'delivered') return 'default'
-  if (status === 'failed') return 'secondary'
-  return 'destructive'
+  if (status === 'failed') return 'destructive'
+  return 'outline'
 }

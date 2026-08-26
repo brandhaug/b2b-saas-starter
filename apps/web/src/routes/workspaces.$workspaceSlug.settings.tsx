@@ -123,8 +123,8 @@ export function WorkspaceSettingsPage({
               <div className="grid gap-2">
                 <Label>API tokens</Label>
                 <p className="text-sm text-muted-foreground">
-                  {apiTokenCount} active workspace-scoped tokens. Creation and
-                  revocation live on the{' '}
+                  <span className="font-mono tabular-nums">{apiTokenCount}</span> active
+                  workspace-scoped tokens. Creation and revocation live on the{' '}
                   <Link
                     to="/workspaces/$workspaceSlug/api-tokens"
                     params={{ workspaceSlug }}
@@ -159,7 +159,8 @@ export function WorkspaceSettingsPage({
               <div className="grid gap-2">
                 <Label>Outbound webhooks</Label>
                 <p className="text-sm text-muted-foreground">
-                  {webhookCount} endpoint
+                  <span className="font-mono tabular-nums">{webhookCount}</span>{' '}
+                  endpoint
                   {webhookCount === 1 ? ' is' : 's are'} configured for selected
                   workspace events. Registration, delivery history, and secret rotation
                   live on the{' '}

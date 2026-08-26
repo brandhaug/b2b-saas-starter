@@ -53,9 +53,11 @@ async function renderPage(data: WorkspaceSettingsPayload = settingsSummary) {
 describe('WorkspaceSettingsPage', () => {
   it('renders the operational counts from the loader projection', async () => {
     await renderPage()
-    screen.getByText(/3 active workspace-scoped tokens/)
+    screen.getByText('3')
+    screen.getByText(/active workspace-scoped tokens/)
     screen.getByRole('link', { name: 'API tokens page' })
-    screen.getByText(/1 endpoint is configured/)
+    screen.getByText('1')
+    screen.getByText(/endpoint is configured/)
     // Unread-notification badge in the shell header.
     screen.getByText('2')
   })

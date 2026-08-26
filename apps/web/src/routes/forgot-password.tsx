@@ -96,7 +96,9 @@ export function ForgotPasswordPage({
       }
     >
       {sent ? (
-        <p className="text-sm text-muted-foreground">{SENT_MESSAGE}</p>
+        <p role="alert" className="text-sm text-muted-foreground">
+          {SENT_MESSAGE}
+        </p>
       ) : (
         <form.Field name="email" validators={{ onChange: emailValidator }}>
           {(field) => (

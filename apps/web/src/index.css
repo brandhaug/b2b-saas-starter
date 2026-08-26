@@ -43,7 +43,7 @@
   --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
   --font-display: 'Archivo Variable', Geist, ui-sans-serif, sans-serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
-  --radius: 0rem;
+  --radius: 0.5rem;
   --shadow-x: 0;
   --shadow-y: 1px;
   --shadow-blur: 3px;
@@ -105,7 +105,7 @@
   --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
   --font-display: 'Archivo Variable', Geist, ui-sans-serif, sans-serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
-  --radius: 0rem;
+  --radius: 0.5rem;
   --shadow-x: 0;
   --shadow-y: 1px;
   --shadow-blur: 3px;
@@ -249,8 +249,10 @@
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* Controls resolve to 6px via rounded-md; panels, cards and code blocks
+     stay square (0rem) per the sharp/soft brand contrast. */
+  --radius-lg: 0rem;
+  --radius-xl: 0rem;
 
   --shadow-2xs: var(--shadow-2xs);
   --shadow-xs: var(--shadow-xs);
@@ -430,13 +432,4 @@
 .prose :where(code):not(:where([class~='not-prose'] *))::before,
 .prose :where(code):not(:where([class~='not-prose'] *))::after {
   content: '';
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
 }

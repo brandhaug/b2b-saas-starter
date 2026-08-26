@@ -6,6 +6,13 @@ type Heading = {
   readonly level: number
 }
 
+function addsHeading(node: Node): boolean {
+  return (
+    node instanceof Element &&
+    (node.matches('h2[id], h3[id]') || node.querySelector('h2[id], h3[id]') !== null)
+  )
+}
+
 export function useHeadingObserver({
   containerRef
 }: {
@@ -61,7 +68,10 @@ export function useHeadingObserver({
     sync(container)
 
     let debounceId = 0
-    const mutationObserver = new MutationObserver(() => {
+    const mutationObserver = new MutationObserver((records) => {
+      if (!records.some((record) => [...record.addedNodes].some(addsHeading))) {
+        return
+      }
       window.clearTimeout(debounceId)
       debounceId = window.setTimeout(() => sync(container), 50)
     })

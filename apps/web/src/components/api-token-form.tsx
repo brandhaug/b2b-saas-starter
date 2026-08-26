@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
+import { SecretReveal } from '@/components/secret-reveal'
 import { createApiTokenServerFn } from '@/lib/server/api-tokens'
 import { callServerFn } from '@/lib/server-call'
 
@@ -182,7 +183,11 @@ export function ApiTokenForm({
             Token created. Copy it now, it will not be shown again.
           </AlertTitle>
           <AlertDescription>
-            <code className="break-all">{created.token}</code>
+            <SecretReveal
+              secret={created.token}
+              label="API token"
+              className="flex items-center gap-2"
+            />
           </AlertDescription>
         </Alert>
       ) : null}

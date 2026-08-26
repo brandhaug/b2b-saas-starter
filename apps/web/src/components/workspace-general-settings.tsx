@@ -187,7 +187,7 @@ function DeleteSection({
   }
 
   return (
-    <div className="grid gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-4">
+    <div className="grid gap-2 rounded-none bg-muted p-4">
       <p className="text-sm font-medium">Delete this workspace</p>
       <p className="text-sm text-muted-foreground">
         Removing <span className="font-medium">{name}</span> removes every member,

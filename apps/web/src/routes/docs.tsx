@@ -23,7 +23,7 @@ function DocsLayout() {
                   {/* Group label, not a heading: the page's first heading is the
                       article <h1> in <main>, and an <h2>/<h3> here would skip
                       levels in the document outline. */}
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-foreground">
+                  <p className="mb-1 text-xs font-semibold text-foreground">
                     {DOC_CATEGORIES[slug]}
                   </p>
                   <ul className="flex flex-col gap-0.5">
@@ -38,8 +38,8 @@ function DocsLayout() {
                             aria-current={isActive ? 'page' : undefined}
                             className={
                               isActive
-                                ? 'block rounded-md bg-muted px-2 py-1 text-sm font-medium text-foreground'
-                                : 'block rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground'
+                                ? 'block rounded-md bg-muted px-2 py-2 text-sm font-medium text-foreground'
+                                : 'block rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground'
                             }
                           >
                             {article.frontmatter.title}
