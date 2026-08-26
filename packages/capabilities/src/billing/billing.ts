@@ -303,10 +303,59 @@ function stripeCheckoutBody(input: {
   return params.toString()
 }
 
+/** Deadline for one outbound provider call (Stripe or siteverify). */
+const PROVIDER_TIMEOUT = '10 seconds'
+
+/**
+ * The Workers global `fetch` wrapped at the platform-adapter boundary: an HTTP
+ * client dependency would add weight, not safety, to one form-encoded POST,
+ * but the call still gets `Effect.tryPromise`'s `AbortSignal` so interruption
+ * and deadlines reach the socket, and transport failures are classified as
+ * typed `CapabilityUnavailable` instead of defects.
+ */
+function stripePost(url: string, headers: Record<string, string>, body: string) {
+  return Effect.tryPromise({
+    try: (signal) =>
+      // oxlint-disable-next-line effect/noGlobals -- see docstring above
+      fetch(url, { method: 'POST', headers, body, signal }),
+    catch: () =>
+      new CapabilityUnavailable({
+        capability: 'billing',
+        reason: 'stripe request failed'
+      })
+  }).pipe(
+    Effect.timeout(PROVIDER_TIMEOUT),
+    // The deadline is the same "provider unreachable" failure the transport
+    // path reports — never leak `TimeoutError` into the interface channel.
+    Effect.catchTag('TimeoutError', () =>
+      Effect.fail(
+        new CapabilityUnavailable({
+          capability: 'billing',
+          reason: 'stripe request timed out'
+        })
+      )
+    )
+  )
+}
+
+function stripeJson(response: Response) {
+  return Effect.tryPromise({
+    try: () => response.json(),
+    catch: () =>
+      new CapabilityUnavailable({
+        capability: 'billing',
+        reason: `stripe responded ${response.status} with an unparseable body`
+      })
+  })
+}
+
 /**
  * One form-encoded Stripe API call, via the Workers global `fetch` — the REST
  * API needs no SDK, and keeping the dependency out keeps the worker bundle
- * small and the failure surface explicit. Exported for tests.
+ * small and the failure surface explicit. The call carries an `AbortSignal`
+ * from `Effect.tryPromise` so interruption and the 10s deadline reach the
+ * socket, and transport failures surface as typed `CapabilityUnavailable`
+ * instead of defects. Exported for tests.
  */
 export const createStripeCheckoutSession = Effect.fnUntraced(function* (input: {
   readonly secretKey: string
@@ -316,18 +365,15 @@ export const createStripeCheckoutSession = Effect.fnUntraced(function* (input: {
   readonly successUrl: string
   readonly cancelUrl: string
 }) {
-  const response = yield* Effect.promise(() =>
-    // oxlint-disable-next-line effect/noGlobals -- the Workers global fetch is the platform adapter here; an HTTP client dependency would add weight, not safety, to one form-encoded POST
-    fetch('https://api.stripe.com/v1/checkout/sessions', {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${input.secretKey}`,
-        'content-type': 'application/x-www-form-urlencoded'
-      },
-      body: stripeCheckoutBody(input)
-    })
+  const response = yield* stripePost(
+    'https://api.stripe.com/v1/checkout/sessions',
+    {
+      authorization: `Bearer ${input.secretKey}`,
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    stripeCheckoutBody(input)
   )
-  const json: unknown = yield* Effect.promise(() => response.json())
+  const json = yield* stripeJson(response)
   const decoded = decodeStripeCheckoutResponse(json)
   let message = `stripe responded ${response.status}`
   if (Result.isSuccess(decoded) && decoded.success.error?.message !== undefined) {

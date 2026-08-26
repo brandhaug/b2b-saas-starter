@@ -87,12 +87,9 @@ describe('seed billing contract', () => {
       )
       expect(Result.isFailure(result)).toBe(true)
       if (Result.isFailure(result)) {
+        // The typed error carries `reason` directly — no narrowing needed.
         expect(result.failure._tag).toBe('CapabilityUnavailable')
-        // SAFETY: the tag assertion above proves the cast; the reason field
-        // is what this test is about.
-        // oxlint-disable-next-line effect/noAs -- test-only narrowing proven by the tag assertion directly above
-        const error = result.failure as { readonly reason?: string }
-        expect(error.reason).toBe('provider_not_configured')
+        expect(result.failure.reason).toBe('provider_not_configured')
       }
     }).pipe(Effect.provide(billingFixture({ stripeConfigured: false }).layer))
   )

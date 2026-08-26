@@ -466,7 +466,10 @@ export const LiveApiTokenRegistry: Layer.Layer<
           }
           // Bump `lastUsedAt` at most once per LAST_USED_WRITE_INTERVAL_MS.
           // The per-request `api_token.used` audit event was removed: it did a
-          // second D1 write per request and flooded the governance log.
+          // second D1 write per request and flooded the governance log. The
+          // bump is best-effort telemetry — a transient write failure has no
+          // bearing on whether the token authenticates, so it is swallowed
+          // rather than failing an otherwise-valid request with 503.
           const usedAt = yield* DateTime.now
           if (
             shouldBumpLastUsedAt(row.token.lastUsedAt, DateTime.toEpochMillis(usedAt))
@@ -476,7 +479,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
                 .update(apiTokens)
                 .set({ lastUsedAt: DateTime.formatIso(usedAt) })
                 .where(eq(apiTokens.id, row.token.id))
-            )
+            ).pipe(Effect.ignore)
           }
           return {
             id: row.token.id,

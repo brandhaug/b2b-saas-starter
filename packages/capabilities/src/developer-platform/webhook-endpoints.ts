@@ -61,7 +61,7 @@ export const WEBHOOK_EVENT_TYPES = [
 export const CreateWebhookEndpointPayload = Schema.Struct({
   url: Schema.String,
   events: Schema.Array(Schema.String).check(Schema.isMinLength(1)),
-  description: Schema.optional(Schema.String)
+  description: Schema.optionalKey(Schema.String)
 })
 export type CreateWebhookEndpointPayload = typeof CreateWebhookEndpointPayload.Type
 

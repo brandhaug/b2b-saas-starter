@@ -23,7 +23,7 @@ export const WebhookQueueMessage = Schema.Struct({
   // so a strict check here would turn a cosmetic trace defect into a silently
   // dropped webhook. The consumer's decoder (`parentSpanFromHeaders`) already
   // ignores a value it cannot parse and starts its own trace instead.
-  traceparent: Schema.optional(Schema.String),
+  traceparent: Schema.optionalKey(Schema.String),
   payload: Schema.Unknown
 })
 export type WebhookQueueMessage = typeof WebhookQueueMessage.Type
@@ -94,6 +94,19 @@ export function publishWebhookEventWith(
 
 const unavailable = orUnavailable('webhook-publisher')
 
+/**
+ * Adds the producing request's `traceparent` onto a queue message. The field
+ * is an optional *key* on the wire schema, so it is only present when a span
+ * exists (tests, direct calls run without one).
+ */
+function withTraceparent(
+  message: WebhookQueueMessage,
+  traceparent: string | undefined
+): WebhookQueueMessage {
+  if (traceparent === undefined) return message
+  return { ...message, traceparent }
+}
+
 export function LiveWebhookPublisher(
   queue?: WebhookQueueBinding
 ): Layer.Layer<WebhookPublisher, never, Database> {
@@ -135,13 +148,15 @@ export function LiveWebhookPublisher(
                 try: () =>
                   queue.sendBatch(
                     subscribed.map((endpoint) => ({
-                      body: {
-                        endpointId: endpoint.id,
-                        workspaceId: ctx.workspace.id,
-                        eventType: input.eventType,
-                        traceparent,
-                        payload: input.payload
-                      }
+                      body: withTraceparent(
+                        {
+                          endpointId: endpoint.id,
+                          workspaceId: ctx.workspace.id,
+                          eventType: input.eventType,
+                          payload: input.payload
+                        },
+                        traceparent
+                      )
                     }))
                   ),
                 catch: (cause) => cause
