@@ -4,12 +4,14 @@ import { type VerifyTotpCode } from './auth/auth-client-ports'
 import {
   TwoFactorPanel,
   type DisableTwoFactor,
-  type EnableTwoFactor
+  type EnableTwoFactor,
+  type GenerateBackupCodes
 } from './two-factor-panel'
 
 const enableTwoFactor = vi.fn<EnableTwoFactor>()
 const verifyTotp = vi.fn<VerifyTotpCode>()
 const disableTwoFactor = vi.fn<DisableTwoFactor>()
+const generateBackupCodes = vi.fn<GenerateBackupCodes>()
 
 const TOTP_URI =
   'otpauth://totp/B2B%20SaaS%20Starter:demo%40starter.local?secret=JBSWY3DPEHPK3PXP&issuer=B2B%2BSaaS%20Starter'
@@ -19,6 +21,7 @@ describe('TwoFactorPanel', () => {
     enableTwoFactor.mockReset()
     verifyTotp.mockReset()
     disableTwoFactor.mockReset()
+    generateBackupCodes.mockReset()
     enableTwoFactor.mockResolvedValue({
       data: { totpURI: TOTP_URI }
     })
@@ -170,5 +173,75 @@ describe('TwoFactorPanel', () => {
     expect(alert.textContent).toContain('Invalid password')
     // Still on.
     expect(screen.getByText(/On\. Codes are required at sign-in/)).toBeDefined()
+  })
+
+  it('regenerates backup codes behind a password confirmation', async () => {
+    generateBackupCodes.mockResolvedValue({
+      data: { backupCodes: ['new-1111', 'new-2222'] }
+    })
+    render(
+      <TwoFactorPanel
+        twoFactorEnabled
+        enableTwoFactor={enableTwoFactor}
+        verifyTotp={verifyTotp}
+        disableTwoFactor={disableTwoFactor}
+        generateBackupCodes={generateBackupCodes}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: 'correct-horse-battery-staple' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate backup codes' }))
+    await waitFor(() =>
+      expect(generateBackupCodes).toHaveBeenCalledWith({
+        password: 'correct-horse-battery-staple'
+      })
+    )
+    const codes = await screen.findByRole('region', { name: 'Backup codes' })
+    expect(codes.textContent).toContain('new-1111')
+    expect(codes.textContent).toContain('new-2222')
+
+    // Done dismisses the one-time reveal; the codes are not shown again.
+    fireEvent.click(screen.getByRole('button', { name: 'I saved my codes' }))
+    expect(screen.queryByRole('region', { name: 'Backup codes' })).toBeNull()
+  })
+
+  it('surfaces a failed backup-code regeneration without clearing the password state flip', async () => {
+    generateBackupCodes.mockResolvedValue({ error: { message: 'Invalid password' } })
+    render(
+      <TwoFactorPanel
+        twoFactorEnabled
+        enableTwoFactor={enableTwoFactor}
+        verifyTotp={verifyTotp}
+        disableTwoFactor={disableTwoFactor}
+        generateBackupCodes={generateBackupCodes}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: 'wrong-password' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate backup codes' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('Invalid password')
+    expect(screen.queryByRole('region', { name: 'Backup codes' })).toBeNull()
+  })
+
+  it('treats an incomplete regeneration response as a failure', async () => {
+    generateBackupCodes.mockResolvedValue({ data: {} })
+    render(
+      <TwoFactorPanel
+        twoFactorEnabled
+        enableTwoFactor={enableTwoFactor}
+        verifyTotp={verifyTotp}
+        disableTwoFactor={disableTwoFactor}
+        generateBackupCodes={generateBackupCodes}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: 'correct-horse-battery-staple' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Regenerate backup codes' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('incomplete')
   })
 })

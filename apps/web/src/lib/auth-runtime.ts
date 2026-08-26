@@ -52,6 +52,12 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
   // Production requires verified mailboxes; local dev and previews stay open
   // because lifecycle emails land in the log there (provider-light rule).
   requireEmailVerification: requireEmailVerification(env.ENVIRONMENT)
+  // `runBackground` stays unset: TanStack Start's server handlers do not
+  // surface the Worker's `ExecutionContext`, so there is no `ctx.waitUntil`
+  // to hand Better Auth's `advanced.backgroundTasks.handler`. The package's
+  // inline fallback runs instead — correct, just not crash-proof past the
+  // response. A fork whose server entry reaches the execution context should
+  // supply `runBackground: (promise) => ctx.waitUntil(promise)` here.
 }))
 
 export const AuthLive = Auth.layer.pipe(Layer.provide(AuthConfigLive))

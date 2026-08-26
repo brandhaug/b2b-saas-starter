@@ -13,7 +13,11 @@ export function emailValidator({ value }: { value: string }): string | undefined
   return
 }
 
-/** The password validator: at least 8 characters. */
+/**
+ * The password validator: mirrors the server's `minPasswordLength` (12) in
+ * `packages/auth` so a too-short password fails in the form instead of as a
+ * round-trip server error.
+ */
 export function passwordValidator({ value }: { value: string }): string | undefined {
-  return value.length < 8 ? 'Password must be at least 8 characters' : undefined
+  return value.length < 12 ? 'Password must be at least 12 characters' : undefined
 }
