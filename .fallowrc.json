@@ -13,6 +13,10 @@
     "class-variance-authority",
     "cmdk",
     "eslint-plugin-better-tailwindcss",
+    // Root-level deploy/seed tooling: alchemy.run.ts and scripts/seed.ts are
+    // infrastructure entries, not production runtime.
+    "alchemy",
+    "effect",
     "shadcn",
     "sonner",
     "tw-animate-css",
@@ -53,6 +57,39 @@
       "typeOnlyDependencies": 0,
       "testOnlyDependencies": 0,
       "boundaryViolations": 0
+    }
+  },
+  "regression": {
+    "baseline": {
+      "analysisIdentity": {
+        "mode": "syntactic",
+        "semantic_schema_version": 1,
+        "capabilities": [],
+        "project_config_hash": "",
+        "backend_family": "",
+        "completeness": "complete"
+      },
+      "totalIssues": 0,
+      "unusedFiles": 0,
+      "unusedExports": 0,
+      "unusedTypes": 0,
+      "unusedDependencies": 0,
+      "unusedDevDependencies": 0,
+      "unusedOptionalDependencies": 0,
+      "unusedEnumMembers": 0,
+      "unusedClassMembers": 0,
+      "unresolvedImports": 0,
+      "unlistedDependencies": 0,
+      "duplicateExports": 0,
+      "circularDependencies": 0,
+      "reExportCycles": 0,
+      "typeOnlyDependencies": 0,
+      "testOnlyDependencies": 0,
+      "devDependenciesInProduction": 0,
+      "boundaryViolations": 0,
+      "boundaryCoverageViolations": 0,
+      "boundaryCallViolations": 0,
+      "policyViolations": 0
     }
   }
 }

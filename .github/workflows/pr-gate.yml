@@ -38,5 +38,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: npm install -g fallow
+      - run: npm install -g fallow@3
       - run: bun run dead-code
