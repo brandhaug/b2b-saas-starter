@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: B2B SaaS Starter
-description: Quiet, system-typeface, neutral-on-blue chrome built on shadcn/ui. Production-grade defaults, not branded marketing.
+description: Quiet, system-typeface, neutral-on-mauve chrome built on shadcn/ui. Production-grade defaults, not branded marketing.
 colors:
   background: '#eff1f5'
   foreground: '#4c4f69'
@@ -159,36 +159,36 @@ components:
 
 ## Overview
 
-The B2B SaaS Starter is a production-leaning chrome — quiet, legible, system-typeface — built on shadcn/ui + Tailwind v4 with a single accent blue. It is a workspace UI for serious operators, not a marketing surface. The public Showcase Site shares the same shadcn token contract and primitives but commits harder to the brand: the `.marketing` scope (applied by `PublicLayout`) overrides the token values with a deep petrol teal + amber "signal" palette, and marketing `h1`/`h2` render in Archivo Variable drawn wide. One system, two registers.
+The B2B SaaS Starter is a production-leaning chrome — quiet, legible, system-typeface — built on shadcn/ui + Tailwind v4 with a single saturated mauve accent. It is a workspace UI for serious operators, not a marketing surface. The public Showcase Site shares the same shadcn token contract and primitives but commits harder to the brand: the `.marketing` scope (applied by `PublicLayout`) overrides the token values with a deep petrol teal + amber "signal" palette, and marketing `h1`/`h2` render in Archivo Variable drawn wide. One system, two registers.
 
 **Emotional goals.** Calm, considered, inspectable. The interface should feel like a tool a team will use every day — closer to Linear or Vercel's dashboard than to a launch-day landing page. No exuberance, no novelty, no overlap with consumer-product aesthetics.
 
-**Primary reference.** Stripe Dashboard, Linear, Vercel — sharp 0-radius surfaces, neutral grays, a single saturated blue for action affordance, and Geist throughout. Density is generous-but-not-airy.
+**Primary reference.** Stripe Dashboard, Linear, Vercel — sharp 0-radius surfaces, Catppuccin neutrals, a single saturated mauve for action affordance, and Geist throughout. Density is generous-but-not-airy.
 
 **Anti-references.** Gradient hero pages, glassmorphism, neumorphism, glowing accents, illustration-heavy marketing surfaces. Any "consumer-y" warmth signals the brand wrong.
 
-**Theme.** Neutral grays + a single saturated blue accent. Light by default, dark fully supported. Both themes share the same accent so the brand reads identically regardless of `prefers-color-scheme`. Authoritative token values live in OKLch in `apps/web/src/index.css` for perceptual uniformity; the sRGB hex tokens in this file are the portable equivalent for agents and exports.
+**Theme.** Catppuccin neutrals + a single saturated mauve accent. Light by default, dark fully supported. Both themes share the same accent so the brand reads identically regardless of `prefers-color-scheme`. Authoritative token values live in OKLch in `apps/web/src/index.css` for perceptual uniformity; the sRGB hex tokens in this file are the portable equivalent for agents and exports.
 
 ## Colors
 
-The palette is rooted in neutral grays with a single saturated blue accent — chosen so chrome stays out of the way and the data on screen reads first.
+The palette is rooted in Catppuccin neutrals with a single saturated mauve accent (#8839EF light / #CBA6F7 dark) — chosen so chrome stays out of the way and the data on screen reads first.
 
 - **Background (`#FCFCFC` / `#1E1E1E`):** Page surface. Near-white in light mode, near-black in dark mode. Avoid hard `#FFF` / `#000`.
 - **Card / Popover (`#FFFFFF` / `#2D2D2D`):** Lifted neutral surface for panels, dialogs, popovers, sidebars. Light mode card sits a hair above background; dark mode lifts visibly.
 - **Foreground (`#424242` / `#E5E5E5`):** Body and heading text. Soft on light, soft on dark — true black/white reserved for accents.
-- **Primary (`#3B82F6`):** The single accent. CTAs, focus rings, active links, selected rows. If everything is blue, nothing is.
-- **Primary-foreground (`#FFFFFF`):** Pure white text on primary fills — passes contrast against the blue at all sizes.
+- **Primary (`#8839EF` / `#CBA6F7`):** The single accent. CTAs, active links, selected rows. If everything is mauve, nothing is.
+- **Primary-foreground:** Light mode uses white on the primary fill; dark mode flips to near-black (`#11111B`) on the lifted lavender — both pass contrast at all sizes.
 - **Secondary (`#F1F5F9` / `#2D2D2D`):** Default button fill. Most buttons land here, not on primary.
 - **Muted (`#F8FAFC` / `#2D2D2D`):** Recessed background for nested panels, code blocks, and "secondary information" zones.
 - **Accent (`#E0F2FE` / `#1E40AF`):** Hover lift on rows and tabs. Light mode goes pale-cyan; dark mode goes saturated-blue. The accent-foreground tracks the inverse.
 - **Border (`#E2E8F0` / `#494949`):** The carved edge that gives the card 0-radius chrome its shape. Always 1px. Never thicker.
 - **Destructive (`#EF4444`):** Delete, revoke, leave-workspace. Confirmations only — never as a chrome color.
-- **Ring (`#3B82F6`):** Focus outline. Same hue as primary so focus and action read as one system.
-- **Chart 1–5:** Scaled-blue chart palette (no rainbow). Defined in `index.css` `--chart-1`…`--chart-5`; reach for these in dashboards before introducing new colors.
+- **Ring (`#7287FD` / `#B4BEFE`):** Focus outline. Same hue family as primary so focus and action read as one system.
+- **Chart 1–5:** Scaled chart palette in the brand hue family (no rainbow). Defined in `index.css` `--chart-1`…`--chart-5`; reach for these in dashboards before introducing new colors.
 
 The sidebar has its own tokens (`--sidebar-*`) so navigation can lift independently from the body in either mode. Treat them as the source of truth for `WorkspaceShell` navigation chrome.
 
-**Marketing scope.** Public routes (wrapped in `.marketing` by `PublicLayout`) redefine the same token names in `apps/web/src/index.css`: primary becomes a deep petrol teal (`oklch(0.42 0.075 215)` light / lifted teal dark), neutrals tint toward the same hue, and two extra tokens exist — `--signal` (burnt amber, for schematic marks and status dots) and `--signal-ink` (its text-safe counterpart, ≥4.5:1 on the page background). `.band-deep` re-overrides the contract for petrol-drenched sections; inside a band, `primary` flips to amber so CTAs pop. Workspace routes never see any of this — the app keeps the neutral/blue chrome above.
+**Marketing scope.** Public routes (wrapped in `.marketing` by `PublicLayout`) redefine the same token names in `apps/web/src/index.css`: primary becomes a deep petrol teal (`oklch(0.42 0.075 215)` light / lifted teal dark), neutrals tint toward the same hue, and two extra tokens exist — `--signal` (burnt amber, for schematic marks and status dots) and `--signal-ink` (its text-safe counterpart, ≥4.5:1 on the page background). `.band-deep` re-overrides the contract for petrol-drenched sections; inside a band, `primary` flips to amber so CTAs pop. Workspace routes never see any of this — the app keeps the neutral/mauve chrome above.
 
 ## Typography
 
@@ -243,12 +243,12 @@ This is intentional: the contrast between sharp panels and softly-rounded contro
 
 Component tokens are defined in the YAML above and are the normative surface for agents. A few usage notes:
 
-- **`button-primary`** is the saturated blue CTA. One per screen region. Reserve for the most important action ("Save", "Create workspace", "Sign in").
+- **`button-primary`** is the saturated mauve CTA. One per screen region. Reserve for the most important action ("Save", "Create workspace", "Sign in").
 - **`button-secondary`** is the default action. The overwhelming majority of buttons are this.
 - **`button-ghost`** carries no fill and no border — use for in-row actions, dismiss, cancel.
 - **`button-destructive`** is for delete, revoke, leave-workspace. Always paired with a confirmation step.
 - **`card`** is the only panel surface. Don't nest cards inside cards; lift via `bg-muted` instead.
-- **`input`** sits at `border` + `bg-card`. Focus ring is the primary blue.
+- **`input`** sits at `border` + `bg-card`. Focus ring is the primary accent.
 - **`badge`** uses 22px height + 4/8px padding. Plan-tier and status pills should land here, not in ad-hoc spans.
 - **Sidebar** uses its own `--sidebar-*` tokens — don't apply body tokens to navigation chrome.
 
@@ -264,7 +264,7 @@ Component tokens are defined in the YAML above and are the normative surface for
 
 **Don't**
 
-- Don't introduce a second accent hue in the workspace. The one blue is the app system; petrol + amber belong to the `.marketing` scope only.
+- Don't introduce a second accent hue in the workspace. The one mauve is the app system; petrol + amber belong to the `.marketing` scope only.
 - Don't swap in system fonts "for performance." Geist + Geist Mono (+ Archivo Variable on public routes) are load-bearing and shipped self-hosted via `@fontsource-variable`.
 - Don't round panels. The sharp/soft contrast between cards and controls is the brand.
 - Don't use `destructive` red for anything but genuinely destructive actions. It is a signal, not a color.

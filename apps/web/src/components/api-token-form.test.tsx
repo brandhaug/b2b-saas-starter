@@ -64,6 +64,8 @@ describe('ApiTokenForm', () => {
     expect(createToken).toHaveBeenCalledWith({
       data: { workspaceSlug: 'starter-lab', name: 'CI token', scopes: ['read'] }
     })
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Show API token' }))
     await screen.findByText('bsk_live_secret_value')
   })
 

@@ -89,7 +89,7 @@ function BlogPostPage() {
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <span>{frontmatter.author}</span>
                 <span>&middot;</span>
-                <time>
+                <time dateTime={frontmatter.date}>
                   {new Date(frontmatter.date).toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',

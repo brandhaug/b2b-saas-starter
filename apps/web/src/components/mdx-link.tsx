@@ -14,9 +14,17 @@ export function MdxLink({ href, children, className }: MdxLinkProps) {
     return <span className={className}>{children}</span>
   }
 
-  const isInternal = href.startsWith('/') || href.startsWith('#')
+  const isAnchor = href.startsWith('#')
 
-  if (isInternal) {
+  if (isAnchor) {
+    return (
+      <a href={href} className={className}>
+        {children}
+      </a>
+    )
+  }
+
+  if (href.startsWith('/')) {
     return (
       <Link to={href} className={className}>
         {children}

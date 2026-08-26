@@ -64,9 +64,10 @@ describe('DataTable', () => {
     expect(next.disabled).toBe(true)
   })
 
-  it('hides pagination controls when everything fits on one page', () => {
+  it('keeps pagination controls rendered but disabled when everything fits on one page', () => {
     render(<DataTable columns={columns} data={rows} pageSize={10} />)
-    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
+    const next = screen.getByRole<HTMLButtonElement>('button', { name: 'Next' })
+    expect(next.disabled).toBe(true)
   })
 
   it('sorts rows when a sortable header is toggled', () => {

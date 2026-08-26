@@ -235,10 +235,13 @@ export function TwoFactorPanel({
       <section className="grid gap-4" aria-label="Two-factor authentication">
         <header className="flex items-center gap-2">
           <ShieldCheckIcon className="size-4 text-primary" />
-          <h3 className="text-sm font-medium">Two-factor authentication</h3>
+          <h3 className="text-sm font-medium">Status</h3>
         </header>
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="inline-block size-2 rounded-full bg-primary" aria-hidden />
+        <p className="text-sm text-muted-foreground">
+          <span
+            className="mr-2 inline-block size-2 rounded-full bg-muted-foreground"
+            aria-hidden
+          />
           On. Codes are required at sign-in.
         </p>
         <form
@@ -284,6 +287,7 @@ export function TwoFactorPanel({
         <div className="flex flex-wrap items-start gap-6">
           <figure aria-label="Two-factor secret QR code">
             <QRCodeSVG value={state.totpURI} size={144} />
+            <figcaption className="sr-only">Two-factor secret QR code</figcaption>
           </figure>
           <div className="grid max-w-xs gap-1">
             <p className="text-sm text-muted-foreground">
@@ -345,10 +349,10 @@ export function TwoFactorPanel({
     <section className="grid gap-4" aria-label="Two-factor authentication">
       <header className="flex items-center gap-2">
         <ShieldCheckIcon className="size-4 text-muted-foreground" />
-        <h3 className="text-sm font-medium">Two-factor authentication</h3>
+        <h3 className="text-sm font-medium">Turn on</h3>
       </header>
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="inline-block size-2 rounded-full bg-border" aria-hidden />
+      <p className="text-sm text-muted-foreground">
+        <span className="mr-2 inline-block size-2 rounded-full bg-border" aria-hidden />
         Off. Add an authenticator-app code to sign-in.
       </p>
       <form

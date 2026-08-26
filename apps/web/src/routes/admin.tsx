@@ -5,7 +5,7 @@ import {
 import { createFileRoute } from '@tanstack/react-router'
 import { Effect } from 'effect'
 
-import { AdminUserActions } from '@/components/admin-user-actions'
+import { AdminUserActions, BanUserAction } from '@/components/admin-user-actions'
 import { DataTable, type DataTableColumnDef } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
@@ -40,6 +40,12 @@ const userColumns: DataTableColumnDef<SystemUser>[] = [
     accessorKey: 'banned',
     header: 'Status',
     cell: ({ row }) => renderStatus(row.original.banned)
+  },
+  {
+    id: 'actions',
+    header: '',
+    enableSorting: false,
+    cell: ({ row }) => <BanUserAction user={row.original} />
   }
 ]
 

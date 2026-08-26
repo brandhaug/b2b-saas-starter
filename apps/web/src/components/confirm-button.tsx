@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui/spinner'
  * An irreversible action's two states: the idle button that arms it, then an
  * armed pair (confirm plus cancel). The armed state can be owned here or
  * lifted — panels that arm one row at a time pass `armed`/`onArm`/`onCancel`
- * keyed to the row.
+ * keyed to the row. Pass `target` to distinguish rows by accessible name.
  */
 export function ConfirmButton({
   label,
@@ -19,6 +19,7 @@ export function ConfirmButton({
   size = 'sm',
   cancelVariant = 'ghost',
   className,
+  target,
   armed,
   onArm,
   onCancel
@@ -32,6 +33,7 @@ export function ConfirmButton({
   readonly size?: React.ComponentProps<typeof Button>['size']
   readonly cancelVariant?: React.ComponentProps<typeof Button>['variant']
   readonly className?: string
+  readonly target?: string
   readonly armed?: boolean
   readonly onArm?: () => void
   readonly onCancel?: () => void
@@ -39,12 +41,31 @@ export function ConfirmButton({
   const [armedHere, setArmedHere] = useState(false)
   const isArmed = armed ?? armedHere
 
+  const confirmRef = useRef<HTMLButtonElement>(null)
+  const onCancelRef = useRef(onCancel)
+
+  useEffect(() => {
+    if (!isArmed) return
+    onCancelRef.current = onCancel
+    confirmRef.current?.focus()
+    function disarm(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      setArmedHere(false)
+      onCancelRef.current?.()
+    }
+    document.addEventListener('keydown', disarm)
+    return () => document.removeEventListener('keydown', disarm)
+  }, [isArmed, onCancel])
+
+  const row = target ? ` ${target}` : ''
+
   if (!isArmed) {
     return (
       <Button
         variant={variant}
         size={size}
         className={className}
+        aria-label={`${label}${row}`}
         onClick={() => {
           setArmedHere(true)
           onArm?.()
@@ -56,10 +77,15 @@ export function ConfirmButton({
   }
   return (
     <>
+      <span className="sr-only" role="alert">
+        Press again to confirm{target ? ` ${target}` : ''}
+      </span>
       <Button
+        ref={confirmRef}
         variant="destructive"
         size={size}
         disabled={busy}
+        aria-label={`${confirmLabel}${row}`}
         onClick={() => {
           setArmedHere(false)
           onCancel?.()
@@ -72,6 +98,7 @@ export function ConfirmButton({
       <Button
         variant={cancelVariant}
         size={size}
+        aria-label={`${cancelLabel}${row}`}
         onClick={() => {
           setArmedHere(false)
           onCancel?.()

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Option, Schema } from 'effect'
 import {
   columnFilteringFeature,
@@ -32,7 +32,26 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
-const STICKY_CLASSES = 'sticky left-0 z-10 bg-card'
+const STICKY_CLASSES = 'sticky left-0 z-10 bg-card group-hover:bg-muted/50'
+
+/** Deterministic UTC rendering so SSR and the browser agree; table
+ * convention sets identifiers and timestamps in mono tabular figures. */
+function isDate(cell: ReactNode | Date): cell is Date {
+  return Object.prototype.toString.call(cell) === '[object Date]'
+}
+
+function formatDateCell(value: Date) {
+  return (
+    <span className="font-mono tabular-nums">
+      {value.toLocaleString('en-US', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'UTC'
+      })}{' '}
+      UTC
+    </span>
+  )
+}
 
 // v9 registers features explicitly (prerequisites before their slots). The
 // registered `sortFns` are the ones `sortFn: 'auto'` can resolve for a column.
@@ -188,12 +207,16 @@ export function DataTable<TData extends RowData>({
             </TableRow>
           ) : (
             table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow key={row.id} className="group">
                 {row.getVisibleCells().map((cell) => {
                   const isSticky = cell.column.columnDef.meta?.sticky === true
+                  const rendered = flexRender(
+                    cell.column.columnDef.cell,
+                    cell.getContext()
+                  )
                   return (
                     <TableCell key={cell.id} className={cn(isSticky && STICKY_CLASSES)}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {isDate(rendered) ? formatDateCell(rendered) : rendered}
                     </TableCell>
                   )
                 })}
@@ -202,35 +225,33 @@ export function DataTable<TData extends RowData>({
           )}
         </TableBody>
       </Table>
-      {filteredCount > pageSize ? (
-        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>
-            Page {table.state.pagination.pageIndex + 1} of {table.getPageCount()}
-            {' · '}
-            {filteredCount} rows
-          </span>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              Previous
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              Next
-            </Button>
-          </div>
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>
+          Page {table.state.pagination.pageIndex + 1} of {table.getPageCount()}
+          {' · '}
+          {filteredCount} rows
+        </span>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Previous
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Next
+          </Button>
         </div>
-      ) : null}
+      </div>
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/workspace-
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { CreateWorkspaceForm } from '@/components/create-workspace-form'
 import { EmailVerificationBanner } from '@/components/email-verification-banner'
-import { PublicLayout } from '@/components/public-layout'
+import { WorkspaceShell } from '@/components/workspace-shell'
 import { RoutePending } from '@/components/route-pending'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { runCapabilities } from '@/lib/capabilities'
@@ -22,12 +22,12 @@ function WorkspacesPage() {
   const navigate = useNavigate()
 
   return (
-    <PublicLayout>
-      <main id="main-content" className="mx-auto w-full max-w-4xl px-4 py-12 sm:px-6">
-        <h1 className="text-3xl font-semibold">Workspaces</h1>
-        <p className="mt-3 text-muted-foreground">
-          Every workspace your account is a member of.
-        </p>
+    <WorkspaceShell
+      workspaceSlug={null}
+      title="Workspaces"
+      description="Every workspace your account is a member of."
+    >
+      <div className="mx-auto w-full max-w-4xl">
         {/* The unverified state surfaces here rather than gating anything:
               verification is encouraged, not enforced (provider-light rule). */}
         {session.user.emailVerified ? null : (
@@ -74,7 +74,12 @@ function WorkspacesPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground">
-                      {memberCount} members, {notificationCount} notifications
+                      <span className="font-mono tabular-nums">{memberCount}</span>{' '}
+                      members,{' '}
+                      <span className="font-mono tabular-nums">
+                        {notificationCount}
+                      </span>{' '}
+                      notifications
                     </p>
                   </CardContent>
                 </Card>
@@ -82,7 +87,7 @@ function WorkspacesPage() {
             ))}
           </div>
         )}
-      </main>
-    </PublicLayout>
+      </div>
+    </WorkspaceShell>
   )
 }

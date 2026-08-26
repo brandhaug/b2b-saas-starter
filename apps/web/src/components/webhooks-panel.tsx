@@ -19,6 +19,7 @@ import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { WebhookForm, type CreateWebhookEndpoint } from '@/components/webhook-form'
 import { ConfirmButton } from '@/components/confirm-button'
+import { SecretReveal } from '@/components/secret-reveal'
 import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import {
@@ -255,7 +256,11 @@ export function WebhooksPanel({
                         Secret rotated. Copy it now, it will not be shown again.
                       </AlertTitle>
                       <AlertDescription>
-                        <code className="break-all">{rotatedSecret.secret}</code>
+                        <SecretReveal
+                          secret={rotatedSecret.secret}
+                          label="Webhook secret"
+                          className="flex items-center gap-2"
+                        />
                       </AlertDescription>
                     </Alert>
                   </>

@@ -49,13 +49,21 @@ function HeroSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
               >
                 <GithubIcon className="size-4" />
                 View on GitHub
+                <span className="sr-only">(opens in new tab)</span>
               </a>
               <code className="font-mono text-xs text-muted-foreground max-sm:mt-2">
                 $ bun install && bun run dev
               </code>
             </div>
           </div>
-          <figure className="rise rise-3 min-w-0 overflow-x-auto border border-border bg-card p-3 sm:p-4">
+          <figure
+            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <figure> is the semantic element; role="region" exposes the scrollable area without losing figure semantics.
+            role="region"
+            aria-label="Architecture schematic, scrollable horizontally"
+            // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focus stop to pan the horizontally overflowing schematic.
+            tabIndex={0}
+            className="rise rise-3 min-w-0 overflow-x-auto border border-border bg-card p-3 sm:p-4"
+          >
             <ArchitectureSchematic />
             <figcaption className="sr-only">
               Every label in this diagram is a real path in the repository.

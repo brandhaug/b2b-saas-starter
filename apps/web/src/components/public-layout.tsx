@@ -83,7 +83,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
           <ThemeToggle />
           <Link
             to="/sign-in"
-            className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Sign in
           </Link>
@@ -96,19 +96,19 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
           <div className="flex flex-wrap gap-4">
             <Link
               to="/privacy"
-              className="underline-offset-4 hover:text-foreground hover:underline"
+              className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
             >
               Privacy
             </Link>
             <Link
               to="/terms"
-              className="underline-offset-4 hover:text-foreground hover:underline"
+              className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
             >
               Terms
             </Link>
             <Link
               to="/changelog"
-              className="underline-offset-4 hover:text-foreground hover:underline"
+              className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
             >
               Changelog
             </Link>

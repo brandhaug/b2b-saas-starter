@@ -72,10 +72,13 @@ export function TwoFactorChallengePage({
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="123456"
+            maxLength={6}
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- the challenge page has exactly one field, so focusing it cannot surprise anyone mid-task
+            autoFocus
             value={field.state.value}
             errors={field.state.meta.errors}
             onBlur={field.handleBlur}
-            onChange={field.handleChange}
+            onChange={(value) => field.handleChange(value.replaceAll(/\D/g, ''))}
             required
           />
         )}

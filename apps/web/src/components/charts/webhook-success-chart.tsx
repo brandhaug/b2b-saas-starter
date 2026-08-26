@@ -31,7 +31,14 @@ export function WebhookSuccessChart({
 
   return (
     <div className="h-40 w-full">
-      <ResponsiveContainer width="100%" height="100%">
+      <ul className="sr-only">
+        {data.map((entry) => (
+          <li key={entry.label}>
+            {entry.label}: {entry.successRate}% success rate
+          </li>
+        ))}
+      </ul>
+      <ResponsiveContainer aria-hidden width="100%" height="100%">
         <BarChart data={data} margin={CHART_MARGIN}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
           <XAxis dataKey="label" tickLine={false} axisLine={false} tick={AXIS_TICK} />
@@ -46,7 +53,7 @@ export function WebhookSuccessChart({
             {data.map((entry) => (
               <Cell
                 key={entry.label}
-                fill={entry.successRate >= 95 ? 'var(--chart-1)' : 'var(--destructive)'}
+                fill={entry.successRate >= 95 ? 'var(--chart-1)' : 'var(--chart-3)'}
               />
             ))}
           </Bar>

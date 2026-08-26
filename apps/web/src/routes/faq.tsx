@@ -9,7 +9,23 @@ import {
 import { faqItems } from '@/lib/content'
 
 export const Route = createFileRoute('/faq')({
-  component: FaqPage
+  component: FaqPage,
+  head: () => ({
+    meta: [
+      { title: 'FAQ | B2B SaaS Starter' },
+      {
+        name: 'description',
+        content:
+          'Answers about billing, licensing, and adopting the B2B SaaS Starter for your product.'
+      },
+      { property: 'og:title', content: 'FAQ | B2B SaaS Starter' },
+      {
+        property: 'og:description',
+        content:
+          'Answers about billing, licensing, and adopting the B2B SaaS Starter for your product.'
+      }
+    ]
+  })
 })
 
 function FaqPage() {
