@@ -1,7 +1,7 @@
 import { Database } from '@b2b-saas-starter/db/src/service.ts'
 import { user, workspaceMembers, workspaces } from '@b2b-saas-starter/db/src/schema.ts'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -11,6 +11,7 @@ import {
   fabricateSeedMember,
   findWorkspaceMember,
   Member,
+  requireMemberRowId,
   toMember,
   Workspace,
   type WorkspaceRole
@@ -220,30 +221,13 @@ export function LiveWorkspaceMembership(
        * capability caller speaks in user ids. Resolving here also supplies the
        * `not_a_member` rejection without a second round trip.
        */
-      const resolveMemberId = Effect.fnUntraced(function* (
-        workspaceId: string,
-        userId: string
-      ) {
-        const rows = yield* unavailable(
-          db
-            .select({ id: workspaceMembers.id })
-            .from(workspaceMembers)
-            .where(
-              and(
-                eq(workspaceMembers.workspaceId, workspaceId),
-                eq(workspaceMembers.userId, userId)
-              )
-            )
-            .limit(1)
+      function resolveMemberId(workspaceId: string, userId: string) {
+        return requireMemberRowId(
+          db,
+          { workspaceId, userId },
+          () => new MembershipChangeRejected({ reason: 'not_a_member' })
         )
-        const row = rows[0]
-        if (!row) {
-          return yield* Effect.fail(
-            new MembershipChangeRejected({ reason: 'not_a_member' })
-          )
-        }
-        return row.id
-      })
+      }
 
       /** Reads the member back through the same join `listMembers` uses. */
       const readMember = Effect.fnUntraced(function* (

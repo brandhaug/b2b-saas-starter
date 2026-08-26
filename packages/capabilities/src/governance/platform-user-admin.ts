@@ -1,13 +1,14 @@
-import { user, workspaceMembers } from '@b2b-saas-starter/db/src/schema.ts'
+import { user } from '@b2b-saas-starter/db/src/schema.ts'
 import { Database } from '@b2b-saas-starter/db/src/service.ts'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 import { type CapabilityUnavailable, UserAdminRejected } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   findWorkspaceMember,
+  requireMemberRowId,
   SystemRole,
   type Member,
   type WorkspaceRole
@@ -138,28 +139,13 @@ export function LivePlatformUserAdmin(
        * The plugin addresses a member by its surrogate row id; the capability
        * speaks in user ids, like `WorkspaceMembership` does.
        */
-      const resolveMemberId = Effect.fnUntraced(function* (
-        workspaceId: string,
-        userId: string
-      ) {
-        const rows = yield* unavailable(
-          db
-            .select({ id: workspaceMembers.id })
-            .from(workspaceMembers)
-            .where(
-              and(
-                eq(workspaceMembers.workspaceId, workspaceId),
-                eq(workspaceMembers.userId, userId)
-              )
-            )
-            .limit(1)
+      function resolveMemberId(workspaceId: string, userId: string) {
+        return requireMemberRowId(
+          db,
+          { workspaceId, userId },
+          () => new UserAdminRejected({ reason: 'not_a_member' })
         )
-        const row = rows[0]
-        if (!row) {
-          return yield* Effect.fail(new UserAdminRejected({ reason: 'not_a_member' }))
-        }
-        return row.id
-      })
+      }
 
       return {
         listUsers: unavailable(db.select().from(user)).pipe(

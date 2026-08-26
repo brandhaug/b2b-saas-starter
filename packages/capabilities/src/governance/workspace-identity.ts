@@ -119,3 +119,35 @@ export function findWorkspaceMember(
       .limit(1)
   ).pipe(Effect.map((rows) => rows.map(toMember)[0]))
 }
+
+/**
+ * Resolves a member's surrogate row id from `(workspaceId, userId)` — the
+ * plugin addresses members by row id while capability callers speak in user
+ * ids. Shared by `workspace-membership` and `platform-user-admin`, which each
+ * supply their own rejection constructor so the failure type matches the
+ * calling capability.
+ */
+export function requireMemberRowId<E>(
+  db: EffectDatabase,
+  input: { readonly workspaceId: string; readonly userId: string },
+  makeRejection: () => E
+): Effect.Effect<string, E | CapabilityUnavailable> {
+  return orUnavailable('workspace-membership')(
+    db
+      .select({ id: workspaceMembers.id })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, input.workspaceId),
+          eq(workspaceMembers.userId, input.userId)
+        )
+      )
+      .limit(1)
+  ).pipe(
+    Effect.flatMap((rows) => {
+      const row = rows[0]
+      if (!row) return Effect.fail(makeRejection())
+      return Effect.succeed(row.id)
+    })
+  )
+}

@@ -4,4 +4,4 @@
  * worker's webhook signature — import from here rather than reaching into
  * `internal/`.
  */
-export { bytesToHex } from './internal/crypto.ts'
+export { bytesToHex, hmacSha256Hex } from './internal/crypto.ts'

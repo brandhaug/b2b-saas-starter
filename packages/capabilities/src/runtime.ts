@@ -65,6 +65,19 @@ export type StarterEnv = {
   }
 }
 
+/**
+ * The worker-bindings projection: the `{ DB, WEBHOOK_QUEUE }` subset of a
+ * worker's env that selects the capability layer (Live vs Seed, fan-out on or
+ * off). Canonical home is here beside `StarterEnv`; workers project their own
+ * env type through it so the field set cannot drift between apps.
+ */
+export function starterEnv(env: Pick<StarterEnv, 'DB' | 'WEBHOOK_QUEUE'>): StarterEnv {
+  return {
+    DB: env.DB,
+    WEBHOOK_QUEUE: env.WEBHOOK_QUEUE
+  }
+}
+
 export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
   if (env.DB === undefined) {
     return SeedLayer

@@ -3,11 +3,11 @@ import {
   apiTokenScopes,
   workspaces
 } from '@b2b-saas-starter/db/src/schema.ts'
-import { Database } from '@b2b-saas-starter/db/src/service.ts'
+import { Database, RawD1 } from '@b2b-saas-starter/db/src/service.ts'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
-import { and, count, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 
-import { assertWithinPlanLimit } from '../billing/billing.ts'
+import { assertWithinPlanLimit, assertWithinPlanLimitFor } from '../billing/billing.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import {
@@ -234,13 +234,7 @@ export function SeedApiTokenRegistry(
           // The projection, never the minted secret.
           yield* publishWebhookEventWith(publisher, {
             eventType: 'api_token.created',
-            payload: {
-              id: created.id,
-              name: created.name,
-              prefix: created.prefix,
-              scopes: created.scopes,
-              createdAt: created.createdAt
-            }
+            payload: created
           })
           return { ...created, token: 'bsk_seed_created_token' }
         }),
@@ -307,13 +301,26 @@ function tokenPrefix(token: string): string {
 
 const unavailable = orUnavailable('api-token-registry')
 
+/** The wire projection of a stored token row — assembled once, reused by the list, the fan-out payload, and the create return. */
+function toTokenProjection(row: typeof apiTokens.$inferSelect): ApiToken {
+  return {
+    id: row.id,
+    name: row.name,
+    prefix: row.tokenPrefix,
+    scopes: row.scopes,
+    lastUsedAt: row.lastUsedAt,
+    createdAt: row.createdAt
+  }
+}
+
 export const LiveApiTokenRegistry: Layer.Layer<
   ApiTokenRegistry,
   never,
-  Database | AuditEventLog | WebhookPublisher
+  Database | RawD1 | AuditEventLog | WebhookPublisher
 > = Layer.effect(ApiTokenRegistry)(
   Effect.gen(function* () {
     const db = yield* Database
+    const d1 = yield* RawD1
     const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
 
@@ -321,7 +328,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
     // write, its zero-match skip, and the phantom-audit caveat (see
     // governance/audited-mutation.ts).
     const auditedMutation = auditedMutations({
-      db,
+      d1,
       prepareAuditRecord: audit.prepareRecord,
       unavailable
     })
@@ -341,35 +348,23 @@ export const LiveApiTokenRegistry: Layer.Layer<
             )
             .orderBy(desc(apiTokens.createdAt))
         )
-        return rows.map((row) => ({
-          id: row.id,
-          name: row.name,
-          prefix: row.tokenPrefix,
-          scopes: row.scopes,
-          lastUsedAt: row.lastUsedAt,
-          createdAt: row.createdAt
-        }))
+        return rows.map(toTokenProjection)
       }),
       create: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
-          // Entitlement gate: the workspace's plan caps token count. The rule
-          // lives in the billing capability; the counting lives here, so no
+          // Entitlement gate: the workspace's plan caps token count. The
+          // rule and the counting both live in the billing capability, so no
           // caller can forget the gate.
-          const existingCount = yield* unavailable(
-            db
-              .select({ value: count() })
-              .from(apiTokens)
-              .where(
-                and(
-                  eq(apiTokens.workspaceId, ctx.workspace.id),
-                  isNull(apiTokens.revokedAt)
-                )
-              )
-          )
-          yield* assertWithinPlanLimit({
+          yield* assertWithinPlanLimitFor({
             resource: 'api_token',
-            used: existingCount[0]?.value ?? 0
+            db,
+            capability: 'api-token-registry',
+            table: apiTokens,
+            where: and(
+              eq(apiTokens.workspaceId, ctx.workspace.id),
+              isNull(apiTokens.revokedAt)
+            )
           })
           const token = randomToken()
           const createdAt = DateTime.formatIso(yield* DateTime.now)
@@ -403,23 +398,9 @@ export const LiveApiTokenRegistry: Layer.Layer<
           // projection only — never the minted secret.
           yield* publishWebhookEventWith(publisher, {
             eventType: 'api_token.created',
-            payload: {
-              id: row.id,
-              name: row.name,
-              prefix: row.tokenPrefix,
-              scopes: row.scopes,
-              createdAt
-            }
+            payload: toTokenProjection(row)
           })
-          return {
-            id: row.id,
-            name: row.name,
-            prefix: row.tokenPrefix,
-            scopes: row.scopes,
-            lastUsedAt: null,
-            createdAt,
-            token
-          }
+          return { ...toTokenProjection(row), token }
         }),
       revoke: (input) =>
         Effect.gen(function* () {

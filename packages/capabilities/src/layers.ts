@@ -1,4 +1,8 @@
-import { type Database, layerFromD1 } from '@b2b-saas-starter/db/src/service.ts'
+import {
+  type Database,
+  type RawD1,
+  layerFromD1
+} from '@b2b-saas-starter/db/src/service.ts'
 import { Effect, Layer } from 'effect'
 
 // developer-platform
@@ -7,11 +11,9 @@ import {
   LiveApiTokenRegistry,
   SeedApiTokenRegistry
 } from './developer-platform/api-token-registry.ts'
-import {
-  LiveWebhookEndpoints,
-  SeedWebhookEndpoints,
-  type WebhookEndpoints
-} from './developer-platform/webhook-endpoints.ts'
+import { LiveWebhookEndpoints } from './developer-platform/webhook-endpoints.live.ts'
+import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
+import { type WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
 import {
   LiveWebhookPublisher,
   SeedWebhookPublisher,
@@ -182,7 +184,7 @@ export type LiveCapabilitiesOptions = {
 
 export function makeLiveCapabilitiesLayer(
   options: LiveCapabilitiesOptions = {}
-): Layer.Layer<CapabilityServices, never, Database> {
+): Layer.Layer<CapabilityServices, never, Database | RawD1> {
   return Layer.mergeAll(
     LiveApiTokenRegistry.pipe(
       Layer.provide(LiveAuditEventLog),

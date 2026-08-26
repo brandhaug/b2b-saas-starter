@@ -148,6 +148,24 @@ function toWire(rows: readonly SeedAuditEventRow[]): readonly AuditEvent[] {
 }
 
 /**
+ * Cuts one page off `rows` (already filtered and newest-first) and maps it to
+ * the wire shape. `nextCursor` is emitted only when the cap actually cut rows
+ * off — never for an exact multiple, whose next page would be empty.
+ */
+function buildPage<T>(
+  rows: readonly T[],
+  mapToWire: (row: T) => AuditEvent
+): AuditEventPage {
+  const events = rows.slice(0, AUDIT_EVENT_PAGE_SIZE).map(mapToWire)
+  const last = events[events.length - 1]
+  let nextCursor: string | null = null
+  if (last !== undefined && rows.length > AUDIT_EVENT_PAGE_SIZE) {
+    nextCursor = encodeCursor(last)
+  }
+  return { events, nextCursor }
+}
+
+/**
  * The Seed adapter answers the same filters and keyset pagination as the D1
  * one, in memory over its fixture rows.
  */
@@ -189,13 +207,14 @@ function pagedSeedRows(
     if (a.id < b.id) return 1
     return 0
   })
-  const events = toWire(ordered.slice(0, AUDIT_EVENT_PAGE_SIZE))
-  const last = events[events.length - 1]
-  let nextCursor: string | null = null
-  if (last !== undefined && ordered.length > AUDIT_EVENT_PAGE_SIZE) {
-    nextCursor = encodeCursor(last)
-  }
-  return { events, nextCursor }
+  return buildPage(ordered, (row) => ({
+    id: row.id,
+    eventType: row.eventType,
+    targetType: row.targetType,
+    targetId: row.targetId ?? null,
+    actor: row.actor,
+    createdAt: row.createdAt
+  }))
 }
 
 export function SeedAuditEventLog(
@@ -278,20 +297,15 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           .from(auditEvents)
           .leftJoin(user, eq(user.id, auditEvents.actorUserId))
           .where(and(...conditions))
+        // One row past the page cap: `buildPage` needs to see whether the cap
+        // actually cut rows off before it offers a cursor.
         return query
           .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
-          .limit(AUDIT_EVENT_PAGE_SIZE)
+          .limit(AUDIT_EVENT_PAGE_SIZE + 1)
       }
 
       function toPage(rows: readonly AuditRow[]): AuditEventPage {
-        const events = rows.map(toWireRow)
-        // Only offer an older page when the cap actually cut rows off.
-        const last = events[events.length - 1]
-        let nextCursor: string | null = null
-        if (last !== undefined && events.length === AUDIT_EVENT_PAGE_SIZE) {
-          nextCursor = encodeCursor(last)
-        }
-        return { events, nextCursor }
+        return buildPage(rows, toWireRow)
       }
 
       function pagedRows(workspaceId: string, input: ListAuditEventsInput | undefined) {

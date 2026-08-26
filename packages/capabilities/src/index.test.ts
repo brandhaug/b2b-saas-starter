@@ -17,11 +17,9 @@ import {
   SeedApiTokenRegistry,
   shouldBumpLastUsedAt
 } from './developer-platform/api-token-registry.ts'
-import {
-  LiveWebhookEndpoints,
-  SeedWebhookEndpoints,
-  WebhookEndpoints
-} from './developer-platform/webhook-endpoints.ts'
+import { LiveWebhookEndpoints } from './developer-platform/webhook-endpoints.live.ts'
+import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
+import { WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
 import {
   developerPlatformContractCases,
   planLimitContractCases
