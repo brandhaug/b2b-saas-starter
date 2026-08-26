@@ -218,7 +218,6 @@
       "name": "@b2b-saas-starter/authz",
       "dependencies": {
         "@b2b-saas-starter/db": "workspace:*",
-        "@b2b-saas-starter/logger": "workspace:*",
         "better-auth": "catalog:",
         "effect": "catalog:",
       },
