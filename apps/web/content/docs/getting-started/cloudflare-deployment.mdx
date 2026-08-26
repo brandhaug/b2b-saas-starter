@@ -14,7 +14,7 @@ The starter is Cloudflare-first. Production resources are declared once in the r
 - One Worker per app (web, api, background), each with `placement.mode = smart` where applicable
 - A Cloudflare Queue plus dead-letter queue (`b2b-saas-starter-webhooks` + `b2b-saas-starter-webhooks-dlq`) bound as a `QueueConsumer` on the background worker
 - Cloudflare `SendEmail` binding with `allowedSenderAddresses` for outbound transactional mail (env-gated)
-- Cloudflare `RateLimit` bindings on the web worker (`RATE_LIMITER_AUTH_READ`, `RATE_LIMITER_AUTH_WRITE`) and on the api worker (`RATE_LIMITER_REST`, `RATE_LIMITER_REST_WRITE`, `RATE_LIMITER_INVITATIONS`, `RATE_LIMITER_ASSISTANT`, `RATE_LIMITER_MCP`)
+- Cloudflare `RateLimit` bindings on the web worker (`RATE_LIMITER_AUTH_READ`, `RATE_LIMITER_AUTH_WRITE`, `RATE_LIMITER_AUTH_SIGN_IN`) and on the api worker (`RATE_LIMITER_REST`, `RATE_LIMITER_REST_WRITE`, `RATE_LIMITER_INVITATIONS`, `RATE_LIMITER_ASSISTANT`, `RATE_LIMITER_MCP`)
 
 ## Deploy
 

@@ -102,6 +102,14 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         await options.emails.sendPasswordReset({ email: user.email, url })
       }
     },
+    session: {
+      // Defaults for expiresIn (7 days) and updateAge (24 hours) are kept;
+      // `freshAge` is the one knob the starter states: an hour after each
+      // session's last fresh authentication, sensitive account actions
+      // (password change, 2FA enable/disable) can demand re-authentication
+      // instead of trusting a long-lived cookie alone.
+      freshAge: 60 * 60
+    },
     emailVerification: {
       // The link clicker gets a session: verification proves control of the
       // mailbox, so signing the user in on the spot is the honest reward, not
@@ -126,14 +134,17 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     },
     plugins: plugins(
       username(),
-      // TOTP only: `otp` (email one-time codes) and backup-code sign-in UI are
-      // out of scope for the starter, but the plugin still generates backup
-      // codes on enable — they are stored, just not surfaced in the UI yet.
+      // TOTP only: `otp` (email one-time codes) is out of scope for the
+      // starter. The plugin generates backup codes on enable; the account
+      // panel surfaces them once, at enrollment, alongside the QR.
       twoFactor({
         issuer: 'B2B SaaS Starter',
-        // The starter's account surface is password-first; asking for the
-        // second factor again inside settings would be ceremony.
-        skipVerificationOnEnable: true
+        // Verification is required before 2FA counts as on: the first code
+        // must succeed, so an attacker who only has a stolen session cannot
+        // enroll their own authenticator and lock the real owner out. The
+        // account panel already runs enable → QR → first-code as its flow,
+        // and a database hook emails the user on every state change.
+        skipVerificationOnEnable: false
       }),
       admin({
         adminRoles: ['admin']

@@ -6,7 +6,12 @@ import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import { toHttpEffect } from 'effectful-better-auth'
 import { authRuntime } from '@/lib/auth-runtime'
 import { withWebRequestScope } from '@/lib/observability'
-import { clientKey, makeRateLimiterLayer, RateLimiter } from '@/lib/rate-limit'
+import {
+  authRateLimitBucket,
+  clientKey,
+  makeRateLimiterLayer,
+  RateLimiter
+} from '@/lib/rate-limit'
 import { runCapabilities } from '@/lib/capabilities'
 import {
   needsPreHandlerActor,
@@ -14,7 +19,17 @@ import {
 } from '@/lib/server/auth-audit/lifecycle'
 import { type AuthAuditContext } from '@/lib/server/auth-audit/shared'
 import { makeTurnstileLayer } from '@/lib/server/turnstile'
+import { sendTwoFactorChangedEmail } from '@/lib/server/auth-emails'
+import { notifyTwoFactorChangedEffect } from '@/lib/server/two-factor-notification'
 import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
+
+/** The notification sender, bound to the provider-light email dispatcher. */
+function sendNotification(input: {
+  readonly email: string
+  readonly enabled: boolean
+}) {
+  return sendTwoFactorChangedEmail({ email: input.email, enabled: input.enabled })
+}
 
 /**
  * Everything the audits whose responses never name their actor need, gathered
@@ -47,7 +62,11 @@ async function readAuthAuditContext(
     )
     .catch(() => null)
   if (!session) return undefined
-  return { actorUserId: session.user.id, request: requestClone }
+  return {
+    actorUserId: session.user.id,
+    actorEmail: session.user.email,
+    request: requestClone
+  }
 }
 
 /**
@@ -83,7 +102,7 @@ function verifySignUpTurnstile(request: Request): Effect.Effect<Response | null>
 }
 
 async function handleAuth(request: Request): Promise<Response> {
-  const bucket = request.method === 'POST' ? 'auth_write' : 'auth_read'
+  const bucket = authRateLimitBucket(request.method, new URL(request.url).pathname)
   const rateLimitLayer = makeRateLimiterLayer(env)
 
   // The request scope (method, pathname, trace continuation, the canonical
@@ -141,6 +160,16 @@ async function handleAuth(request: Request): Promise<Response> {
         if (authAudit !== 'skipped') {
           yield* Effect.annotateLogsScoped({ authAudit })
         }
+        // Security notification for a two-factor state change (best-effort,
+        // same contract as the audit above): the account holder is emailed on
+        // every successful enable/disable, so a hijacked session cannot
+        // silently take over or strip the second factor.
+        yield* notifyTwoFactorChangedEffect(
+          request,
+          response,
+          sendNotification,
+          context
+        )
         yield* Effect.annotateLogsScoped({ outcome: 'ok', statusCode: response.status })
         return response
       }).pipe(Effect.provide(rateLimitLayer))

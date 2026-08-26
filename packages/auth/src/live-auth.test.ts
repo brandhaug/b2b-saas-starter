@@ -92,9 +92,19 @@ function signUpSession(email: string) {
         returnHeaders: true
       })
     )
-    const cookie = headers.get('set-cookie')
-    if (cookie === null) return yield* Effect.die(`sign-up set no cookie for ${email}`)
-    return { headers: new Headers({ cookie }), userId: response.user.id }
+    // Sign-up can set more than one cookie (the framework bridge forwards
+    // each); keep every name=value pair, not just the first header.
+    const setCookies = headers.getSetCookie()
+    if (setCookies.length === 0) {
+      return yield* Effect.die(`sign-up set no cookie for ${email}`)
+    }
+    const cookieHeader = setCookies.map((cookie) => cookie.split(';')[0]).join('; ')
+    return {
+      headers: new Headers({ cookie: cookieHeader }),
+      /** The sign-up cookies as `name=value` pairs, for merging with later rotations. */
+      cookiePairs: cookieHeader.split('; ').filter(Boolean),
+      userId: response.user.id
+    }
   })
 }
 
@@ -288,7 +298,8 @@ describe('two-factor plugin', () => {
   it('enables TOTP, verifies it, and flips twoFactorEnabled on the user', () =>
     run(
       Effect.gen(function* () {
-        const { headers, userId } = yield* signUpSession('totp@twofactor.test')
+        const { headers, cookiePairs, userId } =
+          yield* signUpSession('totp@twofactor.test')
         const auth = yield* Auth.Tag
 
         // Enabling rotates the session token, so the response's cookies
@@ -311,10 +322,15 @@ describe('two-factor plugin', () => {
         expect(secret).not.toBeNull()
         expect(enabled.response.backupCodes.length).toBeGreaterThan(0)
 
+        // Merge the sign-up cookies with any cookies the enable response set.
+        // With verification required, enable no longer rotates the session —
+        // it only stores an unverified secret, and the FIRST verified code
+        // (below) flips `twoFactorEnabled` and rotates the session.
         const freshCookies = new Map(
-          [...headers.getSetCookie(), ...enabled.headers.getSetCookie()].map(
-            (cookie) => [cookie.split('=')[0], cookie.split(';')[0]]
-          )
+          [
+            ...cookiePairs,
+            ...enabled.headers.getSetCookie().map((cookie) => cookie.split(';')[0]!)
+          ].map((pair) => [pair.split('=')[0]!, pair])
         )
         const cookieHeader = [...freshCookies.values()].join('; ')
 

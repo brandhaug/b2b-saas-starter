@@ -18,6 +18,7 @@ type WebWorkerEnv = {
   readonly DB?: D1Database
   readonly RATE_LIMITER_AUTH_READ?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
   readonly RATE_LIMITER_AUTH_WRITE?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
+  readonly RATE_LIMITER_AUTH_SIGN_IN?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
   // Cloudflare Email send binding. Optional and unwired by default: without it
   // the invite email goes through the logging dispatcher, which is what keeps
   // the invitation flow working with no provider configured (CLAUDE.md rule 3).

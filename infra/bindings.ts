@@ -21,7 +21,10 @@ export const apiRateLimits: readonly RateLimitBindingSpec[] = [
 
 export const webRateLimits: readonly RateLimitBindingSpec[] = [
   { name: 'RATE_LIMITER_AUTH_READ', namespaceId: '2001', limit: 60, period: 60 },
-  { name: 'RATE_LIMITER_AUTH_WRITE', namespaceId: '2002', limit: 20, period: 60 }
+  { name: 'RATE_LIMITER_AUTH_WRITE', namespaceId: '2002', limit: 20, period: 60 },
+  // Credential sign-in only — tighter than the generic write bucket so a
+  // credential-stuffing attacker does not get twenty password guesses/min/IP.
+  { name: 'RATE_LIMITER_AUTH_SIGN_IN', namespaceId: '2003', limit: 5, period: 60 }
 ]
 
 export const webhookQueueName = 'b2b-saas-starter-webhooks'

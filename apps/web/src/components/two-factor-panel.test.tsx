@@ -72,6 +72,35 @@ describe('TwoFactorPanel', () => {
     expect(status.textContent).toContain('now on')
   })
 
+  it('shows the one-time backup codes from the enable response', async () => {
+    enableTwoFactor.mockResolvedValue({
+      data: { totpURI: TOTP_URI, backupCodes: ['abcd-1234', 'efgh-5678'] }
+    })
+    render(
+      <TwoFactorPanel
+        twoFactorEnabled={false}
+        enableTwoFactor={enableTwoFactor}
+        verifyTotp={verifyTotp}
+        disableTwoFactor={disableTwoFactor}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'correct-horse-battery-staple' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Start setup' }))
+    const codes = await screen.findByRole('region', { name: 'Backup codes' })
+    expect(codes.textContent).toContain('abcd-1234')
+    expect(codes.textContent).toContain('efgh-5678')
+
+    // Verifying closes the one-time reveal — the codes are gone with it.
+    fireEvent.change(screen.getByLabelText('Verification code'), {
+      target: { value: '123456' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify code' }))
+    await screen.findByRole('status')
+    expect(screen.queryByRole('region', { name: 'Backup codes' })).toBeNull()
+  })
+
   it('surfaces an invalid verification code and stays on the setup step', async () => {
     verifyTotp.mockResolvedValue({ error: { message: 'Invalid code' } })
     render(
