@@ -16,3 +16,9 @@ export type ContractExpectMatchers<A> = {
   // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- vitest's toMatchObject takes an arbitrary field subset; a concrete owner type would lie about which fields a case may assert
   readonly toMatchObject: (expected: Record<string, unknown>) => void
 }
+
+/**
+ * The narrowed entry point each contract file takes: one `expect` that may
+ * only produce the matchers the contract promises across adapters.
+ */
+export type ContractExpect = <A>(actual: A) => Pick<ContractExpectMatchers<A>, 'toBe'>

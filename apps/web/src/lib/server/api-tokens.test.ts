@@ -1,17 +1,17 @@
 import {
   SeedApiTokenRegistry,
   type ApiToken
-} from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
-import { SeedWebhookPublisher } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
-import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { SeedWebhookPublisher } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
+import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   testWorkspaceContext,
   type Actor
-} from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   type Workspace,
   type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { describe, expect, it } from 'vitest'
 import { Effect, Layer } from 'effect'
 

@@ -1,14 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { type VerifyTotpCode } from './auth/auth-client-ports'
 import {
   TwoFactorPanel,
   type DisableTwoFactor,
-  type EnableTwoFactor,
-  type VerifyTotp
+  type EnableTwoFactor
 } from './two-factor-panel'
 
 const enableTwoFactor = vi.fn<EnableTwoFactor>()
-const verifyTotp = vi.fn<VerifyTotp>()
+const verifyTotp = vi.fn<VerifyTotpCode>()
 const disableTwoFactor = vi.fn<DisableTwoFactor>()
 
 const TOTP_URI =

@@ -3,14 +3,11 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { Schema } from 'effect'
 import { KeyRoundIcon } from 'lucide-react'
+import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { passwordValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
-import { PublicLayout } from '@/components/public-layout'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
-import { useHydrated } from '@/lib/client-only-value'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const ResetPasswordSearch = Schema.Struct({
   token: Schema.optional(Schema.String),
@@ -73,7 +70,6 @@ export function ResetPasswordPage({
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const hydrated = useHydrated()
   const form = useForm({
     defaultValues: { password: '', confirm: '' } satisfies ResetPasswordValues,
     onSubmit: async ({ value }) => {
@@ -100,112 +96,80 @@ export function ResetPasswordPage({
   // state for every failure, same rule as the invitation accept page.
   if (!token || error) {
     return (
-      <PublicLayout>
-        <main
-          id="main-content"
-          className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
-        >
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle as="h1">This link cannot be used</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <p className="text-sm text-muted-foreground">
-                The password reset link is invalid or has expired. Links work once and
-                expire after an hour.
-              </p>
-              <p className="text-center text-sm text-muted-foreground">
-                <Link
-                  to="/forgot-password"
-                  className="text-primary underline underline-offset-4"
-                >
-                  Request a new reset link
-                </Link>
-              </p>
-            </CardContent>
-          </Card>
-        </main>
-      </PublicLayout>
+      <AuthCardForm
+        title="This link cannot be used"
+        form={null}
+        footer={
+          <p className="text-center text-sm text-muted-foreground">
+            <Link
+              to="/forgot-password"
+              className="text-primary underline underline-offset-4"
+            >
+              Request a new reset link
+            </Link>
+          </p>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          The password reset link is invalid or has expired. Links work once and expire
+          after an hour.
+        </p>
+      </AuthCardForm>
     )
   }
 
   return (
-    <PublicLayout>
-      <main
-        id="main-content"
-        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
+    <AuthCardForm
+      title="Choose a new password"
+      description="Every session signed in before this reset will be signed out."
+      form={form}
+      submit={
+        <AuthSubmitButton
+          form={form}
+          icon={<KeyRoundIcon className="size-4" />}
+          label="Reset password"
+          submittingLabel="Resetting…"
+        />
+      }
+      error={submitError}
+    >
+      <form.Field name="password" validators={{ onChange: passwordValidator }}>
+        {(field) => (
+          <FormTextField
+            name={field.name}
+            label="New password"
+            type="password"
+            autoComplete="new-password"
+            value={field.state.value}
+            errors={field.state.meta.errors}
+            onBlur={field.handleBlur}
+            onChange={field.handleChange}
+            required
+          />
+        )}
+      </form.Field>
+
+      <form.Field
+        name="confirm"
+        validators={{
+          onChange: ({ value }) =>
+            value.length === 0 ? 'Confirm your password' : undefined
+        }}
       >
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle as="h1">Choose a new password</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Every session signed in before this reset will be signed out.
-            </p>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <form
-              data-hydrated={hydrated ? 'true' : undefined}
-              onSubmit={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                void form.handleSubmit()
-              }}
-              className="grid gap-4"
-            >
-              <form.Field name="password" validators={{ onChange: passwordValidator }}>
-                {(field) => (
-                  <FormTextField
-                    name={field.name}
-                    label="New password"
-                    type="password"
-                    autoComplete="new-password"
-                    value={field.state.value}
-                    errors={field.state.meta.errors}
-                    onBlur={field.handleBlur}
-                    onChange={field.handleChange}
-                    required
-                  />
-                )}
-              </form.Field>
-
-              <form.Field
-                name="confirm"
-                validators={{
-                  onChange: ({ value }) =>
-                    value.length === 0 ? 'Confirm your password' : undefined
-                }}
-              >
-                {(field) => (
-                  <FormTextField
-                    name={field.name}
-                    label="Confirm password"
-                    type="password"
-                    autoComplete="new-password"
-                    value={field.state.value}
-                    errors={field.state.meta.errors}
-                    onBlur={field.handleBlur}
-                    onChange={field.handleChange}
-                    required
-                  />
-                )}
-              </form.Field>
-
-              <AuthSubmitButton
-                form={form}
-                icon={<KeyRoundIcon className="size-4" />}
-                label="Reset password"
-                submittingLabel="Resetting…"
-              />
-
-              {submitError ? (
-                <Alert variant="destructive">
-                  <AlertDescription>{submitError}</AlertDescription>
-                </Alert>
-              ) : null}
-            </form>
-          </CardContent>
-        </Card>
-      </main>
-    </PublicLayout>
+        {(field) => (
+          <FormTextField
+            name={field.name}
+            label="Confirm password"
+            type="password"
+            autoComplete="new-password"
+            value={field.state.value}
+            errors={field.state.meta.errors}
+            onBlur={field.handleBlur}
+            onChange={field.handleChange}
+            required
+          />
+        )}
+      </form.Field>
+    </AuthCardForm>
   )
 }

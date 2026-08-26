@@ -24,6 +24,7 @@ import {
   readTraceHeader,
   type TraceContinuation
 } from './trace.ts'
+import { type Writable } from '@b2b-saas-starter/config/writable'
 
 const TaggedFailure = Schema.Struct({ _tag: Schema.String })
 
@@ -103,9 +104,6 @@ export type WideEventRecord = {
 type WideEventSink = (record: WideEventRecord) => Promise<void> | void
 
 /** Write-side view of {@link WideEventRecord}; absent fields stay absent. */
-type MutableWideEventRecord = {
-  -readonly [K in keyof WideEventRecord]: WideEventRecord[K]
-}
 
 const wideEventSinks: Array<WideEventSink> = []
 
@@ -215,7 +213,9 @@ export function withRequestScope<A, E, R>(
           // `withParentSpan` wraps the finalizer too, so the canonical line is
           // also recorded as an event on this span by `Logger.tracerLogger`.
           return yield* body.pipe(
-            Effect.onExit((exit) => emitWideEvent(options, span, startedAt, exit)),
+            Effect.onExit((exit) =>
+              emitWideEvent(options, span, traceId, startedAt, exit)
+            ),
             Effect.withParentSpan(span, { captureStackTrace: false })
           )
         })
@@ -233,6 +233,7 @@ export function withRequestScope<A, E, R>(
 function emitWideEvent(
   options: WideEventScopeOptions,
   span: Tracer.Span,
+  traceId: string,
   startedAt: number,
   exit: Exit.Exit<unknown, unknown>
 ): Effect.Effect<void> {
@@ -253,10 +254,10 @@ function emitWideEvent(
       yield* Effect.log(options.event).pipe(annotated)
     }
     if (wideEventSinks.length > 0) {
-      const record: MutableWideEventRecord = {
+      const record: Writable<WideEventRecord> = {
         service: options.service,
         event: options.event,
-        traceId: options.traceId ?? span.traceId,
+        traceId,
         spanId: span.spanId,
         durationMs,
         status: outcome.status

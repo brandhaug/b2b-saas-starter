@@ -1,13 +1,13 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   Billing,
   PLANS,
   type Plan
-} from '@b2b-saas-starter/capabilities/src/billing/billing.ts'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+} from '@b2b-saas-starter/capabilities/billing/billing'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Schema, type Scope } from 'effect'
 import { env as cloudflareEnv } from 'cloudflare:workers'

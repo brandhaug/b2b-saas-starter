@@ -1,4 +1,4 @@
-import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts' // oxlint-disable-next-line react-doctor/prefer-dynamic-import -- TanStack Start's autoCodeSplitting (default on) puts this module in the dashboard route's chunk, so recharts never loads outside this route. Lazy-loading inside the page would trade an SSR'd card flash for bytes on the app's main screen.
+import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints' // oxlint-disable-next-line react-doctor/prefer-dynamic-import -- TanStack Start's autoCodeSplitting (default on) puts this module in the dashboard route's chunk, so recharts never loads outside this route. Lazy-loading inside the page would trade an SSR'd card flash for bytes on the app's main screen.
 import {
   Bar,
   BarChart,

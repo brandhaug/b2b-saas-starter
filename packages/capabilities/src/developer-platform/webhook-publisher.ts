@@ -1,6 +1,6 @@
 import { currentTraceparent } from '@b2b-saas-starter/logger'
-import { Database } from '@b2b-saas-starter/db/src/service.ts'
-import { webhookEndpoints } from '@b2b-saas-starter/db/src/schema.ts'
+import { Database } from '@b2b-saas-starter/db/service'
+import { webhookEndpoints } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Result, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import { type CapabilityUnavailable } from '../errors.ts'

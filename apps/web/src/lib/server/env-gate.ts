@@ -1,7 +1,4 @@
-import {
-  auditRequiredEnv,
-  type RequiredEnvAudit
-} from '@b2b-saas-starter/env/src/server.ts'
+import { auditRequiredEnv, type RequiredEnvAudit } from '@b2b-saas-starter/env/server'
 import { Effect } from 'effect'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { withWebRequestScope } from '@/lib/observability'

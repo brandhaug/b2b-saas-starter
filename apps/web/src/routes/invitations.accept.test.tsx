@@ -1,4 +1,4 @@
-import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
+import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { renderWithRouter } from '@/test/router-harness'

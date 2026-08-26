@@ -6,14 +6,14 @@ import {
   workspaceInvitations,
   workspaceMembers,
   workspaces
-} from '@b2b-saas-starter/db/src/schema.ts'
+} from '@b2b-saas-starter/db/schema'
 import {
   Database,
   layerFromD1,
   type EffectDatabase,
   type RawD1
-} from '@b2b-saas-starter/db/src/service.ts'
-import { provisionTestD1 } from '@b2b-saas-starter/db/src/testing.ts'
+} from '@b2b-saas-starter/db/service'
+import { provisionTestD1 } from '@b2b-saas-starter/db/testing'
 import { Context, DateTime, Effect, Layer } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 import { and, count, eq } from 'drizzle-orm'

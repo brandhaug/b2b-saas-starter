@@ -3,7 +3,7 @@ import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/e
 import {
   EmailVerificationEmail,
   PasswordResetEmail
-} from '@b2b-saas-starter/email/src/templates.tsx'
+} from '@b2b-saas-starter/email/templates'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { Effect } from 'effect'
 import { type ReactElement } from 'react'

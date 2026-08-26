@@ -1,9 +1,5 @@
-import {
-  apiTokens,
-  apiTokenScopes,
-  workspaces
-} from '@b2b-saas-starter/db/src/schema.ts'
-import { Database, RawD1 } from '@b2b-saas-starter/db/src/service.ts'
+import { apiTokens, apiTokenScopes, workspaces } from '@b2b-saas-starter/db/schema'
+import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 
@@ -301,6 +297,20 @@ function tokenPrefix(token: string): string {
 
 const unavailable = orUnavailable('api-token-registry')
 
+/**
+ * The scoped WHERE clause for an active (unrevoked) token of a workspace:
+ * revoke's pre-check and write share it, and list drops the id condition by
+ * omitting `tokenId`.
+ */
+function activeTokenWhere(tokenId: string | undefined, workspaceId: string) {
+  const conditions = [
+    eq(apiTokens.workspaceId, workspaceId),
+    isNull(apiTokens.revokedAt)
+  ]
+  if (tokenId !== undefined) conditions.push(eq(apiTokens.id, tokenId))
+  return and(...conditions)
+}
+
 /** The wire projection of a stored token row — assembled once, reused by the list, the fan-out payload, and the create return. */
 function toTokenProjection(row: typeof apiTokens.$inferSelect): ApiToken {
   return {
@@ -340,12 +350,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
           db
             .select()
             .from(apiTokens)
-            .where(
-              and(
-                eq(apiTokens.workspaceId, ctx.workspace.id),
-                isNull(apiTokens.revokedAt)
-              )
-            )
+            .where(activeTokenWhere(undefined, ctx.workspace.id))
             .orderBy(desc(apiTokens.createdAt))
         )
         return rows.map(toTokenProjection)
@@ -414,13 +419,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
               db
                 .select({ id: apiTokens.id })
                 .from(apiTokens)
-                .where(
-                  and(
-                    eq(apiTokens.id, input.tokenId),
-                    eq(apiTokens.workspaceId, ctx.workspace.id),
-                    isNull(apiTokens.revokedAt)
-                  )
-                )
+                .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
                 .limit(1)
             ).pipe(Effect.map((rows) => rows.length > 0)),
             auditEvent: {
@@ -435,13 +434,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
               db
                 .update(apiTokens)
                 .set({ revokedAt: DateTime.formatIso(revokedAt) })
-                .where(
-                  and(
-                    eq(apiTokens.id, input.tokenId),
-                    eq(apiTokens.workspaceId, ctx.workspace.id),
-                    isNull(apiTokens.revokedAt)
-                  )
-                )
+                .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
           })
           if (!applied) return false
           yield* publishWebhookEventWith(publisher, {

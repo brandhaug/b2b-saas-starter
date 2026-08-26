@@ -1,6 +1,11 @@
 import { Effect, type Scope } from 'effect'
 import { AuthorizationDenied } from './errors.ts'
-import { authorize, type PermissionRequest, type Principal } from './principal.ts'
+import {
+  authorize,
+  type PermissionRequest,
+  type Principal,
+  type RequestedActions
+} from './principal.ts'
 
 /**
  * The enforcement point. Handlers compose it beside `enforceRateLimit` and
@@ -15,10 +20,7 @@ import { authorize, type PermissionRequest, type Principal } from './principal.t
  * `tokenPrincipal`.
  */
 
-type RequestedActions = PermissionRequest[keyof PermissionRequest]
-
 function actionsOf(requested: RequestedActions): readonly string[] {
-  if (!requested) return []
   if ('actions' in requested) return requested.actions
   return requested
 }

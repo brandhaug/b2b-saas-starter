@@ -1,8 +1,4 @@
-import {
-  type Database,
-  type RawD1,
-  layerFromD1
-} from '@b2b-saas-starter/db/src/service.ts'
+import { type Database, type RawD1, layerFromD1 } from '@b2b-saas-starter/db/service'
 import { Effect, Layer } from 'effect'
 
 // developer-platform
@@ -127,23 +123,18 @@ const SeedAuditLog = SeedAuditEventLog(seedAuditEvents)
 
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   // The mutating developer-platform capabilities write audit events and fan
-  // out webhooks below their interface, so both Seed adapters are built with
-  // the shared fixture audit log plus the no-op Seed publisher.
-  SeedApiTokenRegistry(seedApiTokens).pipe(
-    Layer.provide(SeedAuditLog),
-    Layer.provide(SeedWebhookPublisher)
-  ),
+  // out webhooks below their interface; the shared fixture audit log and the
+  // no-op Seed publisher are provided once on the merged layer so every member
+  // sees the same instances.
+  SeedApiTokenRegistry(seedApiTokens),
   SeedAuditLog,
   SeedBillingLayer,
   SeedNotificationFeed(seedNotifications),
-  SeedWebhookEndpoints(seedWebhookEndpoints).pipe(
-    Layer.provide(SeedAuditLog),
-    Layer.provide(SeedWebhookPublisher)
-  ),
+  SeedWebhookEndpoints(seedWebhookEndpoints),
   SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships)
-)
+).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedWebhookPublisher))
 
 export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
@@ -185,32 +176,22 @@ export type LiveCapabilitiesOptions = {
 export function makeLiveCapabilitiesLayer(
   options: LiveCapabilitiesOptions = {}
 ): Layer.Layer<CapabilityServices, never, Database | RawD1> {
+  // One instance each: `LiveWebhookPublisher(options.webhookQueue)` called at
+  // each use site would build distinct layers (Effect does not unify them), so
+  // both the fan-out consumers and the merged layer share this value.
+  const publisher = LiveWebhookPublisher(options.webhookQueue)
   return Layer.mergeAll(
-    LiveApiTokenRegistry.pipe(
-      Layer.provide(LiveAuditEventLog),
-      Layer.provide(LiveWebhookPublisher(options.webhookQueue))
-    ),
+    LiveApiTokenRegistry,
     LiveAuditEventLog,
-    LiveBilling(options.billing).pipe(Layer.provide(LiveAuditEventLog)),
+    LiveBilling(options.billing),
     LiveNotificationFeed,
-    LiveWebhookEndpoints.pipe(
-      Layer.provide(LiveAuditEventLog),
-      Layer.provide(LiveWebhookPublisher(options.webhookQueue))
-    ),
-    LiveWebhookPublisher(options.webhookQueue),
-    LiveWorkspaceInvitations(options.invitationBinding).pipe(
-      Layer.provide(LiveAuditEventLog)
-    ),
-    LiveWorkspaceMembership(options.memberBinding).pipe(
-      Layer.provide(LiveAuditEventLog)
-    ),
-    LiveWorkspaceLifecycle(options.lifecycleBinding).pipe(
-      Layer.provide(LiveAuditEventLog)
-    ),
-    LivePlatformUserAdmin(options.userAdminBinding).pipe(
-      Layer.provide(LiveAuditEventLog)
-    )
-  )
+    LiveWebhookEndpoints,
+    publisher,
+    LiveWorkspaceInvitations(options.invitationBinding),
+    LiveWorkspaceMembership(options.memberBinding),
+    LiveWorkspaceLifecycle(options.lifecycleBinding),
+    LivePlatformUserAdmin(options.userAdminBinding)
+  ).pipe(Layer.provide(LiveAuditEventLog), Layer.provide(publisher))
 }
 
 /**

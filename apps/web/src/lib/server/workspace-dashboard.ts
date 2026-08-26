@@ -1,16 +1,16 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
-import { type NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
+import { type NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
   WebhookEndpoints,
   type WebhookEndpoint
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   workspaceDashboard,
   type WorkspaceDashboardProjection
-} from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+} from '@b2b-saas-starter/capabilities/workspace-projections'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { Effect, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'

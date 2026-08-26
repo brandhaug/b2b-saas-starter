@@ -1,19 +1,19 @@
-import { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   CapabilityUnavailable,
   PlanLimitExceeded,
   WorkspaceNotFound
-} from '@b2b-saas-starter/capabilities/src/errors.ts'
+} from '@b2b-saas-starter/capabilities/errors'
 import {
   selectCapabilitiesLayer,
   selectWorkspaceLayer,
   type StarterEnv
-} from '@b2b-saas-starter/capabilities/src/runtime.ts'
+} from '@b2b-saas-starter/capabilities/runtime'
 import {
   type ActorRef,
   type WorkspaceContext
-} from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
-import { type CapabilityServices } from '@b2b-saas-starter/capabilities/src/layers.ts'
+} from '@b2b-saas-starter/capabilities/workspace-context'
+import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { notFound } from '@tanstack/react-router'
 import { Cause, Effect, Exit, Option, type Scope } from 'effect'

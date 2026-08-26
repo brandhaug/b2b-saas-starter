@@ -1,6 +1,6 @@
-import { createDb } from '@b2b-saas-starter/db/src/client.ts'
+import { createDrizzleDb } from '@b2b-saas-starter/db/client'
 import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
-import { requireEmailVerification } from '@b2b-saas-starter/env/src/server.ts'
+import { requireEmailVerification } from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
 import { Layer, ManagedRuntime, Schema } from 'effect'
 import { makeAuthEmailSender } from './server/auth-emails'
@@ -38,7 +38,7 @@ const missingD1 = new Proxy(
 // Layer.sync defers env access until first use, so importing this module in
 // environments without bindings (browser bundle in dev) stays inert.
 const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
-  db: createDb(env.DB ?? missingD1),
+  db: createDrizzleDb(env.DB ?? missingD1),
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
   trustedOrigins:

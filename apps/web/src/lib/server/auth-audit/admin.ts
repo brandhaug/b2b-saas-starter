@@ -1,5 +1,5 @@
-import { type RecordAuditEventInput } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
-import { type AuditEventType } from '@b2b-saas-starter/capabilities/src/governance/audit-event-taxonomy.ts'
+import { type RecordAuditEventInput } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { type AuditEventType } from '@b2b-saas-starter/capabilities/governance/audit-event-taxonomy'
 import { Effect, Schema, type Scope } from 'effect'
 import { causeMessage } from '@/lib/cause-message'
 import {

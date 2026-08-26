@@ -2,7 +2,7 @@ import {
   API_TOKEN_SCOPES,
   type ApiTokenScope,
   type CreatedApiToken
-} from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 

@@ -1,5 +1,7 @@
 import { Context, Effect, Layer, Option, Schema } from 'effect'
 
+import { type Writable } from '@b2b-saas-starter/config/writable'
+
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class AssistantUnavailable extends Schema.TaggedError<AssistantUnavailable>()(
   'AssistantUnavailable',
@@ -97,11 +99,10 @@ export type OpenAIConfig = {
 }
 
 /**
- * The write-side view of {@link OpenAIConfig}, for building the config key by
- * key. An unset var must leave its key absent rather than set it to `undefined`,
- * so the layer's own defaults still apply.
+ * The config is built via {@link Writable} by assignment so an unset var
+ * leaves its key absent rather than set it to `undefined`, so the layer's own
+ * defaults still apply.
  */
-type MutableOpenAIConfig = { -readonly [K in keyof OpenAIConfig]: OpenAIConfig[K] }
 
 const OpenAIChatRequest = Schema.Struct({
   model: Schema.String,
@@ -224,7 +225,7 @@ export function selectAssistantLayer(env: ProviderEnv): Layer.Layer<AssistantSer
   if (env.OPENAI_API_KEY) {
     // Assigned only when set so the layer's own defaults (api.openai.com,
     // gpt-4o-mini) still apply for absent vars.
-    const config: MutableOpenAIConfig = { apiKey: env.OPENAI_API_KEY }
+    const config: Writable<OpenAIConfig> = { apiKey: env.OPENAI_API_KEY }
     if (env.OPENAI_BASE_URL) config.baseUrl = env.OPENAI_BASE_URL
     if (env.OPENAI_MODEL_ID) config.modelId = env.OPENAI_MODEL_ID
     return makeOpenAILayer(config)

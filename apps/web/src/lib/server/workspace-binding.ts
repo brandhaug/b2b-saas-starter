@@ -1,5 +1,5 @@
 import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
-import { type WorkspaceLifecycleBinding } from '@b2b-saas-starter/capabilities/src/governance/workspace-lifecycle.ts'
+import { type WorkspaceLifecycleBinding } from '@b2b-saas-starter/capabilities/governance/workspace-lifecycle'
 import { Effect, Result, Schema } from 'effect'
 import { type Service } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'

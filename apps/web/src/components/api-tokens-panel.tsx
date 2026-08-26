@@ -1,4 +1,4 @@
-import { type ApiToken } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 

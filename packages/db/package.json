@@ -4,10 +4,10 @@
   "type": "module",
   "exports": {
     "./client": "./src/client.ts",
+    "./enums": "./src/enums.ts",
     "./schema": "./src/schema.ts",
     "./service": "./src/service.ts",
-    "./testing": "./src/testing.ts",
-    "./src/*": "./src/*"
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

@@ -1,5 +1,5 @@
-import { type RecordAuditEventInput } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
-import { type AuditEventType } from '@b2b-saas-starter/capabilities/src/governance/audit-event-taxonomy.ts'
+import { type RecordAuditEventInput } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { type AuditEventType } from '@b2b-saas-starter/capabilities/governance/audit-event-taxonomy'
 import { Effect, type Scope } from 'effect'
 import { runCapabilities } from '@/lib/capabilities'
 import { isAdminAuthExchange, recordAdminAudit } from './admin'

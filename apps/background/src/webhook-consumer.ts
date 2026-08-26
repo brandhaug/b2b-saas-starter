@@ -1,20 +1,20 @@
-import { bytesToHex } from '@b2b-saas-starter/capabilities/src/crypto.ts'
+import { bytesToHex } from '@b2b-saas-starter/capabilities/crypto'
 import {
   selectCapabilitiesLayer,
   starterEnv
-} from '@b2b-saas-starter/capabilities/src/runtime.ts'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+} from '@b2b-saas-starter/capabilities/runtime'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import {
   backoffSeconds,
   planDeliveryAttempt
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-delivery-plan.ts'
-import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-url.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import {
   WebhookQueueMessage,
   type WebhookQueueBinding
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
-import { type ServerEnv } from '@b2b-saas-starter/env/src/server.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import {
   currentTraceId,
   makeOtlpLayer,
@@ -379,15 +379,20 @@ function recordDeadLetter(
  * outcome. The dead-letter caller maps every outcome to `'ack'` — failing a
  * DLQ message would loop the DLQ.
  */
-export function consumeBatch(
+export function consumeBatch<R>(
   env: Env,
   batch: MessageBatch<unknown>,
-  perMessage: (
-    message: Message<unknown>
-  ) => Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient>
+  perMessage: (message: Message<unknown>) => Effect.Effect<DeliveryOutcome, never, R>
 ): Promise<void> {
   return runInvocation(
     env,
+    // The batch loop adds no requirements of its own. `perMessage`'s residual
+    // requirement R is at most `HttpClient` (the delivery consumer — the DLQ
+    // caller needs nothing), which the isolate runtime's FetchHttpClient
+    // provides, so the loop is safe to view through the runner's contract.
+    // SAFETY: R ⊆ HttpClient by the only two call sites; the runtime provides
+    // FetchHttpClient isolate-level (see `staticRuntime` above).
+    // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see SAFETY above
     Effect.forEach(
       batch.messages,
       (message) =>
@@ -403,7 +408,7 @@ export function consumeBatch(
           )
         ),
       { concurrency: 'unbounded', discard: true }
-    )
+    ) as Effect.Effect<void, never, HttpClient.HttpClient>
   )
 }
 

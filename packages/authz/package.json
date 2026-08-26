@@ -4,7 +4,9 @@
   "type": "module",
   "exports": {
     "./client": "./src/client.ts",
-    "./src/*": "./src/*"
+    "./errors": "./src/errors.ts",
+    "./guard": "./src/guard.ts",
+    "./roles": "./src/roles.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -13,7 +15,6 @@
   },
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",
-    "@b2b-saas-starter/logger": "workspace:*",
     "better-auth": "catalog:",
     "effect": "catalog:"
   },

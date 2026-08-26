@@ -2,8 +2,8 @@ import {
   WORKSPACE_ROLES,
   type Member,
   type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
-import { type WorkspaceWithMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceWithMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 

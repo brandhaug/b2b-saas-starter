@@ -1,8 +1,8 @@
 import {
   type CreatedWorkspace,
   WorkspaceLifecycle
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-lifecycle.ts'
-import { type Workspace } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-lifecycle'
+import { type Workspace } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Schema } from 'effect'
 

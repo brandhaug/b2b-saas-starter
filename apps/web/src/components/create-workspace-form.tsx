@@ -1,4 +1,4 @@
-import { type CreatedWorkspace } from '@b2b-saas-starter/capabilities/src/governance/workspace-lifecycle.ts'
+import { type CreatedWorkspace } from '@b2b-saas-starter/capabilities/governance/workspace-lifecycle'
 import { useRef, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { FormTextField } from '@/components/form-text-field'

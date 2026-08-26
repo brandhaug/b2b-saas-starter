@@ -1,7 +1,7 @@
 import {
   type AuditEvent,
   AuditEventLog
-} from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
+} from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { createFileRoute } from '@tanstack/react-router'
 import { Effect } from 'effect'
 

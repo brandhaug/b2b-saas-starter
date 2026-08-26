@@ -1,8 +1,8 @@
 import {
   AuditEventLog,
   type RecordAuditEventInput
-} from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+} from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { Effect, Result, Schema, type Scope } from 'effect'
 import { causeMessage } from '@/lib/cause-message'
 

@@ -1,19 +1,19 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   WorkspaceMembership,
   type MemberRoleInput
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import {
   WorkspaceRole as WorkspaceRoleSchema,
   type Member,
   type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
   type CapabilityUnavailable,
   type MembershipChangeRejected
-} from '@b2b-saas-starter/capabilities/src/errors.ts'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+} from '@b2b-saas-starter/capabilities/errors'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Schema, type Scope } from 'effect'
 

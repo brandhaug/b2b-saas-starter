@@ -1,10 +1,10 @@
-import { workspaces, type JsonObject } from '@b2b-saas-starter/db/src/schema.ts'
+import { workspaces, type JsonObject } from '@b2b-saas-starter/db/schema'
 import {
   batch,
   Database,
   type EffectDatabase,
   RawD1
-} from '@b2b-saas-starter/db/src/service.ts'
+} from '@b2b-saas-starter/db/service'
 import { Context, Effect, Layer, Ref, Result, Schema } from 'effect'
 import { count, eq, type SQL } from 'drizzle-orm'
 import { type SQLiteTable } from 'drizzle-orm/sqlite-core'

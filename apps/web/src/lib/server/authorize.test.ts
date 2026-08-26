@@ -1,11 +1,11 @@
 import {
   testWorkspaceContext,
   type Actor
-} from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   type Workspace,
   type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 

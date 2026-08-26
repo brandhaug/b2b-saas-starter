@@ -1,4 +1,4 @@
-import { hmacSha256Hex } from '@b2b-saas-starter/capabilities/src/crypto.ts'
+import { hmacSha256Hex } from '@b2b-saas-starter/capabilities/crypto'
 import { Effect } from 'effect'
 
 /**

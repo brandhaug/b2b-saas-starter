@@ -1,5 +1,5 @@
-import { Database } from '@b2b-saas-starter/db/src/service.ts'
-import { user, workspaceMembers, workspaces } from '@b2b-saas-starter/db/src/schema.ts'
+import { Database } from '@b2b-saas-starter/db/service'
+import { user, workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'

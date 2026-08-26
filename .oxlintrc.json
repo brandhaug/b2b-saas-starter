@@ -556,6 +556,7 @@
 
     // @b2b-saas-starter/oxlint-plugin. See packages/oxlint-plugin/AGENTS.md for what
     // each rule catches and why it is not already covered by effect/* or anti-slop/*.
+    "starter/no-deep-workspace-imports": "error",
     "starter/no-effect-escape-hatch": "error",
     "starter/no-effect-internal-tags": "error",
     "starter/no-inline-schema-compile": "error",

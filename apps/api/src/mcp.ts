@@ -1,10 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server'
 import { type JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
-import {
-  tokenPrincipal,
-  type PermissionRequest
-} from '@b2b-saas-starter/authz/src/client.ts'
-import { requirePermission } from '@b2b-saas-starter/authz/src/guard.ts'
+import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
   READ_OPERATIONS,
   readOperations,
@@ -25,12 +22,12 @@ import {
   type HttpServerRequest
 } from 'effect/unstable/http'
 import { Effect, Result, Stream } from 'effect'
-import { type ApiTokenScope } from '@b2b-saas-starter/authz/src/roles.ts'
+import { type ApiTokenScope } from '@b2b-saas-starter/authz/roles'
 import { createMcpHandler } from 'agents/mcp/server'
 import { z } from 'zod'
 
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 
 import {
   authenticate,
@@ -111,6 +108,12 @@ type ToolResult = {
   isError?: boolean
 }
 
+/**
+ * Generic failure body shared by both promise seams (typed-failure fallthrough
+ * and defect rejection); internals never leak into the client's transcript.
+ */
+export const TOOL_FAILED_MESSAGE = 'tool failed; see the API worker logs'
+
 /** What a settled tool invocation hands the wire encoder. */
 type ToolOutcome = Result.Result<unknown, CapabilityReadError>
 
@@ -152,7 +155,7 @@ function errorResult(outcome: ToolOutcome): ToolResult {
     }
   }
   return {
-    content: [{ type: 'text', text: 'tool failed; see the API worker logs' }],
+    content: [{ type: 'text', text: TOOL_FAILED_MESSAGE }],
     isError: true
   }
 }
@@ -206,7 +209,7 @@ export function buildMcpServer(
         return Effect.runPromise(
           provideWorkspace(env, workspaceSlug, Effect.result(guarded))
         ).then(outcomeToToolResult, () => ({
-          content: [{ type: 'text', text: 'tool failed; see the API worker logs' }],
+          content: [{ type: 'text', text: TOOL_FAILED_MESSAGE }],
           isError: true
         }))
       }

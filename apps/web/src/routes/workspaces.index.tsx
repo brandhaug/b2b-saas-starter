@@ -1,4 +1,4 @@
-import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
+import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { CreateWorkspaceForm } from '@/components/create-workspace-form'
 import { EmailVerificationBanner } from '@/components/email-verification-banner'

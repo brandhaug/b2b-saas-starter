@@ -1,5 +1,5 @@
-import { Database } from '@b2b-saas-starter/db/src/service.ts'
-import { notifications } from '@b2b-saas-starter/db/src/schema.ts'
+import { Database } from '@b2b-saas-starter/db/service'
+import { notifications } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, count, desc, eq, isNull, or } from 'drizzle-orm'
 import { type CapabilityUnavailable } from '../errors.ts'

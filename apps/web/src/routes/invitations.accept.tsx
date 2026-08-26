@@ -1,4 +1,4 @@
-import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
+import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { Schema } from 'effect'

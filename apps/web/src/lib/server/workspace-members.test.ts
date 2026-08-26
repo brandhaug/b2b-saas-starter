@@ -2,17 +2,17 @@ import {
   SeedWorkspaceMembership,
   makeSeedRoster,
   type WorkspaceMembership
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import {
   testWorkspaceContext,
   type Actor,
   type WorkspaceContext
-} from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   type Member,
   type Workspace,
   type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { describe, expect, it } from 'vitest'
 import { Effect, Layer, Ref, type Scope } from 'effect'
 

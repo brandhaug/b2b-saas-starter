@@ -1,4 +1,4 @@
-import { type CreatedApiToken } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+import { type CreatedApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiTokenForm, type CreateApiToken } from './api-token-form'

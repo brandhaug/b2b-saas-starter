@@ -1,4 +1,4 @@
-import { createDb, type Database } from '@b2b-saas-starter/db/client'
+import { createDrizzleDb, type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { user, workspaceInvitations, workspaces } from '@b2b-saas-starter/db/schema'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { Effect, Layer } from 'effect'
@@ -17,7 +17,7 @@ import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './inde
 type AuthService = Service<AuthOptions>
 
 let testD1: TestD1
-let db: Database
+let db: DrizzleDatabase
 let authLayer: Layer.Layer<AuthService>
 
 // The lifecycle-email port, capturing what Better Auth hands it instead of
@@ -45,7 +45,7 @@ beforeAll(
     Effect.runPromise(
       Effect.gen(function* () {
         testD1 = yield* Effect.promise(() => provisionTestD1())
-        db = createDb(testD1.d1)
+        db = createDrizzleDb(testD1.d1)
         authLayer = Auth.layer.pipe(
           Layer.provide(
             Layer.sync(AuthConfig)(() => ({

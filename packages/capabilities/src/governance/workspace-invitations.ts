@@ -1,9 +1,9 @@
-import { Database, type EffectDatabase } from '@b2b-saas-starter/db/src/service.ts'
+import { Database, type EffectDatabase } from '@b2b-saas-starter/db/service'
 import {
   invitationStatuses,
   workspaceInvitations,
   workspaces
-} from '@b2b-saas-starter/db/src/schema.ts'
+} from '@b2b-saas-starter/db/schema'
 import { Context, DateTime, Effect, Layer, Option, Ref, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 

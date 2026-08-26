@@ -1,7 +1,7 @@
 import {
   type ApiTokenScopeValue,
   type workspaceRoles
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/enums'
 import { type Role, type Statements } from 'better-auth/plugins/access'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import {
@@ -15,8 +15,9 @@ import {
  * scopes map onto. Sessions and bearer tokens therefore reach the same
  * `authorize()` implementation — there is no second permission path.
  *
- * Role and scope names come from `@b2b-saas-starter/db`, so a change to either
- * stored enum turns into a type error here instead of a silent gap.
+ * Role and scope names come from `@b2b-saas-starter/db`'s enum module, so a
+ * change to either stored enum turns into a type error here instead of a
+ * silent gap.
  */
 
 export type WorkspaceRole = (typeof workspaceRoles)[number]

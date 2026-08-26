@@ -1,7 +1,7 @@
 import {
   makeSentryOptions,
   wireWideEventProviders
-} from '@b2b-saas-starter/logger/src/providers.ts'
+} from '@b2b-saas-starter/logger/providers'
 import StartServerEntry from '@tanstack/react-start/server-entry'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import * as Sentry from '@sentry/cloudflare'

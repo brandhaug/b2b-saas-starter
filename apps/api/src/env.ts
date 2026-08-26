@@ -1,6 +1,6 @@
-import { starterEnv } from '@b2b-saas-starter/capabilities/src/runtime.ts'
-import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
-import { type ServerEnv } from '@b2b-saas-starter/env/src/server.ts'
+import { starterEnv } from '@b2b-saas-starter/capabilities/runtime'
+import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
+import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import { type ProviderEnv, type WorkersAIBinding } from '@b2b-saas-starter/ai'
 
 import { type RateLimitBindings } from './rate-limit.ts'
