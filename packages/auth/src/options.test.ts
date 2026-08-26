@@ -7,7 +7,7 @@ import { type AuthConfigInterface, makeAuthOptions } from './index.ts'
 const baseConfig: AuthConfigInterface = {
   // SAFETY: these tests only read the returned options object — `db` is
   // forwarded into `drizzleAdapter`'s closure and no property of it is read.
-  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion, anti-slop(require-safety-comment-for-type-assertion) -- an empty sentinel stands in for the promise client, which the adapter alone would touch
+  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- an empty sentinel stands in for the promise client, which the adapter alone would touch
   db: {} as AuthConfigInterface['db'],
   secret: 'test-secret-at-least-32-characters-long',
   baseURL: 'http://localhost:3071',

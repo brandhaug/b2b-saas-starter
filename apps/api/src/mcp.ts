@@ -116,7 +116,6 @@ type ToolOutcome = Result.Result<unknown, CapabilityReadError>
 
 // The JSON-RPC wire format carries opaque JSON payloads; serializing the
 // already-typed capability results here IS the encoding step.
-// oxlint-disable-next-line effect/noGlobals -- JSON-RPC wire serialization of typed capability results
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- `unknown` is the protocol's own payload type; the capability layer already produced it
 function textResult(data: unknown): ToolResult {
   return {
@@ -314,7 +313,7 @@ function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest)
     }
 
     const parsed = yield* Effect.result(
-      // oxlint-disable-next-line effect/noTryCatch, effect/noAs, effect/noGlobals -- the Agents SDK validates the forwarded body itself; this parse only turns bytes into objects at the promise seam
+      // oxlint-disable-next-line effect/noGlobals -- the Agents SDK validates the forwarded body itself; this parse only turns bytes into objects at the promise seam
       Effect.try((): JSONRPCMessage => JSON.parse(raw.success))
     )
     if (Result.isFailure(parsed)) {

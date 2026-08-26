@@ -132,7 +132,7 @@ function failureValue(cause: Cause.Cause<unknown>): unknown {
 // in Effect would only re-wrap the same awaits one layer down. Each sink runs
 // behind its own catch: a failing vendor must never fail the request it
 // reported on.
-// oxlint-disable effect/noAsyncFunction, effect/noTryCatch, unicorn/noAwaitInLoop, eslint/no-await-in-loop, react-doctor/async-await-in-loop
+// oxlint-disable effect/noAsyncFunction, effect/noTryCatch, eslint/no-await-in-loop, react-doctor/async-await-in-loop
 async function runWideEventSinks(record: WideEventRecord): Promise<void> {
   for (const sink of wideEventSinks) {
     try {

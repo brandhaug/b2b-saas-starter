@@ -71,7 +71,6 @@ async function provisionLocalD1(): Promise<D1Database | undefined> {
     // A proxy that arrives after the limit would leave an orphan workerd
     // process behind, so shut it down. Nothing reads it any more.
     void pending.then((late) => late.dispose()).catch(() => undefined)
-    // oxlint-disable-next-line no-console -- dev-server terminal is the intended surface for this notice
     console.warn(
       `[dev] local D1 did not attach within ${PROXY_BOOT_TIMEOUT_MS / 1000}s — continuing on the Seed layer (credential sign-in will not work)`
     )

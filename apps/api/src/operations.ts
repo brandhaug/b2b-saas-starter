@@ -147,7 +147,7 @@ export function serveRead(
 ): Effect.Effect<never, never, never> {
   // SAFETY: see doc comment above — type-channel widening only, re-narrowed
   // by the consuming surface before the effect ever runs.
-  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion, anti-slop/require-safety-comment-for-type-assertion -- see SAFETY above
+  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see SAFETY above
   return op.read() as Effect.Effect<never, never, never>
 }
 

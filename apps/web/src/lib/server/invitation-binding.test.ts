@@ -33,7 +33,6 @@ type BindingRejection = {
 }
 
 async function rejectionOf(call: () => Promise<void>): Promise<BindingRejection> {
-  // oxlint-disable-next-line effect/noTryCatch -- the port under test is a promise boundary by contract; catching the rejection IS the observation
   try {
     await call()
     return { tag: 'resolved', failure: { refusedByWorkspace: false, reason: 'none' } }
