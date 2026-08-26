@@ -1,12 +1,12 @@
-import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-url.ts'
+import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import {
   backoffSeconds,
   classifyResponseStatus,
   planDeliveryAttempt,
   type WebhookDeliveryAttemptInput
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-delivery-plan.ts'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { describe, expect, it } from 'vitest'
 import { DateTime, Effect, Layer, type Scope } from 'effect'
 import {

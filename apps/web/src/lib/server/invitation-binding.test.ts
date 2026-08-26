@@ -1,7 +1,7 @@
 import {
   readPluginBindingFailure,
   type PluginBindingFailure
-} from '@b2b-saas-starter/capabilities/src/governance/plugin-binding-failure.ts'
+} from '@b2b-saas-starter/capabilities/governance/plugin-binding-failure'
 import { describe, expect, it } from 'vitest'
 import { Option, Schema } from 'effect'
 

@@ -3,7 +3,7 @@ import {
   memberPrincipal,
   type PermissionRequest
 } from '@b2b-saas-starter/authz/client'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 
 /**
  * Client-side permission checks for workspace UI.

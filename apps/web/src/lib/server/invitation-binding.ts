@@ -1,5 +1,5 @@
 import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
-import { type WorkspaceInvitationBinding } from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
+import { type WorkspaceInvitationBinding } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { Effect, Result, Schema } from 'effect'
 import { type Service } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'

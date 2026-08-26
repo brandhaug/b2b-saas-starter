@@ -1,5 +1,5 @@
-import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-delivery-plan.ts'
-import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 

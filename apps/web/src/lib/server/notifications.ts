@@ -1,4 +1,4 @@
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Schema } from 'effect'
 import { runWorkspaceCapabilities } from '../capabilities'

@@ -7,22 +7,22 @@ import {
   webhookEndpoints,
   workspaceMembers,
   workspaces
-} from '@b2b-saas-starter/db/src/schema.ts'
+} from '@b2b-saas-starter/db/schema'
 import {
   ApiTokenRegistry,
   hashApiToken,
   SEED_API_TOKEN
-} from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
-import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   demoMemberIdentity,
   demoUserIdentity
-} from '@b2b-saas-starter/capabilities/src/seed-fixture.ts'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
-import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/src/runtime.ts'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
-import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
+} from '@b2b-saas-starter/capabilities/seed-fixture'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/runtime'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 
 import { getColumns, getTableName, type Table } from 'drizzle-orm'
 import { Effect, Option, Schema } from 'effect'

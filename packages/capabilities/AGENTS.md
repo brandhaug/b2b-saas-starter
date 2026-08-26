@@ -65,7 +65,7 @@ Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (40
 2. Add `src/<context>/<capability>.ts` (Schema + Service + Seed + Live).
 3. Add `src/<context>/<capability>.AGENTS.md` describing the public surface, storage, and anti-patterns.
 4. Wire `Seed*`/`Live*` into [`layers.ts`](src/layers.ts) — keep imports grouped by context.
-5. Consumers import the capability module directly, e.g. `@b2b-saas-starter/capabilities/src/<context>/<capability>.ts` (enabled by the `./src/*` exports map).
+5. Consumers import the capability module directly, e.g. `@b2b-saas-starter/capabilities/governance/<capability>` (enabled by the curated exports map — no `./src/*` wildcard; `starter/no-deep-workspace-imports` fails a `/src/` specifier).
 6. Add a row to the table above.
 
 ## Cross-cutting invariants
@@ -83,7 +83,7 @@ Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (40
    **The exception is the plugin-backed mutations** — `WorkspaceMembership` and `WorkspaceInvitations`. Their write happens over HTTP inside the binding adapter, so it cannot be enlisted into a `batch()`, and D1 rejects an explicit `BEGIN` (Drizzle's `d1/session.js` issues a raw `begin`, so `db.transaction()` does not work either). They call `record(input)` after the write and the two can therefore diverge. This is an accepted, recorded trade (ADR 0051), not an oversight to "fix" by dropping back to direct Drizzle writes — that would skip the plugin's validation and its lifecycle hooks.
 
 4. **Seed and Live must satisfy the same `Interface`.** The `XxxInterface` type is the contract; both layers must implement it identically. Tests bind `Seed*` plus `testWorkspaceContext(...)` and rely on this equivalence to exercise route logic without D1. Where a capability mutates, matching types are not enough — write the cases once and run them against both adapters, as `governance/workspace-membership.contract.ts` does from `index.test.ts` and `live-layers.test.ts`.
-5. **No barrel files.** Internal files import from `./<context>/<capability>.ts` (or `../<context>/<capability>.ts` from within a context). Consumers import `@b2b-saas-starter/capabilities/src/<context>/<capability>.ts` directly.
+5. **No barrel files.** Internal files import from `./<context>/<capability>.ts` (or `../<context>/<capability>.ts` from within a context). Consumers import `@b2b-saas-starter/capabilities/governance/workspace-membership` directly — one curated exports subpath per module, enforced by `starter/no-deep-workspace-imports`.
 6. **Cross-context imports are explicit.** When a capability in one context depends on another (e.g. `developer-platform/*` → `governance/audit-event-log`), the relative path makes the seam visible. Don't paper over it with re-exports.
 
 ## Anti-patterns

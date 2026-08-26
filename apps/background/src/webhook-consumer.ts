@@ -1,19 +1,19 @@
-import { bytesToHex } from '@b2b-saas-starter/capabilities/src/crypto.ts'
+import { bytesToHex } from '@b2b-saas-starter/capabilities/crypto'
 import {
   selectCapabilitiesLayer,
   starterEnv
-} from '@b2b-saas-starter/capabilities/src/runtime.ts'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+} from '@b2b-saas-starter/capabilities/runtime'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import {
   backoffSeconds,
   planDeliveryAttempt
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-delivery-plan.ts'
-import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-url.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import {
   WebhookQueueMessage,
   type WebhookQueueBinding
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-publisher.ts'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import {
   currentTraceId,

@@ -27,7 +27,7 @@ import { createMcpHandler } from 'agents/mcp/server'
 import { z } from 'zod'
 
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 
 import {
   authenticate,

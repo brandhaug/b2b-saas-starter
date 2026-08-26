@@ -2,17 +2,17 @@ import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   WORKSPACE_ROLES,
   type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   WorkspaceInvitations,
   type AcceptedInvitation,
   type Invitation
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import {
   type CapabilityUnavailable,
   type MembershipChangeRejected
-} from '@b2b-saas-starter/capabilities/src/errors.ts'
+} from '@b2b-saas-starter/capabilities/errors'
 import { EmailDispatcher } from '@b2b-saas-starter/email'
 import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/templates'
 import { createServerFn } from '@tanstack/react-start'

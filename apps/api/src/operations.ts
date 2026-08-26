@@ -3,14 +3,14 @@ import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   type CapabilityUnavailable,
   type WorkspaceNotFound
-} from '@b2b-saas-starter/capabilities/src/errors.ts'
-import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
-import { AuditEventLog } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
-import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
-import { workspaceOverview } from '@b2b-saas-starter/capabilities/src/workspace-projections.ts'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+} from '@b2b-saas-starter/capabilities/errors'
+import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { workspaceOverview } from '@b2b-saas-starter/capabilities/workspace-projections'
+import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { Effect } from 'effect'
 
 /**

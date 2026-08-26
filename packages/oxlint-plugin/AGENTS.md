@@ -12,6 +12,7 @@ Nothing imports this package at runtime. `.oxlintrc.json` loads `src/index.ts` a
 
 | Rule                                 | Catches                                                                                          |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `no-deep-workspace-imports`          | `@b2b-saas-starter/x/src/y.ts` specifiers, instead of the package's curated exports subpath      |
 | `no-effect-escape-hatch`             | `die`, `dieMessage`, `orDie`, `orDieWith`, which turn a typed failure into an opaque defect      |
 | `no-effect-internal-tags`            | `value._tag === 'Some'` and siblings, instead of `Option.isSome` and the other public guards     |
 | `no-inline-schema-compile`           | `Schema.decodeUnknownResult(X)(input)` inside a function body, which rebuilds the codec per call |
@@ -22,7 +23,7 @@ Nothing imports this package at runtime. `.oxlintrc.json` loads `src/index.ts` a
 | `no-unsupported-effect-api`          | `Effect.async`, `Effect.zipRight`, `Effect.timeoutFail`, renamed in Effect v4                    |
 | `prefer-effect-predicate`            | Hand-written `(x) => x !== null` instead of `Predicate.isNotNull`                                |
 
-Three are written for this repo (`no-interface-merge-outside-dts`, `no-mismatched-augmentation-context`, `no-unknown-error-message`). Six are ported from [pingdotgg/t3code](https://github.com/pingdotgg/t3code/tree/main/oxlint-plugin-t3code) or [UsefulSoftwareCo/executor](https://github.com/UsefulSoftwareCo/executor/tree/main/scripts/oxlint-plugin-executor), both MIT, and each file names its source.
+Four are written for this repo (`no-deep-workspace-imports`, `no-interface-merge-outside-dts`, `no-mismatched-augmentation-context`, `no-unknown-error-message`). Six are ported from [pingdotgg/t3code](https://github.com/pingdotgg/t3code/tree/main/oxlint-plugin-t3code) or [UsefulSoftwareCo/executor](https://github.com/UsefulSoftwareCo/executor/tree/main/scripts/oxlint-plugin-executor), both MIT, and each file names its source.
 
 ## Invariants
 

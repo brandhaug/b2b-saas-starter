@@ -2,7 +2,7 @@ import {
   WEBHOOK_EVENT_TYPES,
   type CreatedWebhookEndpoint,
   type WebhookEventType
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 

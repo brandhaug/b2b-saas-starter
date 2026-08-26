@@ -1,19 +1,19 @@
-import { makeSeedRoster } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
+import { makeSeedRoster } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import {
   SeedWorkspaceInvitations,
   WorkspaceInvitations,
   type Invitation
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import {
   testWorkspaceContext,
   type WorkspaceContext,
   type Actor
-} from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   type Member,
   type Workspace,
   type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import {
   EmailDispatcher,
   EmailSendError,

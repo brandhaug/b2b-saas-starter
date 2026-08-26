@@ -2,10 +2,10 @@ import {
   AuditEventLog,
   type AuditEvent,
   type ListAuditEventsInput
-} from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
-import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+} from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'

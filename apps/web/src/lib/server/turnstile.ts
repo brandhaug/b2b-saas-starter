@@ -1,4 +1,4 @@
-import { makeTurnstileVerifierLayer } from '@b2b-saas-starter/capabilities/src/governance/turnstile-verification.ts'
+import { makeTurnstileVerifierLayer } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
 import { env } from 'cloudflare:workers'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 

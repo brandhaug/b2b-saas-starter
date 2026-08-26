@@ -1,4 +1,4 @@
-import { type Invitation } from '@b2b-saas-starter/capabilities/src/governance/workspace-invitations.ts'
+import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { type Badge } from '@/components/ui/badge'
 
 export type BadgeVariant = NonNullable<React.ComponentProps<typeof Badge>['variant']>

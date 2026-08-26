@@ -2,13 +2,13 @@ import {
   type CreatedWebhookEndpoint,
   WebhookEndpoints,
   type WebhookEndpoint
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
-import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-delivery-plan.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Option, Schema, type Scope } from 'effect'
 

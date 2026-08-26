@@ -14,7 +14,7 @@ import {
 } from '@/lib/server/auth-audit/lifecycle'
 import { type AuthAuditContext } from '@/lib/server/auth-audit/shared'
 import { makeTurnstileLayer } from '@/lib/server/turnstile'
-import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/src/governance/turnstile-verification.ts'
+import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
 
 /**
  * Everything the audits whose responses never name their actor need, gathered

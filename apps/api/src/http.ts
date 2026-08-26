@@ -1,5 +1,5 @@
 import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
-import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/src/runtime.ts'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { StarterApi } from '@b2b-saas-starter/api'
 import { selectAssistantLayer } from '@b2b-saas-starter/ai'
 import { FileSystem, Layer, Path } from 'effect'

@@ -1,4 +1,4 @@
-import { SEED_READONLY_API_TOKEN } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
+import { SEED_READONLY_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { describe, expect, test } from 'vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'

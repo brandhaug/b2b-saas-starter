@@ -2,14 +2,14 @@ import {
   Billing,
   planForStripeEvent,
   verifyStripeSignature
-} from '@b2b-saas-starter/capabilities/src/billing/billing.ts'
+} from '@b2b-saas-starter/capabilities/billing/billing'
 import { withTriggerScope } from '@b2b-saas-starter/logger'
 import { Effect, Result, Schema, type Scope } from 'effect'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
   selectCapabilitiesLayer,
   starterEnv
-} from '@b2b-saas-starter/capabilities/src/runtime.ts'
+} from '@b2b-saas-starter/capabilities/runtime'
 import { runInvocation, type Env } from './webhook-consumer.ts'
 
 /**

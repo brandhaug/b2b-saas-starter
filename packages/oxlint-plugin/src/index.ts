@@ -1,4 +1,5 @@
 import { definePlugin } from '@oxlint/plugins'
+import noDeepWorkspaceImports from './rules/no-deep-workspace-imports.ts'
 import noEffectEscapeHatch from './rules/no-effect-escape-hatch.ts'
 import noEffectInternalTags from './rules/no-effect-internal-tags.ts'
 import noInlineSchemaCompile from './rules/no-inline-schema-compile.ts'
@@ -14,6 +15,7 @@ import preferEffectPredicate from './rules/prefer-effect-predicate.ts'
 export default definePlugin({
   meta: { name: 'starter' },
   rules: {
+    'no-deep-workspace-imports': noDeepWorkspaceImports,
     'no-effect-escape-hatch': noEffectEscapeHatch,
     'no-effect-internal-tags': noEffectInternalTags,
     'no-inline-schema-compile': noInlineSchemaCompile,

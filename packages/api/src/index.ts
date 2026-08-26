@@ -3,23 +3,23 @@ import {
   ApiToken,
   CreatedApiTokenSchema,
   CreateApiTokenPayload
-} from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
-import { AuditEvent } from '@b2b-saas-starter/capabilities/src/governance/audit-event-log.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   CapabilityUnavailable,
   PlanLimitExceeded,
   WorkspaceNotFound
-} from '@b2b-saas-starter/capabilities/src/errors.ts'
+} from '@b2b-saas-starter/capabilities/errors'
 import {
   CreateWebhookEndpointPayload,
   WebhookEndpoint
-} from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
-import { InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-url.ts'
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import {
   Member,
   Workspace
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
-import { Notification } from '@b2b-saas-starter/capabilities/src/notifications/notification-feed.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { Notification } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
   AssistantPrompt,
   AssistantProvider,

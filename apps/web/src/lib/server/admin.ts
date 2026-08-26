@@ -1,9 +1,9 @@
-import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/src/governance/platform-user-admin.ts'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
+import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import {
   WorkspaceMembership,
   type WorkspaceWithMembership
-} from '@b2b-saas-starter/capabilities/src/governance/workspace-membership.ts'
+} from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect } from 'effect'
 import { runCapabilities } from '../capabilities'

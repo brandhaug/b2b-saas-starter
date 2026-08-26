@@ -3,7 +3,17 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./src/*": "./src/*"
+    "./billing/*": "./src/billing/*.ts",
+    "./developer-platform/*": "./src/developer-platform/*.ts",
+    "./governance/*": "./src/governance/*.ts",
+    "./notifications/*": "./src/notifications/*.ts",
+    "./crypto": "./src/crypto.ts",
+    "./errors": "./src/errors.ts",
+    "./layers": "./src/layers.ts",
+    "./runtime": "./src/runtime.ts",
+    "./seed-fixture": "./src/seed-fixture.ts",
+    "./workspace-context": "./src/workspace-context.ts",
+    "./workspace-projections": "./src/workspace-projections.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

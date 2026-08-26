@@ -1,5 +1,5 @@
 import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
-import { type PlatformUserAdminBinding } from '@b2b-saas-starter/capabilities/src/governance/platform-user-admin.ts'
+import { type PlatformUserAdminBinding } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
 import { Effect, Result, Schema } from 'effect'
 import { type Service } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'
