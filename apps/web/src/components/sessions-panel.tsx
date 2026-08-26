@@ -208,7 +208,7 @@ export function SessionsPanel({
           ))}
         </ul>
       ) : null}
-      {rows === null ? null : (
+      {Array.isArray(rows) ? (
         <ul className="grid gap-2">
           {rows.map((row) => {
             const isCurrent = row.token === currentSessionToken
@@ -266,7 +266,7 @@ export function SessionsPanel({
             )
           })}
         </ul>
-      )}
+      ) : null}
     </section>
   )
 }
