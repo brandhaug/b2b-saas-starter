@@ -93,11 +93,6 @@ bun run destroy          # alchemy.run.ts --destroy
 - [AGENTS.md](./AGENTS.md) — context for coding agents working in this repo
 - [docs/adr](./docs/adr) — architectural decision records
 
-## Acknowledgments
-
-- **Hexwardens** — Effect v4, Alchemy v2, pre-commit hooks, AGENTS.md intent nodes, architecture discipline, Vitest, Playwright, D1 patterns.
-- **Contributor** — design language, public pages, docs/search pattern, React Email, REST/MCP, settings, admin-style B2B surfaces.
-
 ## License
 
 MIT — see [LICENSE](./LICENSE).
