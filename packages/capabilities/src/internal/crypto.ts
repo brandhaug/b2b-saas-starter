@@ -30,11 +30,6 @@ export async function hmacSha256Hex(secret: string, payload: string): Promise<st
   return bytesToHex(signed)
 }
 
-/** Canonical `t=<ts>,v1=<hex>` header form shared by signature schemes. */
-export function signatureHeader(timestamp: string, signature: string): string {
-  return `t=${timestamp},v1=${signature}`
-}
-
 export function randomHex(byteLength: number): string {
   const bytes = new Uint8Array(byteLength)
   // oxlint-disable-next-line effect/noGlobals -- platform adapter: signing secrets and bearer tokens need a CSPRNG; Effect's Random is a seedable PRNG and must not back credential material.

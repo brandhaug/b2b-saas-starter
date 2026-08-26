@@ -26,7 +26,6 @@ import {
 import { withWebRequestScope } from './observability'
 
 export type { CapabilityServices }
-export { CapabilityUnavailableError, ForbiddenError, PlanLimitError }
 
 /**
  * Plugin-backed write adapters a caller supplies for the duration of one call.

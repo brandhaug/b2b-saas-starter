@@ -14,6 +14,8 @@ import {
  * its dependencies stay out of the entry chunk: this module is loaded only
  * when the palette opens (or is preloaded on search-button hover/focus).
  */
+// Loaded via dynamic import() in command-palette-loader.ts.
+// fallow-ignore-next-line unused-export
 export default function CommandPaletteDialog({
   open,
   onOpenChange

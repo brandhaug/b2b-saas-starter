@@ -11,12 +11,10 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@b2b-saas-starter/logger": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
-    "@effect/vitest": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
