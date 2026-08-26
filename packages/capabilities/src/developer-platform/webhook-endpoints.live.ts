@@ -13,8 +13,7 @@ import {
 import {
   ensureValidWebhookUrl,
   WebhookEndpoints,
-  type WebhookEndpoint,
-  type WebhookEventType
+  type WebhookEndpoint
 } from './webhook-endpoints.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -187,11 +186,9 @@ export const LiveWebhookEndpoints: Layer.Layer<
             description: input.description,
             signingSecret,
             enabled: true,
-            // Subscriptions stay free-text on the wire so producers can grow
-            // without a migration. SAFETY: every value shipped today is in the
-            // stored enum (`WEBHOOK_EVENT_TYPES`); D1 stores text either way.
-            // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see above
-            events: [...input.events] as WebhookEventType[],
+            // Subscriptions stay free-text on the wire and at rest so producers
+            // can grow without a migration — the column type matches.
+            events: [...input.events],
             createdAt: DateTime.formatIso(createdAt)
           }
           // Insert + audit insert as one batch — the shared audited-mutation

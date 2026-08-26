@@ -3,7 +3,7 @@ import { notFound, redirect } from '@tanstack/react-router'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { Effect } from 'effect'
 import { authRuntime } from '../auth-runtime'
-import { withWebRequestScope } from '../observability'
+import { memoizePerRequest, withWebRequestScope } from '../observability'
 import { currentRequest } from '../request-context'
 
 /**
@@ -13,39 +13,35 @@ import { currentRequest } from '../request-context'
  * the gate's outcome into that request's one wide event. Without it the gate
  * that runs first on every gated route would be invisible.
  */
-// One session read per request: the registry is keyed by the request object
-// (an isolate interleaves concurrent requests, so a module-level "current"
-// would race — same pattern as request-context.ts). A route whose `beforeLoad`
-// gate and a server function both read the session must not pay two DB
-// round-trips for one document request.
-const sessionCache = new WeakMap<Request, Promise<Session | null>>()
-
-const readSession = createServerOnlyFn((): Promise<Session | null> => {
-  const request = currentRequest()
-  const cached = request === undefined ? undefined : sessionCache.get(request)
-  if (cached !== undefined) return cached
-  const pending = authRuntime.runPromise(
-    withWebRequestScope(
-      { event: 'auth.session' },
-      Effect.gen(function* () {
-        const auth = yield* Auth.Tag
-        // No ambient request (unit tests, scripts) means no cookie jar to
-        // read — that is an unauthenticated caller, not a crash.
-        if (request === undefined) {
-          yield* Effect.annotateLogsScoped({ authenticated: false })
-          return null
-        }
-        const session = yield* auth.api.getSession({ headers: request.headers })
-        // Whether the gate found a session is the useful fact. Never the token,
-        // never the email.
-        yield* Effect.annotateLogsScoped({ authenticated: session !== null })
-        return session
-      })
+// One session read per request through `memoizePerRequest`: a route whose
+// `beforeLoad` gate and a server function both read the session must not pay
+// two DB round-trips for one document request. Slots live on the request's
+// telemetry, so they survive Start re-wrapping the `Request` mid-flight —
+// which the old module-local WeakMap did not.
+const readSession = createServerOnlyFn((): Promise<Session | null> =>
+  memoizePerRequest('auth.session', () =>
+    authRuntime.runPromise(
+      withWebRequestScope(
+        { event: 'auth.session' },
+        Effect.gen(function* () {
+          const auth = yield* Auth.Tag
+          const request = currentRequest()
+          // No ambient request (unit tests, scripts) means no cookie jar to
+          // read — that is an unauthenticated caller, not a crash.
+          if (request === undefined) {
+            yield* Effect.annotateLogsScoped({ authenticated: false })
+            return null
+          }
+          const session = yield* auth.api.getSession({ headers: request.headers })
+          // Whether the gate found a session is the useful fact. Never the token,
+          // never the email.
+          yield* Effect.annotateLogsScoped({ authenticated: session !== null })
+          return session
+        })
+      )
     )
   )
-  if (request !== undefined) sessionCache.set(request, pending)
-  return pending
-})
+)
 
 const getSessionServerFn = createServerFn({ method: 'GET' }).handler(readSession)
 

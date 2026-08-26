@@ -1,7 +1,11 @@
 import { Effect, Schema } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { runWebRequestScope, withWebRequestScope } from './observability'
+import {
+  memoizePerRequest,
+  runWebRequestScope,
+  withWebRequestScope
+} from './observability'
 
 /**
  * The ambient request is the one input these functions read from outside their
@@ -147,6 +151,108 @@ describe('runWebRequestScope', () => {
     // No standalone marker: the nested run joined instead of opening a second
     // event of its own.
     expect(record.annotations['scope']).toBeUndefined()
+  })
+})
+
+describe('memoizePerRequest', () => {
+  it('dedupes calls per key within one request scope, not across keys', async () => {
+    const request = new Request('http://localhost/workspaces/acme')
+    ambient.request = request
+    let reads = 0
+    async function make() {
+      reads += 1
+      return `value-${reads}`
+    }
+
+    await runWebRequestScope(
+      { request, handlerType: 'router' },
+      async () => {
+        // Two callers in the same request — the beforeLoad gate and a server
+        // function — must share one read.
+        expect(await memoizePerRequest('auth.session', make, lookupRequest)).toBe(
+          'value-1'
+        )
+        expect(await memoizePerRequest('auth.session', make, lookupRequest)).toBe(
+          'value-1'
+        )
+        // A different key is its own slot.
+        expect(await memoizePerRequest('other.key', make, lookupRequest)).toBe(
+          'value-2'
+        )
+        return new Response(null, { status: 204 })
+      },
+      lookupRequest
+    )
+
+    expect(reads).toBe(2)
+  })
+
+  it('shares one slot when Start re-wraps the request mid-flight', async () => {
+    const registered = new Request('http://localhost/workspaces/acme')
+    ambient.request = new Request('http://localhost/workspaces/acme')
+    let reads = 0
+
+    await runWebRequestScope(
+      { request: registered, handlerType: 'router' },
+      async () => {
+        await memoizePerRequest(
+          'auth.session',
+          async () => {
+            reads += 1
+          },
+          lookupRequest
+        )
+        await memoizePerRequest(
+          'auth.session',
+          async () => {
+            reads += 1
+          },
+          lookupRequest
+        )
+        return new Response(null, { status: 204 })
+      },
+      lookupRequest
+    )
+
+    expect(reads).toBe(1)
+  })
+
+  it('falls back to calling make on every call outside a request scope', async () => {
+    let reads = 0
+    async function make() {
+      reads += 1
+      return reads
+    }
+
+    expect(await memoizePerRequest('k', make, lookupRequest)).toBe(1)
+    expect(await memoizePerRequest('k', make, lookupRequest)).toBe(2)
+  })
+
+  it('does not leak memoized values into a later request', async () => {
+    const first = new Request('http://localhost/first')
+    const second = new Request('http://localhost/second')
+    let reads = 0
+    async function make() {
+      reads += 1
+      return `read-${reads}`
+    }
+    async function run(request: Request): Promise<Response> {
+      return runWebRequestScope(
+        { request, handlerType: 'router' },
+        async () => {
+          await memoizePerRequest('k', make, lookupRequest)
+          return new Response(null, { status: 204 })
+        },
+        lookupRequest
+      )
+    }
+
+    ambient.request = first
+    await run(first)
+    ambient.request = second
+    await run(second)
+
+    expect(reads).toBe(2)
   })
 })
 

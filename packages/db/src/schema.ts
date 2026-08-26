@@ -67,14 +67,6 @@ function isoTimestamp(column: string) {
   return text(column)
 }
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
-export const webhookEventTypes = [
-  'api_token.created',
-  'api_token.revoked',
-  'webhook_endpoint.created'
-] as const
-export type WebhookEventType = (typeof webhookEventTypes)[number]
-
 /**
  * The delivery state machine written by the background worker through
  * `WebhookEndpoints.recordDeliveryAttempt` / `recordTerminalDeliveryAttempt`:
@@ -326,9 +318,11 @@ export const webhookEndpoints = sqliteTable(
     // plaintext secret. See webhook-endpoints.AGENTS.md in packages/capabilities.
     signingSecret: text('signing_secret').notNull(),
     enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
-    events: text('events', { mode: 'json' })
-      .$type<readonly WebhookEventType[]>()
-      .notNull(),
+    // Free-text subscriptions by design: a producer can add event types
+    // without a migration (see webhook-endpoints.AGENTS.md in
+    // packages/capabilities). The known vocabulary lives in the capabilities
+    // package as `WEBHOOK_EVENT_TYPES` for the management UI.
+    events: text('events', { mode: 'json' }).$type<readonly string[]>().notNull(),
     createdAt: isoCreatedAt()
   },
   (table) => [workspaceIdIndex('webhook_endpoints', table.workspaceId)]

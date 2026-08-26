@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Result, Schema } from 'effect'
+import { Context, Effect, Layer, Result, Schedule, Schema } from 'effect'
 import { CapabilityUnavailable } from '../errors.ts'
 /**
  * Cloudflare Turnstile server-side verification (ADR 0031). The widget proves
@@ -13,8 +13,8 @@ import { CapabilityUnavailable } from '../errors.ts'
  */
 
 export const SiteverifyResponse = Schema.Struct({
-  success: Schema.optional(Schema.Boolean),
-  'error-codes': Schema.optional(Schema.Array(Schema.String))
+  success: Schema.optionalKey(Schema.Boolean),
+  'error-codes': Schema.optionalKey(Schema.Array(Schema.String))
 })
 export type SiteverifyResponse = typeof SiteverifyResponse.Type
 
@@ -75,21 +75,49 @@ const decodeSiteverifyResponse = Schema.decodeUnknownResult(SiteverifyResponse)
 /**
  * One JSON POST to siteverify, via the Workers global `fetch` — mirroring the
  * Stripe capability's platform-adapter stance: an HTTP client dependency would
- * add weight, not safety, to one JSON POST. Exported for tests.
+ * add weight, not safety, to one JSON POST. The call carries an `AbortSignal`
+ * from `Effect.tryPromise` so interruption and the 10s deadline reach the
+ * socket, and transport failures surface as typed `CapabilityUnavailable`
+ * instead of defects. Exported for tests.
  */
 export const liveSiteverifyCaller: SiteverifyCaller = Effect.fnUntraced(function* (
   request: SiteverifyRequest
 ) {
-  const response = yield* Effect.promise(() =>
-    // oxlint-disable-next-line effect/noGlobals, effect/noGlobals -- the Workers global fetch is the platform adapter here; JSON body encoding included; see the Stripe twin in billing.ts
-    fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      // oxlint-disable-next-line effect/noGlobals -- one JSON POST to a fixed endpoint; a Schema codec adds nothing here
-      body: JSON.stringify(request)
-    })
+  const response = yield* Effect.tryPromise({
+    try: (signal) =>
+      // oxlint-disable-next-line effect/noGlobals -- the Workers global fetch is the platform adapter here; JSON body encoding included; see the Stripe twin in billing.ts
+      fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        // oxlint-disable-next-line effect/noGlobals -- one JSON POST to a fixed endpoint; a Schema codec adds nothing here
+        body: JSON.stringify(request),
+        signal
+      }),
+    catch: () =>
+      new CapabilityUnavailable({
+        capability: 'turnstile-verification',
+        reason: 'siteverify request failed'
+      })
+  }).pipe(
+    Effect.timeout('10 seconds'),
+    // Same "siteverify unreachable" failure the transport path reports.
+    Effect.catchTag('TimeoutError', () =>
+      Effect.fail(
+        new CapabilityUnavailable({
+          capability: 'turnstile-verification',
+          reason: 'siteverify request timed out'
+        })
+      )
+    )
   )
-  const json: unknown = yield* Effect.promise(() => response.json())
+  const json: unknown = yield* Effect.tryPromise({
+    try: () => response.json(),
+    catch: () =>
+      new CapabilityUnavailable({
+        capability: 'turnstile-verification',
+        reason: `siteverify responded ${response.status} with an unparseable body`
+      })
+  })
   const decoded = decodeSiteverifyResponse(json)
   if (Result.isFailure(decoded)) {
     return yield* new CapabilityUnavailable({
@@ -148,8 +176,17 @@ export function makeTurnstileVerifier(options: {
         }
         // Siteverify trouble is infrastructure, not a bot verdict — fold the
         // typed failure into an `unavailable` outcome so `verify` never fails.
+        // Verification is idempotent, so a bounded jittered retry rides in
+        // front of the fold; checkout creation (Stripe) is not idempotent and
+        // gets none.
         const attempted = yield* Effect.result(
-          siteverify(buildRequest(secretKey, token, remoteIp))
+          siteverify(buildRequest(secretKey, token, remoteIp)).pipe(
+            Effect.retry(
+              Schedule.upTo({ times: 2 })(
+                Schedule.jittered(Schedule.exponential('100 millis'))
+              )
+            )
+          )
         )
         if (Result.isFailure(attempted)) return unavailable
         return classify(attempted.success)

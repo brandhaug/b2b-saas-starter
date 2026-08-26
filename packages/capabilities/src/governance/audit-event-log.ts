@@ -232,7 +232,7 @@ export function SeedAuditEventLog(
         const ctx = yield* WorkspaceContext
         return pagedSeedRows(rows, ctx.workspace.id, input)
       }),
-    listGlobal: Effect.succeed(toWire(rows)),
+    listGlobal: Effect.sync(() => toWire(rows)),
     record: (input) =>
       Effect.gen(function* () {
         // Appends into this instance's store so recorded events read back

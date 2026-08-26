@@ -1,4 +1,5 @@
-import { Effect } from 'effect'
+import { Effect, Fiber } from 'effect'
+import { TestClock } from 'effect/testing'
 import { describe, expect, it } from '@effect/vitest'
 import { CapabilityUnavailable } from '../errors.ts'
 import {
@@ -103,7 +104,11 @@ describe('turnstile verification', () => {
             })
           )
       })
-      expect(yield* verifier.verify({ token: 'tok' })).toEqual({
+      // The bounded retry sleeps on TestClock; advance it while verify runs
+      // so all attempts exhaust deterministically.
+      const fiber = yield* Effect.forkChild(verifier.verify({ token: 'tok' }))
+      yield* TestClock.adjust('30 seconds')
+      expect(yield* Fiber.join(fiber)).toEqual({
         outcome: 'unavailable'
       })
     })
