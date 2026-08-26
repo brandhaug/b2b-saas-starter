@@ -1,5 +1,5 @@
-import { auditEvents, user, type JsonObject } from '@b2b-saas-starter/db/src/schema.ts'
-import { Database, type BatchStatement } from '@b2b-saas-starter/db/src/service.ts'
+import { auditEvents, user, type JsonObject } from '@b2b-saas-starter/db/schema'
+import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Encoding, Layer, Result, Schema } from 'effect'
 import { and, desc, eq, gte, lt, lte, or, type SQL } from 'drizzle-orm'
 
@@ -136,15 +136,19 @@ function toWireRow(row: AuditRow): AuditEvent {
   }
 }
 
-function toWire(rows: readonly SeedAuditEventRow[]): readonly AuditEvent[] {
-  return rows.map((row) => ({
+function toSeedWire(row: SeedAuditEventRow): AuditEvent {
+  return {
     id: row.id,
     eventType: row.eventType,
     targetType: row.targetType,
     targetId: row.targetId ?? null,
     actor: row.actor,
     createdAt: row.createdAt
-  }))
+  }
+}
+
+function toWire(rows: readonly SeedAuditEventRow[]): readonly AuditEvent[] {
+  return rows.map(toSeedWire)
 }
 
 /**
@@ -207,14 +211,7 @@ function pagedSeedRows(
     if (a.id < b.id) return 1
     return 0
   })
-  return buildPage(ordered, (row) => ({
-    id: row.id,
-    eventType: row.eventType,
-    targetType: row.targetType,
-    targetId: row.targetId ?? null,
-    actor: row.actor,
-    createdAt: row.createdAt
-  }))
+  return buildPage(ordered, toSeedWire)
 }
 
 export function SeedAuditEventLog(
@@ -316,18 +313,16 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
       }
 
       function queryRows(workspaceId?: string) {
-        const base = db
-          .select({ event: auditEvents, actor: user })
-          .from(auditEvents)
-          .leftJoin(user, eq(user.id, auditEvents.actorUserId))
-        if (workspaceId === undefined) {
-          return orUnavailable('audit-event-log')(
-            base.orderBy(desc(auditEvents.createdAt)).limit(100)
-          ).pipe(Effect.map((rows) => rows.map(toWireRow)))
+        const conditions: SQL[] = []
+        if (workspaceId !== undefined) {
+          conditions.push(eq(auditEvents.workspaceId, workspaceId))
         }
         return orUnavailable('audit-event-log')(
-          base
-            .where(eq(auditEvents.workspaceId, workspaceId))
+          db
+            .select({ event: auditEvents, actor: user })
+            .from(auditEvents)
+            .leftJoin(user, eq(user.id, auditEvents.actorUserId))
+            .where(and(...conditions))
             .orderBy(desc(auditEvents.createdAt))
             .limit(100)
         ).pipe(Effect.map((rows) => rows.map(toWireRow)))

@@ -2,14 +2,11 @@ import { useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { MailQuestionIcon } from 'lucide-react'
+import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
-import { PublicLayout } from '@/components/public-layout'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
-import { useHydrated } from '@/lib/client-only-value'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export const Route = createFileRoute('/forgot-password')({
   component: ForgotPasswordRoute
@@ -58,7 +55,6 @@ export function ForgotPasswordPage({
 }) {
   const [sent, setSent] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const hydrated = useHydrated()
   const form = useForm({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) => {
@@ -73,71 +69,52 @@ export function ForgotPasswordPage({
   })
 
   return (
-    <PublicLayout>
-      <main
-        id="main-content"
-        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
-      >
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle as="h1">Reset your password</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Enter the email you sign in with and we will send a reset link.
-            </p>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {sent ? (
-              <p className="text-sm text-muted-foreground">{SENT_MESSAGE}</p>
-            ) : (
-              <form
-                data-hydrated={hydrated ? 'true' : undefined}
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  void form.handleSubmit()
-                }}
-                className="grid gap-4"
-              >
-                <form.Field name="email" validators={{ onChange: emailValidator }}>
-                  {(field) => (
-                    <FormTextField
-                      name={field.name}
-                      label="Email"
-                      type="email"
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                      value={field.state.value}
-                      errors={field.state.meta.errors}
-                      onBlur={field.handleBlur}
-                      onChange={field.handleChange}
-                      required
-                    />
-                  )}
-                </form.Field>
-
-                <AuthSubmitButton
-                  form={form}
-                  icon={<MailQuestionIcon className="size-4" />}
-                  label="Send reset link"
-                  submittingLabel="Sending…"
-                />
-
-                {submitError ? (
-                  <Alert variant="destructive">
-                    <AlertDescription>{submitError}</AlertDescription>
-                  </Alert>
-                ) : null}
-              </form>
-            )}
-            <p className="text-center text-sm text-muted-foreground">
-              Remembered it after all?{' '}
-              <Link to="/sign-in" className="text-primary underline underline-offset-4">
-                Sign in
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
-      </main>
-    </PublicLayout>
+    <AuthCardForm
+      title="Reset your password"
+      description="Enter the email you sign in with and we will send a reset link."
+      // The sent state is a confirmation, not a form — no wrapper, no
+      // hydration signal needed.
+      form={sent ? null : form}
+      submit={
+        sent ? undefined : (
+          <AuthSubmitButton
+            form={form}
+            icon={<MailQuestionIcon className="size-4" />}
+            label="Send reset link"
+            submittingLabel="Sending…"
+          />
+        )
+      }
+      error={submitError}
+      footer={
+        <p className="text-center text-sm text-muted-foreground">
+          Remembered it after all?{' '}
+          <Link to="/sign-in" className="text-primary underline underline-offset-4">
+            Sign in
+          </Link>
+        </p>
+      }
+    >
+      {sent ? (
+        <p className="text-sm text-muted-foreground">{SENT_MESSAGE}</p>
+      ) : (
+        <form.Field name="email" validators={{ onChange: emailValidator }}>
+          {(field) => (
+            <FormTextField
+              name={field.name}
+              label="Email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              value={field.state.value}
+              errors={field.state.meta.errors}
+              onBlur={field.handleBlur}
+              onChange={field.handleChange}
+              required
+            />
+          )}
+        </form.Field>
+      )}
+    </AuthCardForm>
   )
 }

@@ -10,8 +10,8 @@
  * 1. **Init** — `makeSentryOptions(service, env)` feeds `Sentry.withSentry` at
  *    the worker entry. Without `SENTRY_DSN` it returns empty options and the
  *    SDK initializes a disabled client.
- * 2. **Wide-event sinks** — `wireWireEventProviders(env)` (call once per
- *    invocation, at the top of each handler) connects the scope's exit event
+ * 2. **Wide-event sinks** — `wireWideEventProviders(env)` (call once per
+ *    isolate, at worker init) connects the scope's exit event
  *    to both vendors. Failed scopes become Sentry exceptions tagged with the
  *    service/event/trace id; every scope becomes one PostHog event keyed by
  *    the trace id.
@@ -65,19 +65,29 @@ export function makeSentryOptions(
   return options
 }
 
-let currentEnv: ProviderGlueEnv | undefined
-let wired = false
+// The env the sinks read, pinned by the first `wireWideEventProviders` call
+// in the isolate. One binding means an in-flight emit can never observe a mix
+// of two invocations' envs — it sees either the old object or the new one,
+// never a half-updated view.
+let wiredEnv: ProviderGlueEnv | undefined
 
 /**
- * Point the wide-event sinks at this invocation's env. Cheap enough to call at
- * the top of every handler: the first call registers the sinks, every later
- * one refreshes the env the sinks read (per-invocation activation, so a
- * binding added between requests takes effect without an isolate restart).
+ * Point the wide-event sinks at this isolate's env.
+ *
+ * **Call-once-per-isolate protocol:** the first call registers the sinks and
+ * pins the env they read; every later call must pass the *same* env bag (the
+ * normal Workers behavior — one env object per isolate). A later call with an
+ * equal-by-identity env is a no-op; a different env object replaces the pinned
+ * one atomically, with the caveat that an emit already in flight finishes
+ * against the previous env. Callers that genuinely reconfigure vendors between
+ * requests should restart the isolate instead of re-wiring mid-flight.
  */
 export function wireWideEventProviders(env: ProviderGlueEnv): void {
-  currentEnv = env
-  if (wired) return
-  wired = true
+  if (wiredEnv !== undefined) {
+    if (env !== wiredEnv) wiredEnv = env
+    return
+  }
+  wiredEnv = env
   addWideEventSink((record) => dispatch(record))
 }
 
@@ -118,7 +128,7 @@ async function captureSentryError(record: WideEventRecord): Promise<void> {
  * shutdown before the invocation ends.
  */
 async function capturePostHogEvent(record: WideEventRecord): Promise<void> {
-  const env = currentEnv
+  const env = wiredEnv
   if (env?.POSTHOG_KEY === undefined || env.POSTHOG_KEY.length === 0) return
   const { PostHog } = await import('posthog-node')
   let host = DEFAULT_POSTHOG_HOST

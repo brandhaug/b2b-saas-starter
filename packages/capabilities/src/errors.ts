@@ -6,7 +6,7 @@ import { Schema } from 'effect'
  * re-exported here — not redeclared — so consumers keep one import path and
  * the HTTP contract keeps one class identity.
  */
-export { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+export { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()(

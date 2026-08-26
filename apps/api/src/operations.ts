@@ -1,5 +1,5 @@
-import { type PermissionRequest } from '@b2b-saas-starter/authz/src/client.ts'
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   type CapabilityUnavailable,
   type WorkspaceNotFound

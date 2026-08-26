@@ -2,7 +2,7 @@ import {
   batch,
   type BatchStatement,
   type D1Binding
-} from '@b2b-saas-starter/db/src/service.ts'
+} from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 
 import { type CapabilityUnavailable } from '../errors.ts'

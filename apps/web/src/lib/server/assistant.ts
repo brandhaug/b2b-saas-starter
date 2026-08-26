@@ -5,7 +5,7 @@ import {
   type AssistantProvider,
   type ProviderEnv
 } from '@b2b-saas-starter/ai'
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
 import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'

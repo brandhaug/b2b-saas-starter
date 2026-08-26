@@ -1,4 +1,4 @@
-import { type PermissionRequest } from '@b2b-saas-starter/authz/src/client.ts'
+import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/src/developer-platform/webhook-endpoints.ts'
 import { StarterApi } from '@b2b-saas-starter/api'
@@ -24,6 +24,33 @@ import { READ_OPERATIONS, serveRead, type ReadOperationEndpoint } from './operat
  */
 const HEALTH_OK = { status: 'ok' } satisfies { readonly status: 'ok' }
 const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
+
+/**
+ * Write sibling of the local `read` helper in `workspaceGroup`: the same gate
+ * stack with the write rate-limit bucket. The event name is passed whole —
+ * writes name themselves (`api-tokens.create`), unlike reads under
+ * `workspace.*`.
+ */
+function write<A, E, R>(
+  env: ApiEnv,
+  event: string,
+  permission: PermissionRequest,
+  slug: string,
+  request: HttpServerRequest.HttpServerRequest,
+  body: Effect.Effect<A, E, R>
+) {
+  return observed(
+    env,
+    request,
+    event,
+    { workspaceSlug: slug },
+    Effect.gen(function* () {
+      yield* enforceRateLimit(request, 'rest_write')
+      yield* enforcePermission(request, permission, slug)
+      return yield* provideWorkspace(env, slug, body)
+    })
+  )
+}
 
 export function healthGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'health', (handlers) =>
@@ -100,22 +127,15 @@ export function apiTokenGroup(env: ApiEnv) {
     params: { readonly slug: string; readonly tokenId: string },
     request: HttpServerRequest.HttpServerRequest
   ) {
-    return observed(
+    return write(
       env,
-      request,
       event,
-      { workspaceSlug: params.slug },
+      { apiToken: ['revoke'] },
+      params.slug,
+      request,
       Effect.gen(function* () {
-        yield* enforceRateLimit(request, 'rest_write')
-        yield* enforcePermission(request, { apiToken: ['revoke'] }, params.slug)
-        yield* provideWorkspace(
-          env,
-          params.slug,
-          Effect.gen(function* () {
-            const tokens = yield* ApiTokenRegistry
-            yield* tokens.revoke({ tokenId: params.tokenId })
-          })
-        )
+        const tokens = yield* ApiTokenRegistry
+        yield* tokens.revoke({ tokenId: params.tokenId })
         return TOKEN_REVOKED
       })
     )
@@ -124,29 +144,20 @@ export function apiTokenGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'api-token-registry', (handlers) =>
     handlers
       .handle('create', ({ params, payload, request }) =>
-        observed(
+        write(
           env,
-          request,
           'api-tokens.create',
-          { workspaceSlug: params.slug },
+          { apiToken: ['create'] },
+          params.slug,
+          request,
           Effect.gen(function* () {
-            yield* enforceRateLimit(request, 'rest_write')
-            yield* enforcePermission(request, { apiToken: ['create'] }, params.slug)
-            const created = yield* provideWorkspace(
-              env,
-              params.slug,
-              Effect.gen(function* () {
-                const tokens = yield* ApiTokenRegistry
-                // The entitlement gate and the webhook fan-out live inside the
-                // capability, below the interface — identical for every
-                // surface.
-                const next = yield* tokens.create({
-                  name: payload.name,
-                  scopes: payload.scopes
-                })
-                return next
-              })
-            )
+            const tokens = yield* ApiTokenRegistry
+            // The entitlement gate and the webhook fan-out live inside the
+            // capability, below the interface — identical for every surface.
+            const created = yield* tokens.create({
+              name: payload.name,
+              scopes: payload.scopes
+            })
             yield* Effect.annotateLogsScoped({
               tokenId: created.id,
               tokenScopes: created.scopes
@@ -167,29 +178,21 @@ export function apiTokenGroup(env: ApiEnv) {
 export function webhookGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'webhook-endpoints', (handlers) =>
     handlers.handle('create', ({ params, payload, request }) =>
-      observed(
+      write(
         env,
-        request,
         'webhooks.create',
-        { workspaceSlug: params.slug },
+        { webhook: ['create'] },
+        params.slug,
+        request,
         Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'rest_write')
-          yield* enforcePermission(request, { webhook: ['create'] }, params.slug)
-          const created = yield* provideWorkspace(
-            env,
-            params.slug,
-            Effect.gen(function* () {
-              const webhooks = yield* WebhookEndpoints
-              const createdEndpoint = yield* webhooks.create({
-                url: payload.url,
-                events: payload.events,
-                description: payload.description
-              })
-              return createdEndpoint.endpoint
-            })
-          )
-          yield* Effect.annotateLogsScoped({ webhookEndpointId: created.id })
-          return created
+          const webhooks = yield* WebhookEndpoints
+          const created = yield* webhooks.create({
+            url: payload.url,
+            events: payload.events,
+            description: payload.description
+          })
+          yield* Effect.annotateLogsScoped({ webhookEndpointId: created.endpoint.id })
+          return created.endpoint
         })
       )
     )

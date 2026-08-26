@@ -1,7 +1,7 @@
 import {
   makeSentryOptions,
   wireWideEventProviders
-} from '@b2b-saas-starter/logger/src/providers.ts'
+} from '@b2b-saas-starter/logger/providers'
 import * as Sentry from '@sentry/cloudflare'
 
 import { type ApiEnv } from './env.ts'

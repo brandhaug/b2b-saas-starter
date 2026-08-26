@@ -26,7 +26,7 @@ type WebWorkerEnv = {
   // default: without it (or without WORKERS_AI_ENABLED=true) the assistant
   // stays on its mock provider and the UI shows the honest not-enabled copy.
   readonly AI?: import('@b2b-saas-starter/ai').WorkersAIBinding
-} & Readonly<import('@b2b-saas-starter/env/src/server.ts').ServerEnv>
+} & Readonly<import('@b2b-saas-starter/env/server').ServerEnv>
 
 // `env` from `cloudflare:workers` is typed as `Cloudflare.Env`
 // (@cloudflare/workers-types uses `export = CloudflareWorkersModule`, so a

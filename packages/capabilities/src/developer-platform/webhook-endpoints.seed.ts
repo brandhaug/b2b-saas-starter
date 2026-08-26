@@ -135,6 +135,33 @@ export function SeedWebhookEndpoints(
         }
       })
 
+      /** One attempt row; terminal statuses audit below their interface — mirrors Live's `recordAttempt`. */
+      const recordAttempt = Effect.fnUntraced(function* (input: {
+        readonly id?: string
+        readonly endpointId: string
+        readonly workspaceId: string
+        readonly eventType: string
+        readonly status: WebhookDeliveryStatus
+        readonly attempts: number
+        readonly responseStatus?: number | null
+        readonly nextAttemptAt?: string | null
+      }) {
+        const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
+        yield* persistAttempt({
+          id: deliveryId,
+          endpointId: input.endpointId,
+          workspaceId: input.workspaceId,
+          eventType: input.eventType,
+          status: input.status,
+          attempts: input.attempts,
+          lastAttemptAt: DateTime.formatIso(yield* DateTime.now),
+          nextAttemptAt: input.nextAttemptAt ?? null,
+          responseStatus: input.responseStatus ?? null,
+          seq: nextSeq()
+        })
+        return deliveryId
+      })
+
       return {
         list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
@@ -249,35 +276,10 @@ export function SeedWebhookEndpoints(
               signingSecret: endpoint.signingSecret
             }
           }),
-        recordDeliveryAttempt: Effect.fnUntraced(function* (input) {
-          const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
-          yield* persistAttempt({
-            id: deliveryId,
-            endpointId: input.endpointId,
-            workspaceId: input.workspaceId,
-            eventType: input.eventType,
-            status: input.status,
-            attempts: input.attempts,
-            lastAttemptAt: DateTime.formatIso(yield* DateTime.now),
-            nextAttemptAt: input.nextAttemptAt ?? null,
-            responseStatus: input.responseStatus ?? null,
-            seq: nextSeq()
-          })
-        }),
+        recordDeliveryAttempt: (input) => recordAttempt(input).pipe(Effect.asVoid),
         recordTerminalDeliveryAttempt: Effect.fnUntraced(function* (input) {
-          const deliveryId = yield* newCapabilityId('whd')
-          yield* persistAttempt({
-            id: deliveryId,
-            endpointId: input.endpointId,
-            workspaceId: input.workspaceId,
-            eventType: input.eventType,
-            status: input.status,
-            attempts: input.attempts,
-            lastAttemptAt: DateTime.formatIso(yield* DateTime.now),
-            nextAttemptAt: null,
-            responseStatus: null,
-            seq: nextSeq()
-          })
+          // The capability mints the row id, like Live does on this surface.
+          const deliveryId = yield* recordAttempt(input)
           return { deliveryId }
         })
       }

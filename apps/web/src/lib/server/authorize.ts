@@ -2,9 +2,9 @@ import {
   authorize,
   memberPrincipal,
   type PermissionRequest
-} from '@b2b-saas-starter/authz/src/client.ts'
-import { requirePermission } from '@b2b-saas-starter/authz/src/guard.ts'
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+} from '@b2b-saas-starter/authz/client'
+import { requirePermission } from '@b2b-saas-starter/authz/guard'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/src/workspace-context.ts'
 import { Effect, type Scope } from 'effect'
 

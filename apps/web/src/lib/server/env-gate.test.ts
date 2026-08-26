@@ -1,4 +1,4 @@
-import { type RequiredEnvProblem } from '@b2b-saas-starter/env/src/server.ts'
+import { type RequiredEnvProblem } from '@b2b-saas-starter/env/server'
 import { describe, expect, it } from 'vitest'
 import { enforceRequiredEnvAudit, InsecureProductionEnvError } from './env-gate.ts'
 

@@ -1,4 +1,4 @@
-import { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   ApiToken,
   CreatedApiTokenSchema,

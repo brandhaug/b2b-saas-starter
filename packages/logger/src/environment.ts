@@ -1,5 +1,7 @@
 import { Option, Schema } from 'effect'
 
+import { type Writable } from '@b2b-saas-starter/config/writable'
+
 /**
  * Deployment identity mined from a worker env bag (plus Cloudflare's `cf`
  * hints). Each field has its own precedence chain over the raw env keys —
@@ -20,14 +22,9 @@ export type WideEventEnvironment = {
 }
 
 /**
- * The write-side view of {@link WideEventEnvironment}. `readWideEventEnvironment`
- * fills it key by key so an unset var stays an absent key rather than an
- * explicit `undefined`, which `exactOptionalPropertyTypes` treats as a present
- * value and the emitted event would show as an empty column.
+ * Built via {@link Writable} by assignment so absent fields stay absent (no
+ * `key: undefined`), which keeps the emitted wide event free of empty columns.
  */
-type MutableWideEventEnvironment = {
-  -readonly [K in keyof WideEventEnvironment]: WideEventEnvironment[K]
-}
 
 const CfProperties = Schema.Struct({ colo: Schema.String })
 
@@ -72,7 +69,7 @@ export function readWideEventEnvironment(
   const environment = pickString(source, 'ENVIRONMENT', 'NODE_ENV')
   // Built by assignment so absent fields stay absent (no `key: undefined`),
   // which keeps the emitted wide event free of empty columns.
-  const resolved: MutableWideEventEnvironment = {}
+  const resolved: Writable<WideEventEnvironment> = {}
   if (commit) resolved.commitHash = commit
   if (version) resolved.serviceVersion = version
   if (region) resolved.region = region

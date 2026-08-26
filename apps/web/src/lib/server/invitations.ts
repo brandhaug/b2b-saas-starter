@@ -1,4 +1,4 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   WORKSPACE_ROLES,
   type WorkspaceRole
@@ -14,7 +14,7 @@ import {
   type MembershipChangeRejected
 } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { EmailDispatcher } from '@b2b-saas-starter/email'
-import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/src/templates.tsx'
+import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/templates'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Option, Result, Schema, type Scope } from 'effect'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'

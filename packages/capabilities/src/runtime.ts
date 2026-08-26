@@ -1,5 +1,6 @@
-import { layerFromD1 } from '@b2b-saas-starter/db/src/service.ts'
+import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { Layer } from 'effect'
+import { type LiveBillingOptions } from './billing/billing.ts'
 import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
 import { type WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
 import { type WorkspaceLifecycleBinding } from './governance/workspace-lifecycle.ts'
@@ -59,10 +60,7 @@ export type StarterEnv = {
    * Absent (env unset), checkout fails `provider_not_configured` and the rest
    * of the app is unaffected — provider-light degradation.
    */
-  readonly billing?: {
-    readonly secretKey?: string | undefined
-    readonly priceIds?: Readonly<Record<string, string>> | undefined
-  }
+  readonly billing?: LiveBillingOptions | undefined
 }
 
 /**
@@ -78,19 +76,26 @@ export function starterEnv(env: Pick<StarterEnv, 'DB' | 'WEBHOOK_QUEUE'>): Start
   }
 }
 
-export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
-  if (env.DB === undefined) {
-    return SeedLayer
-  }
-  const live = makeLiveLayerFromD1(env.DB, {
+/**
+ * The env fields `makeLiveCapabilitiesLayer` consumes, projected once so both
+ * selectors forward the same set and none can drift out of one of them.
+ */
+function liveCapabilitiesOptions(env: StarterEnv) {
+  return {
     webhookQueue: env.WEBHOOK_QUEUE,
     memberBinding: env.memberBinding,
     invitationBinding: env.invitationBinding,
     lifecycleBinding: env.lifecycleBinding,
     userAdminBinding: env.userAdminBinding,
     billing: env.billing
-  })
-  return live
+  }
+}
+
+export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
+  if (env.DB === undefined) {
+    return SeedLayer
+  }
+  return makeLiveLayerFromD1(env.DB, liveCapabilitiesOptions(env))
 }
 
 export function selectWorkspaceLayer(
@@ -110,14 +115,7 @@ export function selectWorkspaceLayer(
     )
   }
   return Layer.mergeAll(
-    makeLiveCapabilitiesLayer({
-      webhookQueue: env.WEBHOOK_QUEUE,
-      memberBinding: env.memberBinding,
-      invitationBinding: env.invitationBinding,
-      lifecycleBinding: env.lifecycleBinding,
-      userAdminBinding: env.userAdminBinding,
-      billing: env.billing
-    }),
+    makeLiveCapabilitiesLayer(liveCapabilitiesOptions(env)),
     liveWorkspaceContext(slug, actor)
   ).pipe(Layer.provide(layerFromD1(env.DB)))
 }

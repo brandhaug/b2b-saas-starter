@@ -1,15 +1,16 @@
-import { withTriggerScope } from '@b2b-saas-starter/logger'
-import { Effect, Result, Schema, type Scope } from 'effect'
 import {
   Billing,
-  planForStripeEvent
+  planForStripeEvent,
+  verifyStripeSignature
 } from '@b2b-saas-starter/capabilities/src/billing/billing.ts'
+import { withTriggerScope } from '@b2b-saas-starter/logger'
+import { Effect, Result, Schema, type Scope } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import {
   selectCapabilitiesLayer,
   starterEnv
 } from '@b2b-saas-starter/capabilities/src/runtime.ts'
-import { type Env } from './webhook-consumer.ts'
+import { runInvocation, type Env } from './webhook-consumer.ts'
 
 /**
  * The subset of a Stripe event body this worker understands. Everything else
@@ -45,6 +46,31 @@ const decodeStripeEvent = Schema.decodeUnknownResult(
  * 500, which is what makes Stripe redeliver. Exported with requirements open
  * for tests, like `processWebhookMessage`.
  */
+/**
+ * Where a handled event's plan change lands: either a resolved target or the
+ * skip reason recorded on the wide event. The static-plan branch takes its
+ * plan id from the policy table; the metadata branch requires both the
+ * workspace and an explicit plan id from Stripe's metadata.
+ */
+function resolvePlanTarget(
+  plan: NonNullable<ReturnType<typeof planForStripeEvent>>,
+  workspaceId: string | undefined,
+  metadata: { readonly planId?: string | undefined }
+):
+  | { readonly workspaceId: string; readonly planId: string }
+  | { readonly skipReason: string } {
+  if (plan.kind === 'from_metadata') {
+    if (!workspaceId || !metadata.planId) {
+      return { skipReason: 'missing_workspace_or_plan' }
+    }
+    return { workspaceId, planId: metadata.planId }
+  }
+  if (!workspaceId) {
+    return { skipReason: 'missing_workspace' }
+  }
+  return { workspaceId, planId: plan.planId }
+}
+
 export function processStripeEvent(
   payload: string
 ): Effect.Effect<void, CapabilityUnavailable, Billing | Scope.Scope> {
@@ -60,7 +86,6 @@ export function processStripeEvent(
     const event = decoded.success
     const object = event.data.object
     const metadata = object.metadata ?? {}
-    const workspaceId = metadata.workspaceId ?? object.client_reference_id
     yield* Effect.annotateLogsScoped({ stripeEventType: event.type })
     const plan = planForStripeEvent(event.type)
     if (!plan) {
@@ -70,25 +95,19 @@ export function processStripeEvent(
       })
       return
     }
-    if (plan.kind === 'from_metadata') {
-      if (!workspaceId || !metadata.planId) {
-        yield* Effect.annotateLogsScoped({
-          outcome: 'skipped',
-          skipReason: 'missing_workspace_or_plan'
-        })
-        return
-      }
-      yield* applyPlan(workspaceId, metadata.planId, event.type)
-      return
-    }
-    if (!workspaceId) {
+    const target = resolvePlanTarget(
+      plan,
+      metadata.workspaceId ?? object.client_reference_id,
+      metadata
+    )
+    if ('skipReason' in target) {
       yield* Effect.annotateLogsScoped({
         outcome: 'skipped',
-        skipReason: 'missing_workspace'
+        skipReason: target.skipReason
       })
       return
     }
-    yield* applyPlan(workspaceId, plan.planId, event.type)
+    yield* applyPlan(target.workspaceId, target.planId, event.type)
   })
 }
 
@@ -134,5 +153,45 @@ export function handleStripeWebhook(
       spanKind: 'consumer'
     },
     program
+  )
+}
+
+/**
+ * Inbound Stripe webhooks (see docs/integrations/stripe-billing.mdx). The
+ * route verifies Stripe's signature scheme against `STRIPE_WEBHOOK_SECRET`
+ * and applies subscription changes to `workspaces.planId` through the
+ * billing capability — unset env degrades to a 503, never to an unverified
+ * state change. Failures answer 500 so Stripe schedules a redelivery.
+ */
+// oxlint-disable-next-line effect/noAsyncFunction -- the Workers fetch contract is a plain async function; reading the raw body and verifying the HMAC are this adapter's two awaits, both total here
+export async function handleStripeRequest(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  const { pathname } = new URL(request.url)
+  if (pathname !== '/webhooks/stripe') {
+    return new Response('Not found', { status: 404 })
+  }
+  if (request.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405 })
+  }
+  const secret = env.STRIPE_WEBHOOK_SECRET
+  if (secret === undefined || secret.length === 0) {
+    return Response.json({ error: 'billing_not_configured' }, { status: 503 })
+  }
+  // oxlint-disable-next-line effect/noAsyncFunction -- reading the raw body is the adapter's first await, total here
+  const payload = await request.text()
+  // oxlint-disable-next-line effect/noAsyncFunction -- verifying the HMAC is the second; both complete before the response
+  const valid = await verifyStripeSignature({
+    secret,
+    payload,
+    header: request.headers.get('stripe-signature')
+  })
+  if (!valid) {
+    return Response.json({ error: 'invalid_signature' }, { status: 400 })
+  }
+  return runInvocation(env, handleStripeWebhook(payload, env)).then(
+    () => new Response(null, { status: 200 }),
+    () => Response.json({ error: 'processing_failed' }, { status: 500 })
   )
 }

@@ -21,6 +21,15 @@ import { type StarterStatements } from './statements.ts'
 export type PermissionRequest = RoleAuthorizeRequest<StarterStatements>
 
 /**
+ * One resource's worth of a {@link PermissionRequest}: either the bare action
+ * list, or Better Auth's object form carrying an explicit connector. The
+ * named union is what keeps the guard's request handling off duck-typing.
+ */
+export type RequestedActions =
+  | readonly string[]
+  | { readonly actions: readonly string[] }
+
+/**
  * The actor's authorization identity, independent of how it authenticated. A
  * session resolves to a workspace role; a bearer token resolves to its scopes.
  */

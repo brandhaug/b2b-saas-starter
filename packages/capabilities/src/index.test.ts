@@ -1,4 +1,4 @@
-import { layerFromD1 } from '@b2b-saas-starter/db/src/service.ts'
+import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Option } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { SeedLayer } from './layers.ts'

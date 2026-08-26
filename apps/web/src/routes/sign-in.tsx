@@ -3,29 +3,20 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { Schema } from 'effect'
 import { KeyRoundIcon } from 'lucide-react'
+import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { PublicLayout } from '@/components/public-layout'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
-import { useHydrated } from '@/lib/client-only-value'
 import {
   DEMO_CREDENTIALS,
   DEMO_MEMBER_CREDENTIALS,
   DEMO_WORKSPACE_SLUG
 } from '@/lib/demo-workspace'
-import { safeRedirect } from '@/lib/utils'
-
-const SignInSearch = Schema.Struct({
-  redirect: Schema.optional(Schema.String)
-})
-
-const decodeSearch = Schema.decodeUnknownSync(SignInSearch)
+import { redirectSearch, safeRedirect } from '@/lib/utils'
 
 export const Route = createFileRoute('/sign-in')({
-  validateSearch: (search) => decodeSearch(search),
+  validateSearch: redirectSearch,
   component: SignInRoute
 })
 
@@ -85,11 +76,6 @@ export function SignInPage({
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
-  // Hydration signal for e2e: interacting before React hydrates falls through
-  // to a native GET submit, so the smoke test waits for this attribute.
-  // `useHydrated` flips it after hydration with no effect-setState round trip,
-  // so the first paint cannot flash the pre-hydration value.
-  const hydrated = useHydrated()
   const form = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
     onSubmit: async ({ value }) => {
@@ -122,128 +108,104 @@ export function SignInPage({
   })
 
   return (
-    <PublicLayout>
-      {/* `flex-1` fills the space PublicLayout's `min-h-dvh flex-col` leaves
-          between the header and its `mt-auto` footer — no hardcoded chrome height. */}
-      <main
-        id="main-content"
-        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
-      >
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle as="h1">Sign in</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Sign in with your email and password.
-            </p>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <form
-              data-hydrated={hydrated ? 'true' : undefined}
-              onSubmit={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                void form.handleSubmit()
-              }}
-              className="grid gap-4"
-            >
-              <form.Field name="email" validators={{ onChange: emailValidator }}>
-                {(field) => (
-                  <FormTextField
-                    name={field.name}
-                    label="Email"
-                    type="email"
-                    placeholder="you@example.com"
-                    autoComplete="email"
-                    value={field.state.value}
-                    errors={field.state.meta.errors}
-                    onBlur={field.handleBlur}
-                    onChange={field.handleChange}
-                    required
-                  />
-                )}
-              </form.Field>
-
-              <form.Field name="password" validators={{ onChange: passwordValidator }}>
-                {(field) => (
-                  <FormTextField
-                    name={field.name}
-                    label="Password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={field.state.value}
-                    errors={field.state.meta.errors}
-                    onBlur={field.handleBlur}
-                    onChange={field.handleChange}
-                    required
-                  />
-                )}
-              </form.Field>
-
-              <AuthSubmitButton
-                form={form}
-                icon={<KeyRoundIcon className="size-4" />}
-                label="Continue"
-                submittingLabel="Signing in…"
-              />
-
-              <p className="text-right">
-                <Link
-                  to="/forgot-password"
-                  search={{}}
-                  className="text-sm text-primary underline underline-offset-4"
-                >
-                  Forgot your password?
-                </Link>
-              </p>
-
-              {submitError ? (
-                <Alert variant="destructive">
-                  <AlertDescription>{submitError}</AlertDescription>
-                </Alert>
-              ) : null}
-            </form>
-            <p className="text-xs text-muted-foreground">
-              Seeded a local database? Sign in with{' '}
-              <code className="rounded-sm bg-muted px-1 py-0.5">
-                {DEMO_CREDENTIALS.email}
-              </code>{' '}
-              /{' '}
-              <code className="rounded-sm bg-muted px-1 py-0.5">
-                {DEMO_CREDENTIALS.password}
-              </code>
-              .
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Or as a plain member, to see the role-gated view:{' '}
-              <code className="rounded-sm bg-muted px-1 py-0.5">
-                {DEMO_MEMBER_CREDENTIALS.email}
-              </code>{' '}
-              /{' '}
-              <code className="rounded-sm bg-muted px-1 py-0.5">
-                {DEMO_MEMBER_CREDENTIALS.password}
-              </code>
-              .
-            </p>
+    <AuthCardForm
+      title="Sign in"
+      description="Sign in with your email and password."
+      form={form}
+      submit={
+        <AuthSubmitButton
+          form={form}
+          icon={<KeyRoundIcon className="size-4" />}
+          label="Continue"
+          submittingLabel="Signing in…"
+        />
+      }
+      error={submitError}
+      footer={
+        <>
+          <p className="text-right">
             <Link
-              to="/workspaces/$workspaceSlug"
-              params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
-              className="text-center text-sm text-primary underline underline-offset-4"
+              to="/forgot-password"
+              search={{}}
+              className="text-sm text-primary underline underline-offset-4"
             >
-              Open seeded workspace instead
+              Forgot your password?
             </Link>
-            <p className="text-center text-sm text-muted-foreground">
-              No account yet?{' '}
-              <Link
-                to="/sign-up"
-                search={{}}
-                className="text-primary underline underline-offset-4"
-              >
-                Create one
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
-      </main>
-    </PublicLayout>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Seeded a local database? Sign in with{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_CREDENTIALS.email}
+            </code>{' '}
+            /{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_CREDENTIALS.password}
+            </code>
+            .
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Or as a plain member, to see the role-gated view:{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_MEMBER_CREDENTIALS.email}
+            </code>{' '}
+            /{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_MEMBER_CREDENTIALS.password}
+            </code>
+            .
+          </p>
+          <Link
+            to="/workspaces/$workspaceSlug"
+            params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
+            className="text-center text-sm text-primary underline underline-offset-4"
+          >
+            Open seeded workspace instead
+          </Link>
+          <p className="text-center text-sm text-muted-foreground">
+            No account yet?{' '}
+            <Link
+              to="/sign-up"
+              search={{}}
+              className="text-primary underline underline-offset-4"
+            >
+              Create one
+            </Link>
+          </p>
+        </>
+      }
+    >
+      <form.Field name="email" validators={{ onChange: emailValidator }}>
+        {(field) => (
+          <FormTextField
+            name={field.name}
+            label="Email"
+            type="email"
+            placeholder="you@example.com"
+            autoComplete="email"
+            value={field.state.value}
+            errors={field.state.meta.errors}
+            onBlur={field.handleBlur}
+            onChange={field.handleChange}
+            required
+          />
+        )}
+      </form.Field>
+
+      <form.Field name="password" validators={{ onChange: passwordValidator }}>
+        {(field) => (
+          <FormTextField
+            name={field.name}
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            value={field.state.value}
+            errors={field.state.meta.errors}
+            onBlur={field.handleBlur}
+            onChange={field.handleChange}
+            required
+          />
+        )}
+      </form.Field>
+    </AuthCardForm>
   )
 }

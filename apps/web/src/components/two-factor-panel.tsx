@@ -2,6 +2,11 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useReducer, useState } from 'react'
 import { ShieldCheckIcon } from 'lucide-react'
 import { authClient } from '@/lib/auth-client'
+import {
+  sixDigitCodeValidator,
+  verifyTotpWithAuthClient,
+  type VerifyTotpCode
+} from '@/components/auth/auth-client-ports'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,11 +28,6 @@ export type EnableTwoFactor = (input: { readonly password: string }) => Promise<
   readonly error?: { readonly message?: string | undefined } | null
 }>
 
-export type VerifyTotp = (input: { readonly code: string }) => Promise<{
-  readonly data?: unknown
-  readonly error?: { readonly message?: string | undefined } | null
-}>
-
 export type DisableTwoFactor = (input: { readonly password: string }) => Promise<{
   readonly data?: unknown
   readonly error?: { readonly message?: string | undefined } | null
@@ -35,10 +35,6 @@ export type DisableTwoFactor = (input: { readonly password: string }) => Promise
 
 function enableWithAuthClient(input: Parameters<EnableTwoFactor>[0]) {
   return authClient.twoFactor.enable(input)
-}
-
-function verifyTotpWithAuthClient(input: Parameters<VerifyTotp>[0]) {
-  return authClient.twoFactor.verifyTotp({ code: input.code })
 }
 
 function disableWithAuthClient(input: Parameters<DisableTwoFactor>[0]) {
@@ -124,7 +120,7 @@ export function TwoFactorPanel({
   // truthy means "on".
   readonly twoFactorEnabled?: boolean | null | undefined
   readonly enableTwoFactor?: EnableTwoFactor
-  readonly verifyTotp?: VerifyTotp
+  readonly verifyTotp?: VerifyTotpCode
   readonly disableTwoFactor?: DisableTwoFactor
 }) {
   const [state, dispatch] = useReducer(reducer, {
@@ -183,6 +179,12 @@ export function TwoFactorPanel({
   }
 
   function confirmCode() {
+    // Same 6-digit gate as the sign-in challenge page — the shared validator.
+    const invalidCode = sixDigitCodeValidator({ value: state.code })
+    if (invalidCode !== undefined) {
+      dispatch({ type: 'failed', message: invalidCode })
+      return
+    }
     void runAction(
       () => verifyTotp({ code: state.code }),
       'Invalid code',

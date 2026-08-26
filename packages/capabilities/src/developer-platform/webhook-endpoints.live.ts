@@ -1,5 +1,5 @@
-import { Database, RawD1 } from '@b2b-saas-starter/db/src/service.ts'
-import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/src/schema.ts'
+import { Database, RawD1 } from '@b2b-saas-starter/db/service'
+import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/schema'
 import { DateTime, Effect, Layer, Option } from 'effect'
 import { and, count, eq, sql } from 'drizzle-orm'
 

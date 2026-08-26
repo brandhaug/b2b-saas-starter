@@ -1,5 +1,5 @@
-import { user } from '@b2b-saas-starter/db/src/schema.ts'
-import { Database } from '@b2b-saas-starter/db/src/service.ts'
+import { user } from '@b2b-saas-starter/db/schema'
+import { Database } from '@b2b-saas-starter/db/service'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 
@@ -10,6 +10,7 @@ import {
   findWorkspaceMember,
   requireMemberRowId,
   SystemRole,
+  toSystemRole,
   type Member,
   type WorkspaceRole
 } from './workspace-identity.ts'
@@ -94,12 +95,6 @@ const { callBinding } = makeBindingCaller<PlatformUserAdminBinding, UserAdminRej
   noBindingReason: 'no_user_admin_binding',
   Rejected: UserAdminRejected
 })
-
-/** Only the stored `admin` role grants the admin system role — mirrors `workspace-identity`. */
-function toSystemRole(role: string | null): SystemRole {
-  if (role === 'admin') return 'admin'
-  return 'user'
-}
 
 function toAccount(row: typeof user.$inferSelect): SystemUserAccount {
   return {

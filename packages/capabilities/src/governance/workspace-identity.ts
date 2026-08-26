@@ -1,9 +1,5 @@
-import {
-  user,
-  workspaceMembers,
-  workspaceRoles
-} from '@b2b-saas-starter/db/src/schema.ts'
-import { type EffectDatabase } from '@b2b-saas-starter/db/src/service.ts'
+import { user, workspaceMembers, workspaceRoles } from '@b2b-saas-starter/db/schema'
+import { type EffectDatabase } from '@b2b-saas-starter/db/service'
 import { Effect, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 
@@ -79,7 +75,7 @@ type MemberRow = {
 }
 
 /** Only the stored `admin` role grants the admin system role; everything else is a user. */
-function toSystemRole(role: string | null): SystemRole {
+export function toSystemRole(role: string | null): SystemRole {
   if (role === 'admin') return 'admin'
   return 'user'
 }

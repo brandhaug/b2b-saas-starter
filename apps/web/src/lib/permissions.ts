@@ -2,7 +2,7 @@ import {
   authorize,
   memberPrincipal,
   type PermissionRequest
-} from '@b2b-saas-starter/authz/src/client.ts'
+} from '@b2b-saas-starter/authz/client'
 import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/src/governance/workspace-identity.ts'
 
 /**

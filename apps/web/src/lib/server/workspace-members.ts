@@ -1,4 +1,4 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   WorkspaceMembership,
   type MemberRoleInput

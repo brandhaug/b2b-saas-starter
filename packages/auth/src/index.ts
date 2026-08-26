@@ -1,8 +1,5 @@
-import {
-  accessControl,
-  workspaceRoleAccess
-} from '@b2b-saas-starter/authz/src/client.ts'
-import { type Database } from '@b2b-saas-starter/db/client'
+import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz/client'
+import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import * as schema from '@b2b-saas-starter/db/schema'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
@@ -39,7 +36,7 @@ export type AuthEmailSender = {
 }
 
 export type AuthConfigInterface = {
-  readonly db: Database
+  readonly db: DrizzleDatabase
   readonly secret: string
   readonly baseURL: string
   readonly trustedOrigins: readonly string[]

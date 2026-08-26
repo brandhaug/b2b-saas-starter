@@ -5,16 +5,13 @@ import {
   TRACE_HEADER,
   withRequestScope
 } from '@b2b-saas-starter/logger'
-import { requirePermission } from '@b2b-saas-starter/authz/src/guard.ts'
-import {
-  tokenPrincipal,
-  type PermissionRequest
-} from '@b2b-saas-starter/authz/src/client.ts'
-import { type ApiTokenScope } from '@b2b-saas-starter/authz/src/roles.ts'
+import { requirePermission } from '@b2b-saas-starter/authz/guard'
+import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import { type ApiTokenScope } from '@b2b-saas-starter/authz/roles'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/src/developer-platform/api-token-registry.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/src/errors.ts'
 import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/src/runtime.ts'
-import { AuthorizationDenied } from '@b2b-saas-starter/authz/src/errors.ts'
+import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { Effect, Result, type Scope } from 'effect'
 import { type HttpServerRequest } from 'effect/unstable/http'
 
