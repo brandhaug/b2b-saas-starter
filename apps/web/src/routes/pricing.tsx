@@ -30,7 +30,7 @@ type Plan = {
   readonly featured?: boolean
 }
 
-const plans: readonly Plan[] = [
+const plans: ReadonlyArray<Plan> = [
   {
     name: 'Starter',
     price: '$0',

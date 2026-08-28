@@ -86,7 +86,9 @@ export type CurrentRequest = () => Request | undefined
 
 function currentTelemetry(lookupRequest: CurrentRequest): RequestTelemetry | undefined {
   const request = lookupRequest()
-  if (!request) return undefined
+  if (!request) {
+    return undefined
+  }
   return registry.get(request)
 }
 
@@ -129,7 +131,9 @@ export function memoizePerRequest<A>(
 ): Promise<A> {
   const request = lookupRequest()
   const telemetry = request === undefined ? undefined : registry.get(request)
-  if (!telemetry) return make()
+  if (!telemetry) {
+    return make()
+  }
   const existing = telemetry.memo.get(key)
   if (existing) {
     // SAFETY: slots are keyed by the caller's `key`, so every promise stored
@@ -157,7 +161,9 @@ export function runWebRequestScope(
   lookupRequest: CurrentRequest = currentRequest
 ): Promise<Response> {
   const metadata: WebRequestMetadata = { handlerType: options.handlerType }
-  if (options.serverFnId) metadata.serverFnId = options.serverFnId
+  if (options.serverFnId) {
+    metadata.serverFnId = options.serverFnId
+  }
   return loggerRuntime
     .runPromiseExit(
       withInvocationExporters(
@@ -199,7 +205,9 @@ function registerAndRun(
     // (Start re-wraps the request as it flows through the handler chain), so
     // register the ambient one too when it differs.
     const ambient = lookupRequest()
-    if (ambient && ambient !== request) registry.set(ambient, telemetry)
+    if (ambient && ambient !== request) {
+      registry.set(ambient, telemetry)
+    }
     const response = yield* runNext(next)
     yield* Effect.annotateLogsScoped({ statusCode: response.status })
     if (telemetry.nested.length > 0) {
@@ -219,7 +227,9 @@ function runNext(next: () => Promise<Response>): Effect.Effect<Response, unknown
 }
 
 function settle(exit: Exit.Exit<Response, unknown>): Response {
-  if (Exit.isSuccess(exit)) return exit.value
+  if (Exit.isSuccess(exit)) {
+    return exit.value
+  }
   // The handler's own failure where there is one, the squashed cause otherwise.
   // Inlined rather than a helper: the value is whatever the handler failed with,
   // so naming a return type for it would only be `unknown` under another name.
@@ -250,7 +260,9 @@ export function withWebRequestScope<A, E, R>(
 ): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
   return Effect.suspend(() => {
     const telemetry = currentTelemetry(lookupRequest)
-    if (!telemetry) return standalone(options, effect)
+    if (!telemetry) {
+      return standalone(options, effect)
+    }
     return nested(telemetry, options, effect)
   })
 }

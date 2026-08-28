@@ -12,7 +12,7 @@ import {
 // of the declared shape, so the module under test is the one that ships.
 const listNotifications = vi.fn<ListNotifications>()
 
-const fallback: readonly NotificationPreview[] = [
+const fallback: ReadonlyArray<NotificationPreview> = [
   { id: 'n1', title: 'Webhook delivered', message: 'Delivery succeeded.', read: false },
   { id: 'n2', title: 'Catalog refreshed', message: 'Refresh completed.', read: true }
 ]
@@ -24,7 +24,7 @@ function renderWithClient(ui: ReactElement) {
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
 }
 
-function renderCard(cardFallback: readonly NotificationPreview[]) {
+function renderCard(cardFallback: ReadonlyArray<NotificationPreview>) {
   return renderWithClient(
     <LiveNotifications
       workspaceSlug="starter-lab"

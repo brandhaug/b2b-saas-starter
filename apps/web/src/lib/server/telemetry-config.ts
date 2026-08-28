@@ -14,8 +14,12 @@ export type ClientTelemetryConfig = {
 
 /** Absent and empty both count as unset — no empty-string DSNs reach an SDK. */
 function nonEmptyEnvValue(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined
-  if (value.length === 0) return undefined
+  if (value === undefined) {
+    return undefined
+  }
+  if (value.length === 0) {
+    return undefined
+  }
   return value
 }
 

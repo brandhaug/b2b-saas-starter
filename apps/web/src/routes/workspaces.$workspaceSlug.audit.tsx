@@ -33,10 +33,18 @@ const decodeSearch = Schema.decodeUnknownSync(AuditSearch)
 
 function filtersFromSearch(search: AuditSearch): WorkspaceAuditFilters {
   const filters: WorkspaceAuditFilters = {}
-  if (search.actor !== undefined) filters.actorUserId = search.actor
-  if (search.eventType !== undefined) filters.eventType = search.eventType
-  if (search.since !== undefined) filters.since = search.since
-  if (search.until !== undefined) filters.until = search.until
+  if (search.actor !== undefined) {
+    filters.actorUserId = search.actor
+  }
+  if (search.eventType !== undefined) {
+    filters.eventType = search.eventType
+  }
+  if (search.since !== undefined) {
+    filters.since = search.since
+  }
+  if (search.until !== undefined) {
+    filters.until = search.until
+  }
   return filters
 }
 
@@ -49,7 +57,9 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
       userId: context.session.user.id,
       filters: filtersFromSearch(deps.search)
     }
-    if (deps.search.cursor !== undefined) input.cursor = deps.search.cursor
+    if (deps.search.cursor !== undefined) {
+      input.cursor = deps.search.cursor
+    }
     return loadWorkspaceAuditEvents(input)
   },
   pendingComponent: RoutePending,

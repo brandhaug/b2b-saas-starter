@@ -7,7 +7,7 @@ type DocFrontmatter = {
   readonly description: string
   readonly category: string
   readonly order: number
-  readonly tags?: readonly string[]
+  readonly tags?: ReadonlyArray<string>
   readonly updated?: string
 }
 
@@ -33,7 +33,7 @@ export function isDocCategory(value: string): value is DocCategory {
   return Object.hasOwn(DOC_CATEGORIES, value)
 }
 
-export const DOC_CATEGORY_ORDER: readonly DocCategory[] = [
+export const DOC_CATEGORY_ORDER: ReadonlyArray<DocCategory> = [
   'getting-started',
   'architecture',
   'capability-interfaces',
@@ -53,10 +53,10 @@ type DocPath = { category: string; slug: string }
 function parsePath(path: string): DocPath {
   const relative = path.replace('../../content/docs/', '').replace('.mdx', '')
   const parts = relative.split('/')
-  return { category: parts[0] ?? '', slug: parts[parts.length - 1] ?? '' }
+  return { category: parts[0] ?? '', slug: parts.at(-1) ?? '' }
 }
 
-const ALL_DOCS: readonly DocArticle[] = Object.entries(modules)
+const ALL_DOCS: ReadonlyArray<DocArticle> = Object.entries(modules)
   .map(([path, mod]) => {
     const { category, slug } = parsePath(path)
     return {
@@ -68,7 +68,7 @@ const ALL_DOCS: readonly DocArticle[] = Object.entries(modules)
   })
   .toSorted((a, b) => a.frontmatter.order - b.frontmatter.order)
 
-const DOCS_BY_CATEGORY = new Map<string, readonly DocArticle[]>()
+const DOCS_BY_CATEGORY = new Map<string, ReadonlyArray<DocArticle>>()
 const DOCS_BY_KEY = new Map<string, DocArticle>()
 const DOC_INDEX_IN_CATEGORY = new Map<string, number>()
 for (const doc of ALL_DOCS) {
@@ -78,11 +78,11 @@ for (const doc of ALL_DOCS) {
   DOCS_BY_KEY.set(`${doc.category}/${doc.slug}`, doc)
 }
 
-export function getAllDocs(): readonly DocArticle[] {
+export function getAllDocs(): ReadonlyArray<DocArticle> {
   return ALL_DOCS
 }
 
-export function getDocsByCategory(category: string): readonly DocArticle[] {
+export function getDocsByCategory(category: string): ReadonlyArray<DocArticle> {
   return DOCS_BY_CATEGORY.get(category) ?? []
 }
 
@@ -99,7 +99,9 @@ export type AdjacentDocs = {
 export function getAdjacentDocs(category: string, slug: string): AdjacentDocs {
   const list = DOCS_BY_CATEGORY.get(category)
   const index = DOC_INDEX_IN_CATEGORY.get(`${category}/${slug}`)
-  if (!list || index === undefined) return { prev: null, next: null }
+  if (!list || index === undefined) {
+    return { prev: null, next: null }
+  }
   return {
     prev: index > 0 ? (list[index - 1] ?? null) : null,
     next: index < list.length - 1 ? (list[index + 1] ?? null) : null

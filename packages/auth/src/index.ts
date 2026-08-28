@@ -39,7 +39,7 @@ export type AuthConfigInterface = {
   readonly db: DrizzleDatabase
   readonly secret: string
   readonly baseURL: string
-  readonly trustedOrigins: readonly string[]
+  readonly trustedOrigins: ReadonlyArray<string>
   readonly emails: AuthEmailSender
   /**
    * Better Auth's `requireEmailVerification`, decided by the app from

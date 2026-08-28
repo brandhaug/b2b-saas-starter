@@ -29,7 +29,7 @@ describe('rate limiter fallback (no Cloudflare bindings)', () => {
     }
 
     const key = `test-${Date.now()}-${Math.random()}`
-    const outcomes: boolean[] = []
+    const outcomes: Array<boolean> = []
     for (let i = 0; i < 21; i += 1) {
       outcomes.push(await runScoped(take(key)))
     }
@@ -61,7 +61,7 @@ describe('authRateLimitBucket', () => {
       }).pipe(Effect.provide(makeRateLimiterLayer({})))
     }
     const key = `sign-in-${Date.now()}-${Math.random()}`
-    const outcomes: boolean[] = []
+    const outcomes: Array<boolean> = []
     for (let i = 0; i < 6; i += 1) {
       outcomes.push(await runScoped(take(key)))
     }

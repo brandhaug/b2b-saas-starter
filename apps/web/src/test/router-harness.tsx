@@ -29,7 +29,7 @@ export async function renderWithRouter(
   ui: ReactNode,
   options?: {
     readonly path?: string
-    readonly destinations?: readonly string[]
+    readonly destinations?: ReadonlyArray<string>
     readonly initialEntry?: string
   }
 ): Promise<RenderResult & { readonly router: AnyRouter }> {

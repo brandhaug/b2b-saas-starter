@@ -53,14 +53,16 @@ export type RotateWebhookSecret = (input: {
 
 // An explicit locale and timezone keeps SSR and the browser in agreement.
 function formatDate(iso: string | null): string {
-  if (iso === null) return 'never'
+  if (iso === null) {
+    return 'never'
+  }
   return new Date(iso).toLocaleString('en-US', { timeZone: 'UTC' })
 }
 
 function Deliveries({
   deliveries
 }: {
-  readonly deliveries: readonly WebhookDelivery[]
+  readonly deliveries: ReadonlyArray<WebhookDelivery>
 }) {
   if (deliveries.length === 0) {
     return <p className="text-xs text-muted-foreground">No delivery attempts yet.</p>
@@ -101,9 +103,11 @@ export function WebhooksPanel({
   createEndpoint
 }: {
   readonly workspaceSlug: string
-  readonly endpoints: readonly (WebhookEndpoint & {
-    readonly deliveries: readonly WebhookDelivery[]
-  })[]
+  readonly endpoints: ReadonlyArray<
+    WebhookEndpoint & {
+      readonly deliveries: ReadonlyArray<WebhookDelivery>
+    }
+  >
   readonly viewer: Viewer
   readonly disableEndpoint?: DisableWebhookEndpoint
   readonly rotateSecret?: RotateWebhookSecret
@@ -157,7 +161,9 @@ export function WebhooksPanel({
     }
     // `null` means no endpoint matched in this workspace — nothing was
     // rotated and there is no secret to show.
-    if (outcome.value !== null) setRotatedSecret({ endpointId, secret: outcome.value })
+    if (outcome.value !== null) {
+      setRotatedSecret({ endpointId, secret: outcome.value })
+    }
     await router.invalidate()
   }
 

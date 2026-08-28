@@ -36,8 +36,10 @@ class MissingRequestHeaders extends Schema.TaggedError<MissingRequestHeaders>()(
 ) {}
 
 function requireHeaders(headers: Headers | undefined): Headers {
-  // oxlint-disable-next-line effect/noThrowStatement -- rejects the promise the WorkspaceInvitationBinding port returns; there is no Effect error channel on this side of it
-  if (!headers) throw new MissingRequestHeaders({ message: 'no_request_headers' })
+  if (!headers) {
+    // oxlint-disable-next-line effect/noThrowStatement -- rejects the promise the WorkspaceInvitationBinding port returns; there is no Effect error channel on this side of it
+    throw new MissingRequestHeaders({ message: 'no_request_headers' })
+  }
   return headers
 }
 

@@ -84,7 +84,9 @@ type RpcHeaders = {
 function rpc(method: string, params?: Json, name?: string): Request {
   nextId += 1
   const envelopeParams: Record<string, Json> = {}
-  if (params !== undefined) Object.assign(envelopeParams, params)
+  if (params !== undefined) {
+    Object.assign(envelopeParams, params)
+  }
   // oxlint-disable-next-line eslint/no-underscore-dangle -- protocol-reserved key
   envelopeParams._meta = MODERN_ENVELOPE
   const envelope: JsonRpcWireRequest = {
@@ -100,7 +102,9 @@ function rpc(method: string, params?: Json, name?: string): Request {
   }
   // The handler rejects a modern request whose Mcp-Name header disagrees
   // with (or is missing next to) params.name / params.uri.
-  if (name !== undefined) headers['mcp-name'] = name
+  if (name !== undefined) {
+    headers['mcp-name'] = name
+  }
   return new Request('https://api.test/mcp', {
     method: 'POST',
     headers,

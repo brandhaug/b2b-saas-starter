@@ -25,7 +25,7 @@ export type TestD1 = {
  * Splits a drizzle-kit migration file into executable statements.
  * drizzle-kit separates statements with `--> statement-breakpoint` markers.
  */
-function splitStatements(sql: string): readonly string[] {
+function splitStatements(sql: string): ReadonlyArray<string> {
   // Assumes drizzle-kit's breakpoint marker never appears inside a SQL literal.
   return sql
     .split('--> statement-breakpoint')

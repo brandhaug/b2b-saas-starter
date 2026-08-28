@@ -49,7 +49,7 @@ export type TurnstileOutcome =
   | {
       readonly outcome: 'rejected'
       /** Cloudflare's own error codes (`invalid-input-response`, …), for logs. */
-      readonly codes: readonly string[]
+      readonly codes: ReadonlyArray<string>
     }
 
 export type TurnstileVerifierInterface = {
@@ -135,7 +135,9 @@ export const liveSiteverifyCaller: SiteverifyCaller = Effect.fnUntraced(function
 })
 
 function classify(response: SiteverifyResponse): TurnstileOutcome {
-  if (response.success === true) return { outcome: 'verified' }
+  if (response.success === true) {
+    return { outcome: 'verified' }
+  }
   return { outcome: 'rejected', codes: response['error-codes'] ?? [] }
 }
 
@@ -188,7 +190,9 @@ export function makeTurnstileVerifier(options: {
             )
           )
         )
-        if (Result.isFailure(attempted)) return unavailable
+        if (Result.isFailure(attempted)) {
+          return unavailable
+        }
         return classify(attempted.success)
       })
   }

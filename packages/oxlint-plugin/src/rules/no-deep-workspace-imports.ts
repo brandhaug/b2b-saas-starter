@@ -25,7 +25,7 @@ function isDeepSourceImport(source: string): boolean {
 }
 
 /** Import sources worth reporting on, from every syntax form that carries one. */
-function deepWorkspaceSources(node: ESTree.Node): readonly string[] {
+function deepWorkspaceSources(node: ESTree.Node): ReadonlyArray<string> {
   if (
     node.type !== 'ImportDeclaration' &&
     node.type !== 'ImportExpression' &&
@@ -35,7 +35,9 @@ function deepWorkspaceSources(node: ESTree.Node): readonly string[] {
     return []
   }
   const source = getStringValue(node.source)
-  if (source === undefined || !isDeepSourceImport(source)) return []
+  if (source === undefined || !isDeepSourceImport(source)) {
+    return []
+  }
   return [source]
 }
 

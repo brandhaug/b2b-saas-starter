@@ -38,7 +38,7 @@ describe('makeRateLimiter fallback (no Cloudflare bindings)', () => {
       Effect.gen(function* () {
         const limiter = makeRateLimiter(config())
         const key = uniqueKey()
-        const outcomes: boolean[] = []
+        const outcomes: Array<boolean> = []
         for (let i = 0; i < 21; i += 1) {
           outcomes.push(yield* limiter.take({ bucket: 'write', key }))
         }

@@ -49,9 +49,13 @@ const decodeDriverNumber = Schema.decodeUnknownOption(Schema.Number)
 const decodeDriverString = Schema.decodeUnknownOption(Schema.String)
 
 function quote(value: unknown): string {
-  if (value === null) return 'NULL'
+  if (value === null) {
+    return 'NULL'
+  }
   const asNumber = decodeDriverNumber(value)
-  if (Option.isSome(asNumber)) return String(asNumber.value)
+  if (Option.isSome(asNumber)) {
+    return String(asNumber.value)
+  }
   const asString = decodeDriverString(value)
   if (Option.isNone(asString)) {
     // JSON rather than `String(value)`: an object would stringify to
@@ -72,12 +76,14 @@ function insert<T extends Table>(
   row: { readonly [K in keyof T['_']['columns']]?: unknown }
 ): string {
   const columns = getColumns(table)
-  const entries: [string, string][] = Object.entries(row).map(([key, value]) => {
+  const entries: Array<[string, string]> = Object.entries(row).map(([key, value]) => {
     const column = columns[key]
     if (column === undefined) {
       throw new Error(`seed: unknown column ${key} for table ${getTableName(table)}`)
     }
-    if (value === null || value === undefined) return [column.name, quote(null)]
+    if (value === null || value === undefined) {
+      return [column.name, quote(null)]
+    }
     return [column.name, quote(column.mapToDriverValue(value))]
   })
   return `INSERT OR REPLACE INTO ${getTableName(table)} (${entries.map(([name]) => name).join(', ')}) VALUES (${entries.map(([, value]) => value).join(', ')});`
@@ -118,7 +124,9 @@ type Fixture = Effect.Success<typeof collectFixture>
 // same credential verifies against both the in-memory Seed layer and a seeded
 // local D1 (Seed/Live equivalence).
 function seedTokenValue(token: Fixture['tokens'][number], index: number): string {
-  if (index === 0) return SEED_API_TOKEN
+  if (index === 0) {
+    return SEED_API_TOKEN
+  }
   return `${token.prefix}_token`
 }
 
@@ -134,7 +142,7 @@ function resolveHashes(fixture: Fixture) {
 
 type Hashes = Effect.Success<ReturnType<typeof resolveHashes>>
 
-function workspaceRows(fixture: Fixture): readonly string[] {
+function workspaceRows(fixture: Fixture): ReadonlyArray<string> {
   return [
     insert(workspaces, {
       id: fixture.workspace.id,
@@ -149,7 +157,7 @@ function workspaceRows(fixture: Fixture): readonly string[] {
   ]
 }
 
-function memberRows(fixture: Fixture): readonly string[] {
+function memberRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.members.flatMap((member) => [
     insert(user, {
       id: member.id,
@@ -175,7 +183,7 @@ function memberRows(fixture: Fixture): readonly string[] {
  * created its user and membership rows). It shares the demo password: the point
  * is to make the role-gated UI reachable by hand, not to model two secrets.
  */
-function demoMemberRows(demoPasswordHash: string): readonly string[] {
+function demoMemberRows(demoPasswordHash: string): ReadonlyArray<string> {
   return [
     insert(account, {
       id: 'acc_member_credential',
@@ -193,7 +201,10 @@ function demoMemberRows(demoPasswordHash: string): readonly string[] {
 
 // Demo sign-in: system admin (`role: 'admin'` — Better Auth admin plugin)
 // and a member of the seed workspace so the membership gate passes.
-function demoUserRows(fixture: Fixture, demoPasswordHash: string): readonly string[] {
+function demoUserRows(
+  fixture: Fixture,
+  demoPasswordHash: string
+): ReadonlyArray<string> {
   return [
     insert(user, {
       id: demoUserIdentity.id,
@@ -227,8 +238,8 @@ function demoUserRows(fixture: Fixture, demoPasswordHash: string): readonly stri
 
 function tokenRows(
   fixture: Fixture,
-  tokenHashes: readonly string[]
-): readonly string[] {
+  tokenHashes: ReadonlyArray<string>
+): ReadonlyArray<string> {
   return fixture.tokens.map((token, index) =>
     insert(apiTokens, {
       id: token.id,
@@ -245,7 +256,7 @@ function tokenRows(
   )
 }
 
-function webhookRows(fixture: Fixture): readonly string[] {
+function webhookRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.webhooks.map((endpoint) =>
     insert(webhookEndpoints, {
       id: endpoint.id,
@@ -260,7 +271,7 @@ function webhookRows(fixture: Fixture): readonly string[] {
   )
 }
 
-function auditRows(fixture: Fixture): readonly string[] {
+function auditRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.auditEvents.map((event) =>
     insert(auditEvents, {
       id: event.id,
@@ -276,11 +287,13 @@ function auditRows(fixture: Fixture): readonly string[] {
 }
 
 function readAt(read: boolean): string | null {
-  if (read) return now
+  if (read) {
+    return now
+  }
   return null
 }
 
-function notificationRows(fixture: Fixture): readonly string[] {
+function notificationRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.notifications.map((notification) =>
     insert(notifications, {
       id: notification.id,

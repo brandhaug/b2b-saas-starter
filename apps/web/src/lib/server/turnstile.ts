@@ -19,7 +19,9 @@ export function makeTurnstileLayer() {
 // site key (safe to expose) crosses the server-function boundary below.
 const readSiteKey = createServerOnlyFn((): string | null => {
   const siteKey = env.TURNSTILE_SITE_KEY
-  if (siteKey === undefined || siteKey.length === 0) return null
+  if (siteKey === undefined || siteKey.length === 0) {
+    return null
+  }
   return siteKey
 })
 

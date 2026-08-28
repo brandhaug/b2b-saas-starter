@@ -21,7 +21,7 @@ export type EmailDeliveryResult = typeof EmailDeliveryResult.Type
 
 export type SendEmailBuilderArgs = {
   readonly from: string
-  readonly to: string | readonly string[]
+  readonly to: string | ReadonlyArray<string>
   readonly subject: string
   readonly text?: string
   readonly html?: string
@@ -62,7 +62,9 @@ export class EmailDispatcher extends Context.Service<
 >()('@b2b-saas-starter/email/EmailDispatcher') {}
 
 function causeMessage(cause: unknown): string {
-  if (cause instanceof Error) return cause.message
+  if (cause instanceof Error) {
+    return cause.message
+  }
   return String(cause)
 }
 

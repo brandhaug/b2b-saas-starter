@@ -64,7 +64,9 @@ export function auditedMutations(deps: AuditedMutationDeps) {
     input: AuditedMutationInput
   ): Effect.Effect<boolean, CapabilityUnavailable> {
     return Effect.gen(function* () {
-      if (!(yield* input.matched)) return false
+      if (!(yield* input.matched)) {
+        return false
+      }
       const auditStatement = yield* deps.prepareAuditRecord(input.auditEvent)
       yield* deps.unavailable(batch(deps.d1, [input.write(), auditStatement]))
       return true

@@ -44,7 +44,7 @@ export const demoMemberIdentity: Member = {
   systemRole: 'user'
 }
 
-export const seedMembers: readonly Member[] = [
+export const seedMembers: ReadonlyArray<Member> = [
   demoUserIdentity,
   {
     id: 'usr_martin',
@@ -63,7 +63,7 @@ export const seedMembers: readonly Member[] = [
   demoMemberIdentity
 ]
 
-export const seedSystemUsers: readonly SystemUserAccount[] = [
+export const seedSystemUsers: ReadonlyArray<SystemUserAccount> = [
   ...seedMembers.map((member) => ({
     id: member.id,
     name: member.name,
@@ -83,7 +83,7 @@ export const seedSystemUsers: readonly SystemUserAccount[] = [
 ]
 
 /** The (workspace, user) pairs the seed `changeWorkspaceRole` treats as real. */
-export const seedUserAdminMemberships: readonly SeedMembership[] = seedMembers.map(
+export const seedUserAdminMemberships: ReadonlyArray<SeedMembership> = seedMembers.map(
   (member) => ({
     workspaceId: seedWorkspaceRecord.id,
     userId: member.id,
@@ -91,7 +91,7 @@ export const seedUserAdminMemberships: readonly SeedMembership[] = seedMembers.m
   })
 )
 
-export const seedApiTokens: readonly ApiToken[] = [
+export const seedApiTokens: ReadonlyArray<ApiToken> = [
   {
     id: 'tok_docs',
     name: 'Docs automation',
@@ -110,7 +110,7 @@ export const seedApiTokens: readonly ApiToken[] = [
   }
 ]
 
-export const seedWebhookEndpoints: readonly WebhookEndpoint[] = [
+export const seedWebhookEndpoints: ReadonlyArray<WebhookEndpoint> = [
   {
     id: 'wh_release',
     url: 'https://example.com/webhooks/starter',
@@ -120,7 +120,7 @@ export const seedWebhookEndpoints: readonly WebhookEndpoint[] = [
   }
 ]
 
-export const seedAuditEvents: readonly SeedAuditEventRow[] = [
+export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   {
     id: 'aud_admin',
     eventType: 'system_admin.user_role_changed',
@@ -144,7 +144,7 @@ export const seedAuditEvents: readonly SeedAuditEventRow[] = [
   }
 ]
 
-export const seedNotifications: readonly Notification[] = [
+export const seedNotifications: ReadonlyArray<Notification> = [
   {
     id: 'not_email',
     title: 'Cloudflare Email needs configuration',

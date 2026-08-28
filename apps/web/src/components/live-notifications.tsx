@@ -40,7 +40,7 @@ export type NotificationPreview = Pick<
  */
 export type ListNotifications = (input: {
   readonly data: { readonly workspaceSlug: string }
-}) => Promise<readonly NotificationPreview[]>
+}) => Promise<ReadonlyArray<NotificationPreview>>
 
 export function LiveNotifications({
   workspaceSlug,
@@ -48,7 +48,7 @@ export function LiveNotifications({
   listNotifications = listNotificationsServerFn
 }: {
   readonly workspaceSlug: string
-  readonly fallback: readonly NotificationPreview[]
+  readonly fallback: ReadonlyArray<NotificationPreview>
   readonly listNotifications?: ListNotifications
 }) {
   const { data, error, isFetching, refetch } = useQuery({

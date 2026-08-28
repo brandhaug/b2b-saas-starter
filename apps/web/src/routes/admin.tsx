@@ -18,11 +18,13 @@ import { requireAdmin } from '@/lib/server/auth'
 // Column definitions are static — module scope keeps the cell renderers out of
 // the render body (they would remount every render) and drops a useMemo.
 function renderStatus(banned: boolean) {
-  if (banned) return <Badge variant="destructive">banned</Badge>
+  if (banned) {
+    return <Badge variant="destructive">banned</Badge>
+  }
   return <Badge variant="outline">active</Badge>
 }
 
-const userColumns: DataTableColumnDef<SystemUser>[] = [
+const userColumns: Array<DataTableColumnDef<SystemUser>> = [
   {
     accessorKey: 'name',
     header: 'Name',
@@ -49,7 +51,7 @@ const userColumns: DataTableColumnDef<SystemUser>[] = [
   }
 ]
 
-const auditColumns: DataTableColumnDef<AuditEvent>[] = [
+const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
   { accessorKey: 'eventType', header: 'Event', enableSorting: true },
   { accessorKey: 'targetType', header: 'Target', enableSorting: true },
   { accessorKey: 'actor', header: 'Actor', enableSorting: true },

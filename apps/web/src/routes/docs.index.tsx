@@ -36,7 +36,9 @@ function DocsIndex() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {DOC_CATEGORY_ORDER.map((slug) => {
           const articles = getDocsByCategory(slug)
-          if (articles.length === 0) return null
+          if (articles.length === 0) {
+            return null
+          }
           return (
             <div
               key={slug}

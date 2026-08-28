@@ -49,7 +49,9 @@ export const Route = createFileRoute('/invitations/accept')({
   // `async` so the no-id branch returns a resolved promise without reaching for
   // a Promise constructor; the loader contract is promise-returning either way.
   loader: async ({ deps }) => {
-    if (deps.invitation === undefined) return UNUSABLE
+    if (deps.invitation === undefined) {
+      return UNUSABLE
+    }
     return invitationPreviewServerFn({ data: { invitationId: deps.invitation } })
   },
   pendingComponent: RoutePending,
@@ -88,7 +90,9 @@ export function AcceptInvitationPage({
   readonly accept: AcceptInvitation
 }) {
   // One opaque outcome for every unusable invitation — see `InvitationPreview`.
-  if (preview.state === 'unavailable') return <UnusableInvitation />
+  if (preview.state === 'unavailable') {
+    return <UnusableInvitation />
+  }
   // Split rather than branching inside one component: the accept handler is a
   // closure, and a closure defined after an early return does not inherit the
   // narrowing that return produced.

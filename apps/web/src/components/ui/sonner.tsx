@@ -36,7 +36,9 @@ const TOAST_OPTIONS = {
 // next-themes types its active theme as a plain string, so it is narrowed to
 // Sonner's contract here rather than asserted onto it.
 function toToasterTheme(theme: string | undefined): NonNullable<ToasterProps['theme']> {
-  if (theme === 'light' || theme === 'dark') return theme
+  if (theme === 'light' || theme === 'dark') {
+    return theme
+  }
   return 'system'
 }
 

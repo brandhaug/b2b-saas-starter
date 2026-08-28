@@ -9,7 +9,9 @@ import { getPostBySlug } from '@/lib/blog'
 export const Route = createFileRoute('/blog/$slug')({
   loader: ({ params }) => {
     const post = getPostBySlug(params.slug)
-    if (!post) throw notFound()
+    if (!post) {
+      throw notFound()
+    }
     const jsonLdString = JSON.stringify({
       '@context': 'https://schema.org',
       '@graph': [
@@ -37,7 +39,9 @@ export const Route = createFileRoute('/blog/$slug')({
   component: BlogPostPage,
   head: ({ params }) => {
     const post = getPostBySlug(params.slug)
-    if (!post) return {}
+    if (!post) {
+      return {}
+    }
 
     const { title, description, date, tags, author } = post.frontmatter
     const fullTitle = `${title} | B2B SaaS Starter`

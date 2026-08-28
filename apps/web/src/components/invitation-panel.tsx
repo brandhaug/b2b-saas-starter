@@ -46,8 +46,12 @@ const DEFAULT_INVITATION_VALUES: InvitationValues = {
 }
 
 function validateEmail(value: string): string | undefined {
-  if (value.trim().length === 0) return 'Email is required'
-  if (!EMAIL_PATTERN.test(value)) return 'Enter a valid email address'
+  if (value.trim().length === 0) {
+    return 'Email is required'
+  }
+  if (!EMAIL_PATTERN.test(value)) {
+    return 'Enter a valid email address'
+  }
   return
 }
 
@@ -56,7 +60,7 @@ export function InvitationPanel({
   invitations
 }: {
   readonly workspaceSlug: string
-  readonly invitations: readonly Invitation[]
+  readonly invitations: ReadonlyArray<Invitation>
 }) {
   const router = useRouter()
   const [sent, setSent] = useState<SentInvitation | null>(null)

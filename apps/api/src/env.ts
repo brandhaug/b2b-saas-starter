@@ -19,11 +19,21 @@ export type ApiEnv = RateLimitBindings &
 // would claim configuration that does not exist.
 export function providerEnv(env: ApiEnv): ProviderEnv {
   const provider: { -readonly [K in keyof ProviderEnv]: ProviderEnv[K] } = {}
-  if (env.AI) provider.AI = env.AI
-  if (env.WORKERS_AI_ENABLED) provider.WORKERS_AI_ENABLED = env.WORKERS_AI_ENABLED
-  if (env.OPENAI_API_KEY) provider.OPENAI_API_KEY = env.OPENAI_API_KEY
-  if (env.OPENAI_BASE_URL) provider.OPENAI_BASE_URL = env.OPENAI_BASE_URL
-  if (env.OPENAI_MODEL_ID) provider.OPENAI_MODEL_ID = env.OPENAI_MODEL_ID
+  if (env.AI) {
+    provider.AI = env.AI
+  }
+  if (env.WORKERS_AI_ENABLED) {
+    provider.WORKERS_AI_ENABLED = env.WORKERS_AI_ENABLED
+  }
+  if (env.OPENAI_API_KEY) {
+    provider.OPENAI_API_KEY = env.OPENAI_API_KEY
+  }
+  if (env.OPENAI_BASE_URL) {
+    provider.OPENAI_BASE_URL = env.OPENAI_BASE_URL
+  }
+  if (env.OPENAI_MODEL_ID) {
+    provider.OPENAI_MODEL_ID = env.OPENAI_MODEL_ID
+  }
   return provider
 }
 

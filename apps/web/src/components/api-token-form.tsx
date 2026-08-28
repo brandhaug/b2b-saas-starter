@@ -20,7 +20,7 @@ const CREATE_TOKEN_FAILED = 'Failed to create token'
 
 type ApiTokenValues = {
   name: string
-  scopes: readonly ApiTokenScope[]
+  scopes: ReadonlyArray<ApiTokenScope>
 }
 
 const DEFAULT_TOKEN_VALUES: ApiTokenValues = {
@@ -29,8 +29,12 @@ const DEFAULT_TOKEN_VALUES: ApiTokenValues = {
 }
 
 function validateTokenName(value: string): string | undefined {
-  if (value.trim().length === 0) return 'Token name is required'
-  if (value.length > 80) return 'Token name must be under 80 characters'
+  if (value.trim().length === 0) {
+    return 'Token name is required'
+  }
+  if (value.length > 80) {
+    return 'Token name must be under 80 characters'
+  }
   return
 }
 
@@ -44,7 +48,7 @@ export type CreateApiToken = (input: {
   readonly data: {
     readonly workspaceSlug: string
     readonly name: string
-    readonly scopes: readonly ApiTokenScope[]
+    readonly scopes: ReadonlyArray<ApiTokenScope>
   }
 }) => Promise<CreatedApiToken>
 

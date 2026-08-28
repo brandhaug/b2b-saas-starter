@@ -24,7 +24,7 @@ export type EnableTwoFactor = (input: { readonly password: string }) => Promise<
   readonly data?:
     | {
         readonly totpURI?: string | undefined
-        readonly backupCodes?: string[] | undefined
+        readonly backupCodes?: Array<string> | undefined
       }
     | { readonly method?: string }
     | null
@@ -38,7 +38,10 @@ export type DisableTwoFactor = (input: { readonly password: string }) => Promise
 }>
 
 export type GenerateBackupCodes = (input: { readonly password: string }) => Promise<{
-  readonly data?: { readonly backupCodes?: string[] | undefined } | null | undefined
+  readonly data?:
+    | { readonly backupCodes?: Array<string> | undefined }
+    | null
+    | undefined
   readonly error?: { readonly message?: string | undefined } | null
 }>
 
@@ -58,7 +61,7 @@ type PanelState = {
   /** 'idle' → 'enrolling' (one-time QR reveal) → idle with the enabled flag. */
   readonly step: 'idle' | 'enrolling'
   readonly totpURI: string | null
-  readonly backupCodes: readonly string[] | null
+  readonly backupCodes: ReadonlyArray<string> | null
   readonly password: string
   readonly code: string
   readonly submitError: string | null
@@ -68,7 +71,9 @@ type PanelState = {
 /** Reads the `secret` query parameter off a TOTP URI; an unparseable URI or
  * one without a secret yields null rather than a mangled substring. */
 function parseSecretFromUri(uri: string | null): string | null {
-  if (uri === null || !URL.canParse(uri)) return null
+  if (uri === null || !URL.canParse(uri)) {
+    return null
+  }
   return new URL(uri).searchParams.get('secret')
 }
 
@@ -78,11 +83,11 @@ type PanelAction =
   | {
       readonly type: 'enrolled'
       readonly totpURI: string
-      readonly backupCodes: readonly string[] | null
+      readonly backupCodes: ReadonlyArray<string> | null
     }
   | { readonly type: 'verified' }
   | { readonly type: 'disabled' }
-  | { readonly type: 'regenerated'; readonly backupCodes: readonly string[] }
+  | { readonly type: 'regenerated'; readonly backupCodes: ReadonlyArray<string> }
   | { readonly type: 'dismissCodes' }
   | { readonly type: 'failed'; readonly message: string }
   | { readonly type: 'clearStatus' }
@@ -203,7 +208,7 @@ export function TwoFactorPanel({
     | {
         readonly error?: { readonly message?: string | undefined } | null
         readonly totpURI: string | null
-        readonly backupCodes: readonly string[] | null
+        readonly backupCodes: ReadonlyArray<string> | null
       }
   > {
     const result = await enableTwoFactor({ password: state.password })
@@ -221,7 +226,9 @@ export function TwoFactorPanel({
 
   function startSetup() {
     void runAction(beginEnrollment, 'Could not start setup', (result) => {
-      if (!('totpURI' in result) || result.totpURI === null) return
+      if (!('totpURI' in result) || result.totpURI === null) {
+        return
+      }
       dispatch({
         type: 'enrolled',
         totpURI: result.totpURI,
@@ -267,7 +274,9 @@ export function TwoFactorPanel({
       },
       'Could not regenerate backup codes',
       (result) => {
-        if (!('backupCodes' in result) || result.backupCodes === null) return
+        if (!('backupCodes' in result) || result.backupCodes === null) {
+          return
+        }
         dispatch({ type: 'regenerated', backupCodes: result.backupCodes })
       }
     )
@@ -461,7 +470,7 @@ function BackupCodesSection({
   intro,
   onDismiss
 }: {
-  readonly codes: readonly string[]
+  readonly codes: ReadonlyArray<string>
   readonly intro?: string
   readonly onDismiss?: () => void
 }) {

@@ -26,8 +26,8 @@ export type PermissionRequest = RoleAuthorizeRequest<StarterStatements>
  * named union is what keeps the guard's request handling off duck-typing.
  */
 export type RequestedActions =
-  | readonly string[]
-  | { readonly actions: readonly string[] }
+  | ReadonlyArray<string>
+  | { readonly actions: ReadonlyArray<string> }
 
 /**
  * The actor's authorization identity, independent of how it authenticated. A
@@ -35,13 +35,13 @@ export type RequestedActions =
  */
 export type Principal =
   | { readonly kind: 'member'; readonly role: WorkspaceRole }
-  | { readonly kind: 'token'; readonly scopes: readonly ApiTokenScope[] }
+  | { readonly kind: 'token'; readonly scopes: ReadonlyArray<ApiTokenScope> }
 
 export function memberPrincipal(role: WorkspaceRole): Principal {
   return { kind: 'member', role }
 }
 
-export function tokenPrincipal(scopes: readonly ApiTokenScope[]): Principal {
+export function tokenPrincipal(scopes: ReadonlyArray<ApiTokenScope>): Principal {
   return { kind: 'token', scopes }
 }
 
@@ -61,7 +61,9 @@ export function authorize(
   let denial = 'no token scope grants this permission'
   for (const scope of principal.scopes) {
     const response = apiTokenScopeAccess[scope].authorize(request)
-    if (response.success) return response
+    if (response.success) {
+      return response
+    }
     denial = response.error
   }
   return { success: false, error: denial }

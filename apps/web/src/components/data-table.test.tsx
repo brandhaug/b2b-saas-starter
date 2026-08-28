@@ -7,12 +7,12 @@ type Row = {
   readonly category: string
 }
 
-const columns: DataTableColumnDef<Row>[] = [
+const columns: Array<DataTableColumnDef<Row>> = [
   { accessorKey: 'name', header: 'Name', enableSorting: true },
   { accessorKey: 'category', header: 'Category', enableSorting: false }
 ]
 
-const rows: readonly Row[] = [
+const rows: ReadonlyArray<Row> = [
   { name: 'Alpha', category: 'catalog' },
   { name: 'Bravo', category: 'governance' },
   { name: 'Charlie', category: 'catalog' },

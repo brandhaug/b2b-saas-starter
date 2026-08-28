@@ -26,7 +26,7 @@ export type SystemUser = {
  * surface fails closed twice.
  */
 export const listSystemUsersServerFn = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<readonly SystemUser[]> => {
+  async (): Promise<ReadonlyArray<SystemUser>> => {
     const users = await runCapabilities(
       Effect.gen(function* () {
         const admin = yield* PlatformUserAdmin
@@ -96,7 +96,7 @@ export const unbanSystemUserServerFn = createServerFn({ method: 'POST' })
  */
 export const listUserWorkspacesServerFn = createServerFn({ method: 'POST' })
   .validator((input: { userId: string }) => input)
-  .handler(async ({ data }): Promise<readonly WorkspaceWithMembership[]> => {
+  .handler(async ({ data }): Promise<ReadonlyArray<WorkspaceWithMembership>> => {
     await requireAdminSession()
     return runCapabilities(
       Effect.gen(function* () {

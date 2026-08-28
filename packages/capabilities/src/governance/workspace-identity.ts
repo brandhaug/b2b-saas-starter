@@ -76,7 +76,9 @@ type MemberRow = {
 
 /** Only the stored `admin` role grants the admin system role; everything else is a user. */
 export function toSystemRole(role: string | null): SystemRole {
-  if (role === 'admin') return 'admin'
+  if (role === 'admin') {
+    return 'admin'
+  }
   return 'user'
 }
 
@@ -142,7 +144,9 @@ export function requireMemberRowId<E>(
   ).pipe(
     Effect.flatMap((rows) => {
       const row = rows[0]
-      if (!row) return Effect.fail(makeRejection())
+      if (!row) {
+        return Effect.fail(makeRejection())
+      }
       return Effect.succeed(row.id)
     })
   )

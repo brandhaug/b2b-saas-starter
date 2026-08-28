@@ -22,17 +22,25 @@ export default defineRule({
     }
   },
   create(context) {
-    if (context.filename.endsWith('.d.ts')) return {}
+    if (context.filename.endsWith('.d.ts')) {
+      return {}
+    }
 
     return {
       TSModuleDeclaration(node) {
         // A module declaration with no block body is `declare module 'x'` with no
         // members, or a nested `declare module a.b`, and merges nothing either way.
-        if (node.body === null) return
-        if (!('body' in node.body)) return
+        if (node.body === null) {
+          return
+        }
+        if (!('body' in node.body)) {
+          return
+        }
 
         for (const statement of node.body.body) {
-          if (statement.type !== 'TSInterfaceDeclaration') continue
+          if (statement.type !== 'TSInterfaceDeclaration') {
+            continue
+          }
           context.report({
             node: statement,
             message:

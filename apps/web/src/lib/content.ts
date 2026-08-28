@@ -7,7 +7,7 @@ type PublicLink = {
   readonly label: string
 }
 
-export const publicLinks: readonly PublicLink[] = [
+export const publicLinks: ReadonlyArray<PublicLink> = [
   { to: '/docs', label: 'Docs' },
   { to: '/blog', label: 'Blog' },
   { to: '/pricing', label: 'Pricing' },
@@ -21,7 +21,7 @@ type OptionalProviderModule = {
   readonly icon: ComponentType<SVGProps<SVGSVGElement>>
 }
 
-export const optionalProviderModules: readonly OptionalProviderModule[] = [
+export const optionalProviderModules: ReadonlyArray<OptionalProviderModule> = [
   {
     id: 'stripe',
     name: 'Stripe',
@@ -56,7 +56,7 @@ export const optionalProviderModules: readonly OptionalProviderModule[] = [
 
 type FaqItem = { readonly question: string; readonly answer: string }
 
-export const faqItems: readonly FaqItem[] = [
+export const faqItems: ReadonlyArray<FaqItem> = [
   {
     question: 'Why TanStack Start instead of Next.js or Remix?',
     answer:
@@ -98,10 +98,10 @@ type ChangelogEntry = {
   readonly version: string
   readonly date: string
   readonly title: string
-  readonly changes: readonly string[]
+  readonly changes: ReadonlyArray<string>
 }
 
-export const changelog: readonly ChangelogEntry[] = [
+export const changelog: ReadonlyArray<ChangelogEntry> = [
   {
     version: '0.1.0',
     date: '2026-05-16',

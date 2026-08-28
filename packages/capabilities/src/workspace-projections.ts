@@ -20,7 +20,7 @@ import { WorkspaceContext } from './workspace-context.ts'
 
 export type WorkspaceOverviewProjection = {
   readonly workspace: Workspace
-  readonly notifications: readonly Notification[]
+  readonly notifications: ReadonlyArray<Notification>
 }
 
 /**
@@ -86,7 +86,7 @@ export type WorkspaceListItemProjection = {
 export function listWorkspacesForUser(
   userId: string
 ): Effect.Effect<
-  readonly WorkspaceListItemProjection[],
+  ReadonlyArray<WorkspaceListItemProjection>,
   CapabilityUnavailable,
   WorkspaceMembership | NotificationFeed
 > {

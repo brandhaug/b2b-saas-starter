@@ -59,9 +59,15 @@ export function makeSentryOptions(
     initialScope: { tags: { service } },
     tracesSampleRate: 1
   }
-  if (env.SENTRY_DSN) options.dsn = env.SENTRY_DSN
-  if (release) options.release = release
-  if (env.ENVIRONMENT) options.environment = env.ENVIRONMENT
+  if (env.SENTRY_DSN) {
+    options.dsn = env.SENTRY_DSN
+  }
+  if (release) {
+    options.release = release
+  }
+  if (env.ENVIRONMENT) {
+    options.environment = env.ENVIRONMENT
+  }
   return options
 }
 
@@ -84,7 +90,9 @@ let wiredEnv: ProviderGlueEnv | undefined
  */
 export function wireWideEventProviders(env: ProviderGlueEnv): void {
   if (wiredEnv !== undefined) {
-    if (env !== wiredEnv) wiredEnv = env
+    if (env !== wiredEnv) {
+      wiredEnv = env
+    }
     return
   }
   wiredEnv = env
@@ -99,9 +107,13 @@ async function dispatch(record: WideEventRecord): Promise<void> {
 async function captureSentryError(record: WideEventRecord): Promise<void> {
   // Interrupts are not errors, and without an initialized client there is
   // nothing to send to — both leave this sink silent.
-  if (record.status !== 'error' || record.errorKind === 'interrupt') return
+  if (record.status !== 'error' || record.errorKind === 'interrupt') {
+    return
+  }
   const Sentry = await import('@sentry/cloudflare')
-  if (Sentry.getClient() === undefined) return
+  if (Sentry.getClient() === undefined) {
+    return
+  }
 
   // The raw failure value keeps its stack when it is an Error; Sentry
   // serializes anything else. Interrupt-only scopes never reach this point.
@@ -129,7 +141,9 @@ async function captureSentryError(record: WideEventRecord): Promise<void> {
  */
 async function capturePostHogEvent(record: WideEventRecord): Promise<void> {
   const env = wiredEnv
-  if (env?.POSTHOG_KEY === undefined || env.POSTHOG_KEY.length === 0) return
+  if (env?.POSTHOG_KEY === undefined || env.POSTHOG_KEY.length === 0) {
+    return
+  }
   const { PostHog } = await import('posthog-node')
   let host = DEFAULT_POSTHOG_HOST
   if (env.POSTHOG_HOST !== undefined && env.POSTHOG_HOST.length > 0) {

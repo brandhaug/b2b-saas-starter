@@ -10,7 +10,9 @@ const SCRIPT_ID = 'cf-turnstile-script'
 let scriptPromise: Promise<TurnstileApi> | undefined
 
 function loadTurnstileScript(): Promise<TurnstileApi> {
-  if (scriptPromise !== undefined) return scriptPromise
+  if (scriptPromise !== undefined) {
+    return scriptPromise
+  }
   scriptPromise = new Promise((resolve, reject) => {
     function settle() {
       if (window.turnstile === undefined) {
@@ -80,7 +82,9 @@ export function TurnstileWidget({
     let cancelled = false
 
     function mount(api: TurnstileApi) {
-      if (cancelled || containerRef.current === null) return
+      if (cancelled || containerRef.current === null) {
+        return
+      }
       widgetId = api.render(containerRef.current, {
         sitekey: siteKey,
         callback: (token) => onTokenRef.current(token),

@@ -99,8 +99,8 @@ const SORT_STATE = {
 } satisfies Record<'asc' | 'desc' | 'false', SortState>
 
 type DataTableProps<TData extends RowData> = {
-  readonly columns: readonly DataTableColumnDef<TData>[]
-  readonly data: readonly TData[]
+  readonly columns: ReadonlyArray<DataTableColumnDef<TData>>
+  readonly data: ReadonlyArray<TData>
   readonly filterPlaceholder?: string
   readonly filterColumnId?: string
   readonly pageSize?: number

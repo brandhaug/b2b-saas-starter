@@ -30,7 +30,7 @@ describe('enforceRequiredEnvAudit', () => {
   })
 
   it('refuses to serve when production required env is insecure', () => {
-    const problems: readonly RequiredEnvProblem[] = [
+    const problems: ReadonlyArray<RequiredEnvProblem> = [
       { key: 'BETTER_AUTH_SECRET', reason: 'placeholder' },
       { key: 'BETTER_AUTH_URL', reason: 'missing' }
     ]

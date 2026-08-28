@@ -37,7 +37,9 @@ export default defineRule({
     }
   },
   create(context) {
-    if (!context.filename.endsWith('.d.ts')) return {}
+    if (!context.filename.endsWith('.d.ts')) {
+      return {}
+    }
 
     let isModule = false
 

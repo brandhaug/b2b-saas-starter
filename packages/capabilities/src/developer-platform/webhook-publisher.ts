@@ -103,7 +103,9 @@ function withTraceparent(
   message: WebhookQueueMessage,
   traceparent: string | undefined
 ): WebhookQueueMessage {
-  if (traceparent === undefined) return message
+  if (traceparent === undefined) {
+    return message
+  }
   return { ...message, traceparent }
 }
 
@@ -119,7 +121,9 @@ export function LiveWebhookPublisher(
           Effect.gen(function* () {
             // Provider-light: without a queue binding the publisher no-ops
             // instead of failing the app.
-            if (!queue) return
+            if (!queue) {
+              return
+            }
             const ctx = yield* WorkspaceContext
             // Stamp the producing request's trace context onto the message so
             // the background consumer continues this trace instead of starting
@@ -142,7 +146,9 @@ export function LiveWebhookPublisher(
             const subscribed = endpoints.filter((endpoint) =>
               endpoint.events.some((event) => event === input.eventType)
             )
-            if (subscribed.length === 0) return
+            if (subscribed.length === 0) {
+              return
+            }
             yield* unavailable(
               Effect.tryPromise({
                 try: () =>

@@ -36,7 +36,9 @@ export function unwrapExpression(
   while (current !== null && current !== undefined && isExpressionWrapper(current)) {
     current = current.expression
   }
-  if (current === null) return undefined
+  if (current === null) {
+    return undefined
+  }
   return current
 }
 
@@ -46,10 +48,16 @@ export function unwrapExpression(
 export function getPropertyName(
   node: ESTree.Node | null | undefined
 ): string | undefined {
-  if (node === null || node === undefined) return undefined
-  if (node.type === 'Identifier' || node.type === 'PrivateIdentifier') return node.name
+  if (node === null || node === undefined) {
+    return undefined
+  }
+  if (node.type === 'Identifier' || node.type === 'PrivateIdentifier') {
+    return node.name
+  }
   // oxlint-disable-next-line anti-slop/no-runtime-typeof -- oxc gives every literal `type: 'Literal'`, so `typeof value` is the only narrowing to a string literal that does not need an assertion
-  if (node.type === 'Literal' && typeof node.value === 'string') return node.value
+  if (node.type === 'Literal' && typeof node.value === 'string') {
+    return node.value
+  }
   return undefined
 }
 
@@ -58,10 +66,16 @@ export function getStringValue(
   node: ESTree.Node | null | undefined
 ): string | undefined {
   const expression = unwrapExpression(node)
-  if (expression === undefined) return undefined
-  if (expression.type !== 'Literal') return undefined
+  if (expression === undefined) {
+    return undefined
+  }
+  if (expression.type !== 'Literal') {
+    return undefined
+  }
   // oxlint-disable-next-line anti-slop/no-runtime-typeof -- see getPropertyName above
-  if (typeof expression.value !== 'string') return undefined
+  if (typeof expression.value !== 'string') {
+    return undefined
+  }
   return expression.value
 }
 
@@ -70,9 +84,15 @@ export function isIdentifier(
   node: ESTree.Node | null | undefined,
   name?: string
 ): boolean {
-  if (node === null || node === undefined) return false
-  if (node.type !== 'Identifier') return false
-  if (name === undefined) return true
+  if (node === null || node === undefined) {
+    return false
+  }
+  if (node.type !== 'Identifier') {
+    return false
+  }
+  if (name === undefined) {
+    return true
+  }
   return node.name === name
 }
 
@@ -89,6 +109,8 @@ export function isIdentifier(
 export function parentOf(node: ESTree.Node): ESTree.Node | undefined {
   const parent: ESTree.Node | null | undefined = node.parent
   // oxlint-disable-next-line typescript/no-unnecessary-condition -- the declared type says non-nullable and is wrong; oxlint passes null at the Program root, so removing this guard makes every upward walk throw
-  if (parent === null || parent === undefined) return undefined
+  if (parent === null || parent === undefined) {
+    return undefined
+  }
   return parent
 }

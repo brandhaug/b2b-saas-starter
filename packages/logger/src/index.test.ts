@@ -29,11 +29,11 @@ type Captured = {
 /** A logger layer plus the array it appends every structured record to. */
 type Collector = {
   readonly layer: Layer.Layer<never>
-  readonly records: Captured[]
+  readonly records: Array<Captured>
 }
 
 function collector(): Collector {
-  const records: Captured[] = []
+  const records: Array<Captured> = []
   const logger = Logger.map(Logger.formatStructured, (structured) => {
     records.push({
       level: structured.level,
@@ -46,10 +46,12 @@ function collector(): Collector {
 }
 
 /** The single canonical line a scope must have emitted. */
-function only(records: readonly Captured[]): Captured {
+function only(records: ReadonlyArray<Captured>): Captured {
   expect(records).toHaveLength(1)
   const [record] = records
-  if (!record) return { level: '', message: '', annotations: {}, cause: undefined }
+  if (!record) {
+    return { level: '', message: '', annotations: {}, cause: undefined }
+  }
   return record
 }
 

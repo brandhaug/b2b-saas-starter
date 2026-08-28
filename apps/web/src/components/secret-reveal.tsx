@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
 function maskSecret(secret: string) {
-  if (secret.length <= 8) return `••••••••${secret.slice(-4)}`
+  if (secret.length <= 8) {
+    return `••••••••${secret.slice(-4)}`
+  }
   return `${secret.slice(0, 3)}…${secret.slice(-4)}`
 }
 export function SecretReveal({

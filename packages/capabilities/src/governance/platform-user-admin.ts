@@ -47,7 +47,10 @@ export type ChangeWorkspaceRoleInput = BanInput & {
 
 export type PlatformUserAdminInterface = {
   /** Every account, for `/admin`'s user list. Not paginated yet — neither is the plugin read it replaces. */
-  readonly listUsers: Effect.Effect<readonly SystemUserAccount[], CapabilityUnavailable>
+  readonly listUsers: Effect.Effect<
+    ReadonlyArray<SystemUserAccount>,
+    CapabilityUnavailable
+  >
   readonly banUser: (
     input: BanInput
   ) => Effect.Effect<void, CapabilityUnavailable | UserAdminRejected>
@@ -223,13 +226,13 @@ export type SeedMembership = {
 }
 
 export function SeedPlatformUserAdmin(
-  users: readonly SystemUserAccount[],
-  memberships: readonly SeedMembership[] = []
+  users: ReadonlyArray<SystemUserAccount>,
+  memberships: ReadonlyArray<SeedMembership> = []
 ): Layer.Layer<PlatformUserAdmin> {
   return Layer.effect(
     PlatformUserAdmin,
     Effect.gen(function* () {
-      const roster = yield* Ref.make<readonly SystemUserAccount[]>(users)
+      const roster = yield* Ref.make<ReadonlyArray<SystemUserAccount>>(users)
       // Roles keyed `${workspaceId}:${userId}`, seeded from `memberships`.
       const overrides = yield* Ref.make<ReadonlyMap<string, WorkspaceRole>>(
         new Map(memberships.map((m) => [`${m.workspaceId}:${m.userId}`, m.role]))
@@ -250,7 +253,9 @@ export function SeedPlatformUserAdmin(
       function setBanned(userId: string, banned: boolean) {
         return Ref.update(roster, (current) =>
           current.map((account) => {
-            if (account.id === userId) return { ...account, banned }
+            if (account.id === userId) {
+              return { ...account, banned }
+            }
             return account
           })
         )

@@ -3,8 +3,7 @@
 // platform APIs available to it. Pulling in `@effect/platform` FileSystem/Path
 // would mean an Effect runtime per test for three synchronous file reads.
 import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   apiRateLimits,
@@ -22,7 +21,7 @@ import {
 // suite parses each wrangler config and fails red on any drift — the same
 // pattern as apps/api/src/contract-sync.test.ts for HTTP contracts.
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
+const repoRoot = join(import.meta.dirname, '..')
 
 // Minimal JSONC → JSON: strips // and /* */ comments outside of strings.
 // (No jsonc parser ships in the repo's dependency set.)
@@ -103,10 +102,10 @@ type WranglerQueueProducer = {
 // Only the slice of wrangler.jsonc this suite asserts on. Declaring it as the
 // parse result keeps every reader below cast-free.
 type WranglerConfig = {
-  readonly unsafe?: { readonly bindings?: readonly WranglerRateLimitBinding[] }
+  readonly unsafe?: { readonly bindings?: ReadonlyArray<WranglerRateLimitBinding> }
   readonly queues?: {
-    readonly consumers?: readonly WranglerQueueConsumer[]
-    readonly producers?: readonly WranglerQueueProducer[]
+    readonly consumers?: ReadonlyArray<WranglerQueueConsumer>
+    readonly producers?: ReadonlyArray<WranglerQueueProducer>
   }
 }
 
@@ -115,15 +114,15 @@ function readWranglerConfig(app: string): WranglerConfig {
   return JSON.parse(stripJsonComments(raw))
 }
 
-function rateLimitBindings(config: WranglerConfig): WranglerRateLimitBinding[] {
+function rateLimitBindings(config: WranglerConfig): Array<WranglerRateLimitBinding> {
   return [...(config.unsafe?.bindings ?? [])].filter(
     (binding) => binding.type === 'ratelimit'
   )
 }
 
 function expectRateLimitSync(
-  wrangler: readonly WranglerRateLimitBinding[],
-  specs: readonly RateLimitBindingSpec[]
+  wrangler: ReadonlyArray<WranglerRateLimitBinding>,
+  specs: ReadonlyArray<RateLimitBindingSpec>
 ) {
   expect(wrangler.map((binding) => binding.name)).toEqual(
     specs.map((spec) => spec.name)
@@ -150,7 +149,9 @@ function expectConsumerSync(
   deadLetterQueue?: string
 ) {
   expect(consumer, `no wrangler consumer declared for queue ${queue}`).toBeDefined()
-  if (!consumer) return
+  if (!consumer) {
+    return
+  }
   expect(consumer.max_batch_size).toBe(settings.batchSize)
   // wrangler declares the batch timeout in seconds; alchemy in milliseconds.
   expect(consumer.max_batch_timeout * 1000).toBe(settings.maxWaitTimeMs)

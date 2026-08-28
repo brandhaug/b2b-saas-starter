@@ -34,7 +34,7 @@ import { webMemberBinding } from './member-binding'
 export type WorkspaceMembersPayload = {
   readonly viewer: { readonly role: WorkspaceRole } | null
   readonly unreadCount: number
-  readonly members: readonly Member[]
+  readonly members: ReadonlyArray<Member>
 }
 
 /**

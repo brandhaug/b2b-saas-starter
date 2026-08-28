@@ -42,7 +42,7 @@ export type UserAdminContractExpect = <A>(
 export function platformUserAdminContractCases(
   ids: UserAdminContractIds,
   expect: UserAdminContractExpect
-): readonly UserAdminContractCase[] {
+): ReadonlyArray<UserAdminContractCase> {
   return [
     {
       name: 'lists every account with its system role',

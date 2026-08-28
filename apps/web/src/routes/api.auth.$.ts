@@ -61,7 +61,9 @@ async function readAuthAuditContext(
       )
     )
     .catch(() => null)
-  if (!session) return undefined
+  if (!session) {
+    return undefined
+  }
   return {
     actorUserId: session.user.id,
     actorEmail: session.user.email,

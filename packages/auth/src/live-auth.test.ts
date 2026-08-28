@@ -22,11 +22,11 @@ let authLayer: Layer.Layer<AuthService>
 
 // The lifecycle-email port, capturing what Better Auth hands it instead of
 // sending: these tests assert on the URLs and the calls, not on delivery.
-const sentEmails: {
+const sentEmails: Array<{
   readonly kind: 'reset' | 'verification'
   readonly email: string
   readonly url: string
-}[] = []
+}> = []
 
 const capturingEmailSender: AuthEmailSender = {
   sendPasswordReset: ({ email, url }) => {
@@ -281,10 +281,12 @@ describe('two-factor plugin', () => {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
     let buffer = 0
     let bits = 0
-    const bytes: number[] = []
+    const bytes: Array<number> = []
     for (const char of encoded) {
       const value = alphabet.indexOf(char)
-      if (value === -1) throw new Error(`bad base32 char: ${char}`)
+      if (value === -1) {
+        throw new Error(`bad base32 char: ${char}`)
+      }
       buffer = (buffer << 5) | value
       bits += 5
       if (bits >= 8) {

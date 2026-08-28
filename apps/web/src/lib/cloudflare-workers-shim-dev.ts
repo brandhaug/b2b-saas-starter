@@ -41,13 +41,17 @@ function loadNodeTimers() {
 }
 
 async function provisionLocalD1(): Promise<D1Database | undefined> {
-  if (!import.meta.env.SSR) return undefined
+  if (!import.meta.env.SSR) {
+    return undefined
+  }
   // oxlint-disable-next-line effect/noNewPromise -- platform boundary: this module is awaited before any Effect runtime exists, same as the Promise.race below
   const [{ join }, localD1State] = await Promise.all([
     loadNodePath(),
     loadLocalD1State()
   ])
-  if (!localD1State.hasLocalD1State()) return undefined
+  if (!localD1State.hasLocalD1State()) {
+    return undefined
+  }
   // oxlint-disable-next-line effect/noNewPromise -- platform boundary: this module is awaited before any Effect runtime exists, same as the Promise.race below
   const [{ getPlatformProxy }, { setTimeout: delay }] = await Promise.all([
     loadWrangler(),

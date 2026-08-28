@@ -47,7 +47,7 @@ export type MembershipContractCase = {
 export function workspaceMembershipContractCases(
   ids: MembershipContractIds,
   expect: ContractExpect
-): readonly MembershipContractCase[] {
+): ReadonlyArray<MembershipContractCase> {
   return [
     {
       name: 'adds a member who then appears in listMembers',

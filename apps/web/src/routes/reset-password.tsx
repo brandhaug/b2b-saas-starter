@@ -149,7 +149,9 @@ export function ResetPasswordPage({
         name="confirm"
         validators={{
           onChange: ({ value, fieldApi }) => {
-            if (value.length === 0) return 'Confirm your password'
+            if (value.length === 0) {
+              return 'Confirm your password'
+            }
             if (value !== fieldApi.form.getFieldValue('password')) {
               return 'Passwords do not match'
             }

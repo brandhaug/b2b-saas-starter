@@ -12,14 +12,14 @@ export type RateLimitBindingSpec = {
   readonly period: 10 | 60
 }
 
-export const apiRateLimits: readonly RateLimitBindingSpec[] = [
+export const apiRateLimits: ReadonlyArray<RateLimitBindingSpec> = [
   { name: 'RATE_LIMITER_REST', namespaceId: '1001', limit: 60, period: 60 },
   { name: 'RATE_LIMITER_REST_WRITE', namespaceId: '1002', limit: 20, period: 60 },
   { name: 'RATE_LIMITER_ASSISTANT', namespaceId: '1004', limit: 20, period: 60 },
   { name: 'RATE_LIMITER_MCP', namespaceId: '1005', limit: 30, period: 60 }
 ]
 
-export const webRateLimits: readonly RateLimitBindingSpec[] = [
+export const webRateLimits: ReadonlyArray<RateLimitBindingSpec> = [
   { name: 'RATE_LIMITER_AUTH_READ', namespaceId: '2001', limit: 60, period: 60 },
   { name: 'RATE_LIMITER_AUTH_WRITE', namespaceId: '2002', limit: 20, period: 60 },
   // Credential sign-in only — tighter than the generic write bucket so a

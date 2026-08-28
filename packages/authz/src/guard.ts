@@ -20,14 +20,16 @@ import {
  * `tokenPrincipal`.
  */
 
-function actionsOf(requested: RequestedActions): readonly string[] {
-  if ('actions' in requested) return requested.actions
+function actionsOf(requested: RequestedActions): ReadonlyArray<string> {
+  if ('actions' in requested) {
+    return requested.actions
+  }
   return requested
 }
 
 /** `apiToken:list+create webhook:create` — one field on the wide event. */
 function describe(request: PermissionRequest): string {
-  const parts: string[] = []
+  const parts: Array<string> = []
   for (const [resource, requested] of Object.entries(request)) {
     parts.push(`${resource}:${actionsOf(requested).join('+')}`)
   }
@@ -55,7 +57,9 @@ export function requirePermission(
     }
 
     const decision = authorize(principal, request)
-    if (decision.success) return
+    if (decision.success) {
+      return
+    }
 
     yield* Effect.annotateLogsScoped({
       outcome: 'forbidden',

@@ -42,12 +42,12 @@ const decodeNested = Schema.decodeUnknownSync(
  * through `Logger.consoleJson`, so spying here exercises the real logger set
  * and the real runtime instead of a stand-in.
  */
-let lines: Captured[] = []
+let lines: Array<Captured> = []
 
 beforeEach(() => {
   lines = []
   ambient.request = undefined
-  vi.spyOn(console, 'log').mockImplementation((...args: readonly unknown[]) => {
+  vi.spyOn(console, 'log').mockImplementation((...args: ReadonlyArray<unknown>) => {
     lines.push(decodeLine(args[0]))
   })
 })
@@ -60,12 +60,14 @@ afterEach(() => {
 function only(): Captured {
   expect(lines).toHaveLength(1)
   const [record] = lines
-  if (!record) throw new Error('no canonical line was emitted')
+  if (!record) {
+    throw new Error('no canonical line was emitted')
+  }
   return record
 }
 
 /** The `nested` array the request folded its child runs into. */
-function nestedEntries(record: Captured): readonly Record<string, unknown>[] {
+function nestedEntries(record: Captured): ReadonlyArray<Record<string, unknown>> {
   return decodeNested(record.annotations['nested'])
 }
 

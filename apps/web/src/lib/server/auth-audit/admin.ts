@@ -148,7 +148,9 @@ export function adminAuditInput(exchange: {
   readonly targetUserId: string | null
 }): RecordAuditEventInput | null {
   const row = adminExchangeRow(exchange.pathname)
-  if (row === null) return null
+  if (row === null) {
+    return null
+  }
   const success = exchange.status >= 200 && exchange.status < 300
   return {
     workspaceId: null,
@@ -174,7 +176,9 @@ export function recordAdminAudit(args: {
 }): Effect.Effect<AuthAuditOutcome, never, Scope.Scope> {
   return Effect.gen(function* () {
     const { pathname, response, run, admin } = args
-    if (adminExchangeRow(pathname) === null) return 'skipped'
+    if (adminExchangeRow(pathname) === null) {
+      return 'skipped'
+    }
 
     let targetUserId: string | null = null
     if (admin.request !== undefined) {
@@ -192,7 +196,9 @@ export function recordAdminAudit(args: {
       actorUserId: admin.actorUserId,
       targetUserId
     })
-    if (!input) return 'skipped'
+    if (!input) {
+      return 'skipped'
+    }
 
     return yield* writeAndReport(input, run)
   })

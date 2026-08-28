@@ -23,7 +23,9 @@ export function traceparentFor(span: Tracer.AnySpan): string {
 
 /** W3C trace-flags byte: bit 0 is the sampled flag, the rest are reserved. */
 function traceFlags(sampled: boolean): string {
-  if (sampled) return '01'
+  if (sampled) {
+    return '01'
+  }
   return '00'
 }
 

@@ -50,7 +50,7 @@ export type ContractExpect = <A>(
 
 export function developerPlatformContractCases(
   expect: ContractExpect
-): readonly DeveloperPlatformContractCase[] {
+): ReadonlyArray<DeveloperPlatformContractCase> {
   return [
     {
       name: 'created token lists back and disappears after revoke',
@@ -235,7 +235,7 @@ export function developerPlatformContractCases(
  */
 export function planLimitContractCases(
   expect: ContractExpect
-): readonly PlanLimitContractCase[] {
+): ReadonlyArray<PlanLimitContractCase> {
   return [
     {
       name: 'creating past the plan token cap fails PlanLimitExceeded',

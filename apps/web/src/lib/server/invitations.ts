@@ -78,7 +78,9 @@ const decodeAccept = Schema.decodeUnknownSync(AcceptInvitationInput)
  */
 function requestOrigin(): string {
   const request = currentRequest()
-  if (!request) return ''
+  if (!request) {
+    return ''
+  }
   return new URL(request.url).origin
 }
 
@@ -215,9 +217,13 @@ export function invitationPreview(input: {
   return Effect.gen(function* () {
     const invitations = yield* WorkspaceInvitations
     const found = yield* invitations.find(input.invitationId)
-    if (Option.isNone(found)) return UNAVAILABLE
+    if (Option.isNone(found)) {
+      return UNAVAILABLE
+    }
     const invitation = found.value
-    if (invitation.status !== 'pending') return UNAVAILABLE
+    if (invitation.status !== 'pending') {
+      return UNAVAILABLE
+    }
     if (invitation.email.toLowerCase() !== input.viewerEmail.toLowerCase()) {
       return UNAVAILABLE
     }

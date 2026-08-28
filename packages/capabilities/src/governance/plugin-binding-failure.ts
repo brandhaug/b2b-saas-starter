@@ -32,7 +32,9 @@ export type PluginBindingFailure = {
 
 /** The message to carry into the typed error, whatever was thrown. */
 function reasonOf(cause: unknown): string {
-  if (cause instanceof Error) return cause.message
+  if (cause instanceof Error) {
+    return cause.message
+  }
   return String(cause)
 }
 
@@ -83,7 +85,9 @@ export function makeBindingCaller<Binding, RejectedError>(options: {
     binding: Binding | undefined,
     call: (bound: Binding) => Promise<void>
   ) {
-    if (!binding) return Effect.fail(noBinding)
+    if (!binding) {
+      return Effect.fail(noBinding)
+    }
     return Effect.tryPromise({
       try: () => call(binding),
       catch: classifyBindingFailure

@@ -40,7 +40,9 @@ function handlerFor(env: ApiEnv): (request: Request) => Promise<Response> {
 }
 
 function get(path: string, headers?: Record<string, string>): Request {
-  if (!headers) return new Request(`https://api.test${path}`)
+  if (!headers) {
+    return new Request(`https://api.test${path}`)
+  }
   return new Request(`https://api.test${path}`, { headers })
 }
 

@@ -20,20 +20,26 @@ import { listMigrations } from '../src/migrations-fs.ts'
 
 const packageDir = join(import.meta.dir, '..')
 
-function resolveTarget(argv: readonly string[]): '--remote' | '--local' {
-  if (argv.includes('--remote')) return '--remote'
+function resolveTarget(argv: ReadonlyArray<string>): '--remote' | '--local' {
+  if (argv.includes('--remote')) {
+    return '--remote'
+  }
   return '--local'
 }
 
 const target = resolveTarget(process.argv)
 
-function jsonFlags(captureJson: boolean): string[] {
-  if (captureJson) return ['--json']
+function jsonFlags(captureJson: boolean): Array<string> {
+  if (captureJson) {
+    return ['--json']
+  }
   return []
 }
 
 function stdoutMode(captureJson: boolean): 'pipe' | 'inherit' {
-  if (captureJson) return 'pipe'
+  if (captureJson) {
+    return 'pipe'
+  }
   return 'inherit'
 }
 
@@ -41,11 +47,13 @@ async function readStdout(
   stdout: ReadableStream<Uint8Array> | undefined,
   captureJson: boolean
 ): Promise<string> {
-  if (!captureJson) return ''
+  if (!captureJson) {
+    return ''
+  }
   return new Response(stdout).text()
 }
 
-async function wranglerExecute(args: string[], captureJson: boolean) {
+async function wranglerExecute(args: Array<string>, captureJson: boolean) {
   const proc = Bun.spawn(
     [
       'bunx',

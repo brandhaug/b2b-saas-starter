@@ -17,14 +17,26 @@ export type WebhookUrlValidation =
 
 const IPV4_PATTERN = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
 
-function isPrivateIpv4(octets: readonly number[]): boolean {
+function isPrivateIpv4(octets: ReadonlyArray<number>): boolean {
   const [a, b = 0] = octets
-  if (a === 0) return true // "this network" (0.0.0.0/8)
-  if (a === 10) return true // 10.0.0.0/8
-  if (a === 127) return true // loopback (127.0.0.0/8)
-  if (a === 169 && b === 254) return true // link-local (169.254.0.0/16)
-  if (a === 172 && b >= 16 && b <= 31) return true // 172.16.0.0/12
-  if (a === 192 && b === 168) return true // 192.168.0.0/16
+  if (a === 0) {
+    return true
+  } // "this network" (0.0.0.0/8)
+  if (a === 10) {
+    return true
+  } // 10.0.0.0/8
+  if (a === 127) {
+    return true
+  } // loopback (127.0.0.0/8)
+  if (a === 169 && b === 254) {
+    return true
+  } // link-local (169.254.0.0/16)
+  if (a === 172 && b >= 16 && b <= 31) {
+    return true
+  } // 172.16.0.0/12
+  if (a === 192 && b === 168) {
+    return true
+  } // 192.168.0.0/16
   return false
 }
 
@@ -33,12 +45,16 @@ const PRIVATE_RANGE_REASON =
 
 function checkIpv4Literal(hostname: string): string | null {
   const match = IPV4_PATTERN.exec(hostname)
-  if (!match) return null
+  if (!match) {
+    return null
+  }
   const octets = match.slice(1).map(Number)
   if (octets.some((octet) => octet > 255)) {
     return 'hostname is not a valid IPv4 address'
   }
-  if (isPrivateIpv4(octets)) return PRIVATE_RANGE_REASON
+  if (isPrivateIpv4(octets)) {
+    return PRIVATE_RANGE_REASON
+  }
   return null
 }
 
@@ -61,7 +77,9 @@ function checkIpv6Literal(hostname: string): string | null {
     const high = Number.parseInt(highGroup, 16)
     const low = Number.parseInt(lowGroup, 16)
     const octets = [high >> 8, high & 0xff, low >> 8, low & 0xff]
-    if (isPrivateIpv4(octets)) return PRIVATE_RANGE_REASON
+    if (isPrivateIpv4(octets)) {
+      return PRIVATE_RANGE_REASON
+    }
     return null
   }
   const firstGroup = literal.split(':', 1)[0] ?? ''
@@ -113,7 +131,9 @@ export function validateWebhookUrl(raw: string): WebhookUrlValidation {
   }
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
     const reason = checkIpv6Literal(hostname)
-    if (reason) return { valid: false, reason }
+    if (reason) {
+      return { valid: false, reason }
+    }
     return { valid: true }
   }
   const ipv4Reason = checkIpv4Literal(hostname)

@@ -127,7 +127,7 @@ export const READ_OPERATIONS = {
 } satisfies Record<ReadOperationEndpoint, WorkspaceReadOperation>
 
 /** The table rows in contract order — what MCP tools and tests derive from. */
-export function readOperations(): readonly WorkspaceReadOperation[] {
+export function readOperations(): ReadonlyArray<WorkspaceReadOperation> {
   return Object.values(READ_OPERATIONS)
 }
 
@@ -154,8 +154,12 @@ export function serveRead(
 /** `notification:read`-style label, used by the permission matrix output. */
 export function permissionLabel(permission: PermissionRequest): string {
   const entry = Object.entries(permission)[0]
-  if (entry === undefined) return ''
+  if (entry === undefined) {
+    return ''
+  }
   const [key, actions] = entry
-  if (!Array.isArray(actions)) return `${key}:`
+  if (!Array.isArray(actions)) {
+    return `${key}:`
+  }
   return `${key}:${String(actions[0])}`
 }

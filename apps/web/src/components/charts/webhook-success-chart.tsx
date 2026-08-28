@@ -14,7 +14,7 @@ import { AXIS_TICK, CHART_MARGIN, TOOLTIP_STYLE } from '../chart-defaults'
 export function WebhookSuccessChart({
   webhooks
 }: {
-  readonly webhooks: readonly WebhookEndpoint[]
+  readonly webhooks: ReadonlyArray<WebhookEndpoint>
 }) {
   const data = webhooks.map((endpoint) => ({
     label: new URL(endpoint.url).host,

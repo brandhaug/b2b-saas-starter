@@ -460,7 +460,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
   // tests own is the capability's half of the contract — that it calls the
   // binding with the resolved workspace, reads the result back, and audits it.
   function fakeMemberBinding(db: EffectDatabase) {
-    const calls: unknown[] = []
+    const calls: Array<unknown> = []
     const binding: WorkspaceMemberBinding = {
       addMember: (input) => {
         calls.push(input)
@@ -745,7 +745,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
   let mintedInvitations = 0
 
   function fakeInvitationBinding(db: EffectDatabase) {
-    const calls: unknown[] = []
+    const calls: Array<unknown> = []
     const binding: WorkspaceInvitationBinding = {
       create: (input) => {
         calls.push(input)
@@ -792,7 +792,9 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
               .where(eq(workspaceInvitations.id, input.invitationId))
               .limit(1)
             const invitation = rows[0]
-            if (!invitation) return
+            if (!invitation) {
+              return
+            }
             yield* db
               .update(workspaceInvitations)
               .set({ status: 'accepted' })
@@ -856,7 +858,7 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
     let mintedWorkspaces = 0
 
     function fakeLifecycleBinding(db: EffectDatabase) {
-      const calls: unknown[] = []
+      const calls: Array<unknown> = []
       const binding: WorkspaceLifecycleBinding = {
         create: (input) => {
           calls.push(input)

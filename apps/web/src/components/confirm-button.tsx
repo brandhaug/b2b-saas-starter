@@ -45,11 +45,15 @@ export function ConfirmButton({
   const onCancelRef = useRef(onCancel)
 
   useEffect(() => {
-    if (!isArmed) return
+    if (!isArmed) {
+      return
+    }
     onCancelRef.current = onCancel
     confirmRef.current?.focus()
     function disarm(event: KeyboardEvent) {
-      if (event.key !== 'Escape') return
+      if (event.key !== 'Escape') {
+        return
+      }
       setArmedHere(false)
       onCancelRef.current?.()
     }

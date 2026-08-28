@@ -77,7 +77,7 @@ export type InvitationContractCase = {
 export function workspaceInvitationsContractCases(
   ids: InvitationContractIds,
   expect: ContractExpect
-): readonly InvitationContractCase[] {
+): ReadonlyArray<InvitationContractCase> {
   return [
     {
       name: 'creates a pending invitation that then appears in list',

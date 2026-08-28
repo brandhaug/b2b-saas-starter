@@ -11,7 +11,7 @@ type FeatureToggleRow = {
   readonly enabled: boolean
 }
 
-function SettingsPanel({ rows }: { readonly rows: readonly FeatureToggleRow[] }) {
+function SettingsPanel({ rows }: { readonly rows: ReadonlyArray<FeatureToggleRow> }) {
   return (
     <Card className="w-128">
       <CardHeader>

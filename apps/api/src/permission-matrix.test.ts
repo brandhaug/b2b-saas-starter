@@ -74,14 +74,14 @@ const SLUG = 'starter-lab'
  * (`operations.ts`) — the same rows the REST handlers and the MCP tools are
  * derived from — so the matrix cannot disagree with either surface.
  */
-const READ_ROWS: readonly GatedOperation[] = readOperations().map((op) => ({
+const READ_ROWS: ReadonlyArray<GatedOperation> = readOperations().map((op) => ({
   operation: `GET /workspaces/{slug}/${op.path}`,
   permission: permissionLabel(op.permission),
   expected: 200,
   request: makeRequest('GET', `/workspaces/${SLUG}/${op.path}`)
 }))
 
-const MATRIX: readonly GatedOperation[] = [
+const MATRIX: ReadonlyArray<GatedOperation> = [
   ...READ_ROWS,
 
   // Minting is the one mutation a `write` token is refused as well: a token

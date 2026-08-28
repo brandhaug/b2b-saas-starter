@@ -28,7 +28,7 @@ export type JsonValue =
   | number
   | boolean
   | null
-  | readonly JsonValue[]
+  | ReadonlyArray<JsonValue>
   | { readonly [key: string]: JsonValue }
 
 /** A JSON object payload — the shape of every `mode: 'json'` metadata column. */
@@ -294,7 +294,7 @@ export const apiTokens = sqliteTable(
     tokenPrefix: text('token_prefix').notNull(),
     tokenHash: text('token_hash').unique().notNull(),
     scopes: text('scopes', { mode: 'json' })
-      .$type<readonly ApiTokenScopeValue[]>()
+      .$type<ReadonlyArray<ApiTokenScopeValue>>()
       .notNull(),
     lastUsedAt: isoTimestamp('last_used_at'),
     revokedAt: isoTimestamp('revoked_at'),
@@ -322,7 +322,7 @@ export const webhookEndpoints = sqliteTable(
     // without a migration (see webhook-endpoints.AGENTS.md in
     // packages/capabilities). The known vocabulary lives in the capabilities
     // package as `WEBHOOK_EVENT_TYPES` for the management UI.
-    events: text('events', { mode: 'json' }).$type<readonly string[]>().notNull(),
+    events: text('events', { mode: 'json' }).$type<ReadonlyArray<string>>().notNull(),
     createdAt: isoCreatedAt()
   },
   (table) => [workspaceIdIndex('webhook_endpoints', table.workspaceId)]

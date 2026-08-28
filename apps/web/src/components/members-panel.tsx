@@ -26,13 +26,17 @@ import { callServerFn } from '@/lib/server-call'
 const CHANGE_FAILED = 'Failed to change the role'
 
 function roleVariant(role: WorkspaceRole): 'default' | 'secondary' | 'outline' {
-  if (role === 'owner') return 'default'
-  if (role === 'admin') return 'secondary'
+  if (role === 'owner') {
+    return 'default'
+  }
+  if (role === 'admin') {
+    return 'secondary'
+  }
   return 'outline'
 }
 
 /** The roles a member can be moved to from their current one. */
-function otherRoles(current: WorkspaceRole): readonly WorkspaceRole[] {
+function otherRoles(current: WorkspaceRole): ReadonlyArray<WorkspaceRole> {
   return WORKSPACE_ROLES.filter((role) => role !== current)
 }
 
@@ -47,7 +51,7 @@ export function MembersPanel({
   viewer
 }: {
   readonly workspaceSlug: string
-  readonly members: readonly Member[]
+  readonly members: ReadonlyArray<Member>
   readonly viewer: Viewer
 }) {
   const router = useRouter()

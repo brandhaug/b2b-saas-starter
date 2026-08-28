@@ -25,7 +25,7 @@ export type WorkspaceWithMembership = typeof WorkspaceWithMembership.Type
 
 export type WorkspaceMembershipInterface = {
   readonly listMembers: Effect.Effect<
-    readonly Member[],
+    ReadonlyArray<Member>,
     CapabilityUnavailable,
     WorkspaceContext
   >
@@ -38,7 +38,7 @@ export type WorkspaceMembershipInterface = {
    */
   readonly listWorkspacesForUser: (
     userId: string
-  ) => Effect.Effect<readonly WorkspaceWithMembership[], CapabilityUnavailable>
+  ) => Effect.Effect<ReadonlyArray<WorkspaceWithMembership>, CapabilityUnavailable>
   readonly addMember: (
     input: MemberRoleInput
   ) => Effect.Effect<
@@ -84,10 +84,12 @@ export class WorkspaceMembership extends Context.Service<
  * reads, and two independent `Ref`s would let the seed adapters disagree about
  * who is a member. Live has no such seam — the plugin owns both writes.
  */
-export type SeedRoster = Ref.Ref<readonly Member[]>
+export type SeedRoster = Ref.Ref<ReadonlyArray<Member>>
 
-export function makeSeedRoster(members: readonly Member[]): Effect.Effect<SeedRoster> {
-  return Ref.make<readonly Member[]>(members)
+export function makeSeedRoster(
+  members: ReadonlyArray<Member>
+): Effect.Effect<SeedRoster> {
+  return Ref.make<ReadonlyArray<Member>>(members)
 }
 
 /**
@@ -126,7 +128,9 @@ export function SeedWorkspaceMembership(
       Ref.get(roster).pipe(
         Effect.map((current) => {
           const member = current.find((candidate) => candidate.id === userId)
-          if (!member) return []
+          if (!member) {
+            return []
+          }
           return [{ workspace, member }]
         })
       ),
@@ -151,7 +155,9 @@ export function SeedWorkspaceMembership(
         const promoted: Member = { ...member, role: input.role }
         yield* Ref.update(roster, (current) =>
           current.map((candidate) => {
-            if (candidate.id === input.userId) return promoted
+            if (candidate.id === input.userId) {
+              return promoted
+            }
             return candidate
           })
         )

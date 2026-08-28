@@ -25,7 +25,7 @@ import { requireWorkspacePermission, whenPermitted } from './authorize'
  */
 export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
   readonly viewer: WorkspaceViewer | null
-  readonly webhooks: readonly WebhookEndpoint[] | null
+  readonly webhooks: ReadonlyArray<WebhookEndpoint> | null
 }
 
 const dashboardPayload: Effect.Effect<

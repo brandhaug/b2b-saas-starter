@@ -16,6 +16,8 @@
  */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- `unknown` is the input: this is the parse step for a rejected promise's value, which no schema can narrow before the catch handler runs
 export function causeMessage(thrown: unknown, fallback: string): string {
-  if (thrown instanceof Error && thrown.message.length > 0) return thrown.message
+  if (thrown instanceof Error && thrown.message.length > 0) {
+    return thrown.message
+  }
   return fallback
 }

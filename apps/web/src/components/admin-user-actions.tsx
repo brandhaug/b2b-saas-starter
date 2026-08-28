@@ -115,14 +115,17 @@ export function BanUserAction({ user }: { readonly user: SystemUser }) {
   )
 }
 
-export function AdminUserActions({ users }: { readonly users: readonly SystemUser[] }) {
+export function AdminUserActions({
+  users
+}: {
+  readonly users: ReadonlyArray<SystemUser>
+}) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string>(users[0]?.id ?? '')
-  const [memberships, setMemberships] = useState<
-    readonly WorkspaceWithMembership[] | null
-  >(null)
+  const [memberships, setMemberships] =
+    useState<ReadonlyArray<WorkspaceWithMembership> | null>(null)
 
   async function settle(run: () => Promise<void>, busyKey: string, message: string) {
     setError(null)
@@ -165,7 +168,9 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
       'Role change',
       'Role change'
     )
-    if (!settled) return
+    if (!settled) {
+      return
+    }
     // Re-read the memberships through the same folded call so a read failure
     // lands in error state instead of escaping as an unhandled rejection.
     const read = await callServerFn(() => {
@@ -219,7 +224,9 @@ export function AdminUserActions({ users }: { readonly users: readonly SystemUse
           {busy === 'Workspaces' ? <Spinner data-icon="inline-end" /> : null}
         </Button>
         {(() => {
-          if (memberships === null) return null
+          if (memberships === null) {
+            return null
+          }
           if (memberships.length === 0) {
             return (
               <p className="text-xs text-muted-foreground">
@@ -266,9 +273,11 @@ function MembershipRow(input: {
 }) {
   // One pass over the fixed role vocabulary: keep every role this member does
   // not already hold.
-  const targets: WorkspaceRole[] = []
+  const targets: Array<WorkspaceRole> = []
   for (const role of WORKSPACE_ROLES) {
-    if (role !== input.member.role) targets.push(role)
+    if (role !== input.member.role) {
+      targets.push(role)
+    }
   }
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">

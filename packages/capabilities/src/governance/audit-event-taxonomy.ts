@@ -21,7 +21,7 @@
  * assertion (which the lint rules disallow), so the exported unions derive
  * exactly from these tuples.
  */
-function literalTuple<T extends readonly string[]>(...values: T): T {
+function literalTuple<T extends ReadonlyArray<string>>(...values: T): T {
   return values
 }
 

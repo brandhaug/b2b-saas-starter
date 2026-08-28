@@ -31,7 +31,7 @@ export type CreatedWebhookEndpoint = {
 
 export type CreateWebhookEndpointInput = {
   readonly url: string
-  readonly events: readonly string[]
+  readonly events: ReadonlyArray<string>
   // `| undefined` on purpose: callers read `description` off an optional request
   // field, and both adapters treat an absent key and an explicit `undefined` the
   // same way. Without it every caller has to hand-build the input key by key.
@@ -55,7 +55,7 @@ export const WEBHOOK_EVENT_TYPES = [
   'api_token.created',
   'api_token.revoked',
   'webhook_endpoint.created'
-] as const satisfies readonly WebhookEventType[]
+] as const satisfies ReadonlyArray<WebhookEventType>
 
 /** Wire payload for endpoint creation, shared by the REST contract and the API worker. */
 export const CreateWebhookEndpointPayload = Schema.Struct({
@@ -77,7 +77,7 @@ export type RotateWebhookSecretInput = {
 
 export type WebhookEndpointsInterface = {
   readonly list: Effect.Effect<
-    readonly WebhookEndpoint[],
+    ReadonlyArray<WebhookEndpoint>,
     CapabilityUnavailable,
     WorkspaceContext
   >
@@ -98,7 +98,7 @@ export type WebhookEndpointsInterface = {
   readonly listDeliveries: (
     input: ListWebhookDeliveriesInput
   ) => Effect.Effect<
-    readonly WebhookDelivery[],
+    ReadonlyArray<WebhookDelivery>,
     CapabilityUnavailable,
     WorkspaceContext
   >
@@ -172,6 +172,8 @@ export function ensureValidWebhookUrl(
   url: string
 ): Effect.Effect<void, InvalidWebhookUrl> {
   const check = validateWebhookUrl(url)
-  if (check.valid) return Effect.void
+  if (check.valid) {
+    return Effect.void
+  }
   return Effect.fail(new InvalidWebhookUrl({ url, reason: check.reason }))
 }

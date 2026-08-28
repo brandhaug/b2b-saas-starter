@@ -87,10 +87,10 @@ export function auditEventLabel(eventType: string): string {
  * The dropdown options for the event-type filter: every known type, sorted,
  * with their human labels.
  */
-export const AUDIT_EVENT_FILTER_OPTIONS: readonly {
+export const AUDIT_EVENT_FILTER_OPTIONS: ReadonlyArray<{
   readonly value: string
   readonly label: string
-}[] = AUDIT_EVENT_TYPES.map((eventType) => ({
+}> = AUDIT_EVENT_TYPES.map((eventType) => ({
   value: eventType,
   label: auditEventLabel(eventType)
 })).toSorted((a, b) => a.label.localeCompare(b.label))

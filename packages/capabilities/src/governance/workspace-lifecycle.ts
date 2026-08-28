@@ -106,11 +106,11 @@ export function SeedWorkspaceLifecycle(options: {
 }): Layer.Layer<WorkspaceLifecycle> {
   return Layer.effect(WorkspaceLifecycle)(
     Effect.gen(function* () {
-      const created = yield* Ref.make<readonly CreatedWorkspace[]>([])
+      const created = yield* Ref.make<ReadonlyArray<CreatedWorkspace>>([])
 
       const requireAvailableSlug = Effect.fnUntraced(function* (
         slug: string,
-        taken: readonly string[]
+        taken: ReadonlyArray<string>
       ) {
         if (taken.includes(slug)) {
           return yield* Effect.fail(
@@ -150,7 +150,7 @@ export function SeedWorkspaceLifecycle(options: {
             const ctx = yield* WorkspaceContext
             const renamed: Workspace = { ...ctx.workspace, name: input.name }
             yield* Ref.update(created, (rows) => {
-              const next: CreatedWorkspace[] = []
+              const next: Array<CreatedWorkspace> = []
               for (const each of rows) {
                 if (each.id === ctx.workspace.id) {
                   next.push({ ...each, name: input.name })

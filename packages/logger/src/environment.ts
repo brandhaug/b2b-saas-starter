@@ -39,18 +39,24 @@ const decodeString = Schema.decodeUnknownOption(Schema.String)
 function ownStringValue(source: object, key: string): string | undefined {
   const value: unknown = Object.getOwnPropertyDescriptor(source, key)?.value
   const decoded = decodeString(value)
-  if (Option.isNone(decoded) || decoded.value.length === 0) return undefined
+  if (Option.isNone(decoded) || decoded.value.length === 0) {
+    return undefined
+  }
   return decoded.value
 }
 
 function pickString(
   source: object | undefined,
-  ...keys: readonly string[]
+  ...keys: ReadonlyArray<string>
 ): string | undefined {
-  if (!source) return undefined
+  if (!source) {
+    return undefined
+  }
   for (const key of keys) {
     const value = ownStringValue(source, key)
-    if (value !== undefined) return value
+    if (value !== undefined) {
+      return value
+    }
   }
   return undefined
 }
@@ -70,18 +76,30 @@ export function readWideEventEnvironment(
   // Built by assignment so absent fields stay absent (no `key: undefined`),
   // which keeps the emitted wide event free of empty columns.
   const resolved: Writable<WideEventEnvironment> = {}
-  if (commit) resolved.commitHash = commit
-  if (version) resolved.serviceVersion = version
-  if (region) resolved.region = region
-  if (environment) resolved.environment = environment
+  if (commit) {
+    resolved.commitHash = commit
+  }
+  if (version) {
+    resolved.serviceVersion = version
+  }
+  if (region) {
+    resolved.region = region
+  }
+  if (environment) {
+    resolved.environment = environment
+  }
   return resolved
 }
 
 /** Cloudflare colo hint from an incoming request's `cf` object, if present. */
 export function readCfColo(request: Request): string | undefined {
-  if (!('cf' in request)) return undefined
+  if (!('cf' in request)) {
+    return undefined
+  }
   const cf = decodeCfProperties(request.cf)
-  if (Option.isNone(cf)) return undefined
+  if (Option.isNone(cf)) {
+    return undefined
+  }
   return cf.value.colo
 }
 
@@ -89,6 +107,8 @@ export function readCfColo(request: Request): string | undefined {
 export function coloHint(
   colo: string | undefined
 ): { readonly colo: string } | undefined {
-  if (colo === undefined) return undefined
+  if (colo === undefined) {
+    return undefined
+  }
   return { colo }
 }

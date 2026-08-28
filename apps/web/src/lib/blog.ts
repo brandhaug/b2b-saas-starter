@@ -7,7 +7,7 @@ type BlogFrontmatter = {
   readonly description: string
   readonly date: string
   readonly author: string
-  readonly tags: readonly string[]
+  readonly tags: ReadonlyArray<string>
 }
 
 type BlogPost = {
@@ -25,7 +25,7 @@ function getSlugFromPath(path: string): string {
   return path.replace('../../content/blog/', '').replace('.mdx', '')
 }
 
-const ALL_POSTS: readonly BlogPost[] = Object.entries(modules)
+const ALL_POSTS: ReadonlyArray<BlogPost> = Object.entries(modules)
   .map(([path, mod]) => ({
     slug: getSlugFromPath(path),
     frontmatter: mod.frontmatter,
@@ -38,7 +38,7 @@ const ALL_POSTS: readonly BlogPost[] = Object.entries(modules)
 
 const POSTS_BY_SLUG = new Map(ALL_POSTS.map((post) => [post.slug, post]))
 
-export function getAllPosts(): readonly BlogPost[] {
+export function getAllPosts(): ReadonlyArray<BlogPost> {
   return ALL_POSTS
 }
 

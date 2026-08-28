@@ -4,14 +4,10 @@
 // dynamically behind its `import.meta.env.SSR` guard so the browser never
 // evaluates the node:* imports.
 import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
 /** Absolute path to packages/db, resolved from this module's location. */
-export const dbPackageDir = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../../packages/db'
-)
+export const dbPackageDir = join(import.meta.dirname, '../../../../packages/db')
 
 /** Wrangler persist root passed to getPlatformProxy. */
 export const localD1PersistPath = join(dbPackageDir, '.wrangler/state/v3')

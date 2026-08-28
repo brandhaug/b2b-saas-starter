@@ -50,7 +50,9 @@ export function AuthCardForm({
   const hydrated = useHydrated()
   const errorRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (error) errorRef.current?.focus()
+    if (error) {
+      errorRef.current?.focus()
+    }
   }, [error])
   return (
     <PublicLayout>

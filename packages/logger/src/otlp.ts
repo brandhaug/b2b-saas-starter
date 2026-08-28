@@ -14,16 +14,24 @@ export type ObservabilityEnv = {
 
 /** Parses the OTLP `key=value,key=value` header form used by the OTel spec. */
 function otlpHeaders(value: string | undefined): Record<string, string> | undefined {
-  if (!value) return undefined
+  if (!value) {
+    return undefined
+  }
   const entries = value.split(',').flatMap((entry) => {
     const separator = entry.indexOf('=')
-    if (separator <= 0) return []
+    if (separator <= 0) {
+      return []
+    }
     const key = entry.slice(0, separator).trim()
     const headerValue = entry.slice(separator + 1).trim()
-    if (key.length === 0 || headerValue.length === 0) return []
+    if (key.length === 0 || headerValue.length === 0) {
+      return []
+    }
     return [[key, headerValue]]
   })
-  if (entries.length === 0) return undefined
+  if (entries.length === 0) {
+    return undefined
+  }
   return Object.fromEntries(entries)
 }
 
@@ -75,7 +83,9 @@ export function makeOtlpLayer(
   env: ObservabilityEnv
 ): Layer.Layer<never> {
   const endpoint = env.OTEL_EXPORTER_OTLP_ENDPOINT?.replace(/\/$/, '')
-  if (!endpoint) return Layer.empty
+  if (!endpoint) {
+    return Layer.empty
+  }
   return Otlp.layerJson({
     baseUrl: endpoint,
     headers: otlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS),

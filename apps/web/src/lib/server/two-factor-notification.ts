@@ -12,7 +12,9 @@ export function isTwoFactorChangeExchange(exchange: {
   readonly method: string
   readonly pathname: string
 }): boolean {
-  if (exchange.method !== 'POST') return false
+  if (exchange.method !== 'POST') {
+    return false
+  }
   return (
     exchange.pathname.endsWith('/two-factor/enable') ||
     exchange.pathname.endsWith('/two-factor/disable')
