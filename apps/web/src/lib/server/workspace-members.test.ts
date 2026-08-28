@@ -57,7 +57,7 @@ function memberOf(a: Actor): Member {
 
 type Harness = {
   readonly actor?: Actor | null
-  readonly members?: readonly Member[]
+  readonly members?: ReadonlyArray<Member>
 }
 
 /**
@@ -67,7 +67,7 @@ type Harness = {
 function run<A, E>(
   harness: Harness,
   body: () => Effect.Effect<A, E, Scope.Scope | WorkspaceContext | WorkspaceMembership>
-): Promise<{ readonly result: A; readonly roster: readonly Member[] }> {
+): Promise<{ readonly result: A; readonly roster: ReadonlyArray<Member> }> {
   const members = harness.members ?? [memberOf(OWNER), memberOf(MEMBER)]
   return Effect.runPromise(
     Effect.gen(function* () {

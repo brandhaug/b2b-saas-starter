@@ -22,7 +22,9 @@ export class InsecureProductionEnvError extends Error {
 
 /** The pure decision, exported for tests: production + problems → throw. */
 export function enforceRequiredEnvAudit(audit: RequiredEnvAudit): void {
-  if (audit.mode !== 'production' || audit.problems.length === 0) return
+  if (audit.mode !== 'production' || audit.problems.length === 0) {
+    return
+  }
   // oxlint-disable-next-line effect/noThrowStatement -- the TanStack request middleware has no Effect error channel; this throw crossing that boundary IS the gate
   throw new InsecureProductionEnvError(audit.problems)
 }
@@ -46,7 +48,9 @@ let verdict: 'ok' | 'warned' | undefined
  *   and reason, never by value — and the app keeps serving.
  */
 export function enforceRequiredEnvOnce(): void {
-  if (verdict === 'ok') return
+  if (verdict === 'ok') {
+    return
+  }
   const audit = auditRequiredEnv(cloudflareEnv)
   if (audit.problems.length === 0) {
     verdict = 'ok'
@@ -56,7 +60,9 @@ export function enforceRequiredEnvOnce(): void {
     // oxlint-disable-next-line effect/noThrowStatement -- deliberate refusal to serve: the request middleware has no error channel, and failing every request until the deployment is fixed is the point
     throw new InsecureProductionEnvError(audit.problems)
   }
-  if (verdict === 'warned') return
+  if (verdict === 'warned') {
+    return
+  }
   verdict = 'warned'
   // Standalone scope, not nested in the triggering request: this is a
   // boot-time config event, one per isolate, not traffic telemetry. The

@@ -43,7 +43,7 @@ function actor(role: WorkspaceRole): Actor {
 const OWNER = actor('owner')
 const MEMBER = actor('member')
 
-const seedTokens: readonly ApiToken[] = [
+const seedTokens: ReadonlyArray<ApiToken> = [
   {
     id: 'tok_1',
     name: 'Local client',

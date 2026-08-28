@@ -24,7 +24,9 @@ export default defineRule({
     return {
       MemberExpression(node) {
         const property = getPropertyName(node.property)
-        if (property === undefined || !ESCAPE_HATCHES.has(property)) return
+        if (property === undefined || !ESCAPE_HATCHES.has(property)) {
+          return
+        }
 
         context.report({
           node,

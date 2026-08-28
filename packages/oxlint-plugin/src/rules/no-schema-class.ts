@@ -17,7 +17,9 @@ import { getPropertyName, isIdentifier, unwrapExpression } from '../internal/ast
 
 function isSchemaClassCall(node: ESTree.Node | null | undefined): boolean {
   const expression = unwrapExpression(node)
-  if (expression?.type !== 'CallExpression') return false
+  if (expression?.type !== 'CallExpression') {
+    return false
+  }
 
   // `Schema.TaggedClass<X>()('X', fields)` nests calls, so walk down to the
   // member access the whole chain hangs off.
@@ -26,8 +28,12 @@ function isSchemaClassCall(node: ESTree.Node | null | undefined): boolean {
     callee = unwrapExpression(callee.callee)
   }
 
-  if (callee?.type !== 'MemberExpression') return false
-  if (!isIdentifier(unwrapExpression(callee.object), 'Schema')) return false
+  if (callee?.type !== 'MemberExpression') {
+    return false
+  }
+  if (!isIdentifier(unwrapExpression(callee.object), 'Schema')) {
+    return false
+  }
 
   const method = getPropertyName(callee.property)
   return method === 'Class' || method === 'TaggedClass'
@@ -36,7 +42,9 @@ function isSchemaClassCall(node: ESTree.Node | null | undefined): boolean {
 /** True for the inner calls of a curried chain, which the outer call reports for. */
 function isCalleeOfEnclosingCall(node: ESTree.CallExpression): boolean {
   const { parent } = node
-  if (parent.type !== 'CallExpression') return false
+  if (parent.type !== 'CallExpression') {
+    return false
+  }
   return unwrapExpression(parent.callee) === node
 }
 
@@ -48,8 +56,12 @@ export default defineRule({
   create(context) {
     return {
       CallExpression(node) {
-        if (isCalleeOfEnclosingCall(node)) return
-        if (!isSchemaClassCall(node)) return
+        if (isCalleeOfEnclosingCall(node)) {
+          return
+        }
+        if (!isSchemaClassCall(node)) {
+          return
+        }
 
         context.report({
           node,

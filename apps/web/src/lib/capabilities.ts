@@ -45,7 +45,9 @@ export type CapabilityBindings = Pick<
 /** Stripe checkout configuration from the Worker env; `undefined` when unset. */
 function stripeBillingConfig(): StarterEnv['billing'] | undefined {
   const secretKey = cloudflareEnv.STRIPE_SECRET_KEY
-  if (secretKey === undefined) return undefined
+  if (secretKey === undefined) {
+    return undefined
+  }
   const priceIds: Record<string, string> = {}
   if (cloudflareEnv.STRIPE_PRICE_ID_TEAM !== undefined) {
     priceIds.team = cloudflareEnv.STRIPE_PRICE_ID_TEAM
@@ -73,8 +75,10 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
   const failure = Cause.findErrorOption(cause)
   if (Option.isSome(failure)) {
     const error = failure.value
-    // oxlint-disable-next-line effect/noThrowStatement -- `throw notFound()` is TanStack Router's 404 control-flow API
-    if (error instanceof WorkspaceNotFound) throw notFound()
+    if (error instanceof WorkspaceNotFound) {
+      // oxlint-disable-next-line effect/noThrowStatement -- `throw notFound()` is TanStack Router's 404 control-flow API
+      throw notFound()
+    }
     if (error instanceof CapabilityUnavailable) {
       // oxlint-disable-next-line effect/noThrowStatement -- rejects the loader promise so router.tsx's defaultErrorComponent renders the degraded state
       throw new CapabilityUnavailableError(error.capability, error.reason)
@@ -131,7 +135,9 @@ export async function runWorkspaceCapabilities<A, E>(
       )
     )
   )
-  if (Exit.isSuccess(exit)) return exit.value
+  if (Exit.isSuccess(exit)) {
+    return exit.value
+  }
   return rethrowCapabilityFailure(exit.cause)
 }
 
@@ -152,6 +158,8 @@ export async function runCapabilities<A, E>(
       Effect.provide(effect, selectCapabilitiesLayer({ ...starterEnv, ...bindings }))
     )
   )
-  if (Exit.isSuccess(exit)) return exit.value
+  if (Exit.isSuccess(exit)) {
+    return exit.value
+  }
   return rethrowCapabilityFailure(exit.cause)
 }

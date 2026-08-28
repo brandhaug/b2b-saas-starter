@@ -32,13 +32,19 @@ export default defineRule({
   create(context) {
     return {
       MemberExpression(node) {
-        if (!isIdentifier(node.object, 'Effect')) return
+        if (!isIdentifier(node.object, 'Effect')) {
+          return
+        }
 
         const property = getPropertyName(node.property)
-        if (property === undefined) return
+        if (property === undefined) {
+          return
+        }
 
         const message = REPLACEMENTS.get(property)
-        if (message === undefined) return
+        if (message === undefined) {
+          return
+        }
 
         context.report({ node, message })
       }

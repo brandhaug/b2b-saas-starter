@@ -52,8 +52,8 @@ type Case = {
 
 function messagesByCase(
   ruleId: string,
-  cases: readonly Case[]
-): ReadonlyMap<string, readonly string[]> {
+  cases: ReadonlyArray<Case>
+): ReadonlyMap<string, ReadonlyArray<string>> {
   const [pluginName, ruleName] = ruleId.split('/')
   const root = mkdtempSync(join(tmpdir(), 'starter-oxlint-'))
   try {
@@ -81,7 +81,9 @@ function messagesByCase(
       { cwd: root, encoding: 'utf8' }
     )
 
-    if (result.error !== undefined) throw result.error
+    if (result.error !== undefined) {
+      throw result.error
+    }
     if (result.stdout.length === 0) {
       throw new Error(
         `oxlint produced no output for ${ruleId} (exit ${String(result.status)}): ${result.stderr}`
@@ -89,13 +91,17 @@ function messagesByCase(
     }
 
     const expectedCode = `${pluginName}(${ruleName})`
-    const collected = new Map<string, string[]>()
+    const collected = new Map<string, Array<string>>()
     for (const diagnostic of decodeReport(result.stdout).diagnostics) {
-      if (diagnostic.code !== expectedCode) continue
+      if (diagnostic.code !== expectedCode) {
+        continue
+      }
       const owner = cases.find((testCase) =>
         diagnostic.filename.includes(`${testCase.directory}/`)
       )
-      if (owner === undefined) continue
+      if (owner === undefined) {
+        continue
+      }
       const existing = collected.get(owner.directory) ?? []
       existing.push(diagnostic.message)
       collected.set(owner.directory, existing)
@@ -116,14 +122,14 @@ type CaseOptions = {
  * `starter/no-interface-merge-outside-dts`.
  */
 export function createRuleHarness(ruleId: string, defaults: CaseOptions = {}) {
-  const cases: Case[] = []
-  let outcome: ReadonlyMap<string, readonly string[]> | undefined
+  const cases: Array<Case> = []
+  let outcome: ReadonlyMap<string, ReadonlyArray<string>> | undefined
 
   function register(
     name: string,
     code: string,
     options: CaseOptions,
-    check: (messages: readonly string[]) => void
+    check: (messages: ReadonlyArray<string>) => void
   ) {
     const directory = `case-${String(cases.length).padStart(3, '0')}`
     cases.push({

@@ -10,7 +10,9 @@ export function TableOfContents({
 }) {
   const { headings, activeIds } = useHeadingObserver({ containerRef })
 
-  if (headings.length === 0) return null
+  if (headings.length === 0) {
+    return null
+  }
 
   return (
     <nav aria-label="Table of contents" className="sticky top-8">

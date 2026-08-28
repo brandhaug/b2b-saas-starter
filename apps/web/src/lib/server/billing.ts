@@ -27,7 +27,7 @@ export type WorkspaceBillingPayload = {
   readonly viewer: { readonly role: WorkspaceRole } | null
   readonly workspaceName: string
   readonly unreadCount: number
-  readonly plans: readonly Plan[]
+  readonly plans: ReadonlyArray<Plan>
   readonly currentPlanId: string
   /** True when `STRIPE_SECRET_KEY` (and every paid plan's price id) is set. */
   readonly stripeConfigured: boolean

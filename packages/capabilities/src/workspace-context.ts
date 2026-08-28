@@ -54,7 +54,9 @@ export function liveWorkspaceContext(
       const row = yield* orUnavailable('workspace-context')(
         db.select().from(workspaces).where(eq(workspaces.slug, slug)).limit(1)
       ).pipe(Effect.map((rows) => rows[0]))
-      if (!row) return yield* Effect.fail(new WorkspaceNotFound({ slug }))
+      if (!row) {
+        return yield* Effect.fail(new WorkspaceNotFound({ slug }))
+      }
       let resolvedActor: Actor | null = null
       if (actor) {
         const member = yield* findWorkspaceMember(db, {
@@ -63,7 +65,9 @@ export function liveWorkspaceContext(
         })
         // Non-members get the same WorkspaceNotFound as unknown slugs so a
         // probing user cannot learn whether a workspace exists.
-        if (!member) return yield* Effect.fail(new WorkspaceNotFound({ slug }))
+        if (!member) {
+          return yield* Effect.fail(new WorkspaceNotFound({ slug }))
+        }
         resolvedActor = memberToActor(member)
       }
       return {
@@ -92,7 +96,7 @@ export function seedWorkspaceContext(
   seedWorkspace: Workspace,
   slug: string,
   actor?: ActorRef,
-  members: readonly Member[] = []
+  members: ReadonlyArray<Member> = []
 ): Layer.Layer<WorkspaceContext, WorkspaceNotFound> {
   return Layer.effect(WorkspaceContext)(
     Effect.suspend((): Effect.Effect<WorkspaceContextInterface, WorkspaceNotFound> => {

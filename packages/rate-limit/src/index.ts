@@ -73,7 +73,9 @@ function takeFromFallback(
 }
 
 function bindingFailureReason(cause: unknown): string {
-  if (cause instanceof Error) return cause.message
+  if (cause instanceof Error) {
+    return cause.message
+  }
   return String(cause)
 }
 
@@ -81,7 +83,9 @@ function bindingFailureReason(cause: unknown): string {
 function fallbackReason(
   binding: CloudflareRateLimit | undefined
 ): 'binding_error' | 'missing_binding' {
-  if (binding === undefined) return 'missing_binding'
+  if (binding === undefined) {
+    return 'missing_binding'
+  }
   return 'binding_error'
 }
 
@@ -140,7 +144,9 @@ export function clientKey(request: Request): string {
   // a D1 read) so unauthenticated floods can't exhaust the database — the
   // token id is not known yet at keying time.
   const ip = request.headers.get('cf-connecting-ip')
-  if (ip) return ip
+  if (ip) {
+    return ip
+  }
   // Without a client IP (local dev) we can't bucket fairly. Use the request
   // URL so a single misconfigured caller can't share the bucket with
   // everyone else.

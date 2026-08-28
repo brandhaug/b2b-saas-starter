@@ -78,7 +78,7 @@ type ToolDefinition = {
   readonly capability: () => CapabilityRead
 }
 
-export const mcpTools: readonly ToolDefinition[] = readOperations().map(
+export const mcpTools: ReadonlyArray<ToolDefinition> = readOperations().map(
   (operation) => ({
     descriptor: {
       name: operation.toolName,
@@ -161,7 +161,9 @@ function errorResult(outcome: ToolOutcome): ToolResult {
 }
 
 function outcomeToToolResult(outcome: ToolOutcome): ToolResult {
-  if (Result.isSuccess(outcome)) return textResult(outcome.success)
+  if (Result.isSuccess(outcome)) {
+    return textResult(outcome.success)
+  }
   return errorResult(outcome)
 }
 
@@ -177,7 +179,7 @@ function outcomeToToolResult(outcome: ToolOutcome): ToolResult {
  */
 export function buildMcpServer(
   env: ApiEnv,
-  scopes: readonly ApiTokenScope[],
+  scopes: ReadonlyArray<ApiTokenScope>,
   workspaceSlug: string
 ): McpServer {
   const server = new McpServer(
@@ -250,7 +252,9 @@ export function buildMcpServer(
 function fromWeb(response: Response): HttpServerResponse.HttpServerResponse {
   const status = response.status
   const body = response.body
-  if (body === null) return HttpServerResponse.empty({ status })
+  if (body === null) {
+    return HttpServerResponse.empty({ status })
+  }
   return HttpServerResponse.stream(
     Stream.fromReadableStream({
       evaluate: () => body,
@@ -347,7 +351,9 @@ function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest)
     const modernHeaders: Record<string, string> = {}
     for (const name of ['mcp-method', 'mcp-name', 'mcp-protocol-version']) {
       const value = request.headers[name]
-      if (value !== undefined) modernHeaders[name] = value
+      if (value !== undefined) {
+        modernHeaders[name] = value
+      }
     }
     const webRequest = new Request(targetUrl, {
       method: 'POST',
@@ -375,7 +381,9 @@ export function mcpProtocolLayer(env: ApiEnv) {
         observed(env, request, 'mcp.protocol', {}, protocolBody(env, request))
       ),
       (outcome): HttpServerResponse.HttpServerResponse => {
-        if (Result.isFailure(outcome)) return failureResponse(outcome.failure)
+        if (Result.isFailure(outcome)) {
+          return failureResponse(outcome.failure)
+        }
         return outcome.success
       }
     )

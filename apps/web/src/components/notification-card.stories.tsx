@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 function NotificationCard({
   notifications
 }: {
-  readonly notifications: readonly NotificationPreview[]
+  readonly notifications: ReadonlyArray<NotificationPreview>
 }) {
   return (
     <Card className="w-112">

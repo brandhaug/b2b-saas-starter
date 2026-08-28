@@ -275,7 +275,7 @@ describe('notification feed actor scoping', () => {
   )
 })
 
-type ExecutedQuery = { readonly sql: string; readonly params: readonly unknown[] }
+type ExecutedQuery = { readonly sql: string; readonly params: ReadonlyArray<unknown> }
 
 /** The D1 binding type `layerFromD1` accepts — derived, never re-declared. */
 type D1Binding = Parameters<typeof layerFromD1>[0]
@@ -298,14 +298,14 @@ const noRowsMeta = {
 // calls on this path (sessions, exec, dump) reject instead of pretending.
 /** Shape the fake returns for `run`/`all`: no rows, success, empty metadata. */
 type EmptyD1Result = {
-  readonly results: never[]
+  readonly results: Array<never>
   readonly success: true
   readonly meta: typeof noRowsMeta
 }
 
 function makeFakeD1() {
-  const executed: ExecutedQuery[] = []
-  const batches: ExecutedQuery[][] = []
+  const executed: Array<ExecutedQuery> = []
+  const batches: Array<Array<ExecutedQuery>> = []
   // A prepared statement is handed back to the driver as a `D1PreparedStatement`,
   // so the query it carries is remembered here rather than on the object.
   const queryOf = new WeakMap<D1Statement, ExecutedQuery>()
@@ -314,18 +314,20 @@ function makeFakeD1() {
     return { results: [], success: true, meta: noRowsMeta }
   }
   function prepare(sql: string): D1Statement {
-    function statement(params: readonly unknown[]): D1Statement {
-      function raw(options: { columnNames: true }): Promise<[string[]]>
-      function raw(options?: { columnNames?: false }): Promise<unknown[][]>
+    function statement(params: ReadonlyArray<unknown>): D1Statement {
+      function raw(options: { columnNames: true }): Promise<[Array<string>]>
+      function raw(options?: { columnNames?: false }): Promise<Array<Array<unknown>>>
       function raw(options?: {
         columnNames?: boolean
-      }): Promise<[string[]] | unknown[][]> {
+      }): Promise<[Array<string>] | Array<Array<unknown>>> {
         executed.push({ sql, params })
-        if (options?.columnNames === true) return Promise.resolve([[]])
+        if (options?.columnNames === true) {
+          return Promise.resolve([[]])
+        }
         return Promise.resolve([])
       }
       const prepared: D1Statement = {
-        bind: (...next: readonly unknown[]) => statement(next),
+        bind: (...next: ReadonlyArray<unknown>) => statement(next),
         first: () => Promise.resolve(null),
         run: () => Promise.resolve(record({ sql, params })),
         all: () => Promise.resolve(record({ sql, params })),
@@ -342,7 +344,9 @@ function makeFakeD1() {
       batches.push(
         statements.flatMap((statement) => {
           const query = queryOf.get(statement)
-          if (query === undefined) return []
+          if (query === undefined) {
+            return []
+          }
           return [query]
         })
       )

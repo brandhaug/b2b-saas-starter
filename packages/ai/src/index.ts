@@ -226,8 +226,12 @@ export function selectAssistantLayer(env: ProviderEnv): Layer.Layer<AssistantSer
     // Assigned only when set so the layer's own defaults (api.openai.com,
     // gpt-4o-mini) still apply for absent vars.
     const config: Writable<OpenAIConfig> = { apiKey: env.OPENAI_API_KEY }
-    if (env.OPENAI_BASE_URL) config.baseUrl = env.OPENAI_BASE_URL
-    if (env.OPENAI_MODEL_ID) config.modelId = env.OPENAI_MODEL_ID
+    if (env.OPENAI_BASE_URL) {
+      config.baseUrl = env.OPENAI_BASE_URL
+    }
+    if (env.OPENAI_MODEL_ID) {
+      config.modelId = env.OPENAI_MODEL_ID
+    }
     return makeOpenAILayer(config)
   }
   return MockAssistantLayer

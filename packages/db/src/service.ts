@@ -68,13 +68,15 @@ export type BatchStatement = {
  * `RawD1` service where a layer only holds the `Database` service.
  */
 function batchFailureReason(cause: unknown): string {
-  if (cause instanceof Error) return cause.message
+  if (cause instanceof Error) {
+    return cause.message
+  }
   return String(cause)
 }
 
 export function batch(
   d1: D1Binding,
-  statements: readonly BatchStatement[]
+  statements: ReadonlyArray<BatchStatement>
 ): Effect.Effect<void, DbBatchError> {
   return Effect.tryPromise({
     try: () =>

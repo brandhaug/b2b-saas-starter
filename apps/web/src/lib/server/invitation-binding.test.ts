@@ -52,7 +52,7 @@ type BindingCall = {
   readonly call: () => Promise<void>
 }
 
-const CALLS: readonly BindingCall[] = [
+const CALLS: ReadonlyArray<BindingCall> = [
   {
     name: 'create',
     call: () =>

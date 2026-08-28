@@ -36,21 +36,31 @@ const DESTRUCTURE_MESSAGE =
 
 function identifierName(node: ESTree.Node | null | undefined): string | undefined {
   const expression = unwrapExpression(node)
-  if (expression === undefined) return undefined
-  if (expression.type !== 'Identifier') return undefined
+  if (expression === undefined) {
+    return undefined
+  }
+  if (expression.type !== 'Identifier') {
+    return undefined
+  }
   return expression.name
 }
 
 function isFailureNamed(node: ESTree.Node | null | undefined): boolean {
   const name = identifierName(node)
-  if (name === undefined) return false
+  if (name === undefined) {
+    return false
+  }
   return FAILURE_NAMES.has(name)
 }
 
 function calleeName(node: ESTree.Node | null | undefined): string | undefined {
   const expression = unwrapExpression(node)
-  if (expression === undefined) return undefined
-  if (expression.type === 'Identifier') return expression.name
+  if (expression === undefined) {
+    return undefined
+  }
+  if (expression.type === 'Identifier') {
+    return expression.name
+  }
   if (expression.type === 'MemberExpression') {
     return getPropertyName(expression.property)
   }
@@ -63,7 +73,9 @@ function calleeName(node: ESTree.Node | null | undefined): string | undefined {
  */
 function isTagHandler(node: ESTree.Node): boolean {
   const parent = parentOf(node)
-  if (parent === undefined) return false
+  if (parent === undefined) {
+    return false
+  }
 
   if (
     parent.type === 'CallExpression' &&
@@ -73,11 +85,17 @@ function isTagHandler(node: ESTree.Node): boolean {
     return true
   }
 
-  if (parent.type !== 'Property') return false
+  if (parent.type !== 'Property') {
+    return false
+  }
   const object = parentOf(parent)
-  if (object?.type !== 'ObjectExpression') return false
+  if (object?.type !== 'ObjectExpression') {
+    return false
+  }
   const call = parentOf(object)
-  if (call?.type !== 'CallExpression') return false
+  if (call?.type !== 'CallExpression') {
+    return false
+  }
   return calleeName(call.callee) === 'catchTags'
 }
 
@@ -87,16 +105,22 @@ function isTagHandler(node: ESTree.Node): boolean {
  */
 function isTagHandlerParameter(node: ESTree.Node | null | undefined): boolean {
   const name = identifierName(node)
-  if (name === undefined) return false
+  if (name === undefined) {
+    return false
+  }
 
-  if (node === null || node === undefined) return false
+  if (node === null || node === undefined) {
+    return false
+  }
   let current = parentOf(node)
   while (current !== undefined) {
     if (
       current.type === 'ArrowFunctionExpression' ||
       current.type === 'FunctionExpression'
     ) {
-      if (!isTagHandler(current)) return false
+      if (!isTagHandler(current)) {
+        return false
+      }
       return isIdentifier(current.params[0], name)
     }
     current = parentOf(current)
@@ -115,23 +139,43 @@ export default defineRule({
   create(context) {
     return {
       CallExpression(node) {
-        if (!isIdentifier(unwrapExpression(node.callee), 'String')) return
-        if (!node.arguments.some((argument) => isFailureNamed(argument))) return
+        if (!isIdentifier(unwrapExpression(node.callee), 'String')) {
+          return
+        }
+        if (!node.arguments.some((argument) => isFailureNamed(argument))) {
+          return
+        }
         context.report({ node, message: STRING_MESSAGE })
       },
       MemberExpression(node) {
-        if (getPropertyName(node.property) !== 'message') return
-        if (!isFailureNamed(node.object)) return
-        if (isTagHandlerParameter(node.object)) return
+        if (getPropertyName(node.property) !== 'message') {
+          return
+        }
+        if (!isFailureNamed(node.object)) {
+          return
+        }
+        if (isTagHandlerParameter(node.object)) {
+          return
+        }
         context.report({ node, message: MEMBER_MESSAGE })
       },
       VariableDeclarator(node) {
-        if (node.id.type !== 'ObjectPattern') return
-        if (!isFailureNamed(node.init)) return
-        if (isTagHandlerParameter(node.init)) return
+        if (node.id.type !== 'ObjectPattern') {
+          return
+        }
+        if (!isFailureNamed(node.init)) {
+          return
+        }
+        if (isTagHandlerParameter(node.init)) {
+          return
+        }
         for (const property of node.id.properties) {
-          if (property.type !== 'Property') continue
-          if (getPropertyName(property.key) !== 'message') continue
+          if (property.type !== 'Property') {
+            continue
+          }
+          if (getPropertyName(property.key) !== 'message') {
+            continue
+          }
           context.report({ node: property, message: DESTRUCTURE_MESSAGE })
         }
       }

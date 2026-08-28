@@ -34,7 +34,9 @@ export function bearerToken(
   request: HttpServerRequest.HttpServerRequest
 ): string | null {
   const header = request.headers.authorization
-  if (!header?.startsWith('Bearer ')) return null
+  if (!header?.startsWith('Bearer ')) {
+    return null
+  }
   return header.slice('Bearer '.length).trim()
 }
 
@@ -68,7 +70,7 @@ export function authenticate(
     readonly id: string
     readonly workspaceId: string
     readonly workspaceSlug: string
-    readonly scopes: readonly ApiTokenScope[]
+    readonly scopes: ReadonlyArray<ApiTokenScope>
   },
   Unauthorized | CapabilityUnavailable,
   ApiTokenRegistry | Scope.Scope

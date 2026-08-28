@@ -4,7 +4,7 @@ import { GithubIcon } from '@/components/icons/github'
 import { ArchitectureSchematic } from '@/components/landing/architecture-schematic'
 import { GITHUB_URL } from '@/components/landing/github-url'
 
-const BILL_OF_MATERIALS: readonly string[] = [
+const BILL_OF_MATERIALS: ReadonlyArray<string> = [
   'TanStack Start',
   'Effect v4',
   'Drizzle D1',

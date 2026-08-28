@@ -8,8 +8,12 @@
  * shallow — Better Auth owns the real check.
  */
 export function emailValidator({ value }: { value: string }): string | undefined {
-  if (value.length === 0) return 'Email is required'
-  if (!value.includes('@')) return 'Enter a valid email'
+  if (value.length === 0) {
+    return 'Email is required'
+  }
+  if (!value.includes('@')) {
+    return 'Enter a valid email'
+  }
   return
 }
 

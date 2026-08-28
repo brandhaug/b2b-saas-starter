@@ -59,7 +59,9 @@ const SELECT_CLASSES = 'h-9 rounded-md border border-input bg-transparent px-3 t
 function compact(search: WorkspaceAuditSearchUpdate): WorkspaceAuditSearchUpdate {
   const next: Record<string, string> = {}
   for (const [key, value] of Object.entries(search)) {
-    if (value !== '') next[key] = value
+    if (value !== '') {
+      next[key] = value
+    }
   }
   return next
 }
@@ -80,7 +82,9 @@ export function WorkspaceAuditPage({
     applySearch(compact({ ...filters, ...patch }))
   }
   function nextPage() {
-    if (nextCursor === null) return
+    if (nextCursor === null) {
+      return
+    }
     applySearch(compact({ ...filters, cursor: nextCursor }))
   }
 

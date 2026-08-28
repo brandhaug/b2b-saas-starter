@@ -65,7 +65,7 @@ export function WorkspaceBillingPage({
 }: {
   readonly workspaceSlug: string
   readonly currentPlanId: string
-  readonly plans: readonly BillingPlan[]
+  readonly plans: ReadonlyArray<BillingPlan>
   readonly stripeConfigured: boolean
   /** Whether the viewer may change the plan (`organization:update`). */
   readonly canManageBilling: boolean

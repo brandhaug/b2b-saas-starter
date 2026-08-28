@@ -27,7 +27,7 @@ type OptionalEmailBinding = { EMAIL?: Cloudflare.Email.SendEmail }
 // Rate limits are Worker-only bindings with no backing cloud resource, so
 // they are declared inline on the Worker's `env` rather than provisioned as
 // their own resources. The `env` key is the binding name the Worker reads.
-function rateLimitBindings(specs: readonly RateLimitBindingSpec[]) {
+function rateLimitBindings(specs: ReadonlyArray<RateLimitBindingSpec>) {
   return Object.fromEntries(
     specs.map((spec) => [
       spec.name,
@@ -58,19 +58,23 @@ function requiredEnv(name: string): string {
 
 function optionalSecret(name: string): Redacted.Redacted<string> | undefined {
   const value = readEnv(name)
-  if (!value) return
+  if (!value) {
+    return
+  }
   return Redacted.make(value)
 }
 
 // Set secrets only. An unset optional secret contributes no binding at all,
 // so the module reports needs-config instead of failing the deploy.
 function presentSecretEntries(
-  names: readonly string[]
-): [string, Redacted.Redacted<string>][] {
-  const entries: [string, Redacted.Redacted<string>][] = []
+  names: ReadonlyArray<string>
+): Array<[string, Redacted.Redacted<string>]> {
+  const entries: Array<[string, Redacted.Redacted<string>]> = []
   for (const name of names) {
     const secret = optionalSecret(name)
-    if (secret) entries.push([name, secret])
+    if (secret) {
+      entries.push([name, secret])
+    }
   }
   return entries
 }
@@ -140,7 +144,9 @@ export const Stack = Alchemy.Stack(
     // Built as its own object so every worker below spreads the same optional
     // binding set: the EMAIL key exists only when the resource does.
     const emailBinding: OptionalEmailBinding = {}
-    if (transactionalEmail) emailBinding.EMAIL = transactionalEmail
+    if (transactionalEmail) {
+      emailBinding.EMAIL = transactionalEmail
+    }
 
     const api = yield* Cloudflare.Worker('api', {
       name: 'b2b-saas-starter-api',

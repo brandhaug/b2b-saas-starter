@@ -25,7 +25,9 @@ export function useHeadingObserver({
 
   useEffect(() => {
     const container = containerRef.current
-    if (!container) return
+    if (!container) {
+      return
+    }
 
     const visible = visibleIds.current
     let intersectionObserver: IntersectionObserver | null = null
@@ -44,7 +46,9 @@ export function useHeadingObserver({
       setHeadings(extracted)
       setActiveIds(new Set())
 
-      if (extracted.length === 0) return
+      if (extracted.length === 0) {
+        return
+      }
 
       intersectionObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) {

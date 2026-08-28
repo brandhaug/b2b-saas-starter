@@ -81,7 +81,7 @@ export type AcceptedInvitation = typeof AcceptedInvitation.Type
 export type WorkspaceInvitationsInterface = {
   /** Every invitation of the current workspace, newest first. */
   readonly list: Effect.Effect<
-    readonly Invitation[],
+    ReadonlyArray<Invitation>,
     CapabilityUnavailable,
     WorkspaceContext
   >
@@ -210,13 +210,15 @@ function requireUnexpired(
 
 /** Moves a stored fixture invitation to a terminal status. */
 function settle(
-  store: Ref.Ref<readonly Invitation[]>,
+  store: Ref.Ref<ReadonlyArray<Invitation>>,
   invitationId: string,
   status: InvitationStatus
 ): Effect.Effect<void> {
   return Ref.update(store, (rows) =>
     rows.map((row) => {
-      if (row.id !== invitationId) return row
+      if (row.id !== invitationId) {
+        return row
+      }
       return { ...row, status }
     })
   )
@@ -227,7 +229,7 @@ function settle(
  * act on, so the shared contract holds on both sides.
  */
 function requirePending(
-  store: Ref.Ref<readonly Invitation[]>,
+  store: Ref.Ref<ReadonlyArray<Invitation>>,
   invitationId: string
 ): Effect.Effect<Invitation, MembershipChangeRejected> {
   return Ref.get(store).pipe(
@@ -256,11 +258,11 @@ export function SeedWorkspaceInvitations(options: {
   readonly roster: SeedRoster
   /** The fixture workspace every seed invitation belongs to. */
   readonly workspace: Workspace
-  readonly seed?: readonly Invitation[]
+  readonly seed?: ReadonlyArray<Invitation>
 }): Layer.Layer<WorkspaceInvitations> {
   return Layer.effect(WorkspaceInvitations)(
     Effect.gen(function* () {
-      const store = yield* Ref.make<readonly Invitation[]>(options.seed ?? [])
+      const store = yield* Ref.make<ReadonlyArray<Invitation>>(options.seed ?? [])
 
       return {
         list: Ref.get(store),
@@ -268,7 +270,9 @@ export function SeedWorkspaceInvitations(options: {
           Ref.get(store).pipe(
             Effect.map((rows) => {
               const found = rows.find((row) => row.id === invitationId)
-              if (!found) return Option.none()
+              if (!found) {
+                return Option.none()
+              }
               return Option.some({
                 ...found,
                 workspaceSlug: options.workspace.slug,

@@ -46,12 +46,12 @@ export type LoadWorkspaceAuditEventsInput = {
  */
 export type WorkspaceAuditPayload = {
   readonly viewer: WorkspaceViewer | null
-  readonly events: readonly AuditEvent[]
+  readonly events: ReadonlyArray<AuditEvent>
   /** Opaque keyset cursor for the next older page, or null on the last one. */
   readonly nextCursor: string | null
   /** The filters this page was loaded with, echoed back for the controls. */
   readonly filters: WorkspaceAuditFilters
-  readonly members: readonly { readonly id: string; readonly name: string }[]
+  readonly members: ReadonlyArray<{ readonly id: string; readonly name: string }>
 }
 
 /** The capability-level filter input, widened to mutable bounds so the
@@ -78,7 +78,9 @@ export function loadWorkspaceAuditEvents(
   if (input.filters.until !== undefined) {
     listInput.until = `${input.filters.until}T23:59:59.999Z`
   }
-  if (input.cursor !== undefined) listInput.cursor = input.cursor
+  if (input.cursor !== undefined) {
+    listInput.cursor = input.cursor
+  }
   return runWorkspaceCapabilities(
     input.workspaceSlug,
     Effect.gen(function* () {

@@ -14,7 +14,9 @@ export async function callServerFn<A>(
   const exit = await Effect.runPromiseExit(
     Effect.tryPromise({ try: run, catch: (cause) => describe(cause) })
   )
-  if (Exit.isSuccess(exit)) return { ok: true, value: exit.value }
+  if (Exit.isSuccess(exit)) {
+    return { ok: true, value: exit.value }
+  }
   return {
     ok: false,
     message: Option.getOrElse(Cause.findErrorOption(exit.cause), () => fallback)

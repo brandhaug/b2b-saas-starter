@@ -27,7 +27,9 @@ function randomSecret(): string {
 
 /** An endpoint with no delivery attempts yet reports a full success rate. */
 function deliverySuccessRate(total: number, delivered: number): number {
-  if (total === 0) return 100
+  if (total === 0) {
+    return 100
+  }
   return Math.round((delivered / total) * 100)
 }
 
@@ -292,7 +294,9 @@ export const LiveWebhookEndpoints: Layer.Layer<
                 .where(scopedEndpointWhere(input.endpointId, ctx.workspace.id))
             }
           })
-          if (!applied) return Option.none()
+          if (!applied) {
+            return Option.none()
+          }
           return Option.some({ signingSecret })
         }),
       getDispatchTarget: (endpointId, workspaceId) =>
@@ -305,7 +309,9 @@ export const LiveWebhookEndpoints: Layer.Layer<
         ).pipe(
           Effect.map((rows) => {
             const endpoint = rows[0]
-            if (!endpoint || !endpoint.enabled) return null
+            if (!endpoint || !endpoint.enabled) {
+              return null
+            }
             return {
               id: endpoint.id,
               url: endpoint.url,
@@ -329,7 +335,7 @@ export function toEndpointProjection(endpoint: {
   readonly id: string
   readonly url: string
   readonly enabled: boolean
-  readonly events: readonly string[]
+  readonly events: ReadonlyArray<string>
 }): WebhookEndpoint {
   return {
     id: endpoint.id,

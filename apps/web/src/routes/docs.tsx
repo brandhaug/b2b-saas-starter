@@ -8,7 +8,7 @@ export const Route = createFileRoute('/docs')({
 
 function DocsLayout() {
   const matches = useMatches()
-  const currentPath = matches[matches.length - 1]?.fullPath ?? ''
+  const currentPath = matches.at(-1)?.fullPath ?? ''
 
   return (
     <PublicLayout>
@@ -17,7 +17,9 @@ function DocsLayout() {
           <nav aria-label="Documentation" className="sticky top-20 flex flex-col gap-5">
             {DOC_CATEGORY_ORDER.map((slug) => {
               const articles = getDocsByCategory(slug)
-              if (articles.length === 0) return null
+              if (articles.length === 0) {
+                return null
+              }
               return (
                 <div key={slug}>
                   {/* Group label, not a heading: the page's first heading is the

@@ -42,7 +42,7 @@ export type SessionRecord = {
  * of replacing `@/lib/auth-client`.
  */
 export type ListSessions = () => Promise<{
-  readonly data?: readonly SessionRecord[] | null
+  readonly data?: ReadonlyArray<SessionRecord> | null
   readonly error?: { readonly message?: string | undefined } | null
 }>
 
@@ -68,17 +68,25 @@ function revokeOtherSessionsWithAuthClient() {
 }
 
 function describeUserAgent(userAgent: string | null | undefined): string {
-  if (!userAgent) return 'Unknown device'
+  if (!userAgent) {
+    return 'Unknown device'
+  }
   if (userAgent.includes('iPhone') || userAgent.includes('Android')) {
     return 'Mobile browser'
   }
-  if (userAgent.includes('Macintosh')) return 'Mac'
-  if (userAgent.includes('Windows')) return 'Windows'
-  if (userAgent.includes('Linux')) return 'Linux'
+  if (userAgent.includes('Macintosh')) {
+    return 'Mac'
+  }
+  if (userAgent.includes('Windows')) {
+    return 'Windows'
+  }
+  if (userAgent.includes('Linux')) {
+    return 'Linux'
+  }
   return 'Browser'
 }
 
-function toViewModels(sessions: readonly SessionRecord[]): SessionRowView[] {
+function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowView> {
   // Formatting happens here — inside the caller's post-mount effect or action,
   // never during render — so SSR and the browser cannot disagree on the date.
   return sessions
@@ -107,7 +115,7 @@ function toViewModels(sessions: readonly SessionRecord[]): SessionRowView[] {
  * hydration. `enabled` waits for hydration — the Better Auth client endpoint
  * is browser-only (relative fetch), so the server render must not fetch.
  */
-const SESSIONS_QUERY_KEY: readonly unknown[] = ['account', 'sessions']
+const SESSIONS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'sessions']
 
 export function SessionsPanel({
   currentSessionToken,
@@ -128,7 +136,7 @@ export function SessionsPanel({
     refetch
   } = useQuery({
     queryKey: SESSIONS_QUERY_KEY,
-    queryFn: async (): Promise<readonly SessionRowView[]> => {
+    queryFn: async (): Promise<ReadonlyArray<SessionRowView>> => {
       const result = await listSessions()
       if (result.error) {
         // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- TanStack Query surfaces failure states by rejecting the query function; there is no Effect channel here

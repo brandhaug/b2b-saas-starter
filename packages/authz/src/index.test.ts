@@ -43,7 +43,7 @@ const PERMISSIONS = [
   { label: 'notification:read', request: { notification: ['read'] } },
   { label: 'assistant:read', request: { assistant: ['read'] } },
   { label: 'mcp:read', request: { mcp: ['read'] } }
-] satisfies readonly Permission[]
+] satisfies ReadonlyArray<Permission>
 
 const EVERY_LABEL = PERMISSIONS.map((permission) => permission.label)
 
@@ -58,11 +58,11 @@ const READ_ONLY = [
   'mcp:read'
 ]
 
-const GRANTS: readonly {
+const GRANTS: ReadonlyArray<{
   readonly name: string
   readonly principal: Principal
-  readonly granted: readonly string[]
-}[] = [
+  readonly granted: ReadonlyArray<string>
+}> = [
   { name: 'owner role', principal: memberPrincipal('owner'), granted: EVERY_LABEL },
   {
     name: 'admin role',

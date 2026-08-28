@@ -58,9 +58,11 @@ export const createWebhookEndpointServerFn = createServerFn({ method: 'POST' })
 export type WorkspaceWebhooksPayload = {
   readonly viewer: { readonly role: WorkspaceRole } | null
   readonly unreadCount: number
-  readonly endpoints: readonly (WebhookEndpoint & {
-    readonly deliveries: readonly WebhookDelivery[]
-  })[]
+  readonly endpoints: ReadonlyArray<
+    WebhookEndpoint & {
+      readonly deliveries: ReadonlyArray<WebhookDelivery>
+    }
+  >
 }
 
 /**

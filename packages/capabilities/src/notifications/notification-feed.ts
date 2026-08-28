@@ -25,7 +25,7 @@ export type SeedNotification = Notification & {
 
 export type NotificationFeedInterface = {
   readonly list: Effect.Effect<
-    readonly Notification[],
+    ReadonlyArray<Notification>,
     CapabilityUnavailable,
     WorkspaceContext
   >
@@ -46,7 +46,7 @@ function visibleToActor(
 }
 
 export function SeedNotificationFeed(
-  seed: readonly SeedNotification[]
+  seed: ReadonlyArray<SeedNotification>
 ): Layer.Layer<NotificationFeed> {
   return Layer.succeed(NotificationFeed)({
     list: Effect.gen(function* () {
@@ -54,7 +54,9 @@ export function SeedNotificationFeed(
       const visible: Array<Omit<SeedNotification, 'userId'>> = []
       for (const entry of seed) {
         const { userId, ...notification } = entry
-        if (visibleToActor(userId, ctx.actor)) visible.push(notification)
+        if (visibleToActor(userId, ctx.actor)) {
+          visible.push(notification)
+        }
       }
       return visible
     }),

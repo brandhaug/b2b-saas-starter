@@ -53,9 +53,15 @@ export type DeliveryDecision = 'delivered' | 'retry' | 'terminal'
  * failures except 408 (request timeout) and 429 (rate limited).
  */
 export function classifyResponseStatus(status: number): DeliveryDecision {
-  if (status >= 200 && status < 300) return 'delivered'
-  if (status === 408 || status === 429) return 'retry'
-  if (status >= 400 && status < 500) return 'terminal'
+  if (status >= 200 && status < 300) {
+    return 'delivered'
+  }
+  if (status === 408 || status === 429) {
+    return 'retry'
+  }
+  if (status >= 400 && status < 500) {
+    return 'terminal'
+  }
   return 'retry'
 }
 
@@ -63,14 +69,20 @@ export function classifyResponseStatus(status: number): DeliveryDecision {
 function deliveryStatus(
   decision: DeliveryDecision
 ): 'delivered' | 'failed_permanent' | 'failed' {
-  if (decision === 'delivered') return 'delivered'
-  if (decision === 'terminal') return 'failed_permanent'
+  if (decision === 'delivered') {
+    return 'delivered'
+  }
+  if (decision === 'terminal') {
+    return 'failed_permanent'
+  }
   return 'failed'
 }
 
 /** `0` stands for "no HTTP response at all", which is persisted as null. */
 function recordedResponseStatus(status: number): number | null {
-  if (status === 0) return null
+  if (status === 0) {
+    return null
+  }
   return status
 }
 

@@ -75,6 +75,8 @@ export function buildWebHandler(env: ApiEnv): {
 
 let cached: ((request: Request) => Promise<Response>) | undefined
 export function getWebHandler(env: ApiEnv): (request: Request) => Promise<Response> {
-  if (!cached) cached = buildWebHandler(env).handler
+  if (!cached) {
+    cached = buildWebHandler(env).handler
+  }
   return cached
 }

@@ -4,7 +4,7 @@ export function MdxMermaid({ chart }: { readonly chart: string }) {
   const id = useId().replaceAll(':', '_')
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const processedChart = chart.replaceAll('\\n', '<br/>')
+  const processedChart = chart.replaceAll(String.raw`\n`, '<br/>')
 
   useEffect(() => {
     const cancelled = { current: false }

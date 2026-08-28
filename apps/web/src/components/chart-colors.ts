@@ -1,7 +1,7 @@
 /** Non-empty by construction, so `CHART_COLORS[0]` is always a usable fallback.
  *  Catppuccin accent hues (blue, green, mauve, peach, red, teal, yellow, pink,
  *  sky, flamingo) so charts harmonize with the semantic token palette. */
-export const CHART_COLORS: readonly [string, ...string[]] = [
+export const CHART_COLORS: readonly [string, ...Array<string>] = [
   '#89b4fa',
   '#a6e3a1',
   '#cba6f7',

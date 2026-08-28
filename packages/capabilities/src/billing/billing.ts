@@ -46,7 +46,7 @@ export const STARTER_PLAN: Plan = {
   limits: { apiTokens: 2, webhookEndpoints: 1 }
 }
 
-export const PLANS: readonly Plan[] = [
+export const PLANS: ReadonlyArray<Plan> = [
   STARTER_PLAN,
   {
     id: 'team',
@@ -72,7 +72,9 @@ export function planById(planId: string): Plan {
 /** The audit metadata for a plan change: the plan plus any provider detail. */
 function planChangeMetadata(planId: string, detail?: JsonObject): JsonObject {
   const metadata: JsonObject = { planId }
-  if (detail === undefined) return metadata
+  if (detail === undefined) {
+    return metadata
+  }
   return { ...metadata, ...detail }
 }
 
@@ -80,7 +82,9 @@ function planChangeMetadata(planId: string, detail?: JsonObject): JsonObject {
 export type EntitlementResource = 'api_token' | 'webhook_endpoint'
 
 function limitFor(plan: Plan, resource: EntitlementResource): number | null {
-  if (resource === 'api_token') return plan.limits.apiTokens
+  if (resource === 'api_token') {
+    return plan.limits.apiTokens
+  }
   return plan.limits.webhookEndpoints
 }
 
@@ -229,7 +233,9 @@ export function SeedBilling(options?: {
         applyProviderEvent: (input) =>
           Effect.gen(function* () {
             const known = PLANS.some((plan) => plan.id === input.planId)
-            if (!known) return false
+            if (!known) {
+              return false
+            }
             yield* Ref.update(planOverrides, (map) => {
               const next = new Map(map)
               next.set(input.workspaceId, input.planId)
@@ -393,7 +399,9 @@ export const createStripeCheckoutSession = Effect.fnUntraced(function* (input: {
  * enterprise is sold, not self-served.
  */
 export function stripePriceEnvName(planId: string): string | null {
-  if (planId === 'team') return 'STRIPE_PRICE_ID_TEAM'
+  if (planId === 'team') {
+    return 'STRIPE_PRICE_ID_TEAM'
+  }
   return null
 }
 
@@ -492,7 +500,9 @@ export function LiveBilling(
           }),
         applyProviderEvent: (input) =>
           Effect.gen(function* () {
-            if (!PLANS.some((plan) => plan.id === input.planId)) return false
+            if (!PLANS.some((plan) => plan.id === input.planId)) {
+              return false
+            }
             // Resolve first, then write: an unknown workspace id yields `false`
             // without writing a system audit event for a row that does not
             // exist. The two statements below are not atomic with the read,
@@ -506,7 +516,9 @@ export function LiveBilling(
                 .where(eq(workspaces.id, input.workspaceId))
                 .limit(1)
             )
-            if (existing.length === 0) return false
+            if (existing.length === 0) {
+              return false
+            }
             const auditRecorded = yield* audit.prepareRecord({
               // A system event: the actor is the provider webhook, not a user.
               workspaceId: input.workspaceId,
@@ -549,22 +561,34 @@ export async function verifyStripeSignature(input: {
   readonly header: string | null
   readonly toleranceSeconds?: number | undefined
 }): Promise<boolean> {
-  if (input.header === null) return false
+  if (input.header === null) {
+    return false
+  }
   const parts = new Map<string, string>()
   for (const pair of input.header.split(',')) {
     const [key, value] = pair.split('=', 2)
-    if (key !== undefined && value !== undefined) parts.set(key.trim(), value.trim())
+    if (key !== undefined && value !== undefined) {
+      parts.set(key.trim(), value.trim())
+    }
   }
   const timestamp = parts.get('t')
   const signature = parts.get('v1')
-  if (timestamp === undefined || signature === undefined) return false
+  if (timestamp === undefined || signature === undefined) {
+    return false
+  }
   // oxlint-disable-next-line effect/noGlobals -- replay tolerance is a wall-clock comparison by definition; Clock would tie a pure verification helper to an Effect runtime
   const age = Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp))
-  if (!Number.isFinite(age)) return false
-  if (age > (input.toleranceSeconds ?? 300)) return false
+  if (!Number.isFinite(age)) {
+    return false
+  }
+  if (age > (input.toleranceSeconds ?? 300)) {
+    return false
+  }
   // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
   const expected = await hmacSha256Hex(input.secret, `${timestamp}.${input.payload}`)
-  if (expected.length !== signature.length) return false
+  if (expected.length !== signature.length) {
+    return false
+  }
   let diff = 0
   for (let i = 0; i < expected.length; i++) {
     diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i)

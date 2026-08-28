@@ -50,7 +50,7 @@ const OWNER = actor('owner')
 const ADMIN = actor('admin')
 const MEMBER = actor('member')
 
-const seedEndpoints: readonly WebhookEndpoint[] = [
+const seedEndpoints: ReadonlyArray<WebhookEndpoint> = [
   {
     id: 'wh_1',
     url: 'https://example.com/hooks/starter',

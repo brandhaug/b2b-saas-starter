@@ -20,6 +20,8 @@ import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/
 export type Viewer = WorkspaceViewer | null
 
 export function viewerCan(viewer: Viewer, permission: PermissionRequest): boolean {
-  if (!viewer) return false
+  if (!viewer) {
+    return false
+  }
   return authorize(memberPrincipal(viewer.role), permission).success
 }

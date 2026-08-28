@@ -19,10 +19,16 @@ const decodeTaggedError = Schema.decodeUnknownOption(TaggedError)
  * `workspace-invitations.contract.ts`, which assert the same way.
  */
 export function failureTag(outcome: Exit.Exit<unknown, unknown>): string | undefined {
-  if (Exit.isSuccess(outcome)) return undefined
+  if (Exit.isSuccess(outcome)) {
+    return undefined
+  }
   const error = Cause.findErrorOption(outcome.cause)
-  if (Option.isNone(error)) return undefined
+  if (Option.isNone(error)) {
+    return undefined
+  }
   const tagged = decodeTaggedError(error.value)
-  if (Option.isNone(tagged)) return undefined
+  if (Option.isNone(tagged)) {
+    return undefined
+  }
   return tagged.value._tag
 }

@@ -41,7 +41,7 @@ export type ContractExpect = <A>(
  */
 export function auditEventContractDataset(
   workspaceId: string
-): readonly SeedAuditEventRow[] {
+): ReadonlyArray<SeedAuditEventRow> {
   return [
     {
       id: 'aud_c_old',
@@ -86,7 +86,7 @@ export function auditEventLogContractCases(
     AuditEventLog | WorkspaceContext
   >,
   expect: ContractExpect
-): readonly AuditEventLogContractCase[] {
+): ReadonlyArray<AuditEventLogContractCase> {
   return [
     {
       name: 'lists events most-recent-first with ties broken by id',

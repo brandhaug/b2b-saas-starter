@@ -54,8 +54,12 @@ export function whenPermitted<A, E, R>(
 ): Effect.Effect<A | null, E, R | WorkspaceContext> {
   return Effect.gen(function* () {
     const ctx = yield* WorkspaceContext
-    if (!ctx.actor) return null
-    if (!authorize(memberPrincipal(ctx.actor.role), permission).success) return null
+    if (!ctx.actor) {
+      return null
+    }
+    if (!authorize(memberPrincipal(ctx.actor.role), permission).success) {
+      return null
+    }
     return yield* effect
   })
 }

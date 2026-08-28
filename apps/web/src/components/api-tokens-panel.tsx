@@ -36,7 +36,9 @@ export type RevokeApiToken = (input: {
 
 // An explicit locale and timezone keeps SSR and the browser in agreement.
 function formatDate(iso: string | null): string {
-  if (iso === null) return 'never'
+  if (iso === null) {
+    return 'never'
+  }
   return new Date(iso).toLocaleString('en-US', { timeZone: 'UTC' })
 }
 
@@ -54,7 +56,7 @@ export function ApiTokensPanel({
   createToken
 }: {
   readonly workspaceSlug: string
-  readonly tokens: readonly ApiToken[]
+  readonly tokens: ReadonlyArray<ApiToken>
   readonly viewer: Viewer
   readonly revokeToken?: RevokeApiToken
   readonly createToken?: CreateApiToken

@@ -39,12 +39,12 @@ export type VerifiedApiToken = {
   readonly id: string
   readonly workspaceId: string
   readonly workspaceSlug: string
-  readonly scopes: readonly ApiTokenScope[]
+  readonly scopes: ReadonlyArray<ApiTokenScope>
 }
 
 export type CreateApiTokenInput = {
   readonly name: string
-  readonly scopes: readonly ApiTokenScope[]
+  readonly scopes: ReadonlyArray<ApiTokenScope>
   readonly actorUserId?: string
 }
 
@@ -74,7 +74,7 @@ export type RevokeApiTokenInput = {
 
 export type ApiTokenRegistryInterface = {
   readonly list: Effect.Effect<
-    readonly ApiToken[],
+    ReadonlyArray<ApiToken>,
     CapabilityUnavailable,
     WorkspaceContext
   >
@@ -132,9 +132,13 @@ export const LAST_USED_WRITE_INTERVAL_MS = 60_000
 
 /** Pure throttle decision for the `lastUsedAt` bump — exported for tests. */
 export function shouldBumpLastUsedAt(lastUsedAt: string | null, now: number): boolean {
-  if (!lastUsedAt) return true
+  if (!lastUsedAt) {
+    return true
+  }
   const parsed = Date.parse(lastUsedAt)
-  if (Number.isNaN(parsed)) return true
+  if (Number.isNaN(parsed)) {
+    return true
+  }
   return now - parsed >= LAST_USED_WRITE_INTERVAL_MS
 }
 
@@ -144,7 +148,7 @@ export function shouldBumpLastUsedAt(lastUsedAt: string | null, now: number): bo
  * is the expected case, and `Map#get` reports it as `undefined` without an
  * index signature claiming every string is a fixture token.
  */
-const SEED_TOKEN_SCOPES = new Map<string, readonly ApiTokenScope[]>([
+const SEED_TOKEN_SCOPES = new Map<string, ReadonlyArray<ApiTokenScope>>([
   [SEED_API_TOKEN, API_TOKEN_SCOPES],
   [SEED_READONLY_API_TOKEN, ['read']]
 ])
@@ -164,7 +168,7 @@ type SeedTokenEntry = {
 }
 
 export function SeedApiTokenRegistry(
-  seed: readonly ApiToken[]
+  seed: ReadonlyArray<ApiToken>
 ): Layer.Layer<ApiTokenRegistry, never, AuditEventLog | WebhookPublisher> {
   return Layer.effect(ApiTokenRegistry)(
     Effect.gen(function* () {
@@ -174,7 +178,7 @@ export function SeedApiTokenRegistry(
       // list back, revoked ones disappear from `list` and cannot be revoked
       // twice, audit events land in the shared fixture log, and the plan gate
       // can actually trip instead of being unreachable.
-      const entries: SeedTokenEntry[] = seed.map((token) => ({
+      const entries: Array<SeedTokenEntry> = seed.map((token) => ({
         token,
         workspaceId: SEED_WORKSPACE_ID,
         revokedAt: null
@@ -192,8 +196,12 @@ export function SeedApiTokenRegistry(
           return activeIn(ctx.workspace.id)
             .map((entry) => entry.token)
             .toSorted((a, b) => {
-              if (a.createdAt > b.createdAt) return -1
-              if (a.createdAt < b.createdAt) return 1
+              if (a.createdAt > b.createdAt) {
+                return -1
+              }
+              if (a.createdAt < b.createdAt) {
+                return 1
+              }
               return 0
             })
         }),
@@ -245,7 +253,9 @@ export function SeedApiTokenRegistry(
             )
             // No active token in this workspace to revoke — skip both the write
             // and the audit event instead of recording a phantom revocation.
-            if (!entry) return false
+            if (!entry) {
+              return false
+            }
             entry.revokedAt = DateTime.formatIso(yield* DateTime.now)
             yield* audit.record({
               workspaceId: ctx.workspace.id,
@@ -307,7 +317,9 @@ function activeTokenWhere(tokenId: string | undefined, workspaceId: string) {
     eq(apiTokens.workspaceId, workspaceId),
     isNull(apiTokens.revokedAt)
   ]
-  if (tokenId !== undefined) conditions.push(eq(apiTokens.id, tokenId))
+  if (tokenId !== undefined) {
+    conditions.push(eq(apiTokens.id, tokenId))
+  }
   return and(...conditions)
 }
 
@@ -436,7 +448,9 @@ export const LiveApiTokenRegistry: Layer.Layer<
                 .set({ revokedAt: DateTime.formatIso(revokedAt) })
                 .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
           })
-          if (!applied) return false
+          if (!applied) {
+            return false
+          }
           yield* publishWebhookEventWith(publisher, {
             eventType: 'api_token.revoked',
             payload: { tokenId: input.tokenId }

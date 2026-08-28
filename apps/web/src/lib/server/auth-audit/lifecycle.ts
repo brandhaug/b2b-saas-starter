@@ -213,7 +213,9 @@ export function authAuditInput(exchange: {
   readonly locationHeader?: string | null
 }): RecordAuditEventInput | null {
   const row = lifecycleExchangeRow(exchange)
-  if (row === null) return null
+  if (row === null) {
+    return null
+  }
 
   const success =
     (exchange.status >= 200 && exchange.status < 300) ||
@@ -250,7 +252,9 @@ export function authAuditInput(exchange: {
 /** Whether a redirect Location is Better Auth's failure shape (`?error=`). */
 function locationCarriesError(location: string | null): boolean {
   // An unparseable or absent Location is not a success this audit vouches for.
-  if (location === null) return true
+  if (location === null) {
+    return true
+  }
   return URL.parse(location)?.searchParams.has('error') ?? true
 }
 
@@ -285,7 +289,9 @@ export function recordAuthAudit(
     }
 
     const row = lifecycleExchangeRow({ method, pathname })
-    if (row === null) return 'skipped'
+    if (row === null) {
+      return 'skipped'
+    }
 
     let userId: string | null = null
     if (row.actorFromSession === true) {
@@ -306,7 +312,9 @@ export function recordAuthAudit(
       userId,
       locationHeader: response.headers.get('location')
     })
-    if (!input) return 'skipped'
+    if (!input) {
+      return 'skipped'
+    }
 
     return yield* writeAndReport(input, run)
   })

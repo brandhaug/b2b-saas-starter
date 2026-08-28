@@ -28,8 +28,12 @@ function suggestSlug(name: string): string {
 }
 
 function validateName(value: string): string | undefined {
-  if (value.trim().length === 0) return 'Workspace name is required'
-  if (value.length > 80) return 'Workspace name must be under 80 characters'
+  if (value.trim().length === 0) {
+    return 'Workspace name is required'
+  }
+  if (value.length > 80) {
+    return 'Workspace name must be under 80 characters'
+  }
   return
 }
 
@@ -105,7 +109,9 @@ export function CreateWorkspaceForm({
             onBlur={field.handleBlur}
             onChange={(next) => {
               field.handleChange(next)
-              if (!slugEdited.current) form.setFieldValue('slug', suggestSlug(next))
+              if (!slugEdited.current) {
+                form.setFieldValue('slug', suggestSlug(next))
+              }
             }}
             placeholder="Acme Corp"
           />

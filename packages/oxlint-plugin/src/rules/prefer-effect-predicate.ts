@@ -20,8 +20,12 @@ const MESSAGE =
 const COMPARISON_OPERATORS = new Set(['!==', '!=', '===', '=='])
 
 function isNullishLiteral(node: ESTree.Node | undefined): boolean {
-  if (node === undefined) return false
-  if (node.type === 'Literal' && node.value === null) return true
+  if (node === undefined) {
+    return false
+  }
+  if (node.type === 'Literal' && node.value === null) {
+    return true
+  }
   return isIdentifier(node, 'undefined')
 }
 
@@ -30,21 +34,31 @@ function isNullishComparison(
   parameterName: string
 ): boolean {
   const expression = unwrapExpression(node)
-  if (expression?.type !== 'BinaryExpression') return false
-  if (!COMPARISON_OPERATORS.has(expression.operator)) return false
+  if (expression?.type !== 'BinaryExpression') {
+    return false
+  }
+  if (!COMPARISON_OPERATORS.has(expression.operator)) {
+    return false
+  }
 
   const left = unwrapExpression(expression.left)
   const right = unwrapExpression(expression.right)
-  if (isIdentifier(left, parameterName) && isNullishLiteral(right)) return true
+  if (isIdentifier(left, parameterName) && isNullishLiteral(right)) {
+    return true
+  }
   return isIdentifier(right, parameterName) && isNullishLiteral(left)
 }
 
 function singleParameterName(
-  params: readonly ESTree.ParamPattern[]
+  params: ReadonlyArray<ESTree.ParamPattern>
 ): string | undefined {
-  if (params.length !== 1) return undefined
+  if (params.length !== 1) {
+    return undefined
+  }
   const [parameter] = params
-  if (parameter?.type !== 'Identifier') return undefined
+  if (parameter?.type !== 'Identifier') {
+    return undefined
+  }
   return parameter.name
 }
 
@@ -57,25 +71,39 @@ function predicateResult(
   body: ESTree.Node | null | undefined
 ): ESTree.Node | undefined {
   const expression = unwrapExpression(body)
-  if (expression === undefined) return undefined
-  if (expression.type !== 'BlockStatement') return expression
-  if (expression.body.length !== 1) return undefined
+  if (expression === undefined) {
+    return undefined
+  }
+  if (expression.type !== 'BlockStatement') {
+    return expression
+  }
+  if (expression.body.length !== 1) {
+    return undefined
+  }
 
   const [statement] = expression.body
-  if (statement?.type !== 'ReturnStatement') return undefined
-  if (statement.argument === null) return undefined
+  if (statement?.type !== 'ReturnStatement') {
+    return undefined
+  }
+  if (statement.argument === null) {
+    return undefined
+  }
   return statement.argument
 }
 
 function isNullishPredicate(node: ESTree.ArrowFunctionExpression | ESTree.Function) {
   const parameterName = singleParameterName(node.params)
-  if (parameterName === undefined) return false
+  if (parameterName === undefined) {
+    return false
+  }
   return isNullishComparison(predicateResult(node.body), parameterName)
 }
 
 function isFilterCall(node: ESTree.CallExpression): boolean {
   const callee = unwrapExpression(node.callee)
-  if (callee?.type !== 'MemberExpression') return false
+  if (callee?.type !== 'MemberExpression') {
+    return false
+  }
   return getPropertyName(callee.property) === 'filter'
 }
 
@@ -91,36 +119,54 @@ export default defineRule({
 
     return {
       ImportDeclaration(node) {
-        if (node.source.value === 'effect') hasEffectImport = true
+        if (node.source.value === 'effect') {
+          hasEffectImport = true
+        }
       },
       VariableDeclarator(node) {
-        if (!hasEffectImport) return
+        if (!hasEffectImport) {
+          return
+        }
 
         const init = unwrapExpression(node.init)
-        if (init?.type !== 'ArrowFunctionExpression') return
-        if (!isNullishPredicate(init)) return
+        if (init?.type !== 'ArrowFunctionExpression') {
+          return
+        }
+        if (!isNullishPredicate(init)) {
+          return
+        }
 
         context.report({ node: init, message: MESSAGE })
       },
       FunctionDeclaration(node) {
-        if (!hasEffectImport) return
-        if (!isNullishPredicate(node)) return
+        if (!hasEffectImport) {
+          return
+        }
+        if (!isNullishPredicate(node)) {
+          return
+        }
 
         context.report({ node, message: MESSAGE })
       },
       CallExpression(node) {
-        if (!hasEffectImport || !isFilterCall(node)) return
+        if (!hasEffectImport || !isFilterCall(node)) {
+          return
+        }
 
         const [firstArgument] = node.arguments
         const predicate = unwrapExpression(firstArgument)
-        if (predicate === undefined) return
+        if (predicate === undefined) {
+          return
+        }
         if (
           predicate.type !== 'ArrowFunctionExpression' &&
           predicate.type !== 'FunctionExpression'
         ) {
           return
         }
-        if (!isNullishPredicate(predicate)) return
+        if (!isNullishPredicate(predicate)) {
+          return
+        }
 
         context.report({ node: predicate, message: MESSAGE })
       }

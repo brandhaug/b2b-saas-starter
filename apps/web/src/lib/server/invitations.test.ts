@@ -85,7 +85,7 @@ function invitation(overrides: Partial<Invitation> = {}): Invitation {
 }
 
 /** Every message the dispatcher was handed, so a test can read the recipient. */
-type Outbox = { readonly sent: EmailMessage[] }
+type Outbox = { readonly sent: Array<EmailMessage> }
 
 function emailDispatcher(outbox: Outbox, fails = false): Layer.Layer<EmailDispatcher> {
   return Layer.succeed(EmailDispatcher)({
@@ -121,8 +121,8 @@ type TestServices =
 
 type Harness = {
   readonly actor?: Actor | null
-  readonly seed?: readonly Invitation[]
-  readonly members?: readonly Member[]
+  readonly seed?: ReadonlyArray<Invitation>
+  readonly members?: ReadonlyArray<Member>
   readonly emailFails?: boolean
 }
 
@@ -139,7 +139,7 @@ function run<A, E>(
   }) => Effect.Effect<A, E, TestServices>
 ): Promise<{
   readonly result: A
-  readonly roster: readonly Member[]
+  readonly roster: ReadonlyArray<Member>
   readonly outbox: Outbox
 }> {
   const outbox: Outbox = { sent: [] }
@@ -310,11 +310,11 @@ describe('invitationPreview', () => {
   // One opaque answer for every other outcome: an invitation id is a URL
   // parameter, so anything disclosed for a mismatched address tells a
   // link-guesser which workspaces exist.
-  const opaque: readonly {
+  const opaque: ReadonlyArray<{
     readonly name: string
     readonly harness: Harness
     readonly viewerEmail: string
-  }[] = [
+  }> = [
     { name: 'an unknown id', harness: { seed: [] }, viewerEmail: INVITEE },
     {
       name: 'an accepted invitation',
@@ -365,12 +365,12 @@ describe('acceptInvitation', () => {
     expect(roster.map((member) => member.id)).toEqual([ownerMember.id, 'usr_invitee'])
   })
 
-  const refusals: readonly {
+  const refusals: ReadonlyArray<{
     readonly name: string
     readonly harness: Harness
     readonly email: string
     readonly reason: string
-  }[] = [
+  }> = [
     {
       name: 'an address the invitation was not sent to',
       harness: { seed: [invitation()] },

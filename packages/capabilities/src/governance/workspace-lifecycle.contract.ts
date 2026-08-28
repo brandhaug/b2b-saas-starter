@@ -41,7 +41,7 @@ export type ContractExpect = <A>(
 export function workspaceLifecycleContractCases(
   ids: LifecycleContractIds,
   expect: ContractExpect
-): readonly LifecycleContractCase[] {
+): ReadonlyArray<LifecycleContractCase> {
   return [
     {
       name: 'creates a workspace and reads it back by its slug',

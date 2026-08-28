@@ -195,7 +195,9 @@ export function processWebhookMessage(
     // recorded on the wide event only and acked — mirroring how permanent
     // delivery failures ack instead of retrying forever.
     const message = yield* decodeEnvelope(envelope, 'failed_permanent')
-    if (!message) return 'ack' satisfies DeliveryOutcome
+    if (!message) {
+      return 'ack' satisfies DeliveryOutcome
+    }
     const attempts = envelope.attempts
     yield* annotateMessageFields(message)
     const webhooks = yield* WebhookEndpoints
@@ -333,7 +335,9 @@ export function processDeadLetterMessage(
     // Same boundary decode as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.
     const message = yield* decodeEnvelope(envelope, 'dead_lettered')
-    if (!message) return
+    if (!message) {
+      return
+    }
     yield* annotateMessageFields(message)
     const webhooks = yield* WebhookEndpoints
     yield* webhooks.recordTerminalDeliveryAttempt({

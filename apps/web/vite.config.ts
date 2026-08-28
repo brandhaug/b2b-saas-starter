@@ -25,10 +25,14 @@ function remarkMermaid() {
     }
     function visit(node: Record<string, unknown>) {
       const children = childrenOf(node)
-      if (!children) return
+      if (!children) {
+        return
+      }
       for (let i = 0; i < children.length; i++) {
         const child = children[i]
-        if (!child) continue
+        if (!child) {
+          continue
+        }
         if (child.type === 'code' && child.lang === 'mermaid') {
           children[i] = {
             type: 'mdxJsxFlowElement',

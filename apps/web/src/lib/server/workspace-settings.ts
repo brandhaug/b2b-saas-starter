@@ -35,7 +35,7 @@ export type WorkspaceSettingsPayload = {
   readonly unreadCount: number
   readonly apiTokenCount: number | null
   readonly webhookCount: number | null
-  readonly invitations: readonly Invitation[] | null
+  readonly invitations: ReadonlyArray<Invitation> | null
 }
 
 /**

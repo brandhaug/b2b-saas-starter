@@ -25,7 +25,9 @@ function load(overrides?: {
     userId: OWNER,
     filters: overrides?.filters ?? {}
   }
-  if (overrides?.cursor !== undefined) input.cursor = overrides.cursor
+  if (overrides?.cursor !== undefined) {
+    input.cursor = overrides.cursor
+  }
   return loadWorkspaceAuditEvents(input)
 }
 
@@ -74,7 +76,9 @@ describe('loadWorkspaceAuditEvents', () => {
 
   it('walks pages forward with the opaque cursor', async () => {
     const first = await load()
-    if (first.nextCursor === null) return
+    if (first.nextCursor === null) {
+      return
+    }
     const second = await load({ cursor: first.nextCursor })
     const firstIds = new Set(first.events.map((event) => event.id))
     for (const event of second.events) {

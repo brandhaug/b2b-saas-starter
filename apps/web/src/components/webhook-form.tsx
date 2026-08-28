@@ -19,7 +19,7 @@ const CREATE_WEBHOOK_FAILED = 'Failed to create webhook endpoint'
 
 type WebhookValues = {
   url: string
-  events: readonly WebhookEventType[]
+  events: ReadonlyArray<WebhookEventType>
 }
 
 const DEFAULT_VALUES: WebhookValues = {
@@ -28,7 +28,9 @@ const DEFAULT_VALUES: WebhookValues = {
 }
 
 function validateUrl(value: string): string | undefined {
-  if (value.trim().length === 0) return 'Endpoint URL is required'
+  if (value.trim().length === 0) {
+    return 'Endpoint URL is required'
+  }
   return
 }
 
@@ -42,7 +44,7 @@ export type CreateWebhookEndpoint = (input: {
   readonly data: {
     readonly workspaceSlug: string
     readonly url: string
-    readonly events: readonly string[]
+    readonly events: ReadonlyArray<string>
   }
 }) => Promise<CreatedWebhookEndpoint>
 

@@ -37,7 +37,7 @@ export type ListAuditEventsInput = {
 }
 
 export type AuditEventPage = {
-  readonly events: readonly AuditEvent[]
+  readonly events: ReadonlyArray<AuditEvent>
   /** Cursor for the next older page, or null when this page is the last. */
   readonly nextCursor: string | null
 }
@@ -57,9 +57,13 @@ function decodeCursor(
   cursor: string
 ): { readonly createdAt: string; readonly id: string } | null {
   const decoded = Encoding.decodeBase64String(cursor)
-  if (Result.isFailure(decoded)) return null
+  if (Result.isFailure(decoded)) {
+    return null
+  }
   const [createdAt, id] = decoded.success.split(' ')
-  if (!createdAt || !id) return null
+  if (!createdAt || !id) {
+    return null
+  }
   return { createdAt, id }
 }
 
@@ -95,7 +99,7 @@ export type AuditEventLogInterface = {
   readonly list: (
     input?: ListAuditEventsInput
   ) => Effect.Effect<AuditEventPage, CapabilityUnavailable, WorkspaceContext>
-  readonly listGlobal: Effect.Effect<readonly AuditEvent[], CapabilityUnavailable>
+  readonly listGlobal: Effect.Effect<ReadonlyArray<AuditEvent>, CapabilityUnavailable>
   readonly record: (
     input: RecordAuditEventInput
   ) => Effect.Effect<void, CapabilityUnavailable>
@@ -147,7 +151,7 @@ function toSeedWire(row: SeedAuditEventRow): AuditEvent {
   }
 }
 
-function toWire(rows: readonly SeedAuditEventRow[]): readonly AuditEvent[] {
+function toWire(rows: ReadonlyArray<SeedAuditEventRow>): ReadonlyArray<AuditEvent> {
   return rows.map(toSeedWire)
 }
 
@@ -157,11 +161,11 @@ function toWire(rows: readonly SeedAuditEventRow[]): readonly AuditEvent[] {
  * off — never for an exact multiple, whose next page would be empty.
  */
 function buildPage<T>(
-  rows: readonly T[],
+  rows: ReadonlyArray<T>,
   mapToWire: (row: T) => AuditEvent
 ): AuditEventPage {
   const events = rows.slice(0, AUDIT_EVENT_PAGE_SIZE).map(mapToWire)
-  const last = events[events.length - 1]
+  const last = events.at(-1)
   let nextCursor: string | null = null
   if (last !== undefined && rows.length > AUDIT_EVENT_PAGE_SIZE) {
     nextCursor = encodeCursor(last)
@@ -174,7 +178,7 @@ function buildPage<T>(
  * one, in memory over its fixture rows.
  */
 function pagedSeedRows(
-  rows: readonly SeedAuditEventRow[],
+  rows: ReadonlyArray<SeedAuditEventRow>,
   workspaceId: string | undefined,
   input: ListAuditEventsInput | undefined
 ): AuditEventPage {
@@ -204,23 +208,31 @@ function pagedSeedRows(
     )
   }
   const ordered = matched.toSorted((a, b) => {
-    if (a.createdAt > b.createdAt) return -1
-    if (a.createdAt < b.createdAt) return 1
+    if (a.createdAt > b.createdAt) {
+      return -1
+    }
+    if (a.createdAt < b.createdAt) {
+      return 1
+    }
     // Same instant: id DESC breaks the tie.
-    if (a.id > b.id) return -1
-    if (a.id < b.id) return 1
+    if (a.id > b.id) {
+      return -1
+    }
+    if (a.id < b.id) {
+      return 1
+    }
     return 0
   })
   return buildPage(ordered, toSeedWire)
 }
 
 export function SeedAuditEventLog(
-  seed: readonly SeedAuditEventRow[]
+  seed: ReadonlyArray<SeedAuditEventRow>
 ): Layer.Layer<AuditEventLog> {
   // A private copy: `record` appends without mutating the caller's fixture
   // array. Sharing state across adapters happens by providing one instance of
   // this layer (see layers.ts), not by sharing the fixture array.
-  const rows: SeedAuditEventRow[] = [...seed]
+  const rows: Array<SeedAuditEventRow> = [...seed]
   return Layer.succeed(AuditEventLog)({
     // Same scoping as Live: the per-workspace read filters on the resolved
     // workspace from `WorkspaceContext` (invariant 1) — never an unscoped pass
@@ -261,7 +273,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
       const db = yield* Database
 
       function pageQuery(workspaceId: string, input?: ListAuditEventsInput) {
-        const conditions: SQL[] = [eq(auditEvents.workspaceId, workspaceId)]
+        const conditions: Array<SQL> = [eq(auditEvents.workspaceId, workspaceId)]
         if (input?.actorUserId !== undefined) {
           conditions.push(eq(auditEvents.actorUserId, input.actorUserId))
         }
@@ -279,7 +291,9 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         // lexicographically, so plain string comparison is correct here.
         if (input?.cursor !== undefined) {
           const cursor = decodeCursor(input.cursor)
-          if (cursor === null) return null
+          if (cursor === null) {
+            return null
+          }
           const older = or(
             lt(auditEvents.createdAt, cursor.createdAt),
             and(
@@ -287,7 +301,9 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
               lt(auditEvents.id, cursor.id)
             )
           )
-          if (older !== undefined) conditions.push(older)
+          if (older !== undefined) {
+            conditions.push(older)
+          }
         }
         const query = db
           .select({ event: auditEvents, actor: user })
@@ -301,19 +317,21 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           .limit(AUDIT_EVENT_PAGE_SIZE + 1)
       }
 
-      function toPage(rows: readonly AuditRow[]): AuditEventPage {
+      function toPage(rows: ReadonlyArray<AuditRow>): AuditEventPage {
         return buildPage(rows, toWireRow)
       }
 
       function pagedRows(workspaceId: string, input: ListAuditEventsInput | undefined) {
         const query = pageQuery(workspaceId, input)
         // An undecodable cursor addresses no position — empty page.
-        if (query === null) return Effect.succeed<AuditRow[]>([])
+        if (query === null) {
+          return Effect.succeed<Array<AuditRow>>([])
+        }
         return orUnavailable('audit-event-log')(query)
       }
 
       function queryRows(workspaceId?: string) {
-        const conditions: SQL[] = []
+        const conditions: Array<SQL> = []
         if (workspaceId !== undefined) {
           conditions.push(eq(auditEvents.workspaceId, workspaceId))
         }

@@ -42,9 +42,9 @@ type SeriesKey = {
 }
 
 type MdxLineChartProps = {
-  readonly data: readonly MdxChartDatum[]
+  readonly data: ReadonlyArray<MdxChartDatum>
   readonly xKey: string
-  readonly lines: readonly SeriesKey[]
+  readonly lines: ReadonlyArray<SeriesKey>
   readonly height?: number
   /** Text alternative announced to screen readers; charts are otherwise images. */
   readonly title?: string
@@ -88,9 +88,9 @@ export function MdxLineChart({
 }
 
 type MdxBarChartProps = {
-  readonly data: readonly MdxChartDatum[]
+  readonly data: ReadonlyArray<MdxChartDatum>
   readonly xKey: string
-  readonly bars: readonly SeriesKey[]
+  readonly bars: ReadonlyArray<SeriesKey>
   readonly height?: number
   /** Text alternative announced to screen readers; charts are otherwise images. */
   readonly title?: string
@@ -130,11 +130,11 @@ export function MdxBarChart({
 }
 
 type MdxPieChartProps = {
-  readonly data: readonly MdxChartDatum[]
+  readonly data: ReadonlyArray<MdxChartDatum>
   readonly nameKey: string
   readonly valueKey: string
   readonly height?: number
-  readonly colors?: readonly string[]
+  readonly colors?: ReadonlyArray<string>
   /** Text alternative announced to screen readers; charts are otherwise images. */
   readonly title?: string
 }

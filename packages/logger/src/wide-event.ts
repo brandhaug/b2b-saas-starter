@@ -32,7 +32,9 @@ const decodeTaggedFailure = Schema.decodeUnknownOption(TaggedFailure)
 
 function errorMessage(head: unknown): string {
   // oxlint-disable-next-line unicorn/no-instanceof-builtins -- vendor SDKs raise real `Error`s; a cross-realm failure here is reported as a string either way
-  if (head instanceof Error) return head.message
+  if (head instanceof Error) {
+    return head.message
+  }
   return String(head)
 }
 
@@ -53,7 +55,9 @@ function failureMetadata(head: unknown): WideEventFailure {
     error: errorMessage(head)
   }
   const tagged = decodeTaggedFailure(head)
-  if (Option.isNone(tagged)) return base
+  if (Option.isNone(tagged)) {
+    return base
+  }
   return { ...base, errorTag: tagged.value._tag }
 }
 
@@ -117,7 +121,9 @@ export function addWideEventSink(sink: WideEventSink): () => void {
   wideEventSinks.push(sink)
   return () => {
     const index = wideEventSinks.indexOf(sink)
-    if (index !== -1) wideEventSinks.splice(index, 1)
+    if (index !== -1) {
+      wideEventSinks.splice(index, 1)
+    }
   }
 }
 
@@ -264,10 +270,16 @@ function emitWideEvent(
       }
       if (outcome.status === 'error') {
         record.errorKind = outcome.errorKind
-        if (outcome.errorTag !== undefined) record.errorTag = outcome.errorTag
-        if (Exit.isFailure(exit)) record.error = failureValue(exit.cause)
+        if (outcome.errorTag !== undefined) {
+          record.errorTag = outcome.errorTag
+        }
+        if (Exit.isFailure(exit)) {
+          record.error = failureValue(exit.cause)
+        }
       }
-      if (options.environment) record.environment = options.environment
+      if (options.environment) {
+        record.environment = options.environment
+      }
       yield* Effect.promise(() => runWideEventSinks(record))
     }
   })

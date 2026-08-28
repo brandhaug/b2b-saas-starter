@@ -13,7 +13,9 @@ import {
 export const Route = createFileRoute('/docs/$category/$slug')({
   loader: ({ params }) => {
     const article = getDocBySlug(params.category, params.slug)
-    if (!article) throw notFound()
+    if (!article) {
+      throw notFound()
+    }
     const { prev, next } = getAdjacentDocs(params.category, params.slug)
     const categoryName = isDocCategory(params.category)
       ? DOC_CATEGORIES[params.category]
@@ -52,7 +54,9 @@ export const Route = createFileRoute('/docs/$category/$slug')({
   component: DocArticlePage,
   head: ({ params }) => {
     const article = getDocBySlug(params.category, params.slug)
-    if (!article) return {}
+    if (!article) {
+      return {}
+    }
 
     const { title, description, tags } = article.frontmatter
     const fullTitle = `${title} | Documentation | B2B SaaS Starter`

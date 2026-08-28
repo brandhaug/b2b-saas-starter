@@ -1,6 +1,6 @@
 type RuntimeRow = { readonly label: string; readonly value: string }
 
-const CLOUDFLARE_RUNTIME: readonly RuntimeRow[] = [
+const CLOUDFLARE_RUNTIME: ReadonlyArray<RuntimeRow> = [
   { label: 'apps/web', value: 'Worker' },
   { label: 'apps/api', value: 'Worker' },
   { label: 'apps/background', value: 'Worker (queue consumer)' },

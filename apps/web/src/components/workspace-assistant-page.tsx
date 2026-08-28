@@ -58,7 +58,7 @@ function TranscriptBody({
   transcript
 }: {
   readonly canUseAssistant: boolean
-  readonly transcript: readonly TranscriptEntry[]
+  readonly transcript: ReadonlyArray<TranscriptEntry>
 }) {
   if (transcript.length > 0) {
     return (
@@ -122,7 +122,7 @@ export function WorkspaceAssistantPage({
 }) {
   const [question, setQuestion] = useState('')
   const [pending, setPending] = useState(false)
-  const [transcript, setTranscript] = useState<readonly TranscriptEntry[]>([])
+  const [transcript, setTranscript] = useState<ReadonlyArray<TranscriptEntry>>([])
 
   // Presentation gate, mirroring the loader's hard gate: when no provider is
   // configured the form is absent and the honest copy stands in for it.
@@ -131,7 +131,9 @@ export function WorkspaceAssistantPage({
 
   async function submit() {
     const trimmed = question.trim()
-    if (trimmed.length === 0 || pending) return
+    if (trimmed.length === 0 || pending) {
+      return
+    }
     setPending(true)
     setQuestion('')
     setTranscript((entries) => [...entries, entry('user', trimmed)])

@@ -31,7 +31,9 @@ export const ASSISTANT_UNCONFIGURED_MESSAGE =
  * claim a configuration that does not exist (same rule as `apps/api`). */
 function assistantProviderEnv(): ProviderEnv {
   const provider: { -readonly [K in keyof ProviderEnv]: ProviderEnv[K] } = {}
-  if (cloudflareEnv.AI) provider.AI = cloudflareEnv.AI
+  if (cloudflareEnv.AI) {
+    provider.AI = cloudflareEnv.AI
+  }
   if (cloudflareEnv.WORKERS_AI_ENABLED) {
     provider.WORKERS_AI_ENABLED = cloudflareEnv.WORKERS_AI_ENABLED
   }

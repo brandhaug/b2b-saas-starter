@@ -26,7 +26,7 @@ export type SeedWebhookEndpointFixture = {
   readonly id: string
   readonly url: string
   readonly enabled: boolean
-  readonly events: readonly string[]
+  readonly events: ReadonlyArray<string>
   readonly successRate: number
   readonly signingSecret?: string
   readonly workspaceId?: string
@@ -40,7 +40,7 @@ type SeedEndpointRow = {
   readonly workspaceId: string
   readonly url: string
   enabled: boolean
-  readonly events: readonly string[]
+  readonly events: ReadonlyArray<string>
   readonly successRate: number
   signingSecret: string
 }
@@ -71,7 +71,7 @@ function toProjection(endpoint: SeedEndpointRow): WebhookEndpoint {
 }
 
 export function SeedWebhookEndpoints(
-  seedFixtures: readonly SeedWebhookEndpointFixture[]
+  seedFixtures: ReadonlyArray<SeedWebhookEndpointFixture>
 ): Layer.Layer<WebhookEndpoints, never, AuditEventLog | WebhookPublisher> {
   return Layer.effect(WebhookEndpoints)(
     Effect.gen(function* () {
@@ -81,7 +81,7 @@ export function SeedWebhookEndpoints(
       // endpoint becomes dispatchable, a recorded attempt becomes listable,
       // the plan gate can actually trip. The membership seed roster sets the
       // same precedent; contract cases run unmodified against both adapters.
-      const endpoints: SeedEndpointRow[] = seedFixtures.map((fixture) => ({
+      const endpoints: Array<SeedEndpointRow> = seedFixtures.map((fixture) => ({
         id: fixture.id,
         workspaceId: fixture.workspaceId ?? SEED_WORKSPACE_ID,
         url: fixture.url,
@@ -90,7 +90,7 @@ export function SeedWebhookEndpoints(
         successRate: fixture.successRate,
         signingSecret: fixture.signingSecret ?? 'whsec_seed_fixture'
       }))
-      const deliveries: SeedDeliveryRow[] = []
+      const deliveries: Array<SeedDeliveryRow> = []
       let deliverySeq = 0
 
       /** Next insertion sequence — the newest-first tie-break in listDeliveries. */
@@ -165,9 +165,11 @@ export function SeedWebhookEndpoints(
       return {
         list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
-          const projections: WebhookEndpoint[] = []
+          const projections: Array<WebhookEndpoint> = []
           for (const endpoint of endpoints) {
-            if (endpoint.workspaceId !== ctx.workspace.id) continue
+            if (endpoint.workspaceId !== ctx.workspace.id) {
+              continue
+            }
             projections.push(toProjection(endpoint))
           }
           return projections
@@ -228,8 +230,12 @@ export function SeedWebhookEndpoints(
             // `lastAttemptAt` DESC, insertion recency as the tie-break —
             // mirrors Live's `orderBy(lastAttemptAt desc)` read.
             matched.sort((a, b) => {
-              if (a.lastAttemptAt > b.lastAttemptAt) return -1
-              if (a.lastAttemptAt < b.lastAttemptAt) return 1
+              if (a.lastAttemptAt > b.lastAttemptAt) {
+                return -1
+              }
+              if (a.lastAttemptAt < b.lastAttemptAt) {
+                return 1
+              }
               return b.seq - a.seq
             })
             return matched.slice(0, 20)
@@ -237,7 +243,9 @@ export function SeedWebhookEndpoints(
         disable: (input) =>
           Effect.gen(function* () {
             const endpoint = yield* inWorkspace(input.endpointId)
-            if (!endpoint || !endpoint.enabled) return false
+            if (!endpoint || !endpoint.enabled) {
+              return false
+            }
             endpoint.enabled = false
             const ctx = yield* WorkspaceContext
             yield* audit.record({
@@ -253,7 +261,9 @@ export function SeedWebhookEndpoints(
         rotateSecret: (input) =>
           Effect.gen(function* () {
             const endpoint = yield* inWorkspace(input.endpointId)
-            if (!endpoint) return Option.none()
+            if (!endpoint) {
+              return Option.none()
+            }
             endpoint.signingSecret = 'whsec_seed_rotated'
             const ctx = yield* WorkspaceContext
             yield* audit.record({
@@ -269,7 +279,9 @@ export function SeedWebhookEndpoints(
         getDispatchTarget: (endpointId, workspaceId) =>
           Effect.sync(() => {
             const endpoint = endpointFor(endpointId, workspaceId)
-            if (!endpoint || !endpoint.enabled) return null
+            if (!endpoint || !endpoint.enabled) {
+              return null
+            }
             return {
               id: endpoint.id,
               url: endpoint.url,

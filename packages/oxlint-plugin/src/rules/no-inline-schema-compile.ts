@@ -47,11 +47,17 @@ function getSchemaCompilerMethod(
   callee: ESTree.Node | null | undefined
 ): string | undefined {
   const expression = unwrapExpression(callee)
-  if (expression?.type !== 'MemberExpression') return undefined
-  if (!isIdentifier(unwrapExpression(expression.object), 'Schema')) return undefined
+  if (expression?.type !== 'MemberExpression') {
+    return undefined
+  }
+  if (!isIdentifier(unwrapExpression(expression.object), 'Schema')) {
+    return undefined
+  }
 
   const method = getPropertyName(expression.property)
-  if (method === undefined || !COMPILER_METHODS.has(method)) return undefined
+  if (method === undefined || !COMPILER_METHODS.has(method)) {
+    return undefined
+  }
   return method
 }
 
@@ -62,11 +68,15 @@ function getSchemaCompilerMethod(
  */
 function isStaticSchemaReference(node: ESTree.Node | null | undefined): boolean {
   const expression = unwrapExpression(node)
-  if (expression === undefined) return false
+  if (expression === undefined) {
+    return false
+  }
 
   if (expression.type === 'Identifier') {
     const [firstCharacter] = expression.name
-    if (firstCharacter === undefined) return false
+    if (firstCharacter === undefined) {
+      return false
+    }
     return firstCharacter.toUpperCase() === firstCharacter
   }
 
@@ -76,13 +86,21 @@ function isStaticSchemaReference(node: ESTree.Node | null | undefined): boolean 
 /** An inline `Schema.*(...)` literal, including `Schema.fromJsonString(Static)`. */
 function isNestedStaticSchemaCall(node: ESTree.Node | null | undefined): boolean {
   const expression = unwrapExpression(node)
-  if (expression?.type !== 'CallExpression') return false
+  if (expression?.type !== 'CallExpression') {
+    return false
+  }
 
   const callee = unwrapExpression(expression.callee)
-  if (callee?.type !== 'MemberExpression') return false
-  if (!isIdentifier(unwrapExpression(callee.object), 'Schema')) return false
+  if (callee?.type !== 'MemberExpression') {
+    return false
+  }
+  if (!isIdentifier(unwrapExpression(callee.object), 'Schema')) {
+    return false
+  }
 
-  if (getPropertyName(callee.property) !== 'fromJsonString') return true
+  if (getPropertyName(callee.property) !== 'fromJsonString') {
+    return true
+  }
 
   const [firstArgument] = expression.arguments
   return (
@@ -97,7 +115,9 @@ function isNestedStaticSchemaCall(node: ESTree.Node | null | undefined): boolean
  */
 function isImmediatelyInvoked(node: ESTree.CallExpression): boolean {
   const { parent } = node
-  if (parent.type !== 'CallExpression') return false
+  if (parent.type !== 'CallExpression') {
+    return false
+  }
   return unwrapExpression(parent.callee) === node
 }
 
@@ -141,15 +161,23 @@ export default defineRule({
       ArrowFunctionExpression: enterFunction,
       'ArrowFunctionExpression:exit': exitFunction,
       CallExpression(node) {
-        if (functionDepth === 0) return
+        if (functionDepth === 0) {
+          return
+        }
 
         const method = getSchemaCompilerMethod(node.callee)
-        if (method === undefined) return
-        if (!isImmediatelyInvoked(node)) return
+        if (method === undefined) {
+          return
+        }
+        if (!isImmediatelyInvoked(node)) {
+          return
+        }
 
         const [firstArgument] = node.arguments
         const inlineSchema = isNestedStaticSchemaCall(firstArgument)
-        if (!inlineSchema && !isStaticSchemaReference(firstArgument)) return
+        if (!inlineSchema && !isStaticSchemaReference(firstArgument)) {
+          return
+        }
 
         if (inlineSchema) {
           context.report({ node: node.callee, message: inlineSchemaMessage(method) })

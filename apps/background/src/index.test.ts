@@ -130,13 +130,15 @@ function resolveTarget(
   endpointId: string,
   workspaceId: string
 ): typeof target | null {
-  if (endpointId === dispatchTarget?.id && workspaceId === 'ws_1') return dispatchTarget
+  if (endpointId === dispatchTarget?.id && workspaceId === 'ws_1') {
+    return dispatchTarget
+  }
   return null
 }
 
 function stubEndpoints(
   dispatchTarget: typeof target | null,
-  recorded: WebhookDeliveryAttemptInput[]
+  recorded: Array<WebhookDeliveryAttemptInput>
 ): Layer.Layer<WebhookEndpoints> {
   let terminalSeq = 0
   return Layer.succeed(WebhookEndpoints)({
@@ -203,7 +205,7 @@ describe('processWebhookMessage', () => {
     input: unknown = message,
     messageId?: string
   ) {
-    const recorded: WebhookDeliveryAttemptInput[] = []
+    const recorded: Array<WebhookDeliveryAttemptInput> = []
     const captured: CapturedRequest = {}
     return runScoped(
       processWebhookMessage(
@@ -356,8 +358,8 @@ describe('processDeadLetterMessage', () => {
   function runDeadLetter(
     input: unknown,
     attempts = 4
-  ): Effect.Effect<WebhookDeliveryAttemptInput[]> {
-    const recorded: WebhookDeliveryAttemptInput[] = []
+  ): Effect.Effect<Array<WebhookDeliveryAttemptInput>> {
+    const recorded: Array<WebhookDeliveryAttemptInput> = []
     return runScoped(
       processDeadLetterMessage({ body: input, attempts }).pipe(
         Effect.provide(stubEndpoints(target, recorded))

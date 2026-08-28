@@ -15,7 +15,7 @@ import { getPropertyName, getStringValue, unwrapExpression } from '../internal/a
  */
 
 type TagOwner = {
-  readonly modules: readonly string[]
+  readonly modules: ReadonlyArray<string>
   readonly guard: string
 }
 
@@ -52,36 +52,50 @@ const TAG_OWNERS = new Map<string, TagOwner>([
 
 const EQUALITY_OPERATORS = new Set(['===', '!==', '==', '!='])
 
-function importedEffectModules(node: ESTree.ImportDeclaration): readonly string[] {
+function importedEffectModules(node: ESTree.ImportDeclaration): ReadonlyArray<string> {
   const source = node.source.value
 
   if (source.startsWith('effect/')) {
     const submodule = source.slice('effect/'.length)
-    if (EFFECT_MODULES.has(submodule)) return [submodule]
+    if (EFFECT_MODULES.has(submodule)) {
+      return [submodule]
+    }
     return []
   }
 
-  if (source !== 'effect') return []
+  if (source !== 'effect') {
+    return []
+  }
 
-  const modules: string[] = []
+  const modules: Array<string> = []
   for (const specifier of node.specifiers) {
-    if (specifier.type !== 'ImportSpecifier') continue
+    if (specifier.type !== 'ImportSpecifier') {
+      continue
+    }
     const name = getPropertyName(specifier.imported)
-    if (name !== undefined && EFFECT_MODULES.has(name)) modules.push(name)
+    if (name !== undefined && EFFECT_MODULES.has(name)) {
+      modules.push(name)
+    }
   }
   return modules
 }
 
 function getTagAccess(node: ESTree.Node): ESTree.MemberExpression | undefined {
   const expression = unwrapExpression(node)
-  if (expression?.type !== 'MemberExpression') return undefined
+  if (expression?.type !== 'MemberExpression') {
+    return undefined
+  }
 
   if (expression.computed) {
-    if (getStringValue(expression.property) !== '_tag') return undefined
+    if (getStringValue(expression.property) !== '_tag') {
+      return undefined
+    }
     return expression
   }
 
-  if (getPropertyName(expression.property) !== '_tag') return undefined
+  if (getPropertyName(expression.property) !== '_tag') {
+    return undefined
+  }
   return expression
 }
 
@@ -90,8 +104,12 @@ function ownerForImportedModules(
   imported: ReadonlySet<string>
 ): TagOwner | undefined {
   const owner = TAG_OWNERS.get(tag)
-  if (owner === undefined) return undefined
-  if (!owner.modules.some((moduleName) => imported.has(moduleName))) return undefined
+  if (owner === undefined) {
+    return undefined
+  }
+  if (!owner.modules.some((moduleName) => imported.has(moduleName))) {
+    return undefined
+  }
   return owner
 }
 
@@ -108,13 +126,19 @@ export default defineRule({
       tagCandidate: ESTree.Node
     ) {
       const access = getTagAccess(accessCandidate)
-      if (access === undefined) return
+      if (access === undefined) {
+        return
+      }
 
       const tag = getStringValue(tagCandidate)
-      if (tag === undefined) return
+      if (tag === undefined) {
+        return
+      }
 
       const owner = ownerForImportedModules(tag, imported)
-      if (owner === undefined) return
+      if (owner === undefined) {
+        return
+      }
 
       context.report({
         node: access,
@@ -124,11 +148,17 @@ export default defineRule({
 
     return {
       ImportDeclaration(node) {
-        for (const moduleName of importedEffectModules(node)) imported.add(moduleName)
+        for (const moduleName of importedEffectModules(node)) {
+          imported.add(moduleName)
+        }
       },
       BinaryExpression(node) {
-        if (imported.size === 0) return
-        if (!EQUALITY_OPERATORS.has(node.operator)) return
+        if (imported.size === 0) {
+          return
+        }
+        if (!EQUALITY_OPERATORS.has(node.operator)) {
+          return
+        }
 
         reportTagComparison(node.left, node.right)
         reportTagComparison(node.right, node.left)

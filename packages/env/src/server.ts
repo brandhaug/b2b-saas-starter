@@ -95,7 +95,9 @@ export type RawEnvSource = Partial<ServerEnv>
  * fails validation instead of silently booting on a development secret.
  */
 function localDefaultsFor(mode: 'local' | 'strict'): Partial<ServerEnv> {
-  if (mode === 'strict') return {}
+  if (mode === 'strict') {
+    return {}
+  }
   return {
     BETTER_AUTH_SECRET: 'local-dev-secret-change-me-minimum-32-chars',
     BETTER_AUTH_URL: 'http://localhost:3071'
@@ -131,7 +133,9 @@ const PLACEHOLDER_AUTH_SECRETS: ReadonlySet<string> = new Set([
 
 /** The documented placeholder URL and its obvious variants. */
 function isPlaceholderAuthUrl(value: string): boolean {
-  if (value === 'https://b2b-saas-starter.example.com') return true
+  if (value === 'https://b2b-saas-starter.example.com') {
+    return true
+  }
   // oxlint-disable-next-line effect/noTryCatch -- `new URL` throws on a malformed value and "not a URL" is the answer, not a failure to handle; there is no Effect context here to lift it into
   try {
     const { hostname } = new URL(value)
@@ -149,7 +153,7 @@ export type RequiredEnvProblem = {
 export type RequiredEnvAudit = {
   /** `local` — ENVIRONMENT unset (dev/test); `deployed` — set, not production. */
   readonly mode: 'local' | 'deployed' | 'production'
-  readonly problems: readonly RequiredEnvProblem[]
+  readonly problems: ReadonlyArray<RequiredEnvProblem>
 }
 
 /**
@@ -163,8 +167,12 @@ export function requireEmailVerification(environment: string | undefined): boole
 }
 
 function requiredEnvMode(source: RawEnvSource): RequiredEnvAudit['mode'] {
-  if (source.ENVIRONMENT === 'production') return 'production'
-  if (hasValue(source.ENVIRONMENT)) return 'deployed'
+  if (source.ENVIRONMENT === 'production') {
+    return 'production'
+  }
+  if (hasValue(source.ENVIRONMENT)) {
+    return 'deployed'
+  }
   return 'local'
 }
 
@@ -177,7 +185,9 @@ function requiredEnvMode(source: RawEnvSource): RequiredEnvAudit['mode'] {
  */
 export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
   const mode = requiredEnvMode(source)
-  if (mode === 'local') return { mode, problems: [] }
+  if (mode === 'local') {
+    return { mode, problems: [] }
+  }
 
   const problems: Array<RequiredEnvProblem> = []
   const secret = source.BETTER_AUTH_SECRET

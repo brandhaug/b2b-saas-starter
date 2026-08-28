@@ -61,7 +61,7 @@ export const createApiTokenServerFn = createServerFn({ method: 'POST' })
 export type WorkspaceApiTokensPayload = {
   readonly viewer: { readonly role: WorkspaceRole } | null
   readonly unreadCount: number
-  readonly tokens: readonly ApiToken[]
+  readonly tokens: ReadonlyArray<ApiToken>
 }
 
 /**
