@@ -155,7 +155,7 @@
     "drizzle-kit": "1.0.0-rc.5-ab785fc",
     "drizzle-orm": "1.0.0-rc.5-ab785fc",
     "effect": "4.0.0-rc.111",
-    "effectful-better-auth": "0.2.0",
+    "effectful-better-auth": "0.3.0",
     "eslint-plugin-better-tailwindcss": "4.7.0",
     "jsdom": "30.0.1",
     "lint-staged": "17.3.0",
