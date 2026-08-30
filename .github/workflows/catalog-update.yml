@@ -5,7 +5,19 @@ name: Catalog Updates
 on:
   schedule:
     - cron: '0 6 * * *' # Every day at 06:00 UTC
+  push:
+    branches:
+      - master
+    paths:
+      - '**/package.json'
+      - '**/bun.lock'
   workflow_dispatch:
+
+# Rebuilds of open update PRs must run one at a time; queued (not cancelled)
+# runs are what let the cascade converge after each merge.
+concurrency:
+  group: catalog-update
+  cancel-in-progress: false
 
 permissions:
   contents: write
