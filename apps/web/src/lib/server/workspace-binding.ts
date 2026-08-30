@@ -1,9 +1,8 @@
 import { Auth } from '@b2b-saas-starter/auth'
 import { type WorkspaceLifecycleBinding } from '@b2b-saas-starter/capabilities/governance/workspace-lifecycle'
-import { Schema } from 'effect'
 import { runAuth } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'
-import { currentRequest } from '../request-context'
+import { requestHeaders } from './require-headers'
 
 /**
  * The web app's adapter onto Better Auth's `organization` lifecycle endpoints
@@ -19,19 +18,10 @@ import { currentRequest } from '../request-context'
  * rename and delete demand the session cookie.
  */
 
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-class MissingRequestHeaders extends Schema.TaggedError<MissingRequestHeaders>()(
-  'MissingRequestHeaders',
-  { message: Schema.String }
-) {}
-
-function requireHeaders(headers: Headers | undefined): Headers {
-  if (!headers) {
-    // oxlint-disable-next-line effect/noThrowStatement -- rejects the promise the WorkspaceLifecycleBinding port returns; there is no Effect error channel on this side of it
-    throw new MissingRequestHeaders({ message: 'no_request_headers' })
-  }
-  return headers
-}
+/**
+ * A plugin call attempted with no in-flight request to take session headers
+ * from fails as `MissingRequestHeaders` (see `./require-headers.ts`).
+ */
 
 export const webWorkspaceLifecycleBinding: WorkspaceLifecycleBinding = {
   // Create alone is headerless; the plugin takes the creator from the body.
@@ -46,7 +36,7 @@ export const webWorkspaceLifecycleBinding: WorkspaceLifecycleBinding = {
     })
   },
   rename: async (input) => {
-    const headers = requireHeaders(currentRequest()?.headers)
+    const headers = requestHeaders()
     await runAuth({
       tag: Auth.Tag,
       runtime: authRuntime,
@@ -62,7 +52,7 @@ export const webWorkspaceLifecycleBinding: WorkspaceLifecycleBinding = {
     })
   },
   remove: async (input) => {
-    const headers = requireHeaders(currentRequest()?.headers)
+    const headers = requestHeaders()
     await runAuth({
       tag: Auth.Tag,
       runtime: authRuntime,
