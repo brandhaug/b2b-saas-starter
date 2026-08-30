@@ -1,9 +1,8 @@
 import { Auth } from '@b2b-saas-starter/auth'
 import { type WorkspaceInvitationBinding } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import { Schema } from 'effect'
 import { runAuth } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'
-import { currentRequest } from '../request-context'
+import { requestHeaders } from './require-headers'
 
 /**
  * The web app's adapter onto Better Auth's `organization` invitation endpoints
@@ -24,28 +23,12 @@ import { currentRequest } from '../request-context'
 
 /**
  * A plugin call attempted with no in-flight request to take session headers
- * from. It carries an explicit `message` and, deliberately, no `statusCode`:
- * `classifyBindingFailure` reads the status to tell "the workspace refuses"
- * from "the store is unreachable", and nothing about the invitation is wrong
- * here — so it must land on the unavailable side.
+ * from fails as `MissingRequestHeaders` (see `./require-headers.ts`).
  */
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-class MissingRequestHeaders extends Schema.TaggedError<MissingRequestHeaders>()(
-  'MissingRequestHeaders',
-  { message: Schema.String }
-) {}
-
-function requireHeaders(headers: Headers | undefined): Headers {
-  if (!headers) {
-    // oxlint-disable-next-line effect/noThrowStatement -- rejects the promise the WorkspaceInvitationBinding port returns; there is no Effect error channel on this side of it
-    throw new MissingRequestHeaders({ message: 'no_request_headers' })
-  }
-  return headers
-}
 
 export const webInvitationBinding: WorkspaceInvitationBinding = {
   create: async (input) => {
-    const headers = requireHeaders(currentRequest()?.headers)
+    const headers = requestHeaders()
     await runAuth({
       tag: Auth.Tag,
       runtime: authRuntime,
@@ -62,7 +45,7 @@ export const webInvitationBinding: WorkspaceInvitationBinding = {
     })
   },
   cancel: async (input) => {
-    const headers = requireHeaders(currentRequest()?.headers)
+    const headers = requestHeaders()
     await runAuth({
       tag: Auth.Tag,
       runtime: authRuntime,
@@ -77,7 +60,7 @@ export const webInvitationBinding: WorkspaceInvitationBinding = {
   // The plugin reads the accepting user from this session and refuses an
   // invitation addressed to anyone else, which is why the port passes no user.
   accept: async (input) => {
-    const headers = requireHeaders(currentRequest()?.headers)
+    const headers = requestHeaders()
     await runAuth({
       tag: Auth.Tag,
       runtime: authRuntime,

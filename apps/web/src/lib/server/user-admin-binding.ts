@@ -1,9 +1,8 @@
 import { Auth } from '@b2b-saas-starter/auth'
 import { type PlatformUserAdminBinding } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
-import { Schema } from 'effect'
 import { runAuth } from 'effectful-better-auth'
 import { authRuntime } from '../auth-runtime'
-import { currentRequest } from '../request-context'
+import { requestHeaders } from './require-headers'
 
 /**
  * The web app's adapter onto Better Auth's `admin` endpoints (plus the
@@ -21,26 +20,12 @@ import { currentRequest } from '../request-context'
 
 /**
  * A plugin call attempted with no in-flight request to take session headers
- * from. No `statusCode`, deliberately: the capability classifies it on the
- * unavailable side (the store is not refusing — there was no store to ask).
+ * from fails as `MissingRequestHeaders` (see `./require-headers.ts`).
  */
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-class MissingRequestHeaders extends Schema.TaggedError<MissingRequestHeaders>()(
-  'MissingRequestHeaders',
-  { message: Schema.String }
-) {}
-
-function requireHeaders(headers: Headers | undefined): Headers {
-  if (!headers) {
-    // oxlint-disable-next-line effect/noThrowStatement -- rejects the promise the PlatformUserAdminBinding port returns; there is no Effect error channel on this side of it
-    throw new MissingRequestHeaders({ message: 'no_request_headers' })
-  }
-  return headers
-}
 
 export const webUserAdminBinding: PlatformUserAdminBinding = {
   banUser: async (input) => {
-    const headers = requireHeaders(currentRequest()?.headers)
+    const headers = requestHeaders()
     await runAuth({
       tag: Auth.Tag,
       runtime: authRuntime,
@@ -53,7 +38,7 @@ export const webUserAdminBinding: PlatformUserAdminBinding = {
     })
   },
   unbanUser: async (input) => {
-    const headers = requireHeaders(currentRequest()?.headers)
+    const headers = requestHeaders()
     await runAuth({
       tag: Auth.Tag,
       runtime: authRuntime,
@@ -66,7 +51,7 @@ export const webUserAdminBinding: PlatformUserAdminBinding = {
     })
   },
   setMemberRole: async (input) => {
-    const headers = requireHeaders(currentRequest()?.headers)
+    const headers = requestHeaders()
     await runAuth({
       tag: Auth.Tag,
       runtime: authRuntime,
