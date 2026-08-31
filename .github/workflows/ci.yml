@@ -45,7 +45,28 @@ jobs:
       - run: bun run db:seed
       # Playwright's webServer config (apps/web/playwright.config.ts) starts
       # `bun run dev` on :3071 itself — no separate server step needed.
-      - run: bun run test:e2e
+      # The webServer startup has flaked on CI (Vite never became ready within
+      # its 180s budget, #199's master run and one earlier); that kills the
+      # whole run before any test executes, so Playwright's own per-test
+      # retries never apply. Retry the run once: a second attempt lands on a
+      # warm runner and a fresh server process.
+      - name: Run e2e tests
+        run: |
+          attempts=2
+          for attempt in $(seq 1 "$attempts"); do
+            if bun run test:e2e; then
+              exit 0
+            fi
+            if [ "$attempt" -lt "$attempts" ]; then
+              echo "::warning::e2e run failed (attempt $attempt/$attempts) — retrying"
+              # A timed-out webServer can leave the dev server or its workerd
+              # child holding :3071; clear them so the retry starts clean
+              # instead of tripping --strictPort immediately.
+              pkill -f 'vite dev' 2>/dev/null || true
+              pkill -f workerd 2>/dev/null || true
+            fi
+          done
+          exit 1
 
   deploy:
     if: github.event_name == 'workflow_dispatch'
