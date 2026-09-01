@@ -1,39 +1,21 @@
 name: Setup
 description: >-
-  Install Node (version from .node-version, managed day-to-day by Vite+), the
-  package manager pinned in package.json, restore the pnpm and turbo caches,
-  and install dependencies with a frozen lockfile.
-
-inputs:
-  turbo-key:
-    description: >-
-      Infix for the turbo cache key. Defaults to the calling job's id, so a
-      job named `ci` reads/writes `<os>-turbo-ci-<sha>` — the same semantics
-      the jobs had before this composite existed.
-    required: false
-    default: ''
+  Install the Vite+ toolchain (pinned VP_VERSION — it provides the managed
+  Node runtime and the package manager pinned in package.json), restore the
+  pnpm store cache, and install dependencies with a frozen lockfile.
 
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
-      with:
-        node-version-file: .node-version
-    - uses: pnpm/action-setup@v4
+    - name: Install Vite+ (pinned)
+      run: |
+        curl -fsSL https://vite.plus | VP_VERSION=0.3.0 VP_NODE_MANAGER=yes bash
+      shell: bash
     - uses: actions/cache@v4
       with:
-        path: ${{ runner.temp }}/.pnpm-store
+        path: ~/.local/share/pnpm/store
         key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-
-    - uses: actions/cache@v4
-      with:
-        path: .turbo
-        key: ${{ runner.os }}-turbo-${{ inputs.turbo-key || github.job }}-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-turbo-${{ inputs.turbo-key || github.job }}-
-          ${{ runner.os }}-turbo-
-    - run: pnpm config set store-dir ${{ runner.temp }}/.pnpm-store
-      shell: bash
-    - run: pnpm install --frozen-lockfile
+    - run: vp install --frozen-lockfile
       shell: bash

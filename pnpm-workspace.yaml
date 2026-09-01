@@ -12,12 +12,20 @@ allowBuilds:
   msgpackr-extract: true
   workerd: true
 
+auditConfig:
+  ignoreGhsas:
+    # GHSA-jmr9-qjv8-65gv (extract-zip symlink path traversal) has no fixed
+    # release upstream (2.0.1 is both latest and vulnerable) — pulled in
+    # transitively via alchemy's Cloudflare runtime tooling, which runs at
+    # deploy time only, not in shipped Worker code. Re-check when extract-zip
+    # cuts a patch.
+    - GHSA-jmr9-qjv8-65gv
+
 catalog:
   '@babel/core': 8.0.1
   '@base-ui/react': 1.7.0
   '@cloudflare/workers-types': 5.20260827.1
   '@effect/language-service': 0.87.2
-  '@effect/platform-bun': 4.0.0-rc.112
   '@effect/platform-node': 4.0.0-rc.112
   '@effect/sql-d1': 4.0.0-rc.112
   '@effect/vitest': 4.0.0-rc.112
@@ -60,7 +68,6 @@ catalog:
   alchemy: 2.0.0-beta.74
   babel-plugin-react-compiler: 1.0.0
   better-auth: 1.7.2
-  bun-types: 1.4.0
   class-variance-authority: 0.7.1
   clsx: 2.1.1
   cmdk: 1.1.1
@@ -72,7 +79,6 @@ catalog:
   jsdom: 30.0.1
   lucide-react: 1.34.0
   mermaid: 11.17.2
-  oxfmt: 0.65.0
   oxlint: 1.80.0
   oxlint-plugin-effect: 0.11.0
   oxlint-plugin-react-doctor: 0.9.12

@@ -17,34 +17,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: bun run typecheck
-      - run: bun run lint
+      - run: pnpm run typecheck
+      - run: pnpm run lint
       # Includes the coverage ratchet on the application layer: the
       # capabilities `test` script runs with --coverage (thresholds live in
       # packages/capabilities/vitest.config.ts) — fails on decay.
-      - run: bun run test
+      - run: pnpm run test
       # Fail only on high/critical advisories; lower severities still print.
       # GHSA-jmr9-qjv8-65gv (extract-zip symlink path traversal) has no fixed
       # release upstream (2.0.1 is both latest and vulnerable) — it's pulled
       # in transitively via alchemy's Cloudflare runtime tooling (workerd/
       # browser download step), which runs at deploy time only, not in
       # shipped Worker code. Re-check when extract-zip cuts a patch.
-      - run: bun audit --audit-level=high --ignore=GHSA-jmr9-qjv8-65gv
-      - run: bun run build
+      # pnpm's per-advisory ignore lives in pnpm-workspace.yaml (auditConfig).
+      - run: pnpm audit --audit-level=high
+      - run: pnpm run build
 
   e2e:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: bunx playwright install --with-deps chromium
+      - run: pnpm exec playwright install --with-deps chromium
       # Migrate + seed the local D1 so the dev server attaches it (see
       # apps/web/src/lib/cloudflare-workers-shim-dev.ts) and the authenticated
       # sign-in flow test runs instead of skipping.
-      - run: bun run db:migrate:local
-      - run: bun run db:seed
+      - run: pnpm run db:migrate:local
+      - run: pnpm run db:seed
       # Playwright's webServer config (apps/web/playwright.config.ts) starts
-      # `bun run dev` on :3071 itself — no separate server step needed.
+      # `pnpm run dev` on :3071 itself — no separate server step needed.
       # The webServer startup has flaked on CI (Vite never became ready within
       # its 180s budget, #199's master run and one earlier); that kills the
       # whole run before any test executes, so Playwright's own per-test
@@ -54,7 +55,7 @@ jobs:
         run: |
           attempts=2
           for attempt in $(seq 1 "$attempts"); do
-            if bun run test:e2e; then
+            if pnpm run test:e2e; then
               exit 0
             fi
             if [ "$attempt" -lt "$attempts" ]; then
@@ -81,7 +82,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: bun run deploy
+      - run: pnpm run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
