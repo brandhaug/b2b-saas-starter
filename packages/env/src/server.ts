@@ -208,7 +208,10 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
   }
 
   const problems: Array<RequiredEnvProblem> = []
-  const secret = source.BETTER_AUTH_SECRET
+  // Normalize an explicit null binding to absent (`?? undefined`), like
+  // `readServerEnv` does — workerd delivers present-but-null bindings as
+  // `null`, and the audit must treat that exactly like a missing var.
+  const secret = source.BETTER_AUTH_SECRET ?? undefined
   if (secret === undefined || secret.length === 0) {
     problems.push({ key: 'BETTER_AUTH_SECRET', reason: 'missing' })
   } else if (PLACEHOLDER_AUTH_SECRETS.has(secret)) {
@@ -217,7 +220,7 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
     problems.push({ key: 'BETTER_AUTH_SECRET', reason: 'too-short' })
   }
 
-  const url = source.BETTER_AUTH_URL
+  const url = source.BETTER_AUTH_URL ?? undefined
   if (url === undefined || url.length === 0) {
     problems.push({ key: 'BETTER_AUTH_URL', reason: 'missing' })
   } else if (isPlaceholderAuthUrl(url)) {
@@ -227,7 +230,7 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
   // A malformed trusted origin silently weakens Better Auth's origin checks —
   // `https:/app.example.com` matches nothing, so the intended origin loses its
   // CSRF carve-out. Flag any entry that does not parse as an http(s) URL.
-  const trustedOrigins = source.BETTER_AUTH_TRUSTED_ORIGINS
+  const trustedOrigins = source.BETTER_AUTH_TRUSTED_ORIGINS ?? undefined
   if (trustedOrigins !== undefined && trustedOrigins.length > 0) {
     for (const entry of trustedOrigins.split(',')) {
       const origin = entry.trim()
