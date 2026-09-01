@@ -1,0 +1,9 @@
+$ vp test run --passWithNoTests
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/packages/api[39m
+
+No test files found, exiting with code 0
+
+[2minclude: [22m[33m**/*.{test,spec}.?(c|m)[jt]s?(x)[39m
+[2mexclude:  [22m[33m**/node_modules/**[2m, [22m**/.git/**[39m
+

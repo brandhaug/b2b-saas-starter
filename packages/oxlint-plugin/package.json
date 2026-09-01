@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vp test run --passWithNoTests"
   },
   "dependencies": {
     "@oxlint/plugins": "catalog:",
@@ -16,9 +16,10 @@
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
-    "bun-types": "catalog:",
     "oxlint": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
     "vitest": "catalog:"
   }
 }

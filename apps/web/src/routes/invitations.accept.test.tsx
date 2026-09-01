@@ -1,6 +1,6 @@
 import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { type InvitationPreview } from '@/lib/server/invitations'
 import { AcceptInvitationPage, type AcceptInvitation } from './invitations.accept'

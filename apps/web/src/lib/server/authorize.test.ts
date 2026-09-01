@@ -7,7 +7,7 @@ import {
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { Effect } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 import { requireWorkspacePermission } from './authorize'
 

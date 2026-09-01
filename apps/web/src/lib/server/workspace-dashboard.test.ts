@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { loadWorkspaceDashboard } from './workspace-dashboard'
 
 // Same Seed-layer harness as workspace-settings.test.ts: `usr_demo` owns

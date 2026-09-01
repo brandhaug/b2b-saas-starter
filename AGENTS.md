@@ -22,23 +22,39 @@ Capabilities are grouped into bounded-context folders under `packages/capabiliti
 
 ## Setup
 
+Requires the [Vite+ CLI](https://viteplus.dev) (`vp`, >= 0.3.0) — it provides
+the managed Node runtime and the pnpm version pinned in `package.json`.
+
 ```bash
-bun install
-bun run dev
-bun run build
-bun run test
+vp install
+pnpm run dev
+pnpm run build
+pnpm run test
 ```
 
 - Web dev server: `http://localhost:3071`
-- API worker dev server: `bun --cwd apps/api dev`
-- Background worker dev server: `bun --cwd apps/background dev`
-- Package manager: Bun only
-- Formatting: `oxfmt`
-- Linting: `oxlint`
+- API worker dev server: `pnpm -C apps/api dev`
+- Background worker dev server: `pnpm -C apps/background dev`
+- Package manager: pnpm only (pin in `packageManager`, catalog in
+  `pnpm-workspace.yaml`)
+- Task runner: Vite Task (`vp run`), not Turbo
+- Formatting: `vp fmt` (Oxfmt)
+- Linting: `vp lint` (Oxlint, type-aware)
+
+**Validation requirement.** The pre-commit hook only formats staged files — it
+does not gate commits. Run `pnpm run check` (typecheck + lint + format:check +
+dead-code + test) before you commit; the PR Gate workflow enforces the same bar
+in CI.
 
 ## Dependencies
 
-- Versions are single-sourced in the root `package.json` `catalog`. When adding or upgrading a dependency, install with `bun add --catalog <pkg>` (Bun >= 1.4) so the workspace resolves `"catalog:"` instead of pinning a version.
+- Versions are single-sourced in the `catalog` block of `pnpm-workspace.yaml`.
+  When adding or upgrading a dependency, add it to the catalog and reference it
+  with `"catalog:"` so the workspace resolves the shared version instead of
+  pinning one.
+- Toolchain versions (`vite`, `vitest`, `oxlint`, `oxfmt`) are pinned by the
+  local `vite-plus` package — do not bump them in the catalog by hand; they move
+  with `vp upgrade` (`vp toolchain` shows the bundled versions).
 
 ## Cross-Cutting Rules
 
@@ -48,7 +64,7 @@ bun run test
 4. Use Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, and Alchemy.
 5. Keep Contributor's visual patterns but do not import Contributor's developer-productivity domain language.
 6. Keep Hexwardens' architecture discipline but do not copy game, PWA, realtime, or Durable Object requirements without a starter use case.
-7. Put every declaration merge (`declare module`, same-name interface merges) in a `.d.ts` file. Match the augmentation to the file: `declare module 'x'` needs a top-level import so the file is a module, while `declare global` and `declare namespace` need the file to have none. Elsewhere `consistent-type-definitions` rewrites `interface` to `type`, and `oxlint --fix` runs in the pre-commit hook. Two lint rules enforce this now (`starter/no-interface-merge-outside-dts`, `starter/no-mismatched-augmentation-context`); see `apps/web/src/router-register.d.ts` for the module case and `apps/web/src/worker-env.d.ts` for the global one.
+7. Put every declaration merge (`declare module`, same-name interface merges) in a `.d.ts` file. Match the augmentation to the file: `declare module 'x'` needs a top-level import so the file is a module, while `declare global` and `declare namespace` need the file to have none. Elsewhere `consistent-type-definitions` rewrites `interface` to `type`. Two lint rules enforce this now (`starter/no-interface-merge-outside-dts`, `starter/no-mismatched-augmentation-context`); see `apps/web/src/router-register.d.ts` for the module case and `apps/web/src/worker-env.d.ts` for the global one. `vp lint --fix` does not run in a hook any more, so run `pnpm run check:fix` deliberately and re-run `pnpm run check` after it.
 
 ## Commit & Release Conventions
 

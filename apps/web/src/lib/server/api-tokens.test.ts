@@ -12,7 +12,7 @@ import {
   type Workspace,
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { Effect, Layer } from 'effect'
 
 import { loadWorkspaceApiTokens, revokeApiToken } from './api-tokens'

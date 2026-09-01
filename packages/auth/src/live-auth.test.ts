@@ -4,7 +4,7 @@ import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 import { type Service } from 'effectful-better-auth'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './index.ts'
 
 // The organization plugin is only observable through a real database: its

@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 import { count, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import { provisionTestD1, type TestD1 } from './testing.ts'
 import { Database, layerFromD1, batch, DbBatchError } from './service.ts'
 import {

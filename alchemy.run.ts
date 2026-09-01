@@ -92,10 +92,12 @@ const CLOUDFLARE_EMAIL_FROM = readEnv('CLOUDFLARE_EMAIL_FROM')
 // Optional provider env, forwarded to the web, API, and background workers so
 // a deployed worker receives its provider configuration. Unset values are
 // omitted entirely — a worker env key that is present but `null` leaks into
-// every consumer (e.g. the telemetry config's string guards) and violates
-// the provider-light rule, which treats an absent key as inactive. The key
-// lists (and the secret-vs-plain split) live in `packages/env/src/server.ts`
-// next to the schema — adding a var there is the ONE place to edit.
+// every consumer (e.g. the telemetry config's string guards, and
+// packages/env's module-scope audit, which 500ed every route on `null.length`
+// in the first green deploy) and violates the provider-light rule, which
+// treats an absent key as inactive. The key lists (and the secret-vs-plain
+// split) live in `packages/env/src/server.ts` next to the schema — adding a
+// var there is the ONE place to edit.
 const optionalProviderEnv = {
   ...Object.fromEntries(presentSecretEntries(optionalModuleEnvSecretKeys)),
   ...Object.fromEntries(

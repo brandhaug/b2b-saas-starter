@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { CreateWorkspaceForm, type CreateWorkspace } from './create-workspace-form'
 import { renderWithRouter } from '@/test/router-harness'
 

@@ -7,7 +7,7 @@ import {
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { DateTime, Effect, Layer, type Scope } from 'effect'
 import {
   HttpClient,

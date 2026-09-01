@@ -46,7 +46,11 @@
     "apps/web/content/blog/*.mdx",
     "apps/web/content/docs/**/*.mdx",
     "apps/web/src/lib/cloudflare-workers-shim.ts",
-    "apps/web/src/lib/cloudflare-workers-shim-dev.ts"
+    "apps/web/src/lib/cloudflare-workers-shim-dev.ts",
+    // Storybook-only alias targets: reached through resolve(...) strings in
+    // apps/web/vite.config.ts's isStorybook branch, invisible to static reachability.
+    "apps/web/src/lib/storybook-react-start-server-stub.ts",
+    "apps/web/src/lib/storybook-start-entries.ts"
   ],
   "resolve": {
     "conditions": ["style"]

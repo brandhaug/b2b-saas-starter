@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { type AuthConfigInterface, makeAuthOptions } from './index.ts'
 
 // The email-verification gate is decided by the caller (from `ENVIRONMENT`)

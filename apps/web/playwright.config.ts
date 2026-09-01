@@ -20,7 +20,7 @@ export default defineConfig({
     // taken, and the readiness probe below polls :3071 until the webServer
     // timeout — a three-minute hang whose only symptom is a missing banner.
     // Fail fast instead so the cause is visible.
-    command: 'bun run dev -- --strictPort',
+    command: 'pnpm run dev -- --strictPort',
     url: 'http://localhost:3071',
     // Locally a dev server on :3071 is usually already running and reusing it
     // saves a cold start. CI always starts its own: a process still holding

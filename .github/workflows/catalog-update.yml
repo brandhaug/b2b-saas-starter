@@ -1,7 +1,8 @@
 name: Catalog Updates
 
-# Dependency updates for Bun's `catalog:` protocol. Groups, branch limits, and
-# ignores live in .catalog-updaterc.json at the repo root.
+# Dependency updates for the `catalog:` protocol (pnpm catalogs in
+# pnpm-workspace.yaml). Groups, branch limits, and ignores live in
+# .catalog-updaterc.json at the repo root.
 on:
   schedule:
     - cron: '0 6 * * *' # Every day at 06:00 UTC
@@ -10,7 +11,8 @@ on:
       - master
     paths:
       - '**/package.json'
-      - '**/bun.lock'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
   workflow_dispatch:
 
 # Rebuilds of open update PRs must run one at a time; queued (not cancelled)
@@ -33,6 +35,10 @@ jobs:
           # stale PRs and rebuild conflicting ones.
           fetch-depth: 0
           token: ${{ secrets.CI_PAT }}
+
+      # The catalogs are pnpm-defined, so the action installs and audits
+      # through pnpm (auto-detected from pnpm-workspace.yaml).
+      - uses: pnpm/action-setup@v4
 
       - uses: brandhaug/catalog-update-action@v1
         with:

@@ -12,7 +12,7 @@ import rehypeSlug from 'rehype-slug'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
-import { defineConfig, loadEnv, type PluginOption } from 'vite'
+import { defineConfig, lazyPlugins, loadEnv, type PluginOption } from 'vite-plus'
 
 function remarkMermaid() {
   return (tree: { children: Array<Record<string, unknown>> }) => {
@@ -111,7 +111,49 @@ function cloudflareWorkersDeployPlugin(
 
 export default defineConfig(({ command, mode }) => {
   const workersShim = resolveWorkersShim(command, mode)
-  // `bun run dev` runs Vite from `apps/web`, and neither Bun's auto-`.env`
+  const workersShimAlias = workersShim
+    ? { 'cloudflare:workers': resolve(import.meta.dirname, workersShim) }
+    : {}
+  // Storybook's vite builder loads this config too (it merges everything but
+  // `build` into its own program) and its mocker runtime emits a second entry
+  // chunk, which TanStack's client-manifest capture rejects. Storybook never
+  // renders Start routes, so the Start plugin has nothing to do there.
+  const isStorybook = process.env.STORYBOOK === 'true'
+  // Storybook's build runs no Worker and no vitest program, so it gets the same
+  // inert stand-ins the test build uses: `cloudflare:workers` resolves to the
+  // provider-light shim (bindings undefined, Seed layers active), and the
+  // package-internal TanStack entry specifiers resolve to stubs (the
+  // tanstackStart plugin that normally aliases them is absent here — its
+  // client-manifest capture also rejects Storybook's mocker entry chunk; see
+  // `storybook-start-entries.ts`).
+  const storybookAliases = isStorybook
+    ? {
+        // Storybook runs no Worker, so bindings resolve to the same inert
+        // provider-light shim the test build uses.
+        'cloudflare:workers': resolve(
+          import.meta.dirname,
+          'src/lib/cloudflare-workers-shim.ts'
+        ),
+        // Keep the whole TanStack server-core graph out of Storybook's build.
+        '@tanstack/react-start/server': resolve(
+          import.meta.dirname,
+          'src/lib/storybook-react-start-server-stub.ts'
+        ),
+        // Belt and braces: anything that still slips through the server edge
+        // (a future direct import of a start-server-core module) resolves the
+        // package-internal entry specifiers the tanstackStart plugin would
+        // normally alias.
+        '#tanstack-start-entry': resolve(
+          import.meta.dirname,
+          'src/lib/storybook-start-entries.ts'
+        ),
+        '#tanstack-router-entry': resolve(
+          import.meta.dirname,
+          'src/lib/storybook-start-entries.ts'
+        )
+      }
+    : {}
+  // Bun's auto-`.env`
   // loading nor Vite's `envDir` reach the repo-root `.env` — but the workers
   // shim and the capability layers read `process.env` directly, so every
   // value in that file (auth origins, optional providers) was silently
@@ -138,54 +180,62 @@ export default defineConfig(({ command, mode }) => {
     preview: { port: 3071, host: 'localhost' },
     resolve: {
       tsconfigPaths: true,
-      alias: workersShim
-        ? {
-            'cloudflare:workers': resolve(import.meta.dirname, workersShim)
-          }
-        : {}
+      alias: {
+        ...workersShimAlias,
+        ...storybookAliases
+      }
     },
-    plugins: [
-      devtools(),
-      tailwindcss(),
-      // Route tests colocate with their route files; the generator would
-      // otherwise warn that each `*.test.tsx` exports no Route.
-      tanstackStart({
-        router: { routeFileIgnorePattern: '\\.test\\.' }
-      }),
-      {
-        enforce: 'pre',
-        ...mdx({
-          remarkPlugins: [
-            remarkFrontmatter,
-            remarkMdxFrontmatter,
-            remarkGfm,
-            remarkMermaid
-          ],
-          rehypePlugins: [
-            rehypeSlug,
-            [
-              rehypePrettyCode,
-              // Dual-theme keeps rehype-pretty-code emitting the `--shiki-dark*`
-              // custom properties that index.css reads. Both slots are dark:
-              // the app has one scheme.
-              { theme: { dark: 'github-dark', light: 'github-dark' } }
+    plugins:
+      lazyPlugins(() => [
+        devtools(),
+        tailwindcss(),
+        // Route tests colocate with their route files; the generator would
+        // otherwise warn that each `*.test.tsx` exports no Route.
+        ...(isStorybook
+          ? []
+          : [
+              tanstackStart({
+                router: { routeFileIgnorePattern: '\\.test\\.' }
+              })
+            ]),
+        {
+          enforce: 'pre',
+          ...mdx({
+            remarkPlugins: [
+              remarkFrontmatter,
+              remarkMdxFrontmatter,
+              remarkGfm,
+              remarkMermaid
+            ],
+            rehypePlugins: [
+              rehypeSlug,
+              [
+                rehypePrettyCode,
+                // Dual-theme keeps rehype-pretty-code emitting the `--shiki-dark*`
+                // custom properties that index.css reads. Both slots are dark:
+                // the app has one scheme.
+                { theme: { dark: 'github-dark', light: 'github-dark' } }
+              ]
             ]
-          ]
-        })
-      },
-      viteReact(),
-      // React Compiler via the rolldown Babel bridge (plugin-react v6 API).
-      // Email templates are invoked directly (no React dispatcher) when
-      // rendering HTML, so compiler-inserted hooks crash there.
-      babel({
-        exclude: /packages[/\\]email[/\\]/,
-        presets: [reactCompilerPreset()]
-      }),
-      cloudflareWorkersDeployPlugin(
-        resolve(import.meta.dirname, './src/lib/cloudflare-workers-shim.ts'),
-        workersShim === null
-      )
-    ],
+          })
+        },
+        viteReact(),
+        // React Compiler via the rolldown Babel bridge (plugin-react v6 API).
+        // Email templates are invoked directly (no React dispatcher) when
+        // rendering HTML, so compiler-inserted hooks crash there.
+        babel({
+          exclude: /packages[/\\]email[/\\]/,
+          presets: [reactCompilerPreset()]
+        }),
+        cloudflareWorkersDeployPlugin(
+          resolve(import.meta.dirname, './src/lib/cloudflare-workers-shim.ts'),
+          workersShim === null
+        )
+        // `lazyPlugins` returns `PluginOption[] | undefined` when the plugin factories are
+        // skipped (vp check/lint/fmt don't need them), but this repo's
+        // `exactOptionalPropertyTypes: true` rejects the explicit `undefined` against
+        // Vite's `plugins` option — so coalesce to the equivalent "no plugins".
+      ]) ?? [],
     test: {
       globals: true,
       environment: 'jsdom',

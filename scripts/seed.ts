@@ -27,6 +27,14 @@ import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/w
 import { getColumns, getTableName, type Table } from 'drizzle-orm'
 import { Effect, Option, Schema } from 'effect'
 import { hashPassword } from 'better-auth/crypto'
+import { spawn } from 'node:child_process'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// The seed writes `.context/…` and targets `packages/db/wrangler.jsonc` with
+// root-relative paths, so it pins its own cwd instead of trusting the caller's.
+const repoRoot = join(import.meta.dirname, '..')
 
 // Demo credential account so the authenticated area is reachable after
 // seeding. The identity is the shared `demoUserIdentity` constant from the
@@ -321,10 +329,10 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
   ].join('\n')}\n`
 }
 
-// This script runs on Bun at development time and shells out to `wrangler d1
+// This script runs on Node at development time and shells out to `wrangler d1
 // execute`; the CLI argv, stdout, file write, subprocess, and exit code below
-// are the Bun/process platform APIs that job needs. The Effect platform
-// equivalents (CommandExecutor, FileSystem) would mean wiring a BunContext
+// are the Node/process platform APIs that job needs. The Effect platform
+// equivalents (CommandExecutor, FileSystem) would mean wiring a NodeContext
 // layer into a script whose whole output is one SQL file and one CLI call.
 function writeAndExecute(sql: string) {
   return Effect.gen(function* () {
@@ -332,26 +340,33 @@ function writeAndExecute(sql: string) {
       yield* Effect.sync(() => process.stdout.write(sql))
       return
     }
-    yield* Effect.promise(() => Bun.write('.context/seed-starter-lab.sql', sql))
-    const code = yield* Effect.promise(
-      () =>
-        Bun.spawn(
-          [
-            'bunx',
-            'wrangler',
-            'd1',
-            'execute',
-            'b2b-saas-starter',
-            '--local',
-            // Use the db package's wrangler config so the seed lands in the
-            // same local D1 state that `bun run db:migrate:local` targets.
-            '--config=packages/db/wrangler.jsonc',
-            '--file=.context/seed-starter-lab.sql'
-          ],
-
-          { stdout: 'inherit', stderr: 'inherit' }
-        ).exited
+    yield* Effect.promise(() =>
+      mkdir(join(repoRoot, '.context'), { recursive: true }).then(() =>
+        writeFile(join(repoRoot, '.context', 'seed-starter-lab.sql'), sql, 'utf8')
+      )
     )
+    const code = yield* Effect.callback<number>((resume) => {
+      // The wrangler bin of the root workspace's own node_modules.
+      const wranglerBin = fileURLToPath(
+        new URL('../node_modules/.bin/wrangler', import.meta.url)
+      )
+      const child = spawn(
+        wranglerBin,
+        [
+          'd1',
+          'execute',
+          'b2b-saas-starter',
+          '--local',
+          // Use the db package's wrangler config so the seed lands in the
+          // same local D1 state that `db:migrate:local` targets.
+          '--config=packages/db/wrangler.jsonc',
+          '--file=.context/seed-starter-lab.sql'
+        ],
+        { stdio: ['ignore', 'inherit', 'inherit'], cwd: repoRoot }
+      )
+      child.on('exit', (exitCode) => resume(Effect.succeed(exitCode ?? 1)))
+      child.on('error', () => resume(Effect.succeed(1)))
+    })
     if (code !== 0) {
       yield* Effect.sync(() => process.exit(code))
     }

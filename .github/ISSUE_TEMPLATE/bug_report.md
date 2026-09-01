@@ -21,5 +21,5 @@ labels: bug
 ## Environment
 
 - Commit SHA:
-- Bun version:
+- Node.js version (and `vp --version`, `pnpm --version`):
 - OS:

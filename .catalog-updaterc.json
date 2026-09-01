@@ -1,9 +1,8 @@
 {
-  "$schema": "https://raw.githubusercontent.com/brandhaug/catalog-update-action/v1/schema.json",
+  "$schema": "https://raw.githubusercontent.com/brandhaug/catalog-update-action/master/schema.json",
   "defaultBranch": "master",
   "maxOpenPrs": 20,
   "concurrency": 10,
-  "packageManager": "bun",
   "minReleaseAgeDays": 3,
   "autoMerge": { "enabled": true, "mergeMethod": "squash" },
   "groups": [
@@ -22,8 +21,6 @@
       "name": "tailwind",
       "patterns": ["tailwindcss", "@tailwindcss/*", "tailwind-merge", "tw-animate-css"]
     },
-    { "name": "vite", "patterns": ["vite", "@vitejs/*"] },
-    { "name": "oxc", "patterns": ["oxlint*", "oxfmt", "@oxlint/*"] },
     { "name": "testing-library", "patterns": ["@testing-library/*"] },
     { "name": "zod", "patterns": ["zod"] },
     {
@@ -32,5 +29,15 @@
     },
     { "name": "all-patch-updates", "patterns": ["*"], "updateTypes": ["patch"] }
   ],
-  "ignore": []
+  "ignore": [
+    { "pattern": "vite" },
+    { "pattern": "@vitejs/*" },
+    { "pattern": "vite-plus" },
+    { "pattern": "vitest" },
+    { "pattern": "@vitest/*" },
+    { "pattern": "oxlint" },
+    { "pattern": "oxlint-*" },
+    { "pattern": "@oxlint/*" },
+    { "pattern": "oxfmt" }
+  ]
 }

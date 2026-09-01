@@ -2,7 +2,7 @@
 
 This guide covers deploying the starter to Cloudflare: one-time account
 setup, the secrets GitHub Actions needs, the deploy command, and how to
-verify the result. `bun run deploy` provisions everything with
+verify the result. `pnpm run deploy` provisions everything with
 [Alchemy](https://alchemy.run): the D1 database (with migrations), the
 webhook queue and dead-letter queue, the three Workers (`web`, `api`,
 `background`), their bindings, rate limiters, and Workers Observability.
@@ -17,7 +17,7 @@ Secret matrix). For local setup, see [setup.md](./setup.md).
 
 Create the two values every deploy needs, plus the URL users will visit.
 
-1. Find your **account ID**: run `bunx wrangler whoami`, or open the
+1. Find your **account ID**: run `pnpm exec wrangler whoami`, or open the
    Cloudflare dashboard and copy it from the Overview sidebar.
 2. Create an **API token** at
    [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens).
@@ -33,7 +33,7 @@ Create the two values every deploy needs, plus the URL users will visit.
    | Account Settings | Read  |
 
    The token is the only credential the CLI cannot create for you, and
-   the only one `bun run deploy` requires.
+   the only one `pnpm run deploy` requires.
 
 3. Determine **`BETTER_AUTH_URL`**, the public URL of the web Worker.
    With no custom domain it is
@@ -95,7 +95,7 @@ of failing the deploy.
 Or, from a machine with the same variables exported:
 
 ```bash
-bun run deploy
+pnpm run deploy
 ```
 
 Both paths run `alchemy deploy --stage prod`. The stage is part of the
@@ -113,21 +113,21 @@ treats the stack as new.
    D1 console:
 
    ```bash
-   bunx wrangler d1 execute b2b-saas-starter --remote \
+   pnpm exec wrangler d1 execute b2b-saas-starter --remote \
      --command "UPDATE user SET role = 'admin' WHERE email = 'you@example.com'"
    ```
 
 ## Ongoing deploys and rotation
 
 Merging to `master` does not deploy. Run the workflow again, or run
-`bun run deploy` locally with the production variables. To rotate a
+`pnpm run deploy` locally with the production variables. To rotate a
 secret, update the value in the `production` environment (or your shell)
 and deploy again — Alchemy ships values as write-only Worker secrets, so
 they are never readable back from Cloudflare. To add a schema change,
 commit the generated migration; the deploy applies it to D1
 automatically.
 
-To tear everything down, run `bun run destroy`. This deletes the
+To tear everything down, run `pnpm run destroy`. This deletes the
 database and its data.
 
 ## Troubleshooting

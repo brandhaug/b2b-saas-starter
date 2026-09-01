@@ -1,4 +1,4 @@
-import { assert, describe } from 'vitest'
+import { assert, describe } from 'vite-plus/test'
 import { createRuleHarness } from '../../test/harness.ts'
 
 const rule = createRuleHarness('starter/no-inline-schema-compile')

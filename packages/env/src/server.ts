@@ -77,17 +77,28 @@ export const optionalModuleEnvKeys: ReadonlyArray<keyof ServerEnv> = [
   ...optionalModuleEnvPlainKeys
 ]
 
-function hasValue(value: string | undefined): boolean {
-  return value !== undefined && value.length > 0
+/**
+ * Absent means "no value". The deploy boundary may deliver `undefined` (var
+ * not forwarded) or `null` (a binding explicitly set to null — workerd does
+ * this for present-but-null bindings), and both mean the same thing here:
+ * the provider is unconfigured. Only a `length > 0` string counts.
+ */
+function hasValue(value: string | null | undefined): boolean {
+  return value !== null && value !== undefined && value.length > 0
 }
 
 /**
  * The raw env bag handed to a worker, as far as this boundary is concerned:
- * every schema var may be absent. Bindings (D1, queues, rate limiters) ride
- * along on the same object and are simply extra properties here — they are
- * never read, and every value that is read goes through the schema below.
+ * every schema var may be absent — or explicitly `null` (workerd delivers
+ * present-but-null bindings as `null`, and the deploy boundary has shipped
+ * that before), which is why every read treats null like absent. Bindings
+ * (D1, queues, rate limiters) ride along on the same object and are simply
+ * extra properties here — they are never read, and every value that is read
+ * goes through the schema below.
  */
-export type RawEnvSource = Partial<ServerEnv>
+export type RawEnvSource = {
+  readonly [K in keyof ServerEnv]?: ServerEnv[K] | null
+}
 
 /**
  * Local development stays provider-light: the Local Auth Path works with no
@@ -109,10 +120,17 @@ export function readServerEnv(
   options?: { readonly mode?: 'local' | 'strict' }
 ): ServerEnv {
   const localDefaults = localDefaultsFor(options?.mode ?? 'local')
-  // Pick only schema keys from the source (worker envs also carry bindings)
-  // and let the schema validate — the field list lives in ONE place above.
+  // Pick only schema keys from the source (worker envs also carry bindings),
+  // normalize `null` to absent, and let the schema validate — the field list
+  // lives in ONE place above.
   const picked = Object.fromEntries(
-    serverEnvKeys.map((key) => [key, source[key] ?? localDefaults[key]])
+    serverEnvKeys.map((key) => {
+      // `?? undefined` normalizes an explicit null binding to absent without
+      // touching a present string, then falls through to the local default
+      // when absent.
+      const value = source[key] ?? undefined
+      return [key, value ?? localDefaults[key]]
+    })
   )
   return decodeServerEnv(picked)
 }
@@ -190,7 +208,10 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
   }
 
   const problems: Array<RequiredEnvProblem> = []
-  const secret = source.BETTER_AUTH_SECRET
+  // Normalize an explicit null binding to absent (`?? undefined`), like
+  // `readServerEnv` does — workerd delivers present-but-null bindings as
+  // `null`, and the audit must treat that exactly like a missing var.
+  const secret = source.BETTER_AUTH_SECRET ?? undefined
   if (secret === undefined || secret.length === 0) {
     problems.push({ key: 'BETTER_AUTH_SECRET', reason: 'missing' })
   } else if (PLACEHOLDER_AUTH_SECRETS.has(secret)) {
@@ -199,7 +220,7 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
     problems.push({ key: 'BETTER_AUTH_SECRET', reason: 'too-short' })
   }
 
-  const url = source.BETTER_AUTH_URL
+  const url = source.BETTER_AUTH_URL ?? undefined
   if (url === undefined || url.length === 0) {
     problems.push({ key: 'BETTER_AUTH_URL', reason: 'missing' })
   } else if (isPlaceholderAuthUrl(url)) {
@@ -209,7 +230,7 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
   // A malformed trusted origin silently weakens Better Auth's origin checks —
   // `https:/app.example.com` matches nothing, so the intended origin loses its
   // CSRF carve-out. Flag any entry that does not parse as an http(s) URL.
-  const trustedOrigins = source.BETTER_AUTH_TRUSTED_ORIGINS
+  const trustedOrigins = source.BETTER_AUTH_TRUSTED_ORIGINS ?? undefined
   if (trustedOrigins !== undefined && trustedOrigins.length > 0) {
     for (const entry of trustedOrigins.split(',')) {
       const origin = entry.trim()

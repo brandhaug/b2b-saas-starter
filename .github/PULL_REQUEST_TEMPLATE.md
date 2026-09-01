@@ -4,7 +4,7 @@
 
 ## Checklist
 
-- [ ] `bun run check` and `bun run build` pass locally
+- [ ] `pnpm run check` and `pnpm run build` pass locally
 - [ ] Tests added or updated for behavioural changes
 - [ ] Storybook stories added or updated for UI changes
 - [ ] [CONTEXT.md](../CONTEXT.md) updated if new domain language was introduced
