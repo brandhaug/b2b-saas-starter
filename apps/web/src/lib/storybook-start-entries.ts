@@ -9,5 +9,5 @@
 // so bundling succeeds — the start handler that consumes them never runs
 // inside Storybook. Shape mirrors the fake entries the TanStack packages ship
 // for plugin-less builds (`start-client-core/dist/esm/fake-entries`).
-export const startInstance = {} as never
-export const routerEntry = {} as never
+export const startInstance = {}
+export const routerEntry = {}
