@@ -1,8 +1,9 @@
 import { LaptopIcon } from 'lucide-react'
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
+import { unwrapAuthResult, type AuthResult } from '@/lib/auth-result'
+import { useServerAction } from '@/hooks/use-server-action'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -116,6 +117,7 @@ function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowV
  * is browser-only (relative fetch), so the server render must not fetch.
  */
 const SESSIONS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'sessions']
+const ACTION_FAILED = 'The change could not be made'
 
 export function SessionsPanel({
   currentSessionToken,
@@ -148,21 +150,19 @@ export function SessionsPanel({
     retry: false
   })
   const loadError = queryError?.message ?? null
-  const [actionError, setActionError] = useState<string | null>(null)
-
-  async function act(
-    action: () => Promise<{
-      readonly error?: { readonly message?: string | undefined } | null
-    }>
-  ) {
-    setActionError(null)
-    const result = await action()
-    if (result.error) {
-      setActionError(result.error.message ?? 'The change could not be made')
-      return
+  // The session list is this panel's own query, not a loader's, so the action
+  // refetches it rather than invalidating the route.
+  const act = useServerAction(
+    (action: () => Promise<AuthResult<unknown>>) =>
+      unwrapAuthResult(action, ACTION_FAILED),
+    {
+      failureMessage: ACTION_FAILED,
+      invalidate: false,
+      onSuccess: () => {
+        void refetch()
+      }
     }
-    void refetch()
-  }
+  )
 
   const othersExist = rows?.some((row) => row.token !== currentSessionToken)
 
@@ -185,9 +185,7 @@ export function SessionsPanel({
               </AlertDialogDescription>
               <div className="flex justify-end gap-2">
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => void act(() => revokeOtherSessions())}
-                >
+                <AlertDialogAction onClick={() => act.run(() => revokeOtherSessions())}>
                   Sign out
                 </AlertDialogAction>
               </div>
@@ -201,11 +199,11 @@ export function SessionsPanel({
           {loadError}
         </p>
       ) : null}
-      {actionError ? (
+      {act.error === null ? null : (
         <p role="alert" className="text-xs text-destructive">
-          {actionError}
+          {act.error}
         </p>
-      ) : null}
+      )}
 
       {hydrated && isPending ? (
         <ul className="grid gap-2" aria-busy="true">
@@ -262,7 +260,7 @@ export function SessionsPanel({
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() =>
-                            void act(() => revokeSession({ token: row.token }))
+                            act.run(() => revokeSession({ token: row.token }))
                           }
                         >
                           Revoke session

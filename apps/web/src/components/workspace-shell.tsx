@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/sheet'
 import { authClient } from '@/lib/auth-client'
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 
 const SIGN_OUT_FAILED = 'Sign-out failed'
@@ -150,42 +150,34 @@ export function WorkspaceShell({
 
 function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
   const router = useRouter()
-  const [signingOut, setSigningOut] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  // `callServerFn` keeps the Better Auth rejection in the error channel and
-  // never rejects itself, so the flag below is cleared on every path — a
-  // failed sign-out can be retried instead of leaving the header stuck.
-  // The failure is reported rather than escaping as an unhandled rejection.
-  async function runSignOut() {
-    setError(null)
-    const outcome = await callServerFn(async () => {
+  // The hook keeps the Better Auth rejection in the error channel and never
+  // rejects itself, so the busy flag clears on every path — a failed sign-out
+  // can be retried instead of leaving the header stuck, and the failure is
+  // reported rather than escaping as an unhandled rejection. The navigation is
+  // the refresh, so there is no loader to invalidate on top of it.
+  const signingOut = useServerAction(
+    async () => {
       await signOut()
       await router.navigate({ to: '/sign-in' })
-    }, SIGN_OUT_FAILED)
-    setSigningOut(false)
-    if (!outcome.ok) {
-      setError(outcome.message)
-    }
-  }
+    },
+    { failureMessage: SIGN_OUT_FAILED, invalidate: false }
+  )
   return (
     <>
       <Button
         variant="ghost"
         size="icon"
         aria-label="Sign out"
-        disabled={signingOut}
-        onClick={() => {
-          setSigningOut(true)
-          void runSignOut()
-        }}
+        disabled={signingOut.pending}
+        onClick={() => signingOut.run()}
       >
         <LogOutIcon className="size-4" />
       </Button>
-      {error ? (
+      {signingOut.error === null ? null : (
         <p role="alert" className="text-xs text-destructive">
-          {error}
+          {signingOut.error}
         </p>
-      ) : null}
+      )}
     </>
   )
 }
@@ -295,7 +287,7 @@ function WorkspaceNav({
                 workspaceSlug={workspaceSlug}
                 label={row.label}
                 icon={row.icon}
-                exact={row.exact}
+                exact={row.exact ?? false}
                 onNavigate={onNavigate}
               />
             ))}

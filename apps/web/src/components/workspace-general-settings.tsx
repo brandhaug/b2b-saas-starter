@@ -7,7 +7,7 @@ import {
   deleteWorkspaceServerFn,
   renameWorkspaceServerFn
 } from '@/lib/server/workspace-lifecycle'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 import { ConfirmButton } from '@/components/confirm-button'
 
 const RENAME_FAILED = 'Failed to rename workspace'
@@ -86,21 +86,19 @@ function RenameForm({
   readonly rename: RenameWorkspace
 }) {
   const [renamed, setRenamed] = useState<string | null>(null)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+  const submit = useServerAction(
+    (name: string) => rename({ data: { workspaceSlug, name } }),
+    {
+      failureMessage: RENAME_FAILED,
+      invalidate: false,
+      onSuccess: (_, name) => setRenamed(name)
+    }
+  )
   const form = useForm({
     defaultValues: { name: currentName },
     onSubmit: async ({ value }) => {
-      setSubmitError(null)
       setRenamed(null)
-      const outcome = await callServerFn(
-        () => rename({ data: { workspaceSlug, name: value.name.trim() } }),
-        RENAME_FAILED
-      )
-      if (!outcome.ok) {
-        setSubmitError(outcome.message)
-        return
-      }
-      setRenamed(value.name.trim())
+      await submit.runAsync(value.name.trim())
     }
   })
 
@@ -151,11 +149,11 @@ function RenameForm({
           <output>Workspace renamed to “{renamed}”.</output>
         </p>
       )}
-      {submitError ? (
+      {submit.error === null ? null : (
         <Alert variant="destructive">
-          <AlertDescription>{submitError}</AlertDescription>
+          <AlertDescription>{submit.error}</AlertDescription>
         </Alert>
-      ) : null}
+      )}
     </form>
   )
 }
@@ -169,26 +167,13 @@ function DeleteSection({
   readonly name: string
   readonly remove: DeleteWorkspace
 }) {
-  const [deleting, setDeleting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-
-  async function confirmDelete() {
-    setSubmitError(null)
-    setDeleting(true)
-    // The reset rides `finally` so every path clears the flag; `callServerFn`
-    // never rejects, but the flag must not survive either outcome.
-    const outcome = await callServerFn(
-      () => remove({ data: { workspaceSlug } }),
-      DELETE_FAILED
-    ).finally(() => setDeleting(false))
-    if (!outcome.ok) {
-      setSubmitError(outcome.message)
-      return
-    }
-    // The workspace is gone; its routes no longer resolve. The workspaces list
-    // is where a former owner lands.
-    window.location.assign('/workspaces')
-  }
+  // No loader to re-run: the workspace is gone and its routes no longer
+  // resolve, so a former owner lands on the workspaces list instead.
+  const confirmDelete = useServerAction(() => remove({ data: { workspaceSlug } }), {
+    failureMessage: DELETE_FAILED,
+    invalidate: false,
+    onSuccess: () => window.location.assign('/workspaces')
+  })
 
   return (
     <div className="grid gap-2 rounded-none bg-muted p-4">
@@ -205,14 +190,14 @@ function DeleteSection({
         variant="destructive"
         cancelVariant="outline"
         className="justify-self-start"
-        busy={deleting}
-        onConfirm={() => void confirmDelete()}
+        busy={confirmDelete.pending}
+        onConfirm={() => confirmDelete.run()}
       />
-      {submitError ? (
+      {confirmDelete.error === null ? null : (
         <Alert variant="destructive">
-          <AlertDescription>{submitError}</AlertDescription>
+          <AlertDescription>{confirmDelete.error}</AlertDescription>
         </Alert>
-      ) : null}
+      )}
     </div>
   )
 }

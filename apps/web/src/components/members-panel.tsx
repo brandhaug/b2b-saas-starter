@@ -3,8 +3,6 @@ import {
   type Member,
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { useState } from 'react'
-import { useRouter } from '@tanstack/react-router'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,7 +19,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { changeMemberRoleServerFn } from '@/lib/server/workspace-members'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 
 const CHANGE_FAILED = 'Failed to change the role'
 
@@ -54,28 +52,15 @@ export function MembersPanel({
   readonly members: ReadonlyArray<Member>
   readonly viewer: Viewer
 }) {
-  const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
-  const [changing, setChanging] = useState<string | null>(null)
-
   const canManage = viewerCan(viewer, { member: ['update'] })
 
-  async function changeRole(userId: string, role: WorkspaceRole) {
-    setError(null)
-    setChanging(userId)
-    const outcome = await callServerFn(
-      () => changeMemberRoleServerFn({ data: { workspaceSlug, userId, role } }),
-      CHANGE_FAILED
-    )
-    setChanging(null)
-    if (!outcome.ok) {
-      setError(outcome.message)
-      return
-    }
-    // The loader owns the roster, so re-run it rather than mirroring the
-    // changed row into local state.
-    await router.invalidate()
-  }
+  // The loader owns the roster, so the hook re-runs it on success rather than
+  // mirroring the changed row into local state.
+  const changeRole = useServerAction(
+    ({ userId, role }: { readonly userId: string; readonly role: WorkspaceRole }) =>
+      changeMemberRoleServerFn({ data: { workspaceSlug, userId, role } }),
+    { failureMessage: CHANGE_FAILED }
+  )
 
   if (members.length === 0) {
     return (
@@ -105,11 +90,11 @@ export function MembersPanel({
                       key={role}
                       variant="ghost"
                       size="sm"
-                      disabled={changing === member.id}
+                      disabled={changeRole.pendingInput?.userId === member.id}
                       aria-label={`Make ${role}: ${member.name}`}
-                      onClick={() => void changeRole(member.id, role)}
+                      onClick={() => changeRole.run({ userId: member.id, role })}
                     >
-                      {changing === member.id ? (
+                      {changeRole.pendingInput?.userId === member.id ? (
                         <Spinner data-icon="inline-start" />
                       ) : null}
                       Make {role}
@@ -125,11 +110,11 @@ export function MembersPanel({
           Your role cannot change member roles.
         </p>
       )}
-      {error ? (
+      {changeRole.error === null ? null : (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{changeRole.error}</AlertDescription>
         </Alert>
-      ) : null}
+      )}
     </div>
   )
 }

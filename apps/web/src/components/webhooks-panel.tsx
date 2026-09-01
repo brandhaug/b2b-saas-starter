@@ -26,7 +26,7 @@ import {
   disableWebhookEndpointServerFn,
   rotateWebhookSecretServerFn
 } from '@/lib/server/webhooks'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 
 const DISABLE_FAILED = 'Failed to disable endpoint'
 const ROTATE_FAILED = 'Failed to rotate secret'
@@ -114,12 +114,10 @@ export function WebhooksPanel({
   readonly createEndpoint?: CreateWebhookEndpoint
 }) {
   const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
   const [rotatedSecret, setRotatedSecret] = useState<{
     readonly endpointId: string
     readonly secret: string
   } | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
   // Disabling an endpoint stops its deliveries with no re-enable control in
   // this surface, so it takes a click to arm and a second to commit — the same
   // two-step pattern the settings page's delete uses.
@@ -129,43 +127,27 @@ export function WebhooksPanel({
   const canDisable = viewerCan(viewer, { webhook: ['disable'] })
   const canRotate = viewerCan(viewer, { webhook: ['rotateSecret'] })
 
-  async function disable(endpointId: string) {
-    setError(null)
-    setBusy(endpointId)
-    const outcome = await callServerFn(
-      () => disableEndpoint({ data: { workspaceSlug, endpointId } }),
-      DISABLE_FAILED
-    )
-    setBusy(null)
-    if (!outcome.ok) {
-      setError(outcome.message)
-      return
-    }
-    // The loader owns the list, so re-run it rather than mirroring the change
-    // into local state.
-    await router.invalidate()
-  }
+  // The loader owns the list, so the hook re-runs it on success rather than
+  // mirroring the change into local state.
+  const disable = useServerAction(
+    (endpointId: string) => disableEndpoint({ data: { workspaceSlug, endpointId } }),
+    { failureMessage: DISABLE_FAILED }
+  )
 
-  async function rotate(endpointId: string) {
-    setError(null)
-    setRotatedSecret(null)
-    setBusy(endpointId)
-    const outcome = await callServerFn(
-      () => rotateSecret({ data: { workspaceSlug, endpointId } }),
-      ROTATE_FAILED
-    )
-    setBusy(null)
-    if (!outcome.ok) {
-      setError(outcome.message)
-      return
+  const rotate = useServerAction(
+    (endpointId: string) => rotateSecret({ data: { workspaceSlug, endpointId } }),
+    {
+      failureMessage: ROTATE_FAILED,
+      // `null` means no endpoint matched in this workspace — nothing was
+      // rotated and there is no secret to show.
+      onSuccess: (secret, endpointId) => {
+        setRotatedSecret(secret === null ? null : { endpointId, secret })
+      }
     }
-    // `null` means no endpoint matched in this workspace — nothing was
-    // rotated and there is no secret to show.
-    if (outcome.value !== null) {
-      setRotatedSecret({ endpointId, secret: outcome.value })
-    }
-    await router.invalidate()
-  }
+  )
+
+  const busyId = disable.pendingInput ?? rotate.pendingInput ?? null
+  const error = disable.error ?? rotate.error
 
   return (
     <div className="grid gap-6">
@@ -232,20 +214,23 @@ export function WebhooksPanel({
                         label="Disable"
                         confirmLabel="Confirm disable"
                         armed={confirmingId === endpoint.id}
-                        busy={busy === endpoint.id}
+                        busy={busyId === endpoint.id}
                         onArm={() => setConfirmingId(endpoint.id)}
                         onCancel={() => setConfirmingId(null)}
-                        onConfirm={() => void disable(endpoint.id)}
+                        onConfirm={() => disable.run(endpoint.id)}
                       />
                     ) : null}
                     {canRotate ? (
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={busy === endpoint.id}
-                        onClick={() => void rotate(endpoint.id)}
+                        disabled={busyId === endpoint.id}
+                        onClick={() => {
+                          setRotatedSecret(null)
+                          rotate.run(endpoint.id)
+                        }}
                       >
-                        {busy === endpoint.id ? (
+                        {busyId === endpoint.id ? (
                           <Spinner data-icon="inline-start" />
                         ) : null}
                         Rotate secret
@@ -277,11 +262,11 @@ export function WebhooksPanel({
         )}
       </div>
 
-      {error ? (
+      {error === null ? null : (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      ) : null}
+      )}
     </div>
   )
 }

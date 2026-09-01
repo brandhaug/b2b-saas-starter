@@ -5,7 +5,6 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type WorkspaceWithMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { useState } from 'react'
-import { useRouter } from '@tanstack/react-router'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -34,7 +33,7 @@ import {
   unbanSystemUserServerFn,
   type SystemUser
 } from '@/lib/server/admin'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 
 /**
  * Cross-workspace role editor under `/admin`'s users table, keyed by the
@@ -49,29 +48,17 @@ import { callServerFn } from '@/lib/server-call'
  * Auth's plugin.
  */
 export function BanUserAction({ user }: { readonly user: SystemUser }) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const banned = user.banned
   const verb = banned ? 'Unban' : 'Ban'
 
-  async function confirm() {
-    setError(null)
-    setBusy(true)
-    const outcome = await callServerFn(() => {
-      const write = banned
+  const confirm = useServerAction(
+    () =>
+      banned
         ? unbanSystemUserServerFn({ data: { userId: user.id } })
-        : banSystemUserServerFn({ data: { userId: user.id } })
-      return write.then(() => undefined)
-    }, `${verb} failed`).finally(() => setBusy(false))
-    if (!outcome.ok) {
-      setError(outcome.message)
-      return
-    }
-    setOpen(false)
-    await router.invalidate()
-  }
+        : banSystemUserServerFn({ data: { userId: user.id } }),
+    { failureMessage: `${verb} failed`, onSuccess: () => setOpen(false) }
+  )
 
   return (
     <>
@@ -93,19 +80,19 @@ export function BanUserAction({ user }: { readonly user: SystemUser }) {
               ? 'The user will be able to sign in again.'
               : 'The user will be signed out and blocked from signing in.'}
           </AlertDialogDescription>
-          {error ? (
+          {confirm.error === null ? null : (
             <p role="alert" className="text-xs text-destructive">
-              {error}
+              {confirm.error}
             </p>
-          ) : null}
+          )}
           <div className="flex justify-end gap-2">
-            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={confirm.pending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant={banned ? 'default' : 'destructive'}
-              disabled={busy}
-              onClick={() => void confirm()}
+              disabled={confirm.pending}
+              onClick={() => confirm.run()}
             >
-              {busy ? <Spinner data-icon="inline-start" /> : null}
+              {confirm.pending ? <Spinner data-icon="inline-start" /> : null}
               {verb}
             </AlertDialogAction>
           </div>
@@ -120,69 +107,49 @@ export function AdminUserActions({
 }: {
   readonly users: ReadonlyArray<SystemUser>
 }) {
-  const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string>(users[0]?.id ?? '')
   const [memberships, setMemberships] =
     useState<ReadonlyArray<WorkspaceWithMembership> | null>(null)
 
-  async function settle(run: () => Promise<void>, busyKey: string, message: string) {
-    setError(null)
-    setBusy(busyKey)
-    const outcome = await callServerFn(run, `${message} failed`)
-    setBusy(null)
-    if (!outcome.ok) {
-      setError(outcome.message)
-      return false
+  // A read, so there is no loader to re-run — it just refills the editor.
+  const loadWorkspaces = useServerAction(
+    (userId: string) => listUserWorkspacesServerFn({ data: { userId } }),
+    {
+      failureMessage: 'Failed to load workspaces',
+      invalidate: false,
+      onSuccess: setMemberships
     }
-    await router.invalidate()
-    return true
-  }
+  )
 
-  async function loadWorkspaces(userId: string) {
+  // Re-reads the memberships after the write, through the same folded call, so
+  // the editor shows the role it just wrote and a read failure lands in error
+  // state instead of escaping as an unhandled rejection.
+  const changeRole = useServerAction(
+    async ({
+      workspaceId,
+      member,
+      role
+    }: {
+      readonly workspaceId: string
+      readonly member: Member
+      readonly role: WorkspaceRole
+    }) => {
+      await changeUserWorkspaceRoleServerFn({
+        data: { userId: member.id, workspaceId, role }
+      })
+      return listUserWorkspacesServerFn({ data: { userId: member.id } })
+    },
+    { failureMessage: 'Role change failed', onSuccess: setMemberships }
+  )
+
+  function selectUser(userId: string) {
     setSelectedId(userId)
     setMemberships(null)
-    setError(null)
-    setBusy('Workspaces')
-    const outcome = await callServerFn(() => {
-      return listUserWorkspacesServerFn({ data: { userId } })
-    }, 'Failed to load workspaces')
-    setBusy(null)
-    if (!outcome.ok) {
-      setError(outcome.message)
-      return
-    }
-    setMemberships(outcome.value)
+    loadWorkspaces.run(userId)
   }
 
-  async function changeRole(workspaceId: string, member: Member, role: WorkspaceRole) {
-    // Re-read the memberships after the write so the editor shows the role it
-    // just wrote.
-    const settled = await settle(
-      () => {
-        return changeUserWorkspaceRoleServerFn({
-          data: { userId: member.id, workspaceId, role }
-        }).then(() => undefined)
-      },
-      'Role change',
-      'Role change'
-    )
-    if (!settled) {
-      return
-    }
-    // Re-read the memberships through the same folded call so a read failure
-    // lands in error state instead of escaping as an unhandled rejection.
-    const read = await callServerFn(() => {
-      return listUserWorkspacesServerFn({ data: { userId: member.id } })
-    }, 'Failed to load workspaces')
-    if (!read.ok) {
-      setError(read.message)
-      return
-    }
-    setMemberships(read.value)
-  }
-
+  const busy = loadWorkspaces.pending || changeRole.pending
+  const error = loadWorkspaces.error ?? changeRole.error
   const selected = users.find((user) => user.id === selectedId)
 
   return (
@@ -191,17 +158,13 @@ export function AdminUserActions({
         <p className="text-xs text-muted-foreground">Workspace roles</p>
         <Select
           value={selectedId}
-          onValueChange={(value) => void loadWorkspaces(String(value))}
+          onValueChange={(value) => selectUser(String(value))}
           items={users.map((user) => ({
             value: user.id,
             label: `${user.name} (${user.email})`
           }))}
         >
-          <SelectTrigger
-            aria-label="Select a user"
-            className="w-full"
-            disabled={busy !== null}
-          >
+          <SelectTrigger aria-label="Select a user" className="w-full" disabled={busy}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -217,11 +180,11 @@ export function AdminUserActions({
         <Button
           size="sm"
           variant="ghost"
-          disabled={busy !== null || !selectedId}
-          onClick={() => void loadWorkspaces(selectedId)}
+          disabled={busy || !selectedId}
+          onClick={() => selectUser(selectedId)}
         >
           Load workspaces
-          {busy === 'Workspaces' ? <Spinner data-icon="inline-end" /> : null}
+          {loadWorkspaces.pending ? <Spinner data-icon="inline-end" /> : null}
         </Button>
         {(() => {
           if (memberships === null) {
@@ -242,8 +205,8 @@ export function AdminUserActions({
                   workspaceName={workspace.name}
                   workspaceId={workspace.id}
                   member={member}
-                  busy={busy !== null}
-                  onChangeRole={changeRole}
+                  busy={busy}
+                  onChangeRole={(target) => changeRole.run(target)}
                 />
               ))}
             </ul>
@@ -251,11 +214,11 @@ export function AdminUserActions({
         })()}
       </div>
 
-      {error ? (
+      {error === null ? null : (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      ) : null}
+      )}
     </div>
   )
 }
@@ -265,11 +228,11 @@ function MembershipRow(input: {
   readonly workspaceId: string
   readonly member: Member
   readonly busy: boolean
-  readonly onChangeRole: (
-    workspaceId: string,
-    member: Member,
-    role: WorkspaceRole
-  ) => Promise<void>
+  readonly onChangeRole: (target: {
+    readonly workspaceId: string
+    readonly member: Member
+    readonly role: WorkspaceRole
+  }) => void
 }) {
   // One pass over the fixed role vocabulary: keep every role this member does
   // not already hold.
@@ -292,7 +255,11 @@ function MembershipRow(input: {
             disabled={input.busy}
             aria-label={`Make ${input.workspaceName} role ${role}`}
             onClick={() =>
-              void input.onChangeRole(input.workspaceId, input.member, role)
+              input.onChangeRole({
+                workspaceId: input.workspaceId,
+                member: input.member,
+                role
+              })
             }
           >
             Make {role}

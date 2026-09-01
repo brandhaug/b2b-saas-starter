@@ -15,8 +15,9 @@ import {
 import { runCapabilities } from '@/lib/capabilities'
 import {
   needsPreHandlerActor,
-  recordAuthAudit
-} from '@/lib/server/auth-audit/lifecycle'
+  type AuthExchange
+} from '@/lib/server/auth-audit/exchanges'
+import { recordAuthAudit } from '@/lib/server/auth-audit/record'
 import { type AuthAuditContext } from '@/lib/server/auth-audit/shared'
 import { makeTurnstileLayer } from '@/lib/server/turnstile'
 import { sendTwoFactorChangedEmail } from '@/lib/server/auth-emails'
@@ -40,11 +41,10 @@ function sendNotification(input: {
  * no session — anonymous probes are rate-limited noise.
  */
 async function readAuthAuditContext(
-  request: Request
+  request: Request,
+  exchange: AuthExchange
 ): Promise<AuthAuditContext | undefined> {
-  const method = request.method
-  const pathname = new URL(request.url).pathname
-  if (method !== 'POST' || !needsPreHandlerActor({ method, pathname })) {
+  if (exchange.method !== 'POST' || !needsPreHandlerActor(exchange)) {
     return undefined
   }
   // The clone is taken before the handler runs — Better Auth consumes the
@@ -81,9 +81,11 @@ async function readAuthAuditContext(
  * Runs OUTSIDE the request scope (no `Effect.annotateLogsScoped` here); the caller
  * annotates the wide event from the response it gets back.
  */
-function verifySignUpTurnstile(request: Request): Effect.Effect<Response | null> {
-  const pathname = new URL(request.url).pathname
-  if (request.method !== 'POST' || !pathname.endsWith('/sign-up/email')) {
+function verifySignUpTurnstile(
+  request: Request,
+  exchange: AuthExchange
+): Effect.Effect<Response | null> {
+  if (exchange.method !== 'POST' || !exchange.pathname.endsWith('/sign-up/email')) {
     return Effect.succeed(null)
   }
   const token = request.headers.get('x-turnstile-token') ?? ''
@@ -104,7 +106,14 @@ function verifySignUpTurnstile(request: Request): Effect.Effect<Response | null>
 }
 
 async function handleAuth(request: Request): Promise<Response> {
-  const bucket = authRateLimitBucket(request.method, new URL(request.url).pathname)
+  // The one URL parse per request: method and pathname are all the rate-limit
+  // bucket, the Turnstile gate, the audit table and the two-factor
+  // notification match on.
+  const exchange: AuthExchange = {
+    method: request.method,
+    pathname: new URL(request.url).pathname
+  }
+  const bucket = authRateLimitBucket(exchange.method, exchange.pathname)
   const rateLimitLayer = makeRateLimiterLayer(env)
 
   // The request scope (method, pathname, trace continuation, the canonical
@@ -127,7 +136,7 @@ async function handleAuth(request: Request): Promise<Response> {
           })
         }
         // Turnstile gate before Better Auth consumes the request (ADR 0031).
-        const turnstileResponse = yield* verifySignUpTurnstile(request)
+        const turnstileResponse = yield* verifySignUpTurnstile(request, exchange)
         if (turnstileResponse !== null) {
           yield* Effect.annotateLogsScoped({
             outcome: 'turnstile_blocked',
@@ -138,7 +147,9 @@ async function handleAuth(request: Request): Promise<Response> {
         // Pre-handler audit context before Better Auth runs: it reads the
         // session and — for admin mutations — a body clone that the handler's
         // consumption of the request would otherwise make unreadable.
-        const context = yield* Effect.promise(() => readAuthAuditContext(request))
+        const context = yield* Effect.promise(() =>
+          readAuthAuditContext(request, exchange)
+        )
         // The effectful-better-auth mount: toWeb → auth.handler → fromWeb.
         // The Auth service comes from authRuntime's layer; only the request
         // is provided per call.
@@ -154,7 +165,7 @@ async function handleAuth(request: Request): Promise<Response> {
         // annotates its own failure reason onto this wide event; the outcome is
         // added below.
         const authAudit = yield* recordAuthAudit(
-          request,
+          exchange,
           response,
           runCapabilities,
           context
@@ -167,7 +178,7 @@ async function handleAuth(request: Request): Promise<Response> {
         // every successful enable/disable, so a hijacked session cannot
         // silently take over or strip the second factor.
         yield* notifyTwoFactorChangedEffect(
-          request,
+          exchange,
           response,
           sendNotification,
           context

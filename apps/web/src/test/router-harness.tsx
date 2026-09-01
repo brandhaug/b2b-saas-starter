@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   createMemoryHistory,
   createRootRoute,
@@ -19,6 +20,11 @@ import { render, type RenderResult } from '@testing-library/react'
  * `router.state.location.pathname` after the fact instead of asking whether a
  * `navigate` double was called: the test states where the user ended up, which
  * is the thing that has to keep being true.
+ *
+ * A `QueryClient` comes with it, because production wires one into the router
+ * context and `useServerAction` (so every panel mutation) reads it. Retries are
+ * off so a failing call surfaces in the first assertion rather than after a
+ * backoff.
  *
  * `destinations` are the paths the component under test can navigate to. They
  * have to be registered, because navigating to an unregistered path resolves to
@@ -56,5 +62,15 @@ export async function renderWithRouter(
   // The router resolves its first match asynchronously, so priming it here keeps
   // the render synchronous for callers and their queries.
   await router.load()
-  return { ...render(<RouterProvider router={router} />), router }
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+  })
+  return {
+    ...render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    ),
+    router
+  }
 }

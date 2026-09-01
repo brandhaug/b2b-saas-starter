@@ -17,7 +17,7 @@ import {
 import { ConfirmButton } from '@/components/confirm-button'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { revokeApiTokenServerFn } from '@/lib/server/api-tokens'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 
 const REVOKE_FAILED = 'Failed to revoke token'
 
@@ -62,8 +62,6 @@ export function ApiTokensPanel({
   readonly createToken?: CreateApiToken
 }) {
   const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
-  const [revoking, setRevoking] = useState<string | null>(null)
   // Revocation is irreversible, so it takes a click to arm and a second to
   // commit — the same two-step pattern the settings page's delete uses.
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
@@ -71,22 +69,12 @@ export function ApiTokensPanel({
   const canCreate = viewerCan(viewer, { apiToken: ['create'] })
   const canRevoke = viewerCan(viewer, { apiToken: ['revoke'] })
 
-  async function revoke(tokenId: string) {
-    setError(null)
-    setRevoking(tokenId)
-    const outcome = await callServerFn(
-      () => revokeToken({ data: { workspaceSlug, tokenId } }),
-      REVOKE_FAILED
-    )
-    setRevoking(null)
-    if (!outcome.ok) {
-      setError(outcome.message)
-      return
-    }
-    // The loader owns the list, so re-run it rather than mirroring the
-    // revoked row into local state.
-    await router.invalidate()
-  }
+  // The loader owns the list, so the hook re-runs it on success rather than
+  // mirroring the revoked row into local state.
+  const revoke = useServerAction(
+    (tokenId: string) => revokeToken({ data: { workspaceSlug, tokenId } }),
+    { failureMessage: REVOKE_FAILED }
+  )
 
   return (
     <div className="grid gap-6">
@@ -141,10 +129,10 @@ export function ApiTokensPanel({
                       label="Revoke"
                       confirmLabel="Confirm revoke"
                       armed={confirmingId === token.id}
-                      busy={revoking === token.id}
+                      busy={revoke.pendingInput === token.id}
                       onArm={() => setConfirmingId(token.id)}
                       onCancel={() => setConfirmingId(null)}
-                      onConfirm={() => void revoke(token.id)}
+                      onConfirm={() => revoke.run(token.id)}
                     />
                   </ItemActions>
                 ) : null}
@@ -159,11 +147,11 @@ export function ApiTokensPanel({
         )}
       </div>
 
-      {error ? (
+      {revoke.error === null ? null : (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{revoke.error}</AlertDescription>
         </Alert>
-      ) : null}
+      )}
     </div>
   )
 }

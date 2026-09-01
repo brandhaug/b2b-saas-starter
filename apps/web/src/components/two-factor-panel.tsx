@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { useReducer, useState } from 'react'
+import { useReducer } from 'react'
 import { ShieldCheckIcon } from 'lucide-react'
 import { authClient } from '@/lib/auth-client'
 import {
@@ -10,6 +10,13 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { authFailure } from '@/lib/auth-result'
+import { useServerAction } from '@/hooks/use-server-action'
+
+const ENROLL_FAILED = 'Could not start setup'
+const VERIFY_FAILED = 'Invalid code'
+const DISABLE_FAILED = 'Could not turn off two-factor'
+const REGENERATE_FAILED = 'Could not regenerate backup codes'
 
 /**
  * The three Better Auth twoFactor endpoints this panel drives, as ports.
@@ -179,107 +186,114 @@ export function TwoFactorPanel({
     submitError: null,
     statusMessage: null
   })
-  const [busy, setBusy] = useState(false)
-
-  /**
-   * The one action shape all three flows share: clear the status line, run the
-   * endpoint with the busy flag up, fold a plugin failure into `failed`, and
-   * hand the success result to the caller.
-   */
-  async function runAction<
-    A extends { readonly error?: { readonly message?: string | undefined } | null }
-  >(run: () => Promise<A>, fallbackMessage: string, onSuccess: (result: A) => void) {
-    dispatch({ type: 'clearStatus' })
-    setBusy(true)
-    const result = await run().finally(() => setBusy(false))
-    if (result.error) {
-      dispatch({
-        type: 'failed',
-        message: result.error.message ?? fallbackMessage
-      })
-      return
-    }
-    onSuccess(result)
-  }
-
-  /** Wraps `enableTwoFactor` so an incomplete response is a failure too. */
-  async function beginEnrollment(): Promise<
-    | { readonly error: { readonly message: string } }
-    | {
-        readonly error?: { readonly message?: string | undefined } | null
-        readonly totpURI: string | null
-        readonly backupCodes: ReadonlyArray<string> | null
+  // The four flows share one shape: clear the status line, run the plugin
+  // endpoint, and dispatch on success. Each is a `useServerAction`, so the busy
+  // flag and the failure message come from the mutation rather than the
+  // reducer, and a response the plugin calls a success but that came back
+  // incomplete rejects like any other failure. None of them touches a loader,
+  // so none invalidates.
+  const enroll = useServerAction(
+    async () => {
+      const result = await enableTwoFactor({ password: state.password })
+      if (result.error) {
+        return authFailure(result.error.message ?? ENROLL_FAILED)
       }
-  > {
-    const result = await enableTwoFactor({ password: state.password })
-    const totpURI =
-      result.data && 'totpURI' in result.data ? (result.data.totpURI ?? null) : null
-    const backupCodes =
-      result.data && 'backupCodes' in result.data
-        ? (result.data.backupCodes ?? null)
-        : null
-    if (!result.error && totpURI === null) {
-      return { error: { message: 'Setup response was incomplete' } }
+      const totpURI =
+        result.data && 'totpURI' in result.data ? (result.data.totpURI ?? null) : null
+      if (totpURI === null) {
+        return authFailure('Setup response was incomplete')
+      }
+      const backupCodes =
+        result.data && 'backupCodes' in result.data
+          ? (result.data.backupCodes ?? null)
+          : null
+      return { totpURI, backupCodes }
+    },
+    {
+      failureMessage: ENROLL_FAILED,
+      invalidate: false,
+      onSuccess: ({ totpURI, backupCodes }) =>
+        dispatch({ type: 'enrolled', totpURI, backupCodes })
     }
-    return { totpURI, backupCodes }
-  }
+  )
+
+  const verify = useServerAction(
+    async () => {
+      const result = await verifyTotp({ code: state.code })
+      return result.error ? authFailure(result.error.message ?? VERIFY_FAILED) : null
+    },
+    {
+      failureMessage: VERIFY_FAILED,
+      invalidate: false,
+      onSuccess: () => dispatch({ type: 'verified' })
+    }
+  )
+
+  const turnOff = useServerAction(
+    async () => {
+      const result = await disableTwoFactor({ password: state.password })
+      return result.error ? authFailure(result.error.message ?? DISABLE_FAILED) : null
+    },
+    {
+      failureMessage: DISABLE_FAILED,
+      invalidate: false,
+      onSuccess: () => dispatch({ type: 'disabled' })
+    }
+  )
+
+  const regenerate = useServerAction(
+    async () => {
+      const result = await generateBackupCodes({ password: state.password })
+      if (result.error) {
+        return authFailure(result.error.message ?? REGENERATE_FAILED)
+      }
+      const backupCodes = result.data?.backupCodes ?? null
+      if (backupCodes === null || backupCodes.length === 0) {
+        return authFailure('Regeneration response was incomplete')
+      }
+      return backupCodes
+    },
+    {
+      failureMessage: REGENERATE_FAILED,
+      invalidate: false,
+      onSuccess: (backupCodes) => dispatch({ type: 'regenerated', backupCodes })
+    }
+  )
+
+  const busy = enroll.pending || verify.pending || turnOff.pending || regenerate.pending
+  // The client-side code check is the only failure the reducer still owns; the
+  // rest come from whichever action last ran.
+  const submitError =
+    state.submitError ??
+    enroll.error ??
+    verify.error ??
+    turnOff.error ??
+    regenerate.error
 
   function startSetup() {
-    void runAction(beginEnrollment, 'Could not start setup', (result) => {
-      if (!('totpURI' in result) || result.totpURI === null) {
-        return
-      }
-      dispatch({
-        type: 'enrolled',
-        totpURI: result.totpURI,
-        backupCodes: result.backupCodes
-      })
-    })
+    dispatch({ type: 'clearStatus' })
+    enroll.run()
   }
 
   function confirmCode() {
+    dispatch({ type: 'clearStatus' })
     // Same 6-digit gate as the sign-in challenge page — the shared validator.
     const invalidCode = sixDigitCodeValidator({ value: state.code })
     if (invalidCode !== undefined) {
       dispatch({ type: 'failed', message: invalidCode })
       return
     }
-    void runAction(
-      () => verifyTotp({ code: state.code }),
-      'Invalid code',
-      () => dispatch({ type: 'verified' })
-    )
+    verify.run()
   }
 
-  function turnOff() {
-    void runAction(
-      () => disableTwoFactor({ password: state.password }),
-      'Could not turn off two-factor',
-      () => dispatch({ type: 'disabled' })
-    )
+  function disable() {
+    dispatch({ type: 'clearStatus' })
+    turnOff.run()
   }
 
   function regenerateCodes() {
-    void runAction(
-      async () => {
-        const result = await generateBackupCodes({ password: state.password })
-        const backupCodes =
-          result.data && !result.error ? (result.data.backupCodes ?? null) : null
-        if (!result.error && (backupCodes === null || backupCodes.length === 0)) {
-          return {
-            error: { message: 'Regeneration response was incomplete' }
-          }
-        }
-        return { ...result, backupCodes }
-      },
-      'Could not regenerate backup codes',
-      (result) => {
-        if (!('backupCodes' in result) || result.backupCodes === null) {
-          return
-        }
-        dispatch({ type: 'regenerated', backupCodes: result.backupCodes })
-      }
-    )
+    dispatch({ type: 'clearStatus' })
+    regenerate.run()
   }
 
   // The secret lives in the URI's query string; an unparseable URI yields no
@@ -303,7 +317,7 @@ export function TwoFactorPanel({
         <form
           onSubmit={(event) => {
             event.preventDefault()
-            turnOff()
+            disable()
           }}
           className="grid gap-3"
         >
@@ -336,7 +350,7 @@ export function TwoFactorPanel({
           onPasswordChange={(value) => dispatch({ type: 'password', value })}
           onSubmit={regenerateCodes}
         />
-        <PanelMessages state={state} />
+        <PanelMessages statusMessage={state.statusMessage} submitError={submitError} />
       </section>
     )
   }
@@ -397,7 +411,7 @@ export function TwoFactorPanel({
             Verify code
           </Button>
         </form>
-        <PanelMessages state={state} />
+        <PanelMessages statusMessage={state.statusMessage} submitError={submitError} />
       </section>
     )
   }
@@ -436,25 +450,31 @@ export function TwoFactorPanel({
           Start setup
         </Button>
       </form>
-      <PanelMessages state={state} />
+      <PanelMessages statusMessage={state.statusMessage} submitError={submitError} />
     </section>
   )
 }
 
 /** Status and error live in `<output>`/alert roles, per the banner pattern. */
-function PanelMessages({ state }: { readonly state: PanelState }) {
+function PanelMessages({
+  statusMessage,
+  submitError
+}: {
+  readonly statusMessage: string | null
+  readonly submitError: string | null
+}) {
   return (
     <>
-      {state.statusMessage ? (
+      {statusMessage === null ? null : (
         <output className="block rounded-none border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          {state.statusMessage}
+          {statusMessage}
         </output>
-      ) : null}
-      {state.submitError ? (
+      )}
+      {submitError === null ? null : (
         <p role="alert" className="text-xs text-destructive">
-          {state.submitError}
+          {submitError}
         </p>
-      ) : null}
+      )}
     </>
   )
 }

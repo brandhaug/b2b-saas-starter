@@ -1,11 +1,10 @@
 import { Check, Minus } from 'lucide-react'
-import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 import { startCheckoutServerFn } from '@/lib/server/billing'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
@@ -71,26 +70,18 @@ export function WorkspaceBillingPage({
   readonly canManageBilling: boolean
   readonly startCheckout?: StartCheckout
 }) {
-  const [error, setError] = useState<string | null>(null)
-  const [pendingPlan, setPendingPlan] = useState<string | null>(null)
-
-  async function upgrade(planId: string) {
-    setError(null)
-    setPendingPlan(planId)
-    // The server function rejects when the capability fails; `callServerFn`
-    // folds that rejection into a displayable message via checkoutErrorText.
-    const result = await callServerFn(
-      () => startCheckout({ data: { workspaceSlug, planId } }),
-      CHECKOUT_FAILED,
-      checkoutErrorText
-    )
-    setPendingPlan(null)
-    if (!result.ok) {
-      setError(result.message)
-      return
+  // The server function rejects when the capability fails; the hook folds that
+  // rejection into a displayable message via `checkoutErrorText`. Checkout
+  // leaves the app, so there is no loader to re-run.
+  const upgrade = useServerAction(
+    (planId: string) => startCheckout({ data: { workspaceSlug, planId } }),
+    {
+      failureMessage: CHECKOUT_FAILED,
+      describeFailure: checkoutErrorText,
+      invalidate: false,
+      onSuccess: (session) => window.location.assign(session.url)
     }
-    window.location.assign(result.value.url)
-  }
+  )
 
   return (
     <div className="grid gap-6">
@@ -114,11 +105,11 @@ export function WorkspaceBillingPage({
           checkout. Everything else keeps working.
         </p>
       )}
-      {error ? (
+      {upgrade.error === null ? null : (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{upgrade.error}</AlertDescription>
         </Alert>
-      ) : null}
+      )}
       <div className="grid gap-4 md:grid-cols-3">
         {plans.map((plan) => (
           <Card key={plan.id}>
@@ -145,8 +136,8 @@ export function WorkspaceBillingPage({
                 currentPlanId={currentPlanId}
                 canManageBilling={canManageBilling}
                 stripeConfigured={stripeConfigured}
-                pendingPlan={pendingPlan}
-                onUpgrade={() => void upgrade(plan.id)}
+                pendingPlan={upgrade.pendingInput ?? null}
+                onUpgrade={() => upgrade.run(plan.id)}
               />
             </CardContent>
           </Card>
