@@ -13,5 +13,6 @@
 // `ambientRequest` catch turns that into `undefined` — which is the state
 // every Storybook render is in anyway.
 export function getRequest(): Request {
+  // oxlint-disable-next-line effect/noThrowStatement effect/noNewError -- `getRequest()`'s contract is "throw outside a request context" (see request-context.ts, which catches exactly this); a stubbed accessor must keep it
   throw new Error('No TanStack Start request context in Storybook.')
 }

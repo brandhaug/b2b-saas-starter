@@ -111,6 +111,9 @@ function cloudflareWorkersDeployPlugin(
 
 export default defineConfig(({ command, mode }) => {
   const workersShim = resolveWorkersShim(command, mode)
+  const workersShimAlias = workersShim
+    ? { 'cloudflare:workers': resolve(import.meta.dirname, workersShim) }
+    : {}
   // Storybook's vite builder loads this config too (it merges everything but
   // `build` into its own program) and its mocker runtime emits a second entry
   // chunk, which TanStack's client-manifest capture rejects. Storybook never
@@ -178,11 +181,7 @@ export default defineConfig(({ command, mode }) => {
     resolve: {
       tsconfigPaths: true,
       alias: {
-        ...(workersShim
-          ? {
-              'cloudflare:workers': resolve(import.meta.dirname, workersShim)
-            }
-          : {}),
+        ...workersShimAlias,
         ...storybookAliases
       }
     },
