@@ -12,7 +12,7 @@ import rehypeSlug from 'rehype-slug'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type PluginOption } from 'vite'
 
 function remarkMermaid() {
   return (tree: { children: Array<Record<string, unknown>> }) => {
@@ -67,6 +67,46 @@ function resolveWorkersShim(command: 'build' | 'serve', mode: string): string | 
   return command === 'serve' && mode !== 'test'
     ? './src/lib/cloudflare-workers-shim-dev.ts'
     : './src/lib/cloudflare-workers-shim.ts'
+}
+
+// Without the shim (alchemy's deploy build), the two build targets need
+// opposite treatment for `cloudflare:workers`: the client bundle must keep
+// a resolvable stand-in (the inert shim evaluates to an all-undefined env
+// bag in the browser), while the server bundle must externalize it so the
+// deployed worker supplies the real `env` bindings — bundling the shim
+// server-side would deploy `env.DB: undefined` and run the whole app
+// provider-light. A `configEnvironment` plugin is used (rather than
+// `environments` config) because it merges after the TanStack Start
+// plugin defines its own environments.
+function cloudflareWorkersDeployPlugin(
+  inertShimPath: string,
+  enabled: boolean
+): PluginOption {
+  return {
+    name: 'b2b-starter:cloudflare-workers-deploy-resolution',
+    // The TanStack Start plugin replaces the ssr environment's
+    // `rolldownOptions` during planning, so `external` cannot be declared
+    // through environment config — resolve per environment here instead.
+    resolveId: {
+      handler(source: string) {
+        if (!enabled || source !== 'cloudflare:workers') {
+          return null
+        }
+        if (this.environment.name === 'ssr') {
+          // Keep the native import: the deployed worker runtime provides
+          // the real module with the live `env` bindings.
+          return { id: source, external: true }
+        }
+        if (this.environment.name === 'client') {
+          // The browser cannot resolve a runtime module: stand in the
+          // inert shim (an all-undefined env bag — the client never reads
+          // a binding).
+          return inertShimPath
+        }
+        return null
+      }
+    }
+  }
 }
 
 export default defineConfig(({ command, mode }) => {
@@ -134,7 +174,11 @@ export default defineConfig(({ command, mode }) => {
       babel({
         exclude: /packages[/\\]email[/\\]/,
         presets: [reactCompilerPreset()]
-      })
+      }),
+      cloudflareWorkersDeployPlugin(
+        resolve(import.meta.dirname, './src/lib/cloudflare-workers-shim.ts'),
+        workersShim === null
+      )
     ],
     test: {
       globals: true,
