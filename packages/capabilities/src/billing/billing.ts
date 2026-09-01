@@ -151,6 +151,13 @@ export type CheckoutSession = {
 }
 
 export type BillingInterface = {
+  /**
+   * Whether checkout is actually wired: the Stripe secret key is set and
+   * every self-serve plan's price id is configured. One definition of
+   * "Stripe is configured" — the UI reads this instead of re-deriving it
+   * from env, so the page cannot say "not configured" while checkout runs.
+   */
+  readonly configured: Effect.Effect<boolean>
   /** The workspace's current plan, resolved from its `planId`. */
   readonly currentPlan: Effect.Effect<Plan, CapabilityUnavailable, WorkspaceContext>
   /**
@@ -203,6 +210,7 @@ export function SeedBilling(options?: {
       const planOverrides = yield* Ref.make<ReadonlyMap<string, string>>(new Map())
 
       return {
+        configured: Effect.succeed(configured),
         currentPlan: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const overrides = yield* Ref.get(planOverrides)
@@ -405,6 +413,26 @@ export function stripePriceEnvName(planId: string): string | null {
   return null
 }
 
+/**
+ * One definition of "Stripe is configured": the secret key is set and every
+ * plan that carries a price env var has a price id configured. This is the
+ * same predicate `startCheckout` enforces — a surface reporting
+ * `configured: true` cannot then run into `provider_not_configured` or
+ * `price_not_configured`.
+ */
+function billingConfigured(options: LiveBillingOptions): boolean {
+  if (options.secretKey === undefined || options.secretKey.length === 0) {
+    return false
+  }
+  return PLANS.every((plan) => {
+    if (stripePriceEnvName(plan.id) === null) {
+      return true
+    }
+    const priceId = options.priceIds?.[plan.id]
+    return priceId !== undefined && priceId.length > 0
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Stripe event → plan policy
 // ---------------------------------------------------------------------------
@@ -443,6 +471,7 @@ export function LiveBilling(
       const unavailable = orUnavailable('billing')
 
       return {
+        configured: Effect.succeed(billingConfigured(options)),
         currentPlan: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(

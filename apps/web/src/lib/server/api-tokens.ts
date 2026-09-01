@@ -43,8 +43,7 @@ export const createApiTokenServerFn = createServerFn({ method: 'POST' })
         // below the interface — identical for every surface.
         return yield* tokens.create({
           name: data.name,
-          scopes: data.scopes,
-          actorUserId: session.user.id
+          scopes: data.scopes
         })
       }),
       { userId: session.user.id }
@@ -132,8 +131,7 @@ export const revokeApiTokenServerFn = createServerFn({ method: 'POST' })
     return runWorkspaceCapabilities(
       data.workspaceSlug,
       revokeApiToken({
-        tokenId: data.tokenId,
-        actorUserId: session.user.id
+        tokenId: data.tokenId
       }),
       { userId: session.user.id }
     )

@@ -197,7 +197,7 @@ export function SeedWebhookEndpoints(
           endpoints.push(endpoint)
           yield* audit.record({
             workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
+            actorUserId: ctx.actor?.userId ?? null,
             eventType: 'webhook_endpoint.created',
             targetType: 'webhook_endpoint',
             targetId: endpoint.id,
@@ -250,7 +250,7 @@ export function SeedWebhookEndpoints(
             const ctx = yield* WorkspaceContext
             yield* audit.record({
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.disabled',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -268,7 +268,7 @@ export function SeedWebhookEndpoints(
             const ctx = yield* WorkspaceContext
             yield* audit.record({
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.secret_rotated',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,

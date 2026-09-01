@@ -9,6 +9,7 @@ import {
   webhookDlqConsumerSettings,
   webhookQueueName,
   webRateLimits,
+  workerCompatibility,
   type RateLimitBindingSpec
 } from './infra/bindings.ts'
 import {
@@ -115,6 +116,20 @@ const observability: Cloudflare.WorkerObservability = {
 
 const smartPlacement: Cloudflare.WorkerPlacement = { mode: 'smart' }
 
+// One worker shape shared by all three workers: the compatibility date comes
+// from `infra/bindings.ts` (single source, asserted against wrangler.jsonc by
+// the drift test) so production can never run a different runtime behavior
+// than local dev — a date that silently dropped off the web worker once
+// already (it defaulted to Alchemy's fallback while wrangler dev pinned one).
+const workerDefaults = {
+  compatibility: {
+    date: workerCompatibility.date,
+    flags: [...workerCompatibility.flags]
+  },
+  observability,
+  placement: smartPlacement
+}
+
 export const Stack = Alchemy.Stack(
   'b2b-saas-starter',
   {
@@ -171,9 +186,7 @@ export const Stack = Alchemy.Stack(
         ...emailBinding,
         ...optionalProviderEnv
       },
-      compatibility: { date: '2026-05-16', flags: ['nodejs_compat'] },
-      observability,
-      placement: smartPlacement
+      ...workerDefaults
     })
 
     const background = yield* Cloudflare.Worker('background', {
@@ -185,9 +198,7 @@ export const Stack = Alchemy.Stack(
         ...emailBinding,
         ...optionalProviderEnv
       },
-      compatibility: { date: '2026-05-16', flags: ['nodejs_compat'] },
-      observability,
-      placement: smartPlacement
+      ...workerDefaults
     })
 
     yield* Cloudflare.Queues.Consumer('webhook-consumer', {
@@ -218,10 +229,7 @@ export const Stack = Alchemy.Stack(
         BETTER_AUTH_URL,
         BETTER_AUTH_TRUSTED_ORIGINS
       },
-      compatibility: {
-        flags: ['nodejs_compat']
-      },
-      observability
+      ...workerDefaults
     })
 
     return {

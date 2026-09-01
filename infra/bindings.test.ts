@@ -12,6 +12,7 @@ import {
   webhookDlqConsumerSettings,
   webhookQueueName,
   webRateLimits,
+  workerCompatibility,
   type QueueConsumerSettings,
   type RateLimitBindingSpec
 } from './bindings.ts'
@@ -102,6 +103,7 @@ type WranglerQueueProducer = {
 // Only the slice of wrangler.jsonc this suite asserts on. Declaring it as the
 // parse result keeps every reader below cast-free.
 type WranglerConfig = {
+  readonly compatibility_date?: string
   readonly unsafe?: { readonly bindings?: ReadonlyArray<WranglerRateLimitBinding> }
   readonly queues?: {
     readonly consumers?: ReadonlyArray<WranglerQueueConsumer>
@@ -195,6 +197,15 @@ describe('infra/bindings.ts ↔ wrangler.jsonc sync', () => {
       )
       expect(producer?.queue, `apps/${app} WEBHOOK_QUEUE producer`).toBe(
         webhookQueueName
+      )
+    }
+  })
+
+  it('every worker pins the one compatibility date', () => {
+    for (const app of ['api', 'web', 'background']) {
+      const config = readWranglerConfig(app)
+      expect(config.compatibility_date, `apps/${app} compatibility_date`).toBe(
+        workerCompatibility.date
       )
     }
   })

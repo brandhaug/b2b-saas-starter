@@ -281,10 +281,10 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
             const registry = yield* ApiTokenRegistry
             return yield* registry.create({
               name: 'Live test token',
-              scopes: ['read', 'write'],
-              actorUserId: 'usr_owner'
+              scopes: ['read', 'write']
             })
-          })
+          }),
+          { userId: 'usr_owner' }
         )
         expect(created.token.startsWith('bsk_live_')).toBe(true)
         expect(created.prefix).toBe(created.token.slice(0, 17))
@@ -320,10 +320,10 @@ layer(TestDatabase, { timeout: '120 seconds' })('live capability layers', (it) =
           Effect.gen(function* () {
             const registry = yield* ApiTokenRegistry
             return yield* registry.revoke({
-              tokenId: created.id,
-              actorUserId: 'usr_owner'
+              tokenId: created.id
             })
-          })
+          }),
+          { userId: 'usr_owner' }
         )
         expect(revoked).toBe(true)
 

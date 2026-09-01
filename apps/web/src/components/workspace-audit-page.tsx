@@ -10,6 +10,14 @@ import {
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -19,6 +27,12 @@ import {
 } from '@/components/ui/table'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { AUDIT_EVENT_FILTER_OPTIONS, auditEventLabel } from '@/lib/audit-labels'
+import {
+  auditSearchFromFilters,
+  compact,
+  type ApplyWorkspaceAuditSearch,
+  type WorkspaceAuditSearchUpdate
+} from '@/lib/audit-search'
 import { viewerCan } from '@/lib/permissions'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
 
@@ -30,17 +44,9 @@ import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
  *
  * Writing that state to the URL is the one thing this page cannot do alone:
  * `applySearch` comes from the route's navigator, which also makes the page
- * renderable from a test with plain props — no router, no mocked hooks.
+ * renderable from a test with plain props — no router, no mocked hooks. The
+ * URL vocabulary and its translation live in `lib/audit-search.ts`.
  */
-export type WorkspaceAuditSearchUpdate = {
-  readonly actor?: string
-  readonly eventType?: string
-  readonly since?: string
-  readonly until?: string
-  readonly cursor?: string
-}
-
-export type ApplyWorkspaceAuditSearch = (search: WorkspaceAuditSearchUpdate) => void
 
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString('en-US', {
@@ -53,18 +59,7 @@ function formatWhen(iso: string): string {
   })
 }
 
-const SELECT_CLASSES = 'h-9 rounded-md border border-input bg-transparent px-3 text-sm'
-
-/** Drops empty values so cleared controls disappear from the URL entirely. */
-function compact(search: WorkspaceAuditSearchUpdate): WorkspaceAuditSearchUpdate {
-  const next: Record<string, string> = {}
-  for (const [key, value] of Object.entries(search)) {
-    if (value !== '') {
-      next[key] = value
-    }
-  }
-  return next
-}
+const SELECT_CLASSES = 'max-w-52'
 
 export function WorkspaceAuditPage({
   workspaceSlug,
@@ -76,16 +71,17 @@ export function WorkspaceAuditPage({
   readonly applySearch: ApplyWorkspaceAuditSearch
 }) {
   const { events, nextCursor, filters, members } = data
+  const searchFilters = auditSearchFromFilters(filters)
 
   // Filters changed: drop the cursor — a new filter addresses page one.
   function withFilter(patch: Omit<WorkspaceAuditSearchUpdate, 'cursor'>) {
-    applySearch(compact({ ...filters, ...patch }))
+    applySearch(compact({ ...searchFilters, ...patch }))
   }
   function nextPage() {
     if (nextCursor === null) {
       return
     }
-    applySearch(compact({ ...filters, cursor: nextCursor }))
+    applySearch(compact({ ...searchFilters, cursor: nextCursor }))
   }
 
   const hasFilters =
@@ -110,34 +106,67 @@ export function WorkspaceAuditPage({
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Native selects — the repo has no Select primitive, and the
-              prototype (issue #89) shipped these controls as plain selects. */}
-            <select
-              aria-label="Filter by actor"
+            <Select
               value={filters.actorUserId ?? ''}
-              onChange={(e) => withFilter({ actor: e.target.value })}
-              className={SELECT_CLASSES}
+              onValueChange={(value) => {
+                if (value !== null) {
+                  withFilter({ actor: value })
+                }
+              }}
+              items={[
+                { value: '', label: 'All actors' },
+                ...actorOptions.map((option) => ({
+                  value: option.id,
+                  label: option.name
+                }))
+              ]}
             >
-              <option value="">All actors</option>
-              {actorOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Filter by event type"
+              <SelectTrigger aria-label="Filter by actor" className={SELECT_CLASSES}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="">All actors</SelectItem>
+                  {actorOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Select
               value={filters.eventType ?? ''}
-              onChange={(e) => withFilter({ eventType: e.target.value })}
-              className={`${SELECT_CLASSES} max-w-52`}
+              onValueChange={(value) => {
+                if (value !== null) {
+                  withFilter({ eventType: value })
+                }
+              }}
+              items={[
+                { value: '', label: 'All events' },
+                ...AUDIT_EVENT_FILTER_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: option.label
+                }))
+              ]}
             >
-              <option value="">All events</option>
-              {AUDIT_EVENT_FILTER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                aria-label="Filter by event type"
+                className={SELECT_CLASSES}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="">All events</SelectItem>
+                  {AUDIT_EVENT_FILTER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             <Input
               aria-label="Since date"
               type="date"

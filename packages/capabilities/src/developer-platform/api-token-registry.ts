@@ -45,7 +45,6 @@ export type VerifiedApiToken = {
 export type CreateApiTokenInput = {
   readonly name: string
   readonly scopes: ReadonlyArray<ApiTokenScope>
-  readonly actorUserId?: string
 }
 
 export const CreateApiTokenPayload = Schema.Struct({
@@ -69,7 +68,6 @@ export const CreatedApiTokenSchema = Schema.Struct({
 
 export type RevokeApiTokenInput = {
   readonly tokenId: string
-  readonly actorUserId?: string
 }
 
 export type ApiTokenRegistryInterface = {
@@ -229,7 +227,7 @@ export function SeedApiTokenRegistry(
           })
           yield* audit.record({
             workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
+            actorUserId: ctx.actor?.userId ?? null,
             eventType: 'api_token.created',
             targetType: 'api_token',
             targetId: id,
@@ -259,7 +257,7 @@ export function SeedApiTokenRegistry(
             entry.revokedAt = DateTime.formatIso(yield* DateTime.now)
             yield* audit.record({
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'api_token.revoked',
               targetType: 'api_token',
               targetId: input.tokenId,
@@ -395,7 +393,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
             lastUsedAt: null,
             revokedAt: null,
             createdAt,
-            createdByUserId: input.actorUserId ?? null
+            createdByUserId: ctx.actor?.userId ?? null
           }
           // Insert + audit insert as one batch — the shared audited-mutation
           // shape with an unconditional match.
@@ -403,7 +401,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
             matched: Effect.succeed(true),
             auditEvent: {
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'api_token.created',
               targetType: 'api_token',
               targetId: row.id,
@@ -436,7 +434,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
             ).pipe(Effect.map((rows) => rows.length > 0)),
             auditEvent: {
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'api_token.revoked',
               targetType: 'api_token',
               targetId: input.tokenId,

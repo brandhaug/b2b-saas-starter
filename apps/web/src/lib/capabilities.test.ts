@@ -19,8 +19,7 @@ function createToken(userId: string) {
       const tokens = yield* ApiTokenRegistry
       return yield* tokens.create({
         name: 'CI token',
-        scopes: ['read'],
-        actorUserId: userId
+        scopes: ['read']
       })
     }),
     { userId }

@@ -18,10 +18,11 @@ import { requireWorkspacePermission } from './authorize'
 
 /**
  * The billing page payload: the workspace's current plan, the catalog, and
- * whether checkout is actually wired. `stripeConfigured` is computed from the
- * worker env at request time — it is presentation posture, not a secret — so
- * the page can say "billing is not configured" honestly instead of rendering
- * a button that can only fail.
+ * whether checkout is actually wired. `stripeConfigured` comes from the
+ * Billing capability itself — the one definition of "Stripe is configured",
+ * the same predicate `startCheckout` enforces — so the page can say "billing
+ * is not configured" honestly instead of rendering a button that can only
+ * fail.
  */
 export type WorkspaceBillingPayload = {
   readonly viewer: { readonly role: WorkspaceRole } | null
@@ -29,17 +30,8 @@ export type WorkspaceBillingPayload = {
   readonly unreadCount: number
   readonly plans: ReadonlyArray<Plan>
   readonly currentPlanId: string
-  /** True when `STRIPE_SECRET_KEY` (and every paid plan's price id) is set. */
+  /** True when the Billing capability has its provider wired. */
   readonly stripeConfigured: boolean
-}
-
-function stripeConfiguredFromEnv(): boolean {
-  return (
-    cloudflareEnv.STRIPE_SECRET_KEY !== undefined &&
-    cloudflareEnv.STRIPE_SECRET_KEY.length > 0 &&
-    cloudflareEnv.STRIPE_PRICE_ID_TEAM !== undefined &&
-    cloudflareEnv.STRIPE_PRICE_ID_TEAM.length > 0
-  )
 }
 
 /** The billing route's loader effect. Hard-gated like the other pages. */
@@ -52,8 +44,8 @@ const billingPayload: Effect.Effect<
   const ctx = yield* WorkspaceContext
   const billing = yield* Billing
   const feed = yield* NotificationFeed
-  const [plan, unreadCount] = yield* Effect.all(
-    [billing.currentPlan, feed.unreadCount],
+  const [plan, unreadCount, stripeConfigured] = yield* Effect.all(
+    [billing.currentPlan, feed.unreadCount, billing.configured],
     {
       concurrency: 'unbounded'
     }
@@ -64,7 +56,7 @@ const billingPayload: Effect.Effect<
     unreadCount,
     plans: PLANS,
     currentPlanId: plan.id,
-    stripeConfigured: stripeConfiguredFromEnv()
+    stripeConfigured
   }
 })
 

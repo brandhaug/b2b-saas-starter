@@ -199,7 +199,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             matched: Effect.succeed(true),
             auditEvent: {
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.created',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -257,7 +257,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             matched: endpointExists(input.endpointId, ctx.workspace.id),
             auditEvent: {
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.disabled',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,
@@ -280,7 +280,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             matched: endpointExists(input.endpointId, ctx.workspace.id),
             auditEvent: {
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.secret_rotated',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,

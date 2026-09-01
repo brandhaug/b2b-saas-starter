@@ -30,6 +30,22 @@ export const webRateLimits: ReadonlyArray<RateLimitBindingSpec> = [
 export const webhookQueueName = 'b2b-saas-starter-webhooks'
 export const webhookDeadLetterQueueName = 'b2b-saas-starter-webhooks-dlq'
 
+/**
+ * One compatibility date for every worker — production (alchemy.run.ts) and
+ * local dev (each wrangler.jsonc) must run the same runtime behavior. Kept
+ * here so changing the date cannot leave one worker behind: the drift test
+ * asserts all three wrangler configs and the alchemy stack agree.
+ */
+export type WorkerCompatibility = {
+  readonly date: string
+  readonly flags: ReadonlyArray<string>
+}
+
+export const workerCompatibility = {
+  date: '2026-05-16',
+  flags: ['nodejs_compat']
+} satisfies WorkerCompatibility
+
 // Shape matches Alchemy's `QueueConsumer` settings input. Wrangler spells the
 // same knobs differently (`max_batch_size`, `max_batch_timeout` in seconds,
 // ...) — the drift test owns that translation.

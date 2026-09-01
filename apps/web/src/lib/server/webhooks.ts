@@ -39,8 +39,7 @@ export const createWebhookEndpointServerFn = createServerFn({ method: 'POST' })
         // below the interface — identical for every surface.
         return yield* webhooks.create({
           url: data.url,
-          events: data.events,
-          actorUserId: session.user.id
+          events: data.events
         })
       }),
       { userId: session.user.id }
@@ -126,7 +125,6 @@ const decodeEndpointMutation = Schema.decodeUnknownSync(EndpointMutationSchema)
  */
 export function disableWebhookEndpoint(input: {
   readonly endpointId: string
-  readonly actorUserId: string
 }): Effect.Effect<
   boolean,
   AuthorizationDenied | CapabilityUnavailable,
@@ -146,8 +144,7 @@ export const disableWebhookEndpointServerFn = createServerFn({ method: 'POST' })
     return runWorkspaceCapabilities(
       data.workspaceSlug,
       disableWebhookEndpoint({
-        endpointId: data.endpointId,
-        actorUserId: session.user.id
+        endpointId: data.endpointId
       }),
       { userId: session.user.id }
     )
@@ -160,7 +157,6 @@ export const disableWebhookEndpointServerFn = createServerFn({ method: 'POST' })
  */
 export function rotateWebhookSecret(input: {
   readonly endpointId: string
-  readonly actorUserId: string
 }): Effect.Effect<
   string | null,
   AuthorizationDenied | CapabilityUnavailable,
@@ -181,8 +177,7 @@ export const rotateWebhookSecretServerFn = createServerFn({ method: 'POST' })
     return runWorkspaceCapabilities(
       data.workspaceSlug,
       rotateWebhookSecret({
-        endpointId: data.endpointId,
-        actorUserId: session.user.id
+        endpointId: data.endpointId
       }),
       { userId: session.user.id }
     )

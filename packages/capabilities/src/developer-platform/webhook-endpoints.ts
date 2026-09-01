@@ -36,7 +36,6 @@ export type CreateWebhookEndpointInput = {
   // field, and both adapters treat an absent key and an explicit `undefined` the
   // same way. Without it every caller has to hand-build the input key by key.
   readonly description?: string | undefined
-  readonly actorUserId?: string
 }
 
 /**
@@ -67,12 +66,10 @@ export type CreateWebhookEndpointPayload = typeof CreateWebhookEndpointPayload.T
 
 export type DisableWebhookEndpointInput = {
   readonly endpointId: string
-  readonly actorUserId?: string
 }
 
 export type RotateWebhookSecretInput = {
   readonly endpointId: string
-  readonly actorUserId?: string
 }
 
 export type WebhookEndpointsInterface = {
