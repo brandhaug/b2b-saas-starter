@@ -12,7 +12,7 @@ import rehypeSlug from 'rehype-slug'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
-import { defineConfig, lazyPlugins, type PluginOption } from 'vite-plus'
+import { defineConfig, lazyPlugins, loadEnv, type PluginOption } from 'vite-plus'
 
 function remarkMermaid() {
   return (tree: { children: Array<Record<string, unknown>> }) => {
