@@ -39,7 +39,7 @@
     "db:seed": "node scripts/seed.ts",
     "deploy": "alchemy deploy --stage prod --yes",
     "destroy": "alchemy destroy --stage prod",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "command -v vp >/dev/null 2>&1 && vp config --no-agent || true"
   },
   "dependencies": {
     "@b2b-saas-starter/capabilities": "workspace:*",
@@ -61,7 +61,6 @@
     "drizzle-kit": "catalog:",
     "effect": "catalog:",
     "eslint-plugin-better-tailwindcss": "catalog:",
-    "lint-staged": "catalog:",
     "oxlint-plugin-effect": "catalog:",
     "oxlint-plugin-react-doctor": "catalog:",
     "shadcn": "catalog:",

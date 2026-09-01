@@ -8,6 +8,13 @@ export default defineConfig({
       scripts: true
     }
   },
+  // Format-only staged checks: the hook keeps commits clean but does not gate
+  // them. Lint and typecheck run in `pnpm run check` — agents and contributors
+  // are required to run it before committing (see AGENTS.md), and pr-gate
+  // enforces the same bar in CI.
+  staged: {
+    '*.{ts,tsx,js,jsx,json,md,mdx,css}': 'vp fmt --write'
+  },
   fmt: {
     semi: false,
     singleQuote: true,
