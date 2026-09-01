@@ -91,3 +91,16 @@ jobs:
           BETTER_AUTH_TRUSTED_ORIGINS: ${{ secrets.BETTER_AUTH_TRUSTED_ORIGINS }}
           # Optional — the SendEmail binding is skipped when unset (alchemy.run.ts).
           CLOUDFLARE_EMAIL_FROM: ${{ secrets.CLOUDFLARE_EMAIL_FROM }}
+      # A green deploy only proves the upload succeeded; the deploy job fails
+      # unless the uploaded workers actually serve. Probes the health route on
+      # the API worker and the web app root. `--retry` rides out propagation
+      # lag right after the upload; `-f --retry-all-errors` makes any HTTP
+      # failure (not just transport errors) retry, then fail the job.
+      - name: Smoke test the deployment
+        run: |
+          for url in \
+            https://b2b-saas-starter-api.brandhaug.workers.dev/health \
+            https://b2b-saas-starter-web.brandhaug.workers.dev/; do
+            echo "Probing $url"
+            curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$url" > /dev/null
+          done
