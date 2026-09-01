@@ -35,7 +35,7 @@ bun run dev
 
 Open <http://localhost:3071>.
 
-Cloudflare account, D1, and secrets setup for `bun run deploy` is described in [ARCHITECTURE.md](./ARCHITECTURE.md) (Deployment & Infrastructure, Secret matrix).
+Cloudflare account, D1, and secrets setup for `bun run deploy` is described in [docs/deploying.md](./docs/deploying.md). The full resource and security model lives in [ARCHITECTURE.md](./ARCHITECTURE.md) (Deployment & Infrastructure, Secret matrix).
 
 ## Repository Layout
 
@@ -79,12 +79,13 @@ bun run db:migrate:local
 bun run db:migrate:remote
 bun run db:seed
 
-bun run deploy           # alchemy.run.ts
-bun run destroy          # alchemy.run.ts --destroy
+bun run deploy           # alchemy deploy --stage prod --yes
+bun run destroy          # alchemy destroy --stage prod
 ```
 
 ## Documentation
 
+- [docs/deploying.md](./docs/deploying.md) — deploy to Cloudflare: token setup, GitHub Actions secrets, verification
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — system diagram, components, deployment, security
 - [CONTEXT.md](./CONTEXT.md) — domain glossary and language rules
 - [DESIGN.md](./DESIGN.md) — visual design tokens and component direction
