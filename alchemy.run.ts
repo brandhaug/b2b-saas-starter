@@ -124,7 +124,10 @@ export const Stack = Alchemy.Stack(
   Effect.gen(function* () {
     const db = yield* Cloudflare.D1.Database('b2b-saas-starter-db', {
       name: 'b2b-saas-starter',
-      migrationsDir: './packages/db/migrations'
+      // Alchemy 2.0 takes the migrations input as `migrations` ({ dir, table? });
+      // a `migrationsDir` prop is silently dropped and the database deploys with
+      // no schema applied.
+      migrations: { dir: './packages/db/migrations' }
     })
 
     const webhookDeadLetterQueue = yield* Cloudflare.Queues.Queue('webhook-queue-dlq', {
