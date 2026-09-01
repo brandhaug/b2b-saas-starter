@@ -37,8 +37,8 @@
     "db:migrate:local": "bun --cwd packages/db db:migrate:local",
     "db:migrate:remote": "bun --cwd packages/db db:migrate:remote",
     "db:seed": "bun scripts/seed.ts",
-    "deploy": "bun alchemy.run.ts",
-    "destroy": "bun alchemy.run.ts --destroy",
+    "deploy": "alchemy deploy --stage prod --yes",
+    "destroy": "alchemy destroy --stage prod",
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
@@ -50,7 +50,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "@effect/language-service": "catalog:",
-    "@effect/platform-node": "catalog:",
+    "@effect/platform-bun": "catalog:",
     "@playwright/test": "catalog:",
     "@storybook/react-vite": "catalog:",
     "@types/node": "catalog:",
@@ -107,7 +107,7 @@
     "@base-ui/react": "1.7.0",
     "@cloudflare/workers-types": "5.20260827.1",
     "@effect/language-service": "0.87.2",
-    "@effect/platform-node": "4.0.0-rc.112",
+    "@effect/platform-bun": "4.0.0-rc.112",
     "@effect/sql-d1": "4.0.0-rc.112",
     "@effect/vitest": "4.0.0-rc.112",
     "@fontsource-variable/fraunces": "5.3.0",
