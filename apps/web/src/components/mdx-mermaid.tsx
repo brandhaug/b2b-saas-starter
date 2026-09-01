@@ -12,11 +12,12 @@ export function MdxMermaid({ chart }: { readonly chart: string }) {
     async function renderChart() {
       const mermaidModule = await import('mermaid')
       const mermaid = mermaidModule.default
-      const isDark = document.documentElement.classList.contains('dark')
 
       mermaid.initialize({
         startOnLoad: false,
-        theme: isDark ? 'dark' : 'default',
+        // Fixed: the app has one scheme (Catppuccin Mocha), so there is no
+        // theme class to watch for and re-render on.
+        theme: 'dark',
         securityLevel: 'strict'
       })
 
@@ -28,18 +29,8 @@ export function MdxMermaid({ chart }: { readonly chart: string }) {
 
     void renderChart()
 
-    const observer = new MutationObserver(() => {
-      void renderChart()
-    })
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    })
-
     return () => {
       cancelled.current = true
-      observer.disconnect()
     }
   }, [processedChart, id])
 

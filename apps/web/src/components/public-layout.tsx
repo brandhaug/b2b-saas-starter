@@ -2,7 +2,6 @@ import { type ReactNode, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { BoxesIcon, MenuIcon } from 'lucide-react'
 import { SearchButton } from '@/components/command-palette'
-import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -80,7 +79,6 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             ))}
           </nav>
           <SearchButton />
-          <ThemeToggle />
           <Link
             to="/sign-in"
             className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"

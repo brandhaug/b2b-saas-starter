@@ -5,7 +5,6 @@ import {
   OctagonXIcon,
   TriangleAlertIcon
 } from 'lucide-react'
-import { useTheme } from 'next-themes'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 
 const TOASTER_ICONS = {
@@ -33,21 +32,12 @@ const TOAST_OPTIONS = {
   }
 }
 
-// next-themes types its active theme as a plain string, so it is narrowed to
-// Sonner's contract here rather than asserted onto it.
-function toToasterTheme(theme: string | undefined): NonNullable<ToasterProps['theme']> {
-  if (theme === 'light' || theme === 'dark') {
-    return theme
-  }
-  return 'system'
-}
-
 function Toaster({ ...props }: ToasterProps) {
-  const { theme } = useTheme()
-
   return (
     <Sonner
-      theme={toToasterTheme(theme)}
+      // Fixed rather than read from a theme provider: the app is Catppuccin
+      // Mocha in every context.
+      theme="dark"
       className="toaster group"
       icons={TOASTER_ICONS}
       style={TOASTER_STYLE}

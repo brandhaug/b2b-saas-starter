@@ -1006,6 +1006,8 @@
           {
             "ignore": [
               "^not-prose$",
+              // The permanent scheme class on <html>; see apps/web/src/index.css.
+              "^dark$",
               "^marketing$",
               "^toaster$",
               "^grid-paper$",
