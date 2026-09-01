@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vp test run --passWithNoTests"
   },
   "dependencies": {
     "@sentry/cloudflare": "catalog:",
@@ -20,6 +20,8 @@
     "@b2b-saas-starter/config": "workspace:*",
     "@effect/vitest": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
     "vitest": "catalog:"
   }
 }

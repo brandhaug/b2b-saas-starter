@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 import { MockAssistantLayer, type ProviderEnv } from '@b2b-saas-starter/ai'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import {
   ASSISTANT_UNCONFIGURED_MESSAGE,
   askAssistantEffect,

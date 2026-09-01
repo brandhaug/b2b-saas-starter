@@ -1,5 +1,5 @@
 import { type RequiredEnvProblem } from '@b2b-saas-starter/env/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { enforceRequiredEnvAudit, InsecureProductionEnvError } from './env-gate.ts'
 
 describe('enforceRequiredEnvAudit', () => {

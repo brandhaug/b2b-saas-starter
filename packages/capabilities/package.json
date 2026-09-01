@@ -18,7 +18,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "vp test run --coverage"
   },
   "dependencies": {
     "@b2b-saas-starter/authz": "workspace:*",
@@ -32,6 +32,8 @@
     "@effect/vitest": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
     "vitest": "catalog:"
   }
 }

@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { WorkspaceAssistantPage, type AskAssistant } from './workspace-assistant-page'
 import {
   ASSISTANT_UNCONFIGURED_MESSAGE,

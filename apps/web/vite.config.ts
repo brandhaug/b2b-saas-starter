@@ -12,7 +12,7 @@ import rehypeSlug from 'rehype-slug'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
-import { defineConfig, loadEnv, type PluginOption } from 'vite'
+import { defineConfig, lazyPlugins, type PluginOption } from 'vite-plus'
 
 function remarkMermaid() {
   return (tree: { children: Array<Record<string, unknown>> }) => {
@@ -144,48 +144,53 @@ export default defineConfig(({ command, mode }) => {
           }
         : {}
     },
-    plugins: [
-      devtools(),
-      tailwindcss(),
-      // Route tests colocate with their route files; the generator would
-      // otherwise warn that each `*.test.tsx` exports no Route.
-      tanstackStart({
-        router: { routeFileIgnorePattern: '\\.test\\.' }
-      }),
-      {
-        enforce: 'pre',
-        ...mdx({
-          remarkPlugins: [
-            remarkFrontmatter,
-            remarkMdxFrontmatter,
-            remarkGfm,
-            remarkMermaid
-          ],
-          rehypePlugins: [
-            rehypeSlug,
-            [
-              rehypePrettyCode,
-              // Dual-theme keeps rehype-pretty-code emitting the `--shiki-dark*`
-              // custom properties that index.css reads. Both slots are dark:
-              // the app has one scheme.
-              { theme: { dark: 'github-dark', light: 'github-dark' } }
+    plugins:
+      lazyPlugins(() => [
+        devtools(),
+        tailwindcss(),
+        // Route tests colocate with their route files; the generator would
+        // otherwise warn that each `*.test.tsx` exports no Route.
+        tanstackStart({
+          router: { routeFileIgnorePattern: '\\.test\\.' }
+        }),
+        {
+          enforce: 'pre',
+          ...mdx({
+            remarkPlugins: [
+              remarkFrontmatter,
+              remarkMdxFrontmatter,
+              remarkGfm,
+              remarkMermaid
+            ],
+            rehypePlugins: [
+              rehypeSlug,
+              [
+                rehypePrettyCode,
+                // Dual-theme keeps rehype-pretty-code emitting the `--shiki-dark*`
+                // custom properties that index.css reads. Both slots are dark:
+                // the app has one scheme.
+                { theme: { dark: 'github-dark', light: 'github-dark' } }
+              ]
             ]
-          ]
-        })
-      },
-      viteReact(),
-      // React Compiler via the rolldown Babel bridge (plugin-react v6 API).
-      // Email templates are invoked directly (no React dispatcher) when
-      // rendering HTML, so compiler-inserted hooks crash there.
-      babel({
-        exclude: /packages[/\\]email[/\\]/,
-        presets: [reactCompilerPreset()]
-      }),
-      cloudflareWorkersDeployPlugin(
-        resolve(import.meta.dirname, './src/lib/cloudflare-workers-shim.ts'),
-        workersShim === null
-      )
-    ],
+          })
+        },
+        viteReact(),
+        // React Compiler via the rolldown Babel bridge (plugin-react v6 API).
+        // Email templates are invoked directly (no React dispatcher) when
+        // rendering HTML, so compiler-inserted hooks crash there.
+        babel({
+          exclude: /packages[/\\]email[/\\]/,
+          presets: [reactCompilerPreset()]
+        }),
+        cloudflareWorkersDeployPlugin(
+          resolve(import.meta.dirname, './src/lib/cloudflare-workers-shim.ts'),
+          workersShim === null
+        )
+        // `lazyPlugins` returns `PluginOption[] | undefined` when the plugin factories are
+        // skipped (vp check/lint/fmt don't need them), but this repo's
+        // `exactOptionalPropertyTypes: true` rejects the explicit `undefined` against
+        // Vite's `plugins` option — so coalesce to the equivalent "no plugins".
+      ]) ?? [],
     test: {
       globals: true,
       environment: 'jsdom',

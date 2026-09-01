@@ -4,7 +4,7 @@
 // would mean an Effect runtime per test for three synchronous file reads.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import {
   apiRateLimits,
   webhookConsumerSettings,

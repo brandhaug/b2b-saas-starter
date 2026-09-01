@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Schema } from 'effect'
-import { expect, it } from 'vitest'
+import { expect, it } from 'vite-plus/test'
 
 /**
  * Oxlint has no in-process rule tester for JS plugins: a rule only runs inside the

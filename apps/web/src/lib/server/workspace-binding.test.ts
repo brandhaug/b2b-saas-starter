@@ -2,7 +2,7 @@ import {
   readPluginBindingFailure,
   type PluginBindingFailure
 } from '@b2b-saas-starter/capabilities/governance/plugin-binding-failure'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { Option, Schema } from 'effect'
 
 import { webWorkspaceLifecycleBinding } from './workspace-binding'

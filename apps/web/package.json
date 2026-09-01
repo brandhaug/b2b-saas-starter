@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "B2B_STARTER_USE_WORKERS_SHIM=1 vite dev --port 3071",
-    "build": "B2B_STARTER_USE_WORKERS_SHIM=1 vite build",
-    "serve": "vite preview --port 3071",
+    "dev": "B2B_STARTER_USE_WORKERS_SHIM=1 vp dev --port 3071",
+    "build": "B2B_STARTER_USE_WORKERS_SHIM=1 vp build",
+    "serve": "vp preview --port 3071",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vp test run",
     "test:e2e": "playwright test",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
@@ -82,6 +82,7 @@
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
+    "vite-plus": "catalog:",
     "vitest": "catalog:"
   }
 }

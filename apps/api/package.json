@@ -6,7 +6,7 @@
     "dev": "wrangler dev --local --port 8787 --inspector-port 9787",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vp test run --passWithNoTests"
   },
   "dependencies": {
     "@b2b-saas-starter/ai": "workspace:*",
@@ -29,6 +29,8 @@
     "@cloudflare/workers-types": "catalog:",
     "@modelcontextprotocol/client": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
     "vitest": "catalog:",
     "wrangler": "catalog:"
   }

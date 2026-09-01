@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { causeMessage } from './cause-message'
 
 const FALLBACK = 'Failed to send the invitation'

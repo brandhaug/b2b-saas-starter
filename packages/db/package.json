@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vp test run --passWithNoTests",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "node scripts/migrate.ts",
     "db:migrate:remote": "node scripts/migrate.ts --remote"
@@ -27,6 +27,8 @@
     "@cloudflare/workers-types": "catalog:",
     "drizzle-kit": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
     "vitest": "catalog:",
     "wrangler": "catalog:"
   }

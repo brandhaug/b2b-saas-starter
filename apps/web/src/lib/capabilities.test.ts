@@ -1,6 +1,6 @@
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { Effect } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { ForbiddenError } from './capability-error'
 import { runWorkspaceCapabilities } from './capabilities'
 import { requireWorkspacePermission } from './server/authorize'

@@ -20,7 +20,7 @@ import {
   type EmailDeliveryResult,
   type EmailMessage
 } from '@b2b-saas-starter/email'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vite-plus/test'
 import { Effect, Layer, Ref, type Scope } from 'effect'
 
 import {

@@ -1,5 +1,5 @@
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vite-plus/test'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
 import { mcpDiscoveryDocument, mcpTools } from './mcp.ts'
