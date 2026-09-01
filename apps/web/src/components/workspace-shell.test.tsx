@@ -10,12 +10,15 @@ const signOut = vi.fn<SignOut>()
 async function renderShell(props?: {
   readonly workspaceSlug?: string | null
   readonly unreadCount?: number
+  /** The viewer's role; defaults to a member. */
+  readonly role?: 'owner' | 'admin' | 'member'
 }) {
   return renderWithRouter(
     <WorkspaceShell
       workspaceSlug={
         props?.workspaceSlug === undefined ? 'starter-lab' : props.workspaceSlug
       }
+      viewer={props?.workspaceSlug === null ? null : { role: props?.role ?? 'member' }}
       title="Starter Lab"
       description="Reference workspace"
       signOut={signOut}
@@ -54,6 +57,22 @@ describe('WorkspaceShell', () => {
     expect(screen.queryByRole('link', { name: 'Overview' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull()
     screen.getByRole('link', { name: 'System admin' })
+  })
+
+  it('hides permission-gated entries from a member and shows them to an owner', async () => {
+    // Same nav, same page: the gated rows ask `viewerCan` on the shell's one
+    // `viewer` prop, not per-page booleans that flicker between routes.
+    await renderShell({ role: 'member' })
+    expect(screen.queryByRole('link', { name: 'API tokens' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Webhooks' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Audit trail' })).toBeNull()
+    screen.getByRole('link', { name: 'Overview' })
+
+    const { unmount } = await renderShell({ role: 'owner' })
+    screen.getByRole('link', { name: 'API tokens' })
+    screen.getByRole('link', { name: 'Webhooks' })
+    screen.getByRole('link', { name: 'Audit trail' })
+    unmount()
   })
 
   it('renders the unread badge only when a count is provided', async () => {

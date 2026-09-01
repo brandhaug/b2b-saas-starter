@@ -33,7 +33,6 @@ import {
   type ApplyWorkspaceAuditSearch,
   type WorkspaceAuditSearchUpdate
 } from '@/lib/audit-search'
-import { viewerCan } from '@/lib/permissions'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
 
 /**
@@ -96,7 +95,7 @@ export function WorkspaceAuditPage({
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
-      canReadAuditLog={viewerCan(data.viewer, { auditLog: ['read'] })}
+      viewer={data.viewer}
       title="Audit trail"
       description="Everything this workspace has done, newest first."
     >

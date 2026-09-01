@@ -72,7 +72,6 @@ export function WorkspaceSettingsPage({
   const canInvite = viewerCan(viewer, { invitation: ['create'] })
   const canRename = viewerCan(viewer, { organization: ['update'] })
   const canDelete = viewerCan(viewer, { organization: ['delete'] })
-  const canReadAuditLog = viewerCan(viewer, { auditLog: ['read'] })
 
   return (
     <WorkspaceShell
@@ -81,7 +80,7 @@ export function WorkspaceSettingsPage({
       title="Workspace settings"
       description="API tokens, members, and webhook configuration."
       unreadCount={unreadCount}
-      canReadAuditLog={canReadAuditLog}
+      viewer={viewer}
     >
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

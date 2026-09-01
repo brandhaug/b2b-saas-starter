@@ -25,6 +25,7 @@ function AccountRoute() {
   const currentSession = authClient.useSession()
   return (
     <WorkspaceShell
+      viewer={null}
       title="Account"
       description="Sign-in security for your account, not any one workspace."
       workspaceSlug={null}

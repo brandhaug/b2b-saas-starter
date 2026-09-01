@@ -27,7 +27,9 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet'
 import { authClient } from '@/lib/auth-client'
+import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { callServerFn } from '@/lib/server-call'
+import { viewerCan, type Viewer } from '@/lib/permissions'
 
 const SIGN_OUT_FAILED = 'Sign-out failed'
 
@@ -53,9 +55,7 @@ export function WorkspaceShell({
   description,
   unreadCount,
   workspaceSlug,
-  canReadAuditLog = false,
-  canReadApiTokens = false,
-  canReadWebhooks = false,
+  viewer,
   signOut = signOutWithAuthClient
 }: {
   readonly children: ReactNode
@@ -73,24 +73,13 @@ export function WorkspaceShell({
    */
   readonly workspaceSlug: string | null
   /**
-   * Whether the viewer may read the audit log — computed by the page from its
-   * payload's role via `viewerCan`, never by comparing role names here. A
-   * member gets no Audit nav entry at all; the loader's hard gate is what a
-   * direct URL meets instead.
+   * The viewer from the page's loader payload (`viewer: { role }`). The nav
+   * asks `viewerCan` per gated row from this one value, so the same entries
+   * are visible on every workspace page — the owner sees API tokens and
+   * Webhooks on the dashboard exactly as on the webhooks page. Pass `null` on
+   * surfaces without a workspace viewer; the gated rows stay hidden.
    */
-  readonly canReadAuditLog?: boolean
-  /**
-   * Whether the viewer may list API tokens — computed by the page from its
-   * payload's role via `viewerCan`, never by comparing role names here. A
-   * member gets no API-tokens nav entry at all; the loader's hard gate is what
-   * a direct URL meets instead.
-   */
-  readonly canReadApiTokens?: boolean
-  /**
-   * Whether the viewer may list webhook endpoints — same contract as
-   * `canReadApiTokens`.
-   */
-  readonly canReadWebhooks?: boolean
+  readonly viewer: Viewer
   readonly signOut?: SignOut
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -103,12 +92,7 @@ export function WorkspaceShell({
         Skip to content
       </a>
       <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
-        <WorkspaceNav
-          workspaceSlug={workspaceSlug}
-          canReadAuditLog={canReadAuditLog}
-          canReadApiTokens={canReadApiTokens}
-          canReadWebhooks={canReadWebhooks}
-        />
+        <WorkspaceNav workspaceSlug={workspaceSlug} viewer={viewer} />
       </aside>
       <div className="min-w-0">
         <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
@@ -134,9 +118,7 @@ export function WorkspaceShell({
               <div className="p-4">
                 <WorkspaceNav
                   workspaceSlug={workspaceSlug}
-                  canReadAuditLog={canReadAuditLog}
-                  canReadApiTokens={canReadApiTokens}
-                  canReadWebhooks={canReadWebhooks}
+                  viewer={viewer}
                   onNavigate={() => setMobileNavOpen(false)}
                 />
               </div>
@@ -208,17 +190,85 @@ function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
   )
 }
 
+type WorkspaceNavTarget =
+  | '/workspaces/$workspaceSlug'
+  | '/workspaces/$workspaceSlug/assistant'
+  | '/workspaces/$workspaceSlug/api-tokens'
+  | '/workspaces/$workspaceSlug/billing'
+  | '/workspaces/$workspaceSlug/members'
+  | '/workspaces/$workspaceSlug/settings'
+  | '/workspaces/$workspaceSlug/audit'
+  | '/workspaces/$workspaceSlug/webhooks'
+
+/**
+ * The workspace nav as one table: target, label, and — for sections whose
+ * read is itself a permission — the permission a viewer must hold. The nav
+ * filters with `viewerCan`, the same pure `authorize()` the server guard
+ * uses, so a row the viewer cannot read is absent rather than dead. Keeping
+ * the permission on the row (instead of per-page booleans) is what keeps the
+ * nav identical on every workspace page.
+ */
+const WORKSPACE_NAV: ReadonlyArray<{
+  readonly to: WorkspaceNavTarget
+  readonly label: string
+  readonly icon: ReactNode
+  readonly permission?: PermissionRequest
+  /** The overview link must match exactly, or every subpage would also mark it current. */
+  readonly exact?: boolean
+}> = [
+  {
+    to: '/workspaces/$workspaceSlug',
+    label: 'Overview',
+    icon: <LayoutDashboardIcon className="size-4" />,
+    exact: true
+  },
+  {
+    to: '/workspaces/$workspaceSlug/members',
+    label: 'Members',
+    icon: <UsersIcon className="size-4" />
+  },
+  {
+    to: '/workspaces/$workspaceSlug/assistant',
+    label: 'Assistant',
+    icon: <SparklesIcon className="size-4" />
+  },
+  {
+    to: '/workspaces/$workspaceSlug/settings',
+    label: 'Settings',
+    icon: <SettingsIcon className="size-4" />
+  },
+  {
+    to: '/workspaces/$workspaceSlug/billing',
+    label: 'Billing',
+    icon: <CreditCardIcon className="size-4" />
+  },
+  {
+    to: '/workspaces/$workspaceSlug/api-tokens',
+    label: 'API tokens',
+    icon: <KeyRoundIcon className="size-4" />,
+    permission: { apiToken: ['list'] }
+  },
+  {
+    to: '/workspaces/$workspaceSlug/webhooks',
+    label: 'Webhooks',
+    icon: <WebhookIcon className="size-4" />,
+    permission: { webhook: ['list'] }
+  },
+  {
+    to: '/workspaces/$workspaceSlug/audit',
+    label: 'Audit trail',
+    icon: <HistoryIcon className="size-4" />,
+    permission: { auditLog: ['read'] }
+  }
+]
+
 function WorkspaceNav({
   workspaceSlug,
-  canReadAuditLog,
-  canReadApiTokens,
-  canReadWebhooks,
+  viewer,
   onNavigate
 }: {
   readonly workspaceSlug: string | null
-  readonly canReadAuditLog: boolean
-  readonly canReadApiTokens: boolean
-  readonly canReadWebhooks: boolean
+  readonly viewer: Viewer
   readonly onNavigate?: (() => void) | undefined
 }) {
   return (
@@ -236,68 +286,19 @@ function WorkspaceNav({
       <nav aria-label="Workspace" className="mt-8 grid gap-1">
         {workspaceSlug === null ? null : (
           <>
-            <NavLink
-              to="/workspaces/$workspaceSlug"
-              workspaceSlug={workspaceSlug}
-              label="Overview"
-              icon={<LayoutDashboardIcon className="size-4" />}
-              onNavigate={onNavigate}
-            />
-            <NavLink
-              to="/workspaces/$workspaceSlug/members"
-              workspaceSlug={workspaceSlug}
-              label="Members"
-              icon={<UsersIcon className="size-4" />}
-              onNavigate={onNavigate}
-            />
-            <NavLink
-              to="/workspaces/$workspaceSlug/assistant"
-              workspaceSlug={workspaceSlug}
-              label="Assistant"
-              icon={<SparklesIcon className="size-4" />}
-              onNavigate={onNavigate}
-            />
-            <NavLink
-              to="/workspaces/$workspaceSlug/settings"
-              workspaceSlug={workspaceSlug}
-              label="Settings"
-              icon={<SettingsIcon className="size-4" />}
-              onNavigate={onNavigate}
-            />
-            <NavLink
-              to="/workspaces/$workspaceSlug/billing"
-              workspaceSlug={workspaceSlug}
-              label="Billing"
-              icon={<CreditCardIcon className="size-4" />}
-              onNavigate={onNavigate}
-            />
-            {canReadApiTokens ? (
+            {WORKSPACE_NAV.filter(
+              (row) => row.permission === undefined || viewerCan(viewer, row.permission)
+            ).map((row) => (
               <NavLink
-                to="/workspaces/$workspaceSlug/api-tokens"
+                key={row.to}
+                to={row.to}
                 workspaceSlug={workspaceSlug}
-                label="API tokens"
-                icon={<KeyRoundIcon className="size-4" />}
+                label={row.label}
+                icon={row.icon}
+                exact={row.exact}
                 onNavigate={onNavigate}
               />
-            ) : null}
-            {canReadWebhooks ? (
-              <NavLink
-                to="/workspaces/$workspaceSlug/webhooks"
-                workspaceSlug={workspaceSlug}
-                label="Webhooks"
-                icon={<WebhookIcon className="size-4" />}
-                onNavigate={onNavigate}
-              />
-            ) : null}
-            {canReadAuditLog ? (
-              <NavLink
-                to="/workspaces/$workspaceSlug/audit"
-                workspaceSlug={workspaceSlug}
-                label="Audit trail"
-                icon={<HistoryIcon className="size-4" />}
-                onNavigate={onNavigate}
-              />
-            ) : null}
+            ))}
           </>
         )}
         <Link
@@ -334,20 +335,14 @@ function NavLink({
   workspaceSlug,
   label,
   icon,
+  exact = false,
   onNavigate
 }: {
-  readonly to:
-    | '/workspaces/$workspaceSlug'
-    | '/workspaces/$workspaceSlug/assistant'
-    | '/workspaces/$workspaceSlug/api-tokens'
-    | '/workspaces/$workspaceSlug/billing'
-    | '/workspaces/$workspaceSlug/members'
-    | '/workspaces/$workspaceSlug/settings'
-    | '/workspaces/$workspaceSlug/audit'
-    | '/workspaces/$workspaceSlug/webhooks'
+  readonly to: WorkspaceNavTarget
   readonly workspaceSlug: string
   readonly label: string
   readonly icon: ReactNode
+  readonly exact?: boolean
   readonly onNavigate?: (() => void) | undefined
 }) {
   return (
@@ -356,9 +351,7 @@ function NavLink({
       params={{ workspaceSlug }}
       onClick={onNavigate}
       className={navLinkClasses}
-      // The overview link must match exactly, or every subpage would also
-      // mark "Overview" current.
-      activeOptions={{ exact: to === '/workspaces/$workspaceSlug' }}
+      activeOptions={{ exact }}
       activeProps={{ 'aria-current': 'page' }}
     >
       {icon}

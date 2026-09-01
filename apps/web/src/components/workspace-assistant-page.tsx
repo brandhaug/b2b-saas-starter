@@ -162,6 +162,7 @@ export function WorkspaceAssistantPage({
       title="AI assistant"
       description="Ask about this workspace"
       workspaceSlug={workspaceSlug}
+      viewer={data.viewer}
     >
       <Card className="mx-auto max-w-2xl">
         <CardHeader>

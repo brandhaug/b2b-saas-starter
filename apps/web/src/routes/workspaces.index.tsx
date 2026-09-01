@@ -23,6 +23,7 @@ function WorkspacesPage() {
 
   return (
     <WorkspaceShell
+      viewer={null}
       workspaceSlug={null}
       title="Workspaces"
       description="Every workspace your account is a member of."

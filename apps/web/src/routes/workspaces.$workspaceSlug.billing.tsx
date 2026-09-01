@@ -42,9 +42,7 @@ export function WorkspaceBillingPageWrapper({
       title="Billing"
       description="Plan, entitlements, and checkout."
       unreadCount={data.unreadCount}
-      canReadAuditLog={
-        data.viewer !== null && viewerCan(data.viewer, { auditLog: ['read'] })
-      }
+      viewer={data.viewer}
     >
       <WorkspaceBillingPage
         workspaceSlug={slug}

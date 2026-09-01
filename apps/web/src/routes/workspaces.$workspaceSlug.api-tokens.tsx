@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { ApiTokensPanel } from '@/components/api-tokens-panel'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import { viewerCan } from '@/lib/permissions'
 import {
   loadWorkspaceApiTokens,
   type WorkspaceApiTokensPayload
@@ -47,8 +46,7 @@ export function WorkspaceApiTokensPage({
       title="API tokens"
       description="Workspace-scoped bearer tokens for the API."
       unreadCount={unreadCount}
-      canReadAuditLog={viewerCan(viewer, { auditLog: ['read'] })}
-      canReadApiTokens={viewerCan(viewer, { apiToken: ['list'] })}
+      viewer={viewer}
     >
       <div className="grid gap-6">
         <ApiTokensPanel workspaceSlug={workspaceSlug} tokens={tokens} viewer={viewer} />

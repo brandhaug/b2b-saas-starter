@@ -89,6 +89,7 @@ function AdminPage() {
 
   return (
     <WorkspaceShell
+      viewer={null}
       workspaceSlug={null}
       title="System admin"
       description="Better Auth admin dashboard without impersonation UI."
