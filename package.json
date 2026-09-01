@@ -122,7 +122,7 @@
     "@react-email/components": "1.0.12",
     "@react-email/render": "2.1.0",
     "@rolldown/plugin-babel": "0.2.3",
-    "@sentry/cloudflare": "10.71.0",
+    "@sentry/cloudflare": "10.72.0",
     "@sentry/react": "10.71.0",
     "@storybook/react-vite": "10.5.10",
     "@tailwindcss/typography": "0.5.20",
