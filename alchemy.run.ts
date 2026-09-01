@@ -65,16 +65,21 @@ function optionalSecret(name: string): Redacted.Redacted<string> | undefined {
   return Redacted.make(value)
 }
 
-// Set secrets only. An unset optional secret contributes no binding at all,
-// so the module reports needs-config instead of failing the deploy.
-function presentSecretEntries(
-  names: ReadonlyArray<string>
-): Array<[string, Redacted.Redacted<string>]> {
-  const entries: Array<[string, Redacted.Redacted<string>]> = []
+/**
+ * The one "entries for the env vars that are actually set" helper. An unset
+ * optional var contributes no binding at all, so the module reports
+ * needs-config instead of failing the deploy. `read` decides how a present
+ * value is carried — as a redacted secret, or as a plain string.
+ */
+function presentEntries<A>(
+  names: ReadonlyArray<string>,
+  read: (name: string) => A | undefined
+): Array<[string, A]> {
+  const entries: Array<[string, A]> = []
   for (const name of names) {
-    const secret = optionalSecret(name)
-    if (secret) {
-      entries.push([name, secret])
+    const value = read(name)
+    if (value !== undefined) {
+      entries.push([name, value])
     }
   }
   return entries
@@ -100,12 +105,9 @@ const CLOUDFLARE_EMAIL_FROM = readEnv('CLOUDFLARE_EMAIL_FROM')
 // split) live in `packages/env/src/server.ts` next to the schema — adding a
 // var there is the ONE place to edit.
 const optionalProviderEnv = {
-  ...Object.fromEntries(presentSecretEntries(optionalModuleEnvSecretKeys)),
+  ...Object.fromEntries(presentEntries(optionalModuleEnvSecretKeys, optionalSecret)),
   ...Object.fromEntries(
-    optionalModuleEnvPlainKeys.flatMap((key) => {
-      const value = readEnv(key)
-      return value !== undefined && value !== '' ? [[key, value]] : []
-    })
+    presentEntries(optionalModuleEnvPlainKeys, (key) => readEnv(key) || undefined)
   )
 }
 
@@ -114,20 +116,22 @@ const observability: Cloudflare.WorkerObservability = {
   logs: { enabled: true, invocationLogs: true }
 }
 
+// Smart placement moves a worker near its data. It belongs to the worker-only
+// services; the web worker serves the document and stays near the eyeball.
 const smartPlacement: Cloudflare.WorkerPlacement = { mode: 'smart' }
 
 // One worker shape shared by all three workers: the compatibility date comes
-// from `infra/bindings.ts` (single source, asserted against wrangler.jsonc by
-// the drift test) so production can never run a different runtime behavior
-// than local dev — a date that silently dropped off the web worker once
-// already (it defaulted to Alchemy's fallback while wrangler dev pinned one).
+// from `infra/bindings.ts`, the same constant `infra/write-wrangler.ts`
+// generates each wrangler.jsonc from, so production can never run a different
+// runtime behavior than local dev — a date that silently dropped off the web
+// worker once already (it defaulted to Alchemy's fallback while wrangler dev
+// pinned one).
 const workerDefaults = {
   compatibility: {
     date: workerCompatibility.date,
     flags: [...workerCompatibility.flags]
   },
-  observability,
-  placement: smartPlacement
+  observability
 }
 
 export const Stack = Alchemy.Stack(
@@ -166,6 +170,10 @@ export const Stack = Alchemy.Stack(
       })
     }
 
+    // One AI binding shared by the two workers that expose the assistant —
+    // constructing it twice declares the same binding under two identities.
+    const ai = Cloudflare.Workers.AI('AI')
+
     // Built as its own object so every worker below spreads the same optional
     // binding set: the EMAIL key exists only when the resource does.
     const emailBinding: OptionalEmailBinding = {}
@@ -181,12 +189,13 @@ export const Stack = Alchemy.Stack(
         // Producer only — the background worker consumes; the API worker
         // enqueues webhook events after audit-worthy mutations.
         WEBHOOK_QUEUE: webhookQueue,
-        AI: Cloudflare.Workers.AI('AI'),
+        AI: ai,
         ...rateLimitBindings(apiRateLimits),
         ...emailBinding,
         ...optionalProviderEnv
       },
-      ...workerDefaults
+      ...workerDefaults,
+      placement: smartPlacement
     })
 
     const background = yield* Cloudflare.Worker('background', {
@@ -198,7 +207,8 @@ export const Stack = Alchemy.Stack(
         ...emailBinding,
         ...optionalProviderEnv
       },
-      ...workerDefaults
+      ...workerDefaults,
+      placement: smartPlacement
     })
 
     yield* Cloudflare.Queues.Consumer('webhook-consumer', {
@@ -222,7 +232,7 @@ export const Stack = Alchemy.Stack(
       env: {
         DB: db,
         ...rateLimitBindings(webRateLimits),
-        AI: Cloudflare.Workers.AI('AI'),
+        AI: ai,
         ...emailBinding,
         ...optionalProviderEnv,
         BETTER_AUTH_SECRET,
