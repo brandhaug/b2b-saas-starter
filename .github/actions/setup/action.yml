@@ -1,7 +1,8 @@
 name: Setup
 description: >-
-  Install Bun (version from package.json's packageManager pin), restore the
-  bun and turbo caches, and install dependencies with a frozen lockfile.
+  Install Node (version from .node-version, managed day-to-day by Vite+), the
+  package manager pinned in package.json, restore the pnpm and turbo caches,
+  and install dependencies with a frozen lockfile.
 
 inputs:
   turbo-key:
@@ -15,15 +16,16 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: oven-sh/setup-bun@v2
+    - uses: actions/setup-node@v4
       with:
-        bun-version-file: package.json
+        node-version-file: .node-version
+    - uses: pnpm/action-setup@v4
     - uses: actions/cache@v4
       with:
-        path: ~/.bun/install/cache
-        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+        path: ${{ runner.temp }}/.pnpm-store
+        key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
         restore-keys: |
-          ${{ runner.os }}-bun-
+          ${{ runner.os }}-pnpm-
     - uses: actions/cache@v4
       with:
         path: .turbo
@@ -31,5 +33,7 @@ runs:
         restore-keys: |
           ${{ runner.os }}-turbo-${{ inputs.turbo-key || github.job }}-
           ${{ runner.os }}-turbo-
-    - run: bun install --frozen-lockfile
+    - run: pnpm config set store-dir ${{ runner.temp }}/.pnpm-store
+      shell: bash
+    - run: pnpm install --frozen-lockfile
       shell: bash

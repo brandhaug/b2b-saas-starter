@@ -14,8 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "db:generate": "drizzle-kit generate",
-    "db:migrate:local": "bun scripts/migrate.ts",
-    "db:migrate:remote": "bun scripts/migrate.ts --remote"
+    "db:migrate:local": "node scripts/migrate.ts",
+    "db:migrate:remote": "node scripts/migrate.ts --remote"
   },
   "dependencies": {
     "@effect/sql-d1": "catalog:",
