@@ -11,6 +11,10 @@
     "@base-ui/react",
     "@effect/language-service",
     "@effect/platform-node",
+    // Email preview server requirement: `email dev` prompts to install this
+    // unless it is present; the preview loads it dynamically, so no source
+    // file imports it.
+    "@react-email/ui",
     "@tailwindcss/typography",
     "babel-plugin-react-compiler",
     "class-variance-authority",
