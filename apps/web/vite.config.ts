@@ -111,7 +111,46 @@ function cloudflareWorkersDeployPlugin(
 
 export default defineConfig(({ command, mode }) => {
   const workersShim = resolveWorkersShim(command, mode)
-  // `bun run dev` runs Vite from `apps/web`, and neither Bun's auto-`.env`
+  // Storybook's vite builder loads this config too (it merges everything but
+  // `build` into its own program) and its mocker runtime emits a second entry
+  // chunk, which TanStack's client-manifest capture rejects. Storybook never
+  // renders Start routes, so the Start plugin has nothing to do there.
+  const isStorybook = process.env.STORYBOOK === 'true'
+  // Storybook's build runs no Worker and no vitest program, so it gets the same
+  // inert stand-ins the test build uses: `cloudflare:workers` resolves to the
+  // provider-light shim (bindings undefined, Seed layers active), and the
+  // package-internal TanStack entry specifiers resolve to stubs (the
+  // tanstackStart plugin that normally aliases them is absent here — its
+  // client-manifest capture also rejects Storybook's mocker entry chunk; see
+  // `storybook-start-entries.ts`).
+  const storybookAliases = isStorybook
+    ? {
+        // Storybook runs no Worker, so bindings resolve to the same inert
+        // provider-light shim the test build uses.
+        'cloudflare:workers': resolve(
+          import.meta.dirname,
+          'src/lib/cloudflare-workers-shim.ts'
+        ),
+        // Keep the whole TanStack server-core graph out of Storybook's build.
+        '@tanstack/react-start/server': resolve(
+          import.meta.dirname,
+          'src/lib/storybook-react-start-server-stub.ts'
+        ),
+        // Belt and braces: anything that still slips through the server edge
+        // (a future direct import of a start-server-core module) resolves the
+        // package-internal entry specifiers the tanstackStart plugin would
+        // normally alias.
+        '#tanstack-start-entry': resolve(
+          import.meta.dirname,
+          'src/lib/storybook-start-entries.ts'
+        ),
+        '#tanstack-router-entry': resolve(
+          import.meta.dirname,
+          'src/lib/storybook-start-entries.ts'
+        )
+      }
+    : {}
+  // Bun's auto-`.env`
   // loading nor Vite's `envDir` reach the repo-root `.env` — but the workers
   // shim and the capability layers read `process.env` directly, so every
   // value in that file (auth origins, optional providers) was silently
@@ -138,11 +177,14 @@ export default defineConfig(({ command, mode }) => {
     preview: { port: 3071, host: 'localhost' },
     resolve: {
       tsconfigPaths: true,
-      alias: workersShim
-        ? {
-            'cloudflare:workers': resolve(import.meta.dirname, workersShim)
-          }
-        : {}
+      alias: {
+        ...(workersShim
+          ? {
+              'cloudflare:workers': resolve(import.meta.dirname, workersShim)
+            }
+          : {}),
+        ...storybookAliases
+      }
     },
     plugins:
       lazyPlugins(() => [
@@ -150,9 +192,13 @@ export default defineConfig(({ command, mode }) => {
         tailwindcss(),
         // Route tests colocate with their route files; the generator would
         // otherwise warn that each `*.test.tsx` exports no Route.
-        tanstackStart({
-          router: { routeFileIgnorePattern: '\\.test\\.' }
-        }),
+        ...(isStorybook
+          ? []
+          : [
+              tanstackStart({
+                router: { routeFileIgnorePattern: '\\.test\\.' }
+              })
+            ]),
         {
           enforce: 'pre',
           ...mdx({
