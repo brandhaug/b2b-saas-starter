@@ -12,9 +12,11 @@ export type ClientTelemetryConfig = {
   readonly posthogHost: string | undefined
 }
 
-/** Absent and empty both count as unset — no empty-string DSNs reach an SDK. */
-function nonEmptyEnvValue(value: string | undefined): string | undefined {
-  if (value === undefined) {
+/** Absent, null, and empty all count as unset — no empty-string DSNs reach an
+ * SDK. (Worker env keys for unset optional providers arrive as `null` from
+ * deploys that forward them explicitly, so `undefined` alone is not enough.) */
+function nonEmptyEnvValue(value: string | null | undefined): string | undefined {
+  if (value === undefined || value === null) {
     return undefined
   }
   if (value.length === 0) {
