@@ -10,6 +10,16 @@ runs:
     - name: Install Vite+ (pinned)
       run: |
         curl -fsSL https://vite.plus | VP_VERSION=0.3.0 VP_NODE_MANAGER=yes bash
+        # The installer does not touch PATH, so expose its bin dir (vp + managed
+        # node/npm/corepack) to later steps.
+        echo "$HOME/.local/share/vite-plus/bin" >> "$GITHUB_PATH"
+        # pnpm comes from the pinned `packageManager` field via corepack, not
+        # from the installer. Create the shims in the same bin dir (GITHUB_PATH
+        # above picks them up in every later step, including this composite's).
+        "$HOME/.local/share/vite-plus/bin/corepack" enable \
+          --install-directory "$HOME/.local/share/vite-plus/bin"
+      env:
+        COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
       shell: bash
     - uses: actions/cache@v4
       with:
