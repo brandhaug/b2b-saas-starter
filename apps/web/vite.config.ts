@@ -128,6 +128,12 @@ export default defineConfig(({ command, mode }) => {
     }
   }
   return {
+    // The ssr environment does not minify by default in rolldown-vite, and
+    // the deployed web worker bundle is its output verbatim: unminified, the
+    // bundled server tree exceeds the free Workers size limit (3 MiB).
+    // Setting minify at the top level seeds every environment's build, so
+    // the ssr output shrinks below the limit.
+    build: { minify: true },
     server: { port: 3071, host: 'localhost' },
     preview: { port: 3071, host: 'localhost' },
     resolve: {
