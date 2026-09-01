@@ -90,14 +90,19 @@ const BETTER_AUTH_TRUSTED_ORIGINS =
 const CLOUDFLARE_EMAIL_FROM = readEnv('CLOUDFLARE_EMAIL_FROM')
 
 // Optional provider env, forwarded to the web, API, and background workers so
-// a deployed worker receives its provider configuration. Unset values leave
-// the relevant provider inactive instead of failing the deploy. The key lists(and
-// the secret-vs-plain split) live in `packages/env/src/server.ts` next to the
-// schema — adding a var there is the ONE place to edit.
+// a deployed worker receives its provider configuration. Unset values are
+// omitted entirely — a worker env key that is present but `null` leaks into
+// every consumer (e.g. the telemetry config's string guards) and violates
+// the provider-light rule, which treats an absent key as inactive. The key
+// lists (and the secret-vs-plain split) live in `packages/env/src/server.ts`
+// next to the schema — adding a var there is the ONE place to edit.
 const optionalProviderEnv = {
   ...Object.fromEntries(presentSecretEntries(optionalModuleEnvSecretKeys)),
   ...Object.fromEntries(
-    optionalModuleEnvPlainKeys.map((key) => [key, readEnv(key) ?? null])
+    optionalModuleEnvPlainKeys.flatMap((key) => {
+      const value = readEnv(key)
+      return value !== undefined && value !== '' ? [[key, value]] : []
+    })
   )
 }
 
