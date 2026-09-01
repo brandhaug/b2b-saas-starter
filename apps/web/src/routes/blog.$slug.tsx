@@ -34,7 +34,16 @@ export const Route = createFileRoute('/blog/$slug')({
         }
       ]
     })
-    return { post, jsonLdString }
+    // See docs.$category.$slug.tsx: the MDX component is a function and
+    // cannot ride in loader data — shipping it aborts dehydration and the
+    // page blanks on hydration. Ship the serializable subset only.
+    return {
+      post: {
+        slug: post.slug,
+        frontmatter: post.frontmatter
+      },
+      jsonLdString
+    }
   },
   component: BlogPostPage,
   head: ({ params }) => {
@@ -66,7 +75,14 @@ export const Route = createFileRoute('/blog/$slug')({
 function BlogPostPage() {
   const { post, jsonLdString } = Route.useLoaderData()
   const articleRef = useRef<HTMLElement>(null)
-  const { Component, frontmatter } = post
+  // See the loader: `Component` is re-resolved from the module map because
+  // functions cannot cross the server→client boundary. The loader's
+  // notFound() guard guarantees this hit.
+  const resolvedPost = getPostBySlug(post.slug)
+  if (!resolvedPost) {
+    throw notFound()
+  }
+  const { Component, frontmatter } = resolvedPost
 
   return (
     <PublicLayout>

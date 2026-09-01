@@ -41,8 +41,18 @@ export const Route = createFileRoute('/docs/$category/$slug')({
         }
       ]
     })
+    // `article.Component` is the MDX module's React component — a function.
+    // Functions cannot cross the server→client boundary, so shipping one in
+    // loader data aborts dehydration (the `$_TSR.router` script is never
+    // emitted) and hydration throws "Expected to find a dehydrated data on
+    // window.$_TSR.router", unmounting the rendered page to blank. Ship the
+    // serializable subset; the component re-resolves the module.
     return {
-      article,
+      article: {
+        slug: article.slug,
+        category: article.category,
+        frontmatter: article.frontmatter
+      },
       categoryName,
       prevSlug: prev?.slug ?? null,
       prevTitle: prev?.frontmatter.title ?? null,
@@ -91,7 +101,14 @@ function DocArticlePage() {
     jsonLdString
   } = Route.useLoaderData()
 
-  const { Component, frontmatter } = article
+  // The loader ships `article` without `Component` (functions cannot cross
+  // the server→client boundary — see the loader), so re-resolve the MDX
+  // module here; the loader's notFound() guard guarantees this hit.
+  const doc = getDocBySlug(category, article.slug)
+  if (!doc) {
+    throw notFound()
+  }
+  const { Component, frontmatter } = doc
 
   return (
     <div>
