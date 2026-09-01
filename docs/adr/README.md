@@ -7,10 +7,11 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0001 — Cloudflare-first starter](./0001-cloudflare-first-starter.md)
 - [0004 — Shared D1 database](./0004-shared-d1-database.md)
 - [0009 — No Durable Objects without a coordination need](./0009-no-durable-objects-without-coordination-need.md)
-- [0010 — Bun-only package management](./0010-bun-only-package-management.md)
+- [0010 — Bun-only package management (superseded by 0053)](./0010-bun-only-package-management.md)
 - [0018 — Scripts over CLI](./0018-scripts-over-cli.md)
 - [0019 — CI with Alchemy deploy on merge](./0019-ci-with-manual-alchemy-deploy.md)
 - [0049 — Persisted local D1 in dev and e2e](./0049-persisted-local-d1-in-dev-and-e2e.md)
+- [0053 — pnpm and Vite+ toolchain](./0053-pnpm-and-vite-plus-toolchain.md)
 
 ## Application architecture
 

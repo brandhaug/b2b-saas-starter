@@ -9,18 +9,18 @@ Drizzle ORM (drizzle-orm `1.0.0-rc.4`) schema, migrations, and the shared `Datab
 - `src/service.ts` — `class Database extends Context.Service<Database, EffectDatabase>()` plus `layerFromD1(env.DB)`. The service holds drizzle's **Effect-native** database (`drizzle-orm/effect-d1` over an `@effect/sql-d1` `D1Client`): query builders are Effects, so capabilities `yield*` them directly. Capabilities map query failures to the typed `CapabilityUnavailable` error (see `packages/capabilities/src/internal/unavailable.ts`) — don't reintroduce `Effect.orDie`/`Effect.promise` around queries. Also exports `batch(db, statements)` + `BatchStatement` (`{ toSQL(): Query }`, drizzle's own `Query` type): compiles drizzle builders via `toSQL()` and runs them through the raw `D1Database` binding's `batch()` (an implicit transaction), since the effect-d1 driver has no batch/transaction support. `batch` fails with the typed `DbBatchError` (`Schema.TaggedErrorClass`, `{ reason: string }`), exported from the barrel — callers get a tagged error, not a bare `Error`. The barrel re-exports the Effect-native database type as `EffectDatabase` (un-aliased). Every capability `Live*` layer depends on this; tests use a shimmed Database layer.
 - `src/client.ts` — `createDrizzleDb(d1)` and the `DrizzleDatabase` type, the **promise-based** `drizzle-orm/d1` client. Kept solely for Better Auth's `drizzleAdapter` (`packages/auth`), which needs promises. Don't reach for it in capabilities — use the `Database` service.
 - `src/enums.ts` — the stored enum vocabularies (`workspaceRoles`, `invitationStatuses`, `apiTokenScopes`) as a drizzle-free leaf module, re-exported by `schema.ts` and exported as the curated `./enums` subpath. The policy layer (`packages/authz`) imports it here rather than from `schema.ts` so permission code never depends on the table definitions.
-- `migrations/` — `drizzle-kit` output, one folder per migration (`<timestamp_name>/migration.sql`). Generate with `bun run db:generate` after editing `schema.ts`; commit schema + migration together. Currently **one squashed baseline** (`20260815062708_nervous_silver_surfer`): the plugin adoption rewrote the three workspace tables, nothing was live, so the three prior migrations were deleted rather than migrated through. Squashing again needs the same conditions.
+- `migrations/` — `drizzle-kit` output, one folder per migration (`<timestamp_name>/migration.sql`). Generate with `pnpm run db:generate` after editing `schema.ts`; commit schema + migration together. Currently **one squashed baseline** (`20260815062708_nervous_silver_surfer`): the plugin adoption rewrote the three workspace tables, nothing was live, so the three prior migrations were deleted rather than migrated through. Squashing again needs the same conditions.
 - **Resetting a stale local D1.** After a squash an existing local database is wrong twice over: old table shapes, and a `d1_migrations` table naming migrations that no longer exist. Migrating on top of it does nothing. Drop the state and rebuild:
 
   ```bash
   rm -rf packages/db/.wrangler/state/v3/d1
-  bun run db:migrate:local
-  bun run db:seed
+  pnpm run db:migrate:local
+  pnpm run db:seed
   ```
 
-  Restart `bun run dev` afterwards so the shim re-attaches the binding (ADR 0049).
+  Restart `pnpm run dev` afterwards so the shim re-attaches the binding (ADR 0049).
 
-- `scripts/migrate.ts` — applies migrations via `wrangler d1 execute` with a `d1_migrations` tracking table (`bun run db:migrate:local` / `db:migrate:remote`). Don't switch back to `wrangler d1 migrations apply`: wrangler's runner only sees flat `migrations/*.sql` files and silently skips drizzle-kit's folder-style output.
+- `scripts/migrate.ts` — applies migrations via `wrangler d1 execute` with a `d1_migrations` tracking table (`pnpm run db:migrate:local` / `db:migrate:remote`). Don't switch back to `wrangler d1 migrations apply`: wrangler's runner only sees flat `migrations/*.sql` files and silently skips drizzle-kit's folder-style output.
 - `src/testing.ts` — test-only `./testing` subpath: `provisionTestD1()` boots an isolated, non-persisted local D1 (workerd via wrangler's `getPlatformProxy`) with every committed migration applied. `src/live-d1.test.ts` uses it to validate migrations, column-mode round-trips, cascade deletes, and `batch` atomicity against real D1 semantics; `packages/capabilities/src/live-layers.test.ts` uses it for Live-adapter coverage. Never import the subpath from application code.
 
 ## D1 gotchas captured in the schema

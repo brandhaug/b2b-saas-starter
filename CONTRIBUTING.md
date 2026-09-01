@@ -10,10 +10,12 @@ Thanks for considering a contribution. This repository is a B2B SaaS starter —
 
 ## Local Setup
 
+Requires the [Vite+ CLI](https://viteplus.dev) (`vp`).
+
 ```bash
-bun install
+vp install
 cp .env.example .env
-bun run dev
+pnpm run dev
 ```
 
 Web dev server runs at <http://localhost:3071>.
@@ -23,14 +25,16 @@ See [docs/setup.md](./docs/setup.md) for full Cloudflare account / D1 / secrets 
 ## Development Loop
 
 ```bash
-bun run typecheck   # type-check all workspaces
-bun run lint        # oxlint --type-aware
-bun run format      # oxfmt --write
-bun run test        # vitest across workspaces
-bun run check       # typecheck + lint + format:check + test
+pnpm run typecheck   # type-check all workspaces
+pnpm run lint        # vp lint --type-aware
+pnpm run format      # vp fmt --write
+pnpm run test        # vitest across workspaces
+pnpm run check       # typecheck + lint + format:check + dead-code + test
 ```
 
-`bun run check:fix` runs lint --fix and format across the repo. The pre-commit hook runs `lint-staged` (oxlint --fix + oxfmt --write on staged files only) automatically.
+`pnpm run check:fix` runs lint --fix and format across the repo. The pre-commit
+hook only formats staged files; it does not gate the commit, so run
+`pnpm run check` before committing.
 
 ## Commit Style
 
@@ -41,7 +45,7 @@ bun run check       # typecheck + lint + format:check + test
 ## Pull Requests
 
 - Branch from `master`.
-- Ensure `bun run check` and `bun run build` pass locally.
+- Ensure `pnpm run check` and `pnpm run build` pass locally.
 - Fill in the PR template.
 - Add or update tests for behavioural changes. Storybook stories for UI changes.
 - Update [CONTEXT.md](./CONTEXT.md) if you introduce new domain language; add an ADR if you make an architectural decision.

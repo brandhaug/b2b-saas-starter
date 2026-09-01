@@ -19,23 +19,24 @@ A starter repository for shipping a B2B SaaS on Cloudflare's platform without ma
 - **React Email** templates wired to Cloudflare's `SendEmail` binding.
 - **Wide-event observability** via Effect's `Logger`, with `x-trace-id` propagation across services.
 - **Storybook** for UI states, **Vitest** for unit/integration, **Playwright** for E2E.
-- **oxlint** (type-aware) + **oxfmt** for fast linting/formatting; **Turbo** orchestrates the workspaces.
+- **oxlint** (type-aware) + **oxfmt** for fast linting/formatting; **Vite+** (`vp`) is the unified toolchain and orchestrates the workspaces with Vite Task.
 - **MDX-first** public knowledge content with generated search, sitemap, and LLM-docs artifacts.
 - **Seed workspace** with deterministic data for the reference app, tests, and screenshots.
 
 ## Quick Start
 
-Requires [Bun](https://bun.sh) >= 1.4.0.
+Requires the [Vite+ CLI](https://viteplus.dev) (`vp`, >= 0.3.0), which provides
+the managed Node runtime (>= 24) and pnpm.
 
 ```bash
-bun install
+vp install
 cp .env.example .env   # local defaults work out of the box; fill in optional providers as needed
-bun run dev
+pnpm run dev
 ```
 
 Open <http://localhost:3071>.
 
-Cloudflare account, D1, and secrets setup for `bun run deploy` is described in [docs/deploying.md](./docs/deploying.md). The full resource and security model lives in [ARCHITECTURE.md](./ARCHITECTURE.md) (Deployment & Infrastructure, Secret matrix).
+Cloudflare account, D1, and secrets setup for `pnpm run deploy` is described in [docs/deploying.md](./docs/deploying.md). The full resource and security model lives in [ARCHITECTURE.md](./ARCHITECTURE.md) (Deployment & Infrastructure, Secret matrix).
 
 ## Repository Layout
 
@@ -63,24 +64,24 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the component diagram, data stores,
 ## Useful Commands
 
 ```bash
-bun run dev              # turbo dev across all workspaces
-bun run dev:web          # web app only
-bun run build            # turbo build
-bun run typecheck        # type-check all workspaces
-bun run lint             # oxlint --type-aware
-bun run format           # oxfmt --write
-bun run test             # vitest across workspaces
-bun run test:e2e         # Playwright (web)
-bun run check            # typecheck + lint + format:check + test
-bun run check:fix        # lint --fix + format
+pnpm run dev              # vite task: dev servers in web, api, and background
+pnpm run dev:web          # web app only
+pnpm run build            # vite task: build all workspaces
+pnpm run typecheck        # type-check all workspaces
+pnpm run lint             # vp lint --type-aware
+pnpm run format           # vp fmt --write
+pnpm run test             # vitest across workspaces
+pnpm run test:e2e         # Playwright (web)
+pnpm run check            # typecheck + lint + format:check + dead-code + test
+pnpm run check:fix        # lint --fix + format
 
-bun run db:generate      # Drizzle migrations
-bun run db:migrate:local
-bun run db:migrate:remote
-bun run db:seed
+pnpm run db:generate      # Drizzle migrations
+pnpm run db:migrate:local
+pnpm run db:migrate:remote
+pnpm run db:seed
 
-bun run deploy           # alchemy deploy --stage prod --yes
-bun run destroy          # alchemy destroy --stage prod
+pnpm run deploy           # alchemy deploy --stage prod --yes
+pnpm run destroy          # alchemy destroy --stage prod
 ```
 
 ## Documentation
