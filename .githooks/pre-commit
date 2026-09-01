@@ -10,4 +10,4 @@ bunx lint-staged
 # Typecheck is what sees this class of breakage, so it must run before the commit lands.
 # Turbo caches the result per package: about 0.2s when nothing changed, 1-2s for one
 # package, 8s for a cold cache.
-bun run typecheck
+pnpm run typecheck

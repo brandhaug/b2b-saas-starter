@@ -1,6 +1,5 @@
 node_modules
 .context
-.turbo
 .tanstack
 dist
 .output

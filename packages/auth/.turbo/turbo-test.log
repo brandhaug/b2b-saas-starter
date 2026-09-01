@@ -1,0 +1,21 @@
+$ vp test run --passWithNoTests
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/packages/auth[39m
+
+ [32m✓[39m src/options.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+[90mstderr[2m | src/live-auth.test.ts[2m > [22m[2maccount lifecycle email flows[2m > [22m[2mround-trips a password reset: request, hop, set, old sessions revoked
+[22m[39m[2m2026-09-01T11:42:17.966Z[0m [33mWARN[0m [1m[Better Auth]:[0m Invalid password
+
+[90mstderr[2m | src/live-auth.test.ts[2m > [22m[2maccount lifecycle email flows[2m > [22m[2manswers unknown-email reset requests identically and sends nothing
+[22m[39m[2m2026-09-01T11:42:18.078Z[0m [33mWARN[0m [1m[Better Auth]:[0m Reset Password: User not found
+
+ [32m✓[39m src/live-auth.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 4619[2mms[22m[39m
+     [33m[2m✓[22m[39m creates an invitation through the remapped invitation model [33m 554[2mms[22m[39m
+     [33m[2m✓[22m[39m keeps the plugin default statements working under the starter roles [33m 418[2mms[22m[39m
+     [33m[2m✓[22m[39m round-trips a password reset: request, hop, set, old sessions revoked [33m 397[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m23 passed[39m[22m[90m (23)[39m
+[2m   Start at [22m 13:42:11
+[2m   Duration [22m 6.10s[2m (transform 144ms, setup 0ms, import 2.22s, tests 4.63s, environment 0ms)[22m
+

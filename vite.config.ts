@@ -1,6 +1,13 @@
 import { defineConfig } from 'vite-plus'
 
 export default defineConfig({
+  run: {
+    // Turbo cached the `build`/`typecheck`/`test` package scripts; scripts are not
+    // cached by default, so turn script caching on to keep that behaviour.
+    cache: {
+      scripts: true
+    }
+  },
   fmt: {
     semi: false,
     singleQuote: true,

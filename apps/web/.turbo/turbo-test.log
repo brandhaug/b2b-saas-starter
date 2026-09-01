@@ -1,0 +1,197 @@
+$ vp test run
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/apps/web[39m
+
+ [32m✓[39m src/components/data-table.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 121[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/routes/verify-email.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 90[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/components/live-notifications.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 91[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/components/create-workspace-form.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 126[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/components/workspace-shell.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 164[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/routes/reset-password.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 187[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/routes/forgot-password.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 206[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/routes/sign-in.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 236[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+[90mstderr[2m | src/routes/invitations.accept.test.tsx[2m > [22m[2mAcceptInvitationPage[2m > [22m[2moffers the addressee the workspace and the role
+[22m[39mBase UI: A component that acts as a button expected a native <button> because the `nativeButton` prop is true. Rendering a non-<button> removes native button semantics, which can impact forms and accessibility. Use a real <button> in the `render` prop, or set `nativeButton` to `false`.
+    at Button (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/apps/web/src/components/ui/button.tsx:39:57)
+    at PendingInvitation (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/apps/web/src/routes/invitations.accept.tsx:299:65)
+    at AcceptInvitationPage (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/apps/web/src/routes/invitations.accept.tsx:106:56)
+
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+[90mstderr[2m | src/routes/invitations.accept.test.tsx[2m > [22m[2mAcceptInvitationPage[2m > [22m[2mnames nothing at all for an unusable invitation
+[22m[39mBase UI: A component that acts as a button expected a native <button> because the `nativeButton` prop is true. Rendering a non-<button> removes native button semantics, which can impact forms and accessibility. Use a real <button> in the `render` prop, or set `nativeButton` to `false`.
+    at Button (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/apps/web/src/components/ui/button.tsx:39:57)
+    at UnusableInvitation (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/apps/web/src/routes/invitations.accept.tsx:162:69)
+    at AcceptInvitationPage (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/apps/web/src/routes/invitations.accept.tsx:93:57)
+
+ [32m✓[39m src/routes/invitations.accept.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 143[2mms[22m[39m
+[90mstderr[2m | src/routes/sign-up.test.tsx[2m > [22m[2mSignUpPage[2m > [22m[2mhonours a same-origin redirect search param
+[22m[39mWarning: A notFoundError was encountered on the route with ID "__root__", but a notFoundComponent option was not configured, nor was a router level defaultNotFoundComponent configured. Consider configuring at least one of these to avoid TanStack Router's overly generic defaultNotFoundComponent (<p>Not Found</p>)
+
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/routes/sign-up.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 293[2mms[22m[39m
+ [32m✓[39m src/components/two-factor-panel.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 336[2mms[22m[39m
+ [32m✓[39m src/components/sessions-panel.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 261[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/components/email-verification-banner.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 109[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/components/api-token-form.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[32m 177[2mms[22m[39m
+ [32m✓[39m src/components/workspace-assistant-page.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 165[2mms[22m[39m
+ [32m✓[39m src/components/form-text-field.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/lib/observability.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+ [32m✓[39m src/routes/workspaces.$workspaceSlug.settings.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 440[2mms[22m[39m
+[90mstdout[2m | src/lib/server/workspace-audit.test.ts[2m > [22m[2mloadWorkspaceAuditEvents[2m > [22m[2mhard-gates the page on auditLog read — a member gets no page at all
+[22m[39m{"message":"capability.workspace","level":"ERROR","timestamp":"2026-09-01T11:42:16.019Z","cause":"AuthorizationDenied: \n    at Array.<anonymous> (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/packages/authz/src/guard.ts:71:7)\n    at capability.workspace","annotations":{"service":"web","traceId":"a58c059885faba6c0755b44efe188ef9","otelTraceId":"a58c059885faba6c0755b44efe188ef9","otelSpanId":"d6f4065f7c6ee4a9","workspaceSlug":"starter-lab","actorUserId":"usr_dev","scope":"standalone","durationMs":2,"status":"error","errorKind":"fail","error":"","errorTag":"AuthorizationDenied"},"spans":{},"fiberId":"#1"}
+
+[90mstdout[2m | src/lib/server/workspace-audit.test.ts[2m > [22m[2mloadWorkspaceAuditEvents[2m > [22m[2mgives an owner the workspace-scoped events, newest first
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.022Z","annotations":{"service":"web","traceId":"f3d07a0bef17003118369e09ac2210b6","otelTraceId":"f3d07a0bef17003118369e09ac2210b6","otelSpanId":"99232e5a4dc9dcf1","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":0,"status":"ok"},"spans":{},"fiberId":"#27"}
+
+[90mstdout[2m | src/lib/server/workspace-audit.test.ts[2m > [22m[2mloadWorkspaceAuditEvents[2m > [22m[2mfilters by event type server-side
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.024Z","annotations":{"service":"web","traceId":"ffa51c7f9297d29b1037c4fa570d0bab","otelTraceId":"ffa51c7f9297d29b1037c4fa570d0bab","otelSpanId":"b3701be891f9deeb","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":1,"status":"ok"},"spans":{},"fiberId":"#55"}
+
+[90mstdout[2m | src/lib/server/workspace-audit.test.ts[2m > [22m[2mloadWorkspaceAuditEvents[2m > [22m[2mreturns an empty page for a filter nothing matches
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.025Z","annotations":{"service":"web","traceId":"a49fd8e86c07c3445371a3375c3b8ac6","otelTraceId":"a49fd8e86c07c3445371a3375c3b8ac6","otelSpanId":"03a9e619544bf0cf","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":1,"status":"ok"},"spans":{},"fiberId":"#83"}
+
+[90mstdout[2m | src/lib/server/workspace-audit.test.ts[2m > [22m[2mloadWorkspaceAuditEvents[2m > [22m[2mwalks pages forward with the opaque cursor
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.025Z","annotations":{"service":"web","traceId":"cd9d829fa605ab992eb9e88ab26f7875","otelTraceId":"cd9d829fa605ab992eb9e88ab26f7875","otelSpanId":"e8d314e86e586869","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":0,"status":"ok"},"spans":{},"fiberId":"#111"}
+
+[90mstdout[2m | src/lib/server/workspace-audit.test.ts[2m > [22m[2mloadWorkspaceAuditEvents[2m > [22m[2mechoes the date-range filters back for the controls
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.028Z","annotations":{"service":"web","traceId":"2f6bc0e4f66c481fc02282327ee52691","otelTraceId":"2f6bc0e4f66c481fc02282327ee52691","otelSpanId":"3d617907283432d7","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":0,"status":"ok"},"spans":{},"fiberId":"#139"}
+
+ [32m✓[39m src/lib/server/workspace-audit.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+[90mstdout[2m | src/routes/workspaces.$workspaceSlug.index.test.tsx[2m > [22m[2mWorkspaceDashboardPage[2m > [22m[2mrenders webhook delivery for an actor who may list endpoints
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.029Z","annotations":{"service":"web","traceId":"0ffc6ea2cda846d3ff125c7a3f902c1a","otelTraceId":"0ffc6ea2cda846d3ff125c7a3f902c1a","otelSpanId":"b13864e3a338385b","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":2,"status":"ok"},"spans":{},"fiberId":"#1"}
+
+ [32m✓[39m src/lib/server/auth-audit/auth-audit.test.ts [2m([22m[2m41 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+Not implemented: Window's scrollTo() method
+[90mstdout[2m | src/routes/workspaces.$workspaceSlug.index.test.tsx[2m > [22m[2mWorkspaceDashboardPage[2m > [22m[2momits webhook delivery for a member, who holds no webhook:list
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.087Z","annotations":{"service":"web","traceId":"64d9558edbbadc54efd4f8a12ede0290","otelTraceId":"64d9558edbbadc54efd4f8a12ede0290","otelSpanId":"f7d95bb70f1a3fac","workspaceSlug":"starter-lab","actorUserId":"usr_dev","scope":"standalone","durationMs":0,"status":"ok"},"spans":{},"fiberId":"#29"}
+
+Not implemented: Window's scrollTo() method
+[90mstdout[2m | src/lib/server/webhooks.test.ts[2m > [22m[2mloadWorkspaceWebhooks[2m > [22m[2mlists endpoints with deliveries attached for an owner
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.247Z","annotations":{"service":"web","traceId":"232b8c00c9ebec793fde5baa27c16f98","otelTraceId":"232b8c00c9ebec793fde5baa27c16f98","otelSpanId":"fd6e5e8ebbc120c2","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":1,"status":"ok"},"spans":{},"fiberId":"#31"}
+
+[90mstdout[2m | src/lib/server/webhooks.test.ts[2m > [22m[2mloadWorkspaceWebhooks[2m > [22m[2mdenies a plain member — reading webhooks is itself gated
+[22m[39m{"message":"capability.workspace","level":"ERROR","timestamp":"2026-09-01T11:42:16.248Z","cause":"AuthorizationDenied: \n    at Array.<anonymous> (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/packages/authz/src/guard.ts:71:7)\n    at capability.workspace","annotations":{"service":"web","traceId":"38821321759d71658d970b81b36a1a96","otelTraceId":"38821321759d71658d970b81b36a1a96","otelSpanId":"85488f772d56b636","workspaceSlug":"starter-lab","actorUserId":"usr_dev","scope":"standalone","durationMs":0,"status":"error","errorKind":"fail","error":"","errorTag":"AuthorizationDenied"},"spans":{},"fiberId":"#60"}
+
+[90mstdout[2m | src/lib/server/api-tokens.test.ts[2m > [22m[2mloadWorkspaceApiTokens[2m > [22m[2mlists tokens with the viewer role for an owner
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.248Z","annotations":{"service":"web","traceId":"061c53951b90386d6d80a8e00aa17bea","otelTraceId":"061c53951b90386d6d80a8e00aa17bea","otelSpanId":"1546b854ae947162","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":2,"status":"ok"},"spans":{},"fiberId":"#16"}
+
+[90mstdout[2m | src/lib/server/api-tokens.test.ts[2m > [22m[2mloadWorkspaceApiTokens[2m > [22m[2mdenies a plain member — reading tokens is itself gated
+[22m[39m{"message":"capability.workspace","level":"ERROR","timestamp":"2026-09-01T11:42:16.250Z","cause":"AuthorizationDenied: \n    at Array.<anonymous> (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/packages/authz/src/guard.ts:71:7)\n    at capability.workspace","annotations":{"service":"web","traceId":"a275e4829ae55531921d0b55b5badf7a","otelTraceId":"a275e4829ae55531921d0b55b5badf7a","otelSpanId":"fddf8bb474467878","workspaceSlug":"starter-lab","actorUserId":"usr_dev","scope":"standalone","durationMs":1,"status":"error","errorKind":"fail","error":"","errorTag":"AuthorizationDenied"},"spans":{},"fiberId":"#44"}
+
+ [32m✓[39m src/lib/server/webhooks.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/lib/server/api-tokens.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+[90mstdout[2m | src/lib/capabilities.test.ts[2m > [22m[2mrunWorkspaceCapabilities authorization[2m > [22m[2mlets the workspace owner create a token
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.300Z","annotations":{"service":"web","traceId":"e50a33431af28d0356f321525dc4b023","otelTraceId":"e50a33431af28d0356f321525dc4b023","otelSpanId":"9481e73fce06200e","workspaceSlug":"starter-lab","actorUserId":"usr_martin","scope":"standalone","durationMs":3,"status":"ok"},"spans":{},"fiberId":"#1"}
+
+[90mstdout[2m | src/lib/server/assistant.test.ts[2m > [22m[2massistant[2m > [22m[2mloads the page payload with configured false on an unconfigured deployment
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.300Z","annotations":{"service":"web","traceId":"d4eaac108bd17deb87fe83b12c7ae840","otelTraceId":"d4eaac108bd17deb87fe83b12c7ae840","otelSpanId":"db4400e111f73fcd","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":3,"status":"ok"},"spans":{},"fiberId":"#1"}
+
+[90mstdout[2m | src/lib/capabilities.test.ts[2m > [22m[2mrunWorkspaceCapabilities authorization[2m > [22m[2mrefuses a member with a message the calling form can show
+[22m[39m{"message":"capability.workspace","level":"ERROR","timestamp":"2026-09-01T11:42:16.302Z","cause":"AuthorizationDenied: \n    at Array.<anonymous> (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/packages/authz/src/guard.ts:71:7)\n    at capability.workspace","annotations":{"service":"web","traceId":"b5120c3082e87ecea43b6127eda2e596","otelTraceId":"b5120c3082e87ecea43b6127eda2e596","otelSpanId":"7567cc7909aefd22","workspaceSlug":"starter-lab","actorUserId":"usr_dev","scope":"standalone","durationMs":1,"status":"error","errorKind":"fail","error":"","errorTag":"AuthorizationDenied"},"spans":{},"fiberId":"#27"}
+
+[90mstdout[2m | src/lib/capabilities.test.ts[2m > [22m[2mrunWorkspaceCapabilities authorization[2m > [22m[2mrefuses a member with a message the calling form can show
+[22m[39m{"message":"capability.workspace","level":"ERROR","timestamp":"2026-09-01T11:42:16.304Z","cause":"AuthorizationDenied: \n    at Array.<anonymous> (/Users/brandhaug/orca/workspaces/b2b-saas-starter/pearlfish/packages/authz/src/guard.ts:71:7)\n    at capability.workspace","annotations":{"service":"web","traceId":"e759d2574981bf77c4ac3cd47e075de6","otelTraceId":"e759d2574981bf77c4ac3cd47e075de6","otelSpanId":"78a057849b91bb3a","workspaceSlug":"starter-lab","actorUserId":"usr_dev","scope":"standalone","durationMs":0,"status":"error","errorKind":"fail","error":"","errorTag":"AuthorizationDenied"},"spans":{},"fiberId":"#53"}
+
+[90mstdout[2m | src/lib/server/assistant.test.ts[2m > [22m[2massistant[2m > [22m[2manswers honestly that it is unconfigured when no provider env is set
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.303Z","annotations":{"service":"web","traceId":"157d3f4e6545650e4cbabc797f60b2ad","otelTraceId":"157d3f4e6545650e4cbabc797f60b2ad","otelSpanId":"d25d69c3b6e1d037","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":0,"status":"ok"},"spans":{},"fiberId":"#27"}
+
+ [32m✓[39m src/lib/capabilities.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+[90mstdout[2m | src/lib/server/assistant.test.ts[2m > [22m[2massistant[2m > [22m[2masks through AssistantService when the deployment is configured
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.308Z","annotations":{"service":"web","traceId":"7766c6a76cda7d1404ee743e80b1afd1","otelTraceId":"7766c6a76cda7d1404ee743e80b1afd1","otelSpanId":"d4fe84a1217cc6ea","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":3,"status":"ok"},"spans":{},"fiberId":"#53"}
+
+[90mstdout[2m | src/lib/server/assistant.test.ts[2m > [22m[2massistant[2m > [22m[2mlets a plain member ask — every role holds assistant:read
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.309Z","annotations":{"service":"web","traceId":"f32d9fa4e814a1fda6f9d57b4ce45a04","otelTraceId":"f32d9fa4e814a1fda6f9d57b4ce45a04","otelSpanId":"9d5a46ee40af8d22","workspaceSlug":"starter-lab","actorUserId":"usr_dev","scope":"standalone","durationMs":0,"status":"ok"},"spans":{},"fiberId":"#79"}
+
+ [32m✓[39m src/lib/server/assistant.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/rate-limit.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/routes/workspaces.$workspaceSlug.index.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 90[2mms[22m[39m
+ [32m✓[39m src/lib/server/invitations.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+[90mstdout[2m | src/lib/server/workspace-dashboard.test.ts[2m > [22m[2mloadWorkspaceDashboard[2m > [22m[2mgives an owner the webhook delivery segment
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.489Z","annotations":{"service":"web","traceId":"bae27c66fe044f1b8151fc361c60acc6","otelTraceId":"bae27c66fe044f1b8151fc361c60acc6","otelSpanId":"b1e7225991db7c78","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":2,"status":"ok"},"spans":{},"fiberId":"#1"}
+
+[90mstdout[2m | src/lib/server/workspace-dashboard.test.ts[2m > [22m[2mloadWorkspaceDashboard[2m > [22m[2mwithholds webhook delivery from a member, who holds no webhook:list
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.491Z","annotations":{"service":"web","traceId":"9e1d10ad2dbd8e31b28da2029a67c80a","otelTraceId":"9e1d10ad2dbd8e31b28da2029a67c80a","otelSpanId":"8bce9f4627d1a86c","workspaceSlug":"starter-lab","actorUserId":"usr_dev","scope":"standalone","durationMs":1,"status":"ok"},"spans":{},"fiberId":"#29"}
+
+ [32m✓[39m src/lib/server/workspace-dashboard.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/server/two-factor-notification.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+[90mstdout[2m | src/lib/server/workspace-settings.test.ts[2m > [22m[2mloadWorkspaceSettings[2m > [22m[2mgives an owner every segment of the settings payload
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.514Z","annotations":{"service":"web","traceId":"4a948efba9366b7c18b153f6952a5a49","otelTraceId":"4a948efba9366b7c18b153f6952a5a49","otelSpanId":"b6d26c764da208dc","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":3,"status":"ok"},"spans":{},"fiberId":"#1"}
+
+[90mstdout[2m | src/lib/server/workspace-settings.test.ts[2m > [22m[2mloadWorkspaceSettings[2m > [22m[2mwithholds the segments a member may not read
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.516Z","annotations":{"service":"web","traceId":"fc6ce513a41d523b603e1a7062cb794d","otelTraceId":"fc6ce513a41d523b603e1a7062cb794d","otelSpanId":"730dc8e3d9602d91","workspaceSlug":"starter-lab","actorUserId":"usr_dev","scope":"standalone","durationMs":0,"status":"ok"},"spans":{},"fiberId":"#31"}
+
+ [32m✓[39m src/lib/server/workspace-settings.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+[90mstdout[2m | src/lib/server/workspace-members.test.ts[2m > [22m[2mloadWorkspaceMembers[2m > [22m[2mlists the roster with the viewer role for an owner
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.518Z","annotations":{"service":"web","traceId":"505be76f23f674ae6a894832705f62f2","otelTraceId":"505be76f23f674ae6a894832705f62f2","otelSpanId":"7ee042e90c203805","workspaceSlug":"starter-lab","actorUserId":"usr_demo","scope":"standalone","durationMs":1,"status":"ok"},"spans":{},"fiberId":"#17"}
+
+[90mstdout[2m | src/lib/server/workspace-members.test.ts[2m > [22m[2mloadWorkspaceMembers[2m > [22m[2mshows a plain member the roster too — membership itself entitles the read
+[22m[39m{"message":"capability.workspace","level":"INFO","timestamp":"2026-09-01T11:42:16.520Z","annotations":{"service":"web","traceId":"d8e305f571901177d0d25ef3a496ee0b","otelTraceId":"d8e305f571901177d0d25ef3a496ee0b","otelSpanId":"7b05c41ecdd23224","workspaceSlug":"starter-lab","actorUserId":"usr_dev","scope":"standalone","durationMs":1,"status":"ok"},"spans":{},"fiberId":"#45"}
+
+ [32m✓[39m src/lib/server/workspace-members.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/lib/server/auth.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/server/authorize.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/lib/server/env-gate.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/cause-message.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/utils.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/server/workspace-binding.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/lib/server/invitation-binding.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/server/member-binding.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m39 passed[39m[22m[90m (39)[39m
+[2m      Tests [22m [1m[32m223 passed[39m[22m[90m (223)[39m
+[2m   Start at [22m 13:42:12
+[2m   Duration [22m 4.96s[2m (transform 15.57s, setup 0ms, import 35.35s, tests 3.44s, environment 21.94s)[22m
+
