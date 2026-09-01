@@ -12,7 +12,7 @@ import rehypeSlug from 'rehype-slug'
 import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
 function remarkMermaid() {
   return (tree: { children: Array<Record<string, unknown>> }) => {
@@ -71,6 +71,22 @@ function resolveWorkersShim(command: 'build' | 'serve', mode: string): string | 
 
 export default defineConfig(({ command, mode }) => {
   const workersShim = resolveWorkersShim(command, mode)
+  // `bun run dev` runs Vite from `apps/web`, and neither Bun's auto-`.env`
+  // loading nor Vite's `envDir` reach the repo-root `.env` — but the workers
+  // shim and the capability layers read `process.env` directly, so every
+  // value in that file (auth origins, optional providers) was silently
+  // ignored in dev while docs/setup.md promised it worked. Load the root
+  // `.env` into `process.env` for the dev server; real environment variables
+  // win, matching dotenv conventions. Build and test keep their existing
+  // env paths (alchemy/wrangler for deploy, the inert shim for tests).
+  if (command === 'serve') {
+    const rootEnv = loadEnv(mode, resolve(import.meta.dirname, '../..'), '')
+    for (const [key, value] of Object.entries(rootEnv)) {
+      if (key !== 'NODE_ENV' && process.env[key] === undefined && value !== '') {
+        process.env[key] = value
+      }
+    }
+  }
   return {
     server: { port: 3071, host: 'localhost' },
     preview: { port: 3071, host: 'localhost' },
@@ -85,7 +101,11 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       devtools(),
       tailwindcss(),
-      tanstackStart(),
+      // Route tests colocate with their route files; the generator would
+      // otherwise warn that each `*.test.tsx` exports no Route.
+      tanstackStart({
+        router: { routeFileIgnorePattern: '\\.test\\.' }
+      }),
       {
         enforce: 'pre',
         ...mdx({
