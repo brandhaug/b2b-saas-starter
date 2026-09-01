@@ -7,7 +7,7 @@ The Better Auth instance and nothing else. This package owns the options object,
 Two runtime exports carry everything:
 
 - `Auth` — an `effectful-better-auth` service providing `{ api, instance }`. `api` is the effectful endpoint proxy (endpoints fail `BetterAuthApiError`); `instance` is the raw Better Auth object for `handler` / `asResponse` needs. The layer requires `AuthConfig`.
-- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, emails }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding. `emails` is the `AuthEmailSender` port (below).
+- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, emails, requireEmailVerification, runBackground? }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding. `emails` is the `AuthEmailSender` port (below); `runBackground` is Better Auth's `advanced.backgroundTasks.handler` — `ctx.waitUntil` on a Worker, and when absent the fallback runs the promise inline.
 
 `Session` and `SessionUserRole` are the inferred session types. `SessionUserRole` exists as a **compile-time guard**: widening the plugin array drops every plugin-added field from `Session` while the endpoints keep working, a break no runtime test can see because the data is still there. Indexing the type is the assertion.
 
@@ -32,14 +32,15 @@ Configuration decisions, stated in code:
 
 Order matters. `tanstackStartCookies()` must stay **last** so cookies set by other plugins' hooks reach the framework cookie store.
 
-| Plugin                   | Why                                                                  |
-| ------------------------ | -------------------------------------------------------------------- |
-| `username()`             | username sign-in alongside the Local Auth Path                       |
-| `admin({ adminRoles })`  | System Admin axis — `user.role`, ban/unban, `listUsers` for `/admin` |
-| `organization({ ... })`  | Workspace membership and invitations (ADR 0051)                      |
-| `tanstackStartCookies()` | bridges the session cookie into TanStack Start; **last**             |
+| Plugin                   | Why                                                                    |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `username()`             | username sign-in alongside the Local Auth Path                         |
+| `twoFactor({ ... })`     | TOTP only, verified before it counts as on; backup codes at enrollment |
+| `admin({ adminRoles })`  | System Admin axis — `user.role`, ban/unban, `listUsers` for `/admin`   |
+| `organization({ ... })`  | Workspace membership and invitations (ADR 0051)                        |
+| `tanstackStartCookies()` | bridges the session cookie into TanStack Start; **last**               |
 
-`socialProviders` in `AuthConfig` is an open bag — the starter ships `{}` (no OAuth providers). A fork can add one by passing the provider's credentials when both are configured, never a provider that exists but is disabled.
+The starter ships no OAuth providers: `socialProviders` is absent from both `AuthConfig` and the options object rather than passed empty. A fork adds one by extending `makeAuthOptions`, never by wiring a provider that exists but is disabled.
 
 The array goes through `plugins(...)` from `effectful-better-auth`, and `makeAuthOptions` returns a single non-union object type. A bare array literal in a function body widens to a union array and silently drops plugin schema inference — `SessionUserRole` is what catches that.
 

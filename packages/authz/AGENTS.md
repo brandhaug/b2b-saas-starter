@@ -69,7 +69,7 @@ The guard composes beside `enforceRateLimit` (`apps/api/src/handlers.ts`) and re
 
 ## The client entry point
 
-`@b2b-saas-starter/authz/client` (`src/client.ts`) re-exports the pure half — `authorize`, the principals, the roles, the statements — and nothing that imports `effect` or the logger. It exists so browser code can ask the same question the guard asks: `apps/web/src/lib/permissions.ts` wraps it as `viewerCan(viewer, permission)` and the workspace UI hides or explains a control with it. Importing the root entry point from a component would pull `guard.ts`, and with it Effect and the wide-event logger, into the client bundle.
+`@b2b-saas-starter/authz/client` (`src/client.ts`) re-exports the pure half — `authorize`, the principals, the roles, the statements — and nothing that imports `effect` or the logger. It exists so browser code can ask the same question the guard asks: `apps/web/src/lib/permissions.ts` wraps it as `viewerCan(viewer, permission)` and the workspace UI hides or explains a control with it. Importing `./guard` from a component would pull Effect and the wide-event logger into the client bundle. There is no root entry point: the package exports only `./client`, `./errors`, `./guard` and `./roles`.
 
 The UI check is presentation only. It stops a member being shown a form that would fail on submit; the enforcement is the server withholding the data (`whenPermitted`) and the guard refusing the mutation.
 

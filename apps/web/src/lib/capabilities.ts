@@ -55,7 +55,7 @@ function stripeBillingConfig(): StarterEnv['billing'] | undefined {
   return { secretKey, priceIds }
 }
 
-// Real Worker bindings (same import as `server-context.ts`). In production the
+// Real Worker bindings (the same import `auth-runtime.ts` uses). In production the
 // D1 binding exists and activates the Live layer; under the local dev shim
 // (`cloudflare-workers-shim.ts`) `DB` is undefined and the in-memory Seed
 // layer keeps the app working provider-light (CLAUDE.md rule 3). Unset Stripe

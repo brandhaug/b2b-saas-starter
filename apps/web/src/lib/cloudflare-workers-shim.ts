@@ -1,7 +1,7 @@
 // Local-dev stand-in for the `cloudflare:workers` module (aliased in
 // vite.config.ts when B2B_STARTER_USE_WORKERS_SHIM=1 or in vitest).
 // `DB` is intentionally undefined: consumers (capabilities.ts,
-// server-context.ts) treat a missing binding as "run provider-light" —
+// auth-runtime.ts) treat a missing binding as "run provider-light" —
 // the capabilities layer falls back to the in-memory Seed layer, and
 // auth surfaces a descriptive error only if a query actually executes.
 export const env = {
