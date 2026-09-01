@@ -10,9 +10,12 @@
     "@b2b-saas-starter/db",
     "@base-ui/react",
     "@effect/language-service",
-    // Satisfies alchemy's peer dependency for its bun runtime path; the CLI
-    // loads it dynamically at deploy time, so no source file imports it.
+    // Both effect platform packages satisfy alchemy's peer dependencies.
+    // The CLI loads the bun one dynamically at deploy time, and bun
+    // resolves the node one eagerly through alchemy's static imports, so
+    // neither is imported by first-party source.
     "@effect/platform-bun",
+    "@effect/platform-node",
     // Email preview server requirement: `email dev` prompts to install this
     // unless it is present; the preview loads it dynamically, so no source
     // file imports it.

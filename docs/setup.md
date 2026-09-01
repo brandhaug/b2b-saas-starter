@@ -54,4 +54,6 @@ For remote migrations (`bun run db:generate` against remote metadata and `bun ru
 
 Deployment is Alchemy IaC via `bun run deploy` (root `alchemy.run.ts`). Required env: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`. Everything else is optional and degrades to inactive.
 
+For the full walkthrough — Cloudflare token setup, the GitHub Actions `production` environment secrets, first-deploy verification, and troubleshooting — see [deploying.md](./deploying.md).
+
 See [ARCHITECTURE.md](../ARCHITECTURE.md) (Deployment & Infrastructure, Secret matrix) for the full picture, and [README.md](../README.md) for the command reference.
