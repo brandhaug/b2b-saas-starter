@@ -37,6 +37,23 @@ describe('readServerEnv', () => {
     expect(env.CLOUDFLARE_EMAIL_FROM).toBe('no-reply@example.com')
     expect('DB' in env).toBe(false)
   })
+
+  it('treats explicitly null bindings as absent (workerd delivers present-but-null)', () => {
+    // The deploy boundary has shipped explicit nulls for unset optional vars
+    // (alchemy forwarded `undefined ?? null`), and workerd delivers null
+    // verbatim. Every read must normalize that to "unconfigured" instead of
+    // crashing on string operations — the first green deploy 500ed on
+    // exactly this.
+    const env = readServerEnv({
+      BETTER_AUTH_SECRET: null,
+      BETTER_AUTH_URL: null,
+      ENVIRONMENT: null,
+      STRIPE_SECRET_KEY: null
+    })
+    expect(env.BETTER_AUTH_URL).toBe('http://localhost:3071')
+    expect(env.STRIPE_SECRET_KEY).toBeUndefined()
+    expect(env.ENVIRONMENT).toBeUndefined()
+  })
 })
 
 describe('requireEmailVerification', () => {
@@ -70,6 +87,19 @@ describe('auditRequiredEnv', () => {
 
   it('stays silent in local mode: no ENVIRONMENT means dev/test defaults are expected', () => {
     expect(auditRequiredEnv({})).toEqual({ mode: 'local', problems: [] })
+  })
+
+  it('treats explicitly null bindings as absent — a deployed worker must not crash the module-scope audit', () => {
+    // workerd delivers present-but-null bindings as `null`, and the deploy
+    // boundary has shipped explicit nulls for unset optional vars. Null is
+    // "unset": local stance, no problems — not a `null.length` crash.
+    const audit = auditRequiredEnv({
+      BETTER_AUTH_SECRET: null,
+      BETTER_AUTH_URL: null,
+      ENVIRONMENT: null
+    })
+    expect(audit.mode).toBe('local')
+    expect(audit.problems).toEqual([])
   })
 
   it('reports a missing secret and URL in production', () => {
