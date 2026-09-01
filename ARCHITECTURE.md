@@ -23,7 +23,7 @@ Cloudflare Queues / Email / optional providers
 
 ### `apps/web`
 
-TanStack Start web application for public showcase pages, docs, blog, FAQ, pricing, auth, workspace dashboards, settings, admin UI, and Better Auth routes. It uses shadcn/ui, Tailwind CSS v4 tokens, next-themes, and seed-backed starter data in the first vertical slice.
+TanStack Start web application for public showcase pages, docs, blog, FAQ, pricing, auth, workspace dashboards, settings, admin UI, and Better Auth routes. It uses shadcn/ui, Tailwind CSS v4 tokens, and seed-backed starter data in the first vertical slice.
 
 ### `apps/api`
 

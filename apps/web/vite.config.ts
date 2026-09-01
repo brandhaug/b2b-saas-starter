@@ -99,7 +99,10 @@ export default defineConfig(({ command, mode }) => {
             rehypeSlug,
             [
               rehypePrettyCode,
-              { theme: { dark: 'github-dark', light: 'github-light' } }
+              // Dual-theme keeps rehype-pretty-code emitting the `--shiki-dark*`
+              // custom properties that index.css reads. Both slots are dark:
+              // the app has one scheme.
+              { theme: { dark: 'github-dark', light: 'github-dark' } }
             ]
           ]
         })

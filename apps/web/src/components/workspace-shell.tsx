@@ -16,7 +16,6 @@ import {
   UsersIcon,
   WebhookIcon
 } from 'lucide-react'
-import { ThemeToggle } from '@/components/theme-toggle'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -157,7 +156,6 @@ export function WorkspaceShell({
               {unreadCount}
             </Badge>
           )}
-          <ThemeToggle />
           <SignOutButton signOut={signOut} />
         </header>
         <main id="main-content" className="px-4 py-6 sm:px-6">

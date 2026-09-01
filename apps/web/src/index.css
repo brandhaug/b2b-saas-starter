@@ -6,70 +6,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Light scheme: Catppuccin Latte */
-:root {
-  --background: oklch(0.9578 0.0058 264.532); /* latte base #eff1f5 */
-  --foreground: oklch(0.4355 0.043 279.325); /* latte text #4c4f69 */
-  --card: oklch(0.9335 0.0087 264.521); /* latte mantle #e6e9ef */
-  --card-foreground: oklch(0.4355 0.043 279.325);
-  --popover: oklch(0.9335 0.0087 264.521);
-  --popover-foreground: oklch(0.4355 0.043 279.325);
-  --primary: oklch(0.5547 0.2503 297.016); /* latte mauve #8839ef */
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.8575 0.0145 268.476); /* latte surface0 #ccd0da */
-  --secondary-foreground: oklch(0.4355 0.043 279.325);
-  --muted: oklch(0.9335 0.0087 264.521);
-  --muted-foreground: oklch(0.492 0.0385 279.299); /* latte subtext1 #5c5f77 */
-  --accent: oklch(0.8083 0.0174 271.198); /* latte surface1 #bcc0cc */
-  --accent-foreground: oklch(0.4355 0.043 279.325);
-  --destructive: oklch(0.5505 0.2155 19.8095); /* latte red #d20f39 */
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.8575 0.0145 268.476);
-  --input: oklch(0.8575 0.0145 268.476);
-  --ring: oklch(0.6638 0.1751 273.135); /* latte lavender #7287fd */
-  --chart-1: oklch(0.5586 0.2255 262.087); /* latte blue #1e66f5 */
-  --chart-2: oklch(0.625 0.1772 140.445); /* latte green #40a02b */
-  --chart-3: oklch(0.714 0.1494 67.7767); /* latte yellow #df8e1d */
-  --chart-4: oklch(0.692 0.2041 42.4293); /* latte peach #fe640b */
-  --chart-5: oklch(0.5547 0.2503 297.016); /* latte mauve #8839ef */
-  --sidebar: oklch(0.9335 0.0087 264.521);
-  --sidebar-foreground: oklch(0.4355 0.043 279.325);
-  --sidebar-primary: oklch(0.5547 0.2503 297.016);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.8575 0.0145 268.476);
-  --sidebar-accent-foreground: oklch(0.4355 0.043 279.325);
-  --sidebar-border: oklch(0.8575 0.0145 268.476);
-  --sidebar-ring: oklch(0.6638 0.1751 273.135);
-  --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
-  --font-display: 'Archivo Variable', Geist, ui-sans-serif, sans-serif;
-  --font-mono: Geist Mono, ui-monospace, monospace;
-  --radius: 0.5rem;
-  --shadow-x: 0;
-  --shadow-y: 1px;
-  --shadow-blur: 3px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 0.1;
-  --shadow-color: oklch(0 0 0);
-  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
-  --tracking-normal: 0em;
-  --spacing: 0.25rem;
-  /* Marketing-scope amber signal pair. Intentional non-Catppuccin values:
-     the showcase surface commits to an engineering-paper amber accent.
-     -ink is the AA-on-light variant for text; -signal is reserved for
-     graphic marks and never body text on light surfaces. */
-  --signal: oklch(0.72 0.135 65);
-  --signal-ink: oklch(0.41 0.105 55);
-}
-
+/* The only scheme: Catppuccin Mocha. Light mode was removed — `<html>`
+   carries a hardcoded `dark` class so shadcn's `dark:` variants and the
+   `.dark`-scoped rules below still resolve, and `:root` carries the same
+   values so the pre-hydration paint matches. */
+:root,
 .dark {
-  /* Dark scheme: Catppuccin Mocha */
+  color-scheme: dark;
   --background: oklch(0.2429 0.0304 283.911); /* mocha base #1e1e2e */
   --foreground: oklch(0.8787 0.0426 272.277); /* mocha text #cdd6f4 */
   --card: oklch(0.2155 0.0254 284.065); /* mocha mantle #181825 */
@@ -103,7 +46,7 @@
   --sidebar-border: oklch(0.324 0.0319 281.978);
   --sidebar-ring: oklch(0.8166 0.091 277.309);
   --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
-  --font-display: 'Archivo Variable', Geist, ui-sans-serif, sans-serif;
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
   --radius: 0.5rem;
   --shadow-x: 0;
@@ -120,80 +63,43 @@
   --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
   --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
-  --signal: oklch(0.8 0.13 75);
-  --signal-ink: oklch(0.8 0.13 75);
+  /* Signal pair: Catppuccin peach. Both halves are the same value now that
+     every surface is dark — there is no light surface needing an AA-on-light
+     variant, but the two names stay so component call sites are unchanged. */
+  --signal: oklch(0.8237 0.1015 52.6294); /* mocha peach #fab387 */
+  --signal-ink: oklch(0.8237 0.1015 52.6294);
 }
 
-/* Public showcase palette: the marketing surface commits to a deep petrol
-   teal + amber signal color while the workspace app keeps the Catppuccin
-   neutral/blue chrome. This is an intentional, documented marketing-scope
-   deviation from the Catppuccin token values: same shadcn token contract,
-   different values — scoped by the `.marketing` wrapper that PublicLayout
-   applies. No hardcoded colors are allowed in marketing components; they
-   must go through these tokens (or the documented `--signal` pair). */
-.marketing {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.25 0.02 220);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.25 0.02 220);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.25 0.02 220);
-  --primary: oklch(0.42 0.075 215);
-  --primary-foreground: oklch(0.99 0.005 200);
-  --secondary: oklch(0.96 0.01 210);
-  --secondary-foreground: oklch(0.35 0.035 215);
-  --muted: oklch(0.972 0.007 210);
-  --muted-foreground: oklch(0.45 0.025 220);
-  --accent: oklch(0.945 0.02 205);
-  --accent-foreground: oklch(0.33 0.055 215);
-  --border: oklch(0.895 0.012 210);
-  --input: oklch(0.895 0.012 210);
-  --ring: oklch(0.55 0.09 210);
-}
+/* The public showcase and the workspace app share one palette. `.marketing`
+   is still the PublicLayout wrapper that scopes the showcase's typography,
+   focus rings and prose token map (further down) — it no longer redefines
+   any color token. No hardcoded colors in marketing components; they go
+   through the shadcn tokens or the `--signal` pair. */
 
-.dark .marketing {
-  --background: oklch(0.19 0.015 230);
-  --foreground: oklch(0.92 0.01 210);
-  --card: oklch(0.235 0.018 225);
-  --card-foreground: oklch(0.92 0.01 210);
-  --popover: oklch(0.235 0.018 225);
-  --popover-foreground: oklch(0.92 0.01 210);
-  --primary: oklch(0.75 0.09 200);
-  --primary-foreground: oklch(0.17 0.02 230);
-  --secondary: oklch(0.26 0.02 225);
-  --secondary-foreground: oklch(0.85 0.02 210);
-  --muted: oklch(0.235 0.018 225);
-  --muted-foreground: oklch(0.7 0.02 215);
-  --accent: oklch(0.3 0.045 220);
-  --accent-foreground: oklch(0.87 0.05 205);
-  --border: oklch(0.32 0.02 225);
-  --input: oklch(0.32 0.02 225);
-  --ring: oklch(0.72 0.09 200);
-}
-
-/* Petrol-drenched band. Redefines the same token contract so shadcn
-   utilities (bg-background, text-muted-foreground, …) work inside it.
-   Primary flips to amber so CTAs pop against the drench. */
+/* Drenched band. Redefines the same token contract so shadcn utilities
+   (bg-background, text-muted-foreground, …) work inside it. Sunk to
+   Catppuccin crust/mantle so the landing page keeps its section rhythm
+   against the base background; primary flips to peach so CTAs pop. */
 .band-deep {
-  --background: oklch(0.265 0.04 222);
-  --foreground: oklch(0.93 0.012 210);
-  --card: oklch(0.3 0.042 220);
-  --card-foreground: oklch(0.93 0.012 210);
-  --popover: oklch(0.3 0.042 220);
-  --popover-foreground: oklch(0.93 0.012 210);
-  --primary: oklch(0.8 0.135 75);
-  --primary-foreground: oklch(0.22 0.05 60);
-  --secondary: oklch(0.31 0.04 220);
-  --secondary-foreground: oklch(0.88 0.02 210);
-  --muted: oklch(0.3 0.04 220);
-  --muted-foreground: oklch(0.74 0.028 212);
-  --accent: oklch(0.33 0.05 218);
-  --accent-foreground: oklch(0.9 0.03 205);
-  --border: oklch(0.36 0.038 220);
-  --input: oklch(0.36 0.038 220);
-  --ring: oklch(0.8 0.135 75);
-  --signal: oklch(0.82 0.13 78);
-  --signal-ink: oklch(0.82 0.13 78);
+  --background: oklch(0.1828 0.0204 284.204); /* mocha crust #11111b */
+  --foreground: oklch(0.8787 0.0426 272.277); /* mocha text #cdd6f4 */
+  --card: oklch(0.2155 0.0254 284.065); /* mocha mantle #181825 */
+  --card-foreground: oklch(0.8787 0.0426 272.277);
+  --popover: oklch(0.2155 0.0254 284.065);
+  --popover-foreground: oklch(0.8787 0.0426 272.277);
+  --primary: oklch(0.8237 0.1015 52.6294); /* mocha peach #fab387 */
+  --primary-foreground: oklch(0.1828 0.0204 284.204);
+  --secondary: oklch(0.2429 0.0304 283.911); /* mocha base #1e1e2e */
+  --secondary-foreground: oklch(0.8787 0.0426 272.277);
+  --muted: oklch(0.2429 0.0304 283.911);
+  --muted-foreground: oklch(0.751 0.0396 273.932); /* mocha subtext0 #a6adc8 */
+  --accent: oklch(0.324 0.0319 281.978); /* mocha surface0 #313244 */
+  --accent-foreground: oklch(0.8787 0.0426 272.277);
+  --border: oklch(0.324 0.0319 281.978);
+  --input: oklch(0.324 0.0319 281.978);
+  --ring: oklch(0.8237 0.1015 52.6294);
+  --signal: oklch(0.8237 0.1015 52.6294);
+  --signal-ink: oklch(0.8237 0.1015 52.6294);
 }
 
 @theme inline {
@@ -294,7 +200,7 @@
 /* rehype-pretty-code */
 [data-rehype-pretty-code-figure] pre {
   @apply overflow-x-auto rounded-lg border border-border px-0 py-3;
-  background-color: var(--shiki-light-bg);
+  background-color: var(--shiki-dark-bg);
 }
 
 [data-rehype-pretty-code-figure] code {
@@ -302,7 +208,7 @@
 }
 
 [data-rehype-pretty-code-figure] code span {
-  color: var(--shiki-light);
+  color: var(--shiki-dark);
 }
 
 [data-rehype-pretty-code-figure] [data-line] {
@@ -313,28 +219,25 @@
   @apply bg-muted/50;
 }
 
-.dark [data-rehype-pretty-code-figure] pre {
-  background-color: var(--shiki-dark-bg);
-}
-
-.dark [data-rehype-pretty-code-figure] code span {
-  color: var(--shiki-dark);
-}
-
 /* Heading anchors for TOC scroll */
 .prose :is(h2, h3)[id] {
   scroll-margin-top: 2rem;
 }
 
-/* Display voice for the public surface: Archivo drawn wide via its width
-   axis — industrial signage lettering to match the schematic identity.
-   Wide letterforms need only gentle negative tracking (well inside the
-   ≥ -0.04em floor). Display sizes are capped at the Tailwind `text-6xl`
-   step used by the hero (3.75rem), far under the 6rem ceiling. */
+/* Display voice for the public surface: Fraunces held at a high optical size,
+   which is the axis position where its stroke contrast and flared serifs read
+   as display lettering rather than book text. `opsz` is pinned rather than
+   left to `font-optical-sizing: auto` so a 2xl subhead gets the same cut as
+   the 6xl hero. Naming only `opsz` here leaves `wght` under the control of
+   `font-weight`, per the variation-settings cascade. Display sizes are capped
+   at the Tailwind `text-6xl` step used by the hero (3.75rem), far under the
+   6rem ceiling. */
 .marketing :is(h1, h2) {
   font-family: var(--font-display);
-  font-stretch: 118%;
-  letter-spacing: -0.01em;
+  font-variation-settings: 'opsz' 120;
+  /* Zero tracking, unlike the grotesque headings: at opsz 120 Fraunces
+     already sets tight, and negative tracking collides the thin strokes. */
+  letter-spacing: 0;
 }
 
 /* Balanced ragged edges on every marketing heading, and a guaranteed

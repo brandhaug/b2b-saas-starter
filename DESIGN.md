@@ -159,7 +159,7 @@ components:
 
 ## Overview
 
-The B2B SaaS Starter is a production-leaning chrome — quiet, legible, system-typeface — built on shadcn/ui + Tailwind v4 with a single saturated mauve accent. It is a workspace UI for serious operators, not a marketing surface. The public Showcase Site shares the same shadcn token contract and primitives but commits harder to the brand: the `.marketing` scope (applied by `PublicLayout`) overrides the token values with a deep petrol teal + amber "signal" palette, and marketing `h1`/`h2` render in Archivo Variable drawn wide. One system, two registers.
+The B2B SaaS Starter is a production-leaning chrome — quiet, legible, system-typeface — built on shadcn/ui + Tailwind v4 with a single saturated mauve accent. It is a workspace UI for serious operators, not a marketing surface. The public Showcase Site shares the same shadcn token contract, the same Catppuccin Mocha values, and the same primitives; it separates itself through type and rhythm rather than hue — marketing `h1`/`h2` render in Fraunces, a high-contrast display serif, and `.band-deep` sinks whole sections to Catppuccin crust. One system, one palette, two registers.
 
 **Emotional goals.** Calm, considered, inspectable. The interface should feel like a tool a team will use every day — closer to Linear or Vercel's dashboard than to a launch-day landing page. No exuberance, no novelty, no overlap with consumer-product aesthetics.
 
@@ -167,28 +167,28 @@ The B2B SaaS Starter is a production-leaning chrome — quiet, legible, system-t
 
 **Anti-references.** Gradient hero pages, glassmorphism, neumorphism, glowing accents, illustration-heavy marketing surfaces. Any "consumer-y" warmth signals the brand wrong.
 
-**Theme.** Catppuccin neutrals + a single saturated mauve accent. Light by default, dark fully supported. Both themes share the same accent so the brand reads identically regardless of `prefers-color-scheme`. Authoritative token values live in OKLch in `apps/web/src/index.css` for perceptual uniformity; the sRGB hex tokens in this file are the portable equivalent for agents and exports.
+**Theme.** Catppuccin Mocha, everywhere, always. There is one scheme: `<html>` carries a hardcoded `dark` class, `prefers-color-scheme` is not consulted, and there is no theme toggle. Authoritative token values live in OKLch in `apps/web/src/index.css` for perceptual uniformity; the sRGB hex tokens in this file are the portable equivalent for agents and exports.
 
 ## Colors
 
-The palette is rooted in Catppuccin neutrals with a single saturated mauve accent (#8839EF light / #CBA6F7 dark) — chosen so chrome stays out of the way and the data on screen reads first.
+The palette is Catppuccin Mocha with a single saturated mauve accent (#CBA6F7) — chosen so chrome stays out of the way and the data on screen reads first. One value per token; there is no light-mode counterpart.
 
-- **Background (`#FCFCFC` / `#1E1E1E`):** Page surface. Near-white in light mode, near-black in dark mode. Avoid hard `#FFF` / `#000`.
-- **Card / Popover (`#FFFFFF` / `#2D2D2D`):** Lifted neutral surface for panels, dialogs, popovers, sidebars. Light mode card sits a hair above background; dark mode lifts visibly.
-- **Foreground (`#424242` / `#E5E5E5`):** Body and heading text. Soft on light, soft on dark — true black/white reserved for accents.
-- **Primary (`#8839EF` / `#CBA6F7`):** The single accent. CTAs, active links, selected rows. If everything is mauve, nothing is.
-- **Primary-foreground:** Light mode uses white on the primary fill; dark mode flips to near-black (`#11111B`) on the lifted lavender — both pass contrast at all sizes.
-- **Secondary (`#F1F5F9` / `#2D2D2D`):** Default button fill. Most buttons land here, not on primary.
-- **Muted (`#F8FAFC` / `#2D2D2D`):** Recessed background for nested panels, code blocks, and "secondary information" zones.
-- **Accent (`#E0F2FE` / `#1E40AF`):** Hover lift on rows and tabs. Light mode goes pale-cyan; dark mode goes saturated-blue. The accent-foreground tracks the inverse.
-- **Border (`#E2E8F0` / `#494949`):** The carved edge that gives the card 0-radius chrome its shape. Always 1px. Never thicker.
-- **Destructive (`#EF4444`):** Delete, revoke, leave-workspace. Confirmations only — never as a chrome color.
-- **Ring (`#7287FD` / `#B4BEFE`):** Focus outline. Same hue family as primary so focus and action read as one system.
+- **Background (`#1E1E2E`, mocha base):** Page surface. Near-black, never hard `#000`.
+- **Card / Popover (`#181825`, mocha mantle):** Panels, dialogs, popovers, sidebars. Sits _below_ the background rather than above it — depth reads as recession here, not elevation.
+- **Foreground (`#CDD6F4`, mocha text):** Body and heading text. Soft, never pure white.
+- **Primary (`#CBA6F7`, mocha mauve):** The single accent. CTAs, active links, selected rows. If everything is mauve, nothing is.
+- **Primary-foreground (`#11111B`, mocha crust):** Near-black on the lifted mauve fill; passes contrast at all sizes.
+- **Secondary (`#313244`, mocha surface0):** Default button fill. Most buttons land here, not on primary.
+- **Muted (`#313244`, mocha surface0):** Recessed background for nested panels, code blocks, and "secondary information" zones.
+- **Accent (`#45475A`, mocha surface1):** Hover lift on rows and tabs.
+- **Border (`#313244`, mocha surface0):** The carved edge that gives the card 0-radius chrome its shape. Always 1px. Never thicker.
+- **Destructive (`#F38BA8`, mocha red):** Delete, revoke, leave-workspace. Confirmations only — never as a chrome color.
+- **Ring (`#B4BEFE`, mocha lavender):** Focus outline. Same hue family as primary so focus and action read as one system.
 - **Chart 1–5:** Scaled chart palette in the brand hue family (no rainbow). Defined in `index.css` `--chart-1`…`--chart-5`; reach for these in dashboards before introducing new colors.
 
-The sidebar has its own tokens (`--sidebar-*`) so navigation can lift independently from the body in either mode. Treat them as the source of truth for `WorkspaceShell` navigation chrome.
+The sidebar has its own tokens (`--sidebar-*`) so navigation can separate from the body independently. Treat them as the source of truth for `WorkspaceShell` navigation chrome.
 
-**Marketing scope.** Public routes (wrapped in `.marketing` by `PublicLayout`) redefine the same token names in `apps/web/src/index.css`: primary becomes a deep petrol teal (`oklch(0.42 0.075 215)` light / lifted teal dark), neutrals tint toward the same hue, and two extra tokens exist — `--signal` (burnt amber, for schematic marks and status dots) and `--signal-ink` (its text-safe counterpart, ≥4.5:1 on the page background). `.band-deep` re-overrides the contract for petrol-drenched sections; inside a band, `primary` flips to amber so CTAs pop. Workspace routes never see any of this — the app keeps the neutral/mauve chrome above.
+**Marketing scope.** Public routes are wrapped in `.marketing` by `PublicLayout`, but that scope no longer redefines a single color token — the showcase and the app share one palette. What `.marketing` still owns is typography (Fraunces on `h1`/`h2`), balanced heading rag, a guaranteed focus ring on bare `<a>`/`<button>` CTAs, and the prose token map for long-form MDX. Two extra tokens exist site-wide: `--signal` (mocha peach `#FAB387`, for schematic marks and status dots) and `--signal-ink`, its text-safe counterpart — the same value now that every surface is dark, kept as two names so call sites are unchanged. `.band-deep` sinks a section to mocha crust (`#11111B`) and flips `primary` to peach so CTAs pop against the drench.
 
 ## Typography
 
@@ -205,9 +205,9 @@ Two variable system-grade fonts, both shipped via `@fontsource-variable`.
 - `label` (Geist 500) — buttons, tabs, form labels, badge text. Not uppercase. Tracking neutral.
 - `mono` (Geist Mono, tabular figures) — IDs, tokens, code, numbers in tables. `font-feature: 'tnum'` is non-negotiable for any digit that updates.
 
-There is also a display face for the public surface: **Archivo Variable** (`--font-display`), applied by `index.css` to `.marketing h1/h2` at `font-stretch: 118%` — industrial signage lettering for showcase headlines. It never runs inside the workspace shell, and it never runs as body copy.
+There is also a display face for the public surface: **Fraunces Variable** (`--font-display`), applied by `index.css` to `.marketing h1/h2` with `font-variation-settings: 'opsz' 120` — a high-contrast serif with flared serifs and a sharp thin/thick modulation, pinned to the optical size where it reads as display lettering rather than book text. The serif against Geist body copy is the showcase's whole register shift now that the palette is shared. It never runs inside the workspace shell, and it never runs as body copy.
 
-**Rules.** Geist runs everything except code and marketing display headings. Geist Mono never runs as prose. Avoid uppercase labels — the brand is sentence-case.
+**Rules.** Geist runs everything except code and marketing display headings; the display serif runs only there. Geist Mono never runs as prose. Avoid uppercase labels — the brand is sentence-case.
 
 ## Layout
 
@@ -260,12 +260,13 @@ Component tokens are defined in the YAML above and are the normative surface for
 - Lean on shadcn/ui primitives — they already consume these tokens.
 - Use `mono` for any user-facing identifier: workspace slugs, API tokens, request IDs, timestamps in tables.
 - Keep panels flat. Color lift + a 1px border is enough elevation.
-- Honor `prefers-color-scheme`. Dark mode is not an afterthought; both themes ship the same content.
+- Check contrast against the mocha surfaces specifically. There is one scheme, so there is one set of numbers to hit — no excuse for a token that only passes in the other mode.
 
 **Don't**
 
-- Don't introduce a second accent hue in the workspace. The one mauve is the app system; petrol + amber belong to the `.marketing` scope only.
-- Don't swap in system fonts "for performance." Geist + Geist Mono (+ Archivo Variable on public routes) are load-bearing and shipped self-hosted via `@fontsource-variable`.
+- Don't introduce a second accent hue. Mauve is the accent; peach (`--signal`) is reserved for schematic marks, status dots, and `.band-deep` CTAs.
+- Don't add a light-mode branch, a `prefers-color-scheme` query, or a theme toggle. Catppuccin Mocha is the only scheme, and a second one would double every contrast check.
+- Don't swap in system fonts "for performance." Geist + Geist Mono (+ Fraunces Variable on public routes) are shipped self-hosted via `@fontsource-variable` and each carries a distinct job.
 - Don't round panels. The sharp/soft contrast between cards and controls is the brand.
 - Don't use `destructive` red for anything but genuinely destructive actions. It is a signal, not a color.
 - Don't reuse the chart palette for chrome — those hues exist to differentiate data series, not UI.

@@ -37,5 +37,5 @@ Calm, inspectable, opinionated. The voice of a senior engineer walking you throu
 
 - WCAG 2.1 AA: body text ≥ 4.5:1, large text ≥ 3:1, visible focus rings, full keyboard paths.
 - `prefers-reduced-motion` honored on every animation (entrances, schematic pulses).
-- `prefers-color-scheme` honored; light and dark ship the same content and hierarchy.
+- One scheme (Catppuccin Mocha) on every surface, public and authenticated, so contrast is verified against a single set of values.
 - Semantic landmarks, skip link, and accessible names throughout the public site.
