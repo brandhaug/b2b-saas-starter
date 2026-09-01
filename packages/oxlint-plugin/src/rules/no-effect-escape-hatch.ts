@@ -8,7 +8,8 @@ import { getPropertyName } from '../internal/ast.ts'
  *
  * The starter's capabilities all fail with tagged errors, and every route and UI
  * surface matches on them, so a defect here would surface as an opaque 500.
- * Test files are exempted through `.oxlintrc.json` overrides, not by this rule.
+ * Test files are exempted through the root `vite.config.ts` lint overrides, not
+ * by this rule.
  *
  * Ported from oxlint-plugin-executor/rules/no-effect-escape-hatch.js (MIT).
  */

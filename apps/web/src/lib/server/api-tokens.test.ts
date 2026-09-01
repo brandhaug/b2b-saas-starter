@@ -1,7 +1,5 @@
-import {
-  SeedApiTokenRegistry,
-  type ApiToken
-} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { SeedApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry.seed'
 import { SeedWebhookPublisher } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {

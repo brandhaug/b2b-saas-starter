@@ -7,13 +7,8 @@ import { Effect } from 'effect'
 import { type HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 
-import { providerEnv, type ApiEnv } from './env.ts'
-import {
-  enforcePermission,
-  enforceRateLimit,
-  observed,
-  provideWorkspace
-} from './request-guards.ts'
+import { type ApiEnv } from './env.ts'
+import { enforcePermission, observed, provideWorkspace } from './request-guards.ts'
 import { mcpDiscoveryDocument } from './mcp.ts'
 import { READ_OPERATIONS, serveRead, type ReadOperationEndpoint } from './operations.ts'
 
@@ -26,10 +21,11 @@ const HEALTH_OK = { status: 'ok' } satisfies { readonly status: 'ok' }
 const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
 
 /**
- * Write sibling of the local `read` helper in `workspaceGroup`: the same gate
- * stack with the write rate-limit bucket. The event name is passed whole —
- * writes name themselves (`api-tokens.create`), unlike reads under
- * `workspace.*`.
+ * Write sibling of the local `read` helper in `workspaceGroup`. Bearer auth and
+ * the group's rate-limit bucket are the contract's `BearerAuth` middleware's
+ * job, so a handler composes only the permission gate and the capability call.
+ * The event name is passed whole — writes name themselves
+ * (`api-tokens.create`), unlike reads under `workspace.*`.
  */
 function write<A, E, R>(
   env: ApiEnv,
@@ -45,8 +41,7 @@ function write<A, E, R>(
     event,
     { workspaceSlug: slug },
     Effect.gen(function* () {
-      yield* enforceRateLimit(request, 'rest_write')
-      yield* enforcePermission(request, permission, slug)
+      yield* enforcePermission(permission, slug)
       return yield* provideWorkspace(env, slug, body)
     })
   )
@@ -75,8 +70,7 @@ export function workspaceGroup(env: ApiEnv) {
         `workspace.${event}`,
         { workspaceSlug: slug },
         Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'rest_read')
-          yield* enforcePermission(request, permission, slug)
+          yield* enforcePermission(permission, slug)
           return yield* provideWorkspace(env, slug, body)
         })
       )
@@ -208,8 +202,7 @@ export function assistantGroup(env: ApiEnv) {
         'assistant.answer',
         {},
         Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'assistant')
-          yield* enforcePermission(request, { assistant: ['read'] })
+          yield* enforcePermission({ assistant: ['read'] })
           const service = yield* AssistantService
           const reply = yield* service.ask(payload)
           return {
@@ -217,7 +210,7 @@ export function assistantGroup(env: ApiEnv) {
             provider: reply.provider,
             modelId: reply.modelId,
             usedTools: reply.usedTools,
-            assistantConfigured: isAssistantConfigured(providerEnv(env))
+            assistantConfigured: isAssistantConfigured(env)
           }
         })
       )
@@ -234,8 +227,7 @@ export function mcpGroup(env: ApiEnv) {
         'mcp.discover',
         {},
         Effect.gen(function* () {
-          yield* enforceRateLimit(request, 'mcp')
-          yield* enforcePermission(request, { mcp: ['read'] })
+          yield* enforcePermission({ mcp: ['read'] })
           return mcpDiscoveryDocument()
         })
       )

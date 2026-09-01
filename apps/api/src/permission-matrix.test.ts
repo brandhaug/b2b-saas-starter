@@ -1,4 +1,5 @@
 import { SEED_READONLY_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { BearerAuth, rateLimitBucketFor, StarterApi } from '@b2b-saas-starter/api'
 import { describe, expect, test } from 'vite-plus/test'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
@@ -20,8 +21,17 @@ import { permissionLabel, readOperations } from './operations.ts'
  */
 
 const ErrorBody = Schema.Struct({ _tag: Schema.String })
+const OpenApiOperation = Schema.Struct({
+  security: Schema.optional(Schema.Array(Schema.Record(Schema.String, Schema.Unknown)))
+})
 const OpenApiBody = Schema.Struct({
-  paths: Schema.Record(Schema.String, Schema.Record(Schema.String, Schema.Unknown))
+  components: Schema.Struct({
+    securitySchemes: Schema.Record(
+      Schema.String,
+      Schema.Struct({ type: Schema.String, scheme: Schema.optional(Schema.String) })
+    )
+  }),
+  paths: Schema.Record(Schema.String, Schema.Record(Schema.String, OpenApiOperation))
 })
 
 const encodeJsonBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
@@ -168,6 +178,55 @@ describe('permission matrix', () => {
         )
       })
     ))
+
+  /**
+   * The gate is declared on the contract (`BearerAuth`), not hand-composed in
+   * each handler, so the served document is the statement of which operations
+   * are gated: an endpoint that escapes the middleware shows up here as an
+   * operation with no security requirement rather than as a handler someone has
+   * to notice is missing three lines.
+   */
+  test('the served document secures exactly the gated operations', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(new Request('https://api.test/openapi.json'))
+        const doc = yield* jsonBody(res, OpenApiBody)
+        expect(doc.components.securitySchemes['bearer']).toEqual({
+          type: 'http',
+          scheme: 'Bearer'
+        })
+        const secured = Object.entries(doc.paths).flatMap(([path, item]) =>
+          Object.entries(item)
+            .filter(([method]) => HTTP_METHODS.has(method))
+            .filter(([, operation]) => (operation.security?.length ?? 0) > 0)
+            .map(([method]) => `${method.toUpperCase()} ${path}`)
+        )
+        expect(secured.toSorted()).toEqual(
+          MATRIX.map((entry) => entry.operation).toSorted()
+        )
+      })
+    ))
+
+  /**
+   * The bucket a group draws from is a row in the contract's table; the
+   * middleware dies on a group without one, so assert the table covers every
+   * group that carries the gate.
+   */
+  test('every group behind the gate names a rate-limit bucket', () => {
+    const gated = Object.values(StarterApi.groups)
+      .filter((group) =>
+        Object.values(group.endpoints).some((endpoint) =>
+          endpoint.middlewares.has(BearerAuth)
+        )
+      )
+      .map((group) => group.identifier)
+    expect(gated.length).toBeGreaterThan(0)
+    expect(
+      gated.filter((identifier) => rateLimitBucketFor(identifier) === undefined)
+    ).toEqual([])
+    // `/health` is the contract's only public group; it must stay ungated.
+    expect(gated).not.toContain('health')
+  })
 
   test.each(MATRIX)(
     'a read-only token gets $expected from $operation ($permission)',

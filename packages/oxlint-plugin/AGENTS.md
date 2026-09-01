@@ -6,7 +6,7 @@ The repo's own oxlint rules. A convention that only this repo holds belongs here
 
 This is the third and last lint layer. Before reaching for a rule here, check the first two: oxlint's own categories (`correctness`, `suspicious`, `perf` are on), then the third-party JS plugins `oxlint-plugin-effect`, `anti-slop`, and `eslint-plugin-better-tailwindcss`. Most Effect and type-safety discipline is already covered there, and a duplicate rule means two messages for one mistake.
 
-Nothing imports this package at runtime. `.oxlintrc.json` loads `src/index.ts` as a `jsPlugins` entry, and every rule is enabled and scoped from there.
+Nothing imports this package at runtime. The root `vite.config.ts` loads `src/index.ts` as a `lint.jsPlugins` entry, and every rule is enabled and scoped from there.
 
 ## The rules
 
@@ -28,9 +28,9 @@ Four are written for this repo (`no-deep-workspace-imports`, `no-interface-merge
 ## Invariants
 
 1. **Rules are syntax-only.** No rule here touches type information, because oxlint's JS plugin API does not expose the type checker. A check that needs types belongs in a tsgolint rule, not here.
-2. **Path gating lives in `.oxlintrc.json`, never in a rule.** Both upstream plugins gate rules on hand-rolled `isTestLike(filename)` and `repoRoot` helpers, which fail open when the layout moves: the rule silently stops reporting and nothing tells you. Exemptions go in an `overrides` block with a comment naming the reason. `context.filename` is fine for reading the file's own extension, which is what the two `.d.ts` rules do.
+2. **Path gating lives in the root `vite.config.ts` lint config, never in a rule.** Both upstream plugins gate rules on hand-rolled `isTestLike(filename)` and `repoRoot` helpers, which fail open when the layout moves: the rule silently stops reporting and nothing tells you. Exemptions go in an `overrides` block with a comment naming the reason. `context.filename` is fine for reading the file's own extension, which is what the two `.d.ts` rules do.
 3. **Every rule has a test file beside it.** Minimum three `valid` cases covering the near-misses and three `invalid` cases, at least one asserting on the message text.
-4. **No rule offers a fixer.** `oxlint --fix` runs in the pre-commit hook, so a fixer here would rewrite code on commit with no review. `no-interface-merge-outside-dts` exists precisely because another rule's fixer does that.
+4. **No rule offers a fixer.** `pnpm run check:fix` runs `vp lint --fix`, so a fixer here would rewrite code with no review. `no-interface-merge-outside-dts` exists precisely because another rule's fixer does that.
 5. **`@oxlint/plugins` is the only runtime dependency of `src/`.** The plugin loads inside oxlint's own runtime. `effect` is used by the test harness, not by any rule.
 6. **Messages name the replacement.** Every message says what to write instead, with the concrete symbol or file. The upstream messages end in `Skill: wrdn-...` references that do not exist here; those were rewritten.
 
@@ -60,9 +60,10 @@ Pass `{ filename }` when a rule reads the path, which the two `.d.ts` rules do. 
 
 ## Anti-patterns
 
-- Don't add a rule that `effect/*` or `anti-slop/*` already reports. Check the enabled list in `.oxlintrc.json` first, and probe it against a fixture before assuming a gap.
+- Don't add a rule that `effect/*` or `anti-slop/*` already reports. Check the enabled list in the root `vite.config.ts` first, and probe it against a fixture before assuming a gap.
 - Don't read the file from disk inside a rule. `context.sourceCode.text` is already there; the upstream `no-ts-nocheck` re-reads every file and pays for it on every pass.
 - Don't walk the filesystem at module load. One upstream rule reads every workspace `package.json` before any file is linted.
 - Don't encode a policy the repo has settled the other way. `switch` is the example: four enabled rules make it safer here, so a rule banning it would reverse a decision.
 - Don't put an exemption list in a rule. See invariant 2.
-- Don't read `node.parent` directly when walking upward, and don't believe `no-unnecessary-condition` when it calls the null guard redundant. `@oxlint/plugins` types `parent` as always present and oxlint passes `null` at the `Program` root, so following that advice makes the rule throw on the first file it walks. Use `parentOf` from `internal/ast.ts`. Optional chaining is also safe, which is why the ported rules never hit this.
+- Don't read `node.parent` directly when walking upward, and don't believe `no-unnecessary-condition` when it calls the null guard redundant. `@oxlint/plugins` types `parent` as always present and oxlint passes `null` at the `Program` root, so following that advice makes the rule throw on the first file it walks. Use `parentOf` from `internal/ast.ts`, or `isCalleeOfEnclosingCall` for the curried-call case. Optional chaining is also safe, which is why the ported rules never hit this.
+- Don't re-hand-roll the `Schema.X` walk. `internal/ast.ts` has `schemaMemberAccess` (a `Schema.X` member access) and `schemaCallMemberAccess` (the same, under a `Schema.X(...)` call, curried forms included); a rule adds only the property-name check it needs.

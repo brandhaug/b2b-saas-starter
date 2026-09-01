@@ -1,20 +1,14 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import {
-  Billing,
-  PLANS,
-  type Plan
-} from '@b2b-saas-starter/capabilities/billing/billing'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
+import { PLANS, type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema, type Scope } from 'effect'
+import { Effect, Schema } from 'effect'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
+import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
 
 /**
  * The billing page payload: the workspace's current plan, the catalog, and
@@ -25,7 +19,7 @@ import { requireWorkspacePermission } from './authorize'
  * fail.
  */
 export type WorkspaceBillingPayload = {
-  readonly viewer: { readonly role: WorkspaceRole } | null
+  readonly viewer: WorkspaceViewer | null
   readonly workspaceName: string
   readonly unreadCount: number
   readonly plans: ReadonlyArray<Plan>
@@ -35,30 +29,29 @@ export type WorkspaceBillingPayload = {
 }
 
 /** The billing route's loader effect. Hard-gated like the other pages. */
-const billingPayload: Effect.Effect<
-  WorkspaceBillingPayload,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext | Billing | NotificationFeed
-> = Effect.gen(function* () {
-  yield* requireWorkspacePermission({ notification: ['read'] })
-  const ctx = yield* WorkspaceContext
-  const billing = yield* Billing
-  const feed = yield* NotificationFeed
-  const [plan, unreadCount, stripeConfigured] = yield* Effect.all(
-    [billing.currentPlan, feed.unreadCount, billing.configured],
-    {
-      concurrency: 'unbounded'
-    }
-  )
-  return {
-    viewer: ctx.actor ? { role: ctx.actor.role } : null,
-    workspaceName: ctx.workspace.name,
-    unreadCount,
-    plans: PLANS,
-    currentPlanId: plan.id,
-    stripeConfigured
-  }
-})
+const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePage(
+  { notification: ['read'] },
+  (ctx) =>
+    Effect.flatMap(Billing, (billing) =>
+      Effect.map(
+        Effect.all(
+          {
+            unreadCount,
+            plan: billing.currentPlan,
+            stripeConfigured: billing.configured
+          },
+          { concurrency: 'unbounded' }
+        ),
+        (segments) => ({
+          workspaceName: ctx.workspace.name,
+          unreadCount: segments.unreadCount,
+          plans: PLANS,
+          currentPlanId: segments.plan.id,
+          stripeConfigured: segments.stripeConfigured
+        })
+      )
+    )
+)
 
 /** The billing route's loader. */
 export function loadWorkspaceBilling(input: {

@@ -36,15 +36,23 @@ export type CapabilityReadError =
   | WorkspaceNotFound
   | CapabilityUnavailable
 
-export type CapabilityRead = Effect.Effect<
-  unknown,
-  CapabilityReadError,
+/**
+ * The capability services a table row reads through, minus `WorkspaceContext`:
+ * these are request-independent and live on the worker's isolate-level layer.
+ * Named so the MCP route can capture exactly them from the request context and
+ * carry them across the SDK's promise seam (see `mcp.ts`).
+ */
+export type CapabilityReadServices =
   | NotificationFeed
   | WorkspaceMembership
   | ApiTokenRegistry
   | WebhookEndpoints
   | AuditEventLog
-  | WorkspaceContext
+
+export type CapabilityRead = Effect.Effect<
+  unknown,
+  CapabilityReadError,
+  CapabilityReadServices | WorkspaceContext
 >
 
 export type WorkspaceReadOperation = {

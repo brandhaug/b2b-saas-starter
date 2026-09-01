@@ -43,28 +43,30 @@ function id() {
   return text('id').primaryKey()
 }
 
-function authCreatedAt() {
-  return integer('createdAt', { mode: 'timestamp' })
+/** One Better Auth epoch-seconds timestamp column, defaulted server-side. */
+function authTimestamp(column: string) {
+  return integer(column, { mode: 'timestamp' })
     .default(sql`(unixepoch())`)
     .notNull()
+}
+
+function authCreatedAt() {
+  return authTimestamp('createdAt')
 }
 
 function authTimestamps() {
   return {
     createdAt: authCreatedAt(),
-    updatedAt: integer('updatedAt', { mode: 'timestamp' })
-      .default(sql`(unixepoch())`)
-      .notNull()
+    updatedAt: authTimestamp('updatedAt')
   }
 }
 
+/**
+ * The starter dialect's required creation timestamp: an ISO string in `text`.
+ * Nullable ISO timestamps are plain `text(...)` — there is nothing to wrap.
+ */
 function isoCreatedAt() {
   return text('created_at').notNull()
-}
-
-/** Nullable sibling of {@link isoCreatedAt} for optional ISO timestamps. */
-function isoTimestamp(column: string) {
-  return text(column)
 }
 
 /**
@@ -296,8 +298,8 @@ export const apiTokens = sqliteTable(
     scopes: text('scopes', { mode: 'json' })
       .$type<ReadonlyArray<ApiTokenScopeValue>>()
       .notNull(),
-    lastUsedAt: isoTimestamp('last_used_at'),
-    revokedAt: isoTimestamp('revoked_at'),
+    lastUsedAt: text('last_used_at'),
+    revokedAt: text('revoked_at'),
     createdAt: isoCreatedAt(),
     createdByUserId: text('created_by_user_id').references(() => user.id)
   },
@@ -338,8 +340,8 @@ export const webhookDeliveries = sqliteTable(
     eventType: text('event_type').notNull(),
     status: text('status', { enum: deliveryStatuses }).notNull(),
     attempts: integer('attempts').default(0).notNull(),
-    lastAttemptAt: isoTimestamp('last_attempt_at'),
-    nextAttemptAt: isoTimestamp('next_attempt_at'),
+    lastAttemptAt: text('last_attempt_at'),
+    nextAttemptAt: text('next_attempt_at'),
     responseStatus: integer('response_status')
   },
   (table) => [index('webhook_deliveries_endpoint_id_idx').on(table.endpointId)]

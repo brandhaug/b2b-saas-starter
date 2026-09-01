@@ -1,9 +1,9 @@
 import { makeSeedRoster } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import {
-  SeedWorkspaceInvitations,
   WorkspaceInvitations,
   type Invitation
 } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
+import { SeedWorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations.seed'
 import {
   testWorkspaceContext,
   type WorkspaceContext,

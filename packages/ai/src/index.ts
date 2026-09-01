@@ -1,6 +1,7 @@
 import { Context, Effect, Layer, Option, Schema } from 'effect'
 
 import { type Writable } from '@b2b-saas-starter/config/writable'
+import { type ServerEnv } from '@b2b-saas-starter/env/server'
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class AssistantUnavailable extends Schema.TaggedError<AssistantUnavailable>()(
@@ -210,17 +211,42 @@ export function makeOpenAILayer(config: OpenAIConfig) {
   })
 }
 
+/**
+ * The assistant's slice of the worker env. Keys are `Pick`ed from
+ * `ServerEnv` so the schema stays the single source of truth, and each is
+ * `| undefined` so a caller may pass the whole worker env through — an
+ * explicitly-undefined key is legal here and means exactly what an absent one
+ * means: unconfigured. (Same shape as `EmailDispatcherEnv` in
+ * `packages/email`.) A worker env may also deliver `null` for a
+ * present-but-null binding; every read below is a truthiness check, so null
+ * reads as unconfigured too.
+ */
+type AssistantEnvVars = Pick<
+  ServerEnv,
+  'WORKERS_AI_ENABLED' | 'OPENAI_API_KEY' | 'OPENAI_BASE_URL' | 'OPENAI_MODEL_ID'
+>
+
 export type ProviderEnv = {
-  readonly WORKERS_AI_ENABLED?: string
-  readonly OPENAI_API_KEY?: string
-  readonly OPENAI_BASE_URL?: string
-  readonly OPENAI_MODEL_ID?: string
-  readonly AI?: WorkersAIBinding
+  readonly [K in keyof AssistantEnvVars]?: AssistantEnvVars[K] | undefined
+} & {
+  readonly AI?: WorkersAIBinding | undefined
 }
 
-export function selectAssistantLayer(env: ProviderEnv): Layer.Layer<AssistantService> {
+/**
+ * The one place that decides which provider a deployment configured.
+ * `selectAssistantLayer` builds the layer for the choice and
+ * `isAssistantConfigured` asks whether the choice is a real provider, so the
+ * condition ("Workers AI with its binding, or an OpenAI key") is stated once
+ * and the UI's "not enabled" copy can never disagree with the ask path.
+ */
+type ProviderChoice =
+  | { readonly provider: 'workers-ai'; readonly binding: WorkersAIBinding }
+  | { readonly provider: 'openai-compatible'; readonly config: OpenAIConfig }
+  | { readonly provider: 'mock' }
+
+function selectProvider(env: ProviderEnv): ProviderChoice {
   if (env.WORKERS_AI_ENABLED === 'true' && env.AI) {
-    return makeWorkersAILayer(env.AI)
+    return { provider: 'workers-ai', binding: env.AI }
   }
   if (env.OPENAI_API_KEY) {
     // Assigned only when set so the layer's own defaults (api.openai.com,
@@ -232,11 +258,27 @@ export function selectAssistantLayer(env: ProviderEnv): Layer.Layer<AssistantSer
     if (env.OPENAI_MODEL_ID) {
       config.modelId = env.OPENAI_MODEL_ID
     }
-    return makeOpenAILayer(config)
+    return { provider: 'openai-compatible', config }
   }
-  return MockAssistantLayer
+  return { provider: 'mock' }
 }
 
+export function selectAssistantLayer(env: ProviderEnv): Layer.Layer<AssistantService> {
+  const choice = selectProvider(env)
+  switch (choice.provider) {
+    case 'workers-ai': {
+      return makeWorkersAILayer(choice.binding)
+    }
+    case 'openai-compatible': {
+      return makeOpenAILayer(choice.config)
+    }
+    case 'mock': {
+      return MockAssistantLayer
+    }
+  }
+}
+
+/** Whether a real provider is configured — the mock does not count. */
 export function isAssistantConfigured(env: ProviderEnv): boolean {
-  return Boolean((env.WORKERS_AI_ENABLED === 'true' && env.AI) || env.OPENAI_API_KEY)
+  return selectProvider(env).provider !== 'mock'
 }

@@ -98,6 +98,37 @@ export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
   return makeLiveLayerFromD1(env.DB, liveCapabilitiesOptions(env))
 }
 
+/**
+ * The per-request half of {@link selectWorkspaceLayer}: only `WorkspaceContext`,
+ * the one service that genuinely depends on the request (its workspace slug and
+ * actor). Every other capability service is request-independent and belongs at
+ * the isolate level via {@link selectCapabilitiesLayer} — rebuilding the whole
+ * capability graph per request only to resolve a slug is waste.
+ *
+ * The Live variant needs nothing but `Database`, which it provides from the D1
+ * binding: an isolate-level `Database` cannot be typed here, because the Seed
+ * variant runs with no D1 binding at all and there is no honest `Database` to
+ * stand in for it.
+ */
+export function selectWorkspaceContextLayer(
+  env: StarterEnv,
+  slug: string,
+  actor?: ActorRef
+): Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable> {
+  if (env.DB === undefined) {
+    // Passing `seedMembers` makes the seed path enforce the same actor
+    // membership semantics as the live path (fixture members allowed).
+    return seedWorkspaceContext(seedWorkspaceRecord, slug, actor, seedMembers)
+  }
+  return liveWorkspaceContext(slug, actor).pipe(Layer.provide(layerFromD1(env.DB)))
+}
+
+/**
+ * Capability services *and* `WorkspaceContext` in one layer, for callers that
+ * hold no isolate-level capability layer to ride on — the seed script and the
+ * web app's per-request runtime. A worker that already provides capabilities
+ * once per isolate wants {@link selectWorkspaceContextLayer} instead.
+ */
 export function selectWorkspaceLayer(
   env: StarterEnv,
   slug: string,

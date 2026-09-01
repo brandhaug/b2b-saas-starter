@@ -3,18 +3,18 @@ import { DateTime, Effect, Layer, Option } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { SeedLayer } from './layers.ts'
 import { seedMembers, seedWorkspaceRecord, demoUserIdentity } from './seed-fixture.ts'
-import { SeedWorkspaceInvitations } from './governance/workspace-invitations.ts'
+import { SeedWorkspaceInvitations } from './governance/workspace-invitations.seed.ts'
 import {
   makeSeedRoster,
   SeedWorkspaceMembership
 } from './governance/workspace-membership.ts'
+import { LiveApiTokenRegistry } from './developer-platform/api-token-registry.live.ts'
+import { SeedApiTokenRegistry } from './developer-platform/api-token-registry.seed.ts'
 import {
   ApiTokenRegistry,
   LAST_USED_WRITE_INTERVAL_MS,
-  LiveApiTokenRegistry,
   SEED_API_TOKEN,
   SEED_READONLY_API_TOKEN,
-  SeedApiTokenRegistry,
   shouldBumpLastUsedAt
 } from './developer-platform/api-token-registry.ts'
 import { LiveWebhookEndpoints } from './developer-platform/webhook-endpoints.live.ts'

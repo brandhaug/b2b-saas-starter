@@ -1,6 +1,7 @@
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   ApiToken,
+  type ApiTokenRegistry as ApiTokenRegistryService,
   CreatedApiTokenSchema,
   CreateApiTokenPayload
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
@@ -26,12 +27,16 @@ import {
   AssistantReply,
   AssistantUnavailable
 } from '@b2b-saas-starter/ai'
-import { Schema } from 'effect'
+import { type ApiTokenScope } from '@b2b-saas-starter/authz/client'
+import { type RateLimiterInterface as GenericRateLimiterInterface } from '@b2b-saas-starter/rate-limit'
+import { Context, Schema } from 'effect'
 import {
   HttpApi,
   HttpApiEndpoint,
   HttpApiGroup,
+  HttpApiMiddleware,
   HttpApiSchema,
+  HttpApiSecurity,
   OpenApi
 } from 'effect/unstable/httpapi'
 
@@ -74,6 +79,93 @@ export class RateLimited extends Schema.TaggedError<RateLimited>()(
   { bucket: Schema.String },
   { httpApiStatus: ERROR_STATUS_BY_TAG.RateLimited }
 ) {}
+
+/**
+ * The rate-limit buckets the contract's gated groups draw from, and the
+ * `RateLimiter` service the `BearerAuth` middleware takes them from. Both live
+ * here rather than in the worker because the contract is what declares the
+ * gate: an endpoint is rate limited because its group carries `BearerAuth`.
+ * The worker keeps the mechanism — bindings, fallback limits, the layer.
+ */
+export type RateLimitBucket = 'rest_read' | 'rest_write' | 'assistant' | 'mcp'
+
+export class RateLimiter extends Context.Service<
+  RateLimiter,
+  GenericRateLimiterInterface<RateLimitBucket>
+>()('@b2b-saas-starter/api/RateLimiter') {}
+
+/** The groups behind the bearer gate. `health` is the contract's only public group. */
+export type GatedGroup =
+  | 'workspace'
+  | 'api-token-registry'
+  | 'webhook-endpoints'
+  | 'assistant'
+  | 'mcp'
+
+const GROUP_BUCKETS = {
+  workspace: 'rest_read',
+  'api-token-registry': 'rest_write',
+  'webhook-endpoints': 'rest_write',
+  assistant: 'assistant',
+  mcp: 'mcp'
+} satisfies Record<GatedGroup, RateLimitBucket>
+
+// A Map because the lookup key is a group identifier read off the served
+// contract at request time: a group with no row is the case to report, and
+// `Map#get` says so without an index signature claiming every string is one.
+const BUCKET_BY_GROUP: ReadonlyMap<string, RateLimitBucket> = new Map(
+  Object.entries(GROUP_BUCKETS)
+)
+
+/**
+ * The bucket a group's endpoints draw from, or `undefined` for a group that
+ * names none. `apps/api`'s contract test asserts every group carrying
+ * `BearerAuth` has a row here, so a new gated group cannot ship unlimited.
+ */
+export function rateLimitBucketFor(
+  groupIdentifier: string
+): RateLimitBucket | undefined {
+  return BUCKET_BY_GROUP.get(groupIdentifier)
+}
+
+/**
+ * The verified API token behind the request: who it is, which workspace it
+ * belongs to, and what it may ask for. Provided by the `BearerAuth` middleware
+ * and consumed by handlers, which decide permissions from it — never by
+ * re-reading the `Authorization` header.
+ */
+export type ApiPrincipalValue = {
+  readonly id: string
+  readonly workspaceId: string
+  readonly workspaceSlug: string
+  readonly scopes: ReadonlyArray<ApiTokenScope>
+}
+
+export class ApiPrincipal extends Context.Service<ApiPrincipal, ApiPrincipalValue>()(
+  '@b2b-saas-starter/api/ApiPrincipal'
+) {}
+
+/**
+ * The one gate every non-public endpoint rides on, declared on the contract
+ * rather than hand-composed in each handler: `Authorization: Bearer <token>`
+ * is decoded by `HttpApiSecurity.bearer` (so the served OpenAPI carries a
+ * `securitySchemes` entry and every gated operation is marked secured), the
+ * group's rate-limit bucket is drawn, the token is verified, and the resulting
+ * `ApiPrincipal` is provided to the handler.
+ *
+ * Authorization stays in the handlers: the middleware proves *who* the caller
+ * is, `requirePermission` decides *what* they may do. See `apps/api`.
+ */
+export class BearerAuth extends HttpApiMiddleware.Service<
+  BearerAuth,
+  {
+    provides: ApiPrincipal
+    requires: ApiTokenRegistryService | RateLimiter
+  }
+>()('@b2b-saas-starter/api/BearerAuth', {
+  security: { bearer: HttpApiSecurity.bearer },
+  error: [Unauthorized, RateLimited, CapabilityUnavailable]
+}) {}
 
 // HttpApi reads these tuple element types to build each endpoint's error union.
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
@@ -152,6 +244,8 @@ export const WorkspaceApi = HttpApiGroup.make('workspace')
       error: WORKSPACE_ERRORS
     })
   )
+  // Applied last: endpoints added after `.middleware(...)` do not carry it.
+  .middleware(BearerAuth)
 
 const TokenIdParams = Schema.Struct({ slug: Schema.String, tokenId: Schema.String })
 const RevokedResponse = Schema.Struct({ status: Schema.Literal('revoked') })
@@ -179,29 +273,34 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
       error: WORKSPACE_ERRORS
     })
   )
+  .middleware(BearerAuth)
 
-export const WebhookApi = HttpApiGroup.make('webhook-endpoints').add(
-  HttpApiEndpoint.post('create', '/workspaces/:slug/webhooks', {
-    params: SlugParams,
-    payload: CreateWebhookEndpointPayload,
-    success: WebhookEndpoint.pipe(HttpApiSchema.status(201)),
-    error: [InvalidWebhookUrl, PlanLimitExceeded, ...WORKSPACE_ERRORS]
-  })
-)
+export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
+  .add(
+    HttpApiEndpoint.post('create', '/workspaces/:slug/webhooks', {
+      params: SlugParams,
+      payload: CreateWebhookEndpointPayload,
+      success: WebhookEndpoint.pipe(HttpApiSchema.status(201)),
+      error: [InvalidWebhookUrl, PlanLimitExceeded, ...WORKSPACE_ERRORS]
+    })
+  )
+  .middleware(BearerAuth)
 
-export const AssistantApi = HttpApiGroup.make('assistant').add(
-  HttpApiEndpoint.post('answer', '/assistant/answer', {
-    payload: AssistantPrompt,
-    success: Schema.Struct({
-      answer: AssistantReply.fields.answer,
-      provider: AssistantProvider,
-      modelId: AssistantReply.fields.modelId,
-      usedTools: AssistantReply.fields.usedTools,
-      assistantConfigured: Schema.Boolean
-    }),
-    error: [...PROTECTED_ERRORS, AssistantUnavailable]
-  })
-)
+export const AssistantApi = HttpApiGroup.make('assistant')
+  .add(
+    HttpApiEndpoint.post('answer', '/assistant/answer', {
+      payload: AssistantPrompt,
+      success: Schema.Struct({
+        answer: AssistantReply.fields.answer,
+        provider: AssistantProvider,
+        modelId: AssistantReply.fields.modelId,
+        usedTools: AssistantReply.fields.usedTools,
+        assistantConfigured: Schema.Boolean
+      }),
+      error: [...PROTECTED_ERRORS, AssistantUnavailable]
+    })
+  )
+  .middleware(BearerAuth)
 
 export const McpToolDescriptor = Schema.Struct({
   name: Schema.String,
@@ -217,12 +316,14 @@ export const McpDiscovery = Schema.Struct({
 })
 export type McpDiscovery = typeof McpDiscovery.Type
 
-export const McpApi = HttpApiGroup.make('mcp').add(
-  HttpApiEndpoint.get('discover', '/mcp', {
-    success: McpDiscovery,
-    error: PROTECTED_ERRORS
-  })
-)
+export const McpApi = HttpApiGroup.make('mcp')
+  .add(
+    HttpApiEndpoint.get('discover', '/mcp', {
+      success: McpDiscovery,
+      error: PROTECTED_ERRORS
+    })
+  )
+  .middleware(BearerAuth)
 
 export const StarterApi = HttpApi.make('b2b-saas-starter')
   .add(HealthApi)

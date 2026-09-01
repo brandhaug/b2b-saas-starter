@@ -10,7 +10,7 @@
 // declarations below then stop reaching the `env` binding from
 // `cloudflare:workers`. Wrapping them in `declare global` does not rescue it
 // either — global type ALIASES do not apply, so both declarations below must
-// stay interfaces. `.oxlintrc.json` exempts `**/*.d.ts` from the two style
+// stay interfaces. The lint config exempts `**/*.d.ts` from the two style
 // rules that would otherwise reject this shape.
 type WebWorkerEnv = {
   // Optional so the local workers shim (no D1) satisfies the same type;

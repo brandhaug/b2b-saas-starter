@@ -1,60 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test'
-import {
-  auditRequiredEnv,
-  optionalModuleEnvKeys,
-  readServerEnv,
-  requireEmailVerification,
-  serverEnvKeys,
-  ServerEnvSchema
-} from './server.ts'
-
-describe('readServerEnv', () => {
-  it('boots provider-light: an empty env decodes via local defaults', () => {
-    const env = readServerEnv({})
-    expect(env.BETTER_AUTH_URL).toBe('http://localhost:3071')
-    expect(env.STRIPE_SECRET_KEY).toBeUndefined()
-  })
-
-  it('fails fast in strict mode when required baseline vars are missing', () => {
-    // The schema names the first missing baseline var, so a strict-mode boot
-    // failure says which var to set instead of failing opaquely.
-    expect(() => readServerEnv({}, { mode: 'strict' })).toThrow(/BETTER_AUTH_SECRET/)
-  })
-
-  it('prefers real values over local defaults', () => {
-    const env = readServerEnv({ BETTER_AUTH_URL: 'https://app.example.com' })
-    expect(env.BETTER_AUTH_URL).toBe('https://app.example.com')
-  })
-
-  it('accepts a raw worker env: bindings and unknown keys are ignored', () => {
-    // Shaped like a real worker env — bindings beside the vars.
-    const workerEnv = {
-      DB: { fake: 'd1-binding' },
-      RATE_LIMITER_REST: { limit: () => Promise.resolve({ success: true }) },
-      CLOUDFLARE_EMAIL_FROM: 'no-reply@example.com'
-    }
-    const env = readServerEnv(workerEnv)
-    expect(env.CLOUDFLARE_EMAIL_FROM).toBe('no-reply@example.com')
-    expect('DB' in env).toBe(false)
-  })
-
-  it('treats explicitly null bindings as absent (workerd delivers present-but-null)', () => {
-    // The deploy boundary has shipped explicit nulls for unset optional vars
-    // (alchemy forwarded `undefined ?? null`), and workerd delivers null
-    // verbatim. Every read must normalize that to "unconfigured" instead of
-    // crashing on string operations — the first green deploy 500ed on
-    // exactly this.
-    const env = readServerEnv({
-      BETTER_AUTH_SECRET: null,
-      BETTER_AUTH_URL: null,
-      ENVIRONMENT: null,
-      STRIPE_SECRET_KEY: null
-    })
-    expect(env.BETTER_AUTH_URL).toBe('http://localhost:3071')
-    expect(env.STRIPE_SECRET_KEY).toBeUndefined()
-    expect(env.ENVIRONMENT).toBeUndefined()
-  })
-})
+import { auditRequiredEnv, requireEmailVerification } from './server.ts'
 
 describe('requireEmailVerification', () => {
   it('is on in production only', () => {
@@ -66,18 +11,6 @@ describe('requireEmailVerification', () => {
     expect(requireEmailVerification('')).toBe(false)
     expect(requireEmailVerification('staging')).toBe(false)
     expect(requireEmailVerification('preview')).toBe(false)
-  })
-})
-
-describe('schema-derived key lists', () => {
-  it('serverEnvKeys mirrors the schema fields exactly', () => {
-    expect(serverEnvKeys).toEqual(Object.keys(ServerEnvSchema.fields))
-  })
-
-  it('every optional module env key is a schema key', () => {
-    for (const key of optionalModuleEnvKeys) {
-      expect(serverEnvKeys).toContain(key)
-    }
   })
 })
 

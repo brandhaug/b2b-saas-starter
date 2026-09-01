@@ -27,7 +27,6 @@
 // only re-wrap the same awaits one layer down.
 // oxlint-disable effect/noAsyncFunction, effect/noTryCatch, effect/noNewPromise
 import { type CloudflareOptions } from '@sentry/cloudflare'
-import { Option, Schema } from 'effect'
 
 import { addWideEventSink, type WideEventRecord } from './wide-event.ts'
 
@@ -42,8 +41,6 @@ export type ProviderGlueEnv = {
 }
 
 const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com'
-
-const decodeTag = Schema.decodeUnknownOption(Schema.String)
 
 /**
  * Options for `Sentry.withSentry` at a worker entry. Without `SENTRY_DSN` the
@@ -125,7 +122,7 @@ async function captureSentryError(record: WideEventRecord): Promise<void> {
       service: record.service,
       event: record.event,
       errorKind: record.errorKind,
-      errorTag: Option.getOrUndefined(decodeTag(record.errorTag))
+      errorTag: record.errorTag
     },
     // Joins the Sentry issue back to the OTel trace the wide event opened.
     contexts: {

@@ -1,15 +1,5 @@
 import { authClient } from '@/lib/auth-client'
-
-/**
- * The response shape the Better Auth client endpoints used here return.
- * `data` is opaque on purpose — Better Auth's client types don't expose every
- * marker (the two-factor redirect, the plugin's status flags), so consumers
- * decode what they need rather than assert on the body.
- */
-export type AuthResult<D = unknown> = {
-  readonly data?: D | null | undefined
-  readonly error?: { readonly message?: string | undefined } | null
-}
+import { type AuthResult } from '@/lib/auth-result'
 
 /**
  * Verifying the second factor (both the sign-in challenge page and the

@@ -14,6 +14,7 @@
     "@b2b-saas-starter/ai": "workspace:*",
     "@b2b-saas-starter/authz": "workspace:*",
     "@b2b-saas-starter/capabilities": "workspace:*",
+    "@b2b-saas-starter/rate-limit": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

@@ -1,13 +1,18 @@
 import { McpServer } from '@modelcontextprotocol/server'
 import { type JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
-import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import {
+  tokenPrincipal,
+  type ApiTokenScope,
+  type PermissionRequest
+} from '@b2b-saas-starter/authz/client'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
   READ_OPERATIONS,
   readOperations,
   serveRead,
   type CapabilityRead,
-  type CapabilityReadError
+  type CapabilityReadError,
+  type CapabilityReadServices
 } from './operations.ts'
 import {
   statusForTag,
@@ -21,13 +26,13 @@ import {
   HttpServerResponse,
   type HttpServerRequest
 } from 'effect/unstable/http'
-import { Effect, Result, Stream } from 'effect'
-import { type ApiTokenScope } from '@b2b-saas-starter/authz/roles'
+import { type Context, Effect, Result, Stream } from 'effect'
 import { createMcpHandler } from 'agents/mcp/server'
 import { z } from 'zod'
 
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 
 import {
   authenticate,
@@ -55,7 +60,9 @@ import { type ApiEnv } from './env.ts'
  *
  * A fresh handler is created per request (explicitly supported by the Agents
  * docs for ordinary tools/resources), closing over the verified token's
- * workspace so every tool reads from the right tenant.
+ * workspace so every tool reads from the right tenant — and over the request's
+ * already-built capability services, so a tool call resolves its workspace and
+ * nothing else.
  *
  * `GET /mcp` remains the REST discovery document served by the contract group;
  * it advertises exactly what this module registers.
@@ -180,8 +187,23 @@ function outcomeToToolResult(outcome: ToolOutcome): ToolResult {
 export function buildMcpServer(
   env: ApiEnv,
   scopes: ReadonlyArray<ApiTokenScope>,
-  workspaceSlug: string
+  workspaceSlug: string,
+  services: Context.Context<CapabilityReadServices>
 ): McpServer {
+  /**
+   * Bridges one tool/resource read onto the request's services: the workspace
+   * layer resolves this call's tenant, and the capability services come from
+   * the context the route captured — the isolate's, not a fresh graph per tool
+   * call.
+   */
+  function runRead<A>(
+    body: Effect.Effect<A, never, CapabilityReadServices | WorkspaceContext>
+  ): Promise<A> {
+    return Effect.runPromise(
+      Effect.provideContext(provideWorkspace(env, workspaceSlug, body), services)
+    )
+  }
+
   const server = new McpServer(
     { name: MCP_SERVER_NAME, version: '0.1.0' },
     { capabilities: { tools: {}, resources: {} } }
@@ -208,9 +230,7 @@ export function buildMcpServer(
         // `Effect.result` moves the typed error channel into the value before
         // the promise seam, so classification stays compiler-checked. The
         // rejection handler only sees defects — never a typed failure.
-        return Effect.runPromise(
-          provideWorkspace(env, workspaceSlug, Effect.result(guarded))
-        ).then(outcomeToToolResult, () => ({
+        return runRead(Effect.result(guarded)).then(outcomeToToolResult, () => ({
           content: [{ type: 'text', text: TOOL_FAILED_MESSAGE }],
           isError: true
         }))
@@ -241,7 +261,7 @@ export function buildMcpServer(
           }
         ]
       }))
-      return Effect.runPromise(provideWorkspace(env, workspaceSlug, guarded))
+      return runRead(guarded)
     }
   )
 
@@ -331,8 +351,12 @@ function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest)
     // One handler per request is the documented usage for ordinary tools and
     // resources; the factory closes over this request's verified token so
     // every tool lands in the right workspace.
+    // The capability services are built once per isolate and provided to this
+    // request by `http.ts`; capturing them here carries them across the SDK's
+    // promise seam instead of rebuilding the graph inside every tool call.
+    const services = yield* Effect.context<CapabilityReadServices>()
     const handle = createMcpHandler(
-      () => buildMcpServer(env, verified.scopes, verified.workspaceSlug),
+      () => buildMcpServer(env, verified.scopes, verified.workspaceSlug, services),
       {
         corsOptions: false,
         // Bearer-token auth already ran upstream; nothing for CORS to add.

@@ -5,8 +5,14 @@
  * which is the failure channel `callServerFn` — and so `useServerAction` —
  * already folds into a message.
  */
-export type AuthResult<D> = {
-  readonly data?: D | null
+/**
+ * The response shape the Better Auth client endpoints return. `data` is opaque
+ * on purpose — Better Auth's client types don't expose every marker (the
+ * two-factor redirect, the plugin's status flags), so consumers decode what
+ * they need rather than assert on the body.
+ */
+export type AuthResult<D = unknown> = {
+  readonly data?: D | null | undefined
   readonly error?: { readonly message?: string | undefined } | null
 }
 

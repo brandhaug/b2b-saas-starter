@@ -717,6 +717,9 @@ importers:
 
   packages/ai:
     dependencies:
+      '@b2b-saas-starter/env':
+        specifier: workspace:*
+        version: link:../env
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -748,6 +751,9 @@ importers:
       '@b2b-saas-starter/capabilities':
         specifier: workspace:*
         version: link:../capabilities
+      '@b2b-saas-starter/rate-limit':
+        specifier: workspace:*
+        version: link:../rate-limit
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112

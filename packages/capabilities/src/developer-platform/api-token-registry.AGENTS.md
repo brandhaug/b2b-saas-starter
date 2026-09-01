@@ -4,6 +4,14 @@
 
 Workspace-scoped programmatic-access tokens for the REST + MCP surface. Tokens carry one or more scopes from a fixed three-tier hierarchy (`read | write | admin`) and are stored as SHA-256 hashes, never plaintext. Full lifecycle (issue, list, revoke, verify) is wired and emits audit events.
 
+## Module layout
+
+The capability is split along its section seams — no barrel file; consumers import the specific module:
+
+- `api-token-registry.ts` — shared contract: schemas (`ApiToken`, `ApiTokenScope`, `CreateApiTokenPayload`, `CreatedApiTokenSchema`), input types, `ApiTokenRegistryInterface` + service class, the `lastUsedAt` throttle policy (`LAST_USED_WRITE_INTERVAL_MS`, `shouldBumpLastUsedAt`), the stored-hash scheme (`hashApiToken`, shared with `scripts/seed.ts`), and the two documented fixture credentials (`SEED_API_TOKEN`, `SEED_READONLY_API_TOKEN` — published credentials the API worker's tests quote, so they live in the contract rather than in the Seed adapter).
+- `api-token-registry.seed.ts` — `SeedApiTokenRegistry` and its fixture scope map.
+- `api-token-registry.live.ts` — `LiveApiTokenRegistry` plus its query helpers (`activeTokenWhere`, `toTokenProjection`, token minting).
+
 ## Public surface
 
 - `ApiTokenScope = 'read' | 'write' | 'admin'` — schema literal. Treat as a closed set; widening it requires a migration.

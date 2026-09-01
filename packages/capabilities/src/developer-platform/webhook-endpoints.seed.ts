@@ -1,6 +1,6 @@
 import { DateTime, Effect, Layer, Option } from 'effect'
 
-import { assertWithinPlanLimit } from '../billing/billing.ts'
+import { assertWithinPlanLimit } from '../billing/plan-catalog.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import {

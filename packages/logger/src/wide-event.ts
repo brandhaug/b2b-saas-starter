@@ -46,7 +46,7 @@ function errorMessage(head: unknown): string {
 type WideEventFailure = {
   readonly errorKind: 'fail' | 'interrupt' | 'defect'
   readonly error?: string
-  readonly errorTag?: unknown
+  readonly errorTag?: string
 }
 
 function failureMetadata(head: unknown): WideEventFailure {
@@ -100,14 +100,13 @@ export type WideEventRecord = {
   readonly durationMs: number
   readonly status: 'ok' | 'error'
   readonly errorKind?: 'fail' | 'interrupt' | 'defect' | undefined
-  readonly errorTag?: unknown
+  /** The failure's `_tag`, when the failure carried one. */
+  readonly errorTag?: string | undefined
   readonly environment?: WideEventEnvironment | undefined
   readonly error?: unknown
 }
 
 type WideEventSink = (record: WideEventRecord) => Promise<void> | void
-
-/** Write-side view of {@link WideEventRecord}; absent fields stay absent. */
 
 const wideEventSinks: Array<WideEventSink> = []
 

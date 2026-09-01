@@ -1,20 +1,17 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { type NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
   WebhookEndpoints,
   type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   workspaceDashboard,
   type WorkspaceDashboardProjection
 } from '@b2b-saas-starter/capabilities/workspace-projections'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { Effect, type Scope } from 'effect'
+import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
-import { requireWorkspacePermission, whenPermitted } from './authorize'
+import { whenPermitted } from './authorize'
+import { workspacePage, type WorkspacePageFrame } from './page-frame'
 
 /**
  * The dashboard payload, assembled per actor: the `workspaceDashboard`
@@ -28,24 +25,23 @@ export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
   readonly webhooks: ReadonlyArray<WebhookEndpoint> | null
 }
 
-const dashboardPayload: Effect.Effect<
-  WorkspaceDashboardPayload,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext | WebhookEndpoints | NotificationFeed
-> = Effect.gen(function* () {
-  yield* requireWorkspacePermission({ notification: ['read'] })
-  const ctx = yield* WorkspaceContext
-  const webhooks = yield* WebhookEndpoints
-  const [core, endpoints] = yield* Effect.all(
-    [workspaceDashboard, whenPermitted({ webhook: ['list'] }, webhooks.list)],
-    { concurrency: 'unbounded' }
-  )
-  return {
-    ...core,
-    viewer: ctx.actor ? { role: ctx.actor.role } : null,
-    webhooks: endpoints
-  }
-})
+const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspacePage(
+  { notification: ['read'] },
+  () =>
+    Effect.map(
+      Effect.all(
+        {
+          core: workspaceDashboard,
+          webhooks: whenPermitted(
+            { webhook: ['list'] },
+            Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
+          )
+        },
+        { concurrency: 'unbounded' }
+      ),
+      (segments) => ({ ...segments.core, webhooks: segments.webhooks })
+    )
+)
 
 /** The dashboard route's loader. */
 export function loadWorkspaceDashboard(input: {

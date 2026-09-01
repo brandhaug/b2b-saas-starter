@@ -11,6 +11,7 @@
     "test": "vp test run"
   },
   "dependencies": {
+    "@b2b-saas-starter/env": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

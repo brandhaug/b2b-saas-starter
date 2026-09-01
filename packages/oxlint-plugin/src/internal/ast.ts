@@ -114,3 +114,53 @@ export function parentOf(node: ESTree.Node): ESTree.Node | undefined {
   }
   return parent
 }
+
+/**
+ * True for the inner calls of a curried chain — `Schema.X<T>()('T', fields)`
+ * — which the outer call already reports for.
+ */
+export function isCalleeOfEnclosingCall(node: ESTree.CallExpression): boolean {
+  const parent = parentOf(node)
+  if (parent?.type !== 'CallExpression') {
+    return false
+  }
+  return unwrapExpression(parent.callee) === node
+}
+
+/**
+ * The `Schema.X` member access `node` is, after unwrapping — `undefined` when
+ * it is anything else. The property name is left to `getPropertyName`, so a
+ * caller can tell "not a `Schema` member" from "a `Schema` member whose name
+ * is not a literal".
+ */
+export function schemaMemberAccess(
+  node: ESTree.Node | null | undefined
+): ESTree.MemberExpression | undefined {
+  const expression = unwrapExpression(node)
+  if (expression?.type !== 'MemberExpression') {
+    return undefined
+  }
+  if (!isIdentifier(unwrapExpression(expression.object), 'Schema')) {
+    return undefined
+  }
+  return expression
+}
+
+/**
+ * The `Schema.X` member access a `Schema.X(...)` call hangs off. Curried forms
+ * nest calls (`Schema.TaggedClass<T>()('T', fields)`), so the callee chain is
+ * walked down to the member access underneath it.
+ */
+export function schemaCallMemberAccess(
+  node: ESTree.Node | null | undefined
+): ESTree.MemberExpression | undefined {
+  const expression = unwrapExpression(node)
+  if (expression?.type !== 'CallExpression') {
+    return undefined
+  }
+  let callee = unwrapExpression(expression.callee)
+  while (callee?.type === 'CallExpression') {
+    callee = unwrapExpression(callee.callee)
+  }
+  return schemaMemberAccess(callee)
+}

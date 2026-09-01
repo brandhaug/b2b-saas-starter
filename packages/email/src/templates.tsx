@@ -13,6 +13,7 @@ import {
   Tailwind,
   Text
 } from '@react-email/components'
+import { type ReactNode } from 'react'
 
 /**
  * A React Email template renders synchronously through `@react-email/render`,
@@ -24,15 +25,18 @@ function footerYear(): number {
   return new Date().getFullYear()
 }
 
-type WorkspaceInvitationEmailProps = {
-  readonly workspaceName: string
-  readonly inviteUrl: string
+type EmailLayoutProps = {
+  readonly preview: string
+  readonly heading: ReactNode
+  readonly children: ReactNode
 }
 
-export function WorkspaceInvitationEmail({
-  workspaceName,
-  inviteUrl
-}: WorkspaceInvitationEmailProps) {
+/**
+ * The one document every starter email is: brand theme, card container,
+ * heading, body copy, and the footer rule. A template supplies its preview
+ * text, its heading and its copy; everything else is this layout.
+ */
+function EmailLayout({ preview, heading, children }: EmailLayoutProps) {
   return (
     <Html lang="en">
       <Tailwind
@@ -48,30 +52,13 @@ export function WorkspaceInvitationEmail({
         }}
       >
         <Head />
-        <Preview>You have been invited to {workspaceName}</Preview>
+        <Preview>{preview}</Preview>
         <Body className="bg-gray-100 font-sans py-10">
           <Container className="bg-white max-w-xl mx-auto rounded-lg px-8 py-10">
             <Heading className="text-2xl font-bold text-gray-900 m-0">
-              Join {workspaceName}
+              {heading}
             </Heading>
-            <Text className="text-base text-gray-700 mt-4">
-              You have been invited to a B2B SaaS Starter workspace. Accept the
-              invitation to review reports, tokens, and settings.
-            </Text>
-            <Section className="mt-6">
-              <Button
-                href={inviteUrl}
-                className="bg-brand text-white px-6 py-3 rounded-md font-medium box-border"
-              >
-                Accept invitation
-              </Button>
-            </Section>
-            <Text className="text-sm text-gray-500 mt-6">
-              If the button does not work, copy this URL into your browser:{' '}
-              <Link href={inviteUrl} className="text-brand underline">
-                {inviteUrl}
-              </Link>
-            </Text>
+            {children}
             <Hr className="border-solid border-gray-200 my-8" />
             <Text className="text-xs text-gray-500 m-0">
               © {footerYear()} B2B SaaS Starter
@@ -80,6 +67,59 @@ export function WorkspaceInvitationEmail({
         </Body>
       </Tailwind>
     </Html>
+  )
+}
+
+type ActionLinkProps = {
+  readonly href: string
+  readonly label: string
+}
+
+/**
+ * The call to action and its fallback URL. Email clients that strip or fail to
+ * render the button still leave the recipient a copyable link.
+ */
+function ActionLink({ href, label }: ActionLinkProps) {
+  return (
+    <>
+      <Section className="mt-6">
+        <Button
+          href={href}
+          className="bg-brand text-white px-6 py-3 rounded-md font-medium box-border"
+        >
+          {label}
+        </Button>
+      </Section>
+      <Text className="text-sm text-gray-500 mt-6">
+        If the button does not work, copy this URL into your browser:{' '}
+        <Link href={href} className="text-brand underline">
+          {href}
+        </Link>
+      </Text>
+    </>
+  )
+}
+
+type WorkspaceInvitationEmailProps = {
+  readonly workspaceName: string
+  readonly inviteUrl: string
+}
+
+export function WorkspaceInvitationEmail({
+  workspaceName,
+  inviteUrl
+}: WorkspaceInvitationEmailProps) {
+  return (
+    <EmailLayout
+      preview={`You have been invited to ${workspaceName}`}
+      heading={<>Join {workspaceName}</>}
+    >
+      <Text className="text-base text-gray-700 mt-4">
+        You have been invited to a B2B SaaS Starter workspace. Accept the invitation to
+        review reports, tokens, and settings.
+      </Text>
+      <ActionLink href={inviteUrl} label="Accept invitation" />
+    </EmailLayout>
   )
 }
 
@@ -101,57 +141,18 @@ type PasswordResetEmailProps = {
  */
 export function PasswordResetEmail({ url }: PasswordResetEmailProps) {
   return (
-    <Html lang="en">
-      <Tailwind
-        config={{
-          presets: [pixelBasedPreset],
-          theme: {
-            extend: {
-              colors: {
-                brand: '#2563eb'
-              }
-            }
-          }
-        }}
-      >
-        <Head />
-        <Preview>Reset your password</Preview>
-        <Body className="bg-gray-100 font-sans py-10">
-          <Container className="bg-white max-w-xl mx-auto rounded-lg px-8 py-10">
-            <Heading className="text-2xl font-bold text-gray-900 m-0">
-              Reset your password
-            </Heading>
-            <Text className="text-base text-gray-700 mt-4">
-              Somebody asked to reset the password for your B2B SaaS Starter account. If
-              that was you, choose a new password within one hour; the link works once
-              and then expires.
-            </Text>
-            <Section className="mt-6">
-              <Button
-                href={url}
-                className="bg-brand text-white px-6 py-3 rounded-md font-medium box-border"
-              >
-                Choose a new password
-              </Button>
-            </Section>
-            <Text className="text-sm text-gray-500 mt-6">
-              If the button does not work, copy this URL into your browser:{' '}
-              <Link href={url} className="text-brand underline">
-                {url}
-              </Link>
-            </Text>
-            <Text className="text-sm text-gray-500 mt-4">
-              If you did not ask for a reset, you can ignore this email; your password
-              stays unchanged.
-            </Text>
-            <Hr className="border-solid border-gray-200 my-8" />
-            <Text className="text-xs text-gray-500 m-0">
-              © {footerYear()} B2B SaaS Starter
-            </Text>
-          </Container>
-        </Body>
-      </Tailwind>
-    </Html>
+    <EmailLayout preview="Reset your password" heading="Reset your password">
+      <Text className="text-base text-gray-700 mt-4">
+        Somebody asked to reset the password for your B2B SaaS Starter account. If that
+        was you, choose a new password within one hour; the link works once and then
+        expires.
+      </Text>
+      <ActionLink href={url} label="Choose a new password" />
+      <Text className="text-sm text-gray-500 mt-4">
+        If you did not ask for a reset, you can ignore this email; your password stays
+        unchanged.
+      </Text>
+    </EmailLayout>
   )
 }
 
@@ -170,52 +171,16 @@ type EmailVerificationEmailProps = {
  */
 export function EmailVerificationEmail({ url }: EmailVerificationEmailProps) {
   return (
-    <Html lang="en">
-      <Tailwind
-        config={{
-          presets: [pixelBasedPreset],
-          theme: {
-            extend: {
-              colors: {
-                brand: '#2563eb'
-              }
-            }
-          }
-        }}
-      >
-        <Head />
-        <Preview>Verify your email address</Preview>
-        <Body className="bg-gray-100 font-sans py-10">
-          <Container className="bg-white max-w-xl mx-auto rounded-lg px-8 py-10">
-            <Heading className="text-2xl font-bold text-gray-900 m-0">
-              Verify your email address
-            </Heading>
-            <Text className="text-base text-gray-700 mt-4">
-              Confirm your email address to finish setting up your B2B SaaS Starter
-              account. The link works once and expires in an hour.
-            </Text>
-            <Section className="mt-6">
-              <Button
-                href={url}
-                className="bg-brand text-white px-6 py-3 rounded-md font-medium box-border"
-              >
-                Verify my email
-              </Button>
-            </Section>
-            <Text className="text-sm text-gray-500 mt-6">
-              If the button does not work, copy this URL into your browser:{' '}
-              <Link href={url} className="text-brand underline">
-                {url}
-              </Link>
-            </Text>
-            <Hr className="border-solid border-gray-200 my-8" />
-            <Text className="text-xs text-gray-500 m-0">
-              © {footerYear()} B2B SaaS Starter
-            </Text>
-          </Container>
-        </Body>
-      </Tailwind>
-    </Html>
+    <EmailLayout
+      preview="Verify your email address"
+      heading="Verify your email address"
+    >
+      <Text className="text-base text-gray-700 mt-4">
+        Confirm your email address to finish setting up your B2B SaaS Starter account.
+        The link works once and expires in an hour.
+      </Text>
+      <ActionLink href={url} label="Verify my email" />
+    </EmailLayout>
   )
 }
 
@@ -242,42 +207,16 @@ export function TwoFactorChangedEmail({ enabled }: TwoFactorChangedEmailProps) {
     preview = 'Two-factor authentication disabled'
   }
   return (
-    <Html lang="en">
-      <Tailwind
-        config={{
-          presets: [pixelBasedPreset],
-          theme: {
-            extend: {
-              colors: {
-                brand: '#2563eb'
-              }
-            }
-          }
-        }}
-      >
-        <Head />
-        <Preview>{preview}</Preview>
-        <Body className="bg-gray-100 font-sans py-10">
-          <Container className="bg-white max-w-xl mx-auto rounded-lg px-8 py-10">
-            <Heading className="text-2xl font-bold text-gray-900 m-0">
-              Two-factor authentication {verb}
-            </Heading>
-            <Text className="text-base text-gray-700 mt-4">
-              Two-factor authentication was just {verb} for your B2B SaaS Starter
-              account. If that was you, no action is needed.
-            </Text>
-            <Text className="text-sm text-gray-500 mt-4">
-              If you did not make this change, reset your password immediately and
-              review your account security settings.
-            </Text>
-            <Hr className="border-solid border-gray-200 my-8" />
-            <Text className="text-xs text-gray-500 m-0">
-              © {footerYear()} B2B SaaS Starter
-            </Text>
-          </Container>
-        </Body>
-      </Tailwind>
-    </Html>
+    <EmailLayout preview={preview} heading={<>Two-factor authentication {verb}</>}>
+      <Text className="text-base text-gray-700 mt-4">
+        Two-factor authentication was just {verb} for your B2B SaaS Starter account. If
+        that was you, no action is needed.
+      </Text>
+      <Text className="text-sm text-gray-500 mt-4">
+        If you did not make this change, reset your password immediately and review your
+        account security settings.
+      </Text>
+    </EmailLayout>
   )
 }
 

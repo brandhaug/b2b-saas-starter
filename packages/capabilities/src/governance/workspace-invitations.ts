@@ -1,24 +1,17 @@
-import { Database, type EffectDatabase } from '@b2b-saas-starter/db/service'
-import {
-  invitationStatuses,
-  workspaceInvitations,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
-import { Context, DateTime, Effect, Layer, Option, Ref, Schema } from 'effect'
-import { and, eq } from 'drizzle-orm'
+import { invitationStatuses } from '@b2b-saas-starter/db/schema'
+import { Context, DateTime, Effect, Option, Schema } from 'effect'
 
 import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
-import { newCapabilityId } from '../internal/ids.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
-import { WorkspaceContext } from '../workspace-context.ts'
-import { AuditEventLog } from './audit-event-log.ts'
-import { makeBindingCaller } from './plugin-binding-failure.ts'
-import {
-  WorkspaceRole,
-  type Workspace,
-  fabricateSeedMember
-} from './workspace-identity.ts'
-import { type SeedRoster } from './workspace-membership.ts'
+import { type WorkspaceContext } from '../workspace-context.ts'
+import { WorkspaceRole } from './workspace-identity.ts'
+
+/**
+ * The invitations contract: the wire schemas, the service tag, the plugin
+ * binding port, and the state-machine rules both adapters enforce. The Seed
+ * adapter lives in [`workspace-invitations.seed.ts`](./workspace-invitations.seed.ts),
+ * the D1 + plugin-binding adapter in
+ * [`workspace-invitations.live.ts`](./workspace-invitations.live.ts).
+ */
 
 export const InvitationStatus = Schema.Literals(invitationStatuses)
 export type InvitationStatus = typeof InvitationStatus.Type
@@ -158,18 +151,6 @@ export type WorkspaceInvitationBinding = {
   readonly accept: (input: { readonly invitationId: string }) => Promise<void>
 }
 
-const { callBinding } = makeBindingCaller<
-  WorkspaceInvitationBinding,
-  MembershipChangeRejected
->({
-  capability: 'workspace-invitations',
-  noBindingReason: 'no_invitation_binding',
-  Rejected: MembershipChangeRejected
-})
-
-/** How long a fixture invitation stays pending — the plugin's own 48 hours. */
-const SEED_INVITATION_TTL_MS = 48 * 60 * 60 * 1000
-
 /**
  * The invitation state machine's own rules, written once so both adapters
  * refuse the same things. Live checks them before it calls the plugin: the
@@ -177,7 +158,7 @@ const SEED_INVITATION_TTL_MS = 48 * 60 * 60 * 1000
  * independent of which binding is wired, and the audit event needs the row
  * anyway.
  */
-function requireRecipient(
+export function requireRecipient(
   invitation: Invitation,
   email: string
 ): Effect.Effect<void, MembershipChangeRejected> {
@@ -189,7 +170,7 @@ function requireRecipient(
   return Effect.void
 }
 
-function requireUnexpired(
+export function requireUnexpired(
   invitation: Invitation
 ): Effect.Effect<void, MembershipChangeRejected> {
   return Effect.gen(function* () {
@@ -206,338 +187,4 @@ function requireUnexpired(
       )
     }
   })
-}
-
-/** Moves a stored fixture invitation to a terminal status. */
-function settle(
-  store: Ref.Ref<ReadonlyArray<Invitation>>,
-  invitationId: string,
-  status: InvitationStatus
-): Effect.Effect<void> {
-  return Ref.update(store, (rows) =>
-    rows.map((row) => {
-      if (row.id !== invitationId) {
-        return row
-      }
-      return { ...row, status }
-    })
-  )
-}
-
-/**
- * Fails the way the Live adapter fails for an invitation this workspace cannot
- * act on, so the shared contract holds on both sides.
- */
-function requirePending(
-  store: Ref.Ref<ReadonlyArray<Invitation>>,
-  invitationId: string
-): Effect.Effect<Invitation, MembershipChangeRejected> {
-  return Ref.get(store).pipe(
-    Effect.flatMap((rows) => {
-      const found = rows.find((row) => row.id === invitationId)
-      if (found?.status !== 'pending') {
-        return Effect.fail(
-          new MembershipChangeRejected({ reason: 'invitation_not_pending' })
-        )
-      }
-      return Effect.succeed(found)
-    })
-  )
-}
-
-/**
- * In-memory invitations, never Better Auth. The store lives in a `Ref` built
- * per layer construction, so a mutation is observable within the request or
- * test that made it and no state leaks into the next one.
- */
-export function SeedWorkspaceInvitations(options: {
-  /**
-   * The same roster `SeedWorkspaceMembership` serves. Accepting an invitation
-   * adds a member, and the two seed adapters must agree about who is one.
-   */
-  readonly roster: SeedRoster
-  /** The fixture workspace every seed invitation belongs to. */
-  readonly workspace: Workspace
-  readonly seed?: ReadonlyArray<Invitation>
-}): Layer.Layer<WorkspaceInvitations> {
-  return Layer.effect(WorkspaceInvitations)(
-    Effect.gen(function* () {
-      const store = yield* Ref.make<ReadonlyArray<Invitation>>(options.seed ?? [])
-
-      return {
-        list: Ref.get(store),
-        find: (invitationId) =>
-          Ref.get(store).pipe(
-            Effect.map((rows) => {
-              const found = rows.find((row) => row.id === invitationId)
-              if (!found) {
-                return Option.none()
-              }
-              return Option.some({
-                ...found,
-                workspaceSlug: options.workspace.slug,
-                workspaceName: options.workspace.name
-              })
-            })
-          ),
-        create: (input) =>
-          Effect.gen(function* () {
-            const current = yield* Ref.get(store)
-            const alreadyInvited = current.some(
-              (each) => each.email === input.email && each.status === 'pending'
-            )
-            if (alreadyInvited) {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: 'already_invited' })
-              )
-            }
-            const id = yield* newCapabilityId('inv')
-            const now = yield* DateTime.now
-            const created: Invitation = {
-              id,
-              email: input.email,
-              role: input.role,
-              status: 'pending',
-              expiresAt: DateTime.formatIso(
-                DateTime.addDuration(now, SEED_INVITATION_TTL_MS)
-              )
-            }
-            yield* Ref.update(store, (rows) => [created, ...rows])
-            return created
-          }),
-        cancel: (input) =>
-          Effect.gen(function* () {
-            yield* requirePending(store, input.invitationId)
-            yield* settle(store, input.invitationId, 'canceled')
-          }),
-        accept: (input) =>
-          Effect.gen(function* () {
-            const pending = yield* requirePending(store, input.invitationId)
-            yield* requireRecipient(pending, input.email)
-            yield* requireUnexpired(pending)
-
-            yield* settle(store, input.invitationId, 'accepted')
-            // No `user` table to join, so the fixture fabricates the identity
-            // fields the way `SeedWorkspaceMembership.addMember` does — but the
-            // invitation's real address is known, so it rides along.
-            const joined = fabricateSeedMember(input.userId, pending.role, input.email)
-            yield* Ref.update(options.roster, (current) => [...current, joined])
-            return {
-              workspaceSlug: options.workspace.slug,
-              workspaceName: options.workspace.name,
-              role: pending.role
-            }
-          })
-      }
-    })
-  )
-}
-
-/** Maps a stored row onto the wire DTO. The row's dates are epoch integers. */
-function toInvitation(row: typeof workspaceInvitations.$inferSelect): Invitation {
-  return {
-    id: row.id,
-    email: row.email,
-    // The column is nullable — the plugin lets an invitation fall back to its
-    // default role on accept. The starter always sends one, so a null here is
-    // an invitation the plugin created outside this capability.
-    role: row.role ?? 'member',
-    status: row.status,
-    expiresAt: row.expiresAt.toISOString()
-  }
-}
-
-export function LiveWorkspaceInvitations(
-  binding?: WorkspaceInvitationBinding
-): Layer.Layer<WorkspaceInvitations, never, Database | AuditEventLog> {
-  return Layer.effect(WorkspaceInvitations)(
-    Effect.gen(function* () {
-      const db = yield* Database
-      const audit = yield* AuditEventLog
-
-      const unavailable = orUnavailable('workspace-invitations')
-
-      /**
-       * Reads the invitation back through the same table `list` reads, rather
-       * than trusting the binding's return value: the plugin's response shape
-       * is exactly what this package refuses to name.
-       */
-      const readPending = Effect.fnUntraced(function* (
-        workspaceId: string,
-        email: string
-      ) {
-        const rows = yield* unavailable(pendingByEmail(db, workspaceId, email).limit(1))
-        const row = rows[0]
-        if (!row) {
-          return yield* Effect.fail(
-            new MembershipChangeRejected({ reason: 'invitation_not_created' })
-          )
-        }
-        return toInvitation(row)
-      })
-
-      /**
-       * One invitation with its workspace, keyed by id alone. Both the accept
-       * path and the accept page's read go through here: neither has a slug to
-       * resolve a `WorkspaceContext` from.
-       */
-      const findJoined = Effect.fnUntraced(function* (invitationId: string) {
-        const rows = yield* unavailable(
-          db
-            .select({ invitation: workspaceInvitations, workspace: workspaces })
-            .from(workspaceInvitations)
-            .innerJoin(workspaces, eq(workspaces.id, workspaceInvitations.workspaceId))
-            .where(eq(workspaceInvitations.id, invitationId))
-            .limit(1)
-        )
-        return Option.fromUndefinedOr(rows[0])
-      })
-
-      /**
-       * Scopes the invitation to the calling workspace before the plugin is
-       * touched. The plugin would answer for any invitation the session may
-       * cancel; this capability answers only for the workspace in context.
-       */
-      const requirePendingInWorkspace = Effect.fnUntraced(function* (
-        workspaceId: string,
-        invitationId: string
-      ) {
-        const rows = yield* unavailable(
-          db
-            .select()
-            .from(workspaceInvitations)
-            .where(
-              and(
-                eq(workspaceInvitations.id, invitationId),
-                eq(workspaceInvitations.workspaceId, workspaceId),
-                eq(workspaceInvitations.status, 'pending')
-              )
-            )
-            .limit(1)
-        )
-        const row = rows[0]
-        if (!row) {
-          return yield* Effect.fail(
-            new MembershipChangeRejected({ reason: 'invitation_not_pending' })
-          )
-        }
-        return toInvitation(row)
-      })
-
-      return {
-        list: Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          const rows = yield* unavailable(
-            db
-              .select()
-              .from(workspaceInvitations)
-              .where(eq(workspaceInvitations.workspaceId, ctx.workspace.id))
-          )
-          return rows.map(toInvitation)
-        }),
-        find: (invitationId) =>
-          findJoined(invitationId).pipe(
-            Effect.map(
-              Option.map((row) => ({
-                ...toInvitation(row.invitation),
-                workspaceSlug: row.workspace.slug,
-                workspaceName: row.workspace.name
-              }))
-            )
-          ),
-        create: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            yield* callBinding(binding, (bound) =>
-              bound.create({
-                workspaceId: ctx.workspace.id,
-                email: input.email,
-                role: input.role
-              })
-            )
-            const created = yield* readPending(ctx.workspace.id, input.email)
-            // Not atomic with the write above, and it cannot be: D1 rejects an
-            // explicit BEGIN, and a plugin write cannot join a `batch()`. The
-            // same accepted trade `workspace-membership.ts` records.
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              eventType: 'workspace_invitation.sent',
-              targetType: 'workspace_invitation',
-              targetId: created.id,
-              metadata: { email: input.email, role: input.role }
-            })
-            return created
-          }),
-        cancel: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const pending = yield* requirePendingInWorkspace(
-              ctx.workspace.id,
-              input.invitationId
-            )
-            yield* callBinding(binding, (bound) =>
-              bound.cancel({ invitationId: input.invitationId })
-            )
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              eventType: 'workspace_invitation.canceled',
-              targetType: 'workspace_invitation',
-              targetId: input.invitationId,
-              metadata: { email: pending.email }
-            })
-          }),
-        accept: (input) =>
-          Effect.gen(function* () {
-            // No `WorkspaceContext` to read: the invitation names its own
-            // workspace, which is the only way an accept can work for someone
-            // the workspace does not yet contain.
-            const joined = yield* findJoined(input.invitationId)
-            if (Option.isNone(joined) || joined.value.invitation.status !== 'pending') {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: 'invitation_not_pending' })
-              )
-            }
-            const row = joined.value
-            const pending = toInvitation(row.invitation)
-            yield* requireRecipient(pending, input.email)
-            yield* requireUnexpired(pending)
-
-            // The plugin settles the invitation and creates the member row in
-            // one call; this capability never writes either itself.
-            yield* callBinding(binding, (bound) =>
-              bound.accept({ invitationId: input.invitationId })
-            )
-            yield* audit.record({
-              workspaceId: row.workspace.id,
-              actorUserId: input.userId,
-              eventType: 'workspace_invitation.accepted',
-              targetType: 'workspace_invitation',
-              targetId: input.invitationId,
-              metadata: { email: pending.email, role: pending.role }
-            })
-            return {
-              workspaceSlug: row.workspace.slug,
-              workspaceName: row.workspace.name,
-              role: pending.role
-            }
-          })
-      }
-    })
-  )
-}
-
-/** The pending invitation for one address in one workspace, if there is one. */
-function pendingByEmail(db: EffectDatabase, workspaceId: string, email: string) {
-  return db
-    .select()
-    .from(workspaceInvitations)
-    .where(
-      and(
-        eq(workspaceInvitations.workspaceId, workspaceId),
-        eq(workspaceInvitations.email, email),
-        eq(workspaceInvitations.status, 'pending')
-      )
-    )
 }

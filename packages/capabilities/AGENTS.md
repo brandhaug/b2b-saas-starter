@@ -20,6 +20,7 @@ Capabilities are grouped by bounded context so the package can grow without flat
 
 ```
 src/
+├── billing/            – plan catalog + entitlement gate, Billing service, Stripe adapter
 ├── developer-platform/ – API tokens, webhook endpoints
 ├── governance/         – audit events, workspace membership, workspace identity types
 ├── notifications/      – notification feed
@@ -40,18 +41,19 @@ A projection covers **one** permission. `workspaceDashboard` is everything `noti
 
 Each capability gets a leaf intent node alongside its source file. Read it before changing the capability's contract.
 
-| Context            | Capability                                                                  | Reads from D1 tables                                  | Status                                                                     |
-| ------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------- |
-| developer-platform | [`api-token-registry`](src/developer-platform/api-token-registry.AGENTS.md) | `apiTokens`, `workspaces`                             | list, create, revoke, verify bearer (audit-emitting)                       |
-| developer-platform | [`webhook-endpoints`](src/developer-platform/webhook-endpoints.AGENTS.md)   | `webhookEndpoints`, `webhookDeliveries`, `workspaces` | list, create, disable, rotate secret (audit-emitting)                      |
-| developer-platform | [`webhook-publisher`](src/developer-platform/webhook-publisher.AGENTS.md)   | `webhookEndpoints`                                    | enqueue-only fan-out to `WEBHOOK_QUEUE` (no-op without binding)            |
-| governance         | [`audit-event-log`](src/governance/audit-event-log.AGENTS.md)               | `auditEvents`, `user`, `workspaces`                   | list + `record(input)` for upstream emitters                               |
-| governance         | [`workspace-invitations`](src/governance/workspace-invitations.AGENTS.md)   | `workspaceInvitations`, `workspaces`                  | reads direct; create/cancel/accept via the plugin binding                  |
-| governance         | [`workspace-membership`](src/governance/workspace-membership.AGENTS.md)     | `workspaces`, `workspaceMembers`, `user`              | reads direct; add/remove/change-role via the plugin binding                |
-| governance         | [`workspace-lifecycle`](src/governance/workspace-lifecycle.AGENTS.md)       | `workspaces`                                          | create/rename/delete via the plugin binding (audit-emitting)               |
-| governance         | [`platform-user-admin`](src/governance/platform-user-admin.AGENTS.md)       | `user`, `workspaceMembers`                            | system-admin ban/unban + cross-workspace role via binding (audit-emitting) |
-| governance         | [`turnstile-verification`](src/governance/turnstile-verification.AGENTS.md) | — (no store; calls Cloudflare `siteverify`)           | env-gated token verification (`inactive` when unconfigured)                |
-| notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md)        | `notifications`, `workspaces`                         | read-only                                                                  |
+| Context            | Capability                                                                  | Reads from D1 tables                                  | Status                                                                            |
+| ------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------- |
+| billing            | [`billing`](src/billing/billing.AGENTS.md)                                  | `workspaces` (`planId`)                               | plan read, Stripe checkout handoff, provider event → plan change (audit-emitting) |
+| developer-platform | [`api-token-registry`](src/developer-platform/api-token-registry.AGENTS.md) | `apiTokens`, `workspaces`                             | list, create, revoke, verify bearer (audit-emitting)                              |
+| developer-platform | [`webhook-endpoints`](src/developer-platform/webhook-endpoints.AGENTS.md)   | `webhookEndpoints`, `webhookDeliveries`, `workspaces` | list, create, disable, rotate secret (audit-emitting)                             |
+| developer-platform | [`webhook-publisher`](src/developer-platform/webhook-publisher.AGENTS.md)   | `webhookEndpoints`                                    | enqueue-only fan-out to `WEBHOOK_QUEUE` (no-op without binding)                   |
+| governance         | [`audit-event-log`](src/governance/audit-event-log.AGENTS.md)               | `auditEvents`, `user`, `workspaces`                   | list + `record(input)` for upstream emitters                                      |
+| governance         | [`workspace-invitations`](src/governance/workspace-invitations.AGENTS.md)   | `workspaceInvitations`, `workspaces`                  | reads direct; create/cancel/accept via the plugin binding                         |
+| governance         | [`workspace-membership`](src/governance/workspace-membership.AGENTS.md)     | `workspaces`, `workspaceMembers`, `user`              | reads direct; add/remove/change-role via the plugin binding                       |
+| governance         | [`workspace-lifecycle`](src/governance/workspace-lifecycle.AGENTS.md)       | `workspaces`                                          | create/rename/delete via the plugin binding (audit-emitting)                      |
+| governance         | [`platform-user-admin`](src/governance/platform-user-admin.AGENTS.md)       | `user`, `workspaceMembers`                            | system-admin ban/unban + cross-workspace role via binding (audit-emitting)        |
+| governance         | [`turnstile-verification`](src/governance/turnstile-verification.AGENTS.md) | — (no store; calls Cloudflare `siteverify`)           | env-gated token verification (`inactive` when unconfigured)                       |
+| notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md)        | `notifications`, `workspaces`                         | read-only                                                                         |
 
 `governance/workspace-identity.ts` is not a capability: it owns the workspace identity vocabulary (`WORKSPACE_ROLES`, `SYSTEM_ROLES`, `Workspace`, `Member`, `toMember`, `findWorkspaceMember`) so `workspace-context.ts` and `governance/workspace-membership.ts` no longer import each other. `workspace-membership.ts` depends on `WorkspaceContext` for its member reads, so the shared types and the member lookup live below both. Import identity types from this module, not from the membership capability.
 
@@ -62,7 +64,16 @@ Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (40
 ## Where to put a new capability
 
 1. Pick the bounded context that already owns the closest concept; only add a new folder when you genuinely have a new context.
-2. Add `src/<context>/<capability>.ts` (Schema + Service + Seed + Live).
+2. Add `src/<context>/<capability>.ts` (Schema + Service + Seed + Live) — one file while it stays one screenful of each part.
+   **Split it once the file passes ~300 lines, or as soon as a sibling needs one part of it without the rest.** The seam is always the same three modules, no barrel and no re-export shim (invariant 5), so consumers import the specific one:
+   - `<capability>.ts` — the contract: schemas, input types, `XxxInterface`, the service class, the binding port, and any rule both adapters enforce.
+   - `<capability>.seed.ts` — `SeedXxx`, its fixture types, and its in-memory helpers.
+   - `<capability>.live.ts` — `LiveXxx` and its query helpers.
+
+   A provider client or a policy table that only one consumer reaches gets its own sibling module on the same grounds — `billing/` is `plan-catalog.ts` (the plan records and the entitlement gate), `billing.ts` (the service and its two layers), and `stripe.ts` (the REST client, the inbound event policy, the signature verifier), so `developer-platform/*` can import the plan gate without Stripe entering its dependency graph.
+
+   Already split: `webhook-endpoints`, `api-token-registry`, `workspace-invitations`, `billing`. Everything else is one file, and should stay one until it earns the split.
+
 3. Add `src/<context>/<capability>.AGENTS.md` describing the public surface, storage, and anti-patterns.
 4. Wire `Seed*`/`Live*` into [`layers.ts`](src/layers.ts) — keep imports grouped by context.
 5. Consumers import the capability module directly, e.g. `@b2b-saas-starter/capabilities/governance/<capability>` (enabled by the curated exports map — no `./src/*` wildcard; `starter/no-deep-workspace-imports` fails a `/src/` specifier).
@@ -78,7 +89,7 @@ Shared error types live in [`errors.ts`](src/errors.ts): `WorkspaceNotFound` (40
 
    Whether the resolved actor may perform an action is decided one level up, by `requirePermission` from [`@b2b-saas-starter/authz`](../authz/AGENTS.md), composed at the route boundary: `requireWorkspacePermission` in `apps/web/src/lib/server/authorize.ts` and `enforcePermission` in `apps/api/src/handlers.ts`. The one method-level carve-out is `verifyBearerToken`, and it **authenticates only** — it answers which token this is and what scopes it carries, raising `AuthorizationDenied` (`invalid_token`) for an unknown or revoked one. It does not judge the scopes; the guard does. See [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md#authorization-model).
 
-3. **Audit-event writes go through `AuditEventLog`, not direct D1 inserts.** Mutating capabilities (`ApiTokenRegistry`, `WebhookEndpoints`) depend on `AuditEventLog` and either call `record(input)` or — for atomicity with their own write — run [`governance/audited-mutation.ts`](src/governance/audited-mutation.ts), the shared mutate+audit combinator that batches the mutation with `audit.prepareRecord(input)` so both commit or roll back together on D1 (`prepareRecord` is effectful: it reads `Clock` for the id and timestamp). The `AuditEventLog` adapter owns id generation and timestamps so format changes happen in one place, and the combinator owns the zero-match skip (mutations matching no rows record no audit event) plus its documented phantom-audit race. Seed layers keep calling `record(input)` after their in-memory write.
+3. **Audit-event writes go through `AuditEventLog`, not direct D1 inserts.** Mutating capabilities (`ApiTokenRegistry`, `WebhookEndpoints`, `Billing.applyProviderEvent`) depend on `AuditEventLog` and either call `record(input)` or — for atomicity with their own write — run [`governance/audited-mutation.ts`](src/governance/audited-mutation.ts), the shared mutate+audit combinator that batches the mutation with `audit.prepareRecord(input)` so both commit or roll back together on D1 (`prepareRecord` is effectful: it reads `Clock` for the id and timestamp). `auditedMutations(deps)` is itself an Effect requiring `RawD1` — it resolves the binding `batch` needs once at layer construction, so the mutations it returns carry no requirement of their own. The `AuditEventLog` adapter owns id generation and timestamps so format changes happen in one place, and the combinator owns the zero-match skip (mutations matching no rows record no audit event) plus its documented phantom-audit race. Seed layers keep calling `record(input)` after their in-memory write.
 
    **The exception is the plugin-backed mutations** — `WorkspaceMembership` and `WorkspaceInvitations`. Their write happens over HTTP inside the binding adapter, so it cannot be enlisted into a `batch()`, and D1 rejects an explicit `BEGIN` (Drizzle's `d1/session.js` issues a raw `begin`, so `db.transaction()` does not work either). They call `record(input)` after the write and the two can therefore diverge. This is an accepted, recorded trade (ADR 0051), not an oversight to "fix" by dropping back to direct Drizzle writes — that would skip the plugin's validation and its lifecycle hooks.
 

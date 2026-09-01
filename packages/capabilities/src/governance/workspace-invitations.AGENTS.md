@@ -9,6 +9,15 @@ Reads and writes split by direction, exactly as membership does:
 - **Reads** (`list`, `find`) go straight through Drizzle.
 - **Writes** (`create`, `cancel`, `accept`) go through Better Auth's `organization` plugin, so its state machine and its lifecycle hooks apply. This package never names the plugin — it calls `WorkspaceInvitationBinding`, and the app supplies the adapter (ADR 0051).
 
+## Module layout
+
+The capability is split along its section seams — no barrel file; consumers import the specific module:
+
+- `workspace-invitations.ts` — shared contract: schemas (`Invitation`, `InvitationDetail`, `AcceptedInvitation`, `InvitationStatus`), input types, `WorkspaceInvitationsInterface` + service class, the `WorkspaceInvitationBinding` port, and the state-machine rules both adapters enforce (`requireRecipient`, `requireUnexpired`).
+- `workspace-invitations.seed.ts` — `SeedWorkspaceInvitations`, the fixture TTL, and its in-memory store helpers (`settle`, `requirePending`).
+- `workspace-invitations.live.ts` — `LiveWorkspaceInvitations`, the `callBinding` caller built from `makeBindingCaller`, and its query helpers (`toInvitation`, `pendingByEmail`).
+- `workspace-invitations.contract.ts` — the shared **test** cases both adapters are run against (see capabilities invariant 4); not a source module.
+
 ## The accept path has no WorkspaceContext, and cannot have one
 
 Every other workspace-scoped method reads the resolved workspace from `WorkspaceContext` (capabilities invariant 1). `accept` and `find` do not, and this is the load-bearing design decision of the capability.
