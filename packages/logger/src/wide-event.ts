@@ -24,19 +24,12 @@ import {
   readTraceHeader,
   type TraceContinuation
 } from './trace.ts'
+import { failureMessage } from '@b2b-saas-starter/failure'
 import { type Writable } from '@b2b-saas-starter/config/writable'
 
 const TaggedFailure = Schema.Struct({ _tag: Schema.String })
 
 const decodeTaggedFailure = Schema.decodeUnknownOption(TaggedFailure)
-
-function errorMessage(head: unknown): string {
-  // oxlint-disable-next-line unicorn/no-instanceof-builtins -- vendor SDKs raise real `Error`s; a cross-realm failure here is reported as a string either way
-  if (head instanceof Error) {
-    return head.message
-  }
-  return String(head)
-}
 
 /**
  * The failure half of a wide event's outcome, classified from the `Cause`.
@@ -46,13 +39,13 @@ function errorMessage(head: unknown): string {
 type WideEventFailure = {
   readonly errorKind: 'fail' | 'interrupt' | 'defect'
   readonly error?: string
-  readonly errorTag?: unknown
+  readonly errorTag?: string
 }
 
 function failureMetadata(head: unknown): WideEventFailure {
   const base: WideEventFailure = {
     errorKind: 'fail',
-    error: errorMessage(head)
+    error: failureMessage(head)
   }
   const tagged = decodeTaggedFailure(head)
   if (Option.isNone(tagged)) {
@@ -100,14 +93,13 @@ export type WideEventRecord = {
   readonly durationMs: number
   readonly status: 'ok' | 'error'
   readonly errorKind?: 'fail' | 'interrupt' | 'defect' | undefined
-  readonly errorTag?: unknown
+  /** The failure's `_tag`, when the failure carried one. */
+  readonly errorTag?: string | undefined
   readonly environment?: WideEventEnvironment | undefined
   readonly error?: unknown
 }
 
 type WideEventSink = (record: WideEventRecord) => Promise<void> | void
-
-/** Write-side view of {@link WideEventRecord}; absent fields stay absent. */
 
 const wideEventSinks: Array<WideEventSink> = []
 

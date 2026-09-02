@@ -36,27 +36,24 @@ export type CapabilityReadError =
   | WorkspaceNotFound
   | CapabilityUnavailable
 
-export type CapabilityRead = Effect.Effect<
-  unknown,
-  CapabilityReadError,
+/**
+ * The capability services a table row reads through, minus `WorkspaceContext`:
+ * these are request-independent and live on the worker's isolate-level layer.
+ * Named so the MCP route can capture exactly them from the request context and
+ * carry them across the SDK's promise seam (see `mcp.ts`).
+ */
+export type CapabilityReadServices =
   | NotificationFeed
   | WorkspaceMembership
   | ApiTokenRegistry
   | WebhookEndpoints
   | AuditEventLog
-  | WorkspaceContext
->
 
-export type WorkspaceReadOperation = {
-  /** URL path segment under `/workspaces/{slug}/`, also the OpenAPI template piece. */
-  readonly path: string
-  readonly permission: PermissionRequest
-  readonly read: () => CapabilityRead
-  /** The MCP tool that projects this same operation. */
-  readonly toolName: string
-  /** Tool description body; the mirrored REST operation is appended on the wire. */
-  readonly toolDescription: string
-}
+export type CapabilityRead = Effect.Effect<
+  unknown,
+  CapabilityReadError,
+  CapabilityReadServices | WorkspaceContext
+>
 
 export type ReadOperationEndpoint =
   | 'overview'
@@ -65,6 +62,21 @@ export type ReadOperationEndpoint =
   | 'api-tokens'
   | 'webhooks'
   | 'audit-events'
+
+export type WorkspaceReadOperation = {
+  /**
+   * URL path segment under `/workspaces/{slug}/`, also the OpenAPI template
+   * piece — and, because the contract names each read endpoint after its path,
+   * the `workspace` group's endpoint identifier and this table's own key.
+   */
+  readonly path: ReadOperationEndpoint
+  readonly permission: PermissionRequest
+  readonly read: () => CapabilityRead
+  /** The MCP tool that projects this same operation. */
+  readonly toolName: string
+  /** Tool description body; the mirrored REST operation is appended on the wire. */
+  readonly toolDescription: string
+}
 
 /**
  * Keyed by the contract's `workspace` group endpoint name, so a handler's
@@ -129,26 +141,6 @@ export const READ_OPERATIONS = {
 /** The table rows in contract order — what MCP tools and tests derive from. */
 export function readOperations(): ReadonlyArray<WorkspaceReadOperation> {
   return Object.values(READ_OPERATIONS)
-}
-
-/**
- * The single sanctioned channel widening for serving a table row. The table
- * stores each read as its natural capability effect; this boundary widens the
- * type channels to `never` so the consuming surface's own schema (the REST
- * contract's success/error schemas, or MCP's resource shape) narrows them
- * back — the same covariance the inline effects relied on before the shared
- * table existed. No value is asserted away: only the type channel is widened,
- * and the request guards plus `provideWorkspace` re-narrow the requirements
- * before the effect runs. Both Capability Interfaces (REST and MCP) go
- * through here so there is exactly one place documenting the trick.
- */
-export function serveRead(
-  op: WorkspaceReadOperation
-): Effect.Effect<never, never, never> {
-  // SAFETY: see doc comment above — type-channel widening only, re-narrowed
-  // by the consuming surface before the effect ever runs.
-  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see SAFETY above
-  return op.read() as Effect.Effect<never, never, never>
 }
 
 /** `notification:read`-style label, used by the permission matrix output. */

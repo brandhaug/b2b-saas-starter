@@ -19,6 +19,14 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm run typecheck
       - run: pnpm run lint
+      # The wrangler configs are generated from infra/bindings.ts. Regenerating
+      # them must be a no-op; a hand-edited config (or a spec change nobody
+      # re-ran) shows up as a diff here instead of as a worker that drifted
+      # from its production deploy.
+      - name: Wrangler configs are up to date
+        run: |
+          pnpm run infra:wrangler
+          git diff --exit-code -- apps/*/wrangler.jsonc
       # Includes the coverage ratchet on the application layer: the
       # capabilities `test` script runs with --coverage (thresholds live in
       # packages/capabilities/vitest.config.ts) — fails on decay.

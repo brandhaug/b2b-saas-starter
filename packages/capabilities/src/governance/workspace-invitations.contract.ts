@@ -12,7 +12,7 @@ import { WorkspaceMembership } from './workspace-membership.ts'
  * Same reasoning as `workspace-membership.contract.ts`: capabilities invariant
  * 4 says Seed and Live must satisfy the same interface, and matching TypeScript
  * types do not prove it. `index.test.ts` runs these against
- * `SeedWorkspaceInvitations` with no D1; `live-layers.test.ts` runs the same
+ * `SeedWorkspaceInvitations` with no D1; `workspace-invitations.live.test.ts` runs the same
  * list against `LiveWorkspaceInvitations` on a real one.
  *
  * The cases assert only what both adapters can honestly promise. Timestamps and

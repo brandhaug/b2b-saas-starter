@@ -506,6 +506,9 @@ importers:
       '@b2b-saas-starter/env':
         specifier: workspace:*
         version: link:../../packages/env
+      '@b2b-saas-starter/failure':
+        specifier: workspace:*
+        version: link:../../packages/failure
       '@b2b-saas-starter/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -717,6 +720,12 @@ importers:
 
   packages/ai:
     dependencies:
+      '@b2b-saas-starter/env':
+        specifier: workspace:*
+        version: link:../env
+      '@b2b-saas-starter/failure':
+        specifier: workspace:*
+        version: link:../failure
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -748,6 +757,9 @@ importers:
       '@b2b-saas-starter/capabilities':
         specifier: workspace:*
         version: link:../capabilities
+      '@b2b-saas-starter/rate-limit':
+        specifier: workspace:*
+        version: link:../rate-limit
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -841,6 +853,9 @@ importers:
       '@b2b-saas-starter/db':
         specifier: workspace:*
         version: link:../db
+      '@b2b-saas-starter/failure':
+        specifier: workspace:*
+        version: link:../failure
       '@b2b-saas-starter/logger':
         specifier: workspace:*
         version: link:../logger
@@ -877,6 +892,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@b2b-saas-starter/failure':
+        specifier: workspace:*
+        version: link:../failure
       '@effect/sql-d1':
         specifier: 'catalog:'
         version: 4.0.0-rc.112(effect@4.0.0-rc.112)
@@ -914,6 +932,12 @@ importers:
 
   packages/email:
     dependencies:
+      '@b2b-saas-starter/env':
+        specifier: workspace:*
+        version: link:../env
+      '@b2b-saas-starter/failure':
+        specifier: workspace:*
+        version: link:../failure
       '@react-email/components':
         specifier: 'catalog:'
         version: 1.0.12(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -971,8 +995,32 @@ importers:
         specifier: 'catalog:'
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(jsdom@30.0.1(@noble/hashes@2.4.0))
 
+  packages/failure:
+    devDependencies:
+      '@b2b-saas-starter/config':
+        specifier: workspace:*
+        version: link:../config
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0)'
+      vite-plus:
+        specifier: 'catalog:'
+        version: 0.3.0(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(jsdom@30.0.1(@noble/hashes@2.4.0))
+
   packages/logger:
     dependencies:
+      '@b2b-saas-starter/env':
+        specifier: workspace:*
+        version: link:../env
+      '@b2b-saas-starter/failure':
+        specifier: workspace:*
+        version: link:../failure
       '@sentry/cloudflare':
         specifier: 'catalog:'
         version: 10.72.0(@cloudflare/workers-types@5.20260827.1)(wrangler@4.127.0(@cloudflare/workers-types@5.20260827.1)(@types/node@26.4.0))
@@ -1032,6 +1080,9 @@ importers:
 
   packages/rate-limit:
     dependencies:
+      '@b2b-saas-starter/failure':
+        specifier: workspace:*
+        version: link:../failure
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112

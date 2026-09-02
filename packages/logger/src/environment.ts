@@ -21,11 +21,6 @@ export type WideEventEnvironment = {
   readonly environment?: string | undefined
 }
 
-/**
- * Built via {@link Writable} by assignment so absent fields stay absent (no
- * `key: undefined`), which keeps the emitted wide event free of empty columns.
- */
-
 const CfProperties = Schema.Struct({ colo: Schema.String })
 
 const decodeCfProperties = Schema.decodeUnknownOption(CfProperties)

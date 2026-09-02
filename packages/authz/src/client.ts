@@ -7,7 +7,9 @@
  * imports `effect` and the logger for the wide-event annotation on denial.
  *
  * Import it as `@b2b-saas-starter/authz/client` from anything that ships to the
- * browser, and the root entry point from anything that does not.
+ * browser. It is also the only entry point for the role and scope vocabulary:
+ * `./guard` adds the Effect-side gate on top, and `./errors` the denial. There
+ * is no root entry point.
  */
 export {
   authorize,

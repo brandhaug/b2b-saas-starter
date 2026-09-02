@@ -1,5 +1,6 @@
 import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz/client'
 import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
+import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import * as schema from '@b2b-saas-starter/db/schema'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
@@ -25,15 +26,22 @@ import {
  * log and the flows work end to end locally.
  */
 export type AuthEmailSender = {
-  readonly sendPasswordReset: (input: {
-    readonly email: string
-    readonly url: string
-  }) => Promise<void>
-  readonly sendEmailVerification: (input: {
-    readonly email: string
-    readonly url: string
-  }) => Promise<void>
+  readonly sendResetPassword: AuthEmailCallback
+  readonly sendVerificationEmail: AuthEmailCallback
 }
+
+/**
+ * Better Auth's own callback shape, narrowed to the two fields the starter
+ * reads. Keeping the port on this signature (rather than a `{ email, url }`
+ * of our own) is what lets the adapter be passed straight through to
+ * `sendResetPassword` / `sendVerificationEmail` below — no rename wrapper, and
+ * no `async` callbacks in this file to disable a lint rule for. Better Auth
+ * passes more (`token`, the `Request`); a callback may ignore the rest.
+ */
+export type AuthEmailCallback = (data: {
+  readonly user: { readonly email: string }
+  readonly url: string
+}) => Promise<void>
 
 export type AuthConfigInterface = {
   readonly db: DrizzleDatabase
@@ -50,11 +58,14 @@ export type AuthConfigInterface = {
   readonly requireEmailVerification: boolean
   /**
    * Better Auth's `advanced.backgroundTasks.handler` (verification and reset
-   * emails are sent as detached background promises). On a Worker this should
-   * be `ctx.waitUntil` so a send survives its response; when absent the
-   * fallback runs the promise inline — still correct, just not crash-proof.
+   * emails are sent as detached background promises). Required, with no
+   * default: on a Worker this should be `ctx.waitUntil` so a send survives its
+   * response, and where the host does not expose an execution context the
+   * caller has to say what happens to a detached send instead of inheriting a
+   * swallow-everything fallback from this package. Whatever is supplied owns
+   * the rejection — nothing here attaches a `catch`.
    */
-  readonly runBackground?: ((promise: Promise<unknown>) => void) | undefined
+  readonly runBackground: (promise: Promise<unknown>) => void
 }
 
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
@@ -99,37 +110,19 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // exists to distrust.
       revokeSessionsOnPasswordReset: true,
       // Better Auth owns the token flow (single-use, one hour, stored in the
-      // `verification` table); this callback only turns it into an email via
-      // the port above. It runs outside any Effect — no Clock, no services —
-      // which is why the port is a plain async function. The parameter type
-      // is written out (not inferred) because this object literal is built
-      // standalone: `makeAuthOptions` returns it before Better Auth's own
-      // contextual types can apply, so the callback signature is on us.
-      // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth callback contract: plain async, outside any Effect; this file is the platform adapter
-      sendResetPassword: async ({
-        user,
-        url
-      }: {
-        readonly user: { readonly email: string }
-        readonly url: string
-      }) => {
-        // oxlint-disable-next-line effect/noAsyncFunction -- forwards to the plain-function port below, not Effect work
-        await options.emails.sendPasswordReset({ email: user.email, url })
-      }
+      // `verification` table); the port carries Better Auth's own callback
+      // signature, so the adapter the app supplies is the callback — there is
+      // nothing to adapt here.
+      sendResetPassword: options.emails.sendResetPassword
     },
     advanced: {
       backgroundTasks: {
         // Verification and reset sends ride this instead of the response
         // chain: the endpoint must not hang on SMTP, and on Workers only
-        // `waitUntil` keeps the promise alive past the response. The inline
-        // fallback keeps local/test honest without an execution context.
-        handler: (promise: Promise<unknown>) => {
-          if (options.runBackground) {
-            options.runBackground(promise)
-            return
-          }
-          void promise.catch(() => undefined)
-        }
+        // `waitUntil` keeps the promise alive past the response. The caller's
+        // runner is the handler — this package no longer picks a fallback on
+        // its behalf.
+        handler: options.runBackground
       }
     },
     session: {
@@ -153,17 +146,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // requiring the user to ask for it afterwards — is an extra hop the
       // starter has no UI reason to demand.
       sendOnSignUp: true,
-      // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth callback contract: plain async, outside any Effect; this file is the platform adapter
-      sendVerificationEmail: async ({
-        user,
-        url
-      }: {
-        readonly user: { readonly email: string }
-        readonly url: string
-      }) => {
-        // oxlint-disable-next-line effect/noAsyncFunction -- forwards to the plain-function port above, not Effect work
-        await options.emails.sendEmailVerification({ email: user.email, url })
-      }
+      sendVerificationEmail: options.emails.sendVerificationEmail
     },
     plugins: plugins(
       username(),
@@ -184,8 +167,13 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         twoFactorCookieMaxAge: 600,
         trustDeviceMaxAge: 60 * 60 * 24 * 30
       }),
+      // The privileged system role comes from the stored vocabulary
+      // (`packages/db`'s `systemRoles`), so the plugin's gate and the column it
+      // reads cannot drift apart. This is the system axis only — a system admin
+      // gets `/admin` and nothing inside a workspace, where the membership
+      // row's `workspaceRoles` value decides.
       admin({
-        adminRoles: ['admin']
+        adminRoles: [adminSystemRole]
       }),
       organization({
         // One workspace set per plan is billing's business; five is the

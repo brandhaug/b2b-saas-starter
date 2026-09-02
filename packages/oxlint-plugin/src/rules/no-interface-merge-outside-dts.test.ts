@@ -49,7 +49,7 @@ export type { Register }`
 }`,
     (messages) => {
       assert.match(messages, /Move this declaration merge into a \.d\.ts file/)
-      assert.match(messages, /pre-commit hook/)
+      assert.match(messages, /pnpm run check:fix/)
     }
   )
 

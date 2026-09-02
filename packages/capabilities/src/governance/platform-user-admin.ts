@@ -10,7 +10,6 @@ import {
   findWorkspaceMember,
   requireMemberRowId,
   SystemRole,
-  toSystemRole,
   type Member,
   type WorkspaceRole
 } from './workspace-identity.ts'
@@ -104,7 +103,9 @@ function toAccount(row: typeof user.$inferSelect): SystemUserAccount {
     id: row.id,
     name: row.name,
     email: row.email,
-    systemRole: toSystemRole(row.role),
+    // `user.role` is the typed system-role column; null means the plugin never
+    // wrote one, which is a plain user.
+    systemRole: row.role ?? 'user',
     banned: row.banned ?? false
   }
 }

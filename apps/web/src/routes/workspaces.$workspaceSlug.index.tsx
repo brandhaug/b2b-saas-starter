@@ -6,7 +6,6 @@ import {
 } from '@/components/live-notifications'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import { viewerCan } from '@/lib/permissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   loadWorkspaceDashboard,
@@ -64,7 +63,7 @@ export function WorkspaceDashboardPage({
       title={workspace.name}
       description="Notifications, API tokens, webhooks, and reports."
       unreadCount={unreadCount}
-      canReadAuditLog={viewerCan(viewer, { auditLog: ['read'] })}
+      viewer={viewer}
     >
       <div className="grid gap-6">
         <div className="grid gap-6">

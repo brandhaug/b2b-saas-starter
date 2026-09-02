@@ -7,7 +7,12 @@ import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { passwordValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
-import { authClient } from '@/lib/auth-client'
+import {
+  resetPasswordWithAuthClient,
+  type ResetPassword
+} from '@/components/auth/auth-client-ports'
+
+export type { ResetPassword } from '@/components/auth/auth-client-ports'
 
 const ResetPasswordSearch = Schema.Struct({
   token: Schema.optional(Schema.String),
@@ -27,16 +32,6 @@ type ResetPasswordValues = {
 }
 
 /**
- * Setting the new password, as a port. Injected rather than reaching for the
- * `authClient` singleton at the call site so a test drives the form with a
- * real function of this shape instead of replacing `@/lib/auth-client`.
- */
-export type ResetPassword = (input: {
-  readonly newPassword: string
-  readonly token: string
-}) => Promise<{ readonly error?: { readonly message?: string | undefined } | null }>
-
-/**
  * The route's thin wrapper: reads the search params the router validated and
  * hands them to the page. Keeping the two apart is what lets the page be
  * rendered from a test with plain props, no route tree and no mocked router.
@@ -44,19 +39,6 @@ export type ResetPassword = (input: {
 function ResetPasswordRoute() {
   const { token, error } = Route.useSearch()
   return <ResetPasswordPage token={token} error={error} />
-}
-
-/**
- * Hoisted to module scope rather than written inline as a default: a new
- * function expression per render would be a fresh prop value every time.
- */
-function resetPasswordWithAuthClient(
-  input: Parameters<ResetPassword>[0]
-): ReturnType<ResetPassword> {
-  return authClient.resetPassword({
-    newPassword: input.newPassword,
-    token: input.token
-  })
 }
 
 export function ResetPasswordPage({

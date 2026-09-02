@@ -5,15 +5,14 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import {
   WorkspaceRole as WorkspaceRoleSchema,
-  type Member,
-  type WorkspaceRole
+  type Member
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import {
   type CapabilityUnavailable,
   type MembershipChangeRejected
 } from '@b2b-saas-starter/capabilities/errors'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Schema, type Scope } from 'effect'
 
@@ -21,6 +20,7 @@ import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { webMemberBinding } from './member-binding'
+import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
 
 /**
  * The workspace members payload.
@@ -32,7 +32,7 @@ import { webMemberBinding } from './member-binding'
  * in the component.
  */
 export type WorkspaceMembersPayload = {
-  readonly viewer: { readonly role: WorkspaceRole } | null
+  readonly viewer: WorkspaceViewer | null
   readonly unreadCount: number
   readonly members: ReadonlyArray<Member>
 }
@@ -42,25 +42,17 @@ export type WorkspaceMembersPayload = {
  * same shape as the settings page. A `member` holds it; only an actorless
  * context fails it.
  */
-const membersPayload: Effect.Effect<
-  WorkspaceMembersPayload,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext | WorkspaceMembership | NotificationFeed
-> = Effect.gen(function* () {
-  yield* requireWorkspacePermission({ notification: ['read'] })
-  const ctx = yield* WorkspaceContext
-  const membership = yield* WorkspaceMembership
-  const feed = yield* NotificationFeed
-  const [unreadCount, members] = yield* Effect.all(
-    [feed.unreadCount, membership.listMembers],
-    { concurrency: 'unbounded' }
-  )
-  return {
-    viewer: ctx.actor ? { role: ctx.actor.role } : null,
-    unreadCount,
-    members
-  }
-})
+const membersPayload: WorkspacePageFrame<WorkspaceMembersPayload> = workspacePage(
+  { notification: ['read'] },
+  () =>
+    Effect.all(
+      {
+        unreadCount,
+        members: Effect.flatMap(WorkspaceMembership, (roster) => roster.listMembers)
+      },
+      { concurrency: 'unbounded' }
+    )
+)
 
 /** The members route's loader. */
 export function loadWorkspaceMembers(input: {

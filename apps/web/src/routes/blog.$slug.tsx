@@ -4,45 +4,16 @@ import { useRef } from 'react'
 import { mdxComponents } from '@/components/mdx-components'
 import { PublicLayout } from '@/components/public-layout'
 import { TableOfContents } from '@/components/table-of-contents'
-import { getPostBySlug } from '@/lib/blog'
+import { getPostBySlug, postJsonLd } from '@/lib/blog'
+import { formatUtc } from '@/lib/format-date'
 
 export const Route = createFileRoute('/blog/$slug')({
+  // A bare guard — see docs.$category.$slug.tsx: the lookup is synchronous and
+  // the component re-resolves the module anyway, because the MDX `Component`
+  // is a function and cannot ride in loader data.
   loader: ({ params }) => {
-    const post = getPostBySlug(params.slug)
-    if (!post) {
+    if (!getPostBySlug(params.slug)) {
       throw notFound()
-    }
-    const jsonLdString = JSON.stringify({
-      '@context': 'https://schema.org',
-      '@graph': [
-        {
-          '@type': 'BlogPosting',
-          headline: post.frontmatter.title,
-          description: post.frontmatter.description,
-          datePublished: post.frontmatter.date,
-          author: { '@type': 'Organization', name: post.frontmatter.author },
-          publisher: { '@type': 'Organization', name: 'B2B SaaS Starter' },
-          keywords: post.frontmatter.tags.join(', ')
-        },
-        {
-          '@type': 'BreadcrumbList',
-          itemListElement: [
-            { '@type': 'ListItem', position: 1, name: 'Home' },
-            { '@type': 'ListItem', position: 2, name: 'Blog' },
-            { '@type': 'ListItem', position: 3, name: post.frontmatter.title }
-          ]
-        }
-      ]
-    })
-    // See docs.$category.$slug.tsx: the MDX component is a function and
-    // cannot ride in loader data — shipping it aborts dehydration and the
-    // page blanks on hydration. Ship the serializable subset only.
-    return {
-      post: {
-        slug: post.slug,
-        frontmatter: post.frontmatter
-      },
-      jsonLdString
     }
   },
   component: BlogPostPage,
@@ -73,23 +44,22 @@ export const Route = createFileRoute('/blog/$slug')({
 })
 
 function BlogPostPage() {
-  const { post, jsonLdString } = Route.useLoaderData()
+  const { slug } = Route.useParams()
   const articleRef = useRef<HTMLElement>(null)
-  // See the loader: `Component` is re-resolved from the module map because
-  // functions cannot cross the server→client boundary. The loader's
-  // notFound() guard guarantees this hit.
-  const resolvedPost = getPostBySlug(post.slug)
-  if (!resolvedPost) {
+
+  // Resolved here rather than shipped from the loader — see the loader.
+  const post = getPostBySlug(slug)
+  if (!post) {
     throw notFound()
   }
-  const { Component, frontmatter } = resolvedPost
+  const { Component, frontmatter } = post
 
   return (
     <PublicLayout>
       <main id="main-content" className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6">
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: jsonLdString }}
+          dangerouslySetInnerHTML={{ __html: postJsonLd(post) }}
         />
 
         <div className="flex gap-8">
@@ -110,11 +80,10 @@ function BlogPostPage() {
                 <span>{frontmatter.author}</span>
                 <span>&middot;</span>
                 <time dateTime={frontmatter.date}>
-                  {new Date(frontmatter.date).toLocaleDateString('en-US', {
+                  {formatUtc(frontmatter.date, {
                     year: 'numeric',
                     month: 'long',
-                    day: 'numeric',
-                    timeZone: 'UTC'
+                    day: 'numeric'
                   })}
                 </time>
               </div>

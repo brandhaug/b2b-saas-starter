@@ -6,15 +6,15 @@ import {
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Option, Schema, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
+import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
 
 // All input constraints live in the schema — no imperative re-validation.
 const CreateWebhookInput = Schema.Struct({
@@ -39,8 +39,7 @@ export const createWebhookEndpointServerFn = createServerFn({ method: 'POST' })
         // below the interface — identical for every surface.
         return yield* webhooks.create({
           url: data.url,
-          events: data.events,
-          actorUserId: session.user.id
+          events: data.events
         })
       }),
       { userId: session.user.id }
@@ -56,7 +55,7 @@ export const createWebhookEndpointServerFn = createServerFn({ method: 'POST' })
  * fetched per endpoint so each endpoint card can show its recent attempts.
  */
 export type WorkspaceWebhooksPayload = {
-  readonly viewer: { readonly role: WorkspaceRole } | null
+  readonly viewer: WorkspaceViewer | null
   readonly unreadCount: number
   readonly endpoints: ReadonlyArray<
     WebhookEndpoint & {
@@ -68,36 +67,27 @@ export type WorkspaceWebhooksPayload = {
 /**
  * `webhook:list` is the page's own read permission and a hard gate.
  */
-const webhooksPayload: Effect.Effect<
-  WorkspaceWebhooksPayload,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext | WebhookEndpoints | NotificationFeed
-> = Effect.gen(function* () {
-  yield* requireWorkspacePermission({ webhook: ['list'] })
-  const ctx = yield* WorkspaceContext
-  const feed = yield* NotificationFeed
-  const webhooks = yield* WebhookEndpoints
-  const [unreadCount, endpoints] = yield* Effect.all(
-    [feed.unreadCount, webhooks.list],
-    {
-      concurrency: 'unbounded'
-    }
-  )
-  const withDeliveries = yield* Effect.forEach(
-    endpoints,
-    (endpoint) =>
-      Effect.map(
-        webhooks.listDeliveries({ endpointId: endpoint.id }),
-        (deliveries) => ({ ...endpoint, deliveries })
-      ),
-    { concurrency: 'unbounded' }
-  )
-  return {
-    viewer: ctx.actor ? { role: ctx.actor.role } : null,
-    unreadCount,
-    endpoints: withDeliveries
-  }
-})
+const webhooksPayload: WorkspacePageFrame<WorkspaceWebhooksPayload> = workspacePage(
+  { webhook: ['list'] },
+  () =>
+    Effect.gen(function* () {
+      const webhooks = yield* WebhookEndpoints
+      const segment = yield* Effect.all(
+        { unreadCount, endpoints: webhooks.list },
+        { concurrency: 'unbounded' }
+      )
+      const endpoints = yield* Effect.forEach(
+        segment.endpoints,
+        (endpoint) =>
+          Effect.map(
+            webhooks.listDeliveries({ endpointId: endpoint.id }),
+            (deliveries) => ({ ...endpoint, deliveries })
+          ),
+        { concurrency: 'unbounded' }
+      )
+      return { unreadCount: segment.unreadCount, endpoints }
+    })
+)
 
 /** The webhooks route's loader. */
 export function loadWorkspaceWebhooks(input: {
@@ -126,7 +116,6 @@ const decodeEndpointMutation = Schema.decodeUnknownSync(EndpointMutationSchema)
  */
 export function disableWebhookEndpoint(input: {
   readonly endpointId: string
-  readonly actorUserId: string
 }): Effect.Effect<
   boolean,
   AuthorizationDenied | CapabilityUnavailable,
@@ -146,8 +135,7 @@ export const disableWebhookEndpointServerFn = createServerFn({ method: 'POST' })
     return runWorkspaceCapabilities(
       data.workspaceSlug,
       disableWebhookEndpoint({
-        endpointId: data.endpointId,
-        actorUserId: session.user.id
+        endpointId: data.endpointId
       }),
       { userId: session.user.id }
     )
@@ -160,7 +148,6 @@ export const disableWebhookEndpointServerFn = createServerFn({ method: 'POST' })
  */
 export function rotateWebhookSecret(input: {
   readonly endpointId: string
-  readonly actorUserId: string
 }): Effect.Effect<
   string | null,
   AuthorizationDenied | CapabilityUnavailable,
@@ -181,8 +168,7 @@ export const rotateWebhookSecretServerFn = createServerFn({ method: 'POST' })
     return runWorkspaceCapabilities(
       data.workspaceSlug,
       rotateWebhookSecret({
-        endpointId: data.endpointId,
-        actorUserId: session.user.id
+        endpointId: data.endpointId
       }),
       { userId: session.user.id }
     )

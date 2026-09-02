@@ -1,3 +1,4 @@
+import { hasValue } from '@b2b-saas-starter/env/server'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 
 /**
@@ -12,17 +13,16 @@ export type ClientTelemetryConfig = {
   readonly posthogHost: string | undefined
 }
 
-/** Absent, null, and empty all count as unset — no empty-string DSNs reach an
+/**
+ * Absent, null, and empty all count as unset — no empty-string DSNs reach an
  * SDK. (Worker env keys for unset optional providers arrive as `null` from
- * deploys that forward them explicitly, so `undefined` alone is not enough.) */
+ * deploys that forward them explicitly, so `undefined` alone is not enough.)
+ * The test itself is `hasValue` from `@b2b-saas-starter/env` — the one
+ * "unset means inactive" rule; this only turns its verdict into the optional
+ * string the client config carries.
+ */
 function nonEmptyEnvValue(value: string | null | undefined): string | undefined {
-  if (value === undefined || value === null) {
-    return undefined
-  }
-  if (value.length === 0) {
-    return undefined
-  }
-  return value
+  return hasValue(value) ? value : undefined
 }
 
 /** Runs on the server only — it reads the worker's env bag. */

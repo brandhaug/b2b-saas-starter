@@ -1,6 +1,6 @@
 import { DateTime, Effect, Layer, Option } from 'effect'
 
-import { assertWithinPlanLimit } from '../billing/billing.ts'
+import { assertWithinPlanLimit } from '../billing/plan-catalog.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import {
@@ -13,6 +13,7 @@ import {
   type WebhookDeliveryStatus
 } from './webhook-delivery-plan.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
+import { seedWorkspaceRecord } from '../seed-fixture.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 /**
@@ -31,9 +32,6 @@ export type SeedWebhookEndpointFixture = {
   readonly signingSecret?: string
   readonly workspaceId?: string
 }
-
-/** Owning workspace of fixture endpoints without an explicit one. Matches `seedWorkspaceRecord.id`; kept literal to avoid a fixture import cycle. */
-const SEED_WORKSPACE_ID = 'wrk_starter'
 
 type SeedEndpointRow = {
   readonly id: string
@@ -83,7 +81,7 @@ export function SeedWebhookEndpoints(
       // same precedent; contract cases run unmodified against both adapters.
       const endpoints: Array<SeedEndpointRow> = seedFixtures.map((fixture) => ({
         id: fixture.id,
-        workspaceId: fixture.workspaceId ?? SEED_WORKSPACE_ID,
+        workspaceId: fixture.workspaceId ?? seedWorkspaceRecord.id,
         url: fixture.url,
         enabled: fixture.enabled,
         events: [...fixture.events],
@@ -197,7 +195,7 @@ export function SeedWebhookEndpoints(
           endpoints.push(endpoint)
           yield* audit.record({
             workspaceId: ctx.workspace.id,
-            actorUserId: input.actorUserId ?? null,
+            actorUserId: ctx.actor?.userId ?? null,
             eventType: 'webhook_endpoint.created',
             targetType: 'webhook_endpoint',
             targetId: endpoint.id,
@@ -250,7 +248,7 @@ export function SeedWebhookEndpoints(
             const ctx = yield* WorkspaceContext
             yield* audit.record({
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.disabled',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -268,7 +266,7 @@ export function SeedWebhookEndpoints(
             const ctx = yield* WorkspaceContext
             yield* audit.record({
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.secret_rotated',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,

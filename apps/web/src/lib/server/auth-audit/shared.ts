@@ -22,10 +22,11 @@ export class AuthAuditWriteFailed extends Schema.TaggedError<AuthAuditWriteFaile
   { reason: Schema.String }
 ) {}
 
-// Reasons for the two tagged errors below when the thrown value carries no
-// message of its own. Each names the step that failed, so a reason column with
-// one of these strings still says where the audit path gave up.
-const BODY_UNREADABLE_REASON = 'sign-in response body could not be read'
+// Fallback reasons for the tagged errors below, used when the thrown value
+// carries no message of its own. Each names the step that failed, so a reason
+// column with one of these strings still says where the audit path gave up.
+const RESPONSE_BODY_UNREADABLE_REASON = 'auth response body could not be read'
+const REQUEST_BODY_UNREADABLE_REASON = 'auth request body could not be read'
 const WRITE_FAILED_REASON = 'audit event could not be written'
 
 /**
@@ -39,8 +40,12 @@ const ResponseBody = Schema.Struct({
 
 const decodeResponseBody = Schema.decodeUnknownSync(ResponseBody)
 
-/** Reads the signed-in actor out of a successful auth response body. */
-export function readActorUserId(
+/**
+ * Reads the user an auth response names out of its body. That user is the
+ * actor for the rows whose response names the signed-in user, and the target
+ * for the admin row whose request names nobody (create-user).
+ */
+export function readResponseUserId(
   response: Response
 ): Effect.Effect<string | null, AuthAuditBodyUnreadable> {
   return Effect.tryPromise({
@@ -50,7 +55,36 @@ export function readActorUserId(
     },
     catch: (cause) =>
       new AuthAuditBodyUnreadable({
-        reason: causeMessage(cause, BODY_UNREADABLE_REASON)
+        reason: causeMessage(cause, RESPONSE_BODY_UNREADABLE_REASON)
+      })
+  })
+}
+
+/**
+ * The request-body fields of the admin endpoints this audit path reads.
+ */
+const RequestBody = Schema.Struct({
+  userId: Schema.optionalKey(Schema.String)
+})
+
+const decodeRequestBody = Schema.decodeUnknownSync(RequestBody)
+
+/**
+ * Reads the acted-on user id off an auth request body. Mirrors
+ * `readResponseUserId`: the body is an untrusted boundary value, decoded
+ * rather than asserted.
+ */
+export function readRequestUserId(request: {
+  readonly json: <T>() => Promise<T>
+}): Effect.Effect<string | null, AuthAuditBodyUnreadable> {
+  return Effect.tryPromise({
+    try: async () => {
+      const body = decodeRequestBody(await request.json())
+      return body.userId ?? null
+    },
+    catch: (cause) =>
+      new AuthAuditBodyUnreadable({
+        reason: causeMessage(cause, REQUEST_BODY_UNREADABLE_REASON)
       })
   })
 }

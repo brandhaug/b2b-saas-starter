@@ -1,13 +1,9 @@
 import {
-  WORKSPACE_ROLES,
   type Member,
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { useState } from 'react'
-import { useRouter } from '@tanstack/react-router'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import {
@@ -18,10 +14,10 @@ import {
   ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
-import { Spinner } from '@/components/ui/spinner'
+import { RoleChangeButtons } from '@/components/role-change-buttons'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { changeMemberRoleServerFn } from '@/lib/server/workspace-members'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 
 const CHANGE_FAILED = 'Failed to change the role'
 
@@ -33,11 +29,6 @@ function roleVariant(role: WorkspaceRole): 'default' | 'secondary' | 'outline' {
     return 'secondary'
   }
   return 'outline'
-}
-
-/** The roles a member can be moved to from their current one. */
-function otherRoles(current: WorkspaceRole): ReadonlyArray<WorkspaceRole> {
-  return WORKSPACE_ROLES.filter((role) => role !== current)
 }
 
 /**
@@ -54,28 +45,15 @@ export function MembersPanel({
   readonly members: ReadonlyArray<Member>
   readonly viewer: Viewer
 }) {
-  const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
-  const [changing, setChanging] = useState<string | null>(null)
-
   const canManage = viewerCan(viewer, { member: ['update'] })
 
-  async function changeRole(userId: string, role: WorkspaceRole) {
-    setError(null)
-    setChanging(userId)
-    const outcome = await callServerFn(
-      () => changeMemberRoleServerFn({ data: { workspaceSlug, userId, role } }),
-      CHANGE_FAILED
-    )
-    setChanging(null)
-    if (!outcome.ok) {
-      setError(outcome.message)
-      return
-    }
-    // The loader owns the roster, so re-run it rather than mirroring the
-    // changed row into local state.
-    await router.invalidate()
-  }
+  // The loader owns the roster, so the hook re-runs it on success rather than
+  // mirroring the changed row into local state.
+  const changeRole = useServerAction(
+    ({ userId, role }: { readonly userId: string; readonly role: WorkspaceRole }) =>
+      changeMemberRoleServerFn({ data: { workspaceSlug, userId, role } }),
+    { failureMessage: CHANGE_FAILED }
+  )
 
   if (members.length === 0) {
     return (
@@ -91,45 +69,40 @@ export function MembersPanel({
   return (
     <div className="grid gap-2">
       <ItemGroup>
-        {members.map((member) => (
-          <Item key={member.id} variant="outline" size="sm">
-            <ItemContent>
-              <ItemTitle>{member.name}</ItemTitle>
-              <ItemDescription>{member.email}</ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              <Badge variant={roleVariant(member.role)}>{member.role}</Badge>
-              {canManage
-                ? otherRoles(member.role).map((role) => (
-                    <Button
-                      key={role}
-                      variant="ghost"
-                      size="sm"
-                      disabled={changing === member.id}
-                      aria-label={`Make ${role}: ${member.name}`}
-                      onClick={() => void changeRole(member.id, role)}
-                    >
-                      {changing === member.id ? (
-                        <Spinner data-icon="inline-start" />
-                      ) : null}
-                      Make {role}
-                    </Button>
-                  ))
-                : null}
-            </ItemActions>
-          </Item>
-        ))}
+        {members.map((member) => {
+          const changing = changeRole.pendingInput?.userId === member.id
+          return (
+            <Item key={member.id} variant="outline" size="sm">
+              <ItemContent>
+                <ItemTitle>{member.name}</ItemTitle>
+                <ItemDescription>{member.email}</ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <Badge variant={roleVariant(member.role)}>{member.role}</Badge>
+                {canManage ? (
+                  <RoleChangeButtons
+                    currentRole={member.role}
+                    labelFor={(role) => `Make ${role}: ${member.name}`}
+                    disabled={changing}
+                    busy={changing}
+                    onChange={(role) => changeRole.run({ userId: member.id, role })}
+                  />
+                ) : null}
+              </ItemActions>
+            </Item>
+          )
+        })}
       </ItemGroup>
       {canManage ? null : (
         <p className="text-xs text-muted-foreground">
           Your role cannot change member roles.
         </p>
       )}
-      {error ? (
+      {changeRole.error === null ? null : (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{changeRole.error}</AlertDescription>
         </Alert>
-      ) : null}
+      )}
     </div>
   )
 }

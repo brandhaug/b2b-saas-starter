@@ -72,7 +72,7 @@ describe('starter/no-effect-escape-hatch', () => {
   )
 
   rule.invalid(
-    'reports inside test files, because the exemption lives in .oxlintrc.json',
+    'reports inside test files, because the exemption lives in the lint config',
     `
 			import { Effect } from 'effect'
 

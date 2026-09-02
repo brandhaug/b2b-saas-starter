@@ -10,8 +10,9 @@ import noUnknownErrorMessage from './rules/no-unknown-error-message.ts'
 import noUnsupportedEffectApi from './rules/no-unsupported-effect-api.ts'
 import preferEffectPredicate from './rules/prefer-effect-predicate.ts'
 
-// Rule ids are alphabetical. `.oxlintrc.json` enables and scopes every one of them;
-// see packages/oxlint-plugin/AGENTS.md for what each catches.
+// Rule ids are alphabetical. The root `vite.config.ts` `lint` block enables and
+// scopes every one of them; see packages/oxlint-plugin/AGENTS.md for what each
+// catches.
 export default definePlugin({
   meta: { name: 'starter' },
   rules: {

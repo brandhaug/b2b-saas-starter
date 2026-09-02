@@ -1,3 +1,4 @@
+import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { type AuthConfigInterface, makeAuthOptions } from './index.ts'
 
@@ -13,10 +14,13 @@ const baseConfig: AuthConfigInterface = {
   baseURL: 'http://localhost:3071',
   trustedOrigins: [],
   emails: {
-    sendPasswordReset: () => Promise.resolve(),
-    sendEmailVerification: () => Promise.resolve()
+    sendResetPassword: () => Promise.resolve(),
+    sendVerificationEmail: () => Promise.resolve()
   },
-  requireEmailVerification: false
+  requireEmailVerification: false,
+  runBackground: (promise) => {
+    void promise.catch(() => undefined)
+  }
 }
 
 describe('makeAuthOptions', () => {
@@ -78,24 +82,38 @@ describe('makeAuthOptions', () => {
   })
 
   describe('background tasks', () => {
-    it('runs detached promises inline without crashing when they reject', () => {
-      const handler = makeAuthOptions(baseConfig).advanced.backgroundTasks.handler
-      // The fallback must attach handlers (so an unhandled rejection cannot
-      // take the isolate down) without awaiting, rethrowing, or throwing on
-      // the synchronous path.
-      expect(() => {
-        handler(Promise.resolve())
-        handler(Promise.reject(new Error('send failed')))
-      }).not.toThrow()
-    })
-
-    it('delegates to runBackground when the app provides one', () => {
+    it("hands every detached promise to the caller's runner", () => {
+      // `runBackground` is required on the config: this package picks no
+      // fallback, so a Worker without `waitUntil` cannot silently lose a send
+      // — the app decides what a detached promise means and owns its
+      // rejection.
       const runBackground = vi.fn()
       const handler = makeAuthOptions({ ...baseConfig, runBackground }).advanced
         .backgroundTasks.handler
       const promise = Promise.resolve()
       handler(promise)
       expect(runBackground).toHaveBeenCalledWith(promise)
+    })
+  })
+
+  describe('lifecycle emails', () => {
+    it("passes the app's adapter through as Better Auth's own callbacks", () => {
+      // The port carries Better Auth's callback signature, so there is no
+      // rename wrapper between the two — identity, not equivalence.
+      const options = makeAuthOptions(baseConfig)
+      expect(options.emailAndPassword.sendResetPassword).toBe(
+        baseConfig.emails.sendResetPassword
+      )
+      expect(options.emailVerification.sendVerificationEmail).toBe(
+        baseConfig.emails.sendVerificationEmail
+      )
+    })
+  })
+
+  describe('admin gate', () => {
+    it('reads the privileged system role from the stored vocabulary', () => {
+      const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'admin')
+      expect(options.adminRoles).toEqual([adminSystemRole])
     })
   })
 

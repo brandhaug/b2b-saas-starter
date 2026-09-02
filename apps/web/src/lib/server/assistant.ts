@@ -8,7 +8,7 @@ import {
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Schema, type Scope } from 'effect'
 
@@ -17,6 +17,7 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
+import { workspacePage, type WorkspacePageFrame } from './page-frame'
 
 /**
  * Honest copy shown wherever the assistant would be, when no provider is
@@ -26,55 +27,26 @@ import { requireWorkspacePermission } from './authorize'
 export const ASSISTANT_UNCONFIGURED_MESSAGE =
   'The AI assistant is not enabled on this deployment. Set WORKERS_AI_ENABLED=true with the AI binding, or OPENAI_API_KEY, to turn it on.'
 
-/** The provider configuration this worker was deployed with. Only keys that
- * are actually present are copied across — a present-but-undefined key would
- * claim a configuration that does not exist (same rule as `apps/api`). */
-function assistantProviderEnv(): ProviderEnv {
-  const provider: { -readonly [K in keyof ProviderEnv]: ProviderEnv[K] } = {}
-  if (cloudflareEnv.AI) {
-    provider.AI = cloudflareEnv.AI
-  }
-  if (cloudflareEnv.WORKERS_AI_ENABLED) {
-    provider.WORKERS_AI_ENABLED = cloudflareEnv.WORKERS_AI_ENABLED
-  }
-  if (cloudflareEnv.OPENAI_API_KEY) {
-    provider.OPENAI_API_KEY = cloudflareEnv.OPENAI_API_KEY
-  }
-  if (cloudflareEnv.OPENAI_BASE_URL) {
-    provider.OPENAI_BASE_URL = cloudflareEnv.OPENAI_BASE_URL
-  }
-  if (cloudflareEnv.OPENAI_MODEL_ID) {
-    provider.OPENAI_MODEL_ID = cloudflareEnv.OPENAI_MODEL_ID
-  }
-  return provider
-}
-
 /**
  * The assistant page payload: who is viewing and whether a real provider is
  * configured. `assistant: ['read']` is the page's own read permission and a
  * hard gate — every role holds it today, so all members get the page; the gate
  * is what keeps the statement table as the single place that decides.
  *
- * `configured` is derived from the same env the ask path uses, so the UI's
- * hidden state can never disagree with the server's answer.
+ * `configured` is derived from the same env — and the same selector — the ask
+ * path uses, so the UI's hidden state can never disagree with the server's
+ * answer. The worker env is passed straight to `packages/ai`: its `ProviderEnv`
+ * picks the assistant's keys off `ServerEnv`, so there is nothing to copy.
  */
 export type AssistantPagePayload = {
   readonly viewer: WorkspaceViewer | null
   readonly configured: boolean
 }
 
-const assistantPagePayload: Effect.Effect<
-  AssistantPagePayload,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext
-> = Effect.gen(function* () {
-  yield* requireWorkspacePermission({ assistant: ['read'] })
-  const ctx = yield* WorkspaceContext
-  return {
-    viewer: ctx.actor ? { role: ctx.actor.role } : null,
-    configured: isAssistantConfigured(assistantProviderEnv())
-  }
-})
+const assistantPagePayload: WorkspacePageFrame<AssistantPagePayload> = workspacePage(
+  { assistant: ['read'] },
+  () => Effect.sync(() => ({ configured: isAssistantConfigured(cloudflareEnv) }))
+)
 
 /** The assistant route's loader. */
 export function loadAssistantPage(input: {
@@ -172,14 +144,13 @@ export const askAssistantServerFn = createServerFn({ method: 'POST' })
   .validator((input) => decodeAskInput(input))
   .handler(async ({ data }): Promise<AskAssistantOutcome> => {
     const session = await requireRequestSession()
-    const provider = assistantProviderEnv()
     return runWorkspaceCapabilities(
       data.workspaceSlug,
-      askAssistantEffect(data.question, provider).pipe(
-        // Per call, from the same env snapshot the permission check ran
-        // against — mock when unconfigured, Workers AI / OpenAI-compatible
-        // when the deployment says so.
-        Effect.provide(selectAssistantLayer(provider))
+      askAssistantEffect(data.question, cloudflareEnv).pipe(
+        // Per call, from the same worker env the configured-check reads —
+        // mock when unconfigured, Workers AI / OpenAI-compatible when the
+        // deployment says so.
+        Effect.provide(selectAssistantLayer(cloudflareEnv))
       ),
       { userId: session.user.id }
     )

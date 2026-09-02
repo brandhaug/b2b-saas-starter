@@ -1,7 +1,7 @@
 import { auditRequiredEnv, type RequiredEnvAudit } from '@b2b-saas-starter/env/server'
 import { Effect } from 'effect'
 import { env as cloudflareEnv } from 'cloudflare:workers'
-import { withWebRequestScope } from '@/lib/observability'
+import { webRuntime, withWebRequestScope } from '@/lib/observability'
 
 /**
  * Raised when the worker would authenticate users on an insecure required
@@ -20,7 +20,12 @@ export class InsecureProductionEnvError extends Error {
   }
 }
 
-/** The pure decision, exported for tests: production + problems → throw. */
+/**
+ * The refusal decision, in one place: production + problems → throw.
+ *
+ * `enforceRequiredEnvOnce` below calls this rather than restating it, so the
+ * branch the tests drive is the branch a request takes.
+ */
 export function enforceRequiredEnvAudit(audit: RequiredEnvAudit): void {
   if (audit.mode !== 'production' || audit.problems.length === 0) {
     return
@@ -56,10 +61,11 @@ export function enforceRequiredEnvOnce(): void {
     verdict = 'ok'
     return
   }
-  if (audit.mode === 'production') {
-    // oxlint-disable-next-line effect/noThrowStatement -- deliberate refusal to serve: the request middleware has no error channel, and failing every request until the deployment is fixed is the point
-    throw new InsecureProductionEnvError(audit.problems)
-  }
+  // Deliberate refusal to serve when the audit says production: the throw
+  // crosses the middleware boundary and fails every request until the
+  // deployment is fixed. The gate re-runs while `verdict` stays unset, so a
+  // fix rolled out without a new isolate starts serving immediately.
+  enforceRequiredEnvAudit(audit)
   if (verdict === 'warned') {
     return
   }
@@ -69,7 +75,7 @@ export function enforceRequiredEnvOnce(): void {
   // missing-request lookup forces the standalone branch of
   // `withWebRequestScope` (its `scope: 'standalone'` tag reads as "not part
   // of any request", which is the truth here).
-  void Effect.runPromiseExit(
+  void webRuntime.runPromiseExit(
     withWebRequestScope(
       {
         event: 'config.insecure',

@@ -1,4 +1,5 @@
 import { makeTurnstileVerifierLayer } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
+import { hasValue } from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 
@@ -17,12 +18,12 @@ export function makeTurnstileLayer() {
 
 // Server-only read: the secret must never reach a client bundle; only the
 // site key (safe to expose) crosses the server-function boundary below.
+// `hasValue` is the shared "unset means inactive" test (`@b2b-saas-starter/env`),
+// so an empty or null-forwarded site key renders no widget exactly like an
+// absent one — the same verdict the verifier layer reaches on the secret.
 const readSiteKey = createServerOnlyFn((): string | null => {
   const siteKey = env.TURNSTILE_SITE_KEY
-  if (siteKey === undefined || siteKey.length === 0) {
-    return null
-  }
-  return siteKey
+  return hasValue(siteKey) ? siteKey : null
 })
 
 export const getTurnstileSiteKey = createServerFn({ method: 'GET' }).handler(

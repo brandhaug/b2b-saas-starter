@@ -1,4 +1,5 @@
-import { Clock, Effect, Result, Schema, type Scope } from 'effect'
+import { failureMessage } from '@b2b-saas-starter/failure'
+import { Clock, Effect, Result, type Scope } from 'effect'
 
 // Cloudflare Rate Limiting binding shape (subset). The actual bindings are
 // provisioned via each worker's wrangler.jsonc (`unsafe.bindings`) and
@@ -9,17 +10,6 @@ export type CloudflareRateLimit = {
     readonly success: boolean
   }>
 }
-
-/**
- * The Cloudflare ratelimit binding call rejected (transient platform error).
- * Never reaches callers — `take` degrades to the in-memory fallback — but the
- * reason is carried this far so it can be put on the request's wide event.
- */
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class RateLimitBindingFailure extends Schema.TaggedError<RateLimitBindingFailure>()(
-  'RateLimitBindingFailure',
-  { reason: Schema.String }
-) {}
 
 export type RateLimitInput<Bucket extends string> = {
   readonly bucket: Bucket
@@ -72,13 +62,6 @@ function takeFromFallback(
   return true
 }
 
-function bindingFailureReason(cause: unknown): string {
-  if (cause instanceof Error) {
-    return cause.message
-  }
-  return String(cause)
-}
-
 /** Why the limiter degraded: the binding was never provisioned, or its call failed. */
 function fallbackReason(
   binding: CloudflareRateLimit | undefined
@@ -100,8 +83,10 @@ export function makeRateLimiter<Bucket extends string>(
           const attempt = yield* Effect.result(
             Effect.tryPromise({
               try: () => binding.limit({ key: input.key }),
-              catch: (cause) =>
-                new RateLimitBindingFailure({ reason: bindingFailureReason(cause) })
+              // The failure never reaches a caller — `take` degrades to the
+              // in-memory fallback — so the reason travels as the message it
+              // will be logged as, not as a tagged class nothing catches.
+              catch: failureMessage
             })
           )
           if (Result.isSuccess(attempt)) {
@@ -111,7 +96,7 @@ export function makeRateLimiter<Bucket extends string>(
           // Carry the binding's own failure reason onto the wide event before
           // degrading — the fallback must never hide why the binding failed.
           yield* Effect.annotateLogsScoped({
-            rateLimitBindingError: attempt.failure.reason
+            rateLimitBindingError: attempt.failure
           })
         }
         // Falling back to the per-isolate in-memory map — either the binding

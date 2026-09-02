@@ -92,7 +92,9 @@ export const readScopeRole = accessControl.newRole(readScopeStatements)
 export const writeScopeRole = accessControl.newRole({
   ...readScopeStatements,
   invitation: ['create'],
-  webhook: ['list', 'create']
+  // Extends the read set — restating it would silently drop any read action
+  // later added to the `webhook` statements.
+  webhook: [...readScopeStatements.webhook, 'create']
 })
 
 /**

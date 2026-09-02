@@ -13,6 +13,10 @@ Workers do not call it directly. Two envelopes wrap it:
 - `withHttpRequestScope({ service, event, request, env, metadata })` — HTTP handlers. Owns the whole recipe: `traceparent`/`b3` continuation, the `x-trace-id` correlation key, env + cf-colo enrichment, `pathname`/`method`.
 - `withTriggerScope({ service, event, env, parent?, spanKind?, metadata })` — cron ticks and queue messages, where there is no `Request`. `parent`/`spanKind` are the `TraceContinuation` pair both option types share.
 
+**An HTTP entry point wants `withHttpInvocation`, not `withHttpRequestScope`.** The scope and its per-invocation OTLP layer are one recipe, not two choices (invariant 4), so `withHttpInvocation({ service, event, request, env, metadata })` — `src/invocation.ts` — is the scope with `Effect.provide(makeOtlpLayer(service, env), { local: true })` already around it. `apps/web`'s request middleware and `apps/api`'s `observed` are both just that call plus their own body. What the caller still owns is which loggers are in context (a module-scope `ManagedRuntime` in `apps/web`, the router layer in `apps/api`).
+
+Queue and cron triggers stay on `withTriggerScope`: they have no `Request` to continue a trace from, and in `apps/background` one invocation carries a whole batch, so its exporters wrap N scopes rather than one — `runInvocation` there provides them once per batch.
+
 Inside the scope, handlers add business context with `Effect.annotateLogsScoped(fields)` (an alias of `Effect.annotateLogsScoped`). It requires a `Scope`, which is how the type system keeps annotations from outliving the event they belong to.
 
 ## Invariants
@@ -27,6 +31,7 @@ Inside the scope, handlers add business context with `Effect.annotateLogsScoped(
 
 | Export                                         | Use                                                                         |
 | ---------------------------------------------- | --------------------------------------------------------------------------- |
+| `withHttpInvocation`                           | HTTP entry points: the request scope plus its per-invocation exporters      |
 | `withHttpRequestScope` / `withTriggerScope`    | Open the one scope per invocation                                           |
 | `withRequestScope`                             | The primitive both wrap; reach for it only for a genuinely new trigger kind |
 | `Effect.annotateLogsScoped`                    | Add business context to the current event                                   |
@@ -46,7 +51,7 @@ Inside the scope, handlers add business context with `Effect.annotateLogsScoped(
 - Don't call `Effect.log` for request-scoped facts. Annotate the wide event instead — a second line is a second thing to join.
 - Don't build `traceparent` by hand or read it off an inbound header when producing a message. `currentTraceparent` is the encoder, and the span to continue is the one open now.
 - Don't set `traceparent`/`b3` on outbound HTTP. Effect's `HttpClient` injects them.
-- Don't hoist `makeOtlpLayer` to module scope in a worker, and don't merge it beside `WideEventLoggerLive` (invariant 4).
+- Don't hoist `makeOtlpLayer` to module scope in a worker, and don't merge it beside `WideEventLoggerLive` (invariant 4). At an HTTP entry point don't hand-assemble the pair at all — `withHttpInvocation` is it.
 - Don't call vendor SDKs (Sentry, PostHog) ad hoc from handlers or capabilities — failed scopes already reach Sentry and every scope already becomes a PostHog event through `wireWideEventProviders` (`src/providers.ts`). Both stay inert until `SENTRY_DSN` / `POSTHOG_KEY` exist. Like the OTLP layer, the PostHog client is per invocation; never hoist one to module scope.
 - Don't import `src/providers.ts` from code that reaches the browser bundle — its SDK imports are lazy for exactly that reason.
 - Don't mint a correlation id by hand. `currentTraceId` is the only source; the id generator behind it is deliberately not exported.

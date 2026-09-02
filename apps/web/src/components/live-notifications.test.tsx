@@ -1,12 +1,11 @@
-import { type ReactElement } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
   LiveNotifications,
   type ListNotifications,
   type NotificationPreview
 } from './live-notifications'
+import { renderWithQueryClient } from '@/test/query-harness'
 
 // The card's own `listNotifications` port, handed in as a prop. A real function
 // of the declared shape, so the module under test is the one that ships.
@@ -17,15 +16,8 @@ const fallback: ReadonlyArray<NotificationPreview> = [
   { id: 'n2', title: 'Catalog refreshed', message: 'Refresh completed.', read: true }
 ]
 
-function renderWithClient(ui: ReactElement) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } }
-  })
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
-}
-
 function renderCard(cardFallback: ReadonlyArray<NotificationPreview>) {
-  return renderWithClient(
+  return renderWithQueryClient(
     <LiveNotifications
       workspaceSlug="starter-lab"
       fallback={cardFallback}

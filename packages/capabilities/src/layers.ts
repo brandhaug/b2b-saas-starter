@@ -2,11 +2,9 @@ import { type Database, type RawD1, layerFromD1 } from '@b2b-saas-starter/db/ser
 import { Effect, Layer } from 'effect'
 
 // developer-platform
-import {
-  type ApiTokenRegistry,
-  LiveApiTokenRegistry,
-  SeedApiTokenRegistry
-} from './developer-platform/api-token-registry.ts'
+import { LiveApiTokenRegistry } from './developer-platform/api-token-registry.live.ts'
+import { SeedApiTokenRegistry } from './developer-platform/api-token-registry.seed.ts'
+import { type ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
 import { LiveWebhookEndpoints } from './developer-platform/webhook-endpoints.live.ts'
 import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
 import { type WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
@@ -23,9 +21,9 @@ import {
   LiveAuditEventLog,
   SeedAuditEventLog
 } from './governance/audit-event-log.ts'
+import { LiveWorkspaceInvitations } from './governance/workspace-invitations.live.ts'
+import { SeedWorkspaceInvitations } from './governance/workspace-invitations.seed.ts'
 import {
-  LiveWorkspaceInvitations,
-  SeedWorkspaceInvitations,
   type WorkspaceInvitationBinding,
   type WorkspaceInvitations
 } from './governance/workspace-invitations.ts'
@@ -111,7 +109,7 @@ const SeedGovernance = Layer.unwrap(
  * audit events below their interface — separate instances would each hold a
  * private store and recorded events would not read back.
  */
-const SeedAuditLog = SeedAuditEventLog(seedAuditEvents)
+const SeedAuditLog = SeedAuditEventLog(seedAuditEvents, seedSystemUsers)
 
 /**
  * Billing rides the governance seed so its audit writes land in the same

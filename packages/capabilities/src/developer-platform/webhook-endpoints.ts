@@ -1,6 +1,7 @@
 import { Context, Effect, Schema, type Option } from 'effect'
 
 import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts'
+import { literalTuple } from '../internal/literal-tuple.ts'
 import {
   type ListWebhookDeliveriesInput,
   type WebhookDelivery,
@@ -36,7 +37,6 @@ export type CreateWebhookEndpointInput = {
   // field, and both adapters treat an absent key and an explicit `undefined` the
   // same way. Without it every caller has to hand-build the input key by key.
   readonly description?: string | undefined
-  readonly actorUserId?: string
 }
 
 /**
@@ -45,17 +45,14 @@ export type CreateWebhookEndpointInput = {
  * Subscriptions are free-text strings so a producer can grow without a
  * migration; this list is what the management UI offers as checkboxes.
  */
-export type WebhookEventType =
-  | 'api_token.created'
-  | 'api_token.revoked'
-  | 'webhook_endpoint.created'
-
-// oxlint-disable-next-line effect/noAs -- a const assertion, not a type assertion
-export const WEBHOOK_EVENT_TYPES = [
+export const WEBHOOK_EVENT_TYPES = literalTuple(
   'api_token.created',
   'api_token.revoked',
   'webhook_endpoint.created'
-] as const satisfies ReadonlyArray<WebhookEventType>
+)
+
+/** The union of {@link WEBHOOK_EVENT_TYPES} — the vocabulary is written once. */
+export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number]
 
 /** Wire payload for endpoint creation, shared by the REST contract and the API worker. */
 export const CreateWebhookEndpointPayload = Schema.Struct({
@@ -67,12 +64,10 @@ export type CreateWebhookEndpointPayload = typeof CreateWebhookEndpointPayload.T
 
 export type DisableWebhookEndpointInput = {
   readonly endpointId: string
-  readonly actorUserId?: string
 }
 
 export type RotateWebhookSecretInput = {
   readonly endpointId: string
-  readonly actorUserId?: string
 }
 
 export type WebhookEndpointsInterface = {

@@ -1,8 +1,4 @@
-import {
-  batch,
-  type BatchStatement,
-  type D1Binding
-} from '@b2b-saas-starter/db/service'
+import { batch, type BatchStatement, RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 
 import { type CapabilityUnavailable } from '../errors.ts'
@@ -27,9 +23,8 @@ import { type RecordAuditEventInput } from './audit-event-log.ts'
  * no phantom revocation, no phantom disable.
  */
 
-/** What a Live layer hands over once: the raw D1 binding for the batch, its `Database`, the audit preparer, and its own `orUnavailable` wrapper (so a 503 names the failing capability). */
+/** What a Live layer hands over once: the audit preparer and its own `orUnavailable` wrapper (so a 503 names the failing capability). The raw binding comes from the {@link RawD1} service instead. */
 export type AuditedMutationDeps = {
-  readonly d1: D1Binding
   readonly prepareAuditRecord: (
     input: RecordAuditEventInput
   ) => Effect.Effect<BatchStatement>
@@ -54,22 +49,30 @@ export type AuditedMutationInput = {
   readonly write: () => BatchStatement
 }
 
+/** One audited mutation: `true` when the batch ran, `false` when the pre-check found nothing. */
+export type AuditedMutation = (
+  input: AuditedMutationInput
+) => Effect.Effect<boolean, CapabilityUnavailable>
+
 /**
- * Builds the audited-mutation combinator for one Live layer. Resolves `true`
- * when the batch ran, `false` when the pre-check found nothing — callers map
- * that onto their interface's shape (`boolean`, `Option.some(...)`, …).
+ * Builds the audited-mutation combinator for one Live layer. Effectful because
+ * it resolves the `RawD1` binding `batch` needs once, at layer construction,
+ * and hands each mutation a closed-over copy — so the combinator a capability
+ * stores on its service record carries no leftover requirement.
  */
-export function auditedMutations(deps: AuditedMutationDeps) {
-  return function auditedMutation(
-    input: AuditedMutationInput
-  ): Effect.Effect<boolean, CapabilityUnavailable> {
-    return Effect.gen(function* () {
-      if (!(yield* input.matched)) {
-        return false
-      }
-      const auditStatement = yield* deps.prepareAuditRecord(input.auditEvent)
-      yield* deps.unavailable(batch(deps.d1, [input.write(), auditStatement]))
-      return true
-    })
-  }
+export function auditedMutations(
+  deps: AuditedMutationDeps
+): Effect.Effect<AuditedMutation, never, RawD1> {
+  return Effect.gen(function* () {
+    const d1 = yield* RawD1
+    return (input: AuditedMutationInput) =>
+      Effect.gen(function* () {
+        if (!(yield* input.matched)) {
+          return false
+        }
+        const auditStatement = yield* deps.prepareAuditRecord(input.auditEvent)
+        yield* deps.unavailable(batch([input.write(), auditStatement]))
+        return true
+      }).pipe(Effect.provideService(RawD1, d1))
+  })
 }

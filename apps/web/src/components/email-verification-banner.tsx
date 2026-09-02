@@ -1,33 +1,13 @@
 import { useState } from 'react'
 import { MailWarningIcon } from 'lucide-react'
-import { authClient } from '@/lib/auth-client'
+import {
+  sendVerificationEmailWithAuthClient,
+  type SendVerificationEmail
+} from '@/components/auth/auth-client-ports'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 
-/**
- * Resending the verification email, as a port. Injected rather than reaching
- * for the `authClient` singleton at the call site so a test drives the banner
- * with a real function of this shape instead of replacing `@/lib/auth-client`.
- */
-export type SendVerificationEmail = (input: {
-  readonly email: string
-}) => Promise<{ readonly error?: { readonly message?: string | undefined } | null }>
-
-/**
- * Hoisted to module scope rather than written inline as a default: a new
- * function expression per render would be a fresh prop value every time.
- *
- * `callbackURL` is where Better Auth's verification redirect lands after the
- * emailed token is exchanged — without it the user would be dropped on '/'.
- */
-function sendVerificationEmailWithAuthClient(
-  input: Parameters<SendVerificationEmail>[0]
-): ReturnType<SendVerificationEmail> {
-  return authClient.sendVerificationEmail({
-    email: input.email,
-    callbackURL: `${window.location.origin}/verify-email`
-  })
-}
+export { type SendVerificationEmail }
 
 /**
  * Where the app surfaces the unverified state. Verification is encouraged,

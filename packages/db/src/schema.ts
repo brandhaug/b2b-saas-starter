@@ -1,4 +1,10 @@
-import { invitationStatuses, workspaceRoles, type ApiTokenScopeValue } from './enums.ts'
+import {
+  deliveryStatuses,
+  invitationStatuses,
+  systemRoles,
+  workspaceRoles,
+  type ApiTokenScopeValue
+} from './enums.ts'
 import { sql } from 'drizzle-orm'
 import {
   index,
@@ -10,10 +16,15 @@ import {
 } from 'drizzle-orm/sqlite-core'
 
 export {
+  adminSystemRole,
   apiTokenScopes,
+  deliveryStatuses,
   invitationStatuses,
+  systemRoles,
   workspaceRoles,
-  type ApiTokenScopeValue
+  type ApiTokenScopeValue,
+  type DeliveryStatus,
+  type SystemRoleValue
 } from './enums.ts'
 /**
  * What a `mode: 'json'` text column can hold: exactly what
@@ -43,44 +54,31 @@ function id() {
   return text('id').primaryKey()
 }
 
-function authCreatedAt() {
-  return integer('createdAt', { mode: 'timestamp' })
+/** One Better Auth epoch-seconds timestamp column, defaulted server-side. */
+function authTimestamp(column: string) {
+  return integer(column, { mode: 'timestamp' })
     .default(sql`(unixepoch())`)
     .notNull()
+}
+
+function authCreatedAt() {
+  return authTimestamp('createdAt')
 }
 
 function authTimestamps() {
   return {
     createdAt: authCreatedAt(),
-    updatedAt: integer('updatedAt', { mode: 'timestamp' })
-      .default(sql`(unixepoch())`)
-      .notNull()
+    updatedAt: authTimestamp('updatedAt')
   }
 }
 
+/**
+ * The starter dialect's required creation timestamp: an ISO string in `text`.
+ * Nullable ISO timestamps are plain `text(...)` — there is nothing to wrap.
+ */
 function isoCreatedAt() {
   return text('created_at').notNull()
 }
-
-/** Nullable sibling of {@link isoCreatedAt} for optional ISO timestamps. */
-function isoTimestamp(column: string) {
-  return text(column)
-}
-
-/**
- * The delivery state machine written by the background worker through
- * `WebhookEndpoints.recordDeliveryAttempt` / `recordTerminalDeliveryAttempt`:
- * `delivered` on a 2xx, `failed` while retries remain, `failed_permanent` on a
- * non-retryable response, `dead_lettered` once attempts are exhausted.
- */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
-export const deliveryStatuses = [
-  'delivered',
-  'failed',
-  'failed_permanent',
-  'dead_lettered'
-] as const
-export type DeliveryStatus = (typeof deliveryStatuses)[number]
 
 /**
  * The three workspace tables are owned by the organization plugin, so their
@@ -110,7 +108,10 @@ export const user = sqliteTable('user', {
   username: text('username').unique(),
   displayUsername: text('displayUsername'),
   emailVerified: integer('emailVerified', { mode: 'boolean' }).default(false).notNull(),
-  role: text('role').default('user'),
+  // The admin plugin's system role. Nullable because the plugin declares the
+  // field optional — a row written before the default, or by a path that omits
+  // it, reads as `null` and means `user`.
+  role: text('role', { enum: systemRoles }).default('user'),
   banned: integer('banned', { mode: 'boolean' }).default(false),
   banReason: text('banReason'),
   banExpires: integer('banExpires', { mode: 'timestamp' }),
@@ -296,8 +297,8 @@ export const apiTokens = sqliteTable(
     scopes: text('scopes', { mode: 'json' })
       .$type<ReadonlyArray<ApiTokenScopeValue>>()
       .notNull(),
-    lastUsedAt: isoTimestamp('last_used_at'),
-    revokedAt: isoTimestamp('revoked_at'),
+    lastUsedAt: text('last_used_at'),
+    revokedAt: text('revoked_at'),
     createdAt: isoCreatedAt(),
     createdByUserId: text('created_by_user_id').references(() => user.id)
   },
@@ -338,8 +339,8 @@ export const webhookDeliveries = sqliteTable(
     eventType: text('event_type').notNull(),
     status: text('status', { enum: deliveryStatuses }).notNull(),
     attempts: integer('attempts').default(0).notNull(),
-    lastAttemptAt: isoTimestamp('last_attempt_at'),
-    nextAttemptAt: isoTimestamp('next_attempt_at'),
+    lastAttemptAt: text('last_attempt_at'),
+    nextAttemptAt: text('next_attempt_at'),
     responseStatus: integer('response_status')
   },
   (table) => [index('webhook_deliveries_endpoint_id_idx').on(table.endpointId)]

@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { RoutePending } from '@/components/route-pending'
 import { WebhooksPanel } from '@/components/webhooks-panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import { viewerCan } from '@/lib/permissions'
 import {
   loadWorkspaceWebhooks,
   type WorkspaceWebhooksPayload
@@ -47,9 +46,7 @@ export function WorkspaceWebhooksPage({
       title="Webhooks"
       description="Outbound endpoints that receive workspace events."
       unreadCount={unreadCount}
-      canReadAuditLog={viewerCan(viewer, { auditLog: ['read'] })}
-      canReadApiTokens={viewerCan(viewer, { apiToken: ['list'] })}
-      canReadWebhooks={viewerCan(viewer, { webhook: ['list'] })}
+      viewer={viewer}
     >
       <div className="grid gap-6">
         <WebhooksPanel

@@ -39,7 +39,7 @@ The Live adapter classifies a binding rejection by the thrown value's `statusCod
 
 ## Seed / Live parity
 
-`workspace-membership.contract.ts` holds the cases both adapters must satisfy (capabilities invariant 4). `index.test.ts` runs them against Seed with no D1; `live-layers.test.ts` runs the same list against Live on a real one. Add a method to the interface and add its cases there — a Seed adapter that quietly diverges is exactly what this catches, and it already caught one (Seed used to remove a non-member silently).
+`workspace-membership.contract.ts` holds the cases both adapters must satisfy (capabilities invariant 4). `index.test.ts` runs them against Seed with no D1; `workspace-membership.live.test.ts` runs the same list against Live on a real one (its D1 fixture comes from `src/testing/live-harness.ts`). Add a method to the interface and add its cases there — a Seed adapter that quietly diverges is exactly what this catches, and it already caught one (Seed used to remove a non-member silently).
 
 The cases assert no identity fields. Live joins `name`/`email` from `user`; the fixture has no `user` table, so `SeedWorkspaceMembership` fabricates them the way `SeedApiTokenRegistry.create` fabricates a token.
 

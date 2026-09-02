@@ -6,15 +6,9 @@ import {
   type RecordAuditEventInput
 } from '../governance/audit-event-log.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
-import {
-  assertWithinPlanLimit,
-  Billing,
-  planById,
-  PLANS,
-  SeedBilling,
-  stripePriceEnvName,
-  verifyStripeSignature
-} from './billing.ts'
+import { Billing, SeedBilling } from './billing.ts'
+import { assertWithinPlanLimit, planById, PLANS } from './plan-catalog.ts'
+import { verifyStripeSignature } from './stripe.ts'
 
 /**
  * A recording in-memory `AuditEventLog`: the seed audit layer's writes are a
@@ -59,10 +53,10 @@ describe('plan catalog', () => {
     expect(PLANS.map((plan) => plan.id)).toEqual(['starter', 'team', 'enterprise'])
   })
 
-  it('maps only self-serve plans onto price env names', () => {
-    expect(stripePriceEnvName('team')).toBe('STRIPE_PRICE_ID_TEAM')
-    expect(stripePriceEnvName('starter')).toBeNull()
-    expect(stripePriceEnvName('enterprise')).toBeNull()
+  it('carries a price env var only on self-serve plans', () => {
+    expect(planById('team').stripePriceEnv).toBe('STRIPE_PRICE_ID_TEAM')
+    expect(planById('starter').stripePriceEnv).toBeNull()
+    expect(planById('enterprise').stripePriceEnv).toBeNull()
   })
 })
 

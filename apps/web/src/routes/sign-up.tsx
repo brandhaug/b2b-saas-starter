@@ -6,10 +6,15 @@ import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
-import { authClient } from '@/lib/auth-client'
+import {
+  signUpWithAuthClient,
+  type SignUpWithEmail
+} from '@/components/auth/auth-client-ports'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 import { TurnstileWidget } from '@/components/auth/turnstile-widget'
+
+export type { SignUpWithEmail } from '@/components/auth/auth-client-ports'
 
 export const Route = createFileRoute('/sign-up')({
   validateSearch: redirectSearch,
@@ -25,19 +30,6 @@ type SignUpValues = {
 }
 
 /**
- * Account registration, as a port. Injected rather than reaching for the
- * `authClient` singleton at the call site so a test drives the form with a
- * real function of this shape instead of replacing `@/lib/auth-client`.
- */
-export type SignUpWithEmail = (input: {
-  readonly name: string
-  readonly email: string
-  readonly password: string
-  /** The Turnstile widget's token — present only when Turnstile is configured. */
-  readonly turnstileToken?: string | undefined
-}) => Promise<{ readonly error?: { readonly message?: string | undefined } | null }>
-
-/**
  * The route's thin wrapper: reads the search param the router validated and
  * the loader's Turnstile site key, then hands both to the page. Keeping the
  * two apart is what lets the page be rendered from a test with plain props,
@@ -47,34 +39,6 @@ function SignUpRoute() {
   const { redirect } = Route.useSearch()
   const { turnstileSiteKey } = Route.useLoaderData()
   return <SignUpPage redirect={redirect} turnstileSiteKey={turnstileSiteKey} />
-}
-
-/**
- * Hoisted to module scope rather than written inline as a default: a new
- * function expression per render would be a fresh prop value every time.
- *
- * `callbackURL` is where Better Auth's verification redirect lands after the
- * emailed token is exchanged — the default ('/') would verify silently and
- * drop the user on the marketing homepage. When Turnstile is configured the
- * widget's token rides the `x-turnstile-token` header; the auth route's
- * server-side gate verifies it before Better Auth sees the request.
- */
-function signUpWithAuthClient(
-  input: Parameters<SignUpWithEmail>[0]
-): ReturnType<SignUpWithEmail> {
-  const payload = {
-    name: input.name,
-    email: input.email,
-    password: input.password,
-    callbackURL: `${window.location.origin}/verify-email`
-  }
-  if (input.turnstileToken === undefined) {
-    return authClient.signUp.email(payload)
-  }
-  return authClient.signUp.email({
-    ...payload,
-    fetchOptions: { headers: { 'x-turnstile-token': input.turnstileToken } }
-  })
 }
 
 export function SignUpPage({

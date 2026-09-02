@@ -1,5 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
   SessionsPanel,
@@ -7,13 +6,7 @@ import {
   type RevokeOtherSessions,
   type RevokeSession
 } from './sessions-panel'
-
-function renderWithQueryClient(ui: React.ReactElement) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } }
-  })
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
-}
+import { renderWithQueryClient } from '@/test/query-harness'
 
 const listSessions = vi.fn<ListSessions>()
 const revokeSession = vi.fn<RevokeSession>()

@@ -142,7 +142,9 @@ describe('WorkspaceSettingsPage lifecycle sections', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Delete Starter Lab permanently' })
     )
-    expect(remove).toHaveBeenCalledWith({ data: { workspaceSlug: 'starter-lab' } })
+    await waitFor(() =>
+      expect(remove).toHaveBeenCalledWith({ data: { workspaceSlug: 'starter-lab' } })
+    )
     await waitFor(() => expect(assign).toHaveBeenCalledWith('/workspaces'))
   })
 })

@@ -3,62 +3,17 @@ import { ArrowLeftIcon } from 'lucide-react'
 import { useRef } from 'react'
 import { mdxComponents } from '@/components/mdx-components'
 import { TableOfContents } from '@/components/table-of-contents'
-import {
-  DOC_CATEGORIES,
-  getAdjacentDocs,
-  getDocBySlug,
-  isDocCategory
-} from '@/lib/docs'
+import { docCategoryName, docJsonLd, getAdjacentDocs, getDocBySlug } from '@/lib/docs'
 
 export const Route = createFileRoute('/docs/$category/$slug')({
+  // A bare guard: `getDocBySlug` is a synchronous lookup over checked-in MDX,
+  // and the component has to re-resolve the module anyway — `Component` is a
+  // function, and functions cannot cross the server→client boundary (shipping
+  // one aborts dehydration and the page blanks on hydration). So the loader
+  // decides only whether the page exists.
   loader: ({ params }) => {
-    const article = getDocBySlug(params.category, params.slug)
-    if (!article) {
+    if (!getDocBySlug(params.category, params.slug)) {
       throw notFound()
-    }
-    const { prev, next } = getAdjacentDocs(params.category, params.slug)
-    const categoryName = isDocCategory(params.category)
-      ? DOC_CATEGORIES[params.category]
-      : params.category
-    const jsonLdString = JSON.stringify({
-      '@context': 'https://schema.org',
-      '@graph': [
-        {
-          '@type': 'TechArticle',
-          headline: article.frontmatter.title,
-          description: article.frontmatter.description,
-          publisher: { '@type': 'Organization', name: 'B2B SaaS Starter' },
-          keywords: (article.frontmatter.tags ?? []).join(', ')
-        },
-        {
-          '@type': 'BreadcrumbList',
-          itemListElement: [
-            { '@type': 'ListItem', position: 1, name: 'Home' },
-            { '@type': 'ListItem', position: 2, name: 'Documentation' },
-            { '@type': 'ListItem', position: 3, name: categoryName },
-            { '@type': 'ListItem', position: 4, name: article.frontmatter.title }
-          ]
-        }
-      ]
-    })
-    // `article.Component` is the MDX module's React component — a function.
-    // Functions cannot cross the server→client boundary, so shipping one in
-    // loader data aborts dehydration (the `$_TSR.router` script is never
-    // emitted) and hydration throws "Expected to find a dehydrated data on
-    // window.$_TSR.router", unmounting the rendered page to blank. Ship the
-    // serializable subset; the component re-resolves the module.
-    return {
-      article: {
-        slug: article.slug,
-        category: article.category,
-        frontmatter: article.frontmatter
-      },
-      categoryName,
-      prevSlug: prev?.slug ?? null,
-      prevTitle: prev?.frontmatter.title ?? null,
-      nextSlug: next?.slug ?? null,
-      nextTitle: next?.frontmatter.title ?? null,
-      jsonLdString
     }
   },
   component: DocArticlePage,
@@ -89,32 +44,23 @@ export const Route = createFileRoute('/docs/$category/$slug')({
 })
 
 function DocArticlePage() {
-  const { category } = Route.useParams()
+  const { category, slug } = Route.useParams()
   const articleRef = useRef<HTMLElement>(null)
-  const {
-    article,
-    categoryName,
-    prevSlug,
-    prevTitle,
-    nextSlug,
-    nextTitle,
-    jsonLdString
-  } = Route.useLoaderData()
 
-  // The loader ships `article` without `Component` (functions cannot cross
-  // the server→client boundary — see the loader), so re-resolve the MDX
-  // module here; the loader's notFound() guard guarantees this hit.
-  const doc = getDocBySlug(category, article.slug)
+  // Resolved here rather than shipped from the loader — see the loader.
+  const doc = getDocBySlug(category, slug)
   if (!doc) {
     throw notFound()
   }
   const { Component, frontmatter } = doc
+  const categoryName = docCategoryName(category)
+  const { prev, next } = getAdjacentDocs(category, slug)
 
   return (
     <div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: jsonLdString }}
+        dangerouslySetInnerHTML={{ __html: docJsonLd(doc) }}
       />
 
       <div className="flex gap-8">
@@ -168,25 +114,25 @@ function DocArticlePage() {
             aria-label="Adjacent articles"
             className="mt-12 flex items-center justify-between gap-4 border-t border-border pt-4"
           >
-            {prevSlug && prevTitle ? (
+            {prev ? (
               <Link
                 to="/docs/$category/$slug"
-                params={{ category, slug: prevSlug }}
+                params={{ category, slug: prev.slug }}
                 className="inline-flex items-center gap-1 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 <ArrowLeftIcon className="size-3" />
-                {prevTitle}
+                {prev.frontmatter.title}
               </Link>
             ) : (
               <span />
             )}
-            {nextSlug && nextTitle ? (
+            {next ? (
               <Link
                 to="/docs/$category/$slug"
-                params={{ category, slug: nextSlug }}
+                params={{ category, slug: next.slug }}
                 className="py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                {nextTitle} &rarr;
+                {next.frontmatter.title} &rarr;
               </Link>
             ) : (
               <span />

@@ -19,6 +19,7 @@ import { signatureHeaderValue, computeWebhookSignature } from './webhook-signing
 import {
   processDeadLetterMessage,
   processWebhookMessage,
+  readQueueDelivery,
   type WebhookMessage
 } from './webhook-consumer.ts'
 
@@ -209,7 +210,7 @@ describe('processWebhookMessage', () => {
     const captured: CapturedRequest = {}
     return runScoped(
       processWebhookMessage(
-        { id: messageId, body: input, attempts },
+        readQueueDelivery({ id: messageId, body: input, attempts }),
         'trace-test'
       ).pipe(
         Effect.provide(
@@ -361,7 +362,7 @@ describe('processDeadLetterMessage', () => {
   ): Effect.Effect<Array<WebhookDeliveryAttemptInput>> {
     const recorded: Array<WebhookDeliveryAttemptInput> = []
     return runScoped(
-      processDeadLetterMessage({ body: input, attempts }).pipe(
+      processDeadLetterMessage(readQueueDelivery({ body: input, attempts })).pipe(
         Effect.provide(stubEndpoints(target, recorded))
       )
     ).pipe(Effect.map(() => recorded))

@@ -120,6 +120,35 @@ export class AuditEventLog extends Context.Service<
   AuditEventLogInterface
 >()('@b2b-saas-starter/capabilities/AuditEventLog') {}
 
+/**
+ * Records an event against the workspace in context, attributed to the actor
+ * in context. The plugin-backed mutations (`WorkspaceMembership`,
+ * `WorkspaceInvitations`, `WorkspaceLifecycle.rename`) all end the same way —
+ * call the binding, read the row back, audit it — and this is that last step,
+ * reading `workspaceId` and `actorUserId` off `WorkspaceContext` instead of
+ * having each call site restate them.
+ *
+ * The audit row is deliberately NOT atomic with the write it follows, and it
+ * cannot be: D1 rejects an explicit BEGIN, and a plugin write that happens over
+ * HTTP cannot join a `batch()`. A crash between the two leaves the mutation
+ * without its audit row. Accepted and recorded (ADR 0051), not an oversight —
+ * capabilities that write to D1 themselves use `auditedMutations`
+ * (`audited-mutation.ts`), which commits both in one batch.
+ */
+export function recordInWorkspace(
+  audit: AuditEventLogInterface,
+  event: Omit<RecordAuditEventInput, 'workspaceId' | 'actorUserId'>
+): Effect.Effect<void, CapabilityUnavailable, WorkspaceContext> {
+  return Effect.gen(function* () {
+    const ctx = yield* WorkspaceContext
+    yield* audit.record({
+      ...event,
+      workspaceId: ctx.workspace.id,
+      actorUserId: ctx.actor?.userId ?? null
+    })
+  })
+}
+
 const noopStatement: BatchStatement = {
   toSQL: () => ({ sql: 'select 1', params: [] })
 }
@@ -149,10 +178,6 @@ function toSeedWire(row: SeedAuditEventRow): AuditEvent {
     actor: row.actor,
     createdAt: row.createdAt
   }
-}
-
-function toWire(rows: ReadonlyArray<SeedAuditEventRow>): ReadonlyArray<AuditEvent> {
-  return rows.map(toSeedWire)
 }
 
 /**
@@ -226,8 +251,34 @@ function pagedSeedRows(
   return buildPage(ordered, toSeedWire)
 }
 
+/**
+ * The identities the Seed adapter resolves an actor's display name from — the
+ * fixture's stand-in for the `user` rows Live joins.
+ */
+export type SeedAuditActor = {
+  readonly id: string
+  readonly name: string
+}
+
+/**
+ * What the wire's `actor` slot holds: a display name. Live reads it off the
+ * joined `user.name` and shows `system` for an unattributed row, so Seed must
+ * answer with the fixture identity's name — never the raw user id, which would
+ * put an internal id on a page that shows names under Live.
+ */
+function seedActorName(
+  actors: ReadonlyArray<SeedAuditActor>,
+  actorUserId: string | null | undefined
+): string {
+  if (!actorUserId) {
+    return 'system'
+  }
+  return actors.find((actor) => actor.id === actorUserId)?.name ?? 'system'
+}
+
 export function SeedAuditEventLog(
-  seed: ReadonlyArray<SeedAuditEventRow>
+  seed: ReadonlyArray<SeedAuditEventRow>,
+  actors: ReadonlyArray<SeedAuditActor> = []
 ): Layer.Layer<AuditEventLog> {
   // A private copy: `record` appends without mutating the caller's fixture
   // array. Sharing state across adapters happens by providing one instance of
@@ -244,7 +295,7 @@ export function SeedAuditEventLog(
         const ctx = yield* WorkspaceContext
         return pagedSeedRows(rows, ctx.workspace.id, input)
       }),
-    listGlobal: Effect.sync(() => toWire(rows)),
+    listGlobal: Effect.sync(() => rows.map(toSeedWire)),
     record: (input) =>
       Effect.gen(function* () {
         // Appends into this instance's store so recorded events read back
@@ -256,7 +307,7 @@ export function SeedAuditEventLog(
           eventType: input.eventType,
           targetType: input.targetType,
           targetId: input.targetId ?? null,
-          actor: input.actorUserId ?? 'system',
+          actor: seedActorName(actors, input.actorUserId),
           actorUserId: input.actorUserId ?? null,
           workspaceId: input.workspaceId ?? null,
           createdAt: DateTime.formatIso(yield* DateTime.now)
@@ -317,10 +368,6 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           .limit(AUDIT_EVENT_PAGE_SIZE + 1)
       }
 
-      function toPage(rows: ReadonlyArray<AuditRow>): AuditEventPage {
-        return buildPage(rows, toWireRow)
-      }
-
       function pagedRows(workspaceId: string, input: ListAuditEventsInput | undefined) {
         const query = pageQuery(workspaceId, input)
         // An undecodable cursor addresses no position — empty page.
@@ -330,21 +377,15 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         return orUnavailable('audit-event-log')(query)
       }
 
-      function queryRows(workspaceId?: string) {
-        const conditions: Array<SQL> = []
-        if (workspaceId !== undefined) {
-          conditions.push(eq(auditEvents.workspaceId, workspaceId))
-        }
-        return orUnavailable('audit-event-log')(
-          db
-            .select({ event: auditEvents, actor: user })
-            .from(auditEvents)
-            .leftJoin(user, eq(user.id, auditEvents.actorUserId))
-            .where(and(...conditions))
-            .orderBy(desc(auditEvents.createdAt))
-            .limit(100)
-        ).pipe(Effect.map((rows) => rows.map(toWireRow)))
-      }
+      /** Every workspace's events, newest first — `/admin`'s cross-workspace read. */
+      const globalRows = orUnavailable('audit-event-log')(
+        db
+          .select({ event: auditEvents, actor: user })
+          .from(auditEvents)
+          .leftJoin(user, eq(user.id, auditEvents.actorUserId))
+          .orderBy(desc(auditEvents.createdAt))
+          .limit(100)
+      ).pipe(Effect.map((rows) => rows.map(toWireRow)))
 
       const insertFor = Effect.fnUntraced(function* (input: RecordAuditEventInput) {
         const id = yield* newCapabilityId('aud')
@@ -366,9 +407,9 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
             const rows = yield* pagedRows(ctx.workspace.id, input)
-            return toPage(rows)
+            return buildPage(rows, toWireRow)
           }),
-        listGlobal: queryRows(),
+        listGlobal: globalRows,
         record: (input) =>
           insertFor(input).pipe(
             Effect.flatMap(orUnavailable('audit-event-log')),

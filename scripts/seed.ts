@@ -19,6 +19,7 @@ import {
   demoUserIdentity
 } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
 import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
@@ -36,9 +37,11 @@ import { fileURLToPath } from 'node:url'
 // root-relative paths, so it pins its own cwd instead of trusting the caller's.
 const repoRoot = join(import.meta.dirname, '..')
 
-// Demo credential account so the authenticated area is reachable after
-// seeding. The identity is the shared `demoUserIdentity` constant from the
-// capabilities seed fixture; only the password lives here. Documented in
+// Demo credential accounts so the authenticated area is reachable after
+// seeding. The identities are the shared `demoUserIdentity` /
+// `demoMemberIdentity` constants from the capabilities seed fixture, and their
+// user and membership rows come from the Seed layer like every other
+// identity's; only the password lives here. Documented in
 // docs/setup.md and on the sign-in screen (apps/web/src/lib/demo-workspace.ts
 // must stay in sync).
 //
@@ -115,9 +118,14 @@ const collectFixture = Effect.gen(function* () {
   const webhooks = yield* WebhookEndpoints
   const audit = yield* AuditEventLog
   const notificationFeed = yield* NotificationFeed
+  const userAdmin = yield* PlatformUserAdmin
   const ctx = yield* WorkspaceContext
   return {
     workspace: ctx.workspace,
+    // Every account the Seed layer describes, members and non-members alike:
+    // `/admin` lists these, so a D1 missing the membership-less ones would
+    // show a shorter list under Live than under Seed.
+    accounts: yield* userAdmin.listUsers,
     members: yield* membership.listMembers,
     tokens: yield* tokens.list,
     webhooks: yield* webhooks.list,
@@ -165,17 +173,25 @@ function workspaceRows(fixture: Fixture): ReadonlyArray<string> {
   ]
 }
 
-function memberRows(fixture: Fixture): ReadonlyArray<string> {
-  return fixture.members.flatMap((member) => [
+/** One `user` row per account the Seed layer knows, membership or not. */
+function userRows(fixture: Fixture): ReadonlyArray<string> {
+  return fixture.accounts.map((identity) =>
     insert(user, {
-      id: member.id,
-      email: member.email,
-      name: member.name,
-      role: member.systemRole,
+      id: identity.id,
+      email: identity.email,
+      name: identity.name,
+      role: identity.systemRole,
+      banned: identity.banned,
       emailVerified: true,
       createdAt: 1_778_918_400,
       updatedAt: 1_778_918_400
-    }),
+    })
+  )
+}
+
+/** The membership half: only the accounts the fixture puts in the workspace. */
+function membershipRows(fixture: Fixture): ReadonlyArray<string> {
+  return fixture.members.map((member) =>
     insert(workspaceMembers, {
       id: membershipId(member.id),
       workspaceId: fixture.workspace.id,
@@ -183,65 +199,42 @@ function memberRows(fixture: Fixture): ReadonlyArray<string> {
       role: member.role,
       createdAt: new Date(now)
     })
-  ])
+  )
 }
 
 /**
- * Credential account for the seeded plain `member` (`memberRows` already
- * created its user and membership rows). It shares the demo password: the point
- * is to make the role-gated UI reachable by hand, not to model two secrets.
+ * The two fixture identities that get a local sign-in: the demo owner (a system
+ * admin, so `/admin` is reachable) and the plain `member` whose role-gated UI
+ * differs from an owner's. Their user and membership rows come from
+ * `userRows`/`membershipRows` like everyone else's — only the credential is
+ * here. Both share the demo password: the point is to make both roles
+ * reachable by hand, not to model two secrets.
+ *
+ * The account ids are fixed rather than derived, because the seed runs
+ * `INSERT OR REPLACE` and a changed id would stack a second credential row.
  */
-function demoMemberRows(demoPasswordHash: string): ReadonlyArray<string> {
-  return [
-    insert(account, {
-      id: 'acc_member_credential',
-      accountId: demoMemberIdentity.id,
-      providerId: 'credential',
-      // better-auth 1.7 keys credential accounts on this synthetic issuer.
-      issuer: 'local:credential',
-      userId: demoMemberIdentity.id,
-      password: demoPasswordHash,
-      createdAt: 1_778_918_400,
-      updatedAt: 1_778_918_400
-    })
-  ]
-}
+const credentialAccounts: ReadonlyArray<{
+  readonly accountRowId: string
+  readonly userId: string
+}> = [
+  { accountRowId: 'acc_demo_credential', userId: demoUserIdentity.id },
+  { accountRowId: 'acc_member_credential', userId: demoMemberIdentity.id }
+]
 
-// Demo sign-in: system admin (`role: 'admin'` — Better Auth admin plugin)
-// and a member of the seed workspace so the membership gate passes.
-function demoUserRows(
-  fixture: Fixture,
-  demoPasswordHash: string
-): ReadonlyArray<string> {
-  return [
-    insert(user, {
-      id: demoUserIdentity.id,
-      email: demoUserIdentity.email,
-      name: demoUserIdentity.name,
-      role: demoUserIdentity.systemRole,
-      emailVerified: true,
-      createdAt: 1_778_918_400,
-      updatedAt: 1_778_918_400
-    }),
+function credentialRows(demoPasswordHash: string): ReadonlyArray<string> {
+  return credentialAccounts.map((credential) =>
     insert(account, {
-      id: 'acc_demo_credential',
-      accountId: demoUserIdentity.id,
+      id: credential.accountRowId,
+      accountId: credential.userId,
       providerId: 'credential',
       // better-auth 1.7 keys credential accounts on this synthetic issuer.
       issuer: 'local:credential',
-      userId: demoUserIdentity.id,
+      userId: credential.userId,
       password: demoPasswordHash,
       createdAt: 1_778_918_400,
       updatedAt: 1_778_918_400
-    }),
-    insert(workspaceMembers, {
-      id: membershipId(demoUserIdentity.id),
-      workspaceId: fixture.workspace.id,
-      userId: demoUserIdentity.id,
-      role: demoUserIdentity.role,
-      createdAt: new Date(now)
     })
-  ]
+  )
 }
 
 function tokenRows(
@@ -319,9 +312,9 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
   return `${[
     'PRAGMA foreign_keys = ON;',
     ...workspaceRows(fixture),
-    ...memberRows(fixture),
-    ...demoUserRows(fixture, hashes.demoPassword),
-    ...demoMemberRows(hashes.demoPassword),
+    ...userRows(fixture),
+    ...membershipRows(fixture),
+    ...credentialRows(hashes.demoPassword),
     ...tokenRows(fixture, hashes.tokens),
     ...webhookRows(fixture),
     ...auditRows(fixture),

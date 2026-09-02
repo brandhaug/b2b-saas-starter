@@ -1,8 +1,18 @@
 import { LaptopIcon } from 'lucide-react'
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
+import { unwrapAuthResult, type AuthResult } from '@/lib/auth-result'
+import {
+  listSessionsWithAuthClient,
+  revokeOtherSessionsWithAuthClient,
+  revokeSessionWithAuthClient,
+  type ListSessions,
+  type RevokeOtherSessions,
+  type RevokeSession,
+  type SessionRecord
+} from '@/components/auth/auth-client-ports'
+
+import { useServerAction } from '@/hooks/use-server-action'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
@@ -15,6 +25,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
+export type {
+  ListSessions,
+  RevokeOtherSessions,
+  RevokeSession
+} from '@/components/auth/auth-client-ports'
+
 /**
  * One row of the panel's own view model: a Better Auth session plus the
  * expiry label, which is formatted inside the query function (client-side
@@ -25,46 +41,6 @@ export type SessionRowView = {
   readonly deviceLabel: string
   readonly expiresLabel: string
   readonly ipAddress: string | null | undefined
-}
-
-export type SessionRecord = {
-  readonly token: string
-  readonly createdAt: Date
-  readonly expiresAt: Date
-  readonly ipAddress?: string | null | undefined
-  readonly userAgent?: string | null | undefined
-}
-
-/**
- * The three Better Auth session endpoints this panel drives, as ports.
- * Injected rather than reaching for the `authClient` singleton at the call
- * site so a test drives the panel with real functions of these shapes instead
- * of replacing `@/lib/auth-client`.
- */
-export type ListSessions = () => Promise<{
-  readonly data?: ReadonlyArray<SessionRecord> | null
-  readonly error?: { readonly message?: string | undefined } | null
-}>
-
-export type RevokeSession = (input: { readonly token: string }) => Promise<{
-  readonly error?: { readonly message?: string | undefined } | null
-}>
-
-/** Better Auth's "revoke all sessions except the current one". */
-export type RevokeOtherSessions = () => Promise<{
-  readonly error?: { readonly message?: string | undefined } | null
-}>
-
-function listSessionsWithAuthClient(): ReturnType<ListSessions> {
-  return authClient.listSessions()
-}
-
-function revokeSessionWithAuthClient(input: Parameters<RevokeSession>[0]) {
-  return authClient.revokeSession(input)
-}
-
-function revokeOtherSessionsWithAuthClient() {
-  return authClient.revokeOtherSessions()
 }
 
 function describeUserAgent(userAgent: string | null | undefined): string {
@@ -94,6 +70,10 @@ function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowV
     .map((session) => ({
       token: session.token,
       deviceLabel: describeUserAgent(session.userAgent),
+      // The one place that does not use `formatUtc`: this runs post-mount only,
+      // so there is no SSR text to disagree with, and the viewer's own locale
+      // reads better than a pinned en-US for a date they are checking about
+      // their own device.
       expiresLabel: session.expiresAt.toLocaleDateString(undefined, {
         dateStyle: 'medium',
         timeZone: 'UTC'
@@ -116,6 +96,7 @@ function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowV
  * is browser-only (relative fetch), so the server render must not fetch.
  */
 const SESSIONS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'sessions']
+const ACTION_FAILED = 'The change could not be made'
 
 export function SessionsPanel({
   currentSessionToken,
@@ -148,21 +129,19 @@ export function SessionsPanel({
     retry: false
   })
   const loadError = queryError?.message ?? null
-  const [actionError, setActionError] = useState<string | null>(null)
-
-  async function act(
-    action: () => Promise<{
-      readonly error?: { readonly message?: string | undefined } | null
-    }>
-  ) {
-    setActionError(null)
-    const result = await action()
-    if (result.error) {
-      setActionError(result.error.message ?? 'The change could not be made')
-      return
+  // The session list is this panel's own query, not a loader's, so the action
+  // refetches it rather than invalidating the route.
+  const act = useServerAction(
+    (action: () => Promise<AuthResult<unknown>>) =>
+      unwrapAuthResult(action, ACTION_FAILED),
+    {
+      failureMessage: ACTION_FAILED,
+      invalidate: false,
+      onSuccess: () => {
+        void refetch()
+      }
     }
-    void refetch()
-  }
+  )
 
   const othersExist = rows?.some((row) => row.token !== currentSessionToken)
 
@@ -185,9 +164,7 @@ export function SessionsPanel({
               </AlertDialogDescription>
               <div className="flex justify-end gap-2">
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => void act(() => revokeOtherSessions())}
-                >
+                <AlertDialogAction onClick={() => act.run(() => revokeOtherSessions())}>
                   Sign out
                 </AlertDialogAction>
               </div>
@@ -201,11 +178,11 @@ export function SessionsPanel({
           {loadError}
         </p>
       ) : null}
-      {actionError ? (
+      {act.error === null ? null : (
         <p role="alert" className="text-xs text-destructive">
-          {actionError}
+          {act.error}
         </p>
-      ) : null}
+      )}
 
       {hydrated && isPending ? (
         <ul className="grid gap-2" aria-busy="true">
@@ -262,7 +239,7 @@ export function SessionsPanel({
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() =>
-                            void act(() => revokeSession({ token: row.token }))
+                            act.run(() => revokeSession({ token: row.token }))
                           }
                         >
                           Revoke session

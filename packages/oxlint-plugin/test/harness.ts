@@ -118,7 +118,8 @@ type CaseOptions = {
 }
 
 /**
- * `ruleId` is the fully qualified id as it appears in `.oxlintrc.json`, for example
+ * `ruleId` is the fully qualified id as it appears in the repo's lint config, for
+ * example
  * `starter/no-interface-merge-outside-dts`.
  */
 export function createRuleHarness(ruleId: string, defaults: CaseOptions = {}) {

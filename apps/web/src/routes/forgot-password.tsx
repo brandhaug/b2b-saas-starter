@@ -6,40 +6,19 @@ import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
-import { authClient } from '@/lib/auth-client'
+import {
+  requestPasswordResetWithAuthClient,
+  type RequestPasswordReset
+} from '@/components/auth/auth-client-ports'
+
+export type { RequestPasswordReset } from '@/components/auth/auth-client-ports'
 
 export const Route = createFileRoute('/forgot-password')({
   component: ForgotPasswordRoute
 })
 
-/**
- * Requesting a password reset, as a port. Injected rather than reaching for
- * the `authClient` singleton at the call site so a test drives the form with a
- * real function of this shape instead of replacing `@/lib/auth-client`.
- */
-export type RequestPasswordReset = (input: {
-  readonly email: string
-}) => Promise<{ readonly error?: { readonly message?: string | undefined } | null }>
-
 function ForgotPasswordRoute() {
   return <ForgotPasswordPage />
-}
-
-/**
- * Hoisted to module scope rather than written inline as a default: a new
- * function expression per render would be a fresh prop value every time.
- *
- * `redirectTo` is where Better Auth's token-exchange redirect lands once the
- * emailed link is clicked: the handler validates the token, then forwards it
- * to `/reset-password?token=…` (or `?error=INVALID_TOKEN`).
- */
-function requestPasswordResetWithAuthClient(
-  input: Parameters<RequestPasswordReset>[0]
-): ReturnType<RequestPasswordReset> {
-  return authClient.requestPasswordReset({
-    email: input.email,
-    redirectTo: `${window.location.origin}/reset-password`
-  })
 }
 
 // One message for every outcome, by design: the endpoint answers identically

@@ -1,5 +1,9 @@
 import { defineRule, type ESTree } from '@oxlint/plugins'
-import { getPropertyName, isIdentifier, unwrapExpression } from '../internal/ast.ts'
+import {
+  getPropertyName,
+  isCalleeOfEnclosingCall,
+  schemaCallMemberAccess
+} from '../internal/ast.ts'
 
 /**
  * Catches `Schema.Class` and `Schema.TaggedClass`, including the
@@ -16,36 +20,12 @@ import { getPropertyName, isIdentifier, unwrapExpression } from '../internal/ast
  */
 
 function isSchemaClassCall(node: ESTree.Node | null | undefined): boolean {
-  const expression = unwrapExpression(node)
-  if (expression?.type !== 'CallExpression') {
+  const access = schemaCallMemberAccess(node)
+  if (access === undefined) {
     return false
   }
-
-  // `Schema.TaggedClass<X>()('X', fields)` nests calls, so walk down to the
-  // member access the whole chain hangs off.
-  let callee = unwrapExpression(expression.callee)
-  while (callee?.type === 'CallExpression') {
-    callee = unwrapExpression(callee.callee)
-  }
-
-  if (callee?.type !== 'MemberExpression') {
-    return false
-  }
-  if (!isIdentifier(unwrapExpression(callee.object), 'Schema')) {
-    return false
-  }
-
-  const method = getPropertyName(callee.property)
+  const method = getPropertyName(access.property)
   return method === 'Class' || method === 'TaggedClass'
-}
-
-/** True for the inner calls of a curried chain, which the outer call reports for. */
-function isCalleeOfEnclosingCall(node: ESTree.CallExpression): boolean {
-  const { parent } = node
-  if (parent.type !== 'CallExpression') {
-    return false
-  }
-  return unwrapExpression(parent.callee) === node
 }
 
 export default defineRule({

@@ -7,15 +7,15 @@ import {
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Schema, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
+import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
 
 // All input constraints live in the schema — no imperative re-validation.
 const CreateApiTokenInput = Schema.Struct({
@@ -43,8 +43,7 @@ export const createApiTokenServerFn = createServerFn({ method: 'POST' })
         // below the interface — identical for every surface.
         return yield* tokens.create({
           name: data.name,
-          scopes: data.scopes,
-          actorUserId: session.user.id
+          scopes: data.scopes
         })
       }),
       { userId: session.user.id }
@@ -59,7 +58,7 @@ export const createApiTokenServerFn = createServerFn({ method: 'POST' })
  * it — a member meeting the URL directly gets the denial, not an empty list.
  */
 export type WorkspaceApiTokensPayload = {
-  readonly viewer: { readonly role: WorkspaceRole } | null
+  readonly viewer: WorkspaceViewer | null
   readonly unreadCount: number
   readonly tokens: ReadonlyArray<ApiToken>
 }
@@ -67,24 +66,17 @@ export type WorkspaceApiTokensPayload = {
 /**
  * `apiToken:list` is the page's own read permission and a hard gate.
  */
-const apiTokensPayload: Effect.Effect<
-  WorkspaceApiTokensPayload,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext | ApiTokenRegistry | NotificationFeed
-> = Effect.gen(function* () {
-  yield* requireWorkspacePermission({ apiToken: ['list'] })
-  const ctx = yield* WorkspaceContext
-  const tokens = yield* ApiTokenRegistry
-  const feed = yield* NotificationFeed
-  const [unreadCount, list] = yield* Effect.all([feed.unreadCount, tokens.list], {
-    concurrency: 'unbounded'
-  })
-  return {
-    viewer: ctx.actor ? { role: ctx.actor.role } : null,
-    unreadCount,
-    tokens: list
-  }
-})
+const apiTokensPayload: WorkspacePageFrame<WorkspaceApiTokensPayload> = workspacePage(
+  { apiToken: ['list'] },
+  () =>
+    Effect.all(
+      {
+        unreadCount,
+        tokens: Effect.flatMap(ApiTokenRegistry, (registry) => registry.list)
+      },
+      { concurrency: 'unbounded' }
+    )
+)
 
 /** The API tokens route's loader. */
 export function loadWorkspaceApiTokens(input: {
@@ -132,8 +124,7 @@ export const revokeApiTokenServerFn = createServerFn({ method: 'POST' })
     return runWorkspaceCapabilities(
       data.workspaceSlug,
       revokeApiToken({
-        tokenId: data.tokenId,
-        actorUserId: session.user.id
+        tokenId: data.tokenId
       }),
       { userId: session.user.id }
     )

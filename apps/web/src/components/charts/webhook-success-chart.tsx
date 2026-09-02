@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
-import { AXIS_TICK, CHART_MARGIN, TOOLTIP_STYLE } from '../chart-defaults'
+import { AXIS_TICK, COMPACT_CHART_MARGIN, TOOLTIP_STYLE } from '../chart-defaults'
 
 export function WebhookSuccessChart({
   webhooks
@@ -39,7 +39,7 @@ export function WebhookSuccessChart({
         ))}
       </ul>
       <ResponsiveContainer aria-hidden width="100%" height="100%">
-        <BarChart data={data} margin={CHART_MARGIN}>
+        <BarChart data={data} margin={COMPACT_CHART_MARGIN}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
           <XAxis dataKey="label" tickLine={false} axisLine={false} tick={AXIS_TICK} />
           <YAxis tickLine={false} axisLine={false} domain={[0, 100]} tick={AXIS_TICK} />

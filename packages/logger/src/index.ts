@@ -9,9 +9,12 @@
  * - `./environment.ts` — deployment-identity mining (`readWideEventEnvironment`,
  *   cf colo hints).
  * - `./otlp.ts` — per-invocation OTLP export (`makeOtlpLayer`).
+ * - `./invocation.ts` — the HTTP entry-point envelope (`withHttpInvocation`):
+ *   the request scope plus its per-invocation exporters, as one call.
  */
 // oxlint-disable oxc/no-barrel-file -- package-root public entry, not an internal barrel
 export * from './trace.ts'
 export * from './wide-event.ts'
 export * from './environment.ts'
 export * from './otlp.ts'
+export * from './invocation.ts'

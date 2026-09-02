@@ -1,9 +1,9 @@
 // Single source of truth for the binding shapes that must agree between
 // `alchemy.run.ts` (production deploys) and `apps/*/wrangler.jsonc` (local
-// `wrangler dev`). Alchemy imports these constants directly; the wrangler
-// configs are hand-written JSONC, so `bindings.test.ts` parses them and fails
-// red on any drift. Change a limit or consumer setting HERE, then update the
-// matching wrangler.jsonc until the drift test passes.
+// `wrangler dev`). Alchemy imports these constants directly and
+// `write-wrangler.ts` generates the wrangler configs from them, so there is
+// one source rather than two under a drift test. Change a limit or consumer
+// setting HERE, then run `pnpm run infra:wrangler`.
 
 export type RateLimitBindingSpec = {
   readonly name: string
@@ -29,6 +29,23 @@ export const webRateLimits: ReadonlyArray<RateLimitBindingSpec> = [
 
 export const webhookQueueName = 'b2b-saas-starter-webhooks'
 export const webhookDeadLetterQueueName = 'b2b-saas-starter-webhooks-dlq'
+
+/**
+ * One compatibility date and flag set for every worker — production
+ * (alchemy.run.ts) and local dev (each generated wrangler.jsonc) must run the
+ * same runtime behavior, so changing the date cannot leave one worker behind.
+ * `nodejs_compat` is required: `@sentry/cloudflare` needs AsyncLocalStorage
+ * (see packages/logger/src/providers.ts).
+ */
+export type WorkerCompatibility = {
+  readonly date: string
+  readonly flags: ReadonlyArray<string>
+}
+
+export const workerCompatibility = {
+  date: '2026-05-16',
+  flags: ['nodejs_compat']
+} satisfies WorkerCompatibility
 
 // Shape matches Alchemy's `QueueConsumer` settings input. Wrangler spells the
 // same knobs differently (`max_batch_size`, `max_batch_timeout` in seconds,

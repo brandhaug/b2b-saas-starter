@@ -3,13 +3,12 @@ import {
   type AuditEvent,
   type ListAuditEventsInput
 } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
-import { requireWorkspacePermission } from './authorize'
+import { workspacePage } from './page-frame'
 
 /**
  * Server-side filters for the audit page, straight from the route's search
@@ -83,26 +82,25 @@ export function loadWorkspaceAuditEvents(
   }
   return runWorkspaceCapabilities(
     input.workspaceSlug,
-    Effect.gen(function* () {
-      yield* requireWorkspacePermission({ auditLog: ['read'] })
-      const ctx = yield* WorkspaceContext
-      const log = yield* AuditEventLog
-      const membership = yield* WorkspaceMembership
-      // No second gate here: the hard `auditLog` read above already decided
-      // who reaches this payload (owner/admin only), and the role table has no
-      // separate member-list statement to compose.
-      const [page, members] = yield* Effect.all(
-        [log.list(listInput), membership.listMembers],
-        { concurrency: 'unbounded' }
-      )
-      return {
-        viewer: ctx.actor ? { role: ctx.actor.role } : null,
-        events: page.events,
-        nextCursor: page.nextCursor,
-        filters: input.filters,
-        members: members.map((member) => ({ id: member.id, name: member.name }))
-      }
-    }),
+    workspacePage({ auditLog: ['read'] }, () =>
+      Effect.gen(function* () {
+        const log = yield* AuditEventLog
+        const membership = yield* WorkspaceMembership
+        // No second gate here: the hard `auditLog` read above already decided
+        // who reaches this payload (owner/admin only), and the role table has no
+        // separate member-list statement to compose.
+        const [page, members] = yield* Effect.all(
+          [log.list(listInput), membership.listMembers],
+          { concurrency: 'unbounded' }
+        )
+        return {
+          events: page.events,
+          nextCursor: page.nextCursor,
+          filters: input.filters,
+          members: members.map((member) => ({ id: member.id, name: member.name }))
+        }
+      })
+    ),
     { userId: input.userId }
   )
 }

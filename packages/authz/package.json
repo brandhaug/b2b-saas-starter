@@ -5,8 +5,7 @@
   "exports": {
     "./client": "./src/client.ts",
     "./errors": "./src/errors.ts",
-    "./guard": "./src/guard.ts",
-    "./roles": "./src/roles.ts"
+    "./guard": "./src/guard.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

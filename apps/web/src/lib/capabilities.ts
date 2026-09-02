@@ -23,7 +23,7 @@ import {
   ForbiddenError,
   PlanLimitError
 } from './capability-error'
-import { withWebRequestScope } from './observability'
+import { webRuntime, withWebRequestScope } from './observability'
 
 export type { CapabilityServices }
 
@@ -55,7 +55,7 @@ function stripeBillingConfig(): StarterEnv['billing'] | undefined {
   return { secretKey, priceIds }
 }
 
-// Real Worker bindings (same import as `server-context.ts`). In production the
+// Real Worker bindings (the same import `auth-runtime.ts` uses). In production the
 // D1 binding exists and activates the Live layer; under the local dev shim
 // (`cloudflare-workers-shim.ts`) `DB` is undefined and the in-memory Seed
 // layer keeps the app working provider-light (CLAUDE.md rule 3). Unset Stripe
@@ -123,7 +123,7 @@ export async function runWorkspaceCapabilities<A, E>(
   actor?: ActorRef,
   bindings?: CapabilityBindings
 ): Promise<A> {
-  const exit = await Effect.runPromiseExit(
+  const exit = await webRuntime.runPromiseExit(
     withWebRequestScope(
       {
         event: 'capability.workspace',
@@ -152,7 +152,7 @@ export async function runCapabilities<A, E>(
   effect: Effect.Effect<A, E, CapabilityServices>,
   bindings?: CapabilityBindings
 ): Promise<A> {
-  const exit = await Effect.runPromiseExit(
+  const exit = await webRuntime.runPromiseExit(
     withWebRequestScope(
       { event: 'capability.global' },
       Effect.provide(effect, selectCapabilitiesLayer({ ...starterEnv, ...bindings }))

@@ -1,8 +1,8 @@
+import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
 import {
-  Billing,
   planForStripeEvent,
   verifyStripeSignature
-} from '@b2b-saas-starter/capabilities/billing/billing'
+} from '@b2b-saas-starter/capabilities/billing/stripe'
 import { withTriggerScope } from '@b2b-saas-starter/logger'
 import { Effect, Result, Schema, type Scope } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'

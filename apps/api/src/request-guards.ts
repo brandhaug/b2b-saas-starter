@@ -1,21 +1,21 @@
-import {
-  makeOtlpLayer,
-  parentSpanFromHeaders,
-  readWideEventEnvironment,
-  TRACE_HEADER,
-  withRequestScope
-} from '@b2b-saas-starter/logger'
+import { withHttpInvocation } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
-import { type ApiTokenScope } from '@b2b-saas-starter/authz/roles'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/runtime'
+import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { selectWorkspaceContextLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { Effect, Result, type Scope } from 'effect'
-import { type HttpServerRequest } from 'effect/unstable/http'
+import { Effect, Layer, Redacted, Result, type Scope } from 'effect'
+import { HttpServerRequest } from 'effect/unstable/http'
 
-import { RateLimited, Unauthorized } from '@b2b-saas-starter/api'
+import {
+  ApiPrincipal,
+  BearerAuth,
+  rateLimitBucketFor,
+  RateLimited,
+  Unauthorized,
+  type ApiPrincipalValue
+} from '@b2b-saas-starter/api'
 import { starterEnv, type ApiEnv } from './env.ts'
 import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
 
@@ -66,17 +66,27 @@ export function enforceRateLimit(
 export function authenticate(
   request: HttpServerRequest.HttpServerRequest
 ): Effect.Effect<
-  {
-    readonly id: string
-    readonly workspaceId: string
-    readonly workspaceSlug: string
-    readonly scopes: ReadonlyArray<ApiTokenScope>
-  },
+  ApiPrincipalValue,
+  Unauthorized | CapabilityUnavailable,
+  ApiTokenRegistry | Scope.Scope
+> {
+  return verifyToken(bearerToken(request))
+}
+
+/**
+ * The registry half of {@link authenticate}, over an already-extracted token:
+ * the contract's `BearerAuth` middleware is handed a decoded credential by
+ * `HttpApiSecurity.bearer`, the MCP protocol route reads the header itself, and
+ * both land here so there is one verification path.
+ */
+export function verifyToken(
+  token: string | null
+): Effect.Effect<
+  ApiPrincipalValue,
   Unauthorized | CapabilityUnavailable,
   ApiTokenRegistry | Scope.Scope
 > {
   return Effect.gen(function* () {
-    const token = bearerToken(request)
     if (!token) {
       yield* Effect.annotateLogsScoped({ outcome: 'missing_bearer_token' })
       return yield* Effect.fail(new Unauthorized({ message: 'missing_bearer_token' }))
@@ -115,24 +125,22 @@ export function authenticate(
 }
 
 /**
- * Authentication plus authorization in one step: the verified token must
- * belong to `expectedWorkspaceSlug` (when given) and its scopes must satisfy
- * the named permission. Endpoints name a *permission*
- * (`{ apiToken: ['create'] }`), not a token scope — the scope-to-permission
- * mapping lives in `@b2b-saas-starter/authz`, so a session in the web app and
- * a bearer token here reach the same decision.
+ * Authorization over the already-authenticated principal: the token must belong
+ * to `expectedWorkspaceSlug` (when given) and its scopes must satisfy the named
+ * permission. Endpoints name a *permission* (`{ apiToken: ['create'] }`), not a
+ * token scope — the scope-to-permission mapping lives in
+ * `@b2b-saas-starter/authz`, so a session in the web app and a bearer token
+ * here reach the same decision.
+ *
+ * Authentication is the `BearerAuth` middleware's job (see {@link bearerAuth});
+ * this reads the `ApiPrincipal` it provided.
  */
 export function enforcePermission(
-  request: HttpServerRequest.HttpServerRequest,
   permission: PermissionRequest,
   expectedWorkspaceSlug?: string
-): Effect.Effect<
-  void,
-  Unauthorized | AuthorizationDenied | CapabilityUnavailable,
-  ApiTokenRegistry | Scope.Scope
-> {
+): Effect.Effect<void, AuthorizationDenied, ApiPrincipal | Scope.Scope> {
   return Effect.gen(function* () {
-    const verified = yield* authenticate(request)
+    const verified = yield* ApiPrincipal
 
     if (
       expectedWorkspaceSlug !== undefined &&
@@ -168,27 +176,110 @@ export function observed<A, E, R>(
   metadata: RequestMetadata,
   body: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
-  return withRequestScope(
+  return withHttpInvocation(
     {
       service: 'api',
       event: `request.${event}`,
-      traceId: request.headers[TRACE_HEADER],
-      parent: parentSpanFromHeaders(request.headers),
-      spanKind: 'server',
-      environment: readWideEventEnvironment(env),
-      metadata: { pathname: request.url, method: request.method, ...metadata }
+      request: webRequest(request),
+      env,
+      metadata
     },
     body.pipe(Effect.tap(() => Effect.annotateLogsScoped({ outcome: 'ok' })))
-    // `local: true` forces a fresh build per request: the OTLP exporters must
-    // live and die inside one invocation (see `makeOtlpLayer`), and a shared
-    // memo map would hand every later request the first request's exporters.
-  ).pipe(Effect.provide(makeOtlpLayer('api', env), { local: true }))
+  )
 }
 
+/**
+ * The Worker's own `Request` behind the router's request. `toWebResult` hands
+ * the source straight back when it already is one — which it is for every
+ * request this worker serves, since `HttpRouter.toWebHandler` is fed the
+ * platform's `Request` (the same conversion `mcp.ts` uses). That is what lets
+ * the envelope read `request.cf.colo` and stamp the colo onto the wide event.
+ *
+ * It fails only for a source with no derivable URL. Such a request carries no
+ * `cf` object either, so the fallback rebuilds exactly the two things the
+ * envelope still reads — the URL and the headers — against a synthetic origin.
+ */
+function webRequest(request: HttpServerRequest.HttpServerRequest): Request {
+  const web = HttpServerRequest.toWebResult(request)
+  if (Result.isSuccess(web)) {
+    return web.success
+  }
+  return new Request(new URL(request.url, 'http://request.invalid'), {
+    method: request.method,
+    headers: { ...request.headers }
+  })
+}
+
+/**
+ * Resolves the request's workspace and provides it to `body`.
+ *
+ * Only `WorkspaceContext` is built here. Every other capability service is
+ * request-independent and lives on the isolate-level layer `http.ts` hands to
+ * `HttpRouter.provideRequest`, so a request pays for the workspace lookup and
+ * nothing else.
+ */
 export function provideWorkspace<A, E, R>(
   env: ApiEnv,
   slug: string,
   body: Effect.Effect<A, E, R>
 ) {
-  return body.pipe(Effect.provide(selectWorkspaceLayer(starterEnv(env), slug)))
+  return body.pipe(Effect.provide(selectWorkspaceContextLayer(starterEnv(env), slug)))
+}
+
+/**
+ * The contract's bearer gate, as an `HttpApiMiddleware` implementation.
+ *
+ * Every group except `health` carries `BearerAuth` (see `packages/api`), so the
+ * gate is declared once on the contract instead of hand-composed in each
+ * handler: the credential is decoded by `HttpApiSecurity.bearer` — which is
+ * also what puts `securitySchemes` in the served OpenAPI document — the group's
+ * rate-limit bucket is drawn, the token is verified, and the handler runs with
+ * an `ApiPrincipal` in context. Handlers add only `enforcePermission`.
+ *
+ * The gate runs before the handler body, so a rejected request never reaches
+ * the handler's `observed(...)` envelope. It emits its own wide event here
+ * instead, carrying the annotations the guards set on the request scope.
+ */
+export function bearerAuth(env: ApiEnv): Layer.Layer<BearerAuth> {
+  return Layer.succeed(BearerAuth)(
+    BearerAuth.of({
+      bearer: (httpEffect, { credential, endpoint, group }) =>
+        Effect.gen(function* () {
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const bucket = rateLimitBucketFor(group.identifier)
+          if (bucket === undefined) {
+            // A gated group with no bucket row is a wiring mistake, and the
+            // honest answer is that this worker cannot rate limit the call —
+            // fail closed with the contract's 503 rather than serve it
+            // unlimited. `permission-matrix.test.ts` asserts the contract's
+            // table covers every group carrying this middleware, so the row is
+            // missing only while someone is mid-change.
+            return yield* Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'rate-limit',
+                reason: `no bucket declared for group ${group.identifier}`
+              })
+            )
+          }
+
+          const gate = Effect.gen(function* () {
+            yield* enforceRateLimit(request, bucket)
+            return yield* verifyToken(Redacted.value(credential) || null)
+          }).pipe(
+            Effect.catch((error) =>
+              observed(
+                env,
+                request,
+                `${group.identifier}.${endpoint.identifier}`,
+                {},
+                Effect.fail(error)
+              )
+            )
+          )
+
+          const principal = yield* gate
+          return yield* Effect.provideService(httpEffect, ApiPrincipal, principal)
+        })
+    })
+  )
 }

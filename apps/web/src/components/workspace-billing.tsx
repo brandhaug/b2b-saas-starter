@@ -1,11 +1,11 @@
 import { Check, Minus } from 'lucide-react'
-import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 import { startCheckoutServerFn } from '@/lib/server/billing'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
@@ -19,16 +19,12 @@ const CHECKOUT_FAILED = 'Something went wrong starting checkout.'
     readonly data: { readonly workspaceSlug: string; readonly planId: string }
   }) => Promise<{ url: string }>
 
-export type BillingPlan = {
-  readonly id: string
-  readonly name: string
-  readonly price: string
-  readonly description: string
-  readonly limits: {
-    readonly apiTokens: number | null
-    readonly webhookEndpoints: number | null
-  }
-}
+/**
+ * The catalog record as the page renders it. It is the capability's own `Plan`
+ * — including `purchase`, which is what decides a card's action, so no
+ * component branches on a plan id.
+ */
+export type BillingPlan = Plan
 
 /**
  * One sentence out of a rejected checkout call. The capability-unavailable
@@ -51,11 +47,12 @@ function checkoutErrorText(thrown: unknown): string {
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
 /**
- * The workspace billing page. Props-only so tests render it without the
- * router. Degradation is honest: when Stripe is not configured the upgrade
+ * The current plan and the catalog of plans beside it, with whatever action
+ * each plan's `purchase` mode allows. Props-only so tests render it without
+ * the router. Degradation is honest: when Stripe is not configured the upgrade
  * buttons explain themselves instead of failing on click.
  */
-export function WorkspaceBillingPage({
+export function BillingPlans({
   workspaceSlug,
   currentPlanId,
   plans,
@@ -71,26 +68,20 @@ export function WorkspaceBillingPage({
   readonly canManageBilling: boolean
   readonly startCheckout?: StartCheckout
 }) {
-  const [error, setError] = useState<string | null>(null)
-  const [pendingPlan, setPendingPlan] = useState<string | null>(null)
-
-  async function upgrade(planId: string) {
-    setError(null)
-    setPendingPlan(planId)
-    // The server function rejects when the capability fails; `callServerFn`
-    // folds that rejection into a displayable message via checkoutErrorText.
-    const result = await callServerFn(
-      () => startCheckout({ data: { workspaceSlug, planId } }),
-      CHECKOUT_FAILED,
-      checkoutErrorText
-    )
-    setPendingPlan(null)
-    if (!result.ok) {
-      setError(result.message)
-      return
+  // The server function rejects when the capability fails; the hook folds that
+  // rejection into a displayable message via `checkoutErrorText`. Checkout
+  // leaves the app, so there is no loader to re-run.
+  const upgrade = useServerAction(
+    (planId: string) => startCheckout({ data: { workspaceSlug, planId } }),
+    {
+      failureMessage: CHECKOUT_FAILED,
+      describeFailure: checkoutErrorText,
+      invalidate: false,
+      onSuccess: (session) => window.location.assign(session.url)
     }
-    window.location.assign(result.value.url)
-  }
+  )
+
+  const currentPlan = plans.find((plan) => plan.id === currentPlanId)
 
   return (
     <div className="grid gap-6">
@@ -99,10 +90,10 @@ export function WorkspaceBillingPage({
           <CardTitle as="h2">Current plan</CardTitle>
         </CardHeader>
         <CardContent className="flex items-center gap-3">
-          <Badge>{currentPlanId}</Badge>
+          <Badge>{currentPlan?.name ?? currentPlanId}</Badge>
           <p className="text-sm text-muted-foreground">
-            Entitlements follow the workspace's plan: Starter caps API tokens at 2 and
-            webhook endpoints at 1; paid plans do not cap them.
+            Entitlements follow the workspace's plan
+            {currentPlan === undefined ? '.' : `: ${entitlementSentence(currentPlan)}`}
           </p>
         </CardContent>
       </Card>
@@ -114,11 +105,11 @@ export function WorkspaceBillingPage({
           checkout. Everything else keeps working.
         </p>
       )}
-      {error ? (
+      {upgrade.error === null ? null : (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{upgrade.error}</AlertDescription>
         </Alert>
-      ) : null}
+      )}
       <div className="grid gap-4 md:grid-cols-3">
         {plans.map((plan) => (
           <Card key={plan.id}>
@@ -141,12 +132,12 @@ export function WorkspaceBillingPage({
                 />
               </ul>
               <PlanAction
-                planId={plan.id}
+                plan={plan}
                 currentPlanId={currentPlanId}
                 canManageBilling={canManageBilling}
                 stripeConfigured={stripeConfigured}
-                pendingPlan={pendingPlan}
-                onUpgrade={() => void upgrade(plan.id)}
+                pendingPlan={upgrade.pendingInput ?? null}
+                onUpgrade={() => upgrade.run(plan.id)}
               />
             </CardContent>
           </Card>
@@ -162,45 +153,49 @@ export function WorkspaceBillingPage({
  * its own named component, so no boolean flags leak between variants.
  */
 function PlanAction({
-  planId,
+  plan,
   currentPlanId,
   canManageBilling,
   stripeConfigured,
   pendingPlan,
   onUpgrade
 }: {
-  readonly planId: string
+  readonly plan: BillingPlan
   readonly currentPlanId: string
   readonly canManageBilling: boolean
   readonly stripeConfigured: boolean
   readonly pendingPlan: string | null
   readonly onUpgrade: () => void
 }) {
-  if (planId === currentPlanId || !canManageBilling) {
+  if (plan.id === currentPlanId || !canManageBilling) {
     return null
   }
-  if (planId === 'team' && stripeConfigured) {
+  if (plan.purchase === 'self_serve' && stripeConfigured) {
     return (
-      <TeamUpgradeButton
+      <UpgradeButton
+        planName={plan.name}
         disabled={pendingPlan !== null}
-        busy={pendingPlan === planId}
+        busy={pendingPlan === plan.id}
         onUpgrade={onUpgrade}
       />
     )
   }
-  return <StaticPlanHint planId={planId} />
+  return <StaticPlanHint plan={plan} />
 }
 
 /**
- * The self-serve upgrade CTA. Only the Team plan is purchasable in-product;
- * this variant exists so the pending spinner and the disabled-during-any-
- * checkout behavior live beside the one button that has them.
+ * The self-serve upgrade CTA, rendered for whichever plans the catalog marks
+ * `purchase: 'self_serve'`. Its own component so the pending spinner and the
+ * disabled-during-any-checkout behavior live beside the one control that has
+ * them.
  */
-function TeamUpgradeButton({
+function UpgradeButton({
+  planName,
   disabled,
   busy,
   onUpgrade
 }: {
+  readonly planName: string
   /** Any checkout in flight disables every button, not just its own plan's. */
   readonly disabled: boolean
   readonly busy: boolean
@@ -214,20 +209,36 @@ function TeamUpgradeButton({
       onClick={onUpgrade}
     >
       {busy ? <Spinner data-icon="inline-start" /> : null}
-      Upgrade to Team
+      Upgrade to {planName}
     </Button>
   )
 }
 
 /** The copy under plans that are not self-serve upgradable from here. */
-function StaticPlanHint({ planId }: { readonly planId: string }) {
+function StaticPlanHint({ plan }: { readonly plan: BillingPlan }) {
   return (
     <p className="text-xs text-muted-foreground">
-      {planId === 'starter'
+      {plan.purchase === 'downgrade'
         ? 'Downgrades are handled by the provider subscription flow.'
-        : 'Contact sales to move to Enterprise.'}
+        : `Contact sales to move to ${plan.name}.`}
     </p>
   )
+}
+
+/** The current plan's ceilings as one sentence, read off the plan itself. */
+function entitlementSentence(plan: BillingPlan): string {
+  const parts = [
+    limitPhrase(plan.limits.apiTokens, 'API token'),
+    limitPhrase(plan.limits.webhookEndpoints, 'webhook endpoint')
+  ]
+  return `${plan.name} allows ${parts.join(' and ')}.`
+}
+
+function limitPhrase(limit: number | null, noun: string): string {
+  if (limit === null) {
+    return `unlimited ${noun}s`
+  }
+  return limit === 1 ? `1 ${noun}` : `up to ${limit} ${noun}s`
 }
 
 function EntitlementRow({ label, limit }: { label: string; limit: number | null }) {

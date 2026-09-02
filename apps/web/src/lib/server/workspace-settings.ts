@@ -1,18 +1,15 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   WorkspaceInvitations,
   type Invitation
 } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { Effect, type Scope } from 'effect'
+import { type WorkspaceViewer } from '@/lib/permissions'
+import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
-import { requireWorkspacePermission, whenPermitted } from './authorize'
+import { whenPermitted } from './authorize'
+import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
 
 /**
  * The workspace settings payload, assembled per actor.
@@ -44,50 +41,38 @@ export type WorkspaceSettingsPayload = {
  * is a 403 rather than an empty shell. Everything below it is a soft gate —
  * the page renders, minus the section.
  */
-const settingsPayload: Effect.Effect<
-  WorkspaceSettingsPayload,
-  AuthorizationDenied | CapabilityUnavailable,
-  | Scope.Scope
-  | WorkspaceContext
-  | ApiTokenRegistry
-  | WebhookEndpoints
-  | NotificationFeed
-  | WorkspaceInvitations
-> = Effect.gen(function* () {
-  yield* requireWorkspacePermission({ notification: ['read'] })
-  const ctx = yield* WorkspaceContext
-  const feed = yield* NotificationFeed
-  const tokens = yield* ApiTokenRegistry
-  const webhooks = yield* WebhookEndpoints
-  const invites = yield* WorkspaceInvitations
-  const [unreadCount, apiTokenCount, webhookCount, invitations] = yield* Effect.all(
-    [
-      feed.unreadCount,
-      whenPermitted(
-        { apiToken: ['list'] },
-        Effect.map(tokens.list, (rows) => rows.length)
+const settingsPayload: WorkspacePageFrame<WorkspaceSettingsPayload> = workspacePage(
+  { notification: ['read'] },
+  (ctx) =>
+    Effect.map(
+      Effect.all(
+        {
+          unreadCount,
+          apiTokenCount: whenPermitted(
+            { apiToken: ['list'] },
+            Effect.flatMap(ApiTokenRegistry, (tokens) =>
+              Effect.map(tokens.list, (rows) => rows.length)
+            )
+          ),
+          webhookCount: whenPermitted(
+            { webhook: ['list'] },
+            Effect.flatMap(WebhookEndpoints, (webhooks) =>
+              Effect.map(webhooks.list, (rows) => rows.length)
+            )
+          ),
+          // Reading the invitation list is the same right as managing it: the
+          // statement has no `read` action, and a pending-invitation list is
+          // workspace security posture in the same way an API-token list is.
+          invitations: whenPermitted(
+            { invitation: ['create'] },
+            Effect.flatMap(WorkspaceInvitations, (invites) => invites.list)
+          )
+        },
+        { concurrency: 'unbounded' }
       ),
-      whenPermitted(
-        { webhook: ['list'] },
-        Effect.map(webhooks.list, (rows) => rows.length)
-      ),
-      // Reading the invitation list is the same right as managing it: the
-      // statement has no `read` action, and a pending-invitation list is
-      // workspace security posture in the same way an API-token list is.
-      whenPermitted({ invitation: ['create'] }, invites.list)
-    ],
-
-    { concurrency: 'unbounded' }
-  )
-  return {
-    viewer: ctx.actor ? { role: ctx.actor.role } : null,
-    workspaceName: ctx.workspace.name,
-    unreadCount,
-    apiTokenCount,
-    webhookCount,
-    invitations
-  }
-})
+      (segments) => ({ workspaceName: ctx.workspace.name, ...segments })
+    )
+)
 
 /** The settings route's loader. */
 export function loadWorkspaceSettings(input: {

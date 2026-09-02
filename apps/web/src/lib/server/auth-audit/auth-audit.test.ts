@@ -1,17 +1,22 @@
 import { Effect } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import {
-  authAuditInput,
-  isAuditedAuthExchange,
-  needsPreHandlerActor,
-  recordAuthAudit
-} from './lifecycle'
-import { adminAuditInput, isAdminAuthExchange } from './admin'
+import { exchangeRow, needsPreHandlerActor, type AuthExchange } from './exchanges'
+import { authAuditInput, recordAuthAudit } from './record'
 import {
   type AuthAuditContext,
   type AuthAuditOutcome,
   type RunAuditCapabilities
 } from './shared'
+
+/** The table lookup, as the audit-worthiness predicate the route relies on. */
+function isAudited(exchange: AuthExchange): boolean {
+  return exchangeRow(exchange) !== null
+}
+
+/** What the auth route derives once per request and hands to the audit path. */
+function exchangeOf(request: Request): AuthExchange {
+  return { method: request.method, pathname: new URL(request.url).pathname }
+}
 
 /**
  * The capability runner `recordAuthAudit` writes through, handed in as its third
@@ -29,7 +34,7 @@ function runRecordAuthAudit(
   response: Response
 ): Promise<AuthAuditOutcome> {
   return Effect.runPromise(
-    Effect.scoped(recordAuthAudit(request, response, runCapabilities))
+    Effect.scoped(recordAuthAudit(exchangeOf(request), response, runCapabilities))
   )
 }
 
@@ -38,56 +43,50 @@ beforeEach(() => {
   runCapabilities.mockResolvedValue(undefined)
 })
 
-describe('isAuditedAuthExchange', () => {
+describe('exchangeRow', () => {
   it('accepts the lifecycle POSTs and the verification GET', () => {
+    expect(isAudited({ method: 'POST', pathname: '/api/auth/sign-in/email' })).toBe(
+      true
+    )
+    expect(isAudited({ method: 'POST', pathname: '/api/auth/sign-in/username' })).toBe(
+      true
+    )
+    expect(isAudited({ method: 'POST', pathname: '/api/auth/sign-up/email' })).toBe(
+      true
+    )
+    expect(isAudited({ method: 'POST', pathname: '/api/auth/sign-out' })).toBe(true)
     expect(
-      isAuditedAuthExchange({ method: 'POST', pathname: '/api/auth/sign-in/email' })
-    ).toBe(true)
-    expect(
-      isAuditedAuthExchange({ method: 'POST', pathname: '/api/auth/sign-in/username' })
-    ).toBe(true)
-    expect(
-      isAuditedAuthExchange({ method: 'POST', pathname: '/api/auth/sign-up/email' })
-    ).toBe(true)
-    expect(
-      isAuditedAuthExchange({ method: 'POST', pathname: '/api/auth/sign-out' })
-    ).toBe(true)
-    expect(
-      isAuditedAuthExchange({
+      isAudited({
         method: 'POST',
         pathname: '/api/auth/user/revoke-session'
       })
     ).toBe(true)
     expect(
-      isAuditedAuthExchange({
+      isAudited({
         method: 'POST',
         pathname: '/api/auth/user/revoke-sessions'
       })
     ).toBe(true)
     expect(
-      isAuditedAuthExchange({
+      isAudited({
         method: 'POST',
         pathname: '/api/auth/request-password-reset'
       })
     ).toBe(true)
-    expect(
-      isAuditedAuthExchange({ method: 'POST', pathname: '/api/auth/reset-password' })
-    ).toBe(true)
-    expect(
-      isAuditedAuthExchange({ method: 'GET', pathname: '/api/auth/verify-email' })
-    ).toBe(true)
+    expect(isAudited({ method: 'POST', pathname: '/api/auth/reset-password' })).toBe(
+      true
+    )
+    expect(isAudited({ method: 'GET', pathname: '/api/auth/verify-email' })).toBe(true)
   })
 
   it('rejects other auth traffic', () => {
-    expect(
-      isAuditedAuthExchange({ method: 'GET', pathname: '/api/auth/sign-in/email' })
-    ).toBe(false)
-    expect(
-      isAuditedAuthExchange({ method: 'GET', pathname: '/api/auth/get-session' })
-    ).toBe(false)
+    expect(isAudited({ method: 'GET', pathname: '/api/auth/sign-in/email' })).toBe(
+      false
+    )
+    expect(isAudited({ method: 'GET', pathname: '/api/auth/get-session' })).toBe(false)
     // The reset token-exchange redirect validates without mutating.
     expect(
-      isAuditedAuthExchange({
+      isAudited({
         method: 'GET',
         pathname: '/api/auth/reset-password/tok_reset'
       })
@@ -126,7 +125,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-in/email',
       status: 200,
-      userId: 'usr_demo'
+      actorUserId: 'usr_demo'
     })
     expect(input).toEqual({
       workspaceId: null,
@@ -142,7 +141,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-in/email',
       status: 401,
-      userId: null
+      actorUserId: null
     })
     expect(input?.eventType).toBe('auth.sign_in_failed')
     expect(input?.actorUserId).toBeNull()
@@ -154,7 +153,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-in/email',
       status: 500,
-      userId: 'usr_demo'
+      actorUserId: 'usr_demo'
     })
     expect(input?.actorUserId).toBeNull()
   })
@@ -164,7 +163,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-up/email',
       status: 200,
-      userId: 'usr_new'
+      actorUserId: 'usr_new'
     })
     expect(input?.eventType).toBe('auth.sign_up')
     expect(input?.actorUserId).toBe('usr_new')
@@ -176,7 +175,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-up/email',
       status: 422,
-      userId: null
+      actorUserId: null
     })
     expect(input?.eventType).toBe('auth.sign_up_failed')
     expect(input?.actorUserId).toBeNull()
@@ -189,7 +188,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/request-password-reset',
       status: 200,
-      userId: null
+      actorUserId: null
     })
     expect(known).toEqual({
       workspaceId: null,
@@ -205,7 +204,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/reset-password',
       status: 200,
-      userId: null
+      actorUserId: null
     })
     expect(success?.eventType).toBe('auth.password_reset')
     expect(success?.actorUserId).toBeNull()
@@ -214,7 +213,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/reset-password',
       status: 400,
-      userId: null
+      actorUserId: null
     })
     expect(failure?.eventType).toBe('auth.password_reset_failed')
   })
@@ -225,7 +224,7 @@ describe('authAuditInput', () => {
       method: 'GET',
       pathname: '/api/auth/verify-email',
       status: 302,
-      userId: null,
+      actorUserId: null,
       locationHeader: 'http://localhost:3071/verify-email'
     })
     expect(success?.eventType).toBe('auth.email_verified')
@@ -235,7 +234,7 @@ describe('authAuditInput', () => {
       method: 'GET',
       pathname: '/api/auth/verify-email',
       status: 302,
-      userId: null,
+      actorUserId: null,
       locationHeader: 'http://localhost:3071/verify-email?error=INVALID_TOKEN'
     })
     expect(failure?.eventType).toBe('auth.email_verification_failed')
@@ -245,7 +244,7 @@ describe('authAuditInput', () => {
       method: 'GET',
       pathname: '/api/auth/verify-email',
       status: 302,
-      userId: null,
+      actorUserId: null,
       locationHeader: null
     })
     expect(noLocation?.eventType).toBe('auth.email_verification_failed')
@@ -256,7 +255,7 @@ describe('authAuditInput', () => {
       method: 'GET',
       pathname: '/api/auth/verify-email',
       status: 200,
-      userId: 'usr_demo'
+      actorUserId: 'usr_demo'
     })
     expect(input?.eventType).toBe('auth.email_verified')
     expect(input?.actorUserId).toBe('usr_demo')
@@ -267,7 +266,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-in/username',
       status: 200,
-      userId: 'usr_demo'
+      actorUserId: 'usr_demo'
     })
     expect(input?.eventType).toBe('auth.sign_in')
     expect(input?.actorUserId).toBe('usr_demo')
@@ -278,7 +277,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-in/username',
       status: 401,
-      userId: null
+      actorUserId: null
     })
     expect(failed?.eventType).toBe('auth.sign_in_failed')
   })
@@ -288,7 +287,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-out',
       status: 200,
-      userId: 'usr_demo'
+      actorUserId: 'usr_demo'
     })
     expect(input?.eventType).toBe('auth.sign_out')
     expect(input?.actorUserId).toBe('usr_demo')
@@ -308,7 +307,7 @@ describe('authAuditInput', () => {
         method: 'POST',
         pathname,
         status: 500,
-        userId: 'usr_demo'
+        actorUserId: 'usr_demo'
       })
       expect(input?.eventType).toBe(
         pathname.endsWith('/sign-out')
@@ -324,7 +323,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/user/revoke-sessions',
       status: 200,
-      userId: null
+      actorUserId: null
     })
     expect(input?.eventType).toBe('auth.session_revoked')
     expect(input?.actorUserId).toBeNull()
@@ -336,7 +335,7 @@ describe('authAuditInput', () => {
         method: 'GET',
         pathname: '/api/auth/get-session',
         status: 200,
-        userId: null
+        actorUserId: null
       })
     ).toBeNull()
     expect(
@@ -344,7 +343,7 @@ describe('authAuditInput', () => {
         method: 'GET',
         pathname: '/api/auth/sign-in/email',
         status: 200,
-        userId: null
+        actorUserId: null
       })
     ).toBeNull()
   })
@@ -363,7 +362,9 @@ describe('recordAuthAudit', () => {
     const json = vi.spyOn(response, 'json')
     const outcome = await Effect.runPromise(
       Effect.scoped(
-        recordAuthAudit(request, response, runCapabilities, { actorUserId: 'usr_demo' })
+        recordAuthAudit(exchangeOf(request), response, runCapabilities, {
+          actorUserId: 'usr_demo'
+        })
       )
     )
     expect(outcome).toBe('recorded')
@@ -449,8 +450,8 @@ describe('two-factor lifecycle exchanges', () => {
   const verifyTotp = { method: 'POST', pathname: '/api/auth/two-factor/verify-totp' }
 
   it('audits enabling and disabling two-factor', () => {
-    expect(isAuditedAuthExchange(enable)).toBe(true)
-    expect(isAuditedAuthExchange(disable)).toBe(true)
+    expect(isAudited(enable)).toBe(true)
+    expect(isAudited(disable)).toBe(true)
     // Both endpoints require an authenticated session and their responses
     // carry secrets (totpURI, backupCodes), never an actor.
     expect(needsPreHandlerActor(enable)).toBe(true)
@@ -459,14 +460,14 @@ describe('two-factor lifecycle exchanges', () => {
 
   it('maps enable to an attributed pair, failures keeping the pre-handler actor', () => {
     expect(
-      authAuditInput({ ...enable, status: 200, userId: 'usr_demo' })
+      authAuditInput({ ...enable, status: 200, actorUserId: 'usr_demo' })
     ).toMatchObject({
       eventType: 'auth.two_factor_enabled',
       actorUserId: 'usr_demo',
       targetType: 'user'
     })
     expect(
-      authAuditInput({ ...enable, status: 400, userId: 'usr_demo' })
+      authAuditInput({ ...enable, status: 400, actorUserId: 'usr_demo' })
     ).toMatchObject({
       eventType: 'auth.two_factor_enabled_failed',
       actorUserId: 'usr_demo'
@@ -475,14 +476,14 @@ describe('two-factor lifecycle exchanges', () => {
 
   it('maps disable to an attributed pair', () => {
     expect(
-      authAuditInput({ ...disable, status: 200, userId: 'usr_demo' })
+      authAuditInput({ ...disable, status: 200, actorUserId: 'usr_demo' })
     ).toMatchObject({
       eventType: 'auth.two_factor_disabled',
       actorUserId: 'usr_demo',
       targetType: 'user'
     })
     expect(
-      authAuditInput({ ...disable, status: 401, userId: 'usr_demo' })
+      authAuditInput({ ...disable, status: 401, actorUserId: 'usr_demo' })
     ).toMatchObject({
       eventType: 'auth.two_factor_disable_failed',
       actorUserId: 'usr_demo'
@@ -490,26 +491,28 @@ describe('two-factor lifecycle exchanges', () => {
   })
 
   it('audits the TOTP verification challenge', () => {
-    expect(isAuditedAuthExchange(verifyTotp)).toBe(true)
+    expect(isAudited(verifyTotp)).toBe(true)
     // The verification response names its user on success; on failure there is
     // no trustworthy actor (the sign-in challenge may carry no session yet).
     expect(needsPreHandlerActor(verifyTotp)).toBe(false)
     expect(
-      authAuditInput({ ...verifyTotp, status: 200, userId: 'usr_challenge' })
+      authAuditInput({ ...verifyTotp, status: 200, actorUserId: 'usr_challenge' })
     ).toMatchObject({
       eventType: 'auth.two_factor_verified',
       actorUserId: 'usr_challenge',
       targetType: 'session'
     })
-    expect(authAuditInput({ ...verifyTotp, status: 401, userId: null })).toMatchObject({
+    expect(
+      authAuditInput({ ...verifyTotp, status: 401, actorUserId: null })
+    ).toMatchObject({
       eventType: 'auth.two_factor_verification_failed',
       actorUserId: null
     })
   })
 })
 
-describe('isAdminAuthExchange', () => {
-  it('accepts the audited admin mutations', () => {
+describe('the admin rows of the table', () => {
+  it('audits the admin mutations, each attributed to the acting admin', () => {
     for (const suffix of [
       '/admin/set-role',
       '/admin/ban-user',
@@ -522,31 +525,35 @@ describe('isAdminAuthExchange', () => {
       '/admin/revoke-user-session',
       '/admin/revoke-user-sessions'
     ]) {
+      const exchange = { method: 'POST', pathname: `/api/auth${suffix}` }
+      expect(isAudited(exchange)).toBe(true)
+      // The response never names the acting admin, so every admin row takes
+      // the pre-handler session read.
+      expect(needsPreHandlerActor(exchange)).toBe(true)
       expect(
-        isAdminAuthExchange({ method: 'POST', pathname: `/api/auth${suffix}` })
-      ).toBe(true)
+        authAuditInput({ ...exchange, status: 200, actorUserId: 'usr_martin' })
+          ?.eventType
+      ).toMatch(/^system_admin\./)
     }
   })
 
-  it('rejects reads and non-admin auth traffic', () => {
-    expect(
-      isAdminAuthExchange({ method: 'GET', pathname: '/api/auth/admin/list-users' })
-    ).toBe(false)
-    expect(
-      isAdminAuthExchange({ method: 'POST', pathname: '/api/auth/sign-in/email' })
-    ).toBe(false)
-    expect(
-      isAdminAuthExchange({ method: 'POST', pathname: '/api/auth/admin/list-users' })
-    ).toBe(false)
+  it('rejects admin reads', () => {
+    expect(isAudited({ method: 'GET', pathname: '/api/auth/admin/list-users' })).toBe(
+      false
+    )
+    expect(isAudited({ method: 'POST', pathname: '/api/auth/admin/list-users' })).toBe(
+      false
+    )
   })
 })
 
-describe('adminAuditInput', () => {
+describe('authAuditInput for the admin rows', () => {
   const pathname = '/api/auth/admin/set-role'
 
   it('maps a successful role change to an attributed system_admin event', () => {
     expect(
-      adminAuditInput({
+      authAuditInput({
+        method: 'POST',
         pathname,
         status: 200,
         actorUserId: 'usr_martin',
@@ -563,7 +570,8 @@ describe('adminAuditInput', () => {
   })
 
   it('keeps the actor on failure — the session predates the judgment', () => {
-    const input = adminAuditInput({
+    const input = authAuditInput({
+      method: 'POST',
       pathname,
       status: 400,
       actorUserId: 'usr_martin',
@@ -618,7 +626,8 @@ describe('adminAuditInput', () => {
     ]
     for (const [path, success, failure] of pairs) {
       expect(
-        adminAuditInput({
+        authAuditInput({
+          method: 'POST',
           pathname: path,
           status: 200,
           actorUserId: 'a',
@@ -626,7 +635,8 @@ describe('adminAuditInput', () => {
         })?.eventType
       ).toBe(success)
       expect(
-        adminAuditInput({
+        authAuditInput({
+          method: 'POST',
           pathname: path,
           status: 500,
           actorUserId: 'a',
@@ -637,7 +647,8 @@ describe('adminAuditInput', () => {
   })
 
   it('targets an unknown user for stop-impersonating (no id in its request)', () => {
-    const input = adminAuditInput({
+    const input = authAuditInput({
+      method: 'POST',
       pathname: '/api/auth/admin/stop-impersonating',
       status: 200,
       actorUserId: 'usr_martin',
@@ -647,15 +658,18 @@ describe('adminAuditInput', () => {
     expect(input?.targetId).toBeNull()
   })
 
-  it('ignores non-admin traffic', () => {
-    expect(
-      adminAuditInput({
-        pathname: '/api/auth/sign-in/email',
-        status: 200,
-        actorUserId: 'usr_martin',
-        targetUserId: 'usr_dev'
-      })
-    ).toBeNull()
+  it('leaves non-admin traffic to its own row — no target id, no system_admin event', () => {
+    // One table, one mapper: a lifecycle path never picks up the admin shape,
+    // even when a target id is offered.
+    const input = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/sign-in/email',
+      status: 200,
+      actorUserId: 'usr_martin',
+      targetUserId: 'usr_dev'
+    })
+    expect(input?.eventType).toBe('auth.sign_in')
+    expect(input?.targetId).toBeUndefined()
   })
 })
 
@@ -666,7 +680,9 @@ describe('recordAuthAudit with a pre-handler context', () => {
     context: AuthAuditContext
   ): Promise<AuthAuditOutcome> {
     return Effect.runPromise(
-      Effect.scoped(recordAuthAudit(request, response, runCapabilities, context))
+      Effect.scoped(
+        recordAuthAudit(exchangeOf(request), response, runCapabilities, context)
+      )
     )
   }
 

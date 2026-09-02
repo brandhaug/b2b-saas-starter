@@ -1,9 +1,9 @@
-import { Database, RawD1 } from '@b2b-saas-starter/db/service'
+import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/schema'
 import { DateTime, Effect, Layer, Option } from 'effect'
 import { and, count, eq, sql } from 'drizzle-orm'
 
-import { assertWithinPlanLimitFor } from '../billing/billing.ts'
+import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import {
@@ -54,15 +54,13 @@ export const LiveWebhookEndpoints: Layer.Layer<
 > = Layer.effect(WebhookEndpoints)(
   Effect.gen(function* () {
     const db = yield* Database
-    const d1 = yield* RawD1
     const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
 
     // The shared mutate+audit combinator — one implementation of the batched
     // write, its zero-match skip, and the phantom-audit caveat (see
     // governance/audited-mutation.ts).
-    const auditedMutation = auditedMutations({
-      d1,
+    const auditedMutation = yield* auditedMutations({
       prepareAuditRecord: audit.prepareRecord,
       unavailable
     })
@@ -199,7 +197,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             matched: Effect.succeed(true),
             auditEvent: {
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.created',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -257,7 +255,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             matched: endpointExists(input.endpointId, ctx.workspace.id),
             auditEvent: {
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.disabled',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,
@@ -280,7 +278,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             matched: endpointExists(input.endpointId, ctx.workspace.id),
             auditEvent: {
               workspaceId: ctx.workspace.id,
-              actorUserId: input.actorUserId ?? null,
+              actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.secret_rotated',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,

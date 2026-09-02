@@ -1,16 +1,18 @@
 import { Effect } from 'effect'
-import { count, eq } from 'drizzle-orm'
+import { count, eq, getTableName, is, Table } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import { provisionTestD1, type TestD1 } from './testing.ts'
-import { Database, layerFromD1, batch, DbBatchError } from './service.ts'
-import {
+import { Database, layerFromD1, type RawD1, batch, DbBatchError } from './service.ts'
+import * as schema from './schema.ts'
+
+const {
   apiTokens,
   notifications,
   user,
   workspaceInvitations,
   workspaceMembers,
   workspaces
-} from './schema.ts'
+} = schema
 
 // These tests run against a real local D1 (workerd) with all committed
 // migrations applied — they validate the schema and D1 semantics the Seed
@@ -39,9 +41,16 @@ beforeAll(
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- disposes the workerd process
 afterAll(() => test.dispose())
 
-function run<A, E>(effect: Effect.Effect<A, E, Database>) {
+function run<A, E>(effect: Effect.Effect<A, E, Database | RawD1>) {
   return Effect.runPromise(Effect.provide(effect, dbLayer))
 }
+
+// Derived from the schema module, not hand-listed: a table added to
+// `schema.ts` but missing from a migration must fail here, and a list restated
+// by hand silently stops covering new tables (it omitted `two_factor`).
+const schemaTableNames = Object.values(schema)
+  .filter((value) => is(value, Table))
+  .map((table) => getTableName(table))
 
 const iso = '2026-07-03T09:00:00.000Z'
 
@@ -63,21 +72,8 @@ describe('migrations', () => {
             .all<{ name: string }>()
         )
         const tables = new Set(rows.results.map((row) => row.name))
-        const expected = [
-          'user',
-          'session',
-          'account',
-          'verification',
-          'workspaces',
-          'workspace_members',
-          'workspace_invitations',
-          'api_tokens',
-          'webhook_endpoints',
-          'webhook_deliveries',
-          'notifications',
-          'audit_events'
-        ]
-        for (const table of expected) {
+        expect(schemaTableNames.length).toBeGreaterThan(0)
+        for (const table of schemaTableNames) {
           expect(tables, `missing table ${table}`).toContain(table)
         }
       })
@@ -399,7 +395,7 @@ describe('batch atomicity over live D1', () => {
         // Second statement violates the primary key, so the whole batch —
         // including the valid first insert — must roll back.
         const error = yield* Effect.flip(
-          batch(test.d1, [
+          batch([
             database.insert(workspaces).values({
               id: 'wrk_batch_new',
               slug: 'batch-new',

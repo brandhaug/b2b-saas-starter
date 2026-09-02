@@ -81,9 +81,9 @@ describe('disableWebhookEndpoint', () => {
     )
     const result = await Effect.runPromise(
       Effect.scoped(
-        outcome(
-          disableWebhookEndpoint({ endpointId: 'wh_1', actorUserId: ADMIN.userId })
-        ).pipe(Effect.provide(layer))
+        outcome(disableWebhookEndpoint({ endpointId: 'wh_1' })).pipe(
+          Effect.provide(layer)
+        )
       )
     )
     expect(result).toEqual({ tag: 'ok', value: true })
@@ -99,9 +99,9 @@ describe('disableWebhookEndpoint', () => {
     )
     const result = await Effect.runPromise(
       Effect.scoped(
-        outcome(
-          disableWebhookEndpoint({ endpointId: 'wh_1', actorUserId: ADMIN.userId })
-        ).pipe(Effect.provide(layer))
+        outcome(disableWebhookEndpoint({ endpointId: 'wh_1' })).pipe(
+          Effect.provide(layer)
+        )
       )
     )
     expect(result).toEqual({
@@ -120,9 +120,9 @@ describe('disableWebhookEndpoint', () => {
     )
     const result = await Effect.runPromise(
       Effect.scoped(
-        outcome(
-          disableWebhookEndpoint({ endpointId: 'wh_1', actorUserId: ADMIN.userId })
-        ).pipe(Effect.provide(layer))
+        outcome(disableWebhookEndpoint({ endpointId: 'wh_1' })).pipe(
+          Effect.provide(layer)
+        )
       )
     )
     expect(result).toEqual({ tag: 'AuthorizationDenied', reason: 'no_principal' })
@@ -140,9 +140,7 @@ describe('rotateWebhookSecret', () => {
     )
     const result = await Effect.runPromise(
       Effect.scoped(
-        outcome(
-          rotateWebhookSecret({ endpointId: 'wh_1', actorUserId: OWNER.userId })
-        ).pipe(Effect.provide(layer))
+        outcome(rotateWebhookSecret({ endpointId: 'wh_1' })).pipe(Effect.provide(layer))
       )
     )
     expect(result).toEqual({ tag: 'ok', value: 'whsec_seed_rotated' })
@@ -158,9 +156,7 @@ describe('rotateWebhookSecret', () => {
     )
     const result = await Effect.runPromise(
       Effect.scoped(
-        outcome(
-          rotateWebhookSecret({ endpointId: 'wh_1', actorUserId: OWNER.userId })
-        ).pipe(Effect.provide(layer))
+        outcome(rotateWebhookSecret({ endpointId: 'wh_1' })).pipe(Effect.provide(layer))
       )
     )
     expect(result).toEqual({
@@ -180,8 +176,7 @@ describe('rotateWebhookSecret', () => {
     const result = await Effect.runPromise(
       Effect.scoped(
         rotateWebhookSecret({
-          endpointId: 'wh_missing',
-          actorUserId: OWNER.userId
+          endpointId: 'wh_missing'
         }).pipe(Effect.provide(layer))
       )
     )

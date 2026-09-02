@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { MembersPanel } from '@/components/members-panel'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import { viewerCan } from '@/lib/permissions'
 import {
   loadWorkspaceMembers,
   type WorkspaceMembersPayload
@@ -46,7 +45,7 @@ export function WorkspaceMembersPage({
       title="Members"
       description="Everyone with access to this workspace."
       unreadCount={unreadCount}
-      canReadAuditLog={viewerCan(viewer, { auditLog: ['read'] })}
+      viewer={viewer}
     >
       <div className="grid gap-6">
         <MembersPanel workspaceSlug={workspaceSlug} members={members} viewer={viewer} />

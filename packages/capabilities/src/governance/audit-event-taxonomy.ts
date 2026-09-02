@@ -16,14 +16,7 @@
  * map keyed off these constants and prettifies anything unknown.
  */
 
-/**
- * Preserves literal element types on a string list without an `as const`
- * assertion (which the lint rules disallow), so the exported unions derive
- * exactly from these tuples.
- */
-function literalTuple<T extends ReadonlyArray<string>>(...values: T): T {
-  return values
-}
+import { literalTuple } from '../internal/literal-tuple.ts'
 
 /** Every audit event type, for UI dropdowns; the union derives from it. */
 export const AUDIT_EVENT_TYPES = literalTuple(

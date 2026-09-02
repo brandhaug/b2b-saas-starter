@@ -4,6 +4,14 @@
 
 Workspace-scoped programmatic-access tokens for the REST + MCP surface. Tokens carry one or more scopes from a fixed three-tier hierarchy (`read | write | admin`) and are stored as SHA-256 hashes, never plaintext. Full lifecycle (issue, list, revoke, verify) is wired and emits audit events.
 
+## Module layout
+
+The capability is split along its section seams — no barrel file; consumers import the specific module:
+
+- `api-token-registry.ts` — shared contract: schemas (`ApiToken`, `ApiTokenScope`, `CreateApiTokenPayload`, `CreatedApiTokenSchema`), input types, `ApiTokenRegistryInterface` + service class, the `lastUsedAt` throttle policy (`LAST_USED_WRITE_INTERVAL_MS`, `shouldBumpLastUsedAt`), the stored-hash scheme (`hashApiToken`, shared with `scripts/seed.ts`), and the two documented fixture credentials (`SEED_API_TOKEN`, `SEED_READONLY_API_TOKEN` — published credentials the API worker's tests quote, so they live in the contract rather than in the Seed adapter).
+- `api-token-registry.seed.ts` — `SeedApiTokenRegistry` and its fixture scope map.
+- `api-token-registry.live.ts` — `LiveApiTokenRegistry` plus its query helpers (`activeTokenWhere`, `toTokenProjection`, token minting).
+
 ## Public surface
 
 - `ApiTokenScope = 'read' | 'write' | 'admin'` — schema literal. Treat as a closed set; widening it requires a migration.
@@ -11,8 +19,8 @@ Workspace-scoped programmatic-access tokens for the REST + MCP surface. Tokens c
 - `CreatedApiToken = ApiToken & { token }` — only returned from `create`. **The `token` plaintext is shown exactly once and never persisted.**
 - `VerifiedApiToken = { id, workspaceId, workspaceSlug, scopes }` — what `verifyBearerToken` resolves to. `scopes` is the input the route boundary turns into a `tokenPrincipal` for the permission check.
 - `ApiTokenRegistry.list` — `readonly ApiToken[]` for the current `WorkspaceContext`. Filters revoked rows (`isNull(revokedAt)`), newest first.
-- `ApiTokenRegistry.create({ name, scopes, actorUserId? })` — enforces the plan's token-count ceiling (`assertWithinPlanLimit` from the billing capability; counting lives here so callers cannot forget the gate), mints a high-entropy token, hashes it, stores `tokenPrefix + tokenHash`, emits `api_token.created`, and fans out a best-effort `api_token.created` webhook event (projection only — never the plaintext). Returns `CreatedApiToken` (with plaintext). Fails with `PlanLimitExceeded` when the plan cap is reached.
-- `ApiTokenRegistry.revoke({ tokenId, actorUserId? })` — stamps `revokedAt`, emits `api_token.revoked`, resolves `true` when a row was revoked. The lookup and where-clause include `workspaceId` and `isNull(revokedAt)`, so double-revoke and cross-workspace revoke are no-ops that resolve `false` — and **no audit event or webhook fan-out happens when nothing matched**.
+- `ApiTokenRegistry.create({ name, scopes })` — enforces the plan's token-count ceiling (`assertWithinPlanLimit` from the billing capability; counting lives here so callers cannot forget the gate), mints a high-entropy token, hashes it, stores `tokenPrefix + tokenHash`, emits `api_token.created`, and fans out a best-effort `api_token.created` webhook event (projection only — never the plaintext). Returns `CreatedApiToken` (with plaintext). Fails with `PlanLimitExceeded` when the plan cap is reached.
+- `ApiTokenRegistry.revoke({ tokenId })` — stamps `revokedAt`, emits `api_token.revoked`, resolves `true` when a row was revoked. The lookup and where-clause include `workspaceId` and `isNull(revokedAt)`, so double-revoke and cross-workspace revoke are no-ops that resolve `false` — and **no audit event or webhook fan-out happens when nothing matched**.
 - Mutating fan-out is implementation detail: both Seed and Live layers are built with a `WebhookPublisher` (Seed uses the no-op) via `publishWebhookEventWith`, so `WebhookPublisher` never appears in this capability's interface — every surface (REST, MCP bearer flows, web server functions) gets identical behavior for free.
 - `ApiTokenRegistry.verifyBearerToken(token)` — hashes the plaintext, looks up by `tokenHash`, checks `revokedAt`, returns `VerifiedApiToken`. It **authenticates only**: the reported `scopes` are the token's own, and whether they cover the request is decided by `requirePermission` at the route boundary. **Fails with `AuthorizationDenied`, not `WorkspaceNotFound`** — this is the capability layer's one authorization-shaped failure, and its `reason` is always `invalid_token` (unknown or revoked; the API worker answers 401).
 - `verifyBearerToken` bumps `lastUsedAt` **at most once per `LAST_USED_WRITE_INTERVAL_MS` (60s)** — the throttle decision is the exported pure helper `shouldBumpLastUsedAt`. The per-request `api_token.used` audit event was **removed**: it cost a second D1 write per authenticated request and flooded the governance log with noise. Verification is therefore no longer audit-emitting; `create`/`revoke` still are.
@@ -37,7 +45,7 @@ The narrow one exists so the denial half of the permission matrix is reachable w
   - `tokenPrefix` — first 17 plaintext chars, used by the UI to identify tokens without exposing the secret.
   - `revokedAt` — soft-delete timestamp; the Live layer filters on `isNull(revokedAt)`.
   - `lastUsedAt` — bumped by `verifyBearerToken` on successful auth, throttled to once per 60s (see `LAST_USED_WRITE_INTERVAL_MS`).
-  - `createdByUserId` — set from `actorUserId` for the audit trail.
+  - `createdByUserId` — set from `WorkspaceContext.actor` for the audit trail.
 
 ## Integrations
 

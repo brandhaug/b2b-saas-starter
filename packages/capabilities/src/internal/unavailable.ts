@@ -1,3 +1,4 @@
+import { failureMessage } from '@b2b-saas-starter/failure'
 import { Effect } from 'effect'
 import { CapabilityUnavailable } from '../errors.ts'
 
@@ -12,10 +13,9 @@ export function orUnavailable(
   effect: Effect.Effect<A, E, R>
 ) => Effect.Effect<A, CapabilityUnavailable, R> {
   return (effect) =>
-    Effect.mapError(effect, (error) => {
-      if (error instanceof Error) {
-        return new CapabilityUnavailable({ capability, reason: error.message })
-      }
-      return new CapabilityUnavailable({ capability, reason: String(error) })
-    })
+    Effect.mapError(
+      effect,
+      (error) =>
+        new CapabilityUnavailable({ capability, reason: failureMessage(error) })
+    )
 }

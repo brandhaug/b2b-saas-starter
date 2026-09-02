@@ -6,9 +6,9 @@ import { defineRule } from '@oxlint/plugins'
  *
  * This guards CLAUDE.md rule 7, and it exists because the failure is silent.
  * `@typescript-eslint/consistent-type-definitions` is set to `"type"` repo-wide and
- * is auto-fixable, `.oxlintrc.json` only exempts `**\/*.d.ts`, and `oxlint --fix`
- * runs in the pre-commit hook. So an augmentation written in a `.ts` file gets its
- * `interface` rewritten to a `type` alias on commit, which stops merging and starts
+ * is auto-fixable, the lint config only exempts `**\/*.d.ts`, and `pnpm run
+ * check:fix` runs `vp lint --fix`. So an augmentation written in a `.ts` file gets
+ * its `interface` rewritten to a `type` alias, which stops merging and starts
  * shadowing: the augmentation silently becomes a duplicate identifier instead of
  * extending the upstream declaration. This rule has no fixer, so it survives
  * `--fix` and leaves a visible error instead.
@@ -44,7 +44,7 @@ export default defineRule({
           context.report({
             node: statement,
             message:
-              'Move this declaration merge into a .d.ts file. Here consistent-type-definitions rewrites the interface to a type alias, and oxlint --fix in the pre-commit hook will apply it, turning the augmentation into a duplicate identifier.'
+              'Move this declaration merge into a .d.ts file. Here consistent-type-definitions rewrites the interface to a type alias, and pnpm run check:fix will apply it, turning the augmentation into a duplicate identifier.'
           })
         }
       }

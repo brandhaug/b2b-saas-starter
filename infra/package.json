@@ -7,7 +7,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vp test run"
+    "test": "vp test run --passWithNoTests"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",

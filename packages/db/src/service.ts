@@ -1,3 +1,4 @@
+import { failureMessage } from '@b2b-saas-starter/failure'
 import { Context, Effect, Layer, Schema } from 'effect'
 import * as D1Client from '@effect/sql-d1/D1Client'
 import * as SQLiteD1Drizzle from 'drizzle-orm/effect-d1'
@@ -17,19 +18,16 @@ export class Database extends Context.Service<Database, EffectDatabase>()(
 /**
  * The raw D1 binding, as a service alongside {@link Database}. Batch writes
  * need it because the effect-d1 driver has no batch API — depend on this
- * instead of tunneling through `db.$client.config`.
+ * instead of tunneling through `db.$client.config`. {@link layerFromD1}
+ * provides it beside `Database`, so both come from one call.
  */
 export class RawD1 extends Context.Service<RawD1, D1Binding>()(
   '@b2b-saas-starter/db/RawD1'
 ) {}
 
-export function layerFromDb(db: EffectDatabase): Layer.Layer<Database> {
-  return Layer.succeed(Database)(db)
-}
-
 /**
- * The `orDie` is what lets this return `Layer.Layer<Database>` with no error
- * channel. Building a drizzle client over a D1 binding that already exists fails
+ * The `orDie` is what lets this return `Layer.Layer<Database | RawD1>` with no
+ * error channel. Building a drizzle client over a D1 binding that already exists fails
  * only on a broken install, and there is nothing to degrade to at this level:
  * runtime query failures are caught above by `orUnavailable`, which is where the
  * starter's degraded states come from. Widening the signature instead would push a
@@ -64,28 +62,23 @@ export type BatchStatement = {
  * Executes multiple statements as a single atomic D1 batch (implicit
  * transaction — all statements commit or roll back together). The effect-d1
  * drizzle driver has no batch API, so this compiles the builders and runs them
- * through the raw `D1Database` binding passed explicitly — resolve it from the
- * `RawD1` service where a layer only holds the `Database` service.
+ * through the raw `D1Database` binding, which it reads from the {@link RawD1}
+ * service rather than taking as an argument.
  */
-function batchFailureReason(cause: unknown): string {
-  if (cause instanceof Error) {
-    return cause.message
-  }
-  return String(cause)
-}
-
 export function batch(
-  d1: D1Binding,
   statements: ReadonlyArray<BatchStatement>
-): Effect.Effect<void, DbBatchError> {
-  return Effect.tryPromise({
-    try: () =>
-      d1.batch(
-        statements.map((statement) => {
-          const query = statement.toSQL()
-          return d1.prepare(query.sql).bind(...query.params)
-        })
-      ),
-    catch: (cause) => new DbBatchError({ reason: batchFailureReason(cause) })
-  }).pipe(Effect.asVoid)
+): Effect.Effect<void, DbBatchError, RawD1> {
+  return Effect.gen(function* () {
+    const d1 = yield* RawD1
+    yield* Effect.tryPromise({
+      try: () =>
+        d1.batch(
+          statements.map((statement) => {
+            const query = statement.toSQL()
+            return d1.prepare(query.sql).bind(...query.params)
+          })
+        ),
+      catch: (cause) => new DbBatchError({ reason: failureMessage(cause) })
+    })
+  })
 }

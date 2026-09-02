@@ -9,6 +9,15 @@ Reads and writes split by direction, exactly as membership does:
 - **Reads** (`list`, `find`) go straight through Drizzle.
 - **Writes** (`create`, `cancel`, `accept`) go through Better Auth's `organization` plugin, so its state machine and its lifecycle hooks apply. This package never names the plugin — it calls `WorkspaceInvitationBinding`, and the app supplies the adapter (ADR 0051).
 
+## Module layout
+
+The capability is split along its section seams — no barrel file; consumers import the specific module:
+
+- `workspace-invitations.ts` — shared contract: schemas (`Invitation`, `InvitationDetail`, `AcceptedInvitation`, `InvitationStatus`), input types, `WorkspaceInvitationsInterface` + service class, the `WorkspaceInvitationBinding` port, and the state-machine rules both adapters enforce (`requirePending`, `requireRecipient`, `requireUnexpired`).
+- `workspace-invitations.seed.ts` — `SeedWorkspaceInvitations`, the fixture TTL, and its in-memory store helpers (`settle`, `findPending` — the `Ref` lookup, with the pending question delegated to the contract's `requirePending`).
+- `workspace-invitations.live.ts` — `LiveWorkspaceInvitations`, the `callBinding` caller built from `makeBindingCaller`, and its query helpers (`toInvitation`, `pendingByEmail`).
+- `workspace-invitations.contract.ts` — the shared **test** cases both adapters are run against (see capabilities invariant 4); not a source module.
+
 ## The accept path has no WorkspaceContext, and cannot have one
 
 Every other workspace-scoped method reads the resolved workspace from `WorkspaceContext` (capabilities invariant 1). `accept` and `find` do not, and this is the load-bearing design decision of the capability.
@@ -42,7 +51,7 @@ The Live adapter classifies a binding rejection by the thrown value's `statusCod
 
 ## The state-machine rules live here, not only in the plugin
 
-`requireRecipient` and `requireUnexpired` are checked by the Live adapter **before** it calls the binding, even though the plugin enforces both itself. Two reasons: the capability's answer then does not depend on which binding is wired, and the audit event needs the invitation row regardless. The recipient comparison lower-cases both sides because the plugin does — a mixed-case sign-up must not be refused its own invitation.
+`requirePending`, `requireRecipient` and `requireUnexpired` are checked by the Live adapter **before** it calls the binding, even though the plugin enforces both itself. Two reasons: the capability's answer then does not depend on which binding is wired, and the audit event needs the invitation row regardless. The recipient comparison lower-cases both sides because the plugin does — a mixed-case sign-up must not be refused its own invitation. The accept page's `invitationPreview` (`apps/web/src/lib/server/invitations.ts`) runs the same three over the row `find` returned, collapsing every refusal to one opaque "cannot be used", so the page never describes an invitation the accept would then reject.
 
 ## Storage
 
@@ -52,7 +61,7 @@ The Live adapter classifies a binding rejection by the thrown value's `statusCod
 
 ## Seed / Live parity
 
-`workspace-invitations.contract.ts` holds the cases both adapters must satisfy (capabilities invariant 4); `index.test.ts` runs them against Seed with no D1 and `live-layers.test.ts` runs the same list against Live on a real one.
+`workspace-invitations.contract.ts` holds the cases both adapters must satisfy (capabilities invariant 4); `index.test.ts` runs them against Seed with no D1 and `workspace-invitations.live.test.ts` runs the same list against Live on a real one.
 
 Two things the harnesses own, because no case can produce them through the interface:
 

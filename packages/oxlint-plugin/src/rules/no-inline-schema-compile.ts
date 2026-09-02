@@ -1,5 +1,10 @@
 import { defineRule, type ESTree } from '@oxlint/plugins'
-import { getPropertyName, isIdentifier, unwrapExpression } from '../internal/ast.ts'
+import {
+  getPropertyName,
+  isCalleeOfEnclosingCall,
+  schemaMemberAccess,
+  unwrapExpression
+} from '../internal/ast.ts'
 
 /**
  * Catches Effect Schema decoder and encoder compilers called inside a function
@@ -46,15 +51,12 @@ const COMPILER_METHODS = new Set([
 function getSchemaCompilerMethod(
   callee: ESTree.Node | null | undefined
 ): string | undefined {
-  const expression = unwrapExpression(callee)
-  if (expression?.type !== 'MemberExpression') {
-    return undefined
-  }
-  if (!isIdentifier(unwrapExpression(expression.object), 'Schema')) {
+  const access = schemaMemberAccess(callee)
+  if (access === undefined) {
     return undefined
   }
 
-  const method = getPropertyName(expression.property)
+  const method = getPropertyName(access.property)
   if (method === undefined || !COMPILER_METHODS.has(method)) {
     return undefined
   }
@@ -90,15 +92,12 @@ function isNestedStaticSchemaCall(node: ESTree.Node | null | undefined): boolean
     return false
   }
 
-  const callee = unwrapExpression(expression.callee)
-  if (callee?.type !== 'MemberExpression') {
-    return false
-  }
-  if (!isIdentifier(unwrapExpression(callee.object), 'Schema')) {
+  const access = schemaMemberAccess(expression.callee)
+  if (access === undefined) {
     return false
   }
 
-  if (getPropertyName(callee.property) !== 'fromJsonString') {
+  if (getPropertyName(access.property) !== 'fromJsonString') {
     return true
   }
 
@@ -106,19 +105,6 @@ function isNestedStaticSchemaCall(node: ESTree.Node | null | undefined): boolean
   return (
     isStaticSchemaReference(firstArgument) || isNestedStaticSchemaCall(firstArgument)
   )
-}
-
-/**
- * Only the `compile(...)(input)` shape rebuilds per call. A bare
- * `const decode = Schema.decodeSync(X)` inside a factory compiles once and is
- * reused by the returned function, which is the shape this rule steers to.
- */
-function isImmediatelyInvoked(node: ESTree.CallExpression): boolean {
-  const { parent } = node
-  if (parent.type !== 'CallExpression') {
-    return false
-  }
-  return unwrapExpression(parent.callee) === node
 }
 
 function inlineSchemaMessage(method: string) {
@@ -169,7 +155,10 @@ export default defineRule({
         if (method === undefined) {
           return
         }
-        if (!isImmediatelyInvoked(node)) {
+        // Only the `compile(...)(input)` shape rebuilds per call. A bare
+        // `const decode = Schema.decodeSync(X)` inside a factory compiles once
+        // and is reused by the returned function — the shape this rule steers to.
+        if (!isCalleeOfEnclosingCall(node)) {
           return
         }
 

@@ -4,7 +4,6 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { useState } from 'react'
-import { useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 
 import { FormTextField } from '@/components/form-text-field'
@@ -28,7 +27,7 @@ import {
   sendInvitationServerFn,
   type SentInvitation
 } from '@/lib/server/invitations'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 import { EMAIL_PATTERN } from '@/lib/email-pattern'
 import { invitationStatusVariant } from '@/lib/badge-variants'
 
@@ -62,52 +61,35 @@ export function InvitationPanel({
   readonly workspaceSlug: string
   readonly invitations: ReadonlyArray<Invitation>
 }) {
-  const router = useRouter()
   const [sent, setSent] = useState<SentInvitation | null>(null)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [cancelError, setCancelError] = useState<string | null>(null)
-  const [cancelling, setCancelling] = useState<string | null>(null)
+
+  // Same shape as `ApiTokenForm`: the server function rejects on failure and
+  // the hook folds that rejection into a display message, so the failure path
+  // is a value rather than a try/catch. The loader owns the invitation list, so
+  // the hook re-runs it rather than mirroring the new row into local state.
+  const send = useServerAction(
+    (value: InvitationValues) =>
+      sendInvitationServerFn({
+        data: { workspaceSlug, email: value.email, role: value.role }
+      }),
+    { failureMessage: SEND_FAILED, onSuccess: setSent }
+  )
+
+  const cancel = useServerAction(
+    (invitationId: string) =>
+      cancelInvitationServerFn({ data: { workspaceSlug, invitationId } }),
+    { failureMessage: CANCEL_FAILED }
+  )
 
   const form = useForm({
     defaultValues: DEFAULT_INVITATION_VALUES,
     onSubmit: async ({ value }) => {
-      setSubmitError(null)
-      // Same shape as `ApiTokenForm`: the server function rejects on failure
-      // and `callServerFn` folds that rejection into a display message, so the
-      // failure path is a value rather than a try/catch.
-      const outcome = await callServerFn(
-        () =>
-          sendInvitationServerFn({
-            data: { workspaceSlug, email: value.email, role: value.role }
-          }),
-        SEND_FAILED
-      )
-      if (!outcome.ok) {
-        setSubmitError(outcome.message)
-        return
+      const outcome = await send.runAsync(value)
+      if (outcome.ok) {
+        form.reset()
       }
-      setSent(outcome.value)
-      form.reset()
-      // The loader owns the invitation list, so re-run it rather than mirroring
-      // the new row into local state.
-      await router.invalidate()
     }
   })
-
-  async function cancel(invitationId: string) {
-    setCancelError(null)
-    setCancelling(invitationId)
-    const outcome = await callServerFn(
-      () => cancelInvitationServerFn({ data: { workspaceSlug, invitationId } }),
-      CANCEL_FAILED
-    )
-    setCancelling(null)
-    if (!outcome.ok) {
-      setCancelError(outcome.message)
-      return
-    }
-    await router.invalidate()
-  }
 
   return (
     <div className="grid gap-5">
@@ -187,11 +169,11 @@ export function InvitationPanel({
             </AlertDescription>
           </Alert>
         ) : null}
-        {submitError ? (
+        {send.error === null ? null : (
           <Alert variant="destructive">
-            <AlertDescription>{submitError}</AlertDescription>
+            <AlertDescription>{send.error}</AlertDescription>
           </Alert>
-        ) : null}
+        )}
       </form>
 
       <div className="grid gap-2">
@@ -219,10 +201,10 @@ export function InvitationPanel({
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={cancelling === invitation.id}
-                      onClick={() => void cancel(invitation.id)}
+                      disabled={cancel.pendingInput === invitation.id}
+                      onClick={() => cancel.run(invitation.id)}
                     >
-                      {cancelling === invitation.id ? (
+                      {cancel.pendingInput === invitation.id ? (
                         <Spinner data-icon="inline-start" />
                       ) : null}
                       Cancel
@@ -233,11 +215,11 @@ export function InvitationPanel({
             ))}
           </ItemGroup>
         )}
-        {cancelError ? (
+        {cancel.error === null ? null : (
           <Alert variant="destructive">
-            <AlertDescription>{cancelError}</AlertDescription>
+            <AlertDescription>{cancel.error}</AlertDescription>
           </Alert>
-        ) : null}
+        )}
       </div>
     </div>
   )

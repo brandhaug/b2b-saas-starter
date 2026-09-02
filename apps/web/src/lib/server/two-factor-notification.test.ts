@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vite-plus/test'
+import { type AuthExchange } from './auth-audit/exchanges'
 import {
   isTwoFactorChangeExchange,
   notifyTwoFactorChanged
@@ -6,8 +7,8 @@ import {
 
 const BASE = 'http://localhost:3071/api/auth'
 
-function post(pathname: string): Request {
-  return new Request(`${BASE}${pathname}`, { method: 'POST' })
+function post(pathname: string): AuthExchange {
+  return { method: 'POST', pathname: `${BASE}${pathname}` }
 }
 
 function ok(): Response {

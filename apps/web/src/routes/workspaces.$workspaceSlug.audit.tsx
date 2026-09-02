@@ -1,10 +1,8 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { Schema } from 'effect'
 import { RoutePending } from '@/components/route-pending'
-import {
-  WorkspaceAuditPage,
-  type ApplyWorkspaceAuditSearch
-} from '@/components/workspace-audit-page'
+import { WorkspaceAuditPage } from '@/components/workspace-audit-page'
+import { type ApplyWorkspaceAuditSearch } from '@/lib/audit-search'
 import {
   loadWorkspaceAuditEvents,
   type LoadWorkspaceAuditEventsInput,
