@@ -4,9 +4,11 @@ import {
   LiveNotifications,
   type ListNotifications
 } from '@/components/live-notifications'
+import { PageHeader } from '@/components/page/page-header'
+import { pageTitle } from '@/components/page/page-title'
+import { Panel } from '@/components/page/panel'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   loadWorkspaceDashboard,
   type WorkspaceDashboardPayload
@@ -37,9 +39,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
     }),
   pendingComponent: RoutePending,
   component: WorkspaceDashboardRoute,
-  // Derives the document title from the page the shell names.
   head: ({ params }) => ({
-    meta: [{ title: `Overview · ${params.workspaceSlug} | B2B SaaS Starter` }]
+    meta: [{ title: pageTitle('Overview', params.workspaceSlug) }]
   })
 })
 
@@ -69,36 +70,29 @@ export function WorkspaceDashboardPage({
     <WorkspaceShell
       workspaceSlug={workspace.slug}
       systemRole={systemRole}
-      title={workspace.name}
-      description="Notifications, API tokens, webhooks, and reports."
       unreadCount={unreadCount}
       viewer={viewer}
     >
-      <div className="grid gap-6">
-        <div className="grid gap-6">
-          <LiveNotifications
-            workspaceSlug={workspace.slug}
-            fallback={notifications}
-            {...(ports?.listNotifications === undefined
-              ? {}
-              : { listNotifications: ports.listNotifications })}
-          />
-          {/* `null` means the actor holds no `webhook:list`, so the loader never
-              read the endpoints — there is nothing to chart and nothing to hide. */}
-          {webhooks === null ? null : (
-            <Card>
-              <CardHeader>
-                <CardTitle as="h2">Webhook delivery</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Suspense fallback={null}>
-                  <WebhookSuccessChart webhooks={webhooks} />
-                </Suspense>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title={workspace.name}
+        description="Notifications, API tokens, webhooks, and reports."
+      />
+      <LiveNotifications
+        workspaceSlug={workspace.slug}
+        fallback={notifications}
+        {...(ports?.listNotifications === undefined
+          ? {}
+          : { listNotifications: ports.listNotifications })}
+      />
+      {/* `null` means the actor holds no `webhook:list`, so the loader never
+          read the endpoints — there is nothing to chart and nothing to hide. */}
+      {webhooks === null ? null : (
+        <Panel title="Webhook delivery">
+          <Suspense fallback={null}>
+            <WebhookSuccessChart webhooks={webhooks} />
+          </Suspense>
+        </Panel>
+      )}
     </WorkspaceShell>
   )
 }

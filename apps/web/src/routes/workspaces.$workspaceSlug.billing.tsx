@@ -1,4 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { PageHeader } from '@/components/page/page-header'
+import { pageTitle } from '@/components/page/page-title'
+import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { BillingPlans } from '@/components/workspace-billing'
@@ -18,9 +21,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/billing')({
     }),
   pendingComponent: RoutePending,
   component: WorkspaceBillingRoute,
-  // Derives the document title from the page the shell names.
   head: ({ params }) => ({
-    meta: [{ title: `Billing · ${params.workspaceSlug} | B2B SaaS Starter` }]
+    meta: [{ title: pageTitle('Billing', params.workspaceSlug) }]
   })
 })
 
@@ -58,11 +60,14 @@ export function WorkspaceBillingPage({
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
-      title="Billing"
-      description="Plan, entitlements, and checkout."
       unreadCount={data.unreadCount}
       viewer={data.viewer}
     >
+      <PageHeader
+        breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
+        title="Billing"
+        description="Plan, entitlements, and checkout."
+      />
       <BillingPlans
         workspaceSlug={workspaceSlug}
         currentPlanId={data.currentPlanId}

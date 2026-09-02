@@ -11,13 +11,17 @@ import {
   ItemActions,
   ItemContent,
   ItemDescription,
+  ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
 import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { WebhookForm, type CreateWebhookEndpoint } from '@/components/webhook-form'
 import { ConfirmButton } from '@/components/confirm-button'
-import { ResourcePanel } from '@/components/resource-panel'
+import { ActionFeedback } from '@/components/page/action-feedback'
+import { CreateSection, Panel } from '@/components/page/panel'
+import { Identifier } from '@/components/page/identifier'
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { SecretReveal } from '@/components/secret-reveal'
 import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
 import { formatUtcOr } from '@/lib/format-date'
@@ -141,106 +145,116 @@ export function WebhooksPanel({
   const busyId = disable.pendingInput ?? rotate.pendingInput ?? null
 
   return (
-    <ResourcePanel
-      create={{
-        title: 'Register an endpoint',
-        allowed: canCreate,
-        deniedReason: 'Your role cannot register endpoints.',
-        form: (
-          <WebhookForm
-            workspaceSlug={workspaceSlug}
-            onCreated={() => void router.invalidate()}
-            {...(createEndpoint === undefined ? {} : { createEndpoint })}
-          />
-        )
-      }}
-      list={{
-        title: 'Endpoints',
-        items: endpoints.map((endpoint) => (
-          <Item
-            key={endpoint.id}
-            variant="outline"
-            size="sm"
-            className="flex-col items-stretch"
-          >
-            <ItemContent>
-              <ItemTitle className="flex-wrap">
-                <code className="break-all">{endpoint.url}</code>
-                {endpoint.enabled ? (
-                  <Badge variant="outline">enabled</Badge>
-                ) : (
-                  <Badge variant="secondary">disabled</Badge>
-                )}
-              </ItemTitle>
-              <ItemDescription>Success rate {endpoint.successRate}%</ItemDescription>
-              <div className="flex flex-wrap gap-1">
-                {endpoint.events.map((event) => (
-                  <Badge key={event} variant="outline">
-                    {event}
-                  </Badge>
-                ))}
-              </div>
-            </ItemContent>
+    <Panel>
+      <CreateSection
+        allowed={canCreate}
+        title="Register an endpoint"
+        deniedReason="Your role cannot register endpoints."
+      >
+        <WebhookForm
+          workspaceSlug={workspaceSlug}
+          onCreated={() => void router.invalidate()}
+          {...(createEndpoint === undefined ? {} : { createEndpoint })}
+        />
+      </CreateSection>
 
-            <Deliveries deliveries={endpoint.deliveries} />
+      <div className="grid gap-2">
+        <h3 className="text-sm font-medium">Endpoints</h3>
+        {endpoints.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>No endpoints registered</EmptyTitle>
+              <EmptyDescription>Register one above to get started.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <ItemGroup>
+            {endpoints.map((endpoint) => (
+              <Item
+                key={endpoint.id}
+                variant="outline"
+                size="sm"
+                className="flex-col items-stretch"
+              >
+                <ItemContent>
+                  <ItemTitle className="flex-wrap">
+                    <Identifier>{endpoint.url}</Identifier>
+                    {endpoint.enabled ? (
+                      <Badge variant="outline">enabled</Badge>
+                    ) : (
+                      <Badge variant="secondary">disabled</Badge>
+                    )}
+                  </ItemTitle>
+                  <ItemDescription>
+                    Success rate {endpoint.successRate}%
+                  </ItemDescription>
+                  <div className="flex flex-wrap gap-1">
+                    {endpoint.events.map((event) => (
+                      <Badge key={event} variant="outline">
+                        {event}
+                      </Badge>
+                    ))}
+                  </div>
+                </ItemContent>
 
-            {(canDisable || canRotate) && endpoint.enabled ? (
-              <ItemActions className="flex-wrap">
-                {canDisable ? (
-                  <ConfirmButton
-                    label="Disable"
-                    confirmLabel="Confirm disable"
-                    armed={confirmingId === endpoint.id}
-                    busy={busyId === endpoint.id}
-                    onArm={() => setConfirmingId(endpoint.id)}
-                    onCancel={() => setConfirmingId(null)}
-                    onConfirm={() => disable.run(endpoint.id)}
-                  />
-                ) : null}
-                {canRotate ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busyId === endpoint.id}
-                    onClick={() => {
-                      setRotatedSecret(null)
-                      rotate.run(endpoint.id)
-                    }}
-                  >
-                    {busyId === endpoint.id ? (
-                      <Spinner data-icon="inline-start" />
+                <Deliveries deliveries={endpoint.deliveries} />
+
+                {(canDisable || canRotate) && endpoint.enabled ? (
+                  <ItemActions className="flex-wrap">
+                    {canDisable ? (
+                      <ConfirmButton
+                        label="Disable"
+                        confirmLabel="Confirm disable"
+                        armed={confirmingId === endpoint.id}
+                        busy={busyId === endpoint.id}
+                        onArm={() => setConfirmingId(endpoint.id)}
+                        onCancel={() => setConfirmingId(null)}
+                        onConfirm={() => disable.run(endpoint.id)}
+                      />
                     ) : null}
-                    Rotate secret
-                  </Button>
+                    {canRotate ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={busyId === endpoint.id}
+                        onClick={() => {
+                          setRotatedSecret(null)
+                          rotate.run(endpoint.id)
+                        }}
+                      >
+                        {busyId === endpoint.id ? (
+                          <Spinner data-icon="inline-start" />
+                        ) : null}
+                        Rotate secret
+                      </Button>
+                    ) : null}
+                  </ItemActions>
                 ) : null}
-              </ItemActions>
-            ) : null}
 
-            {rotatedSecret?.endpointId === endpoint.id ? (
-              <>
-                <Separator />
-                <Alert>
-                  <AlertTitle>
-                    Secret rotated. Copy it now, it will not be shown again.
-                  </AlertTitle>
-                  <AlertDescription>
-                    <SecretReveal
-                      secret={rotatedSecret.secret}
-                      label="Webhook secret"
-                      className="flex items-center gap-2"
-                    />
-                  </AlertDescription>
-                </Alert>
-              </>
-            ) : null}
-          </Item>
-        )),
-        empty: {
-          title: 'No endpoints registered',
-          description: 'Register one above to get started.'
-        }
-      }}
-      actions={[disable, rotate]}
-    />
+                {rotatedSecret?.endpointId === endpoint.id ? (
+                  <>
+                    <Separator />
+                    <Alert>
+                      <AlertTitle>
+                        Secret rotated. Copy it now, it will not be shown again.
+                      </AlertTitle>
+                      <AlertDescription>
+                        <SecretReveal
+                          secret={rotatedSecret.secret}
+                          label="Webhook secret"
+                          className="flex items-center gap-2"
+                        />
+                      </AlertDescription>
+                    </Alert>
+                  </>
+                ) : null}
+              </Item>
+            ))}
+          </ItemGroup>
+        )}
+      </div>
+
+      <ActionFeedback error={disable.error === null ? rotate.error : disable.error} />
+    </Panel>
   )
 }

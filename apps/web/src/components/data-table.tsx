@@ -30,7 +30,7 @@ import {
   TableRow
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
-import { formatUtc } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 
 const STICKY_CLASSES = 'sticky left-0 z-10 bg-card group-hover:bg-muted/50'
 
@@ -41,11 +41,7 @@ function isDate(cell: ReactNode | Date): cell is Date {
 }
 
 function formatDateCell(value: Date) {
-  return (
-    <span className="font-mono tabular-nums">
-      {formatUtc(value, { dateStyle: 'medium', timeStyle: 'short' })} UTC
-    </span>
-  )
+  return <span className="font-mono tabular-nums">{formatDateTime(value)} UTC</span>
 }
 
 // v9 registers features explicitly (prerequisites before their slots). The

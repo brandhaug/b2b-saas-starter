@@ -29,3 +29,17 @@ export function formatUtcOr(
 ): string {
   return value === null || value === undefined ? fallback : formatUtc(value, format)
 }
+
+const DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  dateStyle: 'medium',
+  timeStyle: 'short'
+}
+
+/**
+ * The one timestamp presentation for tables — admin users, the audit trail,
+ * anywhere `DataTable` renders a `Date`. One options object means the tables
+ * cannot disagree about the shape of a timestamp.
+ */
+export function formatDateTime(value: Date | string): string {
+  return formatUtc(value, DATE_TIME_OPTIONS)
+}

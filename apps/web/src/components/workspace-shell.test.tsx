@@ -22,8 +22,6 @@ async function renderShell(props?: {
       }
       viewer={props?.workspaceSlug === null ? null : { role: props?.role ?? 'member' }}
       {...(props?.systemRole === undefined ? {} : { systemRole: props.systemRole })}
-      title="Starter Lab"
-      description="Reference workspace"
       signOut={signOut}
       {...(props?.unreadCount === undefined ? {} : { unreadCount: props.unreadCount })}
     >
@@ -39,10 +37,8 @@ describe('WorkspaceShell', () => {
     signOut.mockResolvedValue(undefined)
   })
 
-  it('renders title, description, and children', async () => {
+  it('renders children (the page names itself via its own PageHeader)', async () => {
     await renderShell()
-    screen.getByRole('heading', { name: 'Starter Lab' })
-    screen.getByText('Reference workspace')
     screen.getByText('Dashboard content')
   })
 

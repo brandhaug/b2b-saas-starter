@@ -24,6 +24,7 @@ import {
   type SignOut
 } from '@/components/auth/auth-client-ports'
 import { SearchButton } from '@/components/command-palette'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import { CommandPaletteContext } from '@/lib/command-palette-context'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { WORKSPACE_NAV, type WorkspaceNavTarget } from '@/lib/workspace-nav'
@@ -34,8 +35,6 @@ export { type SignOut }
 
 export function WorkspaceShell({
   children,
-  title,
-  description,
   unreadCount,
   workspaceSlug,
   viewer,
@@ -43,8 +42,6 @@ export function WorkspaceShell({
   signOut = signOutWithAuthClient
 }: {
   readonly children: ReactNode
-  readonly title: string
-  readonly description: string
   /**
    * Unread-notification badge count. Omit on surfaces without a workspace
    * notification feed (e.g. /admin) — no badge is rendered.
@@ -132,16 +129,7 @@ export function WorkspaceShell({
               </div>
             </SheetContent>
           </Sheet>
-          <div className="min-w-0 flex-1">
-            {/* `title` on the truncated text so the full page name survives
-                hover/AT even when the column is too narrow to show it. */}
-            <h1 className="truncate text-xl font-semibold" title={title}>
-              {title}
-            </h1>
-            <p className="truncate text-sm text-muted-foreground" title={description}>
-              {description}
-            </p>
-          </div>
+          <div className="min-w-0 flex-1" />
           <SearchButton />
           {unreadCount === undefined ? null : (
             <Badge
@@ -155,8 +143,10 @@ export function WorkspaceShell({
           )}
           <SignOutButton signOut={signOut} />
         </header>
+        {/* One content width for every shell page — the page body centers at
+            `max-w-4xl` instead of each page picking its own column. */}
         <main id="main-content" className="px-4 py-6 sm:px-6">
-          {children}
+          <div className="mx-auto grid w-full max-w-4xl gap-6">{children}</div>
         </main>
       </div>
     </div>
@@ -178,7 +168,7 @@ function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
     { failureMessage: SIGN_OUT_FAILED, invalidate: false }
   )
   return (
-    <>
+    <div className="grid justify-items-end gap-1">
       <Button
         variant="ghost"
         size="icon"
@@ -188,12 +178,14 @@ function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
       >
         <LogOutIcon className="size-4" />
       </Button>
+      {/* The header has no room for the destructive alert inline, so the
+          failure lands in a full-width row under the bar. */}
       {signingOut.error === null ? null : (
-        <p role="alert" className="text-xs text-destructive">
-          {signingOut.error}
-        </p>
+        <div className="col-span-full">
+          <ActionFeedback error={signingOut.error} />
+        </div>
       )}
-    </>
+    </div>
   )
 }
 

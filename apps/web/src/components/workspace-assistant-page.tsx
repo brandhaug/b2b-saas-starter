@@ -1,9 +1,10 @@
-import { SparklesIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { PageHeader } from '@/components/page/page-header'
+import { Panel } from '@/components/page/panel'
+import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { viewerCan } from '@/lib/permissions'
 import { Spinner } from '@/components/ui/spinner'
@@ -164,63 +165,58 @@ export function WorkspaceAssistantPage({
 
   return (
     <WorkspaceShell
-      title="AI assistant"
-      description="Ask about this workspace"
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
       viewer={data.viewer}
     >
-      <Card className="mx-auto max-w-2xl">
-        <CardContent className="grid gap-4">
-          {/* Status line, not a heading: the shell's h1 already names this
-              page, and a card h2 of near-identical text reads as a duplicate
-              page title. */}
-          <p className="flex items-center gap-2 text-sm font-medium">
-            <SparklesIcon className="size-4 text-muted-foreground" />
-            Assistant
-            {canUseAssistant ? (
-              <Badge variant="info">Connected</Badge>
-            ) : (
-              <Badge variant="outline">Not enabled</Badge>
-            )}
-          </p>
-          <TranscriptBody canUseAssistant={canUseAssistant} transcript={transcript} />
-          {canUseAssistant ? (
-            <form
-              className="grid gap-2"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void submit()
-              }}
-            >
-              <Textarea
-                aria-label="Your question"
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-                maxLength={2000}
-                rows={3}
-                placeholder="e.g. Summarize what changed recently"
-                disabled={pending}
-              />
-              <div className="flex justify-end">
-                <Button
-                  type="submit"
-                  disabled={pending || question.trim().length === 0}
-                >
-                  {pending ? <Spinner data-icon="inline-start" /> : null}
-                  Ask
-                </Button>
-              </div>
-            </form>
+      <PageHeader
+        breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
+        title="AI assistant"
+        description="Ask about this workspace."
+      />
+      <Panel
+        title="Assistant"
+        actions={
+          canUseAssistant ? (
+            <Badge variant="info">Connected</Badge>
           ) : (
-            <Empty>
-              <EmptyHeader>
-                <EmptyDescription>{ASSISTANT_UNCONFIGURED_MESSAGE}</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          )}
-        </CardContent>
-      </Card>
+            <Badge variant="outline">Not enabled</Badge>
+          )
+        }
+      >
+        <TranscriptBody canUseAssistant={canUseAssistant} transcript={transcript} />
+        {canUseAssistant ? (
+          <form
+            className="grid gap-2"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submit()
+            }}
+          >
+            <Textarea
+              aria-label="Your question"
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              maxLength={2000}
+              rows={3}
+              placeholder="e.g. Summarize what changed recently"
+              disabled={pending}
+            />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={pending || question.trim().length === 0}>
+                {pending ? <Spinner data-icon="inline-start" /> : null}
+                Ask
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <Empty>
+            <EmptyHeader>
+              <EmptyDescription>{ASSISTANT_UNCONFIGURED_MESSAGE}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
+      </Panel>
     </WorkspaceShell>
   )
 }

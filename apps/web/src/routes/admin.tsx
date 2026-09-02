@@ -8,12 +8,13 @@ import { Effect } from 'effect'
 import { AdminUserActions } from '@/components/admin-user-actions'
 import { BanUserAction } from '@/components/ban-user-action'
 import { DataTable, type DataTableColumnDef } from '@/components/data-table'
+import { PageHeader } from '@/components/page/page-header'
+import { Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { RoutePending } from '@/components/route-pending'
 import { runCapabilities } from '@/lib/capabilities'
-import { formatUtc } from '@/lib/format-date'
+import { formatDateTime } from '@/lib/format-date'
 import { listSystemUsersServerFn, type SystemUser } from '@/lib/server/admin'
 import { requireAdmin } from '@/lib/server/auth'
 
@@ -62,15 +63,10 @@ const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
     accessorKey: 'createdAt',
     header: 'Created',
     enableSorting: true,
-    // UTC-formatted, like every other timestamp in the app — the raw ISO
-    // string this column used to render was readable by no one.
+    // The shared table timestamp — identical to the audit trail's rendering.
     cell: ({ row }) => (
       <span className="font-mono tabular-nums">
-        {formatUtc(row.original.createdAt, {
-          dateStyle: 'medium',
-          timeStyle: 'short'
-        })}{' '}
-        UTC
+        {formatDateTime(row.original.createdAt)} UTC
       </span>
     )
   }
@@ -108,49 +104,35 @@ function AdminPage() {
   const { session } = Route.useRouteContext()
 
   return (
-    <WorkspaceShell
-      viewer={null}
-      systemRole={session.user.role}
-      workspaceSlug={null}
-      title="System admin"
-      description="Better Auth admin dashboard without impersonation UI."
-    >
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle as="h2">Users</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <DataTable
-              columns={userColumns}
-              data={users}
-              filterColumnId="name"
-              filterPlaceholder="Filter users…"
-              pageSize={5}
-              tableLabel="System users"
-              emptyMessage="No system users."
-            />
-            <AdminUserActions users={users} />
-          </CardContent>
-        </Card>
+    <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
+      <PageHeader
+        title="System admin"
+        description="Better Auth admin dashboard without impersonation UI."
+      />
+      <Panel title="Users">
+        <DataTable
+          columns={userColumns}
+          data={users}
+          filterColumnId="name"
+          filterPlaceholder="Filter users…"
+          pageSize={5}
+          tableLabel="System users"
+          emptyMessage="No system users."
+        />
+        <AdminUserActions users={users} />
+      </Panel>
 
-        <Card>
-          <CardHeader>
-            <CardTitle as="h2">Audit events</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <DataTable
-              columns={auditColumns}
-              data={events}
-              filterColumnId="eventType"
-              filterPlaceholder="Filter events…"
-              pageSize={5}
-              tableLabel="Audit events"
-              emptyMessage="No audit events."
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <Panel title="Audit events">
+        <DataTable
+          columns={auditColumns}
+          data={events}
+          filterColumnId="eventType"
+          filterPlaceholder="Filter events…"
+          pageSize={5}
+          tableLabel="Audit events"
+          emptyMessage="No audit events."
+        />
+      </Panel>
     </WorkspaceShell>
   )
 }

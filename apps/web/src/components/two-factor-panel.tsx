@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import { authFailure } from '@/lib/auth-result'
 import { useServerAction } from '@/hooks/use-server-action'
 
@@ -471,11 +472,7 @@ function StatusMessage({ message }: { readonly message: string | null }) {
 }
 
 function SubmitError({ message }: { readonly message: string | null }) {
-  return message === null ? null : (
-    <p role="alert" className="text-xs text-destructive">
-      {message}
-    </p>
-  )
+  return <ActionFeedback error={message} />
 }
 
 /**

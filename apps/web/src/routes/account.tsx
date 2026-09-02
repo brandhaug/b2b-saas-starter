@@ -1,7 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { TwoFactorPanel } from '@/components/two-factor-panel'
 import { SessionsPanel } from '@/components/sessions-panel'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/page/page-header'
+import { pageTitle } from '@/components/page/page-title'
+import { Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { authClient } from '@/lib/auth-client'
 import { requireSession } from '@/lib/server/auth'
@@ -16,7 +18,7 @@ export const Route = createFileRoute('/account')({
     return { session }
   },
   component: AccountRoute,
-  head: () => ({ meta: [{ title: 'Account | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle('Account') }] })
 })
 
 function AccountRoute() {
@@ -25,42 +27,19 @@ function AccountRoute() {
   // in lib/server/auth.ts) — the panel reads it from the client session hook.
   const currentSession = authClient.useSession()
   return (
-    <WorkspaceShell
-      viewer={null}
-      systemRole={session.user.role}
-      title="Account"
-      description="Sign-in security for your account, not any one workspace."
-      workspaceSlug={null}
-    >
-      <div className="mx-auto grid max-w-2xl gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle as="h2">Two-factor authentication</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Require a time-based one-time code from an authenticator app at every
-              sign-in.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <TwoFactorPanel twoFactorEnabled={session.user.twoFactorEnabled} />
-          </CardContent>
-        </Card>
+    <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
+      <PageHeader
+        title="Account"
+        description="Sign-in security for your account, not any one workspace."
+      />
+      <Panel
+        title="Two-factor authentication"
+        description="Require a time-based one-time code from an authenticator app at every sign-in."
+      >
+        <TwoFactorPanel twoFactorEnabled={session.user.twoFactorEnabled} />
+      </Panel>
 
-        <Card>
-          <CardHeader>
-            <CardTitle as="h2">Sessions</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Every device currently signed in as you. Revoking a session signs it out
-              immediately.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <SessionsPanel
-              currentSessionToken={currentSession.data?.session.token ?? ''}
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <SessionsPanel currentSessionToken={currentSession.data?.session.token ?? ''} />
     </WorkspaceShell>
   )
 }
