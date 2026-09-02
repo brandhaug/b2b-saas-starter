@@ -219,7 +219,7 @@ Two variable system-grade faces and one display face, all shipped self-hosted vi
 
 **Spacing scale.** The 4 → 72px scale (`xs` → `3xl`) is the only vocabulary. Tailwind's `--spacing: 0.25rem` base means `gap-4` / `p-4` / `m-4` produce 16px (`md`). Use named tokens via Tailwind utilities, never one-off pixel values. Sticky chrome offsets the shared 64px header with one step of clearance (`top-18`); anchor `scroll-margin-top` is `5.5rem`.
 
-**Container widths.** Public routes cap at `max-w-7xl` (1280px). Long-form docs/blog cap at `max-w-3xl` (768px) for readability. Workspace shells fill viewport width minus the sidebar.
+**Container widths.** Public routes cap at `max-w-7xl` (1280px). Long-form docs/blog cap at `max-w-3xl` (768px) for readability. Workspace shells center the page body at `max-w-4xl` (896px) — one column for every workspace page; the `PageHeader` + `Panel` anatomy (`apps/web` intent node) assumes it.
 
 **Sticky chrome.** The top bar is `sticky top-0`. The sidebar is fixed-width on desktop, sheet-overlay on mobile.
 
@@ -265,6 +265,7 @@ Component tokens are defined in the YAML above and are the normative surface for
 - Use `mono` for any user-facing identifier: workspace slugs, API tokens, request IDs, timestamps in tables.
 - Keep panels flat. Color lift + a 1px border is enough elevation.
 - Check contrast against the mocha surfaces specifically. There is one scheme, so there is one set of numbers to hit — no excuse for a token that only passes in the other mode.
+- State colors with tokens: `var(--chart-1…5)` for data series, semantic classes for chrome. Raw hex lives only in `apps/web/src/index.css` (the root document's theme-color meta aside) — two lint rules (`starter/no-dark-prefix`, `starter/no-hex-color`) hold this line.
 
 **Don't**
 
