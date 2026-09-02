@@ -2,8 +2,13 @@ import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { StarterApi } from '@b2b-saas-starter/api'
 import { selectAssistantLayer } from '@b2b-saas-starter/ai'
-import { FileSystem, Layer, Path } from 'effect'
-import { Etag, HttpPlatform, HttpRouter } from 'effect/unstable/http'
+import { FileSystem, Layer, Path, Effect } from 'effect'
+import {
+  Etag,
+  HttpPlatform,
+  HttpRouter,
+  HttpServerResponse
+} from 'effect/unstable/http'
 import { HttpApiBuilder, HttpApiScalar } from 'effect/unstable/httpapi'
 import { starterEnv, type ApiEnv } from './env.ts'
 import {
@@ -27,6 +32,25 @@ const PlatformLive = Layer.mergeAll(
   Etag.layer,
   FileSystem.layerNoop({}),
   HttpPlatform.layer.pipe(Layer.provide(FileSystem.layerNoop({})))
+)
+
+// The root index — a tiny machine-readable directory for clients and humans
+// who curl the origin. It rides beside the contract like the MCP protocol
+// route (see mcp.ts): static metadata, not a REST operation, so it never
+// appears in the OpenAPI document or the permission matrix. Paths are
+// relative so the index is correct on any host.
+const rootIndexLayer = HttpRouter.add('GET', '/', () =>
+  Effect.succeed(
+    HttpServerResponse.jsonUnsafe({
+      name: 'b2b-saas-starter-api',
+      description:
+        'Starter REST + MCP API. All routes except /health require an Authorization: Bearer API token.',
+      health: '/health',
+      openapi: '/openapi.json',
+      docs: '/reference',
+      mcp: '/mcp'
+    })
+  )
 )
 
 function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRouter> {
@@ -58,6 +82,8 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     // capability layer, but a JSON-RPC wire shape the OpenAPI document must
     // not describe. See `mcp.ts`.
     mcpProtocolLayer(env),
+    // The root directory — see the comment on `rootIndexLayer`.
+    rootIndexLayer,
     HttpApiScalar.layer(StarterApi, { path: '/reference' })
   ).pipe(
     HttpRouter.provideRequest(capabilities),

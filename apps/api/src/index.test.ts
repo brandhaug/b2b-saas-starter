@@ -266,6 +266,26 @@ describe('contract-served routes', () => {
       })
     ))
 
+  test('GET / serves the root index', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(get('/'))
+        expect(res.status).toBe(200)
+        expect(res.headers.get('content-type')).toContain('application/json')
+        const body = yield* jsonBody(
+          res,
+          Schema.Struct({
+            name: Schema.Literal('b2b-saas-starter-api'),
+            health: Schema.Literal('/health'),
+            openapi: Schema.Literal('/openapi.json'),
+            docs: Schema.Literal('/reference'),
+            mcp: Schema.Literal('/mcp')
+          })
+        )
+        expect(body.docs).toBe('/reference')
+      })
+    ))
+
   test('unknown routes are 404', () =>
     Effect.runPromise(
       Effect.gen(function* () {
