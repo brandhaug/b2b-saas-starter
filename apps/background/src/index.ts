@@ -4,6 +4,10 @@ import {
 } from '@b2b-saas-starter/logger/providers'
 import * as Sentry from '@sentry/cloudflare'
 import { Effect } from 'effect'
+// The queue names are single-sourced in `infra/bindings.ts`, which alchemy and
+// the wrangler generator read too — the consumer branch must key off the same
+// literal the consumer is bound to.
+import { webhookDeadLetterQueueName } from '../../../infra/bindings.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
 import {
   consumeBatch,
@@ -11,9 +15,6 @@ import {
   recordDeadLetter,
   type Env
 } from './webhook-consumer.ts'
-
-/** Queue name of the dead-letter consumer branch (see wrangler.jsonc). */
-const DEAD_LETTER_QUEUE = 'b2b-saas-starter-webhooks-dlq'
 
 export default Sentry.withSentry((env: Env) => makeSentryOptions('background', env), {
   // Pure platform adapter: routing, signature checks, and Stripe processing
@@ -29,7 +30,7 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
   // consumers share one batch loop (`consumeBatch`); dead letters always ack.
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     wireWideEventProviders(env)
-    if (batch.queue === DEAD_LETTER_QUEUE) {
+    if (batch.queue === webhookDeadLetterQueueName) {
       return consumeBatch(env, batch, (message) =>
         Effect.as(recordDeadLetter(message, env), 'ack')
       )

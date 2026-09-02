@@ -5,7 +5,8 @@ import {
 import { createFileRoute } from '@tanstack/react-router'
 import { Effect } from 'effect'
 
-import { AdminUserActions, BanUserAction } from '@/components/admin-user-actions'
+import { AdminUserActions } from '@/components/admin-user-actions'
+import { BanUserAction } from '@/components/ban-user-action'
 import { DataTable, type DataTableColumnDef } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'

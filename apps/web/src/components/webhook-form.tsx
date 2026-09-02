@@ -6,11 +6,10 @@ import {
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 
+import { CheckboxSetField } from '@/components/checkbox-set-field'
 import { FormTextField } from '@/components/form-text-field'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
 import { createWebhookEndpointServerFn } from '@/lib/server/webhooks'
 import { callServerFn } from '@/lib/server-call'
@@ -121,42 +120,16 @@ export function WebhookForm({
             value.length === 0 ? 'Pick at least one event' : undefined
         }}
       >
-        {(field) => {
-          const hasError = field.state.meta.errors.length > 0
-          const errorId = `${field.name}-error`
-          return (
-            <FieldSet data-invalid={hasError || undefined}>
-              <FieldLegend variant="label">Events</FieldLegend>
-              <div className="flex flex-wrap gap-3">
-                {WEBHOOK_EVENT_TYPES.map((eventType) => {
-                  const checked = field.state.value.includes(eventType)
-                  return (
-                    <FieldLabel key={eventType}>
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(next) => {
-                          const isChecked = next
-                          field.handleChange(
-                            isChecked
-                              ? [...new Set([...field.state.value, eventType])]
-                              : field.state.value.filter((item) => item !== eventType)
-                          )
-                        }}
-                      />
-
-                      <span>{eventType}</span>
-                    </FieldLabel>
-                  )
-                })}
-              </div>
-              {hasError ? (
-                <FieldError id={errorId}>
-                  {field.state.meta.errors.join(', ')}
-                </FieldError>
-              ) : null}
-            </FieldSet>
-          )
-        }}
+        {(field) => (
+          <CheckboxSetField
+            name={field.name}
+            legend="Events"
+            options={WEBHOOK_EVENT_TYPES}
+            value={field.state.value}
+            errors={field.state.meta.errors}
+            onChange={field.handleChange}
+          />
+        )}
       </form.Field>
 
       <form.Subscribe

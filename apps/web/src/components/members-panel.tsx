@@ -1,11 +1,9 @@
 import {
-  WORKSPACE_ROLES,
   type Member,
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import {
@@ -16,7 +14,7 @@ import {
   ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
-import { Spinner } from '@/components/ui/spinner'
+import { RoleChangeButtons } from '@/components/role-change-buttons'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { changeMemberRoleServerFn } from '@/lib/server/workspace-members'
 import { useServerAction } from '@/hooks/use-server-action'
@@ -31,11 +29,6 @@ function roleVariant(role: WorkspaceRole): 'default' | 'secondary' | 'outline' {
     return 'secondary'
   }
   return 'outline'
-}
-
-/** The roles a member can be moved to from their current one. */
-function otherRoles(current: WorkspaceRole): ReadonlyArray<WorkspaceRole> {
-  return WORKSPACE_ROLES.filter((role) => role !== current)
 }
 
 /**
@@ -76,34 +69,29 @@ export function MembersPanel({
   return (
     <div className="grid gap-2">
       <ItemGroup>
-        {members.map((member) => (
-          <Item key={member.id} variant="outline" size="sm">
-            <ItemContent>
-              <ItemTitle>{member.name}</ItemTitle>
-              <ItemDescription>{member.email}</ItemDescription>
-            </ItemContent>
-            <ItemActions>
-              <Badge variant={roleVariant(member.role)}>{member.role}</Badge>
-              {canManage
-                ? otherRoles(member.role).map((role) => (
-                    <Button
-                      key={role}
-                      variant="ghost"
-                      size="sm"
-                      disabled={changeRole.pendingInput?.userId === member.id}
-                      aria-label={`Make ${role}: ${member.name}`}
-                      onClick={() => changeRole.run({ userId: member.id, role })}
-                    >
-                      {changeRole.pendingInput?.userId === member.id ? (
-                        <Spinner data-icon="inline-start" />
-                      ) : null}
-                      Make {role}
-                    </Button>
-                  ))
-                : null}
-            </ItemActions>
-          </Item>
-        ))}
+        {members.map((member) => {
+          const changing = changeRole.pendingInput?.userId === member.id
+          return (
+            <Item key={member.id} variant="outline" size="sm">
+              <ItemContent>
+                <ItemTitle>{member.name}</ItemTitle>
+                <ItemDescription>{member.email}</ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <Badge variant={roleVariant(member.role)}>{member.role}</Badge>
+                {canManage ? (
+                  <RoleChangeButtons
+                    currentRole={member.role}
+                    labelFor={(role) => `Make ${role}: ${member.name}`}
+                    disabled={changing}
+                    busy={changing}
+                    onChange={(role) => changeRole.run({ userId: member.id, role })}
+                  />
+                ) : null}
+              </ItemActions>
+            </Item>
+          )
+        })}
       </ItemGroup>
       {canManage ? null : (
         <p className="text-xs text-muted-foreground">

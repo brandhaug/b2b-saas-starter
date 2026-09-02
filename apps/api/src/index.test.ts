@@ -1,5 +1,5 @@
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { describe, expect, test } from 'vite-plus/test'
+import { describe, expect, test, vi } from 'vite-plus/test'
 import { Effect, Schema } from 'effect'
 import { type ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
@@ -273,4 +273,51 @@ describe('contract-served routes', () => {
         expect(res.status).toBe(404)
       })
     ))
+})
+
+/**
+ * The one canonical line per request, as `Logger.consoleJson` prints it. The
+ * shape is decoded rather than cast, so a logger format change fails here
+ * instead of reading `undefined`.
+ */
+const WideEventLine = Schema.Struct({
+  message: Schema.Unknown,
+  annotations: Schema.Record(Schema.String, Schema.Unknown)
+})
+const decodeWideEventLine = Schema.decodeUnknownSync(
+  Schema.fromJsonString(WideEventLine)
+)
+
+describe('request observability', () => {
+  test('the wide event carries the Cloudflare colo the request arrived at', () => {
+    const lines: Array<typeof WideEventLine.Type> = []
+    const captureLine = vi
+      .spyOn(console, 'log')
+      .mockImplementation((...args: ReadonlyArray<unknown>) => {
+        lines.push(decodeWideEventLine(args[0]))
+      })
+    const request = get('/health')
+    // What Cloudflare hands a Worker: the `cf` object the envelope mines for
+    // the colo. `undici`'s `Request` has none, so the platform field is
+    // attached here the way the runtime would.
+    Object.defineProperty(request, 'cf', { value: { colo: 'ARN' } })
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(request)
+        expect(res.status).toBe(200)
+
+        const events = lines.filter((line) => line.message === 'request.health')
+        // Exactly one event per request, and it names the colo as its region.
+        expect(events).toHaveLength(1)
+        expect(events[0]?.annotations).toMatchObject({
+          service: 'api',
+          status: 'ok',
+          pathname: '/health',
+          method: 'GET',
+          region: 'ARN'
+        })
+      }).pipe(Effect.ensuring(Effect.sync(() => captureLine.mockRestore())))
+    )
+  })
 })

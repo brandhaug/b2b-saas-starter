@@ -2,7 +2,8 @@ import { createDrizzleDb } from '@b2b-saas-starter/db/client'
 import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
 import { requireEmailVerification } from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
-import { Layer, ManagedRuntime, Schema } from 'effect'
+import { Effect, Layer, ManagedRuntime, Schema } from 'effect'
+import { causeMessage } from './cause-message'
 import { makeAuthEmailSender } from './server/auth-emails'
 
 /**
@@ -51,13 +52,28 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
   emails: makeAuthEmailSender(),
   // Production requires verified mailboxes; local dev and previews stay open
   // because lifecycle emails land in the log there (provider-light rule).
-  requireEmailVerification: requireEmailVerification(env.ENVIRONMENT)
-  // `runBackground` stays unset: TanStack Start's server handlers do not
-  // surface the Worker's `ExecutionContext`, so there is no `ctx.waitUntil`
-  // to hand Better Auth's `advanced.backgroundTasks.handler`. The package's
-  // inline fallback runs instead — correct, just not crash-proof past the
-  // response. A fork whose server entry reaches the execution context should
-  // supply `runBackground: (promise) => ctx.waitUntil(promise)` here.
+  requireEmailVerification: requireEmailVerification(env.ENVIRONMENT),
+  // TanStack Start's server handlers do not surface the Worker's
+  // `ExecutionContext`, so there is no `ctx.waitUntil` to hand Better Auth's
+  // `advanced.backgroundTasks.handler`. `AuthConfig` makes the runner
+  // required rather than defaulting one, so the decision is stated here: run
+  // the detached send inline (correct, just not crash-proof past the
+  // response) and log a rejection instead of discarding it — a lifecycle
+  // email that never left is worth a line in the log. A fork whose server
+  // entry reaches the execution context should replace this with
+  // `(promise) => ctx.waitUntil(promise)`.
+  runBackground: (promise: Promise<unknown>) => {
+    Effect.runFork(
+      Effect.tryPromise({
+        try: () => promise,
+        catch: (thrown) => causeMessage(thrown, 'no reason given')
+      }).pipe(
+        Effect.catch((error: string) =>
+          Effect.logError(`auth background task failed: ${error}`)
+        )
+      )
+    )
+  }
 }))
 
 export const AuthLive = Auth.layer.pipe(Layer.provide(AuthConfigLive))

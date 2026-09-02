@@ -1,3 +1,4 @@
+import { failureMessage } from '@b2b-saas-starter/failure'
 import { Context, Effect, Layer, Schema } from 'effect'
 import * as D1Client from '@effect/sql-d1/D1Client'
 import * as SQLiteD1Drizzle from 'drizzle-orm/effect-d1'
@@ -64,13 +65,6 @@ export type BatchStatement = {
  * through the raw `D1Database` binding, which it reads from the {@link RawD1}
  * service rather than taking as an argument.
  */
-function batchFailureReason(cause: unknown): string {
-  if (cause instanceof Error) {
-    return cause.message
-  }
-  return String(cause)
-}
-
 export function batch(
   statements: ReadonlyArray<BatchStatement>
 ): Effect.Effect<void, DbBatchError, RawD1> {
@@ -84,7 +78,7 @@ export function batch(
             return d1.prepare(query.sql).bind(...query.params)
           })
         ),
-      catch: (cause) => new DbBatchError({ reason: batchFailureReason(cause) })
+      catch: (cause) => new DbBatchError({ reason: failureMessage(cause) })
     })
   })
 }

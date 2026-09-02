@@ -24,19 +24,12 @@ import {
   readTraceHeader,
   type TraceContinuation
 } from './trace.ts'
+import { failureMessage } from '@b2b-saas-starter/failure'
 import { type Writable } from '@b2b-saas-starter/config/writable'
 
 const TaggedFailure = Schema.Struct({ _tag: Schema.String })
 
 const decodeTaggedFailure = Schema.decodeUnknownOption(TaggedFailure)
-
-function errorMessage(head: unknown): string {
-  // oxlint-disable-next-line unicorn/no-instanceof-builtins -- vendor SDKs raise real `Error`s; a cross-realm failure here is reported as a string either way
-  if (head instanceof Error) {
-    return head.message
-  }
-  return String(head)
-}
 
 /**
  * The failure half of a wide event's outcome, classified from the `Cause`.
@@ -52,7 +45,7 @@ type WideEventFailure = {
 function failureMetadata(head: unknown): WideEventFailure {
   const base: WideEventFailure = {
     errorKind: 'fail',
-    error: errorMessage(head)
+    error: failureMessage(head)
   }
   const tagged = decodeTaggedFailure(head)
   if (Option.isNone(tagged)) {

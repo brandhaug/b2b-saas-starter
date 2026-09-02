@@ -7,7 +7,7 @@ import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-p
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Option, Schema, type Scope } from 'effect'
 

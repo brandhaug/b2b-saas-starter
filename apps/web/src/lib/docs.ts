@@ -1,6 +1,7 @@
 import { type ComponentType } from 'react'
 
 import { type MdxComponentProps } from '@/components/mdx-link'
+import { contentJsonLd } from '@/lib/json-ld'
 
 type DocFrontmatter = {
   readonly title: string
@@ -31,6 +32,11 @@ export type DocCategory = keyof typeof DOC_CATEGORIES
 
 export function isDocCategory(value: string): value is DocCategory {
   return Object.hasOwn(DOC_CATEGORIES, value)
+}
+
+/** The display name for a category, falling back to the raw URL segment. */
+export function docCategoryName(category: string): string {
+  return isDocCategory(category) ? DOC_CATEGORIES[category] : category
 }
 
 export const DOC_CATEGORY_ORDER: ReadonlyArray<DocCategory> = [
@@ -106,4 +112,18 @@ export function getAdjacentDocs(category: string, slug: string): AdjacentDocs {
     prev: index > 0 ? (list[index - 1] ?? null) : null,
     next: index < list.length - 1 ? (list[index + 1] ?? null) : null
   }
+}
+
+/** The article's structured data, beside the getter that resolves it. */
+export function docJsonLd(article: DocArticle): string {
+  const { title, description, tags } = article.frontmatter
+  return contentJsonLd({
+    article: {
+      '@type': 'TechArticle',
+      headline: title,
+      description,
+      keywords: (tags ?? []).join(', ')
+    },
+    breadcrumb: ['Home', 'Documentation', docCategoryName(article.category), title]
+  })
 }

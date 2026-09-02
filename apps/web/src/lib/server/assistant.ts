@@ -8,7 +8,7 @@ import {
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Schema, type Scope } from 'effect'
 

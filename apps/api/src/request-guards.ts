@@ -1,10 +1,4 @@
-import {
-  makeOtlpLayer,
-  parentSpanFromHeaders,
-  readWideEventEnvironment,
-  TRACE_HEADER,
-  withRequestScope
-} from '@b2b-saas-starter/logger'
+import { withHttpInvocation } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
@@ -182,21 +176,38 @@ export function observed<A, E, R>(
   metadata: RequestMetadata,
   body: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
-  return withRequestScope(
+  return withHttpInvocation(
     {
       service: 'api',
       event: `request.${event}`,
-      traceId: request.headers[TRACE_HEADER],
-      parent: parentSpanFromHeaders(request.headers),
-      spanKind: 'server',
-      environment: readWideEventEnvironment(env),
-      metadata: { pathname: request.url, method: request.method, ...metadata }
+      request: webRequest(request),
+      env,
+      metadata
     },
     body.pipe(Effect.tap(() => Effect.annotateLogsScoped({ outcome: 'ok' })))
-    // `local: true` forces a fresh build per request: the OTLP exporters must
-    // live and die inside one invocation (see `makeOtlpLayer`), and a shared
-    // memo map would hand every later request the first request's exporters.
-  ).pipe(Effect.provide(makeOtlpLayer('api', env), { local: true }))
+  )
+}
+
+/**
+ * The Worker's own `Request` behind the router's request. `toWebResult` hands
+ * the source straight back when it already is one — which it is for every
+ * request this worker serves, since `HttpRouter.toWebHandler` is fed the
+ * platform's `Request` (the same conversion `mcp.ts` uses). That is what lets
+ * the envelope read `request.cf.colo` and stamp the colo onto the wide event.
+ *
+ * It fails only for a source with no derivable URL. Such a request carries no
+ * `cf` object either, so the fallback rebuilds exactly the two things the
+ * envelope still reads — the URL and the headers — against a synthetic origin.
+ */
+function webRequest(request: HttpServerRequest.HttpServerRequest): Request {
+  const web = HttpServerRequest.toWebResult(request)
+  if (Result.isSuccess(web)) {
+    return web.success
+  }
+  return new Request(new URL(request.url, 'http://request.invalid'), {
+    method: request.method,
+    headers: { ...request.headers }
+  })
 }
 
 /**

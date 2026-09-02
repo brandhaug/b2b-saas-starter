@@ -2,30 +2,29 @@ import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platfor
 import { describe, expect, test } from 'vite-plus/test'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
-import { mcpDiscoveryDocument, mcpTools } from './mcp.ts'
+import { mcpDiscoveryDocument } from './mcp.ts'
 import { readOperations } from './operations.ts'
 
 /**
- * The MCP tool table must stay a projection of the shared operation table:
- * one tool per workspace read, same permission. A hand-added tool would
- * resurrect a surface REST never advertised; this fails until it is either
- * derived again or deliberately given a row of its own.
+ * There is no MCP tool table left to mirror: `GET /mcp` and the SDK server are
+ * both projected from the shared operation table row by row. What is still
+ * worth asserting is that the projection is what ships — one tool per
+ * workspace read, in contract order — so a hand-added tool, which would
+ * resurrect a surface REST never advertised, has nowhere to hide.
  */
 describe('mcp ↔ rest operation mirror', () => {
-  test('tools are exactly the shared read operations, in order', () => {
-    expect(mcpTools.map((tool) => tool.descriptor.name)).toEqual(
+  test('discovery advertises exactly the shared read operations, in order', () => {
+    expect(mcpDiscoveryDocument().tools.map((tool) => tool.name)).toEqual(
       readOperations().map((op) => op.toolName)
-    )
-    expect(mcpTools.map((tool) => tool.permission)).toEqual(
-      readOperations().map((op) => op.permission)
     )
   })
 
-  test('discovery advertises exactly those tools', () => {
-    const doc = mcpDiscoveryDocument()
-    expect(doc.tools.map((tool) => tool.name)).toEqual(
-      readOperations().map((op) => op.toolName)
-    )
+  test('every advertised tool names the REST operation it mirrors', () => {
+    for (const [index, tool] of mcpDiscoveryDocument().tools.entries()) {
+      expect(tool.description).toContain(
+        `Mirrors GET /workspaces/{slug}/${readOperations()[index]?.path}.`
+      )
+    }
   })
 })
 
@@ -161,6 +160,12 @@ function jsonBody<S extends Schema.Top>(
   )
 }
 
+/** The contract's tagged-error body: `{ _tag, ...fields }`, as REST serves it. */
+const GuardFailureBody = Schema.Struct({
+  _tag: Schema.String,
+  message: Schema.String
+})
+
 const RpcErrorBody = Schema.Struct({
   jsonrpc: Schema.Literal('2.0'),
   id: Schema.NullOr(Schema.Unknown),
@@ -223,12 +228,12 @@ describe('POST /mcp protocol', () => {
         const res = yield* send(rpc('tools/list', {}))
         expect(res.status).toBe(200)
         const body = yield* jsonBody(res, Ok(ToolListResult))
-        // The discovery document derives from the same descriptor table the
-        // SDK server registers from, so both surfaces answer with one list.
+        // `tools/list` and the discovery document are both projected from the
+        // shared operation table, so both surfaces answer with one list.
         expect(body.result.tools.map((tool) => tool.name)).toEqual(
-          mcpTools.map((tool) => tool.descriptor.name)
+          readOperations().map((op) => op.toolName)
         )
-        expect(mcpDiscoveryDocument().tools).toHaveLength(mcpTools.length)
+        expect(mcpDiscoveryDocument().tools).toHaveLength(readOperations().length)
       })
     ))
 
@@ -262,7 +267,7 @@ describe('POST /mcp protocol', () => {
       })
     ))
 
-  test('POST /mcp requires a bearer token', () =>
+  test('POST /mcp requires a bearer token, and rejects it the way REST does', () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const res = yield* send(
@@ -273,6 +278,19 @@ describe('POST /mcp protocol', () => {
           })
         )
         expect(res.status).toBe(401)
+        // A guard failure is not a JSON-RPC failure: the request never reached
+        // the protocol. It is encoded from the contract's own error schema —
+        // status from the `httpApiStatus` annotation, body from the schema —
+        // so this route answers a rejected request exactly as a REST route
+        // does. Asserted against the REST answer rather than a literal, so the
+        // two cannot drift apart silently.
+        const rest = yield* send(
+          new Request('https://api.test/workspaces/acme/members')
+        )
+        expect(rest.status).toBe(res.status)
+        expect(yield* jsonBody(res, GuardFailureBody)).toEqual(
+          yield* jsonBody(rest, GuardFailureBody)
+        )
       })
     ))
 

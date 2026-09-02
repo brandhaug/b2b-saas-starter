@@ -74,8 +74,15 @@ export const optionalModuleEnvPlainKeys = [
  * not forwarded) or `null` (a binding explicitly set to null — workerd does
  * this for present-but-null bindings), and both mean the same thing here:
  * the provider is unconfigured. Only a `length > 0` string counts.
+ *
+ * Exported as the third pure decision of this package (beside
+ * {@link auditRequiredEnv} and {@link requireEmailVerification}): "unset means
+ * inactive" is the provider-light rule every optional-provider reader applies,
+ * and it is one rule, not one per reader. A whitespace-only value counts as
+ * set — an operator who configured `" "` configured something, and guessing
+ * otherwise would silently disable a provider they asked for.
  */
-function hasValue(value: string | null | undefined): boolean {
+export function hasValue(value: string | null | undefined): value is string {
   return value !== null && value !== undefined && value.length > 0
 }
 

@@ -66,7 +66,7 @@ const seedWorkspaceLayer = Layer.merge(
   testWorkspaceContext(seedWorkspaceRecord)
 )
 
-// The Live half of this same list runs in live-layers.test.ts. One contract,
+// The Live half of this same list runs in the matching `*.live.test.ts`. One contract,
 // two adapters — capabilities invariant 4. Fresh fixture stores (empty token /
 // endpoint lists, a dedicated audit-log instance) so cases never lean on the
 // demo SeedLayer fixtures.
@@ -430,7 +430,7 @@ describe('workspace list projection', () => {
   )
 })
 
-// The Live half of this same list runs in live-layers.test.ts. Two adapters,
+// The Live half of this same list runs in the matching `*.live.test.ts`. Two adapters,
 // one contract — capabilities invariant 4.
 describe('seed workspace membership contract', () => {
   const cases = workspaceMembershipContractCases(
@@ -461,7 +461,7 @@ describe('seed platform user admin contract', () => {
   }
 })
 
-// The Live half of this same list runs in live-layers.test.ts.
+// The Live half of this same list runs in the matching `*.live.test.ts`.
 describe('seed workspace invitations contract', () => {
   const accepter = { userId: 'usr_accepter', email: 'accepter@seed-invite.test' }
   const expired = {
@@ -511,7 +511,7 @@ describe('seed workspace invitations contract', () => {
   }
 })
 
-// The Live half of this same list runs in live-layers.test.ts.
+// The Live half of this same list runs in the matching `*.live.test.ts`.
 describe('seed workspace lifecycle contract', () => {
   const cases = workspaceLifecycleContractCases(
     { creator: 'usr_newcomer', existingSlug: 'starter-lab' },

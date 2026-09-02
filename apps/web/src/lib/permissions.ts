@@ -3,7 +3,7 @@ import {
   memberPrincipal,
   type PermissionRequest
 } from '@b2b-saas-starter/authz/client'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 
 /**
  * Client-side permission checks for workspace UI.
@@ -17,6 +17,13 @@ import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/
  * is the enforcement, and every mutation still goes through
  * `requireWorkspacePermission` on the server.
  */
+/**
+ * The resolved viewer shape loaders hand to permission checks and UI: only the
+ * workspace role. A web payload type, not a capability one — nothing inside
+ * `@b2b-saas-starter/capabilities` reads it.
+ */
+export type WorkspaceViewer = { readonly role: WorkspaceRole }
+
 export type Viewer = WorkspaceViewer | null
 
 export function viewerCan(viewer: Viewer, permission: PermissionRequest): boolean {

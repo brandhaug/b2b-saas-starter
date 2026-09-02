@@ -1,8 +1,17 @@
 import { LaptopIcon } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { authClient } from '@/lib/auth-client'
 import { useHydrated } from '@/lib/client-only-value'
 import { unwrapAuthResult, type AuthResult } from '@/lib/auth-result'
+import {
+  listSessionsWithAuthClient,
+  revokeOtherSessionsWithAuthClient,
+  revokeSessionWithAuthClient,
+  type ListSessions,
+  type RevokeOtherSessions,
+  type RevokeSession,
+  type SessionRecord
+} from '@/components/auth/auth-client-ports'
+
 import { useServerAction } from '@/hooks/use-server-action'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,6 +25,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
+export type {
+  ListSessions,
+  RevokeOtherSessions,
+  RevokeSession
+} from '@/components/auth/auth-client-ports'
+
 /**
  * One row of the panel's own view model: a Better Auth session plus the
  * expiry label, which is formatted inside the query function (client-side
@@ -26,46 +41,6 @@ export type SessionRowView = {
   readonly deviceLabel: string
   readonly expiresLabel: string
   readonly ipAddress: string | null | undefined
-}
-
-export type SessionRecord = {
-  readonly token: string
-  readonly createdAt: Date
-  readonly expiresAt: Date
-  readonly ipAddress?: string | null | undefined
-  readonly userAgent?: string | null | undefined
-}
-
-/**
- * The three Better Auth session endpoints this panel drives, as ports.
- * Injected rather than reaching for the `authClient` singleton at the call
- * site so a test drives the panel with real functions of these shapes instead
- * of replacing `@/lib/auth-client`.
- */
-export type ListSessions = () => Promise<{
-  readonly data?: ReadonlyArray<SessionRecord> | null
-  readonly error?: { readonly message?: string | undefined } | null
-}>
-
-export type RevokeSession = (input: { readonly token: string }) => Promise<{
-  readonly error?: { readonly message?: string | undefined } | null
-}>
-
-/** Better Auth's "revoke all sessions except the current one". */
-export type RevokeOtherSessions = () => Promise<{
-  readonly error?: { readonly message?: string | undefined } | null
-}>
-
-function listSessionsWithAuthClient(): ReturnType<ListSessions> {
-  return authClient.listSessions()
-}
-
-function revokeSessionWithAuthClient(input: Parameters<RevokeSession>[0]) {
-  return authClient.revokeSession(input)
-}
-
-function revokeOtherSessionsWithAuthClient() {
-  return authClient.revokeOtherSessions()
 }
 
 function describeUserAgent(userAgent: string | null | undefined): string {
@@ -95,6 +70,10 @@ function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowV
     .map((session) => ({
       token: session.token,
       deviceLabel: describeUserAgent(session.userAgent),
+      // The one place that does not use `formatUtc`: this runs post-mount only,
+      // so there is no SSR text to disagree with, and the viewer's own locale
+      // reads better than a pinned en-US for a date they are checking about
+      // their own device.
       expiresLabel: session.expiresAt.toLocaleDateString(undefined, {
         dateStyle: 'medium',
         timeZone: 'UTC'

@@ -3,7 +3,7 @@ import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import {
   WorkspaceContext,
   type WorkspaceContextInterface

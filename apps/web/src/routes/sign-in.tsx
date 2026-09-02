@@ -7,13 +7,18 @@ import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
-import { authClient } from '@/lib/auth-client'
+import {
+  signInWithAuthClient,
+  type SignInWithEmail
+} from '@/components/auth/auth-client-ports'
 import {
   DEMO_CREDENTIALS,
   DEMO_MEMBER_CREDENTIALS,
   DEMO_WORKSPACE_SLUG
 } from '@/lib/demo-workspace'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
+
+export type { SignInWithEmail } from '@/components/auth/auth-client-ports'
 
 export const Route = createFileRoute('/sign-in')({
   validateSearch: redirectSearch,
@@ -24,22 +29,6 @@ type SignInValues = {
   email: string
   password: string
 }
-
-/**
- * Credential sign-in, as a port. Injected rather than reaching for the
- * `authClient` singleton at the call site so a test drives the form with a real
- * function of this shape instead of replacing `@/lib/auth-client`.
- */
-export type SignInWithEmail = (input: {
-  readonly email: string
-  readonly password: string
-}) => Promise<{
-  readonly error?: { readonly message?: string | undefined } | null
-  // Opaque on purpose: Better Auth's client types don't expose the
-  // two-factor marker, so the response body is decoded below rather than
-  // asserted.
-  readonly data?: unknown
-}>
 
 const SignInResponseData = Schema.Struct({
   twoFactorRedirect: Schema.optionalKey(Schema.Boolean)
@@ -55,16 +44,6 @@ const decodeSignInResponseData = Schema.decodeUnknownSync(SignInResponseData)
 function SignInRoute() {
   const { redirect } = Route.useSearch()
   return <SignInPage redirect={redirect} />
-}
-
-/**
- * Hoisted to module scope rather than written inline as a default: a new
- * function expression per render would be a fresh prop value every time.
- */
-function signInWithAuthClient(
-  input: Parameters<SignInWithEmail>[0]
-): ReturnType<SignInWithEmail> {
-  return authClient.signIn.email(input)
 }
 
 export function SignInPage({

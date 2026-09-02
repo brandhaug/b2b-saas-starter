@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
 import { getAllPosts } from '@/lib/blog'
 import { getAllDocs } from '@/lib/docs'
+import { formatUtc } from '@/lib/format-date'
 
 const RECENT_POSTS = getAllPosts().slice(0, 3)
 const RECENT_DOCS = getAllDocs().slice(0, 4)
@@ -60,11 +61,10 @@ function KnowledgeSection() {
                       {post.frontmatter.title}
                     </span>
                     <time className="shrink-0 font-mono text-xs text-muted-foreground">
-                      {new Date(post.frontmatter.date).toLocaleDateString('en-US', {
+                      {formatUtc(post.frontmatter.date, {
                         year: 'numeric',
                         month: 'short',
-                        day: 'numeric',
-                        timeZone: 'UTC'
+                        day: 'numeric'
                       })}
                     </time>
                   </span>

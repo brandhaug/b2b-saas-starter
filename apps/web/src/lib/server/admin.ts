@@ -1,11 +1,15 @@
 import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import {
+  WorkspaceRole,
+  type SystemRole
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import {
   WorkspaceMembership,
   type WorkspaceWithMembership
 } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { runCapabilities } from '../capabilities'
 import { requireRequestSession, UnauthorizedError } from './auth'
 import { webUserAdminBinding } from './user-admin-binding'
@@ -14,9 +18,27 @@ export type SystemUser = {
   readonly id: string
   readonly name: string
   readonly email: string
-  readonly role: 'admin' | 'user'
+  readonly role: SystemRole
   readonly banned: boolean
 }
+
+/**
+ * Server-fn inputs, as schemas — every constraint stated once, in the schema,
+ * so the handler below never re-checks a field. An identity validator
+ * (`(input: T) => input`) types the handler without validating anything: the
+ * wire carries whatever the caller sent, and `userId: ''` or an invented role
+ * would reach the capability.
+ */
+const SystemUserInput = Schema.Struct({ userId: Schema.NonEmptyString })
+
+const ChangeWorkspaceRoleInput = Schema.Struct({
+  userId: Schema.NonEmptyString,
+  workspaceId: Schema.NonEmptyString,
+  role: WorkspaceRole
+})
+
+const decodeSystemUser = Schema.decodeUnknownSync(SystemUserInput)
+const decodeChangeWorkspaceRole = Schema.decodeUnknownSync(ChangeWorkspaceRoleInput)
 
 /**
  * System-level user list for `/admin`, via the `PlatformUserAdmin`
@@ -50,7 +72,7 @@ export const listSystemUsersServerFn = createServerFn({ method: 'GET' }).handler
  */
 async function requireAdminSession() {
   const session = await requireRequestSession()
-  if (session.user.role !== 'admin') {
+  if (session.user.role !== adminSystemRole) {
     // oxlint-disable-next-line effect/noThrowStatement -- TanStack Start serializes a thrown server-fn error back to the caller; the returned Promise has no error channel
     throw new UnauthorizedError()
   }
@@ -58,7 +80,7 @@ async function requireAdminSession() {
 }
 
 export const banSystemUserServerFn = createServerFn({ method: 'POST' })
-  .validator((input: { userId: string }) => input)
+  .validator((input) => decodeSystemUser(input))
   .handler(async ({ data }) => {
     const session = await requireAdminSession()
     return runCapabilities(
@@ -74,7 +96,7 @@ export const banSystemUserServerFn = createServerFn({ method: 'POST' })
   })
 
 export const unbanSystemUserServerFn = createServerFn({ method: 'POST' })
-  .validator((input: { userId: string }) => input)
+  .validator((input) => decodeSystemUser(input))
   .handler(async ({ data }) => {
     const session = await requireAdminSession()
     return runCapabilities(
@@ -95,7 +117,7 @@ export const unbanSystemUserServerFn = createServerFn({ method: 'POST' })
  * would, which is exactly the scope the role change acts on.
  */
 export const listUserWorkspacesServerFn = createServerFn({ method: 'POST' })
-  .validator((input: { userId: string }) => input)
+  .validator((input) => decodeSystemUser(input))
   .handler(async ({ data }): Promise<ReadonlyArray<WorkspaceWithMembership>> => {
     await requireAdminSession()
     return runCapabilities(
@@ -107,9 +129,7 @@ export const listUserWorkspacesServerFn = createServerFn({ method: 'POST' })
   })
 
 export const changeUserWorkspaceRoleServerFn = createServerFn({ method: 'POST' })
-  .validator(
-    (input: { userId: string; workspaceId: string; role: WorkspaceRole }) => input
-  )
+  .validator((input) => decodeChangeWorkspaceRole(input))
   .handler(async ({ data }) => {
     const session = await requireAdminSession()
     return runCapabilities(

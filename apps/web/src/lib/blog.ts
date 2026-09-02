@@ -1,6 +1,7 @@
 import { type ComponentType } from 'react'
 
 import { type MdxComponentProps } from '@/components/mdx-link'
+import { contentJsonLd } from '@/lib/json-ld'
 
 type BlogFrontmatter = {
   readonly title: string
@@ -44,4 +45,20 @@ export function getAllPosts(): ReadonlyArray<BlogPost> {
 
 export function getPostBySlug(slug: string): BlogPost | undefined {
   return POSTS_BY_SLUG.get(slug)
+}
+
+/** The post's structured data, beside the getter that resolves it. */
+export function postJsonLd(post: BlogPost): string {
+  const { title, description, date, author, tags } = post.frontmatter
+  return contentJsonLd({
+    article: {
+      '@type': 'BlogPosting',
+      headline: title,
+      description,
+      datePublished: date,
+      author: { '@type': 'Organization', name: author },
+      keywords: tags.join(', ')
+    },
+    breadcrumb: ['Home', 'Blog', title]
+  })
 }

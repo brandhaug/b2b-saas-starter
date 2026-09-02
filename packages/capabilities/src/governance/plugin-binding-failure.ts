@@ -1,3 +1,4 @@
+import { failureMessage } from '@b2b-saas-starter/failure'
 import { Effect, Option, Schema } from 'effect'
 
 import { CapabilityUnavailable } from '../errors.ts'
@@ -30,23 +31,15 @@ export type PluginBindingFailure = {
   readonly reason: string
 }
 
-/** The message to carry into the typed error, whatever was thrown. */
-function reasonOf(cause: unknown): string {
-  if (cause instanceof Error) {
-    return cause.message
-  }
-  return String(cause)
-}
-
 export function readPluginBindingFailure(cause: unknown): PluginBindingFailure {
   const rejection = decodePluginRejection(cause)
   if (Option.isNone(rejection)) {
-    return { refusedByWorkspace: false, reason: reasonOf(cause) }
+    return { refusedByWorkspace: false, reason: failureMessage(cause) }
   }
   const { statusCode } = rejection.value
   return {
     refusedByWorkspace: statusCode >= 400 && statusCode < 500,
-    reason: reasonOf(cause)
+    reason: failureMessage(cause)
   }
 }
 

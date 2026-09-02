@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@b2b-saas-starter/env": "workspace:*",
+    "@b2b-saas-starter/failure": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

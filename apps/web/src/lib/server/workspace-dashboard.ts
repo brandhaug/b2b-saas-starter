@@ -6,7 +6,7 @@ import {
   workspaceDashboard,
   type WorkspaceDashboardProjection
 } from '@b2b-saas-starter/capabilities/workspace-projections'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'

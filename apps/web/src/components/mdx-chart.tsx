@@ -16,17 +16,12 @@ import {
 } from 'recharts'
 
 import { CHART_COLORS } from '@/components/chart-colors'
-
-const CHART_MARGIN = { top: 5, right: 10, left: 0, bottom: 5 }
-const AXIS_TICK = { fontSize: 11, fill: 'var(--muted-foreground)' }
-const TOOLTIP_STYLE = {
-  backgroundColor: 'var(--card)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  fontSize: 12,
-  color: 'var(--foreground)'
-}
-const LEGEND_STYLE = { fontSize: 11 }
+import {
+  AXIS_TICK,
+  CHART_MARGIN,
+  LEGEND_STYLE,
+  TOOLTIP_STYLE
+} from '@/components/chart-defaults'
 
 /**
  * One row of a chart series authored in MDX content. Keys are the column names

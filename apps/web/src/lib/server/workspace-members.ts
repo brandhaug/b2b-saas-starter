@@ -5,9 +5,9 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import {
   WorkspaceRole as WorkspaceRoleSchema,
-  type Member,
-  type WorkspaceViewer
+  type Member
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import {
   type CapabilityUnavailable,
   type MembershipChangeRejected

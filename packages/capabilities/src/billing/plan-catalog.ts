@@ -42,6 +42,13 @@ export type Plan = {
    * table keyed by plan id so a new plan cannot be half-declared.
    */
   readonly stripePriceEnv: string | null
+  /**
+   * How a workspace moves onto this plan: `self_serve` is the in-product
+   * checkout, `downgrade` goes through the provider's subscription flow, and
+   * `sales` is sold outside the product. On the record so the billing UI asks
+   * the plan instead of branching on its id.
+   */
+  readonly purchase: 'self_serve' | 'downgrade' | 'sales'
 }
 
 /** The free tier every workspace starts on and every downgrade lands on. */
@@ -51,7 +58,8 @@ export const STARTER_PLAN: Plan = {
   price: '$0',
   description: 'Local development and reference implementation review.',
   limits: { apiTokens: 2, webhookEndpoints: 1 },
-  stripePriceEnv: null
+  stripePriceEnv: null,
+  purchase: 'downgrade'
 }
 
 export const PLANS: ReadonlyArray<Plan> = [
@@ -62,7 +70,8 @@ export const PLANS: ReadonlyArray<Plan> = [
     price: '$49/mo',
     description: 'The shape most B2B SaaS products adapt first.',
     limits: { apiTokens: null, webhookEndpoints: null },
-    stripePriceEnv: 'STRIPE_PRICE_ID_TEAM'
+    stripePriceEnv: 'STRIPE_PRICE_ID_TEAM',
+    purchase: 'self_serve'
   },
   {
     id: 'enterprise',
@@ -70,7 +79,8 @@ export const PLANS: ReadonlyArray<Plan> = [
     price: 'Custom',
     description: 'SAML, procurement, custom compliance, and support patterns.',
     limits: { apiTokens: null, webhookEndpoints: null },
-    stripePriceEnv: null
+    stripePriceEnv: null,
+    purchase: 'sales'
   }
 ]
 

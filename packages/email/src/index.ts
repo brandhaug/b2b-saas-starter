@@ -1,3 +1,4 @@
+import { failureMessage } from '@b2b-saas-starter/failure'
 import { render } from '@react-email/render'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { type ReactElement } from 'react'
@@ -61,24 +62,17 @@ export class EmailDispatcher extends Context.Service<
   EmailDispatcherInterface
 >()('@b2b-saas-starter/email/EmailDispatcher') {}
 
-function causeMessage(cause: unknown): string {
-  if (cause instanceof Error) {
-    return cause.message
-  }
-  return String(cause)
-}
-
 function renderMessage(
   message: EmailMessage
 ): Effect.Effect<{ readonly html: string; readonly text: string }, EmailRenderError> {
   return Effect.gen(function* () {
     const html = yield* Effect.tryPromise({
       try: () => render(message.element),
-      catch: (cause) => new EmailRenderError({ message: causeMessage(cause) })
+      catch: (cause) => new EmailRenderError({ message: failureMessage(cause) })
     })
     const text = yield* Effect.tryPromise({
       try: () => render(message.element, { plainText: true }),
-      catch: (cause) => new EmailRenderError({ message: causeMessage(cause) })
+      catch: (cause) => new EmailRenderError({ message: failureMessage(cause) })
     })
     return { html, text }
   })
@@ -132,7 +126,7 @@ export function makeCloudflareEmailDispatcherLayer(
             }),
           catch: (cause) =>
             new EmailSendError({
-              message: causeMessage(cause),
+              message: failureMessage(cause),
               to: message.to,
               subject: message.subject
             })

@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
-import { AuditEventLog } from './audit-event-log.ts'
+import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   fabricateSeedMember,
@@ -13,6 +13,7 @@ import {
   Member,
   requireMemberRowId,
   toMember,
+  toWorkspace,
   Workspace,
   type WorkspaceRole
 } from './workspace-identity.ts'
@@ -272,12 +273,7 @@ export function LiveWorkspaceMembership(
           ).pipe(
             Effect.map((rows) =>
               rows.map((row) => ({
-                workspace: {
-                  id: row.workspace.id,
-                  slug: row.workspace.slug,
-                  name: row.workspace.name,
-                  planId: row.workspace.planId
-                },
+                workspace: toWorkspace(row.workspace),
                 member: toMember(row)
               }))
             )
@@ -293,13 +289,7 @@ export function LiveWorkspaceMembership(
               })
             )
             const member = yield* readMember(ctx.workspace.id, input.userId)
-            // Not atomic with the write above, and it cannot be: D1 rejects an
-            // explicit BEGIN, and a plugin write cannot join a `batch()`. The
-            // audit row may therefore be missing after a crash between the two.
-            // Accepted and recorded on the map, not an oversight.
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
+            yield* recordInWorkspace(audit, {
               eventType: 'workspace_member.added',
               targetType: 'workspace_member',
               targetId: input.userId,
@@ -314,9 +304,7 @@ export function LiveWorkspaceMembership(
             yield* callBinding(binding, (bound) =>
               bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
             )
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
+            yield* recordInWorkspace(audit, {
               eventType: 'workspace_member.removed',
               targetType: 'workspace_member',
               targetId: input.userId
@@ -334,9 +322,7 @@ export function LiveWorkspaceMembership(
               })
             )
             const member = yield* readMember(ctx.workspace.id, input.userId)
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
+            yield* recordInWorkspace(audit, {
               eventType: 'workspace_member.role_changed',
               targetType: 'workspace_member',
               targetId: input.userId,

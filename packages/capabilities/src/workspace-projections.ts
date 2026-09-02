@@ -6,7 +6,7 @@ import {
   type Notification
 } from './notifications/notification-feed.ts'
 import { type CapabilityUnavailable } from './errors.ts'
-import { WorkspaceContext } from './workspace-context.ts'
+import { memberToActor, WorkspaceContext } from './workspace-context.ts'
 
 /**
  * Named read projections over the per-capability services.
@@ -108,11 +108,7 @@ export function listWorkspacesForUser(
           Effect.provide(
             Layer.succeed(WorkspaceContext)({
               workspace,
-              actor: {
-                userId: member.id,
-                role: member.role,
-                systemRole: member.systemRole
-              }
+              actor: memberToActor(member)
             })
           )
         ),

@@ -3,18 +3,17 @@ import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 
 import { ApiTokenForm, type CreateApiToken } from '@/components/api-token-form'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import {
   Item,
   ItemActions,
   ItemContent,
   ItemDescription,
-  ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
 import { ConfirmButton } from '@/components/confirm-button'
+import { ResourcePanel } from '@/components/resource-panel'
+import { formatUtcOr } from '@/lib/format-date'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { revokeApiTokenServerFn } from '@/lib/server/api-tokens'
 import { useServerAction } from '@/hooks/use-server-action'
@@ -33,14 +32,6 @@ export type RevokeApiToken = (input: {
     readonly tokenId: string
   }
 }) => Promise<boolean>
-
-// An explicit locale and timezone keeps SSR and the browser in agreement.
-function formatDate(iso: string | null): string {
-  if (iso === null) {
-    return 'never'
-  }
-  return new Date(iso).toLocaleString('en-US', { timeZone: 'UTC' })
-}
 
 /**
  * The workspace's API tokens: create (secret shown once), list, revoke.
@@ -77,81 +68,68 @@ export function ApiTokensPanel({
   )
 
   return (
-    <div className="grid gap-6">
-      {canCreate ? (
-        <div className="grid gap-2">
-          <h2 className="text-sm font-medium">Create a token</h2>
+    <ResourcePanel
+      create={{
+        title: 'Create a token',
+        allowed: canCreate,
+        deniedReason: 'Your role cannot mint tokens.',
+        form: (
           <ApiTokenForm
             workspaceSlug={workspaceSlug}
             onCreated={() => void router.invalidate()}
             {...(createToken === undefined ? {} : { createToken })}
           />
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">Your role cannot mint tokens.</p>
-      )}
-
-      <div className="grid gap-2">
-        <h2 className="text-sm font-medium">Active tokens</h2>
-        {tokens.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>No active tokens</EmptyTitle>
-              <EmptyDescription>Create one above to get started.</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <ItemGroup>
-            {tokens.map((token) => (
-              <Item key={token.id} variant="outline" size="sm">
-                <ItemContent>
-                  <ItemTitle>
-                    {token.name}
-                    <code className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">
-                      {token.prefix}…
-                    </code>
-                  </ItemTitle>
-                  <ItemDescription>
-                    Created {formatDate(token.createdAt)} · Last used{' '}
-                    {formatDate(token.lastUsedAt)}
-                  </ItemDescription>
-                  <div className="flex flex-wrap gap-1">
-                    {token.scopes.map((scope) => (
-                      <Badge key={scope} variant="outline">
-                        {scope}
-                      </Badge>
-                    ))}
-                  </div>
-                </ItemContent>
-                {canRevoke ? (
-                  <ItemActions>
-                    <ConfirmButton
-                      label="Revoke"
-                      confirmLabel="Confirm revoke"
-                      armed={confirmingId === token.id}
-                      busy={revoke.pendingInput === token.id}
-                      onArm={() => setConfirmingId(token.id)}
-                      onCancel={() => setConfirmingId(null)}
-                      onConfirm={() => revoke.run(token.id)}
-                    />
-                  </ItemActions>
-                ) : null}
-              </Item>
-            ))}
-          </ItemGroup>
-        )}
-        {canRevoke ? null : (
+        )
+      }}
+      list={{
+        title: 'Active tokens',
+        items: tokens.map((token) => (
+          <Item key={token.id} variant="outline" size="sm">
+            <ItemContent>
+              <ItemTitle>
+                {token.name}
+                <code className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">
+                  {token.prefix}…
+                </code>
+              </ItemTitle>
+              <ItemDescription>
+                Created {formatUtcOr(token.createdAt, 'never')} · Last used{' '}
+                {formatUtcOr(token.lastUsedAt, 'never')}
+              </ItemDescription>
+              <div className="flex flex-wrap gap-1">
+                {token.scopes.map((scope) => (
+                  <Badge key={scope} variant="outline">
+                    {scope}
+                  </Badge>
+                ))}
+              </div>
+            </ItemContent>
+            {canRevoke ? (
+              <ItemActions>
+                <ConfirmButton
+                  label="Revoke"
+                  confirmLabel="Confirm revoke"
+                  armed={confirmingId === token.id}
+                  busy={revoke.pendingInput === token.id}
+                  onArm={() => setConfirmingId(token.id)}
+                  onCancel={() => setConfirmingId(null)}
+                  onConfirm={() => revoke.run(token.id)}
+                />
+              </ItemActions>
+            ) : null}
+          </Item>
+        )),
+        empty: {
+          title: 'No active tokens',
+          description: 'Create one above to get started.'
+        },
+        footer: canRevoke ? null : (
           <p className="text-xs text-muted-foreground">
             Your role cannot revoke tokens.
           </p>
-        )}
-      </div>
-
-      {revoke.error === null ? null : (
-        <Alert variant="destructive">
-          <AlertDescription>{revoke.error}</AlertDescription>
-        </Alert>
-      )}
-    </div>
+        )
+      }}
+      actions={[revoke]}
+    />
   )
 }

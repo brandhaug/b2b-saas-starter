@@ -1,4 +1,9 @@
-import { user, workspaceMembers, workspaceRoles } from '@b2b-saas-starter/db/schema'
+import {
+  systemRoles,
+  user,
+  workspaceMembers,
+  workspaceRoles
+} from '@b2b-saas-starter/db/schema'
 import { type EffectDatabase } from '@b2b-saas-starter/db/service'
 import { Effect, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
@@ -17,20 +22,13 @@ import { orUnavailable } from '../internal/unavailable.ts'
  */
 
 export const WORKSPACE_ROLES = workspaceRoles
-// oxlint-disable-next-line effect/noAs -- `as const` on a literal tuple, not a type assertion: Schema.Literals needs the narrowed readonly tuple to derive the SystemRole union.
-export const SYSTEM_ROLES = ['admin', 'user'] as const
+export const SYSTEM_ROLES = systemRoles
 
 export const WorkspaceRole = Schema.Literals(WORKSPACE_ROLES)
 export type WorkspaceRole = typeof WorkspaceRole.Type
 
 export const SystemRole = Schema.Literals(SYSTEM_ROLES)
 export type SystemRole = typeof SystemRole.Type
-
-/**
- * The resolved viewer shape loaders hand to permission checks and UI: only
- * the workspace role, or nothing when no viewer is signed in.
- */
-export type WorkspaceViewer = { readonly role: WorkspaceRole }
 
 export const Workspace = Schema.Struct({
   id: Schema.String,
@@ -69,17 +67,29 @@ export function fabricateSeedMember(
   }
 }
 
+/**
+ * Maps a stored workspace row onto the `Workspace` DTO. Every read that
+ * returns a workspace goes through here — the context resolution, the
+ * membership projection, and the lifecycle read-backs — so the projected
+ * columns are decided once.
+ */
+export function toWorkspace(row: {
+  readonly id: string
+  readonly slug: string
+  readonly name: string
+  readonly planId: string
+}): Workspace {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    planId: row.planId
+  }
+}
+
 type MemberRow = {
   readonly member: typeof workspaceMembers.$inferSelect
   readonly user: typeof user.$inferSelect
-}
-
-/** Only the stored `admin` role grants the admin system role; everything else is a user. */
-export function toSystemRole(role: string | null): SystemRole {
-  if (role === 'admin') {
-    return 'admin'
-  }
-  return 'user'
 }
 
 export function toMember(row: MemberRow): Member {
@@ -88,7 +98,9 @@ export function toMember(row: MemberRow): Member {
     name: row.user.name,
     email: row.user.email,
     role: row.member.role,
-    systemRole: toSystemRole(row.user.role)
+    // `user.role` is the typed system-role column; null means the plugin never
+    // wrote one, which is a plain user.
+    systemRole: row.user.role ?? 'user'
   }
 }
 

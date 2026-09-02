@@ -7,6 +7,7 @@ import { orUnavailable } from './internal/unavailable.ts'
 import {
   findWorkspaceMember,
   SystemRole,
+  toWorkspace,
   type Workspace,
   WorkspaceRole,
   type Member
@@ -26,7 +27,12 @@ export type Actor = typeof Actor.Type
  */
 export type ActorRef = { readonly userId: string }
 
-function memberToActor(member: Member): Actor {
+/**
+ * Projects a resolved member onto the acting identity. Exported because
+ * `workspace-projections.ts` builds a context of its own from a membership row
+ * the query already proved.
+ */
+export function memberToActor(member: Member): Actor {
   return {
     userId: member.id,
     role: member.role,
@@ -71,12 +77,7 @@ export function liveWorkspaceContext(
         resolvedActor = memberToActor(member)
       }
       return {
-        workspace: {
-          id: row.id,
-          slug: row.slug,
-          name: row.name,
-          planId: row.planId
-        },
+        workspace: toWorkspace(row),
         actor: resolvedActor
       }
     })

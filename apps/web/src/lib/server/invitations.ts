@@ -5,6 +5,9 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
+  requirePending,
+  requireRecipient,
+  requireUnexpired,
   WorkspaceInvitations,
   type AcceptedInvitation,
   type Invitation
@@ -221,10 +224,21 @@ export function invitationPreview(input: {
       return UNAVAILABLE
     }
     const invitation = found.value
-    if (invitation.status !== 'pending') {
-      return UNAVAILABLE
-    }
-    if (invitation.email.toLowerCase() !== input.viewerEmail.toLowerCase()) {
+    // The rules are the capability's, not this module's: these are the same
+    // three the adapters run before an accept, so the page cannot describe an
+    // invitation the accept would then refuse. Their typed refusals are
+    // collapsed here — the reason never leaves this function, which is what
+    // makes every failure one opaque answer.
+    const usable = yield* Effect.result(
+      Effect.andThen(
+        requirePending(invitation),
+        Effect.andThen(
+          requireRecipient(invitation, input.viewerEmail),
+          requireUnexpired(invitation)
+        )
+      )
+    )
+    if (Result.isFailure(usable)) {
       return UNAVAILABLE
     }
     return {

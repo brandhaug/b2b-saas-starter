@@ -13,6 +13,7 @@ import {
   type WebhookDeliveryStatus
 } from './webhook-delivery-plan.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
+import { seedWorkspaceRecord } from '../seed-fixture.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 /**
@@ -31,9 +32,6 @@ export type SeedWebhookEndpointFixture = {
   readonly signingSecret?: string
   readonly workspaceId?: string
 }
-
-/** Owning workspace of fixture endpoints without an explicit one. Matches `seedWorkspaceRecord.id`; kept literal to avoid a fixture import cycle. */
-const SEED_WORKSPACE_ID = 'wrk_starter'
 
 type SeedEndpointRow = {
   readonly id: string
@@ -83,7 +81,7 @@ export function SeedWebhookEndpoints(
       // same precedent; contract cases run unmodified against both adapters.
       const endpoints: Array<SeedEndpointRow> = seedFixtures.map((fixture) => ({
         id: fixture.id,
-        workspaceId: fixture.workspaceId ?? SEED_WORKSPACE_ID,
+        workspaceId: fixture.workspaceId ?? seedWorkspaceRecord.id,
         url: fixture.url,
         enabled: fixture.enabled,
         events: [...fixture.events],

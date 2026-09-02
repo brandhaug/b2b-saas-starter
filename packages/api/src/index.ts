@@ -29,7 +29,7 @@ import {
 } from '@b2b-saas-starter/ai'
 import { type ApiTokenScope } from '@b2b-saas-starter/authz/client'
 import { type RateLimiterInterface as GenericRateLimiterInterface } from '@b2b-saas-starter/rate-limit'
-import { Context, Schema } from 'effect'
+import { Context, Option, Schema } from 'effect'
 import {
   HttpApi,
   HttpApiEndpoint,
@@ -40,45 +40,95 @@ import {
   OpenApi
 } from 'effect/unstable/httpapi'
 
-/**
- * The canonical tag-to-HTTP-status table. Every `httpApiStatus` annotation on
- * the shared error classes below reads its status from here, and non-contract
- * surfaces (the MCP protocol route) map failures through `statusForTag` — so
- * REST and every other wire encoding cannot disagree about what a failure
- * means.
- */
-export const ERROR_STATUS_BY_TAG = {
-  InternalError: 500,
-  Unauthorized: 401,
-  AuthorizationDenied: 403,
-  RateLimited: 429,
-  CapabilityUnavailable: 503
-}
-
-export function statusForTag(tag: keyof typeof ERROR_STATUS_BY_TAG): number {
-  return ERROR_STATUS_BY_TAG[tag]
-}
-
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class InternalError extends Schema.TaggedError<InternalError>()(
   'InternalError',
   { traceId: Schema.String },
-  { httpApiStatus: ERROR_STATUS_BY_TAG.InternalError }
+  { httpApiStatus: 500 }
 ) {}
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   'Unauthorized',
   { message: Schema.String },
-  { httpApiStatus: ERROR_STATUS_BY_TAG.Unauthorized }
+  { httpApiStatus: 401 }
 ) {}
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class RateLimited extends Schema.TaggedError<RateLimited>()(
   'RateLimited',
   { bucket: Schema.String },
-  { httpApiStatus: ERROR_STATUS_BY_TAG.RateLimited }
+  { httpApiStatus: 429 }
 ) {}
+
+/**
+ * The failures a *non-contract* surface can raise before it reaches its own
+ * wire format — today only the MCP protocol route at `POST /mcp`, which speaks
+ * JSON-RPC and therefore encodes its own responses. It composes the same
+ * guards the contract's `BearerAuth` middleware does, so it can fail in exactly
+ * these four ways.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+const GUARD_FAILURE_SCHEMAS = [
+  Unauthorized,
+  AuthorizationDenied,
+  RateLimited,
+  CapabilityUnavailable
+] as const
+
+export const GuardFailure = Schema.Union(GUARD_FAILURE_SCHEMAS)
+export type GuardFailure = typeof GuardFailure.Type
+
+const encodeGuardFailure = Schema.encodeSync(GuardFailure)
+
+/**
+ * The annotations a guard failure must carry to be encodable: its tag (the
+ * `identifier` every `Schema.TaggedError` sets) and the status
+ * `HttpApiBuilder` gives it. Annotations are an open `unknown` bag, so they
+ * are decoded here rather than read on faith.
+ */
+const StatusAnnotations = Schema.Struct({
+  identifier: Schema.String,
+  httpApiStatus: Schema.Number
+})
+
+const decodeStatusAnnotations = Schema.decodeUnknownOption(StatusAnnotations)
+
+/**
+ * Status by tag, read off the error schemas rather than restated: the
+ * `httpApiStatus` annotation each class already carries is the one
+ * `HttpApiBuilder` uses to encode the REST response, so there is no second
+ * table for a non-contract surface to drift from. A class that somehow lost
+ * its annotation gets no row, and `guardFailureResponse` answers 500 — the
+ * honest status for "this failure has no declared encoding".
+ */
+const GUARD_FAILURE_STATUS: ReadonlyMap<string, number> = new Map(
+  GUARD_FAILURE_SCHEMAS.flatMap((schema: Schema.Top) =>
+    Option.match(decodeStatusAnnotations(schema.ast.annotations), {
+      onNone: (): ReadonlyArray<[string, number]> => [],
+      onSome: (annotations) => [[annotations.identifier, annotations.httpApiStatus]]
+    })
+  )
+)
+
+/**
+ * The HTTP encoding of a guard failure outside the contract's error channel:
+ * the status from the schema's annotation, the body from the schema's own
+ * encoding. Both halves come from the same declarations `HttpApiBuilder` reads,
+ * so `POST /mcp` answers a rejected request byte-for-byte the way a REST route
+ * would.
+ */
+export type GuardFailureResponse = {
+  readonly status: number
+  readonly body: typeof GuardFailure.Encoded
+}
+
+export function guardFailureResponse(error: GuardFailure): GuardFailureResponse {
+  return {
+    status: GUARD_FAILURE_STATUS.get(error._tag) ?? 500,
+    body: encodeGuardFailure(error)
+  }
+}
 
 /**
  * The rate-limit buckets the contract's gated groups draw from, and the

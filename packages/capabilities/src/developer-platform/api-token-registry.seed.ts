@@ -5,6 +5,7 @@ import { AuthorizationDenied } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
+import { seedWorkspaceRecord } from '../seed-fixture.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import {
   API_TOKEN_SCOPES,
@@ -25,9 +26,6 @@ const SEED_TOKEN_SCOPES = new Map<string, ReadonlyArray<ApiTokenScope>>([
   [SEED_API_TOKEN, API_TOKEN_SCOPES],
   [SEED_READONLY_API_TOKEN, ['read']]
 ])
-
-/** Owning workspace of fixture tokens. Matches `seedWorkspaceRecord.id`; kept literal to avoid a fixture import cycle. */
-const SEED_WORKSPACE_ID = 'wrk_starter'
 
 /**
  * A Seed store entry: the fixture projection plus the columns the wire shape
@@ -53,7 +51,7 @@ export function SeedApiTokenRegistry(
       // can actually trip instead of being unreachable.
       const entries: Array<SeedTokenEntry> = seed.map((token) => ({
         token,
-        workspaceId: SEED_WORKSPACE_ID,
+        workspaceId: seedWorkspaceRecord.id,
         revokedAt: null
       }))
 
@@ -153,8 +151,8 @@ export function SeedApiTokenRegistry(
           }
           return Effect.succeed({
             id: seed[0]?.id ?? 'tok_seed',
-            workspaceId: 'wrk_starter',
-            workspaceSlug: 'starter-lab',
+            workspaceId: seedWorkspaceRecord.id,
+            workspaceSlug: seedWorkspaceRecord.slug,
             scopes
           })
         }

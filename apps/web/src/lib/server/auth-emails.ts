@@ -6,8 +6,10 @@ import {
   TwoFactorChangedEmail
 } from '@b2b-saas-starter/email/templates'
 import { env as cloudflareEnv } from 'cloudflare:workers'
-import { Effect } from 'effect'
+import { Effect, type Layer } from 'effect'
 import { type ReactElement } from 'react'
+
+import { webRuntime } from '../observability'
 
 /**
  * The adapter that lets Better Auth's account-lifecycle callbacks reach the
@@ -26,18 +28,29 @@ import { type ReactElement } from 'react'
  * The log-mode dispatcher never fails; only a real, broken `EMAIL` binding
  * can, and failing loudly there is the honest behavior.
  */
+let selected: Layer.Layer<EmailDispatcher> | undefined
+
 /**
  * Provider-light by the same selector the invitation flow uses (`invitations.ts`
  * imports this): with no `EMAIL` binding configured this is the logging
  * dispatcher, so password reset and email verification work end to end locally
  * without an email provider — the link lands in the console log instead of an
  * inbox.
+ *
+ * Selected once per isolate, not once per send. Which dispatcher is right is a
+ * function of the isolate's env bag, which cannot change under it, and the
+ * layer is a `Layer.succeed` closing over the `EMAIL` binding — no I/O state of
+ * its own, so it is isolate-safe for the same reason `WideEventLoggerLive` is.
+ * The read stays behind the function so importing this module in an
+ * environment without bindings does not touch env, exactly like
+ * `AuthConfigLive`'s `Layer.sync`.
  */
-export function emailDispatcherLayer() {
-  return selectEmailDispatcherLayer({
+export function emailDispatcherLayer(): Layer.Layer<EmailDispatcher> {
+  selected ??= selectEmailDispatcherLayer({
     EMAIL: cloudflareEnv.EMAIL,
     EMAIL_FROM_ADDRESS: cloudflareEnv.CLOUDFLARE_EMAIL_FROM
   })
+  return selected
 }
 
 function dispatch(input: {
@@ -53,7 +66,11 @@ function dispatch(input: {
       element: input.element
     })
   )
-  return Effect.runPromise(
+  // `webRuntime`, like every other server run in this app: the dispatcher's
+  // own `email.dispatched` line then goes out through the app's console JSON
+  // logger instead of Effect's default one. A rejection still propagates — the
+  // auth endpoints have no honest "sent but not really" response.
+  return webRuntime.runPromise(
     Effect.asVoid(dispatcher).pipe(Effect.provide(emailDispatcherLayer()))
   )
 }
@@ -65,15 +82,15 @@ function dispatch(input: {
  */
 export function makeAuthEmailSender(): AuthEmailSender {
   return {
-    sendPasswordReset: ({ email, url }) =>
+    sendResetPassword: ({ user, url }) =>
       dispatch({
-        to: email,
+        to: user.email,
         subject: 'Reset your password',
         element: PasswordResetEmail({ url })
       }),
-    sendEmailVerification: ({ email, url }) =>
+    sendVerificationEmail: ({ user, url }) =>
       dispatch({
-        to: email,
+        to: user.email,
         subject: 'Verify your email address',
         element: EmailVerificationEmail({ url })
       })

@@ -330,6 +330,13 @@ describe('invitationPreview', () => {
       name: 'somebody else’s address',
       harness: { seed: [invitation()] },
       viewerEmail: 'stranger@example.com'
+    },
+    {
+      // The preview runs the capability's own three rules, so it cannot
+      // describe an invitation `acceptInvitation` would refuse for expiry.
+      name: 'an expired invitation',
+      harness: { seed: [invitation({ expiresAt: '2020-01-01T00:00:00.000Z' })] },
+      viewerEmail: INVITEE
     }
   ]
 

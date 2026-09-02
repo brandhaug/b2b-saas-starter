@@ -1,4 +1,10 @@
-import { invitationStatuses, workspaceRoles, type ApiTokenScopeValue } from './enums.ts'
+import {
+  deliveryStatuses,
+  invitationStatuses,
+  systemRoles,
+  workspaceRoles,
+  type ApiTokenScopeValue
+} from './enums.ts'
 import { sql } from 'drizzle-orm'
 import {
   index,
@@ -10,10 +16,15 @@ import {
 } from 'drizzle-orm/sqlite-core'
 
 export {
+  adminSystemRole,
   apiTokenScopes,
+  deliveryStatuses,
   invitationStatuses,
+  systemRoles,
   workspaceRoles,
-  type ApiTokenScopeValue
+  type ApiTokenScopeValue,
+  type DeliveryStatus,
+  type SystemRoleValue
 } from './enums.ts'
 /**
  * What a `mode: 'json'` text column can hold: exactly what
@@ -70,21 +81,6 @@ function isoCreatedAt() {
 }
 
 /**
- * The delivery state machine written by the background worker through
- * `WebhookEndpoints.recordDeliveryAttempt` / `recordTerminalDeliveryAttempt`:
- * `delivered` on a 2xx, `failed` while retries remain, `failed_permanent` on a
- * non-retryable response, `dead_lettered` once attempts are exhausted.
- */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
-export const deliveryStatuses = [
-  'delivered',
-  'failed',
-  'failed_permanent',
-  'dead_lettered'
-] as const
-export type DeliveryStatus = (typeof deliveryStatuses)[number]
-
-/**
  * The three workspace tables are owned by the organization plugin, so their
  * columns follow Better Auth's camelCase field names (`workspaceId`) rather
  * than the starter's snake_case. Everything else still points at
@@ -112,7 +108,10 @@ export const user = sqliteTable('user', {
   username: text('username').unique(),
   displayUsername: text('displayUsername'),
   emailVerified: integer('emailVerified', { mode: 'boolean' }).default(false).notNull(),
-  role: text('role').default('user'),
+  // The admin plugin's system role. Nullable because the plugin declares the
+  // field optional — a row written before the default, or by a path that omits
+  // it, reads as `null` and means `user`.
+  role: text('role', { enum: systemRoles }).default('user'),
   banned: integer('banned', { mode: 'boolean' }).default(false),
   banReason: text('banReason'),
   banExpires: integer('banExpires', { mode: 'timestamp' }),

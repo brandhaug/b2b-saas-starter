@@ -109,7 +109,7 @@ const SeedGovernance = Layer.unwrap(
  * audit events below their interface — separate instances would each hold a
  * private store and recorded events would not read back.
  */
-const SeedAuditLog = SeedAuditEventLog(seedAuditEvents)
+const SeedAuditLog = SeedAuditEventLog(seedAuditEvents, seedSystemUsers)
 
 /**
  * Billing rides the governance seed so its audit writes land in the same

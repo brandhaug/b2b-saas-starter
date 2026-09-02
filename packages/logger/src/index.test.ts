@@ -12,6 +12,7 @@ import {
   withRequestScope,
   withTriggerScope
 } from './wide-event.ts'
+import { withHttpInvocation } from './invocation.ts'
 
 /** One captured log record, in the shape `Logger.consoleJson` would print. */
 type Captured = {
@@ -268,6 +269,37 @@ describe('withHttpRequestScope', () => {
       }).pipe(Effect.provide(layer))
     }
   )
+})
+
+describe('withHttpInvocation', () => {
+  it.effect("emits one canonical line carrying the request's Cloudflare colo", () => {
+    const { layer, records } = collector()
+    const request = new Request('https://api.example.com/health')
+    // What Cloudflare hands a Worker. `undici`'s `Request` has no `cf`, so the
+    // platform field is attached the way the runtime would.
+    Object.defineProperty(request, 'cf', { value: { colo: 'ARN' } })
+    return Effect.gen(function* () {
+      yield* withHttpInvocation(
+        // No `OTEL_EXPORTER_OTLP_ENDPOINT`: the exporter half is `Layer.empty`,
+        // and the console event is still the whole story.
+        {
+          service: 'api',
+          event: 'request.health',
+          request,
+          env: { ENVIRONMENT: 'ci' }
+        },
+        Effect.annotateLogsScoped({ workspaceId: 'ws_1' })
+      )
+      expect(only(records).annotations).toMatchObject({
+        service: 'api',
+        status: 'ok',
+        pathname: '/health',
+        region: 'ARN',
+        environment: 'ci',
+        workspaceId: 'ws_1'
+      })
+    }).pipe(Effect.provide(layer))
+  })
 })
 
 describe('readWideEventEnvironment', () => {

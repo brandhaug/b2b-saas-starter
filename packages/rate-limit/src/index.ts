@@ -1,3 +1,4 @@
+import { failureMessage } from '@b2b-saas-starter/failure'
 import { Clock, Effect, Result, type Scope } from 'effect'
 
 // Cloudflare Rate Limiting binding shape (subset). The actual bindings are
@@ -61,13 +62,6 @@ function takeFromFallback(
   return true
 }
 
-function bindingFailureReason(cause: unknown): string {
-  if (cause instanceof Error) {
-    return cause.message
-  }
-  return String(cause)
-}
-
 /** Why the limiter degraded: the binding was never provisioned, or its call failed. */
 function fallbackReason(
   binding: CloudflareRateLimit | undefined
@@ -92,7 +86,7 @@ export function makeRateLimiter<Bucket extends string>(
               // The failure never reaches a caller — `take` degrades to the
               // in-memory fallback — so the reason travels as the message it
               // will be logged as, not as a tagged class nothing catches.
-              catch: bindingFailureReason
+              catch: failureMessage
             })
           )
           if (Result.isSuccess(attempt)) {

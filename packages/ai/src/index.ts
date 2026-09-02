@@ -1,3 +1,4 @@
+import { failureMessage } from '@b2b-saas-starter/failure'
 import { Context, Effect, Layer, Option, Schema } from 'effect'
 
 import { type Writable } from '@b2b-saas-starter/config/writable'
@@ -76,7 +77,7 @@ export function makeWorkersAILayer(
               prompt: `Workspace: ${prompt.workspaceSlug}\nQuestion: ${prompt.question}\nAnswer:`
             }),
           catch: (cause) =>
-            new AssistantUnavailable({ reason: `workers-ai: ${String(cause)}` })
+            new AssistantUnavailable({ reason: `workers-ai: ${failureMessage(cause)}` })
         })
         if (!result.response) {
           return yield* Effect.fail(
@@ -177,7 +178,7 @@ export function makeOpenAILayer(config: OpenAIConfig) {
               signal
             ),
           catch: (cause) =>
-            new AssistantUnavailable({ reason: `openai: ${String(cause)}` })
+            new AssistantUnavailable({ reason: `openai: ${failureMessage(cause)}` })
         })
         if (!response.ok) {
           return yield* Effect.fail(
@@ -187,7 +188,7 @@ export function makeOpenAILayer(config: OpenAIConfig) {
         const raw: unknown = yield* Effect.tryPromise({
           try: () => response.json(),
           catch: (cause) =>
-            new AssistantUnavailable({ reason: `openai: ${String(cause)}` })
+            new AssistantUnavailable({ reason: `openai: ${failureMessage(cause)}` })
         })
         const body = decodeOpenAIChatResponse(raw)
         if (Option.isNone(body)) {

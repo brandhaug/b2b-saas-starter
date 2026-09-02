@@ -49,22 +49,52 @@ export type Env = Partial<ServerEnv> & {
 export type WebhookMessage = typeof WebhookQueueMessage.Type
 
 /**
- * One compiled codec for the three boundary decodes below: both consumers and
- * the trace-continuation helper read the same untrusted queue body.
+ * The one compiled codec for the queue boundary. `readQueueDelivery` is its
+ * only caller: both consumers and the trace continuation read that single
+ * decode rather than re-running it over the same untrusted body.
  */
 const decodeWebhookQueueMessage = Schema.decodeUnknownResult(WebhookQueueMessage)
 
 /**
  * Structural subset of a Cloudflare queue `Message`: the untrusted body plus
- * the attempt count and the message id. Both consumers take the envelope
- * rather than a bare body so the boundary decode stays inside the wide-event
- * scope that reports a malformed message, and tests can hand them a plain
- * object. The id anchors the delivery id (see `deliveryIdFor`).
+ * the attempt count and the message id. This is what the platform hands the
+ * batch loop; `readQueueDelivery` turns it into the decoded delivery the
+ * consumers work from. The id anchors the delivery id (see `deliveryIdFor`).
  */
 export type WebhookQueueEnvelope = {
   readonly id?: string | undefined
   readonly body: unknown
   readonly attempts: number
+}
+
+/**
+ * One queue message after the boundary decode, which runs exactly once per
+ * delivery: the platform's own fields plus either the decoded message or the
+ * named terminal outcome `malformed`.
+ *
+ * `malformed` is terminal by construction — redelivery can never fix a body's
+ * shape, and there is no trusted `endpointId` to attach a delivery row to — so
+ * both consumers record it on the wide event and ack. The trace continuation
+ * reads the same decode, so an undecodable body simply starts its own trace.
+ */
+export type WebhookQueueDelivery = {
+  readonly id?: string | undefined
+  readonly attempts: number
+} & (
+  | { readonly kind: 'message'; readonly message: WebhookMessage }
+  | { readonly kind: 'malformed' }
+)
+
+/** Decodes one queue envelope's untrusted body. The only decode per delivery. */
+export function readQueueDelivery(
+  envelope: WebhookQueueEnvelope
+): WebhookQueueDelivery {
+  const decoded = decodeWebhookQueueMessage(envelope.body)
+  const platform = { id: envelope.id, attempts: envelope.attempts }
+  if (Result.isFailure(decoded)) {
+    return { ...platform, kind: 'malformed' }
+  }
+  return { ...platform, kind: 'message', message: decoded.success }
 }
 
 export type DeliveryOutcome = 'ack' | 'retry'
@@ -77,9 +107,9 @@ export type DeliveryOutcome = 'ack' | 'retry'
  * random fallback only covers envelopes without an id (never produced by a
  * real queue), keeping the minting path testable in isolation.
  */
-function deliveryIdFor(envelope: WebhookQueueEnvelope): Effect.Effect<string> {
-  if (envelope.id !== undefined && envelope.id.length > 0) {
-    return Effect.succeed(`whd_${envelope.id}`)
+function deliveryIdFor(delivery: WebhookQueueDelivery): Effect.Effect<string> {
+  if (delivery.id !== undefined && delivery.id.length > 0) {
+    return Effect.succeed(`whd_${delivery.id}`)
   }
   return newDeliveryId
 }
@@ -107,23 +137,12 @@ const WebhookDeliveryBody = Schema.Struct({
 const encodeDeliveryBody = Schema.encodeSync(Schema.fromJsonString(WebhookDeliveryBody))
 
 /**
- * The envelope-decode preamble both consumers share: decode at the boundary,
- * and on a malformed body annotate `skipReason: 'malformed_message'` on the
- * wide event with the consumer's own outcome and yield nothing — there is no
- * trusted endpointId for a delivery row, so the message is acked.
+ * How a malformed body is reported: the consumer's own terminal outcome plus
+ * the reason, on the wide event the scope is already holding. Nothing else is
+ * recorded — there is no trusted endpointId for a delivery row.
  */
-function decodeEnvelope(
-  envelope: WebhookQueueEnvelope,
-  outcome: string
-): Effect.Effect<WebhookMessage | undefined, never, Scope.Scope> {
-  return Effect.gen(function* () {
-    const decoded = decodeWebhookQueueMessage(envelope.body)
-    if (Result.isFailure(decoded)) {
-      yield* Effect.annotateLogsScoped({ outcome, skipReason: 'malformed_message' })
-      return
-    }
-    return decoded.success
-  })
+function annotateMalformed(outcome: string): Effect.Effect<void, never, Scope.Scope> {
+  return Effect.annotateLogsScoped({ outcome, skipReason: 'malformed_message' })
 }
 
 /** Fields every consumer stamps onto its wide event once decoded. */
@@ -162,15 +181,15 @@ export function runInvocation<A, E>(
 
 /**
  * The upstream trace to continue, if the producer stamped one on the message.
- * The body is untrusted here, so it goes through the same boundary decode the
- * consumers use; an undecodable message simply starts its own trace.
+ * Reads the delivery the consumer already decoded; a malformed body carries no
+ * trusted `traceparent`, so it simply starts its own trace.
  */
-function queueParentSpan(envelope: WebhookQueueEnvelope) {
-  const decoded = decodeWebhookQueueMessage(envelope.body)
-  return Result.match(decoded, {
-    onFailure: () => undefined,
-    onSuccess: (message) => parentSpanFromHeaders({ traceparent: message.traceparent })
-  })
+function queueParentSpan(delivery: WebhookQueueDelivery) {
+  if (delivery.kind === 'message') {
+    return parentSpanFromHeaders({ traceparent: delivery.message.traceparent })
+  }
+  // No trusted `traceparent` on an undecodable body: no parent, own trace.
+  return parentSpanFromHeaders({})
 }
 
 /**
@@ -181,7 +200,7 @@ function queueParentSpan(envelope: WebhookQueueEnvelope) {
  * the real layers and the wide-event scope (`deliverWebhook`).
  */
 export function processWebhookMessage(
-  envelope: WebhookQueueEnvelope,
+  delivery: WebhookQueueDelivery,
   traceId: string
 ): Effect.Effect<
   DeliveryOutcome,
@@ -189,16 +208,14 @@ export function processWebhookMessage(
   WebhookEndpoints | HttpClient.HttpClient | Scope.Scope
 > {
   return Effect.gen(function* () {
-    // Queue payloads are `unknown` at runtime — decode at the boundary. A
-    // malformed message is terminal (redelivery can never fix its shape), but
-    // there is no trusted endpointId to attach a delivery row to, so it is
-    // recorded on the wide event only and acked — mirroring how permanent
-    // delivery failures ack instead of retrying forever.
-    const message = yield* decodeEnvelope(envelope, 'failed_permanent')
-    if (!message) {
+    // A malformed body is terminal — mirroring how permanent delivery failures
+    // ack instead of retrying forever — and there is nothing to dispatch.
+    if (delivery.kind === 'malformed') {
+      yield* annotateMalformed('failed_permanent')
       return 'ack' satisfies DeliveryOutcome
     }
-    const attempts = envelope.attempts
+    const message = delivery.message
+    const attempts = delivery.attempts
     yield* annotateMessageFields(message)
     const webhooks = yield* WebhookEndpoints
     // The workspace ID from the message is verified inside the capability:
@@ -237,7 +254,7 @@ export function processWebhookMessage(
       })
       return 'ack' satisfies DeliveryOutcome
     }
-    const deliveryId = yield* deliveryIdFor(envelope)
+    const deliveryId = yield* deliveryIdFor(delivery)
     const now = yield* DateTime.now
     const timestamp = Math.floor(DateTime.toEpochMillis(now) / 1000)
     const body = encodeDeliveryBody({
@@ -297,23 +314,25 @@ function deliverWebhook(
   envelope: WebhookQueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient> {
-  // endpointId/eventType land on the wide event via `Effect.annotateLogsScoped` after the
-  // boundary decode in `processWebhookMessage` — the raw body is untrusted
-  // here, so the envelope carries only the attempt count.
+  // The one boundary decode per delivery: the trace continuation and the
+  // consumer read the same result. endpointId/eventType land on the wide event
+  // via `Effect.annotateLogsScoped` inside the scope, so the envelope metadata
+  // carries only the attempt count.
+  const delivery = readQueueDelivery(envelope)
   return withTriggerScope(
     {
       service: 'background',
       event: 'webhook_delivery',
-      parent: queueParentSpan(envelope),
+      parent: queueParentSpan(delivery),
       spanKind: 'consumer',
       env,
-      metadata: { attempts: envelope.attempts }
+      metadata: { attempts: delivery.attempts }
     },
     // The `x-trace-id` forwarded to the receiver is this scope's OTel trace id,
     // so the header a receiver quotes back resolves in the trace backend too.
     Effect.gen(function* () {
       const traceId = yield* currentTraceId
-      return yield* processWebhookMessage(envelope, traceId)
+      return yield* processWebhookMessage(delivery, traceId)
     }).pipe(Effect.provide(selectCapabilitiesLayer(starterEnv(env))))
     // `_cause` is deliberately unused: the wide event above already logged the
     // failure cause on exit, and the queue needs an outcome, not an exception.
@@ -329,22 +348,23 @@ function deliverWebhook(
  * and the wide-event scope.
  */
 export function processDeadLetterMessage(
-  envelope: WebhookQueueEnvelope
+  delivery: WebhookQueueDelivery
 ): Effect.Effect<void, CapabilityUnavailable, WebhookEndpoints | Scope.Scope> {
   return Effect.gen(function* () {
-    // Same boundary decode as `processWebhookMessage`: a malformed dead letter
+    // Same terminal outcome as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.
-    const message = yield* decodeEnvelope(envelope, 'dead_lettered')
-    if (!message) {
+    if (delivery.kind === 'malformed') {
+      yield* annotateMalformed('dead_lettered')
       return
     }
+    const message = delivery.message
     yield* annotateMessageFields(message)
     const webhooks = yield* WebhookEndpoints
     yield* webhooks.recordTerminalDeliveryAttempt({
       endpointId: message.endpointId,
       workspaceId: message.workspaceId,
       eventType: message.eventType,
-      attempts: envelope.attempts,
+      attempts: delivery.attempts,
       status: 'dead_lettered'
     })
     yield* Effect.annotateLogsScoped({ outcome: 'dead_lettered' })
@@ -360,7 +380,8 @@ function recordDeadLetter(
   envelope: WebhookQueueEnvelope,
   env: Env
 ): Effect.Effect<void> {
-  const program = processDeadLetterMessage(envelope).pipe(
+  const delivery = readQueueDelivery(envelope)
+  const program = processDeadLetterMessage(delivery).pipe(
     Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
   )
   return withTriggerScope(
@@ -368,9 +389,9 @@ function recordDeadLetter(
       service: 'background',
       event: 'webhook_dead_letter',
       env,
-      parent: queueParentSpan(envelope),
+      parent: queueParentSpan(delivery),
       spanKind: 'consumer',
-      metadata: { attempts: envelope.attempts }
+      metadata: { attempts: delivery.attempts }
     },
     program
     // Always ack dead letters — failing here would loop the DLQ.
@@ -383,20 +404,19 @@ function recordDeadLetter(
  * outcome. The dead-letter caller maps every outcome to `'ack'` — failing a
  * DLQ message would loop the DLQ.
  */
-export function consumeBatch<R>(
+export function consumeBatch(
   env: Env,
   batch: MessageBatch<unknown>,
-  perMessage: (message: Message<unknown>) => Effect.Effect<DeliveryOutcome, never, R>
+  perMessage: (
+    message: Message<unknown>
+  ) => Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient>
 ): Promise<void> {
   return runInvocation(
     env,
-    // The batch loop adds no requirements of its own. `perMessage`'s residual
-    // requirement R is at most `HttpClient` (the delivery consumer — the DLQ
-    // caller needs nothing), which the isolate runtime's FetchHttpClient
-    // provides, so the loop is safe to view through the runner's contract.
-    // SAFETY: R ⊆ HttpClient by the only two call sites; the runtime provides
-    // FetchHttpClient isolate-level (see `staticRuntime` above).
-    // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see SAFETY above
+    // The batch loop adds no requirements of its own, so the loop's context is
+    // `perMessage`'s: `HttpClient`, which the isolate runtime's
+    // FetchHttpClient provides. The DLQ caller, needing nothing, still fits —
+    // an `Effect<_, _, never>` is an `Effect<_, _, HttpClient>`.
     Effect.forEach(
       batch.messages,
       (message) =>
@@ -412,7 +432,7 @@ export function consumeBatch<R>(
           )
         ),
       { concurrency: 'unbounded', discard: true }
-    ) as Effect.Effect<void, never, HttpClient.HttpClient>
+    )
   )
 }
 

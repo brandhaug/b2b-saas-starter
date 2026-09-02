@@ -11,6 +11,7 @@
     "test": "vp test run --passWithNoTests"
   },
   "dependencies": {
+    "@b2b-saas-starter/failure": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

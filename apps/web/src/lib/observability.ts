@@ -1,7 +1,7 @@
 import {
   makeOtlpLayer,
   WideEventLoggerLive,
-  withHttpRequestScope,
+  withHttpInvocation,
   withTriggerScope
 } from '@b2b-saas-starter/logger'
 import { env as cloudflareEnv } from 'cloudflare:workers'
@@ -57,18 +57,43 @@ type RequestTelemetry = {
 const registry = new WeakMap<Request, RequestTelemetry>()
 
 /**
- * Isolate-level half of the web worker's observability: the console JSON logger
- * and the tracer logger. Neither does I/O, so one set per isolate is correct —
- * and the request scope needs them in context before the exporters build.
+ * **The web worker's one server runtime.** Every `Effect` this app runs on the
+ * server starts here — the request middleware, `runWorkspaceCapabilities` /
+ * `runCapabilities`, the env gate, the email dispatch — so there is one answer
+ * to "which services is a run standing on" instead of a bare
+ * `Effect.runPromise*` per call site meaning "the defaults, whatever they are".
+ *
+ * It holds exactly the isolate-level half of observability: the console JSON
+ * logger and the tracer logger. Neither does I/O, so one set per isolate is
+ * correct (logger invariant 4) — and the request scope needs them in context
+ * before the exporters build. The OTLP exporters are NOT here: they are
+ * per-invocation, built inside `withHttpInvocation` (or
+ * `withInvocationExporters` on the standalone path below).
+ *
+ * `authRuntime` (`./auth-runtime.ts`) is the one deliberate exception, and
+ * cannot fold into this one:
+ *
+ * - It exists to memoize a single Better Auth instance per isolate, and it
+ *   holds only `Auth` by design — loggers and exporters belong to a request,
+ *   which is why the auth gates join the request's scope instead of reading
+ *   telemetry off that runtime.
+ * - Merging `AuthLive` into this runtime would drag the whole Better Auth
+ *   server into the browser bundle: `capabilities.ts` runs loaders on this
+ *   runtime and is bundled for the client, exactly the reason the plugin
+ *   bindings are passed per call rather than parked on `starterEnv`.
+ *
+ * That exception is what keeps `standalone` below self-contained — see there.
  */
-const loggerRuntime = ManagedRuntime.make(WideEventLoggerLive)
+export const webRuntime = ManagedRuntime.make(WideEventLoggerLive)
 
 /**
- * The per-invocation half: the OTLP exporters. Provided with `local: true`
- * inside the invocation, because a Worker may not perform I/O for a request
- * that has already ended — an exporter shared across requests stops flushing
- * (see `makeOtlpLayer`). It is applied *inside* the loggers on purpose:
- * `makeOtlpLayer` merges its log exporter with the loggers already in context.
+ * The per-invocation half for the *standalone* path below, which is a trigger
+ * scope rather than an HTTP one and so cannot use `withHttpInvocation`. Same
+ * rule either way: the OTLP exporters are provided with `local: true` inside
+ * the invocation, because a Worker may not perform I/O for a request that has
+ * already ended — an exporter shared across requests stops flushing (see
+ * `makeOtlpLayer`) — and *inside* the loggers, because `makeOtlpLayer` merges
+ * its log exporter with the loggers already in context.
  */
 function withInvocationExporters<A, E, R>(
   effect: Effect.Effect<A, E, R>
@@ -164,19 +189,17 @@ export function runWebRequestScope(
   if (options.serverFnId) {
     metadata.serverFnId = options.serverFnId
   }
-  return loggerRuntime
+  return webRuntime
     .runPromiseExit(
-      withInvocationExporters(
-        withHttpRequestScope(
-          {
-            service: 'web',
-            event: 'web.request',
-            request: options.request,
-            env: cloudflareEnv,
-            metadata
-          },
-          registerAndRun(options.request, next, lookupRequest)
-        )
+      withHttpInvocation(
+        {
+          service: 'web',
+          event: 'web.request',
+          request: options.request,
+          env: cloudflareEnv,
+          metadata
+        },
+        registerAndRun(options.request, next, lookupRequest)
       )
     )
     .then(settle)
@@ -315,11 +338,15 @@ function record(
  * *missed* join degrades to, so the event says `scope: 'standalone'` — a second
  * line for one request is then visibly a missed join rather than normal traffic.
  *
- * The loggers are provided here rather than taken from `loggerRuntime`, so the
- * returned Effect stays self-contained: callers run it on a bare
- * `Effect.runPromiseExit` (see `capabilities.ts`) and it must not depend on
- * which runtime they used. Building the logger layer costs nothing — it does no
- * I/O — unlike the exporters, which stay invocation scoped.
+ * The loggers are provided here rather than taken from `webRuntime`, so the
+ * returned Effect stays self-contained and does not depend on which runtime
+ * the caller used. That is not redundancy left over from the bare-run days:
+ * `readSession` runs on `authRuntime`, which holds `Auth` and nothing else, so
+ * without this provide the one gate that runs first on every request would
+ * emit its standalone event through Effect's default logger. `WideEventLoggerLive`
+ * is `Logger.layer([...])`, which replaces the logger set, so providing it over
+ * `webRuntime`'s copy is idempotent — no second line. Building it costs nothing
+ * — it does no I/O — unlike the exporters, which stay invocation scoped.
  */
 function standalone<A, E, R>(
   options: NestedScopeOptions,

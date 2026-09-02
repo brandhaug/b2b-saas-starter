@@ -13,6 +13,7 @@
     "dev": "email dev --dir src"
   },
   "dependencies": {
+    "@b2b-saas-starter/failure": "workspace:*",
     "@react-email/components": "catalog:",
     "@react-email/render": "catalog:",
     "effect": "catalog:",

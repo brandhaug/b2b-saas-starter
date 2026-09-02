@@ -29,12 +29,18 @@ const sentEmails: Array<{
 }> = []
 
 const capturingEmailSender: AuthEmailSender = {
-  sendPasswordReset: ({ email, url }) => {
-    sentEmails.push({ kind: 'reset', email, url })
+  // Destructured off `data` rather than the parameter: `user` up here is the
+  // imported table.
+  sendResetPassword: (data) => {
+    sentEmails.push({ kind: 'reset', email: data.user.email, url: data.url })
     return Promise.resolve()
   },
-  sendEmailVerification: ({ email, url }) => {
-    sentEmails.push({ kind: 'verification', email, url })
+  sendVerificationEmail: (data) => {
+    sentEmails.push({
+      kind: 'verification',
+      email: data.user.email,
+      url: data.url
+    })
     return Promise.resolve()
   }
 }
@@ -55,7 +61,12 @@ beforeAll(
               trustedOrigins: [],
               emails: capturingEmailSender,
               // Local-mode stance: the gate stays off in tests, matching dev.
-              requireEmailVerification: false
+              requireEmailVerification: false,
+              // No execution context in a test: run the detached send inline
+              // and keep its rejection off the isolate's unhandled path.
+              runBackground: (promise) => {
+                void promise.catch(() => undefined)
+              }
             }))
           )
         )

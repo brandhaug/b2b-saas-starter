@@ -5,6 +5,7 @@ import { newCapabilityId } from '../internal/ids.ts'
 import { fabricateSeedMember, type Workspace } from './workspace-identity.ts'
 import { type SeedRoster } from './workspace-membership.ts'
 import {
+  requirePending,
   requireRecipient,
   requireUnexpired,
   WorkspaceInvitations,
@@ -32,22 +33,24 @@ function settle(
 }
 
 /**
- * Fails the way the Live adapter fails for an invitation this workspace cannot
- * act on, so the shared contract holds on both sides.
+ * The stored invitation, if it is one this workspace can still act on. The
+ * "still pending" question is the contract's own `requirePending`, so Seed and
+ * Live refuse a settled invitation for the same reason; only the lookup — a
+ * `Ref` here, a row there — is the adapter's own.
  */
-function requirePending(
+function findPending(
   store: Ref.Ref<ReadonlyArray<Invitation>>,
   invitationId: string
 ): Effect.Effect<Invitation, MembershipChangeRejected> {
   return Ref.get(store).pipe(
     Effect.flatMap((rows) => {
       const found = rows.find((row) => row.id === invitationId)
-      if (found?.status !== 'pending') {
+      if (!found) {
         return Effect.fail(
           new MembershipChangeRejected({ reason: 'invitation_not_pending' })
         )
       }
-      return Effect.succeed(found)
+      return Effect.as(requirePending(found), found)
     })
   )
 }
@@ -114,12 +117,12 @@ export function SeedWorkspaceInvitations(options: {
           }),
         cancel: (input) =>
           Effect.gen(function* () {
-            yield* requirePending(store, input.invitationId)
+            yield* findPending(store, input.invitationId)
             yield* settle(store, input.invitationId, 'canceled')
           }),
         accept: (input) =>
           Effect.gen(function* () {
-            const pending = yield* requirePending(store, input.invitationId)
+            const pending = yield* findPending(store, input.invitationId)
             yield* requireRecipient(pending, input.email)
             yield* requireUnexpired(pending)
 

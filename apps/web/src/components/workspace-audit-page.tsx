@@ -34,6 +34,7 @@ import {
   type WorkspaceAuditSearchUpdate
 } from '@/lib/audit-search'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
+import { formatUtc } from '@/lib/format-date'
 
 /**
  * The per-workspace audit trail (issue #118, prototype verdict A): toolbar over
@@ -48,13 +49,12 @@ import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
  */
 
 function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
+  return formatUtc(iso, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'UTC'
+    minute: '2-digit'
   })
 }
 

@@ -1,6 +1,6 @@
 import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
 import { PLANS, type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Effect, Schema } from 'effect'
 import { env as cloudflareEnv } from 'cloudflare:workers'

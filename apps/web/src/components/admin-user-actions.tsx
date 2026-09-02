@@ -1,5 +1,4 @@
 import {
-  WORKSPACE_ROLES,
   type Member,
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
@@ -18,22 +17,37 @@ import {
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { RoleChangeButtons } from '@/components/role-change-buttons'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogTitle
-} from '@/components/ui/alert-dialog'
-import {
-  banSystemUserServerFn,
   changeUserWorkspaceRoleServerFn,
   listUserWorkspacesServerFn,
-  unbanSystemUserServerFn,
   type SystemUser
 } from '@/lib/server/admin'
 import { useServerAction } from '@/hooks/use-server-action'
+
+/**
+ * The two server calls this editor makes, as ports. Injected rather than
+ * imported at the call site so a test drives the editor with real functions of
+ * these shapes instead of replacing the module they live in. The defaults are
+ * the production server functions, so every caller but a test passes nothing.
+ */
+export type ListUserWorkspaces = (input: {
+  readonly data: { readonly userId: string }
+}) => Promise<ReadonlyArray<WorkspaceWithMembership>>
+
+export type ChangeUserWorkspaceRole = (input: {
+  readonly data: {
+    readonly userId: string
+    readonly workspaceId: string
+    readonly role: WorkspaceRole
+  }
+}) => Promise<Member>
+
+type RoleChange = {
+  readonly workspaceId: string
+  readonly member: Member
+  readonly role: WorkspaceRole
+}
 
 /**
  * Cross-workspace role editor under `/admin`'s users table, keyed by the
@@ -41,103 +55,44 @@ import { useServerAction } from '@/hooks/use-server-action'
  * Presentation only — every change is re-gated by the admin role in the
  * server fn and again inside Better Auth's plugin.
  */
-/**
- * Row-level ban/unban for `/admin`'s users table: a confirmed destructive
- * action — the dialog names the user, cancel is the safe default. Every change
- * is re-gated by the admin role in the server fn and again inside Better
- * Auth's plugin.
- */
-export function BanUserAction({ user }: { readonly user: SystemUser }) {
-  const [open, setOpen] = useState(false)
-  const banned = user.banned
-  const verb = banned ? 'Unban' : 'Ban'
-
-  const confirm = useServerAction(
-    () =>
-      banned
-        ? unbanSystemUserServerFn({ data: { userId: user.id } })
-        : banSystemUserServerFn({ data: { userId: user.id } }),
-    { failureMessage: `${verb} failed`, onSuccess: () => setOpen(false) }
-  )
-
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label={`${verb} ${user.email}`}
-        onClick={() => setOpen(true)}
-      >
-        {verb}
-      </Button>
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent>
-          <AlertDialogTitle>
-            {verb} {user.email}?
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {banned
-              ? 'The user will be able to sign in again.'
-              : 'The user will be signed out and blocked from signing in.'}
-          </AlertDialogDescription>
-          {confirm.error === null ? null : (
-            <p role="alert" className="text-xs text-destructive">
-              {confirm.error}
-            </p>
-          )}
-          <div className="flex justify-end gap-2">
-            <AlertDialogCancel disabled={confirm.pending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant={banned ? 'default' : 'destructive'}
-              disabled={confirm.pending}
-              onClick={() => confirm.run()}
-            >
-              {confirm.pending ? <Spinner data-icon="inline-start" /> : null}
-              {verb}
-            </AlertDialogAction>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  )
-}
-
 export function AdminUserActions({
-  users
+  users,
+  listWorkspaces = listUserWorkspacesServerFn,
+  changeUserRole = changeUserWorkspaceRoleServerFn
 }: {
   readonly users: ReadonlyArray<SystemUser>
+  readonly listWorkspaces?: ListUserWorkspaces
+  readonly changeUserRole?: ChangeUserWorkspaceRole
 }) {
   const [selectedId, setSelectedId] = useState<string>(users[0]?.id ?? '')
   const [memberships, setMemberships] =
     useState<ReadonlyArray<WorkspaceWithMembership> | null>(null)
 
+  /** The one read this editor makes: every membership held by one user. */
+  function readMemberships(userId: string) {
+    return listWorkspaces({ data: { userId } })
+  }
+
   // A read, so there is no loader to re-run — it just refills the editor.
-  const loadWorkspaces = useServerAction(
-    (userId: string) => listUserWorkspacesServerFn({ data: { userId } }),
-    {
-      failureMessage: 'Failed to load workspaces',
-      invalidate: false,
-      onSuccess: setMemberships
-    }
-  )
+  const loadWorkspaces = useServerAction(readMemberships, {
+    failureMessage: 'Failed to load workspaces',
+    invalidate: false,
+    onSuccess: setMemberships
+  })
 
   // Re-reads the memberships after the write, through the same folded call, so
   // the editor shows the role it just wrote and a read failure lands in error
   // state instead of escaping as an unhandled rejection.
   const changeRole = useServerAction(
-    async ({
-      workspaceId,
-      member,
-      role
-    }: {
-      readonly workspaceId: string
-      readonly member: Member
-      readonly role: WorkspaceRole
-    }) => {
-      await changeUserWorkspaceRoleServerFn({
-        data: { userId: member.id, workspaceId, role }
+    async (change: RoleChange) => {
+      await changeUserRole({
+        data: {
+          userId: change.member.id,
+          workspaceId: change.workspaceId,
+          role: change.role
+        }
       })
-      return listUserWorkspacesServerFn({ data: { userId: member.id } })
+      return readMemberships(change.member.id)
     },
     { failureMessage: 'Role change failed', onSuccess: setMemberships }
   )
@@ -186,32 +141,14 @@ export function AdminUserActions({
           Load workspaces
           {loadWorkspaces.pending ? <Spinner data-icon="inline-end" /> : null}
         </Button>
-        {(() => {
-          if (memberships === null) {
-            return null
-          }
-          if (memberships.length === 0) {
-            return (
-              <p className="text-xs text-muted-foreground">
-                {selected?.name} holds no workspace memberships.
-              </p>
-            )
-          }
-          return (
-            <ul className="grid gap-2">
-              {memberships.map(({ workspace, member }) => (
-                <MembershipRow
-                  key={workspace.id}
-                  workspaceName={workspace.name}
-                  workspaceId={workspace.id}
-                  member={member}
-                  busy={busy}
-                  onChangeRole={(target) => changeRole.run(target)}
-                />
-              ))}
-            </ul>
-          )
-        })()}
+        {memberships === null ? null : (
+          <MembershipList
+            memberships={memberships}
+            selectedName={selected?.name}
+            busy={busy}
+            onChangeRole={(change) => changeRole.run(change)}
+          />
+        )}
       </div>
 
       {error === null ? null : (
@@ -223,49 +160,46 @@ export function AdminUserActions({
   )
 }
 
-function MembershipRow(input: {
-  readonly workspaceName: string
-  readonly workspaceId: string
-  readonly member: Member
+/** The loaded memberships, or the copy for a user who holds none. */
+function MembershipList({
+  memberships,
+  selectedName,
+  busy,
+  onChangeRole
+}: {
+  readonly memberships: ReadonlyArray<WorkspaceWithMembership>
+  readonly selectedName: string | undefined
   readonly busy: boolean
-  readonly onChangeRole: (target: {
-    readonly workspaceId: string
-    readonly member: Member
-    readonly role: WorkspaceRole
-  }) => void
+  readonly onChangeRole: (change: RoleChange) => void
 }) {
-  // One pass over the fixed role vocabulary: keep every role this member does
-  // not already hold.
-  const targets: Array<WorkspaceRole> = []
-  for (const role of WORKSPACE_ROLES) {
-    if (role !== input.member.role) {
-      targets.push(role)
-    }
+  if (memberships.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        {selectedName} holds no workspace memberships.
+      </p>
+    )
   }
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-      <span className="min-w-0 text-sm break-all">{input.workspaceName}</span>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{input.member.role}</Badge>
-        {targets.map((role) => (
-          <Button
-            key={role}
-            variant="ghost"
-            size="sm"
-            disabled={input.busy}
-            aria-label={`Make ${input.workspaceName} role ${role}`}
-            onClick={() =>
-              input.onChangeRole({
-                workspaceId: input.workspaceId,
-                member: input.member,
-                role
-              })
-            }
-          >
-            Make {role}
-          </Button>
-        ))}
-      </div>
-    </li>
+    <ul className="grid gap-2">
+      {memberships.map(({ workspace, member }) => (
+        <li
+          key={workspace.id}
+          className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
+        >
+          <span className="min-w-0 text-sm break-all">{workspace.name}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">{member.role}</Badge>
+            <RoleChangeButtons
+              currentRole={member.role}
+              labelFor={(role) => `Make ${workspace.name} role ${role}`}
+              disabled={busy}
+              onChange={(role) =>
+                onChangeRole({ workspaceId: workspace.id, member, role })
+              }
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }

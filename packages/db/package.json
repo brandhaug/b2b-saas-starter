@@ -18,6 +18,7 @@
     "db:migrate:remote": "node scripts/migrate.ts --remote"
   },
   "dependencies": {
+    "@b2b-saas-starter/failure": "workspace:*",
     "@effect/sql-d1": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:"

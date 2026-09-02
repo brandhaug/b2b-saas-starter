@@ -6,11 +6,10 @@ import {
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 
+import { CheckboxSetField } from '@/components/checkbox-set-field'
 import { FormTextField } from '@/components/form-text-field'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { FieldError, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
 import { SecretReveal } from '@/components/secret-reveal'
 import { createApiTokenServerFn } from '@/lib/server/api-tokens'
@@ -125,42 +124,16 @@ export function ApiTokenForm({
             value.length === 0 ? 'Pick at least one scope' : undefined
         }}
       >
-        {(field) => {
-          const hasError = field.state.meta.errors.length > 0
-          const errorId = `${field.name}-error`
-          return (
-            <FieldSet data-invalid={hasError || undefined}>
-              <FieldLegend variant="label">Scopes</FieldLegend>
-              <div className="flex flex-wrap gap-3">
-                {API_TOKEN_SCOPES.map((scope) => {
-                  const checked = field.state.value.includes(scope)
-                  return (
-                    <FieldLabel key={scope}>
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(next) => {
-                          const isChecked = next
-                          field.handleChange(
-                            isChecked
-                              ? [...new Set([...field.state.value, scope])]
-                              : field.state.value.filter((item) => item !== scope)
-                          )
-                        }}
-                      />
-
-                      <span>{scope}</span>
-                    </FieldLabel>
-                  )
-                })}
-              </div>
-              {hasError ? (
-                <FieldError id={errorId}>
-                  {field.state.meta.errors.join(', ')}
-                </FieldError>
-              ) : null}
-            </FieldSet>
-          )
-        }}
+        {(field) => (
+          <CheckboxSetField
+            name={field.name}
+            legend="Scopes"
+            options={API_TOKEN_SCOPES}
+            value={field.state.value}
+            errors={field.state.meta.errors}
+            onChange={field.handleChange}
+          />
+        )}
       </form.Field>
 
       <form.Subscribe

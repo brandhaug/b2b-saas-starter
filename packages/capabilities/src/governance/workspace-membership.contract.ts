@@ -10,7 +10,7 @@ import { WorkspaceMembership } from './workspace-membership.ts'
  *
  * Capabilities invariant 4 says Seed and Live must satisfy the same interface.
  * A prose invariant drifts; these cases do not. `index.test.ts` runs them
- * against `SeedWorkspaceMembership` with no D1, and `live-layers.test.ts` runs
+ * against `SeedWorkspaceMembership` with no D1, and `workspace-membership.live.test.ts` runs
  * the same list against `LiveWorkspaceMembership` on a real one.
  *
  * The cases assert only what both adapters can honestly promise. Identity

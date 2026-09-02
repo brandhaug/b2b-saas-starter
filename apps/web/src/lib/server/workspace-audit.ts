@@ -4,7 +4,7 @@ import {
   type ListAuditEventsInput
 } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'

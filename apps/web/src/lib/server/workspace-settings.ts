@@ -4,7 +4,7 @@ import {
   WorkspaceInvitations,
   type Invitation
 } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import { type WorkspaceViewer } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'

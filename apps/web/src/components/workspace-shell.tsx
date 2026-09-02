@@ -26,28 +26,17 @@ import {
   SheetTitle,
   SheetTrigger
 } from '@/components/ui/sheet'
-import { authClient } from '@/lib/auth-client'
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { useServerAction } from '@/hooks/use-server-action'
+import {
+  signOutWithAuthClient,
+  type SignOut
+} from '@/components/auth/auth-client-ports'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 
 const SIGN_OUT_FAILED = 'Sign-out failed'
 
-/**
- * Ending the session, as a port. Injected rather than reaching for the
- * `authClient` singleton at the call site so a test drives sign-out with a real
- * function of this shape instead of replacing `@/lib/auth-client` — which is a
- * Better Auth client with plugins attached, not something worth re-creating.
- */
-export type SignOut = () => Promise<void>
-
-/**
- * Hoisted to module scope rather than written inline as a default: a new
- * function expression per render would be a fresh prop value every time.
- */
-async function signOutWithAuthClient(): Promise<void> {
-  await authClient.signOut()
-}
+export { type SignOut }
 
 export function WorkspaceShell({
   children,

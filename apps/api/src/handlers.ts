@@ -10,7 +10,7 @@ import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import { type ApiEnv } from './env.ts'
 import { enforcePermission, observed, provideWorkspace } from './request-guards.ts'
 import { mcpDiscoveryDocument } from './mcp.ts'
-import { READ_OPERATIONS, serveRead, type ReadOperationEndpoint } from './operations.ts'
+import { READ_OPERATIONS, type ReadOperationEndpoint } from './operations.ts'
 
 /**
  * Contract response literals. Each is declared with the literal type the
@@ -76,15 +76,27 @@ export function workspaceGroup(env: ApiEnv) {
       )
     }
 
-    // Every read goes through `serveRead` — the one documented channel
-    // widening, owned by the shared operation table.
-    function workspaceRead(
-      endpoint: ReadOperationEndpoint,
+    /**
+     * Generic in the row, not in the key: the call site hands over the table
+     * entry itself, so `A`/`E`/`R` are inferred from that row's own capability
+     * read. That is what lets the contract's success and error schemas check
+     * the handler — a row whose read stopped answering what its endpoint
+     * declares fails here, at compile time, with no channel widening in
+     * between. (Taking the key and indexing `READ_OPERATIONS` inside the body
+     * cannot work: within the generic body the index resolves to the union of
+     * all six rows, and TypeScript rejects the union against any one
+     * endpoint's schema.)
+     */
+    function workspaceRead<A, E, R>(
+      op: {
+        readonly path: ReadOperationEndpoint
+        readonly permission: PermissionRequest
+        readonly read: () => Effect.Effect<A, E, R>
+      },
       params: { readonly slug: string },
       request: HttpServerRequest.HttpServerRequest
     ) {
-      const op = READ_OPERATIONS[endpoint]
-      return read(endpoint, op.permission, params.slug, request, serveRead(op))
+      return read(op.path, op.permission, params.slug, request, op.read())
     }
 
     // Every read composes gate + capability from the shared operation
@@ -92,22 +104,22 @@ export function workspaceGroup(env: ApiEnv) {
     // so the two Capability Interfaces cannot disagree about permissions.
     return handlers
       .handle('overview', ({ params, request }) =>
-        workspaceRead('overview', params, request)
+        workspaceRead(READ_OPERATIONS.overview, params, request)
       )
       .handle('members', ({ params, request }) =>
-        workspaceRead('members', params, request)
+        workspaceRead(READ_OPERATIONS.members, params, request)
       )
       .handle('notifications', ({ params, request }) =>
-        workspaceRead('notifications', params, request)
+        workspaceRead(READ_OPERATIONS.notifications, params, request)
       )
       .handle('api-tokens', ({ params, request }) =>
-        workspaceRead('api-tokens', params, request)
+        workspaceRead(READ_OPERATIONS['api-tokens'], params, request)
       )
       .handle('webhooks', ({ params, request }) =>
-        workspaceRead('webhooks', params, request)
+        workspaceRead(READ_OPERATIONS.webhooks, params, request)
       )
       .handle('audit-events', ({ params, request }) =>
-        workspaceRead('audit-events', params, request)
+        workspaceRead(READ_OPERATIONS['audit-events'], params, request)
       )
   })
 }

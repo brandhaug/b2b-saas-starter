@@ -1,37 +1,25 @@
 import { McpServer } from '@modelcontextprotocol/server'
 import { type JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
-import {
-  tokenPrincipal,
-  type ApiTokenScope,
-  type PermissionRequest
-} from '@b2b-saas-starter/authz/client'
+import { tokenPrincipal, type ApiTokenScope } from '@b2b-saas-starter/authz/client'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
   READ_OPERATIONS,
   readOperations,
-  serveRead,
-  type CapabilityRead,
   type CapabilityReadError,
-  type CapabilityReadServices
+  type CapabilityReadServices,
+  type WorkspaceReadOperation
 } from './operations.ts'
 import {
-  statusForTag,
-  type RateLimited,
-  type Unauthorized,
+  guardFailureResponse,
+  type GuardFailure,
   type McpDiscovery,
   type McpToolDescriptor
 } from '@b2b-saas-starter/api'
-import {
-  HttpRouter,
-  HttpServerResponse,
-  type HttpServerRequest
-} from 'effect/unstable/http'
-import { type Context, Effect, Result, Stream } from 'effect'
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
+import { type Context, Effect, Result } from 'effect'
 import { createMcpHandler } from 'agents/mcp/server'
 import { z } from 'zod'
 
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 
 import {
@@ -72,41 +60,36 @@ export const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
 const OVERVIEW_RESOURCE_URI = 'workspace://overview'
 
 /**
- * The advertised tools — derived from the shared operation table
- * (operations.ts) rather than hand-mirrored: each tool is exactly one REST
- * workspace read, with the same permission and the same capability read.
- * Every tool is a read over a surviving capability — MCP exposes what REST
- * exposes, nothing resurrected. The mirrored operation is named on the wire
- * so a tool's description points at its REST twin.
+ * Every tool takes no arguments: each one is a whole-collection workspace read,
+ * exactly like the REST route it mirrors. The zod schema is what the MCP SDK
+ * registers with, and the JSON Schema `GET /mcp` advertises is generated from
+ * it — minus the `$schema` dialect header, which a tool descriptor's
+ * `inputSchema` has no use for — so "no input" is declared once.
  */
-type ToolDefinition = {
-  readonly descriptor: McpToolDescriptor
-  readonly permission: PermissionRequest
-  readonly capability: () => CapabilityRead
+const NO_TOOL_INPUT = z.object({})
+// oxlint-disable-next-line eslint/no-unused-vars -- destructured to drop the dialect header from the advertised schema
+const { $schema: _dialect, ...NO_TOOL_INPUT_SCHEMA } = z.toJSONSchema(NO_TOOL_INPUT)
+
+/**
+ * One tool descriptor, projected from one row of the shared operation table
+ * (operations.ts) rather than hand-mirrored: same name, same permission, same
+ * capability read as the REST endpoint it names. Every tool is a read over a
+ * surviving capability — MCP exposes what REST exposes, nothing resurrected.
+ */
+function toolDescriptor(operation: WorkspaceReadOperation): McpToolDescriptor {
+  return {
+    name: operation.toolName,
+    description: `${operation.toolDescription} Mirrors GET /workspaces/{slug}/${operation.path}.`,
+    inputSchema: NO_TOOL_INPUT_SCHEMA
+  }
 }
 
-export const mcpTools: ReadonlyArray<ToolDefinition> = readOperations().map(
-  (operation) => ({
-    descriptor: {
-      name: operation.toolName,
-      description: `${operation.toolDescription} Mirrors GET /workspaces/{slug}/${operation.path}.`,
-      inputSchema: {
-        type: 'object',
-        properties: {},
-        additionalProperties: false
-      }
-    },
-    permission: operation.permission,
-    capability: operation.read
-  })
-)
-
-/** What `GET /mcp` advertises — derived from the same table `tools/list` serves. */
+/** What `GET /mcp` advertises — the same rows `tools/list` is registered from. */
 export function mcpDiscoveryDocument(): McpDiscovery {
   return {
     name: MCP_SERVER_NAME,
     resources: [OVERVIEW_RESOURCE_URI],
-    tools: mcpTools.map((tool) => tool.descriptor)
+    tools: readOperations().map(toolDescriptor)
   }
 }
 
@@ -197,7 +180,11 @@ export function buildMcpServer(
    * call.
    */
   function runRead<A>(
-    body: Effect.Effect<A, never, CapabilityReadServices | WorkspaceContext>
+    body: Effect.Effect<
+      A,
+      CapabilityReadError,
+      CapabilityReadServices | WorkspaceContext
+    >
   ): Promise<A> {
     return Effect.runPromise(
       Effect.provideContext(provideWorkspace(env, workspaceSlug, body), services)
@@ -209,13 +196,14 @@ export function buildMcpServer(
     { capabilities: { tools: {}, resources: {} } }
   )
 
-  for (const tool of mcpTools) {
+  for (const operation of readOperations()) {
+    const descriptor = toolDescriptor(operation)
     server.registerTool(
-      tool.descriptor.name,
+      descriptor.name,
       {
-        title: tool.descriptor.name,
-        description: tool.descriptor.description,
-        inputSchema: z.object({})
+        title: descriptor.name,
+        description: descriptor.description,
+        inputSchema: NO_TOOL_INPUT
       },
       () => {
         // One guard + one capability read, bridged onto the request-scoped
@@ -223,8 +211,8 @@ export function buildMcpServer(
         // inside the Effect runtime, hence the scoped wrapper here rather than
         // in the capability itself.
         const guarded = Effect.gen(function* () {
-          yield* requirePermission(tokenPrincipal(scopes), tool.permission)
-          return yield* tool.capability()
+          yield* requirePermission(tokenPrincipal(scopes), operation.permission)
+          return yield* operation.read()
         }).pipe(Effect.scoped)
 
         // `Effect.result` moves the typed error channel into the value before
@@ -248,10 +236,11 @@ export function buildMcpServer(
     },
     () => {
       // The resource projects the same overview read the REST route and the
-      // tools serve — pulled from the shared operation table like both of
-      // them, through the one sanctioned channel widening (`serveRead`).
-      const overview = serveRead(READ_OPERATIONS.overview)
-      const guarded = Effect.map(overview, (value) => ({
+      // tools serve, pulled from the shared operation table like both of them.
+      // The SDK's resource callback has no error shape of its own, so a typed
+      // failure travels to the promise seam and rejects there — the protocol
+      // answers with its own internal error.
+      const guarded = Effect.map(READ_OPERATIONS.overview.read(), (value) => ({
         contents: [
           {
             uri: OVERVIEW_RESOURCE_URI,
@@ -268,56 +257,26 @@ export function buildMcpServer(
   return server
 }
 
-/** Adapts a fetch `Response` into the Effect response type the router serves. */
-function fromWeb(response: Response): HttpServerResponse.HttpServerResponse {
-  const status = response.status
-  const body = response.body
-  if (body === null) {
-    return HttpServerResponse.empty({ status })
-  }
-  return HttpServerResponse.stream(
-    Stream.fromReadableStream({
-      evaluate: () => body,
-      onError: (cause) => cause
-    }),
-    {
-      status,
-      contentType: response.headers.get('content-type') ?? 'application/json'
-    }
+function rpcErrorResponse(
+  code: number,
+  message: string,
+  status: number
+): HttpServerResponse.HttpServerResponse {
+  return HttpServerResponse.jsonUnsafe(
+    { jsonrpc: '2.0', id: null, error: { code, message } },
+    { status }
   )
 }
 
-type ProtocolFailure =
-  | Unauthorized
-  | AuthorizationDenied
-  | RateLimited
-  | CapabilityUnavailable
-
-/** The two body shapes a streamable-HTTP response can carry. */
-type JsonRpcResponseBody = JSONRPCMessage | RpcErrorBody | { readonly _tag: string }
-
-type RpcErrorBody = {
-  readonly jsonrpc: '2.0'
-  readonly id: string | number | null
-  readonly error: { readonly code: number; readonly message: string }
-}
-
-function jsonResponse(
-  body: JsonRpcResponseBody,
-  status: number
-): HttpServerResponse.HttpServerResponse {
+/**
+ * A guard failure, encoded the way the contract encodes it: status and body
+ * both come from the error schema's own annotations (`guardFailureResponse` in
+ * `packages/api`), so a rejected `POST /mcp` answers exactly as a rejected REST
+ * route would. Only the JSON-RPC bodies below are this route's own shape.
+ */
+function failureResponse(error: GuardFailure): HttpServerResponse.HttpServerResponse {
+  const { status, body } = guardFailureResponse(error)
   return HttpServerResponse.jsonUnsafe(body, { status })
-}
-
-function rpcError(code: number, message: string): RpcErrorBody {
-  return { jsonrpc: '2.0', id: null, error: { code, message } }
-}
-
-/** Maps guard failures to HTTP statuses via the contract's canonical table. */
-function failureResponse(
-  error: ProtocolFailure
-): HttpServerResponse.HttpServerResponse {
-  return jsonResponse({ _tag: error._tag }, statusForTag(error._tag))
 }
 
 /**
@@ -334,19 +293,26 @@ function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest)
     // `observed` supplies the request Scope that `requirePermission` needs.
     yield* requirePermission(tokenPrincipal(verified.scopes), { mcp: ['read'] })
 
-    const raw = yield* Effect.result(request.text)
-    if (Result.isFailure(raw)) {
-      return jsonResponse(rpcError(-32_700, 'parse error'), 400)
+    // The router's request wraps the Worker's own fetch `Request`, so
+    // `toWebResult` hands it straight back — absolute URL, original headers,
+    // body untouched. There is no transport to hand-roll: the conversion is
+    // the platform's. It fails only for a request with no derivable URL, which
+    // is a malformed request, not a protocol-level one.
+    const web = HttpServerRequest.toWebResult(request)
+    if (Result.isFailure(web)) {
+      return rpcErrorResponse(-32_600, 'invalid request', 400)
     }
+    const webRequest = web.success
 
+    // Read the body off a clone so the forwarded request still carries it.
+    // The Agents handler validates the message itself; this parse only turns
+    // bytes into the object handed to `fetch(request, { parsedBody })`.
     const parsed = yield* Effect.result(
-      // oxlint-disable-next-line effect/noGlobals -- the Agents SDK validates the forwarded body itself; this parse only turns bytes into objects at the promise seam
-      Effect.try((): JSONRPCMessage => JSON.parse(raw.success))
+      Effect.tryPromise((): Promise<JSONRPCMessage> => webRequest.clone().json())
     )
     if (Result.isFailure(parsed)) {
-      return jsonResponse(rpcError(-32_700, 'parse error'), 400)
+      return rpcErrorResponse(-32_700, 'parse error', 400)
     }
-    const parsedBody = parsed.success
 
     // One handler per request is the documented usage for ordinary tools and
     // resources; the factory closes over this request's verified token so
@@ -365,34 +331,17 @@ function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest)
         legacy: 'reject'
       }
     )
-    // The router hands us its own request type with a relative URL; rebuild
-    // the standard fetch Request the Agents handler expects, restoring the
-    // absolute URL from the Host header and forwarding the reserved modern-
-    // era headers (`Mcp-Method`, `Mcp-Name`, `MCP-Protocol-Version`) the
-    // handler cross-checks against the body.
-    const host = request.headers['host'] ?? 'localhost'
-    const targetUrl = new URL(request.url, `https://${host}`).toString()
-    const modernHeaders: Record<string, string> = {}
-    for (const name of ['mcp-method', 'mcp-name', 'mcp-protocol-version']) {
-      const value = request.headers[name]
-      if (value !== undefined) {
-        modernHeaders[name] = value
-      }
-    }
-    const webRequest = new Request(targetUrl, {
-      method: 'POST',
-      headers: {
-        host,
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-        ...modernHeaders
-      },
-      body: raw.success
-    })
+    // The one header a stock streamable-HTTP client always sends that a caller
+    // here may omit: the handler negotiates its response body against
+    // `accept`, and refuses the request without it.
+    const headers = new Headers(webRequest.headers)
+    headers.set('accept', 'application/json, text/event-stream')
     const response = yield* Effect.promise(() =>
-      handle.fetch(webRequest, { parsedBody })
+      handle.fetch(new Request(webRequest, { headers }), {
+        parsedBody: parsed.success
+      })
     )
-    return fromWeb(response)
+    return HttpServerResponse.fromWeb(response)
   })
 }
 

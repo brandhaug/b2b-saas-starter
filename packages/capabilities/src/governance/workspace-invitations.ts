@@ -101,8 +101,9 @@ export type WorkspaceInvitationsInterface = {
    * read the accept page makes before anyone is a member.
    *
    * It discloses the invited address to whoever holds the id. Callers decide
-   * what to show: `acceptInvitationDetailsServerFn` reveals the workspace only
-   * once the signed-in address matches.
+   * what to show: `invitationPreview` in `apps/web` reveals the workspace only
+   * once {@link requirePending} and {@link requireRecipient} both pass, and
+   * collapses every other outcome to one opaque answer.
    */
   readonly find: (
     invitationId: string
@@ -157,7 +158,27 @@ export type WorkspaceInvitationBinding = {
  * plugin enforces them too, but only a pre-check makes the capability's answer
  * independent of which binding is wired, and the audit event needs the row
  * anyway.
+ *
+ * They are pure functions over an {@link Invitation} rather than interface
+ * members on purpose: a read that has already fetched the row — the accept
+ * page's preview — asks the same three questions the adapters ask, and a
+ * `findForRecipient` on the interface would push the filter back into every
+ * adapter instead.
+ *
+ * A settled invitation — accepted, rejected, or cancelled — is done. Both
+ * adapters and the accept page's preview refuse it here.
  */
+export function requirePending(
+  invitation: Invitation
+): Effect.Effect<void, MembershipChangeRejected> {
+  if (invitation.status !== 'pending') {
+    return Effect.fail(
+      new MembershipChangeRejected({ reason: 'invitation_not_pending' })
+    )
+  }
+  return Effect.void
+}
+
 export function requireRecipient(
   invitation: Invitation,
   email: string

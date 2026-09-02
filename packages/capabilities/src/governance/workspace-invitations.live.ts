@@ -6,9 +6,10 @@ import { and, eq } from 'drizzle-orm'
 import { MembershipChangeRejected } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
-import { AuditEventLog } from './audit-event-log.ts'
+import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
+  requirePending,
   requireRecipient,
   requireUnexpired,
   WorkspaceInvitations,
@@ -148,12 +149,7 @@ export function LiveWorkspaceInvitations(
               })
             )
             const created = yield* readPending(ctx.workspace.id, input.email)
-            // Not atomic with the write above, and it cannot be: D1 rejects an
-            // explicit BEGIN, and a plugin write cannot join a `batch()`. The
-            // same accepted trade `workspace-membership.ts` records.
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
+            yield* recordInWorkspace(audit, {
               eventType: 'workspace_invitation.sent',
               targetType: 'workspace_invitation',
               targetId: created.id,
@@ -171,9 +167,7 @@ export function LiveWorkspaceInvitations(
             yield* callBinding(binding, (bound) =>
               bound.cancel({ invitationId: input.invitationId })
             )
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
+            yield* recordInWorkspace(audit, {
               eventType: 'workspace_invitation.canceled',
               targetType: 'workspace_invitation',
               targetId: input.invitationId,
@@ -186,13 +180,14 @@ export function LiveWorkspaceInvitations(
             // workspace, which is the only way an accept can work for someone
             // the workspace does not yet contain.
             const joined = yield* findJoined(input.invitationId)
-            if (Option.isNone(joined) || joined.value.invitation.status !== 'pending') {
+            if (Option.isNone(joined)) {
               return yield* Effect.fail(
                 new MembershipChangeRejected({ reason: 'invitation_not_pending' })
               )
             }
             const row = joined.value
             const pending = toInvitation(row.invitation)
+            yield* requirePending(pending)
             yield* requireRecipient(pending, input.email)
             yield* requireUnexpired(pending)
 

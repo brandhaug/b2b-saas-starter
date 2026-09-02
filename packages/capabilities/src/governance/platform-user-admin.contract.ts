@@ -7,7 +7,7 @@ import { PlatformUserAdmin } from './platform-user-admin.ts'
 /**
  * The platform-user-admin contract, written once and run against both adapters
  * (capabilities invariant 4): `index.test.ts` against the Seed layer with no
- * D1, `live-layers.test.ts` against Live on a real one.
+ * D1, `platform-user-admin.live.test.ts` against Live on a real one.
  *
  * The cases assert only what both adapters can honestly promise: ban/unban
  * round-trips through `listUsers`, and a role change reports the new role from

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
   memoizePerRequest,
   runWebRequestScope,
+  webRuntime,
   withWebRequestScope
 } from './observability'
 
@@ -259,6 +260,22 @@ describe('memoizePerRequest', () => {
 })
 
 describe('withWebRequestScope', () => {
+  it('emits one line on webRuntime, which already holds the same loggers', async () => {
+    // Every server run in this app is a `webRuntime` run, and the standalone
+    // branch provides `WideEventLoggerLive` on top of the copy that runtime
+    // already holds. `Logger.layer` replaces the set rather than adding to it,
+    // so the doubled provide must still produce exactly one canonical line.
+    ambient.request = undefined
+
+    await webRuntime.runPromise(
+      withWebRequestScope({ event: 'capability.global' }, Effect.void, lookupRequest)
+    )
+
+    const record = only()
+    expect(record.message).toBe('capability.global')
+    expect(record.annotations).toMatchObject({ scope: 'standalone', status: 'ok' })
+  })
+
   it('flags its own event as standalone when there is no request to join', async () => {
     ambient.request = undefined
 

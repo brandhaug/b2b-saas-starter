@@ -6,10 +6,10 @@ import { type CapabilityUnavailable, WorkspaceChangeRejected } from '../errors.t
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
-import { AuditEventLog } from './audit-event-log.ts'
+import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import { type SeedRoster } from './workspace-membership.ts'
-import { Workspace, fabricateSeedMember } from './workspace-identity.ts'
+import { Workspace, fabricateSeedMember, toWorkspace } from './workspace-identity.ts'
 
 export const CreatedWorkspace = Schema.Struct({
   ...Workspace.fields,
@@ -194,12 +194,7 @@ export function LiveWorkspaceLifecycle(
             new WorkspaceChangeRejected({ reason: 'workspace_not_created' })
           )
         }
-        return {
-          id: row.id,
-          slug: row.slug,
-          name: row.name,
-          planId: row.planId
-        }
+        return toWorkspace(row)
       })
 
       return {
@@ -207,9 +202,10 @@ export function LiveWorkspaceLifecycle(
           Effect.gen(function* () {
             yield* callBinding(binding, (bound) => bound.create(input))
             const workspace = yield* readBySlug(input.slug)
-            // Not atomic with the write above, and it cannot be — the same
-            // accepted ADR 0051 trade the other plugin-backed capabilities
-            // record.
+            // Identity-keyed: no `WorkspaceContext` to read the attribution
+            // from, so this one names the created workspace and its creator
+            // directly. The ADR 0051 non-atomicity `recordInWorkspace`
+            // documents applies here too.
             yield* audit.record({
               workspaceId: workspace.id,
               actorUserId: input.userId,
@@ -241,15 +237,8 @@ export function LiveWorkspaceLifecycle(
                 new WorkspaceChangeRejected({ reason: 'workspace_missing' })
               )
             }
-            const renamed: Workspace = {
-              id: row.id,
-              slug: row.slug,
-              name: row.name,
-              planId: row.planId
-            }
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
+            const renamed: Workspace = toWorkspace(row)
+            yield* recordInWorkspace(audit, {
               eventType: 'workspace.renamed',
               targetType: 'workspace',
               targetId: ctx.workspace.id,

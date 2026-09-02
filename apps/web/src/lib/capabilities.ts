@@ -23,7 +23,7 @@ import {
   ForbiddenError,
   PlanLimitError
 } from './capability-error'
-import { withWebRequestScope } from './observability'
+import { webRuntime, withWebRequestScope } from './observability'
 
 export type { CapabilityServices }
 
@@ -123,7 +123,7 @@ export async function runWorkspaceCapabilities<A, E>(
   actor?: ActorRef,
   bindings?: CapabilityBindings
 ): Promise<A> {
-  const exit = await Effect.runPromiseExit(
+  const exit = await webRuntime.runPromiseExit(
     withWebRequestScope(
       {
         event: 'capability.workspace',
@@ -152,7 +152,7 @@ export async function runCapabilities<A, E>(
   effect: Effect.Effect<A, E, CapabilityServices>,
   bindings?: CapabilityBindings
 ): Promise<A> {
-  const exit = await Effect.runPromiseExit(
+  const exit = await webRuntime.runPromiseExit(
     withWebRequestScope(
       { event: 'capability.global' },
       Effect.provide(effect, selectCapabilitiesLayer({ ...starterEnv, ...bindings }))

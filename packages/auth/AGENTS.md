@@ -7,13 +7,13 @@ The Better Auth instance and nothing else. This package owns the options object,
 Two runtime exports carry everything:
 
 - `Auth` — an `effectful-better-auth` service providing `{ api, instance }`. `api` is the effectful endpoint proxy (endpoints fail `BetterAuthApiError`); `instance` is the raw Better Auth object for `handler` / `asResponse` needs. The layer requires `AuthConfig`.
-- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, emails, requireEmailVerification, runBackground? }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding. `emails` is the `AuthEmailSender` port (below); `runBackground` is Better Auth's `advanced.backgroundTasks.handler` — `ctx.waitUntil` on a Worker, and when absent the fallback runs the promise inline.
+- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, emails, requireEmailVerification, runBackground }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding. `emails` is the `AuthEmailSender` port (below); `runBackground` **is required** and becomes Better Auth's `advanced.backgroundTasks.handler` verbatim — `ctx.waitUntil` on a Worker that exposes an execution context, and an explicit inline runner where the host does not. There is no fallback here on purpose: a swallow-everything default would make "the verification email vanished past the response" this package's silent decision instead of the app's stated one, and whatever the app supplies owns the rejection.
 
 `Session` and `SessionUserRole` are the inferred session types. `SessionUserRole` exists as a **compile-time guard**: widening the plugin array drops every plugin-added field from `Session` while the endpoints keep working, a break no runtime test can see because the data is still there. Indexing the type is the assertion.
 
 ## Account lifecycle emails
 
-Password reset and email verification are configured here and sent through the `AuthEmailSender` port — `{ sendPasswordReset, sendEmailVerification }`, plain async functions of `{ email, url }`. Better Auth invokes its callbacks outside any Effect (no Clock, no services), and the siblings rule forbids importing `packages/email` from here, so the port carries both constraints. The app supplies the adapter (`apps/web/src/lib/server/auth-emails.ts`), built on the `EmailDispatcher` with its log-mode fallback.
+Password reset and email verification are configured here and sent through the `AuthEmailSender` port — `{ sendResetPassword, sendVerificationEmail }`, whose members carry **Better Auth's own callback signature** (`({ user: { email }, url }) => Promise<void>`, narrowed to the two fields the starter reads) and whose names are Better Auth's option names. That is deliberate: the adapter is assigned straight to `emailAndPassword.sendResetPassword` and `emailVerification.sendVerificationEmail`, so there is no rename wrapper and no `async` callback in this package to disable a lint rule for. Better Auth invokes its callbacks outside any Effect (no Clock, no services), and the siblings rule forbids importing `packages/email` from here, so the port carries both constraints. The app supplies the adapter (`apps/web/src/lib/server/auth-emails.ts`), built on the `EmailDispatcher` with its log-mode fallback.
 
 Configuration decisions, stated in code:
 
@@ -32,13 +32,13 @@ Configuration decisions, stated in code:
 
 Order matters. `tanstackStartCookies()` must stay **last** so cookies set by other plugins' hooks reach the framework cookie store.
 
-| Plugin                   | Why                                                                    |
-| ------------------------ | ---------------------------------------------------------------------- |
-| `username()`             | username sign-in alongside the Local Auth Path                         |
-| `twoFactor({ ... })`     | TOTP only, verified before it counts as on; backup codes at enrollment |
-| `admin({ adminRoles })`  | System Admin axis — `user.role`, ban/unban, `listUsers` for `/admin`   |
-| `organization({ ... })`  | Workspace membership and invitations (ADR 0051)                        |
-| `tanstackStartCookies()` | bridges the session cookie into TanStack Start; **last**               |
+| Plugin                   | Why                                                                                                                                                                              |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `username()`             | username sign-in alongside the Local Auth Path                                                                                                                                   |
+| `twoFactor({ ... })`     | TOTP only, verified before it counts as on; backup codes at enrollment                                                                                                           |
+| `admin({ adminRoles })`  | System Admin axis — `user.role`, ban/unban, `listUsers` for `/admin`. `adminRoles` reads `adminSystemRole` from `@b2b-saas-starter/db/enums`, never a restated `'admin'` literal |
+| `organization({ ... })`  | Workspace membership and invitations (ADR 0051)                                                                                                                                  |
+| `tanstackStartCookies()` | bridges the session cookie into TanStack Start; **last**                                                                                                                         |
 
 The starter ships no OAuth providers: `socialProviders` is absent from both `AuthConfig` and the options object rather than passed empty. A fork adds one by extending `makeAuthOptions`, never by wiring a provider that exists but is disabled.
 
