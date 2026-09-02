@@ -35,14 +35,18 @@ function HeroSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
               zero provider secrets.
             </p>
             <div className="rise rise-4 mt-9 flex flex-wrap items-center gap-3">
+              {/* The demo tree renders the reference dashboard for the seed
+                  workspace with no sign-in and no mutation path; the real app
+                  is one sign-in away from there. */}
               <Button
-                render={
-                  <Link to="/workspaces/$workspaceSlug" params={{ workspaceSlug }} />
-                }
+                render={<Link to="/demo/$workspaceSlug" params={{ workspaceSlug }} />}
                 size="lg"
               >
-                Open the reference app
+                Open the live demo
                 <ArrowRightIcon className="size-4" />
+              </Button>
+              <Button render={<Link to="/sign-in" />} size="lg" variant="outline">
+                Sign in
               </Button>
               <a
                 href={GITHUB_URL}

@@ -27,6 +27,7 @@ import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
+import { Route as DemoWorkspaceSlugRouteImport } from './routes/demo.$workspaceSlug'
 import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
@@ -132,6 +133,11 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DemoWorkspaceSlugRoute = DemoWorkspaceSlugRouteImport.update({
+  id: '/demo/$workspaceSlug',
+  path: '/demo/$workspaceSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsIndexRoute = DocsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
+  '/demo/$workspaceSlug': typeof DemoWorkspaceSlugRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/blog/': typeof BlogIndexRoute
   '/docs/': typeof DocsIndexRoute
@@ -261,6 +268,7 @@ export interface FileRoutesByTo {
   '/two-factor': typeof TwoFactorRoute
   '/verify-email': typeof VerifyEmailRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/demo/$workspaceSlug': typeof DemoWorkspaceSlugRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/blog': typeof BlogIndexRoute
   '/docs': typeof DocsIndexRoute
@@ -296,6 +304,7 @@ export interface FileRoutesById {
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
+  '/demo/$workspaceSlug': typeof DemoWorkspaceSlugRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/blog/': typeof BlogIndexRoute
   '/docs/': typeof DocsIndexRoute
@@ -332,6 +341,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/workspaces'
     | '/blog/$slug'
+    | '/demo/$workspaceSlug'
     | '/invitations/accept'
     | '/blog/'
     | '/docs/'
@@ -364,6 +374,7 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/verify-email'
     | '/blog/$slug'
+    | '/demo/$workspaceSlug'
     | '/invitations/accept'
     | '/blog'
     | '/docs'
@@ -398,6 +409,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/workspaces'
     | '/blog/$slug'
+    | '/demo/$workspaceSlug'
     | '/invitations/accept'
     | '/blog/'
     | '/docs/'
@@ -433,6 +445,7 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   WorkspacesRoute: typeof WorkspacesRouteWithChildren
   BlogSlugRoute: typeof BlogSlugRoute
+  DemoWorkspaceSlugRoute: typeof DemoWorkspaceSlugRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   BlogIndexRoute: typeof BlogIndexRoute
   HelpIndexRoute: typeof HelpIndexRoute
@@ -565,6 +578,13 @@ declare module '@tanstack/react-router' {
       path: '/blog/$slug'
       fullPath: '/blog/$slug'
       preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/$workspaceSlug': {
+      id: '/demo/$workspaceSlug'
+      path: '/demo/$workspaceSlug'
+      fullPath: '/demo/$workspaceSlug'
+      preLoaderRoute: typeof DemoWorkspaceSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs/': {
@@ -726,6 +746,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   WorkspacesRoute: WorkspacesRouteWithChildren,
   BlogSlugRoute: BlogSlugRoute,
+  DemoWorkspaceSlugRoute: DemoWorkspaceSlugRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
   BlogIndexRoute: BlogIndexRoute,
   HelpIndexRoute: HelpIndexRoute,

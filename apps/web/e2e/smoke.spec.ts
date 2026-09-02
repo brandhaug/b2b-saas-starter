@@ -11,6 +11,36 @@ test('public homepage renders the starter showcase', async ({ page }) => {
   ).toBeVisible()
 })
 
+test('the homepage renders the live seed numbers and the real overview payload', async ({
+  page
+}) => {
+  await page.goto('/')
+  // The demo strip reads the same actorless projection the REST endpoint
+  // serves, so the numbers are the seed's own.
+  await expect(page.getByText('Endpoint success')).toBeVisible()
+  // The REST snippet embeds the workspace the curl line targets — the seed
+  // workspace's real name, not a hand-written placeholder.
+  await expect(page.getByText(/"name": "Starter Lab"/).first()).toBeVisible()
+})
+
+test('the live demo renders the dashboard without a session', async ({ page }) => {
+  await page.goto('/demo/starter-lab')
+  await expect(page.getByRole('heading', { name: 'Starter Lab' })).toBeVisible()
+  // The demo persona is a member: notifications render, owner panels do not.
+  await expect(page.getByText('Notifications')).toBeVisible()
+  await expect(page.getByText('Needs attention')).toHaveCount(0)
+  // Mark-as-read is the one member mutation, and the demo refuses it honestly.
+  await page.getByRole('button', { name: 'Mark all read' }).click()
+  await expect(page.getByText(/read-only/i)).toBeVisible()
+})
+
+test('the demo route 404s an unknown workspace instead of faking one', async ({
+  page
+}) => {
+  await page.goto('/demo/does-not-exist')
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+})
+
 test('public docs render', async ({ page }) => {
   await page.goto('/docs')
   await expect(page.getByRole('heading', { name: 'Documentation' })).toBeVisible()
