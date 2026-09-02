@@ -1,29 +1,50 @@
-import { createFileRoute, Link, notFound } from '@tanstack/react-router'
+import { createFileRoute, Link, notFound, useLoaderData } from '@tanstack/react-router'
 import { ArrowLeftIcon } from 'lucide-react'
-import { useRef } from 'react'
+import { createElement, Suspense, useRef } from 'react'
 import { mdxComponents } from '@/components/mdx-components'
 import { TableOfContents } from '@/components/table-of-contents'
-import { docCategoryName, docJsonLd, getAdjacentDocs, getDocBySlug } from '@/lib/docs'
+import {
+  docCategoryName,
+  docJsonLd,
+  getAllDocMeta,
+  getAdjacentDocs,
+  getDocComponent,
+  loadDoc
+} from '@/lib/docs'
 
 export const Route = createFileRoute('/docs/$category/$slug')({
-  // A bare guard: `getDocBySlug` is a synchronous lookup over checked-in MDX,
-  // and the component has to re-resolve the module anyway — `Component` is a
-  // function, and functions cannot cross the server→client boundary (shipping
-  // one aborts dehydration and the page blanks on hydration). So the loader
-  // decides only whether the page exists.
-  loader: ({ params }) => {
-    if (!getDocBySlug(params.category, params.slug)) {
+  // The loader resolves metadata (serializable) and decides existence; the
+  // component itself is lazy-loaded in the component below, because a
+  // component function cannot cross the server→client boundary — shipping
+  // one aborts dehydration and the page blanks on hydration.
+  loader: async ({ params }) => {
+    // One parallel round: article metadata and the full index resolve together.
+    // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the two reads parallel
+    const [doc, allMeta] = await Promise.all([
+      loadDoc(params.category, params.slug),
+      getAllDocMeta()
+    ])
+    if (!doc) {
       throw notFound()
+    }
+    const { prev, next } = getAdjacentDocs(allMeta, params.category, params.slug)
+    return {
+      frontmatter: doc.frontmatter,
+      categoryName: docCategoryName(params.category),
+      prev: prev
+        ? { category: prev.category, slug: prev.slug, title: prev.frontmatter.title }
+        : null,
+      next: next
+        ? { category: next.category, slug: next.slug, title: next.frontmatter.title }
+        : null
     }
   },
   component: DocArticlePage,
-  head: ({ params }) => {
-    const article = getDocBySlug(params.category, params.slug)
-    if (!article) {
+  head: ({ loaderData }) => {
+    if (!loaderData) {
       return {}
     }
-
-    const { title, description, tags } = article.frontmatter
+    const { title, description, tags } = loaderData.frontmatter
     const fullTitle = `${title} | Documentation | B2B SaaS Starter`
 
     return {
@@ -45,22 +66,22 @@ export const Route = createFileRoute('/docs/$category/$slug')({
 
 function DocArticlePage() {
   const { category, slug } = Route.useParams()
+  const loaderData = useLoaderData({ from: '/docs/$category/$slug' })
   const articleRef = useRef<HTMLElement>(null)
 
-  // Resolved here rather than shipped from the loader — see the loader.
-  const doc = getDocBySlug(category, slug)
-  if (!doc) {
-    throw notFound()
-  }
-  const { Component, frontmatter } = doc
-  const categoryName = docCategoryName(category)
-  const { prev, next } = getAdjacentDocs(category, slug)
+  // Stable per-article identity (cached in lib/docs.ts), so a re-render
+  // never remounts the body mid-read.
+  const LazyArticle = getDocComponent(category, slug)
+
+  const { frontmatter, categoryName, prev, next } = loaderData
 
   return (
     <div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: docJsonLd(doc) }}
+        dangerouslySetInnerHTML={{
+          __html: docJsonLd({ slug, category, frontmatter })
+        }}
       />
 
       <div className="flex gap-8">
@@ -82,7 +103,7 @@ function DocArticlePage() {
           </nav>
 
           <header className="mb-8">
-            <h1 className="mb-2 text-2xl font-semibold tracking-tight">
+            <h1 className="font-display mb-2 text-2xl font-semibold tracking-tight">
               {frontmatter.title}
             </h1>
             <p className="text-sm text-muted-foreground">{frontmatter.description}</p>
@@ -100,15 +121,38 @@ function DocArticlePage() {
             )}
           </header>
 
-          <article
-            ref={articleRef}
-            /* Colors come from the `.marketing .prose` token map in index.css;
-               `prose-neutral` would hardcode a gray palette that clashes with
-               Catppuccin and can fail AA in dark mode. */
-            className="prose max-w-3xl"
-          >
-            <Component components={mdxComponents} />
-          </article>
+          {/* In-page navigation below xl: the aside only exists from lg up,
+              so most laptops and every phone used to read long articles with
+              no way to jump sections. */}
+          <details className="mb-6 border border-border xl:hidden">
+            <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
+              On this page
+            </summary>
+            <div className="px-3 pt-1 pb-3">
+              <TableOfContents containerRef={articleRef} />
+            </div>
+          </details>
+
+          {LazyArticle === undefined ? (
+            <p className="text-sm text-destructive">
+              This article could not be loaded.
+            </p>
+          ) : (
+            <article
+              ref={articleRef}
+              /* Colors come from the `.marketing .prose` token map in index.css;
+                 `prose-neutral` would hardcode a gray palette that clashes with
+                 Catppuccin and can fail AA in dark mode. */
+              className="prose max-w-3xl"
+            >
+              <Suspense
+                fallback={<p className="text-sm text-muted-foreground">Loading…</p>}
+              >
+                {/* createElement, not JSX: the component is resolved per article at runtime, and React Compiler requires JSX component types to be static. */}
+                {createElement(LazyArticle, { components: mdxComponents })}
+              </Suspense>
+            </article>
+          )}
 
           <nav
             aria-label="Adjacent articles"
@@ -117,11 +161,11 @@ function DocArticlePage() {
             {prev ? (
               <Link
                 to="/docs/$category/$slug"
-                params={{ category, slug: prev.slug }}
+                params={{ category: prev.category, slug: prev.slug }}
                 className="inline-flex items-center gap-1 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 <ArrowLeftIcon className="size-3" />
-                {prev.frontmatter.title}
+                {prev.title}
               </Link>
             ) : (
               <span />
@@ -129,10 +173,10 @@ function DocArticlePage() {
             {next ? (
               <Link
                 to="/docs/$category/$slug"
-                params={{ category, slug: next.slug }}
+                params={{ category: next.category, slug: next.slug }}
                 className="py-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                {next.frontmatter.title} &rarr;
+                {next.title} &rarr;
               </Link>
             ) : (
               <span />
@@ -140,7 +184,7 @@ function DocArticlePage() {
           </nav>
         </div>
 
-        <aside className="hidden w-48 shrink-0 xl:block">
+        <aside className="hidden w-48 shrink-0 lg:block">
           <TableOfContents containerRef={articleRef} />
         </aside>
       </div>

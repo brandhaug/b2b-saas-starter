@@ -15,7 +15,8 @@ export const Route = createFileRoute('/account')({
     const session = await requireSession(location.href)
     return { session }
   },
-  component: AccountRoute
+  component: AccountRoute,
+  head: () => ({ meta: [{ title: 'Account | B2B SaaS Starter' }] })
 })
 
 function AccountRoute() {
@@ -26,6 +27,7 @@ function AccountRoute() {
   return (
     <WorkspaceShell
       viewer={null}
+      systemRole={session.user.role}
       title="Account"
       description="Sign-in security for your account, not any one workspace."
       workspaceSlug={null}
@@ -33,7 +35,7 @@ function AccountRoute() {
       <div className="mx-auto grid max-w-2xl gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Two-factor authentication</CardTitle>
+            <CardTitle as="h2">Two-factor authentication</CardTitle>
             <p className="text-sm text-muted-foreground">
               Require a time-based one-time code from an authenticator app at every
               sign-in.
@@ -46,7 +48,7 @@ function AccountRoute() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Sessions</CardTitle>
+            <CardTitle as="h2">Sessions</CardTitle>
             <p className="text-sm text-muted-foreground">
               Every device currently signed in as you. Revoking a session signs it out
               immediately.

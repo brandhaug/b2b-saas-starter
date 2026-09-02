@@ -1,20 +1,12 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState, use } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import {
   BellIcon,
   BoxesIcon,
-  CreditCardIcon,
-  HistoryIcon,
-  KeyRoundIcon,
-  LayoutDashboardIcon,
   LogOutIcon,
   MenuIcon,
-  SettingsIcon,
   ShieldIcon,
-  SparklesIcon,
-  UserRoundIcon,
-  UsersIcon,
-  WebhookIcon
+  UserRoundIcon
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,13 +18,15 @@ import {
   SheetTitle,
   SheetTrigger
 } from '@/components/ui/sheet'
-import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { useServerAction } from '@/hooks/use-server-action'
 import {
   signOutWithAuthClient,
   type SignOut
 } from '@/components/auth/auth-client-ports'
+import { SearchButton } from '@/components/command-palette'
+import { CommandPaletteContext } from '@/lib/command-palette-context'
 import { viewerCan, type Viewer } from '@/lib/permissions'
+import { WORKSPACE_NAV, type WorkspaceNavTarget } from '@/lib/workspace-nav'
 
 const SIGN_OUT_FAILED = 'Sign-out failed'
 
@@ -45,6 +39,7 @@ export function WorkspaceShell({
   unreadCount,
   workspaceSlug,
   viewer,
+  systemRole,
   signOut = signOutWithAuthClient
 }: {
   readonly children: ReactNode
@@ -69,9 +64,28 @@ export function WorkspaceShell({
    * surfaces without a workspace viewer; the gated rows stay hidden.
    */
   readonly viewer: Viewer
+  /**
+   * The signed-in user's Better Auth system role, when the route's session
+   * context carries one. The "System admin" link renders only for
+   * `admin` — every other role meets a 404 behind it, so the link was a dead
+   * end for them.
+   */
+  readonly systemRole?: string | null | undefined
   readonly signOut?: SignOut
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  // Publish the viewer and system role to the command palette for as long as
+  // this shell is mounted, so its workspace and admin entries match what the
+  // signed-in role can open (and vanish on public pages, where no shell runs).
+  const palette = use(CommandPaletteContext)
+  useEffect(() => {
+    palette?.setViewer(viewer)
+    palette?.setSystemRole(systemRole ?? null)
+    return () => {
+      palette?.setViewer(null)
+      palette?.setSystemRole(null)
+    }
+  }, [palette, viewer, systemRole])
   return (
     <div className="grid min-h-dvh bg-background lg:grid-cols-[16rem_1fr]">
       <a
@@ -81,7 +95,11 @@ export function WorkspaceShell({
         Skip to content
       </a>
       <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
-        <WorkspaceNav workspaceSlug={workspaceSlug} viewer={viewer} />
+        <WorkspaceNav
+          workspaceSlug={workspaceSlug}
+          viewer={viewer}
+          systemRole={systemRole}
+        />
       </aside>
       <div className="min-w-0">
         <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
@@ -108,15 +126,23 @@ export function WorkspaceShell({
                 <WorkspaceNav
                   workspaceSlug={workspaceSlug}
                   viewer={viewer}
+                  systemRole={systemRole}
                   onNavigate={() => setMobileNavOpen(false)}
                 />
               </div>
             </SheetContent>
           </Sheet>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-semibold">{title}</h1>
-            <p className="truncate text-sm text-muted-foreground">{description}</p>
+            {/* `title` on the truncated text so the full page name survives
+                hover/AT even when the column is too narrow to show it. */}
+            <h1 className="truncate text-xl font-semibold" title={title}>
+              {title}
+            </h1>
+            <p className="truncate text-sm text-muted-foreground" title={description}>
+              {description}
+            </p>
           </div>
+          <SearchButton />
           {unreadCount === undefined ? null : (
             <Badge
               variant="secondary"
@@ -171,87 +197,49 @@ function SignOutButton({ signOut }: { readonly signOut: SignOut }) {
   )
 }
 
-type WorkspaceNavTarget =
-  | '/workspaces/$workspaceSlug'
-  | '/workspaces/$workspaceSlug/assistant'
-  | '/workspaces/$workspaceSlug/api-tokens'
-  | '/workspaces/$workspaceSlug/billing'
-  | '/workspaces/$workspaceSlug/members'
-  | '/workspaces/$workspaceSlug/settings'
-  | '/workspaces/$workspaceSlug/audit'
-  | '/workspaces/$workspaceSlug/webhooks'
-
 /**
- * The workspace nav as one table: target, label, and — for sections whose
- * read is itself a permission — the permission a viewer must hold. The nav
- * filters with `viewerCan`, the same pure `authorize()` the server guard
- * uses, so a row the viewer cannot read is absent rather than dead. Keeping
- * the permission on the row (instead of per-page booleans) is what keeps the
- * nav identical on every workspace page.
+ * Active and inactive treatments for nav links, kept as constants so the
+ * active state reads as one statement: the page link is foreground text on
+ * the sidebar's own accent plus `aria-current="page"` (set through
+ * `activeProps`). Sidebar tokens, not body tokens — the sidebar separates
+ * from the body independently (DESIGN.md).
  */
-const WORKSPACE_NAV: ReadonlyArray<{
-  readonly to: WorkspaceNavTarget
-  readonly label: string
-  readonly icon: ReactNode
-  readonly permission?: PermissionRequest
-  /** The overview link must match exactly, or every subpage would also mark it current. */
-  readonly exact?: boolean
-}> = [
-  {
-    to: '/workspaces/$workspaceSlug',
-    label: 'Overview',
-    icon: <LayoutDashboardIcon className="size-4" />,
-    exact: true
-  },
-  {
-    to: '/workspaces/$workspaceSlug/members',
-    label: 'Members',
-    icon: <UsersIcon className="size-4" />
-  },
-  {
-    to: '/workspaces/$workspaceSlug/assistant',
-    label: 'Assistant',
-    icon: <SparklesIcon className="size-4" />
-  },
-  {
-    to: '/workspaces/$workspaceSlug/settings',
-    label: 'Settings',
-    icon: <SettingsIcon className="size-4" />
-  },
-  {
-    to: '/workspaces/$workspaceSlug/billing',
-    label: 'Billing',
-    icon: <CreditCardIcon className="size-4" />
-  },
-  {
-    to: '/workspaces/$workspaceSlug/api-tokens',
-    label: 'API tokens',
-    icon: <KeyRoundIcon className="size-4" />,
-    permission: { apiToken: ['list'] }
-  },
-  {
-    to: '/workspaces/$workspaceSlug/webhooks',
-    label: 'Webhooks',
-    icon: <WebhookIcon className="size-4" />,
-    permission: { webhook: ['list'] }
-  },
-  {
-    to: '/workspaces/$workspaceSlug/audit',
-    label: 'Audit trail',
-    icon: <HistoryIcon className="size-4" />,
-    permission: { auditLog: ['read'] }
-  }
-]
+const navLinkClasses =
+  'flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground'
 
 function WorkspaceNav({
   workspaceSlug,
   viewer,
+  systemRole,
   onNavigate
 }: {
   readonly workspaceSlug: string | null
   readonly viewer: Viewer
+  readonly systemRole?: string | null | undefined
   readonly onNavigate?: (() => void) | undefined
 }) {
+  // One pass over the nav table: build the visible rows in order, skipping
+  // rows the viewer's role cannot read.
+  const navRows: Array<ReactNode> = []
+  if (workspaceSlug !== null) {
+    for (const row of WORKSPACE_NAV) {
+      if (row.permission !== undefined && !viewerCan(viewer, row.permission)) {
+        continue
+      }
+      navRows.push(
+        <NavLink
+          key={row.to}
+          to={row.to}
+          workspaceSlug={workspaceSlug}
+          label={row.label}
+          icon={row.icon}
+          exact={row.exact ?? false}
+          onNavigate={onNavigate}
+        />
+      )
+    }
+  }
+
   return (
     <>
       <Link
@@ -262,54 +250,39 @@ function WorkspaceNav({
         <span className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground">
           <BoxesIcon className="size-4" />
         </span>
-        B2B Starter
+        B2B SaaS Starter
       </Link>
       <nav aria-label="Workspace" className="mt-8 grid gap-1">
-        {workspaceSlug === null ? null : (
-          <>
-            {WORKSPACE_NAV.filter(
-              (row) => row.permission === undefined || viewerCan(viewer, row.permission)
-            ).map((row) => (
-              <NavLink
-                key={row.to}
-                to={row.to}
-                workspaceSlug={workspaceSlug}
-                label={row.label}
-                icon={row.icon}
-                exact={row.exact ?? false}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </>
-        )}
+        {navRows}
         <Link
           to="/account"
-          onClick={onNavigate}
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <UserRoundIcon className="size-4" />
-          Account
-        </Link>
-        <Link
-          to="/admin"
           onClick={onNavigate}
           className={navLinkClasses}
           activeOptions={{ exact: true }}
           activeProps={{ 'aria-current': 'page' }}
         >
-          <ShieldIcon className="size-4" />
-          System admin
+          <UserRoundIcon className="size-4" />
+          Account
         </Link>
+        {/* System admin 404s for every non-admin, so the link renders only
+            for them (the route keeps its own `requireAdmin` gate — this is
+            presentation, not enforcement). */}
+        {systemRole === 'admin' ? (
+          <Link
+            to="/admin"
+            onClick={onNavigate}
+            className={navLinkClasses}
+            activeOptions={{ exact: true }}
+            activeProps={{ 'aria-current': 'page' }}
+          >
+            <ShieldIcon className="size-4" />
+            System admin
+          </Link>
+        ) : null}
       </nav>
     </>
   )
 }
-
-// Active and inactive treatments for nav links, kept as constants so the
-// active state reads as one statement: the page link is foreground text on
-// muted ground plus `aria-current="page"` (set through `activeProps`).
-const navLinkClasses =
-  'flex items-center gap-2 rounded-md px-3 py-2 text-sm data-[status=active]:bg-muted data-[status=active]:text-foreground text-muted-foreground hover:bg-muted hover:text-foreground'
 
 function NavLink({
   to,

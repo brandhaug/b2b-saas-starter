@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
-import { Schema } from 'effect'
 import { KeyRoundIcon } from 'lucide-react'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
@@ -22,7 +21,8 @@ export type { SignInWithEmail } from '@/components/auth/auth-client-ports'
 
 export const Route = createFileRoute('/sign-in')({
   validateSearch: redirectSearch,
-  component: SignInRoute
+  component: SignInRoute,
+  head: () => ({ meta: [{ title: 'Sign in | B2B SaaS Starter' }] })
 })
 
 type SignInValues = {
@@ -30,11 +30,21 @@ type SignInValues = {
   password: string
 }
 
-const SignInResponseData = Schema.Struct({
-  twoFactorRedirect: Schema.optionalKey(Schema.Boolean)
-})
-
-const decodeSignInResponseData = Schema.decodeUnknownSync(SignInResponseData)
+/**
+ * Whether the sign-in response asks for the two-factor hop. A plain field
+ * probe rather than an effect Schema: this route is statically imported by the
+ * route tree and ships to the browser, so it must not pin the Effect runtime.
+ */
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- Better Auth's response `data` is untyped JSON at this boundary; this probe is the parse step
+function wantsTwoFactorRedirect(data: unknown): boolean {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'twoFactorRedirect' in data &&
+    data.twoFactorRedirect === true
+  )
+}
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
 /**
  * The route's thin wrapper: reads the search param the router validated and
@@ -70,7 +80,7 @@ export function SignInPage({
       const twoFactorRedirect =
         result.data !== null &&
         result.data !== undefined &&
-        decodeSignInResponseData(result.data).twoFactorRedirect === true
+        wantsTwoFactorRedirect(result.data)
       if (twoFactorRedirect) {
         // Two-factor is enabled: the credentials set a short-lived challenge
         // cookie, not a session. The code lands on the challenge page, which
@@ -111,39 +121,38 @@ export function SignInPage({
               Forgot your password?
             </Link>
           </p>
-          {import.meta.env.DEV ? (
-            <>
-              <p className="text-xs text-muted-foreground">
-                Seeded a local database? Sign in with{' '}
-                <code className="rounded-sm bg-muted px-1 py-0.5">
-                  {DEMO_CREDENTIALS.email}
-                </code>{' '}
-                /{' '}
-                <code className="rounded-sm bg-muted px-1 py-0.5">
-                  {DEMO_CREDENTIALS.password}
-                </code>
-                .
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Or as a plain member, to see the role-gated view:{' '}
-                <code className="rounded-sm bg-muted px-1 py-0.5">
-                  {DEMO_MEMBER_CREDENTIALS.email}
-                </code>{' '}
-                /{' '}
-                <code className="rounded-sm bg-muted px-1 py-0.5">
-                  {DEMO_MEMBER_CREDENTIALS.password}
-                </code>
-                .
-              </p>
-              <Link
-                to="/workspaces/$workspaceSlug"
-                params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
-                className="text-center text-sm text-primary underline underline-offset-4"
-              >
-                Open seeded workspace instead
-              </Link>
-            </>
-          ) : null}
+          {/* The seed workspace is the public reference app — the hero CTA
+              lands behind sign-in, so the credentials stay on the page in
+              production too (they exist only after seeding a local D1). */}
+          <p className="text-xs text-muted-foreground">
+            Seeded the local database? Sign in with{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_CREDENTIALS.email}
+            </code>{' '}
+            /{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_CREDENTIALS.password}
+            </code>
+            .
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Or as a plain member, to see the role-gated view:{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_MEMBER_CREDENTIALS.email}
+            </code>{' '}
+            /{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_MEMBER_CREDENTIALS.password}
+            </code>
+            .
+          </p>
+          <Link
+            to="/workspaces/$workspaceSlug"
+            params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
+            className="text-center text-sm text-primary underline underline-offset-4"
+          >
+            Open seeded workspace instead
+          </Link>
           <p className="text-center text-sm text-muted-foreground">
             No account yet?{' '}
             <Link

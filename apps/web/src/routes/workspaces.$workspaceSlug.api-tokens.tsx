@@ -17,7 +17,11 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/api-tokens')({
       userId: context.session.user.id
     }),
   pendingComponent: RoutePending,
-  component: WorkspaceApiTokensRoute
+  component: WorkspaceApiTokensRoute,
+  // Derives the document title from the page the shell names.
+  head: ({ params }) => ({
+    meta: [{ title: `API tokens · ${params.workspaceSlug} | B2B SaaS Starter` }]
+  })
 })
 
 /**
@@ -28,21 +32,32 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/api-tokens')({
 function WorkspaceApiTokensRoute() {
   const { workspaceSlug } = Route.useParams()
   const data = Route.useLoaderData()
-  return <WorkspaceApiTokensPage workspaceSlug={workspaceSlug} data={data} />
+  const systemRole = Route.useRouteContext().session.user.role
+  return (
+    <WorkspaceApiTokensPage
+      workspaceSlug={workspaceSlug}
+      data={data}
+      systemRole={systemRole}
+    />
+  )
 }
 
 export function WorkspaceApiTokensPage({
   workspaceSlug,
-  data
+  data,
+  systemRole
 }: {
   readonly workspaceSlug: string
   readonly data: WorkspaceApiTokensPayload
+  /** The signed-in user's Better Auth system role, for the shell's admin link. */
+  readonly systemRole?: string | null
 }) {
   const { viewer, unreadCount, tokens } = data
 
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
+      systemRole={systemRole}
       title="API tokens"
       description="Workspace-scoped bearer tokens for the API."
       unreadCount={unreadCount}

@@ -3,13 +3,18 @@ import { type Badge } from '@/components/ui/badge'
 
 export type BadgeVariant = NonNullable<React.ComponentProps<typeof Badge>['variant']>
 
-/** `pending` is the only status a workspace can still act on, so it leads. */
+/**
+ * Status → badge variant, in one place. `pending` is the only state a
+ * workspace can still act on, so it gets the attention hue (warn); settled
+ * states go neutral; refusal stays destructive. One hue per state everywhere
+ * — mauve (`default`) means current/selected, never a status.
+ */
 export function invitationStatusVariant(status: Invitation['status']): BadgeVariant {
   if (status === 'pending') {
-    return 'default'
+    return 'warn'
   }
   if (status === 'accepted') {
-    return 'secondary'
+    return 'neutral'
   }
   return 'outline'
 }
@@ -18,10 +23,13 @@ export function invitationStatusVariant(status: Invitation['status']): BadgeVari
 // the render — the column is free-text by design.
 export function webhookDeliveryStatusVariant(status: string): BadgeVariant {
   if (status === 'delivered') {
-    return 'default'
+    return 'ok'
   }
   if (status === 'failed') {
     return 'destructive'
+  }
+  if (status === 'pending') {
+    return 'warn'
   }
   return 'outline'
 }

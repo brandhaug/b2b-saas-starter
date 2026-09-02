@@ -16,7 +16,11 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/members')({
       userId: context.session.user.id
     }),
   pendingComponent: RoutePending,
-  component: WorkspaceMembersRoute
+  component: WorkspaceMembersRoute,
+  // Derives the document title from the page the shell names.
+  head: ({ params }) => ({
+    meta: [{ title: `Members · ${params.workspaceSlug} | B2B SaaS Starter` }]
+  })
 })
 
 /**
@@ -27,21 +31,32 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/members')({
 function WorkspaceMembersRoute() {
   const { workspaceSlug } = Route.useParams()
   const data = Route.useLoaderData()
-  return <WorkspaceMembersPage workspaceSlug={workspaceSlug} data={data} />
+  const systemRole = Route.useRouteContext().session.user.role
+  return (
+    <WorkspaceMembersPage
+      workspaceSlug={workspaceSlug}
+      data={data}
+      systemRole={systemRole}
+    />
+  )
 }
 
 export function WorkspaceMembersPage({
   workspaceSlug,
-  data
+  data,
+  systemRole
 }: {
   readonly workspaceSlug: string
   readonly data: WorkspaceMembersPayload
+  /** The signed-in user's Better Auth system role, for the shell's admin link. */
+  readonly systemRole?: string | null
 }) {
   const { viewer, unreadCount, members } = data
 
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
+      systemRole={systemRole}
       title="Members"
       description="Everyone with access to this workspace."
       unreadCount={unreadCount}

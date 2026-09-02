@@ -110,7 +110,7 @@ export function LiveNotifications({
                 <ItemTitle>{notification.title}</ItemTitle>
                 <ItemDescription>{notification.message}</ItemDescription>
               </ItemContent>
-              {!notification.read && <Badge>New</Badge>}
+              {!notification.read && <Badge variant="info">New</Badge>}
             </Item>
           ))}
         </ItemGroup>

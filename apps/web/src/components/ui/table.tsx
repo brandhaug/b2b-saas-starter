@@ -4,12 +4,27 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-function Table({ className, ...props }: React.ComponentProps<'table'>) {
+function Table({
+  className,
+  'aria-label': label,
+  ...props
+}: React.ComponentProps<'table'>) {
+  // The scroll wrapper is a named, focusable region: keyboard users can pan a
+  // table wider than the viewport (axe: scrollable-region-focusable), instead
+  // of columns clipping mid-word with no way to reach them. The label lives
+  // on the region (the table is inside it, so it is announced once).
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    // oxlint-disable jsx-a11y/prefer-tag-over-role, jsx-a11y/no-noninteractive-tabindex -- a <section> would imply a document outline entry, and the tabindex is what makes the scroll region keyboard-pannable
+    <div
+      data-slot="table-container"
+      role="region"
+      aria-label={label ?? 'Data table'}
+      tabIndex={0}
+      className="relative w-full overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
       <table
         data-slot="table"
-        className={cn('w-full caption-bottom text-xs', className)}
+        className={cn('w-full caption-bottom text-sm', className)}
         {...props}
       />
     </div>

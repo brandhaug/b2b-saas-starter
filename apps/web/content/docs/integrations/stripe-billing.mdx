@@ -10,7 +10,16 @@ Billing is an **Optional Provider** built on Stripe. Plan display and entitlemen
 
 ## What exists where
 
-- **Plan catalog** — `packages/capabilities/src/billing/billing.ts` owns the `PLANS` constant (Starter / Team / Enterprise) and each plan's entitlement ceilings. The public pricing page, the workspace billing page, and the entitlement gate all read this one list.
+- **Plan catalog** — `packages/capabilities/src/billing/plan-catalog.ts` owns the `PLANS` constant and each plan's entitlement ceilings. The workspace billing page and the entitlement gate read this one list. As rendered from the catalog:
+
+  | Plan       | Price  | Entitlement ceilings              | How you get on it           |
+  | ---------- | ------ | --------------------------------- | --------------------------- |
+  | Starter    | $0     | 2 API tokens · 1 webhook endpoint | Every workspace starts here |
+  | Team       | $49/mo | Unlimited                         | Self-serve Stripe checkout  |
+  | Enterprise | Custom | Unlimited                         | Sold outside the product    |
+
+  The starter is MIT — these plans are the reference billing vocabulary the code ships with, not an offer.
+
 - **Billing page** — `/workspaces/$slug/billing` shows the current plan and catalog. With Stripe configured, owners can start a checkout for Team; Enterprise says "contact sales" and downgrades ride the provider's subscription flow.
 - **Checkout handoff** — the `startCheckoutServerFn` server function composes success/cancel URLs server-side from `BETTER_AUTH_URL` (the client names only its slug and plan), calls Stripe's REST API directly over form-encoded fetch (no SDK), and records a `billing.checkout_started` audit event.
 - **Entitlement gate** — `assertWithinPlanLimit` caps Starter workspaces at 2 API tokens and 1 webhook endpoint; paid plans do not cap. The web server functions and the API worker both compose it before creates, failing with a 402 `PlanLimitExceeded`.

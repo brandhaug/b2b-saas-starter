@@ -10,7 +10,11 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/assistant')({
       userId: context.session.user.id
     }),
   pendingComponent: RoutePending,
-  component: WorkspaceAssistantRoute
+  component: WorkspaceAssistantRoute,
+  // Derives the document title from the page the shell names.
+  head: ({ params }) => ({
+    meta: [{ title: `AI assistant · ${params.workspaceSlug} | B2B SaaS Starter` }]
+  })
 })
 
 /** Thin wrapper: hands the loader payload and the real server fn to the page
@@ -23,6 +27,7 @@ function WorkspaceAssistantRoute() {
       workspaceSlug={workspaceSlug}
       data={data}
       ask={askAssistantServerFn}
+      systemRole={Route.useRouteContext().session.user.role}
     />
   )
 }

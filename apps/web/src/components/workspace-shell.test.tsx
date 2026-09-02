@@ -12,6 +12,8 @@ async function renderShell(props?: {
   readonly unreadCount?: number
   /** The viewer's role; defaults to a member. */
   readonly role?: 'owner' | 'admin' | 'member'
+  /** The Better Auth system role of the signed-in user. */
+  readonly systemRole?: string | null
 }) {
   return renderWithRouter(
     <WorkspaceShell
@@ -19,6 +21,7 @@ async function renderShell(props?: {
         props?.workspaceSlug === undefined ? 'starter-lab' : props.workspaceSlug
       }
       viewer={props?.workspaceSlug === null ? null : { role: props?.role ?? 'member' }}
+      {...(props?.systemRole === undefined ? {} : { systemRole: props.systemRole })}
       title="Starter Lab"
       description="Reference workspace"
       signOut={signOut}
@@ -44,7 +47,7 @@ describe('WorkspaceShell', () => {
   })
 
   it('threads the workspace slug into the nav links', async () => {
-    await renderShell()
+    await renderShell({ systemRole: 'admin' })
     const overview = screen.getByRole('link', { name: 'Overview' })
     expect(overview.getAttribute('href')).toBe('/workspaces/starter-lab')
     const settings = screen.getByRole('link', { name: 'Settings' })
@@ -52,8 +55,17 @@ describe('WorkspaceShell', () => {
     screen.getByRole('link', { name: 'System admin' })
   })
 
+  it('shows the System admin link only to a system admin', async () => {
+    // Every other role meets a 404 behind /admin, so the link is a dead end
+    // for them — presentation mirrors the route's `requireAdmin` gate.
+    await renderShell({ systemRole: 'user' })
+    expect(screen.queryByRole('link', { name: 'System admin' })).toBeNull()
+    await renderShell()
+    expect(screen.queryByRole('link', { name: 'System admin' })).toBeNull()
+  })
+
   it('hides workspace links on system surfaces without borrowing a workspace', async () => {
-    await renderShell({ workspaceSlug: null })
+    await renderShell({ workspaceSlug: null, systemRole: 'admin' })
     expect(screen.queryByRole('link', { name: 'Overview' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull()
     screen.getByRole('link', { name: 'System admin' })

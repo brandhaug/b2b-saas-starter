@@ -14,6 +14,7 @@ import {
 export type { RequestPasswordReset } from '@/components/auth/auth-client-ports'
 
 export const Route = createFileRoute('/forgot-password')({
+  head: () => ({ meta: [{ title: 'Forgot password | B2B SaaS Starter' }] }),
   component: ForgotPasswordRoute
 })
 

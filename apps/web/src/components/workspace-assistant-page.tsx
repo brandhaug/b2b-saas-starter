@@ -2,7 +2,7 @@ import { SparklesIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { viewerCan } from '@/lib/permissions'
@@ -62,7 +62,9 @@ function TranscriptBody({
 }) {
   if (transcript.length > 0) {
     return (
-      <ol className="grid gap-3" aria-label="Conversation">
+      // `aria-live`: the reply arrives long after the submit, and without a
+      // live region it lands silently for a screen reader.
+      <ol className="grid gap-3" aria-label="Conversation" aria-live="polite">
         {transcript.map((item) => (
           <TranscriptBubble key={item.id} item={item} />
         ))}
@@ -114,11 +116,14 @@ function TranscriptBubble({ item }: { readonly item: TranscriptEntry }) {
 export function WorkspaceAssistantPage({
   workspaceSlug,
   data,
-  ask
+  ask,
+  systemRole
 }: {
   readonly workspaceSlug: string
   readonly data: AssistantPagePayload
   readonly ask: AskAssistant
+  /** The signed-in user's Better Auth system role, for the shell's admin link. */
+  readonly systemRole?: string | null
 }) {
   const [question, setQuestion] = useState('')
   const [pending, setPending] = useState(false)
@@ -162,21 +167,23 @@ export function WorkspaceAssistantPage({
       title="AI assistant"
       description="Ask about this workspace"
       workspaceSlug={workspaceSlug}
+      systemRole={systemRole}
       viewer={data.viewer}
     >
       <Card className="mx-auto max-w-2xl">
-        <CardHeader>
-          <CardTitle as="h2" className="flex items-center gap-2">
-            <SparklesIcon className="size-5" />
+        <CardContent className="grid gap-4">
+          {/* Status line, not a heading: the shell's h1 already names this
+              page, and a card h2 of near-identical text reads as a duplicate
+              page title. */}
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <SparklesIcon className="size-4 text-muted-foreground" />
             Assistant
             {canUseAssistant ? (
-              <Badge variant="secondary">Connected</Badge>
+              <Badge variant="info">Connected</Badge>
             ) : (
               <Badge variant="outline">Not enabled</Badge>
             )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
+          </p>
           <TranscriptBody canUseAssistant={canUseAssistant} transcript={transcript} />
           {canUseAssistant ? (
             <form

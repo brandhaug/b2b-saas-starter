@@ -28,7 +28,10 @@ export function ClientTelemetry({
         if (!cancelled && Sentry.getClient() === undefined) {
           Sentry.init({
             dsn: config.sentryDsn,
-            tracesSampleRate: 1,
+            // 100% traces would sample every browser session — an order of
+            // magnitude noisier (and pricier) than the server's per-request
+            // sampling. Errors stay at the SDK default (100%).
+            tracesSampleRate: 0.1,
             // Session replay stays off until a starter use case asks for it.
             integrations: []
           })

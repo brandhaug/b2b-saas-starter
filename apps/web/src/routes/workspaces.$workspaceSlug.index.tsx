@@ -36,7 +36,11 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
       userId: context.session.user.id
     }),
   pendingComponent: RoutePending,
-  component: WorkspaceDashboardRoute
+  component: WorkspaceDashboardRoute,
+  // Derives the document title from the page the shell names.
+  head: ({ params }) => ({
+    meta: [{ title: `Overview · ${params.workspaceSlug} | B2B SaaS Starter` }]
+  })
 })
 
 /**
@@ -44,14 +48,18 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
  * params and payload as props so a test renders it without a route tree.
  */
 function WorkspaceDashboardRoute() {
-  return <WorkspaceDashboardPage data={Route.useLoaderData()} />
+  const systemRole = Route.useRouteContext().session.user.role
+  return <WorkspaceDashboardPage data={Route.useLoaderData()} systemRole={systemRole} />
 }
 
 export function WorkspaceDashboardPage({
   data,
+  systemRole,
   ports
 }: {
   readonly data: WorkspaceDashboardPayload
+  /** The signed-in user's Better Auth system role, for the shell's admin link. */
+  readonly systemRole?: string | null
   /** The one server call this page's children make, forwarded for tests. */
   readonly ports?: { readonly listNotifications?: ListNotifications }
 }) {
@@ -60,6 +68,7 @@ export function WorkspaceDashboardPage({
   return (
     <WorkspaceShell
       workspaceSlug={workspace.slug}
+      systemRole={systemRole}
       title={workspace.name}
       description="Notifications, API tokens, webhooks, and reports."
       unreadCount={unreadCount}

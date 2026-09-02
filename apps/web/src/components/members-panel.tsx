@@ -21,9 +21,11 @@ import { useServerAction } from '@/hooks/use-server-action'
 
 const CHANGE_FAILED = 'Failed to change the role'
 
-function roleVariant(role: WorkspaceRole): 'default' | 'secondary' | 'outline' {
+// A role is not a status: it never wears the mauve `default` (that is for
+// current/selected), and the status hues stay reserved for states.
+function roleVariant(role: WorkspaceRole): 'neutral' | 'secondary' | 'outline' {
   if (role === 'owner') {
-    return 'default'
+    return 'neutral'
   }
   if (role === 'admin') {
     return 'secondary'

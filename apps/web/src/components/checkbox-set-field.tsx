@@ -31,7 +31,14 @@ export function CheckboxSetField<A extends string>({
   const selected = new Set(value)
 
   return (
-    <FieldSet data-invalid={hasError || undefined}>
+    // `aria-describedby` mirrors form-text-field: without it the error id
+    // is computed but nothing references it, so the message stays orphaned
+    // from the group it describes.
+    <FieldSet
+      data-invalid={hasError || undefined}
+      aria-invalid={hasError}
+      aria-describedby={hasError ? errorId : undefined}
+    >
       <FieldLegend variant="label">{legend}</FieldLegend>
       <div className="flex flex-wrap gap-3">
         {options.map((option) => (

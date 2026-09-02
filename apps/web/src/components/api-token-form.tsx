@@ -51,13 +51,16 @@ export type CreateApiToken = (input: {
   }
 }) => Promise<CreatedApiToken>
 
+/** What the form reports after a create; awaited by the submit flow. */
+export type OnApiTokenCreated = (token: CreatedApiToken) => void | Promise<void>
+
 export function ApiTokenForm({
   workspaceSlug,
   onCreated,
   createToken = createApiTokenServerFn
 }: {
   readonly workspaceSlug: string
-  readonly onCreated?: (token: CreatedApiToken) => void
+  readonly onCreated?: OnApiTokenCreated
   readonly createToken?: CreateApiToken
 }) {
   const [created, setCreated] = useState<CreatedApiToken | null>(null)
@@ -86,7 +89,10 @@ export function ApiTokenForm({
         return
       }
       setCreated(outcome.value)
-      onCreated?.(outcome.value)
+      // Awaited so the loader invalidation completes within the submit flow:
+      // fire-and-forget here is how the list stayed a create behind until a
+      // reload.
+      await onCreated?.(outcome.value)
       form.reset()
     }
   })

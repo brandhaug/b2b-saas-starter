@@ -25,7 +25,7 @@ function CapabilitySection() {
     <section className="band-deep bg-background text-foreground">
       <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:py-28">
         <div className="max-w-2xl">
-          <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
             Write the capability once. Serve it three ways.
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">

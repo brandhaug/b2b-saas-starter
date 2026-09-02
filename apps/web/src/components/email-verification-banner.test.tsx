@@ -39,7 +39,9 @@ describe('EmailVerificationBanner', () => {
     expect(sendVerificationEmail).toHaveBeenCalledWith({
       email: 'demo@starter.local'
     })
-    const status = await screen.findByRole('alert')
+    // The sent confirmation is a polite live region (`role="status"`), not an
+    // assertive alert — it reports an action the user just took.
+    const status = await screen.findByRole('status')
     expect(status.textContent).toContain('demo@starter.local')
     expect(
       screen.queryByRole('button', { name: 'Resend verification email' })

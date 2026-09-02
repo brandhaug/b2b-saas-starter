@@ -61,7 +61,11 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
     return loadWorkspaceAuditEvents(input)
   },
   pendingComponent: RoutePending,
-  component: WorkspaceAuditRoute
+  component: WorkspaceAuditRoute,
+  // Derives the document title from the page the shell names.
+  head: ({ params }) => ({
+    meta: [{ title: `Audit trail · ${params.workspaceSlug} | B2B SaaS Starter` }]
+  })
 })
 
 /** Thin wrapper: hands the router's data and navigator to the page so tests
@@ -81,6 +85,7 @@ function WorkspaceAuditRoute() {
       workspaceSlug={workspaceSlug}
       data={data}
       applySearch={applySearch}
+      systemRole={Route.useRouteContext().session.user.role}
     />
   )
 }

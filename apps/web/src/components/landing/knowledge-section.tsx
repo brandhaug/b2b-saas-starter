@@ -1,21 +1,26 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
-import { getAllPosts } from '@/lib/blog'
-import { getAllDocs } from '@/lib/docs'
+import { type PostMeta } from '@/lib/blog'
+import { type DocMeta } from '@/lib/docs'
 import { formatUtc } from '@/lib/format-date'
 
-const RECENT_POSTS = getAllPosts().slice(0, 3)
-const RECENT_DOCS = getAllDocs().slice(0, 4)
-
-function KnowledgeSection() {
+function KnowledgeSection({
+  recentDocs,
+  recentPosts
+}: {
+  /** The home route's loader resolves these (lazy globs — see lib/docs.ts). */
+  readonly recentDocs: ReadonlyArray<DocMeta>
+  readonly recentPosts: ReadonlyArray<PostMeta>
+}) {
   return (
     <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
-      <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+      <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
         The reasoning is checked in.
       </h2>
       <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-        Docs, FAQ, blog, and changelog are versioned MDX in the repo, searched from
-        generated indexes, no CMS. The blog explains why each technology call was made.
+        Docs, FAQ, and blog are versioned MDX in the repo, searched from generated
+        indexes, no CMS. The blog explains why each technology call was made, and
+        releases are cut by release-please.
       </p>
       <div className="mt-12 grid gap-x-20 gap-y-14 lg:grid-cols-2">
         <div>
@@ -23,7 +28,7 @@ function KnowledgeSection() {
             docs/
           </p>
           <ul>
-            {RECENT_DOCS.map((doc) => (
+            {recentDocs.map((doc) => (
               <li key={`${doc.category}/${doc.slug}`}>
                 <Link
                   to="/docs/$category/$slug"
@@ -49,7 +54,7 @@ function KnowledgeSection() {
             blog/
           </p>
           <ul>
-            {RECENT_POSTS.map((post) => (
+            {recentPosts.map((post) => (
               <li key={post.slug}>
                 <Link
                   to="/blog/$slug"

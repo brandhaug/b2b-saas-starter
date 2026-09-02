@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/public-layout'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { changelog } from '@/lib/content'
+import { GITHUB_URL } from '@/components/landing/github-url'
 
 export const Route = createFileRoute('/changelog')({
   component: ChangelogPage,
@@ -23,30 +22,33 @@ export const Route = createFileRoute('/changelog')({
   })
 })
 
+/**
+ * Releases are cut by release-please from Conventional Commits, so the notes
+ * live where the tags live: GitHub Releases. This page links there rather
+ * than hand-maintaining a second copy that would drift the moment a version
+ * ships.
+ */
 function ChangelogPage() {
   return (
     <PublicLayout>
-      <main id="main-content" className="mx-auto w-full max-w-4xl px-4 py-12 sm:px-6">
-        <h1 className="text-3xl font-semibold">Changelog</h1>
-        <div className="mt-8 grid gap-4">
-          {changelog.map((entry) => (
-            <Card key={entry.version}>
-              <CardHeader>
-                <p className="text-sm text-muted-foreground">
-                  {entry.version} · <time dateTime={entry.date}>{entry.date}</time>
-                </p>
-                <CardTitle as="h2">{entry.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="list-disc pl-5 text-sm text-muted-foreground">
-                  {entry.changes.map((change) => (
-                    <li key={change}>{change}</li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <main id="main-content" className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
+        <h1 className="font-display text-3xl font-semibold">Changelog</h1>
+        <p className="mt-4 text-sm text-muted-foreground">
+          Every release is tagged and published from Conventional Commits by
+          release-please. Versioned notes, assets, and breaking changes live on GitHub
+          Releases:
+        </p>
+        <p className="mt-4">
+          <a
+            href={`${GITHUB_URL}/releases`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-sm text-primary underline underline-offset-4"
+          >
+            github.com/brandhaug/b2b-saas-starter/releases
+            <span className="sr-only">(opens in new tab)</span>
+          </a>
+        </p>
       </main>
     </PublicLayout>
   )

@@ -5,7 +5,7 @@ function ProvidersSection() {
     <section className="border-t border-border bg-muted/40">
       <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
         <div className="max-w-2xl">
-          <h2 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
             Every provider is optional.
           </h2>
           <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">

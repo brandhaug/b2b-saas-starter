@@ -17,7 +17,11 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/billing')({
       userId: context.session.user.id
     }),
   pendingComponent: RoutePending,
-  component: WorkspaceBillingRoute
+  component: WorkspaceBillingRoute,
+  // Derives the document title from the page the shell names.
+  head: ({ params }) => ({
+    meta: [{ title: `Billing · ${params.workspaceSlug} | B2B SaaS Starter` }]
+  })
 })
 
 /**
@@ -28,21 +32,32 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/billing')({
 function WorkspaceBillingRoute() {
   const { workspaceSlug } = Route.useParams()
   const data = Route.useLoaderData()
-  return <WorkspaceBillingPage workspaceSlug={workspaceSlug} data={data} />
+  const systemRole = Route.useRouteContext().session.user.role
+  return (
+    <WorkspaceBillingPage
+      workspaceSlug={workspaceSlug}
+      data={data}
+      systemRole={systemRole}
+    />
+  )
 }
 
 export function WorkspaceBillingPage({
   workspaceSlug,
-  data
+  data,
+  systemRole
 }: {
   readonly workspaceSlug: string
   readonly data: WorkspaceBillingPayload
+  /** The signed-in user's Better Auth system role, for the shell's admin link. */
+  readonly systemRole?: string | null
 }) {
   const canManageBilling =
     data.viewer !== null && viewerCan(data.viewer, { organization: ['update'] })
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
+      systemRole={systemRole}
       title="Billing"
       description="Plan, entitlements, and checkout."
       unreadCount={data.unreadCount}

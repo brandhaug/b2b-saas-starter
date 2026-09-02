@@ -19,10 +19,25 @@ const TOASTER_ICONS = {
 // cannot express.
 type CssVariableStyle = React.CSSProperties & Record<`--${string}`, string>
 
+// Success and warning paint from the same status tokens as badges and alerts
+// (`--status-*` in index.css), so a state is one hue everywhere. Ink values
+// are the near-black crust, matching how primary-foreground sits on primary.
 const TOASTER_STYLE: CssVariableStyle = {
   '--normal-bg': 'var(--popover)',
   '--normal-text': 'var(--popover-foreground)',
   '--normal-border': 'var(--border)',
+  '--success-bg': 'var(--status-ok)',
+  '--success-text': 'var(--primary-foreground)',
+  '--success-border': 'var(--status-ok)',
+  '--warning-bg': 'var(--status-warn)',
+  '--warning-text': 'var(--primary-foreground)',
+  '--warning-border': 'var(--status-warn)',
+  '--error-bg': 'var(--destructive)',
+  '--error-text': 'var(--destructive-foreground)',
+  '--error-border': 'var(--destructive)',
+  '--info-bg': 'var(--status-info)',
+  '--info-text': 'var(--primary-foreground)',
+  '--info-border': 'var(--status-info)',
   '--border-radius': 'var(--radius)'
 }
 

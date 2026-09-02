@@ -28,7 +28,7 @@ import {
   cancelInvitation,
   invitationPreview,
   sendInvitation
-} from './invitations'
+} from './invitations.effects'
 
 /**
  * The invitation surface below its session gate.

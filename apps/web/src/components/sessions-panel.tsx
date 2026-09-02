@@ -14,6 +14,7 @@ import {
 
 import { useServerAction } from '@/hooks/use-server-action'
 import { Button } from '@/components/ui/button'
+import { formatUtc } from '@/lib/format-date'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,14 +71,10 @@ function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowV
     .map((session) => ({
       token: session.token,
       deviceLabel: describeUserAgent(session.userAgent),
-      // The one place that does not use `formatUtc`: this runs post-mount only,
-      // so there is no SSR text to disagree with, and the viewer's own locale
-      // reads better than a pinned en-US for a date they are checking about
-      // their own device.
-      expiresLabel: session.expiresAt.toLocaleDateString(undefined, {
-        dateStyle: 'medium',
-        timeZone: 'UTC'
-      }),
+      // `formatUtc` pins locale and zone (en-US/UTC), like every other
+      // timestamp — the ambient-locale call this replaced was the one
+      // remaining hydration-unsafe formatter.
+      expiresLabel: formatUtc(session.expiresAt, { dateStyle: 'medium' }),
       ipAddress: session.ipAddress
     }))
 }

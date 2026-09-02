@@ -7,9 +7,11 @@
 @custom-variant dark (&:is(.dark *));
 
 /* The only scheme: Catppuccin Mocha. Light mode was removed — `<html>`
-   carries a hardcoded `dark` class so shadcn's `dark:` variants and the
-   `.dark`-scoped rules below still resolve, and `:root` carries the same
-   values so the pre-hydration paint matches. */
+   carries a hardcoded `dark` class (kept as a safety net so any stray
+   `dark:` variant still resolves against this scheme instead of
+   prefers-color-scheme), and `:root` carries the same values so the
+   pre-hydration paint matches. The `dark:`-prefixed classes themselves were
+   flattened: with one scheme they were either dead or always-on. */
 :root,
 .dark {
   color-scheme: dark;
@@ -45,9 +47,12 @@
   --sidebar-accent-foreground: oklch(0.8787 0.0426 272.277);
   --sidebar-border: oklch(0.324 0.0319 281.978);
   --sidebar-ring: oklch(0.8166 0.091 277.309);
-  --font-sans: Geist, ui-sans-serif, sans-serif, system-ui;
+  /* Family names must match the `@font-face` declarations the fontsource
+     packages emit: 'Geist Variable' and 'Geist Mono Variable'. The un-suffixed
+     names match nothing and silently fall back to ui-sans-serif. */
+  --font-sans: 'Geist Variable', ui-sans-serif, sans-serif, system-ui;
   --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
-  --font-mono: Geist Mono, ui-monospace, monospace;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
   --radius: 0.5rem;
   --shadow-x: 0;
   --shadow-y: 1px;
@@ -68,6 +73,12 @@
      variant, but the two names stay so component call sites are unchanged. */
   --signal: oklch(0.8237 0.1015 52.6294); /* mocha peach #fab387 */
   --signal-ink: oklch(0.8237 0.1015 52.6294);
+  /* Status vocabulary: Catppuccin green/yellow/blue, shared by badges, alerts
+     and toasts so a status is one hue everywhere. Chart hues keep their own
+     names — status colors are chrome, chart colors are data series. */
+  --status-ok: oklch(0.8577 0.1092 142.715); /* mocha green #a6e3a1 */
+  --status-warn: oklch(0.9193 0.0704 86.5281); /* mocha yellow #f9e2af */
+  --status-info: oklch(0.7664 0.1113 259.885); /* mocha blue #89b4fa */
 }
 
 /* The public showcase and the workspace app share one palette. `.marketing`
@@ -105,6 +116,9 @@
 @theme inline {
   --color-signal: var(--signal);
   --color-signal-ink: var(--signal-ink);
+  --color-status-ok: var(--status-ok);
+  --color-status-warn: var(--status-warn);
+  --color-status-info: var(--status-info);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -219,9 +233,9 @@
   @apply bg-muted/50;
 }
 
-/* Heading anchors for TOC scroll */
+/* Heading anchors for TOC scroll: below the fixed 64px header plus clearance. */
 .prose :is(h2, h3)[id] {
-  scroll-margin-top: 2rem;
+  scroll-margin-top: 5.5rem;
 }
 
 /* Display voice for the public surface: Fraunces held at a high optical size,
@@ -229,10 +243,12 @@
    as display lettering rather than book text. `opsz` is pinned rather than
    left to `font-optical-sizing: auto` so a 2xl subhead gets the same cut as
    the 6xl hero. Naming only `opsz` here leaves `wght` under the control of
-   `font-weight`, per the variation-settings cascade. Display sizes are capped
-   at the Tailwind `text-6xl` step used by the hero (3.75rem), far under the
-   6rem ceiling. */
-.marketing :is(h1, h2) {
+   `font-weight`, per the variation-settings cascade.
+
+   The serif is opt-in per heading via this utility — page-level marketing
+   headings apply it (`text-display` sizes it at 24px or larger). It must
+   never land on card or panel titles, where a 14px serif reads as a caption. */
+@utility font-display {
   font-family: var(--font-display);
   font-variation-settings: 'opsz' 120;
   /* Zero tracking, unlike the grotesque headings: at opsz 120 Fraunces

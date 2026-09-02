@@ -27,7 +27,11 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
       userId: context.session.user.id
     }),
   pendingComponent: RoutePending,
-  component: WorkspaceSettingsRoute
+  component: WorkspaceSettingsRoute,
+  // Derives the document title from the page the shell names.
+  head: ({ params }) => ({
+    meta: [{ title: `Settings · ${params.workspaceSlug} | B2B SaaS Starter` }]
+  })
 })
 
 /**
@@ -39,16 +43,26 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
 function WorkspaceSettingsRoute() {
   const { workspaceSlug } = Route.useParams()
   const data = Route.useLoaderData()
-  return <WorkspaceSettingsPage workspaceSlug={workspaceSlug} data={data} />
+  const systemRole = Route.useRouteContext().session.user.role
+  return (
+    <WorkspaceSettingsPage
+      workspaceSlug={workspaceSlug}
+      data={data}
+      systemRole={systemRole}
+    />
+  )
 }
 
 export function WorkspaceSettingsPage({
   workspaceSlug,
   data,
+  systemRole,
   ports
 }: {
   readonly workspaceSlug: string
   readonly data: WorkspaceSettingsPayload
+  /** The signed-in user's Better Auth system role, for the shell's admin link. */
+  readonly systemRole?: string | null
   /**
    * The server calls this page's children make, forwarded so a test supplies
    * them instead of replacing the ports they live in. Omitted everywhere but
@@ -76,6 +90,7 @@ export function WorkspaceSettingsPage({
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
+      systemRole={systemRole}
       {...(ports?.signOut === undefined ? {} : { signOut: ports.signOut })}
       title="Workspace settings"
       description="API tokens, members, and webhook configuration."
