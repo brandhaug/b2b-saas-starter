@@ -1,7 +1,6 @@
 import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import { Schema } from 'effect'
 import { MailCheckIcon } from 'lucide-react'
 import { PublicLayout } from '@/components/public-layout'
 import { RoutePending } from '@/components/route-pending'
@@ -17,6 +16,7 @@ import {
   type InvitationPreview
 } from '@/lib/server/invitations'
 import { callServerFn } from '@/lib/server-call'
+import { pickOptionalStrings } from '@/lib/utils'
 
 const ACCEPT_FAILED = 'Could not accept the invitation'
 
@@ -28,16 +28,11 @@ const ACCEPT_FAILED = 'Could not accept the invitation'
 // notice instead of a search-validation error: the API worker used to email
 // `?workspace=<slug>`, which carried no id, and issue #64 removed that endpoint
 // rather than leave it sending a link nobody could accept.
-const AcceptSearch = Schema.Struct({
-  invitation: Schema.optional(Schema.String)
-})
-
-const decodeSearch = Schema.decodeUnknownSync(AcceptSearch)
 
 const UNUSABLE: InvitationPreview = { state: 'unavailable' }
 
 export const Route = createFileRoute('/invitations/accept')({
-  validateSearch: (search) => decodeSearch(search),
+  validateSearch: (search) => pickOptionalStrings(search, ['invitation']),
   loaderDeps: ({ search }) => ({ invitation: search.invitation }),
   // Its own gate: /workspaces owns the subtree gate and this route is not in it.
   // Anonymous visitors sign in first — an invitation is addressed to an email
@@ -55,7 +50,8 @@ export const Route = createFileRoute('/invitations/accept')({
     return invitationPreviewServerFn({ data: { invitationId: deps.invitation } })
   },
   pendingComponent: RoutePending,
-  component: AcceptInvitationRoute
+  component: AcceptInvitationRoute,
+  head: () => ({ meta: [{ title: 'Accept invitation | B2B SaaS Starter' }] })
 })
 
 /**

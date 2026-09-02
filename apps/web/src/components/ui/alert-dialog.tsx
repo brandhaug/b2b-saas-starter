@@ -26,7 +26,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        'data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 bg-black/10 duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 z-50',
+        'data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 bg-black/10 duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 z-50',
         className
       )}
       {...props}
@@ -45,7 +45,9 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         className={cn(
-          'bg-background data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-full sm:max-w-sm -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border border-border p-6 shadow-lg duration-200',
+          // Slide/zoom motion is `motion-safe:`-gated; without it the dialog
+          // simply appears.
+          'bg-background data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-full sm:max-w-sm -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border border-border p-6 shadow-lg duration-200',
           className
         )}
         {...props}

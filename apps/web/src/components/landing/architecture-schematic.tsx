@@ -16,8 +16,9 @@ export function ArchitectureSchematic() {
     >
       <title>Request topology of the B2B SaaS Starter</title>
 
-      {/* wire routes (also used as pulse motion paths) */}
-      <g className="stroke-muted-foreground/45" fill="none" strokeWidth="1">
+      {/* wire routes (also used as pulse motion paths) — strokes at /60 clear
+          the 3:1 non-text contrast bar against the card surface; /45 did not */}
+      <g className="stroke-muted-foreground/60" fill="none" strokeWidth="1">
         <path d="M128 66 H196" strokeDasharray="4 3" />
         <path d="M128 146 H172 V152 H196" strokeDasharray="4 3" />
         <path d="M128 206 H172 V196 H196" strokeDasharray="4 3" />
@@ -110,7 +111,7 @@ export function ArchitectureSchematic() {
       </g>
 
       {/* registration marks */}
-      <g className="stroke-muted-foreground/50" strokeWidth="1">
+      <g className="stroke-muted-foreground/60" strokeWidth="1">
         <path d="M166 16 v8 M162 20 h8" />
         <path d="M166 428 v8 M162 432 h8" />
         <path d="M450 16 v8 M446 20 h8" />
@@ -171,7 +172,7 @@ function ClientNode({
         y={y}
         width="112"
         height="36"
-        className="fill-transparent stroke-muted-foreground/50"
+        className="fill-transparent stroke-muted-foreground/60"
         strokeWidth="1"
         strokeDasharray="4 3"
       />

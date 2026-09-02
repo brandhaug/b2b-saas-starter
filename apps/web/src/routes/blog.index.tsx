@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/public-layout'
-import { getAllPosts } from '@/lib/blog'
+import { getAllPostMeta } from '@/lib/blog'
+import { formatUtc } from '@/lib/format-date'
 
 export const Route = createFileRoute('/blog/')({
+  loader: () => getAllPostMeta(),
   component: BlogIndexPage,
   head: () => ({
     meta: [
@@ -23,13 +25,13 @@ export const Route = createFileRoute('/blog/')({
 })
 
 function BlogIndexPage() {
-  const posts = getAllPosts()
+  const posts = Route.useLoaderData()
 
   return (
     <PublicLayout>
       <main id="main-content" className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6">
         <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight">Blog</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Blog</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Articles about the technology and library decisions in this starter.
           </p>
@@ -41,19 +43,19 @@ function BlogIndexPage() {
               key={post.slug}
               to="/blog/$slug"
               params={{ slug: post.slug }}
-              className="group flex flex-col gap-2 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="group flex flex-col gap-2 rounded-none border border-border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <h2 className="text-sm font-medium group-hover:text-primary">
+              <h2 className="text-base font-semibold group-hover:text-primary">
                 {post.frontmatter.title}
               </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {post.frontmatter.description}
               </p>
               <time
                 dateTime={post.frontmatter.date}
                 className="mt-auto pt-2 text-xs text-muted-foreground"
               >
-                {new Date(post.frontmatter.date).toLocaleDateString('en-US', {
+                {formatUtc(post.frontmatter.date, {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'

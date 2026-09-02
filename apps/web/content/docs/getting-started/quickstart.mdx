@@ -10,26 +10,35 @@ The starter runs locally against a real Cloudflare-shaped stack: `apps/web` unde
 
 ## Prerequisites
 
-- Bun 1.3.3 or later
+- The [Vite+ CLI](https://viteplus.dev) (`vp`, >= 0.3.0) — it provides the managed Node runtime (>= 24) and the pinned pnpm
 - A Cloudflare account (only required for deployment, not local development)
 
 ## Install and run
 
 ```bash
-bun install
-bun run db:migrate:local
-bun run db:seed
-bun run dev
+pnpm install
+pnpm run db:migrate:local
+pnpm run db:seed
+pnpm run dev
 ```
 
-`turbo dev` boots all three apps in parallel:
+`pnpm run dev` boots all three apps in parallel through Vite Task (`vp run -r --parallel dev`):
 
 - `apps/web` on port 3071 — TanStack Start, public showcase, reference application
-- `apps/api` — REST and MCP Capability Interfaces
-- `apps/background` — cron and queue handlers
+- `apps/api` — REST and MCP Capability Interfaces (`pnpm -C apps/api dev` runs it alone)
+- `apps/background` — cron and queue handlers (`pnpm -C apps/background dev` runs it alone)
 
-Open `http://localhost:3071` and create an account via the Local Auth Path. The Seed Workspace renders without OAuth provider configuration; the seed users have no preset passwords, so register a new account to sign in.
+## Sign in with the seed accounts
+
+Seeding creates two credential accounts so the reference workspace is reachable immediately (both use the same password, and `/sign-in` prints them on the page):
+
+| Email                  | Password                | Roles                                         |
+| ---------------------- | ----------------------- | --------------------------------------------- |
+| `demo@starter.local`   | `demo-starter-password` | System admin (`/admin`) + `starter-lab` owner |
+| `engineer@example.com` | `demo-starter-password` | `starter-lab` member                          |
+
+Sign in at `http://localhost:3071/sign-in`. Restart `pnpm run dev` after the first migrate + seed so the dev server attaches the persisted local D1 as the `DB` binding; without it the app runs provider-light on the in-memory seed layer. The [setup guide](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/setup.md) covers the details.
 
 ## What's wired by default
 
-The Seed Workspace populates one workspace with three members in three Workspace Roles, an audit history, notifications, and seeded API Tokens and Webhook Endpoints so the home page renders working data, not placeholders.
+The Seed Workspace populates one workspace with members in the three Workspace Roles, an audit history, notifications, and seeded API Tokens and Webhook Endpoints so the reference app renders working data, not placeholders.

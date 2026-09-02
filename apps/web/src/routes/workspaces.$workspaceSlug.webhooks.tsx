@@ -17,7 +17,11 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/webhooks')({
       userId: context.session.user.id
     }),
   pendingComponent: RoutePending,
-  component: WorkspaceWebhooksRoute
+  component: WorkspaceWebhooksRoute,
+  // Derives the document title from the page the shell names.
+  head: ({ params }) => ({
+    meta: [{ title: `Webhooks · ${params.workspaceSlug} | B2B SaaS Starter` }]
+  })
 })
 
 /**
@@ -28,21 +32,32 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/webhooks')({
 function WorkspaceWebhooksRoute() {
   const { workspaceSlug } = Route.useParams()
   const data = Route.useLoaderData()
-  return <WorkspaceWebhooksPage workspaceSlug={workspaceSlug} data={data} />
+  const systemRole = Route.useRouteContext().session.user.role
+  return (
+    <WorkspaceWebhooksPage
+      workspaceSlug={workspaceSlug}
+      data={data}
+      systemRole={systemRole}
+    />
+  )
 }
 
 export function WorkspaceWebhooksPage({
   workspaceSlug,
-  data
+  data,
+  systemRole
 }: {
   readonly workspaceSlug: string
   readonly data: WorkspaceWebhooksPayload
+  /** The signed-in user's Better Auth system role, for the shell's admin link. */
+  readonly systemRole?: string | null
 }) {
   const { viewer, unreadCount, endpoints } = data
 
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
+      systemRole={systemRole}
       title="Webhooks"
       description="Outbound endpoints that receive workspace events."
       unreadCount={unreadCount}

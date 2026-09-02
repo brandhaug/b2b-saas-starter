@@ -98,8 +98,9 @@ export function TwoFactorPanel({
     return (
       <PanelFrame heading="Status" tone="primary">
         <p className="text-sm text-muted-foreground">
+          {/* Status dot, from the status vocabulary: on = ok. */}
           <span
-            className="mr-2 inline-block size-2 rounded-full bg-muted-foreground"
+            className="mr-2 inline-block size-2 rounded-full bg-status-ok"
             aria-hidden
           />
           On. Codes are required at sign-in.
@@ -121,7 +122,11 @@ export function TwoFactorPanel({
   return (
     <PanelFrame heading="Turn on" tone="muted">
       <p className="text-sm text-muted-foreground">
-        <span className="mr-2 inline-block size-2 rounded-full bg-border" aria-hidden />
+        {/* Status dot: off = neutral outline, not a second gray. */}
+        <span
+          className="mr-2 inline-block size-2 rounded-full border border-border"
+          aria-hidden
+        />
         Off. Add an authenticator-app code to sign-in.
       </p>
       <EnableFlow

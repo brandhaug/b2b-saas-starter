@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
-import { Schema } from 'effect'
 import { KeyRoundIcon } from 'lucide-react'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
@@ -11,19 +10,14 @@ import {
   resetPasswordWithAuthClient,
   type ResetPassword
 } from '@/components/auth/auth-client-ports'
+import { pickOptionalStrings } from '@/lib/utils'
 
 export type { ResetPassword } from '@/components/auth/auth-client-ports'
 
-const ResetPasswordSearch = Schema.Struct({
-  token: Schema.optional(Schema.String),
-  error: Schema.optional(Schema.String)
-})
-
-const decodeSearch = Schema.decodeUnknownSync(ResetPasswordSearch)
-
 export const Route = createFileRoute('/reset-password')({
-  validateSearch: (search) => decodeSearch(search),
-  component: ResetPasswordRoute
+  validateSearch: (search) => pickOptionalStrings(search, ['token', 'error']),
+  component: ResetPasswordRoute,
+  head: () => ({ meta: [{ title: 'Reset password | B2B SaaS Starter' }] })
 })
 
 type ResetPasswordValues = {

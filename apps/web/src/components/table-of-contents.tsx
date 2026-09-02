@@ -15,7 +15,7 @@ export function TableOfContents({
   }
 
   return (
-    <nav aria-label="Table of contents" className="sticky top-8">
+    <nav aria-label="Table of contents" className="sticky top-18">
       <p className="mb-3 text-xs font-medium text-foreground">On this page</p>
       <ul className="flex flex-col gap-1">
         {headings.map((heading) => {

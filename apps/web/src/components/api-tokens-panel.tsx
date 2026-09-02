@@ -76,7 +76,9 @@ export function ApiTokensPanel({
         form: (
           <ApiTokenForm
             workspaceSlug={workspaceSlug}
-            onCreated={() => void router.invalidate()}
+            onCreated={async () => {
+              await router.invalidate()
+            }}
             {...(createToken === undefined ? {} : { createToken })}
           />
         )

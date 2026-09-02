@@ -1,4 +1,4 @@
-import { type ComponentType } from 'react'
+import { lazy, type ComponentType } from 'react'
 
 import { type MdxComponentProps } from '@/components/mdx-link'
 import { contentJsonLd } from '@/lib/json-ld'
@@ -12,12 +12,118 @@ type DocFrontmatter = {
   readonly updated?: string
 }
 
-type DocArticle = {
+/**
+ * Article metadata. `loadDoc` resolves the component on demand — the glob is
+ * lazy, so a route importing this module does not pull seventeen compiled,
+ * shiki-highlighted articles into its chunk; the article's own chunk loads
+ * when its URL is opened.
+ */
+export type DocMeta = {
   readonly slug: string
   readonly category: string
   readonly frontmatter: DocFrontmatter
+}
+
+type DocModule = {
+  readonly default: ComponentType<MdxComponentProps>
+  readonly frontmatter: DocFrontmatter
+}
+
+// No `eager`: the compiled MDX must not ride the importing route's chunk.
+// oxlint-disable effect/noNewPromise -- this module is the promise boundary between router loaders (promise-shaped) and the Effect-native content; same exemption as packages/logger/src/providers.ts
+const modules = import.meta.glob<DocModule>('../../content/docs/**/*.mdx')
+
+/** The two path segments a docs module's file path encodes. */
+type DocPath = { category: string; slug: string }
+
+function parsePath(path: string): DocPath {
+  const relative = path.replace('../../content/docs/', '').replace('.mdx', '')
+  const parts = relative.split('/')
+  return { category: parts[0] ?? '', slug: parts.at(-1) ?? '' }
+}
+
+/** Module path for one doc, or `undefined` when no such article exists. */
+function docPath(category: string, slug: string): string | undefined {
+  const path = `../../content/docs/${category}/${slug}.mdx`
+  return Object.hasOwn(modules, path) ? path : undefined
+}
+
+let metaPromise: Promise<ReadonlyArray<DocMeta>> | undefined
+
+async function loadAllDocMeta(): Promise<ReadonlyArray<DocMeta>> {
+  const entries = Object.entries(modules)
+  const metas = await Promise.all(
+    entries.map(async ([path, load]) => {
+      const { category, slug } = parsePath(path)
+      const mod = await load()
+      return { slug, category, frontmatter: mod.frontmatter } satisfies DocMeta
+    })
+  )
+  return metas.toSorted((a, b) =>
+    a.category === b.category
+      ? a.frontmatter.order - b.frontmatter.order
+      : DOC_CATEGORY_ORDER.indexOf(asCategory(a.category)) -
+        DOC_CATEGORY_ORDER.indexOf(asCategory(b.category))
+  )
+}
+
+/** Every doc's metadata, ordered by frontmatter `order` within its category. */
+export function getAllDocMeta(): Promise<ReadonlyArray<DocMeta>> {
+  metaPromise ??= loadAllDocMeta()
+  return metaPromise
+}
+
+function asCategory(value: string): DocCategory {
+  return isDocCategory(value) ? value : 'getting-started'
+}
+
+export type LoadedDoc = DocMeta & {
   readonly Component: ComponentType<MdxComponentProps>
 }
+
+/**
+ * One article — metadata plus the component — via a dynamic import of its
+ * single module. `undefined` for an unknown category/slug pair.
+ */
+export async function loadDoc(
+  category: string,
+  slug: string
+): Promise<LoadedDoc | undefined> {
+  const path = docPath(category, slug)
+  const load = path === undefined ? undefined : modules[path]
+  if (load === undefined) {
+    return undefined
+  }
+  const mod = await load()
+  return { slug, category, frontmatter: mod.frontmatter, Component: mod.default }
+}
+
+/**
+ * A stable lazy component for one article, cached per path: a route renders
+ * it directly — no component creation during render, and the identity is
+ * stable across re-renders.
+ */
+export function getDocComponent(
+  category: string,
+  slug: string
+): ComponentType<MdxComponentProps> | undefined {
+  const resolved = docPath(category, slug)
+  const load = resolved === undefined ? undefined : modules[resolved]
+  if (resolved === undefined || load === undefined) {
+    return undefined
+  }
+  let component = componentCache.get(resolved)
+  if (component === undefined) {
+    component = lazy(async () => {
+      const mod = await load()
+      return { default: mod.default }
+    })
+    componentCache.set(resolved, component)
+  }
+  return component
+}
+
+const componentCache = new Map<string, ComponentType<MdxComponentProps>>()
 
 export const DOC_CATEGORIES = {
   'getting-started': 'Getting started',
@@ -48,64 +154,20 @@ export const DOC_CATEGORY_ORDER: ReadonlyArray<DocCategory> = [
   'governance'
 ]
 
-const modules = import.meta.glob<{
-  default: ComponentType<MdxComponentProps>
-  frontmatter: DocFrontmatter
-}>('../../content/docs/**/*.mdx', { eager: true })
-
-/** The two path segments a docs module's file path encodes. */
-type DocPath = { category: string; slug: string }
-
-function parsePath(path: string): DocPath {
-  const relative = path.replace('../../content/docs/', '').replace('.mdx', '')
-  const parts = relative.split('/')
-  return { category: parts[0] ?? '', slug: parts.at(-1) ?? '' }
-}
-
-const ALL_DOCS: ReadonlyArray<DocArticle> = Object.entries(modules)
-  .map(([path, mod]) => {
-    const { category, slug } = parsePath(path)
-    return {
-      slug,
-      category,
-      frontmatter: mod.frontmatter,
-      Component: mod.default
-    }
-  })
-  .toSorted((a, b) => a.frontmatter.order - b.frontmatter.order)
-
-const DOCS_BY_CATEGORY = new Map<string, ReadonlyArray<DocArticle>>()
-const DOCS_BY_KEY = new Map<string, DocArticle>()
-const DOC_INDEX_IN_CATEGORY = new Map<string, number>()
-for (const doc of ALL_DOCS) {
-  const list = DOCS_BY_CATEGORY.get(doc.category) ?? []
-  DOC_INDEX_IN_CATEGORY.set(`${doc.category}/${doc.slug}`, list.length)
-  DOCS_BY_CATEGORY.set(doc.category, [...list, doc])
-  DOCS_BY_KEY.set(`${doc.category}/${doc.slug}`, doc)
-}
-
-export function getAllDocs(): ReadonlyArray<DocArticle> {
-  return ALL_DOCS
-}
-
-export function getDocsByCategory(category: string): ReadonlyArray<DocArticle> {
-  return DOCS_BY_CATEGORY.get(category) ?? []
-}
-
-export function getDocBySlug(category: string, slug: string): DocArticle | undefined {
-  return DOCS_BY_KEY.get(`${category}/${slug}`)
-}
-
 /** Previous/next neighbours within a category, `null` at either end. */
 export type AdjacentDocs = {
-  readonly prev: DocArticle | null
-  readonly next: DocArticle | null
+  readonly prev: DocMeta | null
+  readonly next: DocMeta | null
 }
 
-export function getAdjacentDocs(category: string, slug: string): AdjacentDocs {
-  const list = DOCS_BY_CATEGORY.get(category)
-  const index = DOC_INDEX_IN_CATEGORY.get(`${category}/${slug}`)
-  if (!list || index === undefined) {
+export function getAdjacentDocs(
+  allDocs: ReadonlyArray<DocMeta>,
+  category: string,
+  slug: string
+): AdjacentDocs {
+  const list = allDocs.filter((doc) => doc.category === category)
+  const index = list.findIndex((doc) => doc.slug === slug)
+  if (index === -1) {
     return { prev: null, next: null }
   }
   return {
@@ -115,7 +177,7 @@ export function getAdjacentDocs(category: string, slug: string): AdjacentDocs {
 }
 
 /** The article's structured data, beside the getter that resolves it. */
-export function docJsonLd(article: DocArticle): string {
+export function docJsonLd(article: DocMeta): string {
   const { title, description, tags } = article.frontmatter
   return contentJsonLd({
     article: {

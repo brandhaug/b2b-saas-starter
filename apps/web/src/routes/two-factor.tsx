@@ -14,7 +14,8 @@ import { redirectSearch, safeRedirect } from '@/lib/utils'
 
 export const Route = createFileRoute('/two-factor')({
   validateSearch: redirectSearch,
-  component: TwoFactorRoute
+  component: TwoFactorRoute,
+  head: () => ({ meta: [{ title: 'Two-factor verification | B2B SaaS Starter' }] })
 })
 
 function TwoFactorRoute() {

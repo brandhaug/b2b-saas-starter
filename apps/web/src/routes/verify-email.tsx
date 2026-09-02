@@ -1,18 +1,13 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Schema } from 'effect'
 import { CheckCircle2Icon, CircleAlertIcon } from 'lucide-react'
 import { PublicLayout } from '@/components/public-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-
-const VerifyEmailSearch = Schema.Struct({
-  error: Schema.optional(Schema.String)
-})
-
-const decodeSearch = Schema.decodeUnknownSync(VerifyEmailSearch)
+import { pickOptionalStrings } from '@/lib/utils'
 
 export const Route = createFileRoute('/verify-email')({
-  validateSearch: (search) => decodeSearch(search),
-  component: VerifyEmailRoute
+  validateSearch: (search) => pickOptionalStrings(search, ['error']),
+  component: VerifyEmailRoute,
+  head: () => ({ meta: [{ title: 'Verify email | B2B SaaS Starter' }] })
 })
 
 /**

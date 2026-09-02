@@ -27,7 +27,11 @@ export function EmailVerificationBanner({
 
   if (sent) {
     return (
-      <Alert>
+      // `role="status"`, not the default `alert`: this text is on the page
+      // from first paint, and an assertive live region interrupts on load.
+      // (An <output> element is form-result semantics — wrong here.)
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- see above
+      <Alert role="status">
         <AlertDescription>
           Verification email sent to{' '}
           <code className="rounded-sm bg-muted px-1 py-0.5 text-xs">{email}</code>.
@@ -48,7 +52,10 @@ export function EmailVerificationBanner({
   }
 
   return (
-    <Alert>
+    // `role="status"`: the banner renders on every page load for an
+    // unverified user — `role="alert"` would interrupt on load.
+    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- see above
+    <Alert role="status">
       <MailWarningIcon />
       <AlertDescription className="flex flex-wrap items-center gap-3">
         <span className="flex-1">

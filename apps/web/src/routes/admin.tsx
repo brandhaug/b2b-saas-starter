@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { RoutePending } from '@/components/route-pending'
 import { runCapabilities } from '@/lib/capabilities'
+import { formatUtc } from '@/lib/format-date'
 import { listSystemUsersServerFn, type SystemUser } from '@/lib/server/admin'
 import { requireAdmin } from '@/lib/server/auth'
 
@@ -22,7 +23,7 @@ function renderStatus(banned: boolean) {
   if (banned) {
     return <Badge variant="destructive">banned</Badge>
   }
-  return <Badge variant="outline">active</Badge>
+  return <Badge variant="ok">active</Badge>
 }
 
 const userColumns: Array<DataTableColumnDef<SystemUser>> = [
@@ -46,7 +47,8 @@ const userColumns: Array<DataTableColumnDef<SystemUser>> = [
   },
   {
     id: 'actions',
-    header: '',
+    // Screen readers announce an empty column header as nothing; name it.
+    header: () => <span className="sr-only">Actions</span>,
     enableSorting: false,
     cell: ({ row }) => <BanUserAction user={row.original} />
   }
@@ -56,7 +58,22 @@ const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
   { accessorKey: 'eventType', header: 'Event', enableSorting: true },
   { accessorKey: 'targetType', header: 'Target', enableSorting: true },
   { accessorKey: 'actor', header: 'Actor', enableSorting: true },
-  { accessorKey: 'createdAt', header: 'Created', enableSorting: true }
+  {
+    accessorKey: 'createdAt',
+    header: 'Created',
+    enableSorting: true,
+    // UTC-formatted, like every other timestamp in the app — the raw ISO
+    // string this column used to render was readable by no one.
+    cell: ({ row }) => (
+      <span className="font-mono tabular-nums">
+        {formatUtc(row.original.createdAt, {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        })}{' '}
+        UTC
+      </span>
+    )
+  }
 ]
 
 export const Route = createFileRoute('/admin')({
@@ -82,15 +99,18 @@ export const Route = createFileRoute('/admin')({
     return { users: await usersRead, events: await eventsRead }
   },
   pendingComponent: RoutePending,
-  component: AdminPage
+  component: AdminPage,
+  head: () => ({ meta: [{ title: 'System admin | B2B SaaS Starter' }] })
 })
 
 function AdminPage() {
   const { users, events } = Route.useLoaderData()
+  const { session } = Route.useRouteContext()
 
   return (
     <WorkspaceShell
       viewer={null}
+      systemRole={session.user.role}
       workspaceSlug={null}
       title="System admin"
       description="Better Auth admin dashboard without impersonation UI."

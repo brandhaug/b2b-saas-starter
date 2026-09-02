@@ -1,6 +1,11 @@
 import '@fontsource-variable/geist/index.css'
 import '@fontsource-variable/geist-mono/index.css'
 import '@fontsource-variable/fraunces/opsz.css'
+// Latin variable woff2 for the two text faces, resolved by Vite so the preload
+// href always matches the emitted asset. Without these, the fonts start
+// loading two round-trips deep (CSS → font file) after first paint.
+import geistLatinWoff2 from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
+import geistMonoLatinWoff2 from '@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url'
 import { type QueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, type ReactNode } from 'react'
 import {
@@ -54,13 +59,28 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       { name: 'theme-color', content: THEME_COLOR },
       { property: 'og:type', content: 'website' },
       { property: 'og:site_name', content: 'B2B SaaS Starter' },
-      { property: 'og:image', content: '/og-default.png' },
-      { name: 'twitter:card', content: 'summary_large_image' },
-      { name: 'twitter:image', content: '/og-default.png' }
+      { name: 'twitter:card', content: 'summary' }
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }
+      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+      /* Preload the latin variable woff2 for the two text faces. The family
+         names in index.css resolve to the fontsource `@font-face` rules, which
+         otherwise start loading two round-trips deep (CSS → font file). */
+      {
+        rel: 'preload',
+        href: geistLatinWoff2,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous'
+      },
+      {
+        rel: 'preload',
+        href: geistMonoLatinWoff2,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous'
+      }
     ]
   }),
   component: RootComponent
@@ -79,7 +99,9 @@ function RootComponent() {
 function RootDocument({ children }: { readonly children: ReactNode }) {
   return (
     // `dark` is hardcoded rather than toggled: Catppuccin Mocha is the only
-    // scheme, and the class is what shadcn's `dark:` variants key off.
+    // scheme. The class is a safety net so a stray `dark:` variant (e.g. from
+    // a vendored upstream primitive) resolves against this scheme instead of
+    // prefers-color-scheme.
     <html lang="en" className="dark">
       <head>
         <HeadContent />
@@ -87,7 +109,9 @@ function RootDocument({ children }: { readonly children: ReactNode }) {
       <body>
         <CommandPaletteProvider>
           {children}
-          <Toaster richColors />
+          {/* No `richColors`: success/warning paint from the same status tokens
+              as badges and alerts (see ui/sonner.tsx), not Sonner's own hex. */}
+          <Toaster />
         </CommandPaletteProvider>
         {import.meta.env.DEV && (
           <Suspense>

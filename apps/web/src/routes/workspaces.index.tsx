@@ -13,7 +13,8 @@ export const Route = createFileRoute('/workspaces/')({
   loader: ({ context }) =>
     runCapabilities(listWorkspacesForUser(context.session.user.id)),
   pendingComponent: RoutePending,
-  component: WorkspacesPage
+  component: WorkspacesPage,
+  head: () => ({ meta: [{ title: 'Your workspaces | B2B SaaS Starter' }] })
 })
 
 function WorkspacesPage() {
@@ -24,6 +25,7 @@ function WorkspacesPage() {
   return (
     <WorkspaceShell
       viewer={null}
+      systemRole={session.user.role}
       workspaceSlug={null}
       title="Workspaces"
       description="Every workspace your account is a member of."

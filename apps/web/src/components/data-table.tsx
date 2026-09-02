@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from 'react'
-import { Option, Schema } from 'effect'
 import {
   columnFilteringFeature,
   columnVisibilityFeature,
@@ -86,13 +85,18 @@ type SortState = {
   readonly glyph: string | null
 }
 
-const decodeHeaderTitle = Schema.decodeUnknownOption(Schema.String)
-
 const SORT_STATE = {
   asc: { label: ', currently ascending', aria: 'ascending', glyph: '▲' },
   desc: { label: ', currently descending', aria: 'descending', glyph: '▼' },
   false: { label: '', aria: 'none', glyph: null }
 } satisfies Record<'asc' | 'desc' | 'false', SortState>
+
+/** A column's header titles its sort button only when it is a plain string. */
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- column definitions arrive untyped from the table's public API; this probe is the parse step
+function headerTitleOf(header: unknown, fallback: string): string {
+  return typeof header === 'string' ? header : fallback
+}
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
 type DataTableProps<TData extends RowData> = {
   readonly columns: ReadonlyArray<DataTableColumnDef<TData>>
@@ -152,12 +156,11 @@ export function DataTable<TData extends RowData>({
                 const canSort = header.column.getCanSort()
                 const sortDir = header.column.getIsSorted()
                 // A column's header is either a plain title or a render
-                // function; only the first can label the sort button, so decode
-                // for it and fall back to the column id.
-                const headerTitle = decodeHeaderTitle(header.column.columnDef.header)
-                const columnTitle = Option.getOrElse(
-                  headerTitle,
-                  () => header.column.id
+                // function; only the first can label the sort button, so fall
+                // back to the column id for the latter.
+                const columnTitle = headerTitleOf(
+                  header.column.columnDef.header,
+                  header.column.id
                 )
                 const sortState = SORT_STATE[sortDir === false ? 'false' : sortDir]
                 const isSticky = header.column.columnDef.meta?.sticky === true
@@ -222,7 +225,9 @@ export function DataTable<TData extends RowData>({
         </TableBody>
       </Table>
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>
+        {/* Live: filter/pagination changes announce the new count, as the
+            audit trail's count already does. */}
+        <span aria-live="polite">
           Page {table.state.pagination.pageIndex + 1} of {table.getPageCount()}
           {' · '}
           {filteredCount} rows

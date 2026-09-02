@@ -42,12 +42,23 @@ export function ConfirmButton({
   const isArmed = armed ?? armedHere
 
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const idleRef = useRef<HTMLButtonElement>(null)
   const onCancelRef = useRef(onCancel)
+  // True once the button has been armed at least once; guards the effect so
+  // the idle button never steals focus on first mount.
+  const wasArmedRef = useRef(false)
 
   useEffect(() => {
     if (!isArmed) {
+      // Disarm (Escape, Cancel, or Confirm): the armed pair unmounted, which
+      // used to drop focus to <body> — restore it to the idle trigger.
+      if (wasArmedRef.current) {
+        wasArmedRef.current = false
+        idleRef.current?.focus()
+      }
       return
     }
+    wasArmedRef.current = true
     onCancelRef.current = onCancel
     confirmRef.current?.focus()
     function disarm(event: KeyboardEvent) {
@@ -66,6 +77,7 @@ export function ConfirmButton({
   if (!isArmed) {
     return (
       <Button
+        ref={idleRef}
         variant={variant}
         size={size}
         className={className}

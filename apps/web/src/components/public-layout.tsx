@@ -40,7 +40,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
                 <SheetTitle>Menu</SheetTitle>
                 <SheetDescription className="sr-only">Site navigation</SheetDescription>
               </SheetHeader>
-              <nav className="flex flex-col gap-1 px-4 pb-4">
+              <nav aria-label="Site" className="flex flex-col gap-1 px-4 pb-4">
                 {publicLinks.map((link) => (
                   <Link
                     key={link.to}
@@ -51,13 +51,13 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
                     {link.label}
                   </Link>
                 ))}
-                <Link
-                  to="/sign-in"
+                <Button
+                  render={<Link to="/sign-in" />}
                   onClick={() => setMobileNavOpen(false)}
-                  className="mt-2 inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  className="mt-2 max-md:w-full"
                 >
                   Sign in
-                </Link>
+                </Button>
               </nav>
             </SheetContent>
           </Sheet>
@@ -67,7 +67,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             </span>
             B2B SaaS Starter
           </Link>
-          <nav className="ml-auto hidden items-center gap-1 md:flex">
+          <nav aria-label="Site" className="ml-auto hidden items-center gap-1 md:flex">
             {publicLinks.map((link) => (
               <Link
                 key={link.to}
@@ -79,12 +79,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             ))}
           </nav>
           <SearchButton />
-          <Link
-            to="/sign-in"
-            className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Sign in
-          </Link>
+          <Button render={<Link to="/sign-in" />}>Sign in</Button>
         </div>
       </header>
       {children}

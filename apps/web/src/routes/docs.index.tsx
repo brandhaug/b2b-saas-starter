@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { BookOpenIcon } from 'lucide-react'
-import { DOC_CATEGORIES, DOC_CATEGORY_ORDER, getDocsByCategory } from '@/lib/docs'
+import { DOC_CATEGORIES, DOC_CATEGORY_ORDER, getAllDocMeta } from '@/lib/docs'
 
 export const Route = createFileRoute('/docs/')({
+  loader: () => getAllDocMeta(),
   component: DocsIndex,
   head: () => ({
     meta: [
@@ -23,10 +24,13 @@ export const Route = createFileRoute('/docs/')({
 })
 
 function DocsIndex() {
+  const docs = Route.useLoaderData()
   return (
     <div>
       <header className="mb-8">
-        <h1 className="mb-2 text-2xl font-semibold tracking-tight">Documentation</h1>
+        <h1 className="font-display mb-2 text-2xl font-semibold tracking-tight">
+          Documentation
+        </h1>
         <p className="text-sm text-muted-foreground">
           Concepts and recipes for the starter architecture, modules, capability
           interfaces, and operations.
@@ -35,14 +39,14 @@ function DocsIndex() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {DOC_CATEGORY_ORDER.map((slug) => {
-          const articles = getDocsByCategory(slug)
+          const articles = docs.filter((doc) => doc.category === slug)
           if (articles.length === 0) {
             return null
           }
           return (
             <div
               key={slug}
-              className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4"
+              className="flex flex-col gap-2 rounded-none border border-border bg-card p-4"
             >
               <div className="flex items-center gap-2">
                 <BookOpenIcon className="size-4 text-muted-foreground" />

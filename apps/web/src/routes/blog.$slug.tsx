@@ -1,29 +1,29 @@
-import { createFileRoute, Link, notFound } from '@tanstack/react-router'
+import { createFileRoute, Link, notFound, useLoaderData } from '@tanstack/react-router'
 import { ArrowLeftIcon } from 'lucide-react'
-import { useRef } from 'react'
+import { createElement, Suspense, useRef } from 'react'
 import { mdxComponents } from '@/components/mdx-components'
 import { PublicLayout } from '@/components/public-layout'
 import { TableOfContents } from '@/components/table-of-contents'
-import { getPostBySlug, postJsonLd } from '@/lib/blog'
+import { getPostComponent, loadPost, postJsonLd } from '@/lib/blog'
 import { formatUtc } from '@/lib/format-date'
 
 export const Route = createFileRoute('/blog/$slug')({
-  // A bare guard — see docs.$category.$slug.tsx: the lookup is synchronous and
-  // the component re-resolves the module anyway, because the MDX `Component`
-  // is a function and cannot ride in loader data.
-  loader: ({ params }) => {
-    if (!getPostBySlug(params.slug)) {
+  // Metadata in the loader (serializable), component lazy-loaded below — see
+  // docs.$category.$slug.tsx for why the component cannot ride loader data.
+  loader: async ({ params }) => {
+    const post = await loadPost(params.slug)
+    if (!post) {
       throw notFound()
     }
+    return { frontmatter: post.frontmatter }
   },
   component: BlogPostPage,
-  head: ({ params }) => {
-    const post = getPostBySlug(params.slug)
-    if (!post) {
+  head: ({ loaderData }) => {
+    if (!loaderData) {
       return {}
     }
 
-    const { title, description, date, tags, author } = post.frontmatter
+    const { title, description, date, tags, author } = loaderData.frontmatter
     const fullTitle = `${title} | B2B SaaS Starter`
 
     return {
@@ -45,21 +45,20 @@ export const Route = createFileRoute('/blog/$slug')({
 
 function BlogPostPage() {
   const { slug } = Route.useParams()
+  const { frontmatter } = useLoaderData({ from: '/blog/$slug' })
   const articleRef = useRef<HTMLElement>(null)
 
-  // Resolved here rather than shipped from the loader — see the loader.
-  const post = getPostBySlug(slug)
-  if (!post) {
-    throw notFound()
-  }
-  const { Component, frontmatter } = post
+  // Stable per-post identity (cached in lib/blog.ts).
+  const LazyArticle = getPostComponent(slug)
 
   return (
     <PublicLayout>
       <main id="main-content" className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6">
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: postJsonLd(post) }}
+          dangerouslySetInnerHTML={{
+            __html: postJsonLd({ slug, frontmatter })
+          }}
         />
 
         <div className="flex gap-8">
@@ -73,7 +72,7 @@ function BlogPostPage() {
             </Link>
 
             <header className="mb-8">
-              <h1 className="mb-2 text-3xl font-semibold tracking-tight">
+              <h1 className="font-display mb-2 text-3xl font-semibold tracking-tight">
                 {frontmatter.title}
               </h1>
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -101,16 +100,39 @@ function BlogPostPage() {
               )}
             </header>
 
-            <article
-              ref={articleRef}
-              /* Token-mapped prose colors — see docs.$category.$slug.tsx. */
-              className="prose max-w-none"
-            >
-              <Component components={mdxComponents} />
-            </article>
+            {/* In-page navigation below xl: the aside only exists from lg up,
+                so most laptops and every phone used to read long articles with
+                no way to jump sections. */}
+            <details className="mb-6 border border-border xl:hidden">
+              <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
+                On this page
+              </summary>
+              <div className="px-3 pt-1 pb-3">
+                <TableOfContents containerRef={articleRef} />
+              </div>
+            </details>
+
+            {LazyArticle === undefined ? (
+              <p className="text-sm text-destructive">This post could not be loaded.</p>
+            ) : (
+              <article
+                ref={articleRef}
+                /* Token-mapped prose colors — see docs.$category.$slug.tsx. */
+                className="prose max-w-none"
+              >
+                <Suspense
+                  fallback={<p className="text-sm text-muted-foreground">Loading…</p>}
+                >
+                  {/* createElement, not JSX: the component is resolved per post
+                      at runtime, and React Compiler requires JSX component types
+                      to be static module references. */}
+                  {createElement(LazyArticle, { components: mdxComponents })}
+                </Suspense>
+              </article>
+            )}
           </div>
 
-          <aside className="hidden w-48 shrink-0 xl:block">
+          <aside className="hidden w-48 shrink-0 lg:block">
             <TableOfContents containerRef={articleRef} />
           </aside>
         </div>

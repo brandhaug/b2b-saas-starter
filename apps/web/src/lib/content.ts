@@ -1,16 +1,18 @@
 import { type ComponentType, type SVGProps } from 'react'
 import { Activity, BarChart3, CreditCard, Mail, ShieldCheck } from 'lucide-react'
+import { DEPLOY_COMMAND } from '@/lib/toolchain'
 
-/** `to` stays a literal union so TanStack Router still type-checks the links. */
+/** `to` stays a literal union so TanStack Router still type-checks the links.
+ *  No Pricing entry: the starter is MIT and does not sell plans — the plan
+ *  vocabulary lives in the capability catalog and the billing docs. */
 type PublicLink = {
-  readonly to: '/docs' | '/blog' | '/pricing' | '/faq'
+  readonly to: '/docs' | '/blog' | '/faq'
   readonly label: string
 }
 
 export const publicLinks: ReadonlyArray<PublicLink> = [
   { to: '/docs', label: 'Docs' },
   { to: '/blog', label: 'Blog' },
-  { to: '/pricing', label: 'Pricing' },
   { to: '/faq', label: 'FAQ' }
 ]
 
@@ -79,8 +81,7 @@ export const faqItems: ReadonlyArray<FaqItem> = [
   },
   {
     question: 'How does deployment work?',
-    answer:
-      'Alchemy v2 declares every Cloudflare resource — Workers, D1, Queues, Email Service, secrets — as TypeScript. The same description provisions local dev and production, so `bun run deploy` is the whole story.'
+    answer: `Alchemy v2 declares every Cloudflare resource — Workers, D1, Queues, Email Service, secrets — as TypeScript. The same description provisions local dev and production, so \`${DEPLOY_COMMAND}\` is the whole story.`
   },
   {
     question: 'Can I deploy this outside Cloudflare?',
@@ -91,26 +92,5 @@ export const faqItems: ReadonlyArray<FaqItem> = [
     question: 'What is the license, and can I use it commercially?',
     answer:
       'MIT. Fork it, rename it, ship it. Attribution is appreciated but not required.'
-  }
-]
-
-type ChangelogEntry = {
-  readonly version: string
-  readonly date: string
-  readonly title: string
-  readonly changes: ReadonlyArray<string>
-}
-
-export const changelog: ReadonlyArray<ChangelogEntry> = [
-  {
-    version: '0.1.0',
-    date: '2026-05-16',
-    title: 'Initial starter decisions',
-    changes: [
-      'Cloudflare-first architecture',
-      'Effect v4 application backbone',
-      'Better Auth admin dashboard',
-      'Outbound webhooks through Cloudflare Queues'
-    ]
   }
 ]

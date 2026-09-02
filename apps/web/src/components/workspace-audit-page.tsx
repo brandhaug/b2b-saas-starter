@@ -1,6 +1,6 @@
 import { FilterXIcon, HistoryIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Empty,
   EmptyDescription,
@@ -63,11 +63,14 @@ const SELECT_CLASSES = 'max-w-52'
 export function WorkspaceAuditPage({
   workspaceSlug,
   data,
-  applySearch
+  applySearch,
+  systemRole
 }: {
   readonly workspaceSlug: string
   readonly data: WorkspaceAuditPayload
   readonly applySearch: ApplyWorkspaceAuditSearch
+  /** The signed-in user's Better Auth system role, for the shell's admin link. */
+  readonly systemRole?: string | null
 }) {
   const { events, nextCursor, filters, members } = data
   const searchFilters = auditSearchFromFilters(filters)
@@ -95,14 +98,15 @@ export function WorkspaceAuditPage({
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
+      systemRole={systemRole}
       viewer={data.viewer}
       title="Audit trail"
       description="Everything this workspace has done, newest first."
     >
       <Card>
-        <CardHeader>
-          <CardTitle as="h2">Audit trail</CardTitle>
-        </CardHeader>
+        {/* No card title: the shell's h1 already names this page "Audit
+            trail", and a second heading of the same text reads as a
+            duplicate page title. */}
         <CardContent className="grid gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <Select
@@ -212,11 +216,14 @@ export function WorkspaceAuditPage({
                         {formatWhen(event.createdAt)}
                       </TableCell>
                       <TableCell>{auditEventLabel(event.eventType)}</TableCell>
-                      <TableCell className="text-muted-foreground">
+                      {/* Target ids and actor emails are the long values —
+                          these wrap instead of forcing the table out to 700px
+                          on a phone, where the other columns clip. */}
+                      <TableCell className="text-muted-foreground break-words">
                         {event.targetType}
                         {event.targetId ? ` · ${event.targetId}` : ''}
                       </TableCell>
-                      <TableCell>{event.actor}</TableCell>
+                      <TableCell className="break-words">{event.actor}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
