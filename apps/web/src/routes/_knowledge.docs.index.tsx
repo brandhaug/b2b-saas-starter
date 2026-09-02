@@ -2,7 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { BookOpenIcon } from 'lucide-react'
 import { DOC_CATEGORIES, DOC_CATEGORY_ORDER, getAllDocMeta } from '@/lib/docs'
 
-export const Route = createFileRoute('/docs/')({
+export const Route = createFileRoute('/_knowledge/docs/')({
   loader: () => getAllDocMeta(),
   component: DocsIndex,
   head: () => ({

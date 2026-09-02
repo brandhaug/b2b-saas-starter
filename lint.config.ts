@@ -840,8 +840,8 @@ const { lint = {} } = defineConfig({
       },
       {
         files: [
-          'apps/web/src/routes/docs.$category.$slug.tsx',
-          'apps/web/src/routes/blog.$slug.tsx',
+          'apps/web/src/routes/_knowledge.docs.$category.$slug.tsx',
+          'apps/web/src/routes/_knowledge.blog.$slug.tsx',
           'apps/web/src/components/mdx-components.ts',
           'apps/web/src/components/mdx-mermaid.tsx'
         ],
