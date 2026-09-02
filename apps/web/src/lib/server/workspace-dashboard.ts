@@ -1,7 +1,19 @@
 import {
+  ApiTokenRegistry,
+  type ApiToken
+} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import {
   WebhookEndpoints,
   type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import {
+  AuditEventLog,
+  type AuditEvent
+} from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import {
+  WorkspaceInvitations,
+  type Invitation
+} from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import {
   workspaceDashboard,
   type WorkspaceDashboardProjection
@@ -15,14 +27,20 @@ import { workspacePage, type WorkspacePageFrame } from './page-frame'
 
 /**
  * The dashboard payload, assembled per actor: the `workspaceDashboard`
- * projection (everything `notification:read` covers) plus the webhook segment, which
- * is `null` for an actor without `webhook:list`. See
+ * projection (everything `notification:read` covers) plus the soft segments
+ * the attention feed reads, each `null` for an actor without its permission.
+ * A member gets the notifications panel and nothing else — the segments are
+ * never read, so nothing permission-shaped reaches their SSR payload. See
  * `workspace-settings.ts` for why a permission-shaped payload is declared in
  * the app rather than in `@b2b-saas-starter/capabilities`.
  */
 export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
   readonly viewer: WorkspaceViewer | null
   readonly webhooks: ReadonlyArray<WebhookEndpoint> | null
+  readonly apiTokens: ReadonlyArray<ApiToken> | null
+  readonly invitations: ReadonlyArray<Invitation> | null
+  /** The newest audit events, for the dashboard's trailing activity card. */
+  readonly auditEvents: ReadonlyArray<AuditEvent> | null
 }
 
 const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspacePage(
@@ -35,11 +53,28 @@ const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspac
           webhooks: whenPermitted(
             { webhook: ['list'] },
             Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
+          ),
+          apiTokens: whenPermitted(
+            { apiToken: ['list'] },
+            Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
+          ),
+          invitations: whenPermitted(
+            { invitation: ['create'] },
+            Effect.flatMap(WorkspaceInvitations, (invites) => invites.list)
+          ),
+          auditEvents: whenPermitted(
+            { auditLog: ['read'] },
+            Effect.flatMap(AuditEventLog, (log) =>
+              Effect.map(log.list(), (page) => page.events.slice(0, 5))
+            )
           )
         },
         { concurrency: 'unbounded' }
       ),
-      (segments) => ({ ...segments.core, webhooks: segments.webhooks })
+      (segments) => {
+        const { core, ...soft } = segments
+        return { ...core, ...soft }
+      }
     )
 )
 

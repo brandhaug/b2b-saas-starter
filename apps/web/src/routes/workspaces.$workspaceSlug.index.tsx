@@ -2,8 +2,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { lazy, Suspense } from 'react'
 import {
   LiveNotifications,
-  type ListNotifications
+  type ListNotifications,
+  type MarkNotificationsRead
 } from '@/components/live-notifications'
+import { AttentionFeed } from '@/components/attention-feed'
+import { attentionItems } from '@/lib/attention'
 import { PageHeader } from '@/components/page/page-header'
 import { pageTitle } from '@/components/page/page-title'
 import { Panel } from '@/components/page/panel'
@@ -30,8 +33,8 @@ const WebhookSuccessChart = lazy(loadWebhookSuccessChart)
 export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
   // The `workspaceDashboard` projection — shared with the REST `overview`
   // endpoint so app and Capability Interface views cannot drift — plus the
-  // webhook segment, which the loader drops for an actor without
-  // `webhook:list`.
+  // soft segments the attention feed reads, each dropped (null) for an actor
+  // without its permission.
   loader: ({ params, context }) =>
     loadWorkspaceDashboard({
       workspaceSlug: params.workspaceSlug,
@@ -61,8 +64,11 @@ export function WorkspaceDashboardPage({
   readonly data: WorkspaceDashboardPayload
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
-  /** The one server call this page's children make, forwarded for tests. */
-  readonly ports?: { readonly listNotifications?: ListNotifications }
+  /** The server calls this page's children make, forwarded for tests. */
+  readonly ports?: {
+    readonly listNotifications?: ListNotifications
+    readonly markNotificationsRead?: MarkNotificationsRead
+  }
 }) {
   const { workspace, notifications, webhooks, unreadCount, viewer } = data
 
@@ -75,7 +81,16 @@ export function WorkspaceDashboardPage({
     >
       <PageHeader
         title={workspace.name}
-        description="Notifications, API tokens, webhooks, and reports."
+        description="What needs your attention, then what changed."
+      />
+      <AttentionFeed
+        workspaceSlug={workspace.slug}
+        items={attentionItems({
+          invitations: data.invitations,
+          apiTokens: data.apiTokens,
+          webhooks,
+          auditEvents: data.auditEvents
+        })}
       />
       <LiveNotifications
         workspaceSlug={workspace.slug}
@@ -83,6 +98,9 @@ export function WorkspaceDashboardPage({
         {...(ports?.listNotifications === undefined
           ? {}
           : { listNotifications: ports.listNotifications })}
+        {...(ports?.markNotificationsRead === undefined
+          ? {}
+          : { markRead: ports.markNotificationsRead })}
       />
       {/* `null` means the actor holds no `webhook:list`, so the loader never
           read the endpoints — there is nothing to chart and nothing to hide. */}

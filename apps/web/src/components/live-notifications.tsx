@@ -4,12 +4,13 @@ import { BellIcon, RefreshCwIcon } from 'lucide-react'
 import { causeMessage } from '@/lib/cause-message'
 import {
   listNotificationsServerFn,
+  markNotificationsReadServerFn,
   notificationsQueryKey
 } from '@/lib/server/notifications'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Panel } from '@/components/page/panel'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import {
   Empty,
   EmptyDescription,
@@ -19,14 +20,17 @@ import {
 } from '@/components/ui/empty'
 import {
   Item,
+  ItemActions,
   ItemContent,
   ItemDescription,
   ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
 import { Spinner } from '@/components/ui/spinner'
+import { useServerAction } from '@/hooks/use-server-action'
 
 const REFRESH_FAILED = 'Could not refresh notifications.'
+const MARK_READ_FAILED = 'Could not mark the notification read.'
 
 export type NotificationPreview = Pick<
   CapabilityNotification,
@@ -34,22 +38,28 @@ export type NotificationPreview = Pick<
 >
 
 /**
- * The one server call this card makes, as a port. Injected rather than imported
- * at the call site so a test drives the card with a real function of this shape
- * instead of replacing the module it lives in.
+ * The two server calls this panel makes, as ports. Injected rather than
+ * imported at the call site so a test drives the panel with real functions of
+ * these shapes instead of replacing the modules they live in.
  */
 export type ListNotifications = (input: {
   readonly data: { readonly workspaceSlug: string }
 }) => Promise<ReadonlyArray<NotificationPreview>>
 
+export type MarkNotificationsRead = (input: {
+  readonly data: { readonly workspaceSlug: string; readonly ids: ReadonlyArray<string> }
+}) => Promise<number>
+
 export function LiveNotifications({
   workspaceSlug,
   fallback,
-  listNotifications = listNotificationsServerFn
+  listNotifications = listNotificationsServerFn,
+  markRead = markNotificationsReadServerFn
 }: {
   readonly workspaceSlug: string
   readonly fallback: ReadonlyArray<NotificationPreview>
   readonly listNotifications?: ListNotifications
+  readonly markRead?: MarkNotificationsRead
 }) {
   const { data, error, isFetching, refetch } = useQuery({
     queryKey: notificationsQueryKey(workspaceSlug),
@@ -57,64 +67,117 @@ export function LiveNotifications({
     initialData: fallback
   })
 
-  // `initialData` makes the query's data non-nullable — the fallback is the
-  // first render's value, so there is no undefined state to guard.
-  const notifications = data
+  // The unread ids of the loaded list, in one pass — marking read re-runs the
+  // same query, so the loader owns the state and there is none to mirror.
+  const unread: Array<string> = []
+  for (const notification of data) {
+    if (!notification.read) {
+      unread.push(notification.id)
+    }
+  }
+
+  const mark = useServerAction(
+    (ids: ReadonlyArray<string>) => markRead({ data: { workspaceSlug, ids } }),
+    {
+      failureMessage: MARK_READ_FAILED,
+      invalidate: false,
+      onSuccess: () => {
+        void refetch()
+      }
+    }
+  )
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle as="h2" className="flex items-center gap-2">
-          <BellIcon data-icon="inline-start" />
-          Notifications
-        </CardTitle>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            // The query surfaces refetch failures through `error` below.
-            void refetch()
-          }}
-          disabled={isFetching}
-          aria-label="Refresh notifications"
-        >
-          {isFetching ? (
-            <Spinner data-icon="inline-start" />
-          ) : (
-            <RefreshCwIcon data-icon="inline-start" />
+    <Panel
+      title="Notifications"
+      actions={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              // The query surfaces refetch failures through `error` below.
+              void refetch()
+            }}
+            disabled={isFetching}
+            aria-label="Refresh notifications"
+          >
+            {isFetching ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <RefreshCwIcon data-icon="inline-start" />
+            )}
+          </Button>
+          {unread.length === 0 ? null : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={mark.pending}
+              onClick={() => mark.run(unread)}
+            >
+              {mark.pending ? <Spinner data-icon="inline-start" /> : null}
+              Mark all read
+              <span className="sr-only">
+                {' '}
+                ({unread.length} unread notification
+                {unread.length === 1 ? '' : 's'})
+              </span>
+            </Button>
           )}
-        </Button>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{causeMessage(error, REFRESH_FAILED)}</AlertDescription>
-          </Alert>
-        ) : null}
-        {notifications.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <BellIcon />
-              </EmptyMedia>
-              <EmptyTitle>You're all caught up</EmptyTitle>
-              <EmptyDescription>No notifications yet.</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : null}
+        </>
+      }
+      footer={
+        <>
+          {error ? (
+            <ActionFeedback error={causeMessage(error, REFRESH_FAILED)} />
+          ) : null}
+          <ActionFeedback error={mark.error} />
+        </>
+      }
+    >
+      {data.length === 0 ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <BellIcon />
+            </EmptyMedia>
+            <EmptyTitle>You're all caught up</EmptyTitle>
+            <EmptyDescription>No notifications yet.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
         <ItemGroup>
-          {notifications.map((notification) => (
+          {data.map((notification) => (
             <Item key={notification.id} variant="outline" size="sm">
               <ItemContent>
                 <ItemTitle>{notification.title}</ItemTitle>
                 <ItemDescription>{notification.message}</ItemDescription>
               </ItemContent>
-              {!notification.read && <Badge variant="info">New</Badge>}
+              <ItemActions>
+                {notification.read ? (
+                  <Badge variant="neutral">Read</Badge>
+                ) : (
+                  <>
+                    <Badge variant="info">New</Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={mark.pending}
+                      onClick={() => mark.run([notification.id])}
+                      aria-label={`Mark read: ${notification.title}`}
+                    >
+                      Mark read
+                    </Button>
+                  </>
+                )}
+              </ItemActions>
             </Item>
           ))}
         </ItemGroup>
-      </CardContent>
-    </Card>
+      )}
+    </Panel>
   )
 }

@@ -33,6 +33,10 @@ import {
   NotificationFeed,
   SeedNotificationFeed
 } from './notifications/notification-feed.ts'
+import {
+  notificationFeedContractCases,
+  notificationFeedContractDataset
+} from './notifications/notification-feed.contract.ts'
 import { testWorkspaceContext, type Actor } from './workspace-context.ts'
 import {
   SeedWorkspaceLifecycle,
@@ -123,6 +127,49 @@ describe('seed audit event log contract', () => {
   for (const contractCase of cases) {
     it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
   }
+})
+
+describe('seed notification feed contract', () => {
+  const workspaceId = 'wrk_notification_contract'
+  const workspace = {
+    id: workspaceId,
+    slug: 'notification-lab',
+    name: 'Notification Lab',
+    planId: 'team'
+  }
+  const ids = {
+    broadcastUnread: 'not_c_broadcast',
+    broadcastRead: 'not_c_broadcast_read',
+    aliceUnread: 'not_c_alice'
+  }
+  const cases = notificationFeedContractCases(() => ids, expect)
+  for (const contractCase of cases) {
+    // A fresh fixture per case: the cases mutate the feed, so one shared
+    // layer would let case order decide the outcome.
+    const layer = Layer.merge(
+      SeedNotificationFeed(notificationFeedContractDataset(contractCase.dataset)),
+      testWorkspaceContext(workspace)
+    )
+    it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
+  }
+
+  it.effect('a user-targeted row is markable by its addressee', () =>
+    Effect.provide(
+      Effect.gen(function* () {
+        const feed = yield* NotificationFeed
+        const marked = yield* feed.markRead([ids.aliceUnread])
+        expect(marked).toBe(1)
+      }),
+      Layer.merge(
+        SeedNotificationFeed(notificationFeedContractDataset(ids)),
+        testWorkspaceContext(workspace, {
+          userId: 'usr_alice',
+          role: 'member',
+          systemRole: 'user'
+        })
+      )
+    )
+  )
 })
 
 describe('starter capabilities', () => {

@@ -1,27 +1,23 @@
 import { Skeleton } from '@/components/ui/skeleton'
 
 /**
- * Shared `pendingComponent` for capability-backed routes: a quiet card-shaped
- * skeleton matching the workspace layout rhythm (semantic tokens only, per
- * DESIGN.md).
+ * Shared `pendingComponent` for capability-backed routes: a skeleton in the
+ * exact shape every workspace page renders — a breadcrumb line, the page
+ * header, then one stacked panel. The shell already centers the column, so
+ * this carries no width of its own (semantic tokens only, per DESIGN.md).
  */
 export function RoutePending() {
   return (
-    <output
-      className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-10 sm:px-6"
-      aria-live="polite"
-    >
+    <output className="grid w-full gap-6" aria-live="polite">
       <span className="sr-only">Loading…</span>
       <div className="grid gap-2">
+        <Skeleton className="h-4 w-32" />
         <Skeleton className="h-7 w-56" />
         <Skeleton className="h-4 w-96 max-w-full" />
       </div>
-      <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-        <Skeleton className="h-72" />
-        <div className="grid gap-6">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-        </div>
+      <div className="grid gap-4 rounded-none border border-border bg-card p-4 sm:p-6">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-40 w-full" />
       </div>
     </output>
   )
