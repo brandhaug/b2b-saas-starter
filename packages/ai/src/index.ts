@@ -2,7 +2,7 @@ import { failureMessage } from '@b2b-saas-starter/failure'
 import { Context, Effect, Layer, Option, Schema } from 'effect'
 
 import { type Writable } from '@b2b-saas-starter/config/writable'
-import { type ServerEnv } from '@b2b-saas-starter/env/server'
+import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class AssistantUnavailable extends Schema.TaggedError<AssistantUnavailable>()(
@@ -222,14 +222,9 @@ export function makeOpenAILayer(config: OpenAIConfig) {
  * present-but-null binding; every read below is a truthiness check, so null
  * reads as unconfigured too.
  */
-type AssistantEnvVars = Pick<
-  ServerEnv,
+export type ProviderEnv = ProviderEnvOf<
   'WORKERS_AI_ENABLED' | 'OPENAI_API_KEY' | 'OPENAI_BASE_URL' | 'OPENAI_MODEL_ID'
->
-
-export type ProviderEnv = {
-  readonly [K in keyof AssistantEnvVars]?: AssistantEnvVars[K] | undefined
-} & {
+> & {
   readonly AI?: WorkersAIBinding | undefined
 }
 
@@ -249,14 +244,14 @@ function selectProvider(env: ProviderEnv): ProviderChoice {
   if (env.WORKERS_AI_ENABLED === 'true' && env.AI) {
     return { provider: 'workers-ai', binding: env.AI }
   }
-  if (env.OPENAI_API_KEY) {
+  if (hasValue(env.OPENAI_API_KEY)) {
     // Assigned only when set so the layer's own defaults (api.openai.com,
     // gpt-4o-mini) still apply for absent vars.
     const config: Writable<OpenAIConfig> = { apiKey: env.OPENAI_API_KEY }
-    if (env.OPENAI_BASE_URL) {
+    if (hasValue(env.OPENAI_BASE_URL)) {
       config.baseUrl = env.OPENAI_BASE_URL
     }
-    if (env.OPENAI_MODEL_ID) {
+    if (hasValue(env.OPENAI_MODEL_ID)) {
       config.modelId = env.OPENAI_MODEL_ID
     }
     return { provider: 'openai-compatible', config }

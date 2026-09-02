@@ -1,3 +1,4 @@
+import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 import { failureMessage } from '@b2b-saas-starter/failure'
 import { render } from '@react-email/render'
 import { Context, Effect, Layer, Schema } from 'effect'
@@ -151,9 +152,8 @@ export function makeCloudflareEmailDispatcherLayer(
  * rather than each hand-building a bag that omits the absent keys — the
  * selector's own check is what decides whether the provider goes live.
  */
-export type EmailDispatcherEnv = {
+export type EmailDispatcherEnv = ProviderEnvOf<'CLOUDFLARE_EMAIL_FROM'> & {
   readonly EMAIL?: SendEmailBinding | undefined
-  readonly EMAIL_FROM_ADDRESS?: string | undefined
 }
 
 /**
@@ -163,9 +163,9 @@ export type EmailDispatcherEnv = {
 export function selectEmailDispatcherLayer(
   env: EmailDispatcherEnv
 ): Layer.Layer<EmailDispatcher> {
-  if (env.EMAIL && env.EMAIL_FROM_ADDRESS) {
+  if (env.EMAIL && hasValue(env.CLOUDFLARE_EMAIL_FROM)) {
     return makeCloudflareEmailDispatcherLayer(env.EMAIL, {
-      defaultFrom: env.EMAIL_FROM_ADDRESS
+      defaultFrom: env.CLOUDFLARE_EMAIL_FROM
     })
   }
   return LogEmailDispatcherLayer

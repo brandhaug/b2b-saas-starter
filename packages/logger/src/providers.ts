@@ -28,17 +28,19 @@
 // oxlint-disable effect/noAsyncFunction, effect/noTryCatch, effect/noNewPromise
 import { type CloudflareOptions } from '@sentry/cloudflare'
 
+import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
+
 import { addWideEventSink, type WideEventRecord } from './wide-event.ts'
 
 /** Env fields the vendor glue reads. All optional; absence disables the vendor. */
-export type ProviderGlueEnv = {
-  readonly SENTRY_DSN?: string | undefined
-  readonly POSTHOG_KEY?: string | undefined
-  readonly POSTHOG_HOST?: string | undefined
-  readonly SERVICE_VERSION?: string | undefined
-  readonly GIT_COMMIT_SHA?: string | undefined
-  readonly ENVIRONMENT?: string | undefined
-}
+export type ProviderGlueEnv = ProviderEnvOf<
+  | 'SENTRY_DSN'
+  | 'POSTHOG_KEY'
+  | 'POSTHOG_HOST'
+  | 'SERVICE_VERSION'
+  | 'GIT_COMMIT_SHA'
+  | 'ENVIRONMENT'
+>
 
 const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com'
 
@@ -56,7 +58,7 @@ export function makeSentryOptions(
     initialScope: { tags: { service } },
     tracesSampleRate: 1
   }
-  if (env.SENTRY_DSN) {
+  if (hasValue(env.SENTRY_DSN)) {
     options.dsn = env.SENTRY_DSN
   }
   if (release) {
@@ -138,7 +140,7 @@ async function captureSentryError(record: WideEventRecord): Promise<void> {
  */
 async function capturePostHogEvent(record: WideEventRecord): Promise<void> {
   const env = wiredEnv
-  if (env?.POSTHOG_KEY === undefined || env.POSTHOG_KEY.length === 0) {
+  if (!hasValue(env?.POSTHOG_KEY)) {
     return
   }
   const { PostHog } = await import('posthog-node')

@@ -2,19 +2,21 @@ import { Duration, Layer } from 'effect'
 import { FetchHttpClient } from 'effect/unstable/http'
 import { Otlp } from 'effect/unstable/observability'
 
+import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
+
 import { readWideEventEnvironment } from './environment.ts'
 
-export type ObservabilityEnv = {
-  readonly OTEL_EXPORTER_OTLP_ENDPOINT?: string | undefined
-  readonly OTEL_EXPORTER_OTLP_HEADERS?: string | undefined
-  readonly SERVICE_VERSION?: string | undefined
-  readonly ENVIRONMENT?: string | undefined
-  readonly GIT_COMMIT_SHA?: string | undefined
-}
+export type ObservabilityEnv = ProviderEnvOf<
+  | 'OTEL_EXPORTER_OTLP_ENDPOINT'
+  | 'OTEL_EXPORTER_OTLP_HEADERS'
+  | 'SERVICE_VERSION'
+  | 'ENVIRONMENT'
+  | 'GIT_COMMIT_SHA'
+>
 
 /** Parses the OTLP `key=value,key=value` header form used by the OTel spec. */
 function otlpHeaders(value: string | undefined): Record<string, string> | undefined {
-  if (!value) {
+  if (!hasValue(value)) {
     return undefined
   }
   const entries = value.split(',').flatMap((entry) => {

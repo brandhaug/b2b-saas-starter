@@ -932,6 +932,9 @@ importers:
 
   packages/email:
     dependencies:
+      '@b2b-saas-starter/env':
+        specifier: workspace:*
+        version: link:../env
       '@b2b-saas-starter/failure':
         specifier: workspace:*
         version: link:../failure
@@ -1012,6 +1015,9 @@ importers:
 
   packages/logger:
     dependencies:
+      '@b2b-saas-starter/env':
+        specifier: workspace:*
+        version: link:../env
       '@b2b-saas-starter/failure':
         specifier: workspace:*
         version: link:../failure

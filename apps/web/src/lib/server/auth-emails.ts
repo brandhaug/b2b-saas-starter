@@ -46,10 +46,10 @@ let selected: Layer.Layer<EmailDispatcher> | undefined
  * `AuthConfigLive`'s `Layer.sync`.
  */
 export function emailDispatcherLayer(): Layer.Layer<EmailDispatcher> {
-  selected ??= selectEmailDispatcherLayer({
-    EMAIL: cloudflareEnv.EMAIL,
-    EMAIL_FROM_ADDRESS: cloudflareEnv.CLOUDFLARE_EMAIL_FROM
-  })
+  // The env bag goes through as it is: `EmailDispatcherEnv` names the same
+  // `CLOUDFLARE_EMAIL_FROM` the schema and the deploy do, so there is no
+  // second name to translate between.
+  selected ??= selectEmailDispatcherLayer(cloudflareEnv)
   return selected
 }
 

@@ -39,6 +39,22 @@ export const ServerEnvSchema = Schema.Struct({
 
 export type ServerEnv = typeof ServerEnvSchema.Type
 
+/**
+ * A provider module's slice of the server env.
+ *
+ * Every key is optional *and* explicitly `| undefined`: the repo runs with
+ * `exactOptionalPropertyTypes`, so a bare `?:` would forbid passing a key
+ * whose value is `undefined` — which is exactly what a worker env bag hands
+ * over for an unset var. That constraint is what used to force callers to
+ * hand-build a bag key by key instead of passing their env straight through.
+ *
+ * Pair it with {@link hasValue} for the presence test, so every module answers
+ * "is this provider configured" the same way.
+ */
+export type ProviderEnvOf<K extends keyof ServerEnv> = {
+  readonly [P in K]?: ServerEnv[P] | undefined
+}
+
 // Optional provider env forwarded by alchemy to all three workers. Secret keys
 // are wrapped in `Redacted` at deploy time; plain keys are forwarded as-is.
 // `satisfies` pins both lists to schema keys, so a typo or a var that was
