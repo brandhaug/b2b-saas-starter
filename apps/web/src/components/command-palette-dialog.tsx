@@ -64,6 +64,9 @@ export default function CommandPaletteDialog({
       rows.push(
         <CommandItem
           key={row.to}
+          // Grouped rows match their section name too — the sidebar says
+          // "General", the palette still answers "settings".
+          {...(row.group === undefined ? {} : { keywords: [row.group] })}
           onSelect={() => {
             close()
             void navigate({ to, params: { workspaceSlug } })

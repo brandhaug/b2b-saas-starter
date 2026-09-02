@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { InvitationPanel } from '@/components/invitation-panel'
 import { MembersPanel } from '@/components/members-panel'
 import { PageHeader } from '@/components/page/page-header'
 import { pageTitle } from '@/components/page/page-title'
@@ -53,7 +54,7 @@ export function WorkspaceMembersPage({
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
 }) {
-  const { viewer, unreadCount, members } = data
+  const { viewer, unreadCount, members, invitations } = data
 
   return (
     <WorkspaceShell
@@ -65,9 +66,18 @@ export function WorkspaceMembersPage({
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
         title="Members"
-        description="Everyone with access to this workspace."
+        description="Everyone with access to this workspace, and everyone on their way in."
       />
       <MembersPanel workspaceSlug={workspaceSlug} members={members} viewer={viewer} />
+      {/* `null` means this actor may not read the invitation segment; the
+          panel gates its own form against `invitation:create`. */}
+      {invitations === null ? null : (
+        <InvitationPanel
+          workspaceSlug={workspaceSlug}
+          viewer={viewer}
+          invitations={invitations}
+        />
+      )}
     </WorkspaceShell>
   )
 }

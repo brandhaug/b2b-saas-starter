@@ -12,28 +12,26 @@ const OWNER = 'usr_demo'
 const MEMBER = 'usr_dev'
 
 describe('loadWorkspaceSettings', () => {
-  it('gives an owner every segment of the settings payload', async () => {
+  it('names the workspace and badges unread for an owner', async () => {
     const payload = await loadWorkspaceSettings({
       workspaceSlug: 'starter-lab',
       userId: OWNER
     })
     expect(payload.viewer).toEqual({ role: 'owner' })
-    expect(payload.apiTokenCount).toBeTypeOf('number')
-    expect(payload.webhookCount).toBeTypeOf('number')
-    expect(payload.invitations).toBeInstanceOf(Array)
+    expect(payload.workspaceName).toBeTypeOf('string')
+    expect(payload.unreadCount).toBeTypeOf('number')
   })
 
-  it('withholds the segments a member may not read', async () => {
+  it('gives a member the same settings payload — the page reads only identity', async () => {
+    // Settings carries the workspace's name and nothing permission-shaped:
+    // the roster and invitations moved to the members page, so there is no
+    // soft segment left to withhold and the payloads converge.
     const payload = await loadWorkspaceSettings({
       workspaceSlug: 'starter-lab',
       userId: MEMBER
     })
     expect(payload.viewer).toEqual({ role: 'member' })
+    expect(payload.workspaceName).toBeTypeOf('string')
     expect(payload.unreadCount).toBeTypeOf('number')
-    // Denied by the matrix — and denied server-side, so the numbers never
-    // reach the serialized loader payload at all.
-    expect(payload.apiTokenCount).toBeNull()
-    expect(payload.webhookCount).toBeNull()
-    expect(payload.invitations).toBeNull()
   })
 })

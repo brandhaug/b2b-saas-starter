@@ -1,6 +1,5 @@
 import { ChevronRightIcon } from 'lucide-react'
-import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/workspace-projections'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { CreateWorkspaceForm } from '@/components/create-workspace-form'
 import { EmailVerificationBanner } from '@/components/email-verification-banner'
 import { PageHeader } from '@/components/page/page-header'
@@ -16,20 +15,21 @@ import {
   ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
-import { runCapabilities } from '@/lib/capabilities'
+import {
+  useWorkspaceDirectory,
+  type WorkspaceDirectory
+} from '@/lib/workspace-directory'
 
 export const Route = createFileRoute('/workspaces/')({
-  // "My workspaces" is a cross-workspace projection: possibly empty, never a
-  // 404 — an empty array renders the empty state below.
-  loader: ({ context }) =>
-    runCapabilities(listWorkspacesForUser(context.session.user.id)),
+  // The list itself is the layout route's directory load — possibly empty,
+  // never a 404; an empty array renders the empty state below.
   pendingComponent: RoutePending,
   component: WorkspacesPage,
   head: () => ({ meta: [{ title: pageTitle('Your workspaces') }] })
 })
 
 function WorkspacesPage() {
-  const workspaces = Route.useLoaderData()
+  const workspaces: WorkspaceDirectory = useWorkspaceDirectory() ?? []
   const session = Route.useRouteContext().session
   const navigate = useNavigate()
 

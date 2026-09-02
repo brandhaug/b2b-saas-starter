@@ -17,24 +17,16 @@ const signOut = vi.fn<SignOut>()
 const settingsSummary: WorkspaceSettingsPayload = {
   viewer: { role: 'owner' },
   workspaceName: 'Starter Lab',
-  apiTokenCount: 3,
-  webhookCount: 1,
-  unreadCount: 2,
-  // The invitation panel renders from the same projection; an empty list is the
-  // state a fresh workspace is in.
-  invitations: []
+  unreadCount: 2
 }
 
 /**
- * What a `member` receives from the loader: the segments the matrix denies are
- * `null`, because the server never read them (see loadWorkspaceSettings).
+ * What a `member` receives from the loader: settings carries only workspace
+ * identity, so the payload is the same shape — only the viewer role differs.
  */
 const memberSettings: WorkspaceSettingsPayload = {
   ...settingsSummary,
-  viewer: { role: 'member' },
-  apiTokenCount: null,
-  webhookCount: null,
-  invitations: null
+  viewer: { role: 'member' }
 }
 
 async function renderPage(data: WorkspaceSettingsPayload = settingsSummary) {
@@ -51,52 +43,29 @@ async function renderPage(data: WorkspaceSettingsPayload = settingsSummary) {
 }
 
 describe('WorkspaceSettingsPage', () => {
-  it('renders the operational counts from the loader projection', async () => {
-    await renderPage()
-    screen.getByText('3')
-    screen.getByText(/active workspace-scoped tokens/)
-    screen.getByRole('link', { name: 'API tokens page' })
-    screen.getByText('1')
-    screen.getByText(/endpoint is configured/)
-    // Unread-notification badge in the shell header.
-    screen.getByText('2')
-  })
-
-  it('links to the API tokens page instead of hosting the form', async () => {
-    await renderPage()
-    screen.getByRole('link', { name: 'API tokens page' })
-  })
-})
-
-describe('WorkspaceSettingsPage as a member', () => {
-  it('does not render the api token section', async () => {
-    await renderPage(memberSettings)
-    expect(screen.queryByText('API tokens')).toBeNull()
-    expect(screen.queryByRole('link', { name: 'API tokens page' })).toBeNull()
-  })
-
-  it('does not render the invitation or webhook sections', async () => {
-    await renderPage(memberSettings)
-    expect(screen.queryByLabelText('Invite by email')).toBeNull()
-    expect(screen.queryByLabelText('Email')).toBeNull()
-    expect(screen.queryByText('Outbound webhooks')).toBeNull()
-  })
-})
-
-describe('WorkspaceSettingsPage lifecycle sections', () => {
-  it('offers rename and delete to an owner', async () => {
+  it('renders the rename and delete surface for an owner', async () => {
     await renderPage()
     screen.getByLabelText('Workspace name')
     screen.getByRole('button', { name: 'Save name' })
     screen.getByRole('button', { name: 'Delete workspace' })
+    // Unread-notification badge in the shell header.
+    screen.getByText('2')
+    // The operational-settings card is gone: invitations live on the members
+    // page and the token/webhook counts on their own pages.
+    expect(screen.queryByText('Operational settings')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'API tokens page' })).toBeNull()
   })
+})
 
+describe('WorkspaceSettingsPage as a member', () => {
   it('hides both from a member and says why', async () => {
     await renderPage(memberSettings)
     expect(screen.queryByRole('button', { name: 'Delete workspace' })).toBeNull()
     expect(screen.getByText(/cannot change or delete the workspace/)).toBeTruthy()
   })
+})
 
+describe('WorkspaceSettingsPage lifecycle ports', () => {
   it('renames through the port and reports success', async () => {
     const rename = vi.fn<RenameWorkspace>().mockResolvedValue({ name: 'Renamed Lab' })
     await renderWithRouter(

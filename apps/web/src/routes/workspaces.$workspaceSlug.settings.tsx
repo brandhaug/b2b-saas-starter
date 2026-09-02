@@ -1,5 +1,4 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { InvitationPanel } from '@/components/invitation-panel'
+import { createFileRoute } from '@tanstack/react-router'
 import { PageHeader } from '@/components/page/page-header'
 import { pageTitle } from '@/components/page/page-title'
 import { Panel } from '@/components/page/panel'
@@ -11,7 +10,6 @@ import {
   type DeleteWorkspace,
   type RenameWorkspace
 } from '@/components/workspace-general-settings'
-import { Label } from '@/components/ui/label'
 import { viewerCan } from '@/lib/permissions'
 import {
   loadWorkspaceSettings,
@@ -76,15 +74,10 @@ export function WorkspaceSettingsPage({
     readonly deleteWorkspace?: DeleteWorkspace
   }
 }) {
-  const {
-    viewer,
-    workspaceName,
-    apiTokenCount,
-    webhookCount,
-    unreadCount,
-    invitations
-  } = data
-  // A `null` segment is the server's answer that this actor may not read it.
+  const { viewer, workspaceName, unreadCount } = data
+  // Rename and delete are gated per action, not per page: an admin may rename
+  // but never delete, a member sees neither. The server functions enforce the
+  // same statements.
   const canRename = viewerCan(viewer, { organization: ['update'] })
   const canDelete = viewerCan(viewer, { organization: ['delete'] })
 
@@ -99,81 +92,33 @@ export function WorkspaceSettingsPage({
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
         title="Workspace settings"
-        description="API tokens, members, and webhook configuration."
+        description="The workspace's name, and the decision to end it."
       />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="Workspace">
-          {/* Rename and delete are gated per action, not per page: an admin
-              may rename but never delete, a member sees neither. The server
-              functions enforce the same statements. */}
-          {canRename || canDelete ? (
-            <WorkspaceGeneralSettings
-              workspaceSlug={workspaceSlug}
-              currentName={workspaceName}
-              canRename={canRename}
-              canDelete={canDelete}
-              {...(ports === undefined
-                ? {}
-                : {
-                    ports: {
-                      rename: ports.renameWorkspace,
-                      remove: ports.deleteWorkspace
-                    }
-                  })}
-            />
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Your role cannot change or delete the workspace.
-            </p>
-          )}
-        </Panel>
-        {/* `null` means this actor may not read the invitation segment; the
-            panel gates its own form against `invitation:create`. */}
-        {invitations === null ? null : (
-          <InvitationPanel
+      {/* Rename and delete are gated per action, not per page: an admin may
+          rename but never delete, a member sees neither. The server functions
+          enforce the same statements. */}
+      <Panel title="General">
+        {canRename || canDelete ? (
+          <WorkspaceGeneralSettings
             workspaceSlug={workspaceSlug}
-            viewer={viewer}
-            invitations={invitations}
+            currentName={workspaceName}
+            canRename={canRename}
+            canDelete={canDelete}
+            {...(ports === undefined
+              ? {}
+              : {
+                  ports: {
+                    rename: ports.renameWorkspace,
+                    remove: ports.deleteWorkspace
+                  }
+                })}
           />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Your role cannot change or delete the workspace.
+          </p>
         )}
-        <Panel title="Operational settings">
-          {apiTokenCount === null ? null : (
-            <div className="grid gap-2">
-              <Label>API tokens</Label>
-              <p className="text-sm text-muted-foreground">
-                <span className="font-mono tabular-nums">{apiTokenCount}</span> active
-                workspace-scoped tokens. Creation and revocation live on the{' '}
-                <Link
-                  to="/workspaces/$workspaceSlug/api-tokens"
-                  params={{ workspaceSlug }}
-                  className="underline underline-offset-2"
-                >
-                  API tokens page
-                </Link>
-                .
-              </p>
-            </div>
-          )}
-          {webhookCount === null ? null : (
-            <div className="grid gap-2">
-              <Label>Outbound webhooks</Label>
-              <p className="text-sm text-muted-foreground">
-                <span className="font-mono tabular-nums">{webhookCount}</span> endpoint
-                {webhookCount === 1 ? ' is' : 's are'} configured for selected workspace
-                events. Registration, delivery history, and secret rotation live on the{' '}
-                <Link
-                  to="/workspaces/$workspaceSlug/webhooks"
-                  params={{ workspaceSlug }}
-                  className="underline underline-offset-2"
-                >
-                  Webhooks page
-                </Link>
-                .
-              </p>
-            </div>
-          )}
-        </Panel>
-      </div>
+      </Panel>
     </WorkspaceShell>
   )
 }
