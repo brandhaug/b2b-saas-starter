@@ -3,6 +3,7 @@ import { type JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
 import { tokenPrincipal, type ApiTokenScope } from '@b2b-saas-starter/authz/client'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
+  mirroredRestPath,
   READ_OPERATIONS,
   readOperations,
   type CapabilityReadError,
@@ -60,20 +61,23 @@ export const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
 const OVERVIEW_RESOURCE_URI = 'workspace://overview'
 
 /**
- * Every tool's arguments mirror its REST counterpart's query: the five list
+/**
+ * Every tool's arguments mirror its REST counterpart's inputs: the five list
  * tools take the same optional `cursor`/`limit` the REST route accepts
- * (ADR 0057) and the overview resource takes none. Out-of-range limits are
- * clamped by the capability layer, exactly as REST clamps them — the wire
- * schema stays permissive so MCP and REST cannot disagree about what a valid
- * page request is. The zod schema is what the MCP SDK registers with, and the
- * JSON Schema `GET /mcp` advertises is generated from it — minus the
- * `$schema` dialect header, which a tool descriptor's `inputSchema` has no
- * use for.
+ * (ADR 0057), the one parameterized read (deliveries for one endpoint) takes
+ * exactly that path parameter, and the overview resource takes none.
+ * Out-of-range limits are clamped by the capability layer, exactly as REST
+ * clamps them — the wire schemas stay permissive so MCP and REST cannot
+ * disagree about what a valid request is. The zod schemas are what the MCP
+ * SDK registers with, and the JSON Schema `GET /mcp` advertises is generated
+ * from them — minus the `$schema` dialect header, which a tool descriptor's
+ * `inputSchema` has no use for — so an operation's input is declared once.
  */
-/** What every tool's parsed arguments look like: paging input, or none. */
+/** What every tool's parsed arguments look like: paging input, a path parameter, or none. */
 type ToolInput = {
   readonly cursor?: string | undefined
   readonly limit?: number | undefined
+  readonly endpointId?: string | undefined
 }
 
 const NO_TOOL_INPUT: z.ZodType<ToolInput> = z.object({})
@@ -81,11 +85,36 @@ const PAGED_TOOL_INPUT: z.ZodType<ToolInput> = z.object({
   cursor: z.string().optional(),
   limit: z.number().optional()
 })
-// oxlint-disable-next-line eslint/no-unused-vars -- destructured to drop the dialect header from the advertised schema
-const { $schema: _dialect, ...NO_TOOL_INPUT_SCHEMA } = z.toJSONSchema(NO_TOOL_INPUT)
-// oxlint-disable-next-line eslint/no-unused-vars -- destructured to drop the dialect header from the advertised schema
-const { $schema: _dialectPaged, ...PAGED_TOOL_INPUT_SCHEMA } =
-  z.toJSONSchema(PAGED_TOOL_INPUT)
+const ENDPOINT_ID_TOOL_INPUT: z.ZodType<ToolInput> = z.object({
+  endpointId: z.string().describe('The webhook endpoint id whose deliveries to list.')
+})
+
+/**
+ * The advertised JSON Schema for a registered input: `z.toJSONSchema` with the
+ * `$schema` dialect header dropped, which a tool descriptor's `inputSchema`
+ * has no use for.
+ */
+function advertisedInputSchema(schema: z.ZodType<ToolInput>) {
+  const jsonSchema = z.toJSONSchema(schema)
+  // oxlint-disable-next-line eslint/no-unused-vars -- destructured to drop the dialect header
+  const { $schema: _dialect, ...rest } = jsonSchema
+  return rest
+}
+
+const NO_TOOL_INPUT_SCHEMA = advertisedInputSchema(NO_TOOL_INPUT)
+const PAGED_TOOL_INPUT_SCHEMA = advertisedInputSchema(PAGED_TOOL_INPUT)
+const ENDPOINT_ID_INPUT_SCHEMA = advertisedInputSchema(ENDPOINT_ID_TOOL_INPUT)
+
+/** The advertised JSON Schema for an operation, derived from its row flags. */
+function toolInputSchema(operation: WorkspaceReadOperation) {
+  if (operation.paged) {
+    return PAGED_TOOL_INPUT_SCHEMA
+  }
+  if (operation.param !== undefined) {
+    return ENDPOINT_ID_INPUT_SCHEMA
+  }
+  return NO_TOOL_INPUT_SCHEMA
+}
 
 /**
  * One tool descriptor, projected from one row of the shared operation table
@@ -95,16 +124,10 @@ const { $schema: _dialectPaged, ...PAGED_TOOL_INPUT_SCHEMA } =
  * exposes what REST exposes, nothing resurrected.
  */
 function toolDescriptor(operation: WorkspaceReadOperation): McpToolDescriptor {
-  let inputSchema: McpToolDescriptor['inputSchema']
-  if (operation.paged) {
-    inputSchema = PAGED_TOOL_INPUT_SCHEMA
-  } else {
-    inputSchema = NO_TOOL_INPUT_SCHEMA
-  }
   return {
     name: operation.toolName,
-    description: `${operation.toolDescription} Mirrors GET /workspaces/{slug}/${operation.path}.`,
-    inputSchema
+    description: `${operation.toolDescription} Mirrors GET /${mirroredRestPath(operation.path)}.`,
+    inputSchema: toolInputSchema(operation)
   }
 }
 
@@ -225,6 +248,8 @@ export function buildMcpServer(
     let registeredInput: z.ZodType<ToolInput>
     if (operation.paged) {
       registeredInput = PAGED_TOOL_INPUT
+    } else if (operation.param !== undefined) {
+      registeredInput = ENDPOINT_ID_TOOL_INPUT
     } else {
       registeredInput = NO_TOOL_INPUT
     }
@@ -239,11 +264,12 @@ export function buildMcpServer(
         // One guard + one capability read, bridged onto the request-scoped
         // workspace layer. `requirePermission` needs a Scope, which only exists
         // inside the Effect runtime, hence the scoped wrapper here rather than
-        // in the capability itself. The paging input rides to the same read
-        // the REST route serves — the two surfaces page identically.
+        // in the capability itself. The paging input and the one path parameter
+        // ride to the same read the REST route serves, so the two surfaces
+        // cannot page or scope differently.
         const guarded = Effect.gen(function* () {
           yield* requirePermission(tokenPrincipal(scopes), operation.permission)
-          return yield* operation.read(args)
+          return yield* operation.read(args, { endpointId: args.endpointId })
         }).pipe(Effect.scoped)
 
         // `Effect.result` moves the typed error channel into the value before

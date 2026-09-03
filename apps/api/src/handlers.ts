@@ -1,9 +1,18 @@
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import {
+  type UpdateWebhookEndpointInput,
+  WebhookEndpointNotFound,
+  WebhookEndpoints
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
-import { StarterApi, WorkspaceExportNotDownloadable } from '@b2b-saas-starter/api'
+import {
+  StarterApi,
+  WorkspaceExportNotDownloadable,
+  type DeletedResponse,
+  type QueuedDeliveryResponse
+} from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import { Effect, Option, Result } from 'effect'
 import { HttpServerRequest } from 'effect/unstable/http'
@@ -12,7 +21,7 @@ import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import { type ApiEnv } from './env.ts'
 import { enforcePermission, observed, provideWorkspace } from './request-guards.ts'
 import { mcpDiscoveryDocument } from './mcp.ts'
-import { READ_OPERATIONS, type ReadOperationEndpoint } from './operations.ts'
+import { READ_OPERATIONS, type WorkspaceReadOperation } from './operations.ts'
 
 /**
  * Contract response literals. Each is declared with the literal type the
@@ -21,6 +30,17 @@ import { READ_OPERATIONS, type ReadOperationEndpoint } from './operations.ts'
  */
 const HEALTH_OK = { status: 'ok' } satisfies { readonly status: 'ok' }
 const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
+
+/**
+ * The webhook DELETE alias answers identically to the capability's `false`: a
+ * no-match delete reads as a missing endpoint, not as an idempotent success.
+ */
+function deletedOr404(deleted: boolean, endpointId: string) {
+  if (!deleted) {
+    return Effect.fail(new WebhookEndpointNotFound({ endpointId }))
+  }
+  return Effect.succeed({ status: 'deleted' } satisfies DeletedResponse)
+}
 
 /**
  * Write sibling of the local `read` helper in `workspaceGroup`. Bearer auth and
@@ -94,15 +114,18 @@ export function workspaceGroup(env: ApiEnv) {
      */
     function workspaceRead<A, E, R>(
       op: {
-        readonly path: ReadOperationEndpoint
+        readonly path: WorkspaceReadOperation['path']
         readonly permission: PermissionRequest
-        readonly read: (page?: ListPageInput) => Effect.Effect<A, E, R>
+        readonly read: (
+          page: ListPageInput | undefined,
+          param: { readonly endpointId?: string | undefined }
+        ) => Effect.Effect<A, E, R>
       },
-      params: { readonly slug: string },
+      params: { readonly slug: string; readonly endpointId?: string },
       query: ListPageInput | undefined,
       request: HttpServerRequest.HttpServerRequest
     ) {
-      return read(op.path, op.permission, params.slug, request, op.read(query))
+      return read(op.path, op.permission, params.slug, request, op.read(query, params))
     }
 
     // Every read composes gate + capability from the shared operation
@@ -123,6 +146,9 @@ export function workspaceGroup(env: ApiEnv) {
       )
       .handle('webhooks', ({ params, query, request }) =>
         workspaceRead(READ_OPERATIONS.webhooks, params, query, request)
+      )
+      .handle('webhook-deliveries', ({ params, request }) =>
+        workspaceRead(READ_OPERATIONS['webhook-deliveries'], params, undefined, request)
       )
       .handle('audit-events', ({ params, query, request }) =>
         workspaceRead(READ_OPERATIONS['audit-events'], params, query, request)
@@ -189,25 +215,131 @@ export function apiTokenGroup(env: ApiEnv) {
 
 export function webhookGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'webhook-endpoints', (handlers) =>
-    handlers.handle('create', ({ params, payload, request }) =>
-      write(
-        env,
-        'webhooks.create',
-        { webhook: ['create'] },
-        params.slug,
-        request,
-        Effect.gen(function* () {
-          const webhooks = yield* WebhookEndpoints
-          const created = yield* webhooks.create({
-            url: payload.url,
-            events: payload.events,
-            description: payload.description
+    handlers
+      .handle('create', ({ params, payload, request }) =>
+        write(
+          env,
+          'webhooks.create',
+          { webhook: ['create'] },
+          params.slug,
+          request,
+          Effect.gen(function* () {
+            const webhooks = yield* WebhookEndpoints
+            const created = yield* webhooks.create({
+              url: payload.url,
+              events: payload.events,
+              description: payload.description
+            })
+            yield* Effect.annotateLogsScoped({ webhookEndpointId: created.endpoint.id })
+            return created.endpoint
           })
-          yield* Effect.annotateLogsScoped({ webhookEndpointId: created.endpoint.id })
-          return created.endpoint
-        })
+        )
       )
-    )
+      .handle('update', ({ params, payload, request }) =>
+        write(
+          env,
+          'webhooks.update',
+          { webhook: ['update'] },
+          params.slug,
+          request,
+          Effect.gen(function* () {
+            const webhooks = yield* WebhookEndpoints
+            const patch: UpdateWebhookEndpointInput = {
+              endpointId: params.endpointId
+            }
+            if (payload.url !== undefined) {
+              patch.url = payload.url
+            }
+            if (payload.events !== undefined) {
+              patch.events = payload.events
+            }
+            if (payload.enabled !== undefined) {
+              patch.enabled = payload.enabled
+            }
+            const updated = yield* webhooks.update(patch)
+            yield* Effect.annotateLogsScoped({ webhookEndpointId: updated.id })
+            return updated
+          })
+        )
+      )
+      .handle('delete', ({ params, request }) =>
+        write(
+          env,
+          'webhooks.delete',
+          { webhook: ['delete'] },
+          params.slug,
+          request,
+          Effect.gen(function* () {
+            const webhooks = yield* WebhookEndpoints
+            const deleted = yield* webhooks.delete({ endpointId: params.endpointId })
+            return yield* deletedOr404(deleted, params.endpointId)
+          })
+        )
+      )
+      .handle('rotate-secret', ({ params, request }) =>
+        write(
+          env,
+          'webhooks.rotate-secret',
+          { webhook: ['rotateSecret'] },
+          params.slug,
+          request,
+          Effect.gen(function* () {
+            const webhooks = yield* WebhookEndpoints
+            // The new secret rides this one response only — the same one-time
+            // reveal the web surface gives the operator.
+            const rotated = yield* webhooks.rotateSecret({
+              endpointId: params.endpointId
+            })
+            if (Option.isNone(rotated)) {
+              return yield* Effect.fail(
+                new WebhookEndpointNotFound({ endpointId: params.endpointId })
+              )
+            }
+            yield* Effect.annotateLogsScoped({ webhookEndpointId: params.endpointId })
+            return { signingSecret: rotated.value.signingSecret }
+          })
+        )
+      )
+      .handle('test-event', ({ params, request }) =>
+        write(
+          env,
+          'webhooks.test-event',
+          { webhook: ['test'] },
+          params.slug,
+          request,
+          Effect.gen(function* () {
+            const webhooks = yield* WebhookEndpoints
+            const sent = yield* webhooks.sendTestEvent({
+              endpointId: params.endpointId
+            })
+            yield* Effect.annotateLogsScoped({ deliveryId: sent.deliveryId })
+            return {
+              status: 'queued',
+              deliveryId: sent.deliveryId
+            } satisfies QueuedDeliveryResponse
+          })
+        )
+      )
+      .handle('replay-delivery', ({ params, request }) =>
+        write(
+          env,
+          'webhooks.replay-delivery',
+          { webhook: ['replay'] },
+          params.slug,
+          request,
+          Effect.gen(function* () {
+            const webhooks = yield* WebhookEndpoints
+            const replayed = yield* webhooks.replayDelivery({
+              deliveryId: params.deliveryId
+            })
+            yield* Effect.annotateLogsScoped({ deliveryId: replayed.deliveryId })
+            return {
+              status: 'queued',
+              deliveryId: replayed.deliveryId
+            } satisfies QueuedDeliveryResponse
+          })
+        )
+      )
   )
 }
 

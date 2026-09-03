@@ -62,29 +62,55 @@ export type ReadOperationEndpoint =
   | 'notifications'
   | 'api-tokens'
   | 'webhooks'
+  | 'webhook-deliveries'
   | 'audit-events'
+
+/**
+ * The one path parameter a read can take. Every operation is a whole-collection
+ * read except the deliveries list, which addresses one endpoint.
+ */
+export type ReadOperationParam = {
+  readonly name: 'endpointId'
+  /** A concrete value the permission matrix can build a real request with. */
+  readonly sample: string
+}
 
 export type WorkspaceReadOperation = {
   /**
    * URL path segment under `/workspaces/{slug}/`, also the OpenAPI template
    * piece — and, because the contract names each read endpoint after its path,
-   * the `workspace` group's endpoint identifier and this table's own key.
+   * the `workspace` group's endpoint identifier and this table's own key. A
+   * `:param` piece in the template marks a parameterized read.
    */
-  readonly path: ReadOperationEndpoint
+  readonly path: ReadOperationEndpoint | 'webhooks/:endpointId/deliveries'
   readonly permission: PermissionRequest
   /**
-   * The capability read, taking the request's paging input. List rows page
-   * (`ListPageInput`: cursor + clamped limit, ADR 0057); the overview row
-   * ignores it — REST and MCP pass the same value, so neither surface can
-   * page differently.
+   * The capability read, taking the request's paging input and the one path
+   * parameter a read can carry. List rows page (`ListPageInput`: cursor +
+   * clamped limit, ADR 0057); the overview row ignores both — REST and MCP
+   * pass the same values, so neither surface can read differently.
    */
-  readonly read: (page?: ListPageInput) => CapabilityRead
+  readonly read: (
+    page: ListPageInput | undefined,
+    param: { readonly endpointId?: string | undefined }
+  ) => CapabilityRead
+  /** Present only for parameterized reads (see `webhook-deliveries`). */
+  readonly param?: ReadOperationParam
   /** Whether the row is a paged list (drives the MCP tool's input schema). */
   readonly paged: boolean
   /** The MCP tool that projects this same operation. */
   readonly toolName: string
   /** Tool description body; the mirrored REST operation is appended on the wire. */
   readonly toolDescription: string
+}
+
+/**
+ * The OpenAPI-style path of the mirrored REST route — `:endpointId` becomes
+ * `{endpointId}` — so the MCP tool descriptions and the permission matrix
+ * labels cannot drift from the contract's real template.
+ */
+export function mirroredRestPath(path: WorkspaceReadOperation['path']): string {
+  return `workspaces/{slug}/${path.replaceAll(/:(\w+)/g, '{$1}')}`
 }
 
 /**
@@ -141,6 +167,22 @@ export const READ_OPERATIONS = {
     paged: true,
     toolName: 'list_webhooks',
     toolDescription: 'List registered webhook endpoints and their success rates.'
+  },
+  'webhook-deliveries': {
+    path: 'webhooks/:endpointId/deliveries',
+    permission: { webhook: ['list'] },
+    param: { name: 'endpointId', sample: 'wh_release' },
+    // The deliveries read is capped by the capability (the 20 newest), not
+    // paged — its pagination is recorded as a follow-up in the capability's
+    // leaf node, so there is no cursor to resume.
+    read: (_page, param) =>
+      Effect.flatMap(WebhookEndpoints, (webhooks) =>
+        webhooks.listDeliveries({ endpointId: param.endpointId ?? '' })
+      ),
+    paged: false,
+    toolName: 'list_webhook_deliveries',
+    toolDescription:
+      'List recent deliveries for one webhook endpoint, newest first, with response status and recorded evidence.'
   },
   'audit-events': {
     path: 'audit-events',

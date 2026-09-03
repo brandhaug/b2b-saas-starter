@@ -3,7 +3,7 @@ import { BearerAuth, rateLimitBucketFor, StarterApi } from '@b2b-saas-starter/ap
 import { describe, expect, test } from 'vite-plus/test'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
-import { permissionLabel, readOperations } from './operations.ts'
+import { mirroredRestPath, permissionLabel, readOperations } from './operations.ts'
 
 /**
  * The route-to-permission table of `handlers.ts`, asserted end to end.
@@ -83,12 +83,16 @@ const SLUG = 'starter-lab'
  * The workspace-read rows come from the shared operation table
  * (`operations.ts`) — the same rows the REST handlers and the MCP tools are
  * derived from — so the matrix cannot disagree with either surface.
+ * Parameterized rows build their request with the row's own sample value.
  */
 const READ_ROWS: ReadonlyArray<GatedOperation> = readOperations().map((op) => ({
-  operation: `GET /workspaces/{slug}/${op.path}`,
+  operation: `GET /${mirroredRestPath(op.path)}`,
   permission: permissionLabel(op.permission),
   expected: 200,
-  request: makeRequest('GET', `/workspaces/${SLUG}/${op.path}`)
+  request: makeRequest(
+    'GET',
+    `/workspaces/${SLUG}/${op.path.replaceAll(':endpointId', op.param?.sample ?? '')}`
+  )
 }))
 
 const MATRIX: ReadonlyArray<GatedOperation> = [
@@ -127,6 +131,44 @@ const MATRIX: ReadonlyArray<GatedOperation> = [
       url: 'https://hooks.example.com/x',
       events: ['api_token.created']
     })
+  },
+  {
+    operation: 'PATCH /workspaces/{slug}/webhooks/{endpointId}',
+    permission: 'webhook:update',
+    expected: 403,
+    request: makeRequest('PATCH', `/workspaces/${SLUG}/webhooks/wh_release`, {
+      enabled: true
+    })
+  },
+  {
+    operation: 'DELETE /workspaces/{slug}/webhooks/{endpointId}',
+    permission: 'webhook:delete',
+    expected: 403,
+    request: makeRequest('DELETE', `/workspaces/${SLUG}/webhooks/wh_release`)
+  },
+  {
+    operation: 'POST /workspaces/{slug}/webhooks/{endpointId}/rotate-secret',
+    permission: 'webhook:rotateSecret',
+    expected: 403,
+    request: makeRequest(
+      'POST',
+      `/workspaces/${SLUG}/webhooks/wh_release/rotate-secret`
+    )
+  },
+  {
+    operation: 'POST /workspaces/{slug}/webhooks/{endpointId}/test-event',
+    permission: 'webhook:test',
+    expected: 403,
+    request: makeRequest('POST', `/workspaces/${SLUG}/webhooks/wh_release/test-event`)
+  },
+  {
+    operation: 'POST /workspaces/{slug}/webhooks/deliveries/{deliveryId}/replay',
+    permission: 'webhook:replay',
+    expected: 403,
+    request: makeRequest(
+      'POST',
+      `/workspaces/${SLUG}/webhooks/deliveries/whd_seed_failed/replay`
+    )
   },
 
   // Workspace export is owner-only: `workspaceExport:*` sits outside both the

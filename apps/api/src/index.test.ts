@@ -26,6 +26,33 @@ const CreatedWebhookBody = Schema.Struct({
   url: Schema.String,
   enabled: Schema.Boolean
 })
+const CreatedEndpointIdBody = Schema.Struct({ id: Schema.String })
+const UpdatedWebhookBody = Schema.Struct({
+  id: Schema.String,
+  url: Schema.String,
+  enabled: Schema.Boolean,
+  events: Schema.Array(Schema.String)
+})
+const DeletedBody = Schema.Struct({ status: Schema.Literal('deleted') })
+const RotatedSecretBody = Schema.Struct({ signingSecret: Schema.String })
+const QueuedDeliveryBody = Schema.Struct({
+  status: Schema.Literal('queued'),
+  deliveryId: Schema.String
+})
+const DeliveriesBody = Schema.Array(
+  Schema.Struct({
+    id: Schema.String,
+    endpointId: Schema.String,
+    eventType: Schema.String,
+    status: Schema.String,
+    attempts: Schema.Number,
+    responseStatus: Schema.NullOr(Schema.Number),
+    payload: Schema.NullOr(Schema.Unknown),
+    requestHeaders: Schema.NullOr(Schema.Record(Schema.String, Schema.String)),
+    responseBody: Schema.NullOr(Schema.String),
+    replayedFrom: Schema.NullOr(Schema.String)
+  })
+)
 const AssistantAnswerBody = Schema.Struct({
   provider: Schema.String,
   assistantConfigured: Schema.Boolean
@@ -39,7 +66,18 @@ const encodeJsonBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
 const bearer = { authorization: `Bearer ${SEED_API_TOKEN}` }
 
+// One handler for the whole file, like production's cached per-isolate
+// handler: requests share the Seed layer's in-memory stores, so a mutation
+// made by one request is visible to the next (the seed fixture resets per
+// build, and rebuilding per request would hide exactly that).
+const sharedHandler = buildWebHandler({}).handler
+
 function handlerFor(env: ApiEnv): (request: Request) => Promise<Response> {
+  // Tests that inject bindings (rate-limit denials) build their own handler;
+  // the seed-backed default shares the file-wide instance above.
+  if (Object.keys(env).length === 0) {
+    return sharedHandler
+  }
   return buildWebHandler(env).handler
 }
 
@@ -203,6 +241,205 @@ describe('contract-served routes', () => {
         const body = yield* jsonBody(res, CreatedWebhookBody)
         expect(body.url).toBe('https://example.com/hook')
         expect(body.enabled).toBe(true)
+      })
+    ))
+
+  test('PATCH webhook endpoint updates the provided fields', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        function patch(payload: typeof Schema.Json.Type) {
+          return send(
+            new Request('https://api.test/workspaces/starter-lab/webhooks/wh_release', {
+              method: 'PATCH',
+              headers: { 'content-type': 'application/json', ...bearer },
+              body: encodeJsonBody(payload)
+            })
+          )
+        }
+        const res = yield* patch({ enabled: false })
+        expect(res.status).toBe(200)
+        const body = yield* jsonBody(res, UpdatedWebhookBody)
+        // Only the provided field changed; URL and subscriptions are intact.
+        expect(body.enabled).toBe(false)
+        expect(body.url).toBe('https://example.com/webhooks/starter')
+        expect(body.events).toEqual(['api_token.created'])
+        // Put the endpoint back: later tests dispatch to it.
+        const reEnabled = yield* patch({ enabled: true })
+        expect((yield* jsonBody(reEnabled, UpdatedWebhookBody)).enabled).toBe(true)
+      })
+    ))
+
+  test('PATCH webhook endpoint re-validates the URL and 404s unknown ids', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        function patch(endpointId: string, payload: typeof Schema.Json.Type) {
+          return send(
+            new Request(
+              `https://api.test/workspaces/starter-lab/webhooks/${endpointId}`,
+              {
+                method: 'PATCH',
+                headers: { 'content-type': 'application/json', ...bearer },
+                body: encodeJsonBody(payload)
+              }
+            )
+          )
+        }
+        const invalid = yield* patch('wh_release', { url: 'http://localhost/hook' })
+        expect(invalid.status).toBe(400)
+        expect((yield* jsonBody(invalid, ErrorBody))._tag).toBe('InvalidWebhookUrl')
+        const missing = yield* patch('wh_missing', { enabled: true })
+        expect(missing.status).toBe(404)
+        expect((yield* jsonBody(missing, ErrorBody))._tag).toBe(
+          'WebhookEndpointNotFound'
+        )
+      })
+    ))
+
+  test('DELETE webhook endpoint removes it and 404s when nothing matches', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        // Create a throwaway endpoint so the seed fixture stays intact for the
+        // other tests in this file.
+        const created = yield* send(
+          post(
+            '/workspaces/starter-lab/webhooks',
+            { url: 'https://example.com/doomed', events: ['api_token.revoked'] },
+            bearer
+          )
+        )
+        const createdBody = yield* jsonBody(created, CreatedEndpointIdBody)
+        const res = yield* send(
+          new Request(
+            `https://api.test/workspaces/starter-lab/webhooks/${createdBody.id}`,
+            {
+              method: 'DELETE',
+              headers: bearer
+            }
+          )
+        )
+        expect(res.status).toBe(200)
+        expect(yield* jsonBody(res, DeletedBody)).toEqual({ status: 'deleted' })
+        const again = yield* send(
+          new Request(
+            `https://api.test/workspaces/starter-lab/webhooks/${createdBody.id}`,
+            {
+              method: 'DELETE',
+              headers: bearer
+            }
+          )
+        )
+        expect(again.status).toBe(404)
+      })
+    ))
+
+  test('POST rotate-secret returns the new secret once', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(
+          post('/workspaces/starter-lab/webhooks/wh_release/rotate-secret', {}, bearer)
+        )
+        expect(res.status).toBe(200)
+        const body = yield* jsonBody(res, RotatedSecretBody)
+        expect(body.signingSecret).toMatch(/^whsec_/)
+        const missing = yield* send(
+          post('/workspaces/starter-lab/webhooks/wh_missing/rotate-secret', {}, bearer)
+        )
+        expect(missing.status).toBe(404)
+      })
+    ))
+
+  test('POST test-event queues a synthetic webhook.test_event delivery', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(
+          post('/workspaces/starter-lab/webhooks/wh_release/test-event', {}, bearer)
+        )
+        expect(res.status).toBe(201)
+        const body = yield* jsonBody(res, QueuedDeliveryBody)
+        expect(body.status).toBe('queued')
+        expect(body.deliveryId).toBeTruthy()
+        // The pending delivery lists back through the read surface.
+        const deliveries = yield* send(
+          get('/workspaces/starter-lab/webhooks/wh_release/deliveries', bearer)
+        )
+        const rows = yield* jsonBody(deliveries, DeliveriesBody)
+        const pending = rows.find((row) => row.id === body.deliveryId)
+        expect(pending).toMatchObject({
+          status: 'pending',
+          attempts: 0,
+          eventType: 'webhook.test_event'
+        })
+      })
+    ))
+
+  test('POST replay-delivery re-enqueues a failed delivery as a pending copy', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(
+          post(
+            '/workspaces/starter-lab/webhooks/deliveries/whd_seed_failed/replay',
+            {},
+            bearer
+          )
+        )
+        expect(res.status).toBe(201)
+        const body = yield* jsonBody(res, QueuedDeliveryBody)
+        expect(body.deliveryId).not.toBe('whd_seed_failed')
+
+        const deliveries = yield* send(
+          get('/workspaces/starter-lab/webhooks/wh_release/deliveries', bearer)
+        )
+        const rows = yield* jsonBody(deliveries, DeliveriesBody)
+        const copy = rows.find((row) => row.id === body.deliveryId)
+        expect(copy).toMatchObject({
+          status: 'pending',
+          attempts: 0,
+          replayedFrom: 'whd_seed_failed'
+        })
+        // The recorded payload rides on the copy verbatim.
+        expect(copy?.payload).toEqual({ tokenId: 'tok_docs', name: 'Docs automation' })
+
+        // A delivered row refuses the replay; an unknown id reads as not found.
+        const delivered = yield* send(
+          post(
+            `/workspaces/starter-lab/webhooks/deliveries/${body.deliveryId}/replay`,
+            {},
+            bearer
+          )
+        )
+        expect(delivered.status).toBe(409)
+        expect((yield* jsonBody(delivered, ErrorBody))._tag).toBe(
+          'WebhookDispatchRejected'
+        )
+        const missing = yield* send(
+          post(
+            '/workspaces/starter-lab/webhooks/deliveries/whd_missing/replay',
+            {},
+            bearer
+          )
+        )
+        expect(missing.status).toBe(404)
+      })
+    ))
+
+  test('GET webhook deliveries lists recorded evidence for one endpoint', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(
+          get('/workspaces/starter-lab/webhooks/wh_release/deliveries', bearer)
+        )
+        expect(res.status).toBe(200)
+        const rows = yield* jsonBody(res, DeliveriesBody)
+        const failed = rows.find((row) => row.id === 'whd_seed_failed')
+        expect(failed).toMatchObject({
+          status: 'failed',
+          responseStatus: 500,
+          replayedFrom: null
+        })
+        expect(failed?.requestHeaders?.['x-b2b-starter-event']).toBe(
+          'api_token.created'
+        )
+        expect(failed?.responseBody).toContain('upstream')
       })
     ))
 
