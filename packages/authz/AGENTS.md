@@ -12,7 +12,7 @@ Built on `createAccessControl` from `better-auth/plugins/access`, which is pure 
 
 Four concepts, in dependency order:
 
-1. **Statements** (`statements.ts`) — one entry per resource, listing every action it understands. `starterStatements` = the organization plugin's own five resources (`organization`, `member`, `invitation`, `team`, `ac` — Better Auth's abbreviation of "access control", kept because the plugin checks that key by name) plus the starter's seven, all full-named (`apiToken`, `webhook`, `auditLog`, `notification`, `assistant`, `mcp`, `onboarding`).
+1. **Statements** (`statements.ts`) — one entry per resource, listing every action it understands. `starterStatements` = the organization plugin's own five resources (`organization`, `member`, `invitation`, `team`, `ac` — Better Auth's abbreviation of "access control", kept because the plugin checks that key by name) plus the starter's eight, all full-named (`apiToken`, `webhook`, `auditLog`, `notification`, `assistant`, `mcp`, `onboarding`, `sso`).
 2. **Roles** (`roles.ts`) — `owner`, `admin`, `member`, plus the synthetic roles that API token scopes map onto.
 3. **Principal** (`principal.ts`) — who is asking, and the pure `authorize(principal, request)` decision.
 4. **Guard** (`guard.ts`) — `requirePermission(principal, request)`, the Effect that fails `AuthorizationDenied`.
@@ -34,15 +34,15 @@ Four concepts, in dependency order:
 | `admin`  | every statement except `organization:delete`                 |
 | `member` | `ac:read`, `notification:read`, `assistant:read`, `mcp:read` |
 
-`member` deliberately **cannot** read the audit log or list API tokens. Both leak the workspace's security posture. The empty arrays in `memberRole` say so out loud; do not "tidy" them away. `onboarding:dismiss` is also withheld: the onboarding checklist is read-only for a member and dismissing it is a workspace-level call (ADR 0054).
+`member` deliberately **cannot** read the audit log or list API tokens. Both leak the workspace's security posture. The empty arrays in `memberRole` say so out loud; do not "tidy" them away. `onboarding:dismiss` and every `sso` action are also withheld: dismissing the onboarding checklist is a workspace-level call, and SSO connections decide how every human in the workspace authenticates — both are security posture (ADR 0054, ADR 0055).
 
-| Token scope | Gets                                              |
-| ----------- | ------------------------------------------------- |
-| `read`      | every `list` and `read` action                    |
-| `write`     | `read` plus `webhook:create`, `invitation:create` |
-| `admin`     | the `owner` set, shared by reference              |
+| Token scope | Gets                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------ |
+| `read`      | every `list` and `read` action (including `sso:list`, the sanitized connection list) |
+| `write`     | `read` plus `webhook:create`, `invitation:create`                                    |
+| `admin`     | the `owner` set, shared by reference                                                 |
 
-`apiToken:create` is deliberately **not** in the `write` set. Minting is the one mutation that lets a token escalate itself: a `write` token allowed to create tokens could issue an `admin` one. It stays with the owner set, which `admin` scope reaches.
+`apiToken:create` is deliberately **not** in the `write` set. Minting is the one mutation that lets a token escalate itself: a `write` token allowed to create tokens could issue an `admin` one. It stays with the owner set, which `admin` scope reaches. The `sso` mutations stay out of every token scope for the same escalation reason — a machine credential that could rewrite how humans authenticate could lock the owners out or route them at an attacker's IdP.
 
 The `read` scope is wider than the `member` role — it can read the audit log. That is intended: a token is minted by an owner or admin, so it carries the minter's trust, not the reader's.
 

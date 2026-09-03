@@ -24,7 +24,8 @@ export const starterResources = {
   notification: ['read'],
   assistant: ['read'],
   mcp: ['read'],
-  onboarding: ['dismiss']
+  onboarding: ['dismiss'],
+  sso: ['list', 'create', 'update', 'remove']
 } as const
 
 /**

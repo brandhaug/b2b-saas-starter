@@ -43,7 +43,11 @@ const PERMISSIONS = [
   { label: 'notification:read', request: { notification: ['read'] } },
   { label: 'assistant:read', request: { assistant: ['read'] } },
   { label: 'mcp:read', request: { mcp: ['read'] } },
-  { label: 'onboarding:dismiss', request: { onboarding: ['dismiss'] } }
+  { label: 'onboarding:dismiss', request: { onboarding: ['dismiss'] } },
+  { label: 'sso:list', request: { sso: ['list'] } },
+  { label: 'sso:create', request: { sso: ['create'] } },
+  { label: 'sso:update', request: { sso: ['update'] } },
+  { label: 'sso:remove', request: { sso: ['remove'] } }
 ] satisfies ReadonlyArray<Permission>
 
 const EVERY_LABEL = PERMISSIONS.map((permission) => permission.label)
@@ -56,7 +60,8 @@ const READ_ONLY = [
   'auditLog:read',
   'notification:read',
   'assistant:read',
-  'mcp:read'
+  'mcp:read',
+  'sso:list'
 ]
 
 const GRANTS: ReadonlyArray<{
@@ -120,6 +125,12 @@ describe('member denials', () => {
     expect(authorize(member, { auditLog: ['read'] }).success).toBe(false)
     expect(authorize(member, { apiToken: ['list'] }).success).toBe(false)
   })
+
+  it('cannot list SSO connections', () => {
+    // Connections decide how every member authenticates: issuer, domain, and
+    // whether password sign-in is refused are all security posture.
+    expect(authorize(memberPrincipal('member'), { sso: ['list'] }).success).toBe(false)
+  })
 })
 
 describe('token scopes', () => {
@@ -142,6 +153,18 @@ describe('token scopes', () => {
     expect(authorize(tokenPrincipal(['admin']), { apiToken: ['create'] }).success).toBe(
       true
     )
+  })
+
+  it('cannot change SSO connections from any scope', () => {
+    // SSO configuration is an authentication-boundary change: a machine
+    // credential that could rewrite how humans sign in could lock the owners
+    // out or route them at an attacker's IdP. `write` lists, owner-set mutates.
+    const write = tokenPrincipal(['write'])
+    expect(authorize(write, { sso: ['list'] }).success).toBe(true)
+    expect(authorize(write, { sso: ['create'] }).success).toBe(false)
+    expect(authorize(write, { sso: ['update'] }).success).toBe(false)
+    expect(authorize(write, { sso: ['remove'] }).success).toBe(false)
+    expect(authorize(tokenPrincipal(['admin']), { sso: ['create'] }).success).toBe(true)
   })
 
   it('denies a token holding no scopes', () => {
