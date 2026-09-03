@@ -8,10 +8,13 @@ import {
   type SsoProvisionedRoleValue
 } from '@b2b-saas-starter/db/enums'
 import * as schema from '@b2b-saas-starter/db/schema'
+import { cimd, type CimdOptions } from '@better-auth/cimd'
+import { mcp } from '@better-auth/mcp'
 import { sso } from '@better-auth/sso'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { lastLoginMethod } from 'better-auth/plugins'
+import { jwt } from 'better-auth/plugins/jwt'
 import { organization } from 'better-auth/plugins/organization'
 import { twoFactor } from 'better-auth/plugins/two-factor'
 import { username } from 'better-auth/plugins/username'
@@ -22,6 +25,21 @@ import {
   service,
   type Session as InferredSession
 } from 'effectful-better-auth'
+import {
+  MCP_CONSENT_PAGE,
+  MCP_LOGIN_PAGE,
+  MCP_OAUTH_SCOPES,
+  mcpWorkspaceAccessTokenClaims,
+  mcpWorkspaceNeedsSelection,
+  mcpWorkspaceReferenceId
+} from './mcp-oauth.ts'
+
+export {
+  MCP_CONSENT_PAGE,
+  MCP_LOGIN_PAGE,
+  MCP_OAUTH_SCOPES,
+  MCP_WORKSPACE_SELECTED_HEADER
+} from './mcp-oauth.ts'
 
 /**
  * The account-lifecycle emails Better Auth sends (password reset, email
@@ -135,6 +153,19 @@ export type AuthConfigInterface = {
    * the rejection — nothing here attaches a `catch`.
    */
   readonly runBackground: (promise: Promise<unknown>) => void
+  /**
+   * The MCP OAuth authorization server's two deployment facts (ADR 0054):
+   * `resource` is the API worker's `/mcp` URL that every access token is
+   * audience-bound to (`MCP_RESOURCE_URL`), and `fetchClientMetadataResource`
+   * is the outbound transport `@better-auth/cimd` fetches Client ID Metadata
+   * Documents with — a platform concern (DNS pinning, redirect refusal) the
+   * app supplies for its runtime. This package never reads env and never
+   * picks a transport.
+   */
+  readonly mcp: {
+    readonly resource: string
+    readonly fetchClientMetadataResource: CimdOptions['fetchClientMetadataResource']
+  }
 }
 
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
@@ -406,6 +437,46 @@ export function makeAuthOptions(options: AuthConfigInterface) {
             fields: { organizationId: 'workspaceId' }
           }
         }
+      }),
+      // Signing keys for the OAuth access tokens below, served at `/jwks`.
+      // `disableSettingJwtHeader` keeps session responses free of a signed
+      // session JWT — the only JWTs this app mints are OAuth access tokens.
+      jwt({ disableSettingJwtHeader: true }),
+      // The OAuth 2.1 authorization server MCP clients connect through (ADR
+      // 0055). API Tokens stay the credential for scripts and CI; this is the
+      // interactive path, and it requires `jwt()` above.
+      mcp({
+        resource: options.mcp.resource,
+        loginPage: MCP_LOGIN_PAGE,
+        consentPage: MCP_CONSENT_PAGE,
+        scopes: MCP_OAUTH_SCOPES,
+        // One hour of access, thirty days of refresh — Better Auth's own
+        // defaults, stated so a default change is a visible diff.
+        accessTokenExpiresIn: 60 * 60,
+        refreshTokenExpiresIn: 60 * 60 * 24 * 30,
+        // The workspace pick. The plugin's post-login hop is the one place a
+        // consent can be tied to a reference id, and the consent page IS that
+        // hop: it redirects there until the consent server function vouches
+        // for the pick through `MCP_WORKSPACE_SELECTED_HEADER`, reads the
+        // picked workspace off the session as the consent's reference, and
+        // the claims callback turns it into the token's workspace claims.
+        postLogin: {
+          page: MCP_CONSENT_PAGE,
+          shouldRedirect: mcpWorkspaceNeedsSelection,
+          consentReferenceId: mcpWorkspaceReferenceId
+        },
+        customAccessTokenClaims: ({ user, referenceId }) =>
+          mcpWorkspaceAccessTokenClaims(options.db, {
+            userId: user?.id,
+            referenceId
+          })
+      }),
+      // Client ID Metadata Documents: an MCP client identifies itself by an
+      // HTTPS URL it controls, which is what MCP 2026-07-28 pins instead of
+      // dynamic registration. The transport is the app's.
+      cimd({
+        fetchClientMetadataResource: options.mcp.fetchClientMetadataResource,
+        metadataProfile: 'mcp-2026-07-28'
       }),
       // Workspace-scoped SSO (ADR 0055). The plugin owns the connection rows
       // and the protocol flows; the starter owns the vocabulary and the

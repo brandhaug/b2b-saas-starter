@@ -39,6 +39,13 @@ const baseConfig: AuthConfigInterface = {
   requireEmailVerification: false,
   runBackground: (promise) => {
     void promise.catch(() => undefined)
+  },
+  mcp: {
+    resource: 'http://localhost:8787/mcp',
+    // These tests only read the options object; discovery never runs.
+    fetchClientMetadataResource: () => {
+      throw new TypeError('client discovery is not exercised by this suite')
+    }
   }
 }
 
@@ -275,3 +282,42 @@ function allowCreateOrganization(options: ReturnType<typeof makeAuthOptions>) {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion, effect/noAs -- re-typing a value stored as unknown by pluginOptions
   return raw as (user: { emailVerified: boolean }) => boolean
 }
+
+describe('mcp oauth plugins', () => {
+  function pluginIds(config: AuthConfigInterface): ReadonlyArray<string> {
+    return makeAuthOptions(config).plugins.map((plugin) => plugin.id)
+  }
+
+  it('registers jwt before the oauth provider, and cimd beside it', () => {
+    const ids = pluginIds(baseConfig)
+    expect(ids).toContain('jwt')
+    expect(ids).toContain('oauth-provider')
+    expect(ids).toContain('cimd')
+    // `mcp()` reads the jwt plugin at init; jwt has to be registered first.
+    expect(ids.indexOf('jwt')).toBeLessThan(ids.indexOf('oauth-provider'))
+    // Cookie integration stays last (see the plugin table in AGENTS.md).
+    expect(ids.at(-1)).toBe('tanstack-start-cookies')
+  })
+
+  it('binds access tokens to the configured MCP resource and both starter pages', () => {
+    const provider = makeAuthOptions(baseConfig).plugins.find(
+      (plugin) => plugin.id === 'oauth-provider'
+    )
+    // `find` narrows to the provider plugin, whose `options` are the ones
+    // `mcp()` forwarded — typed, so no assertion is needed to read them.
+    expect(provider?.options.loginPage).toBe('/sign-in')
+    expect(provider?.options.consentPage).toBe('/oauth/consent')
+    expect(provider?.options.resources).toContain('http://localhost:8787/mcp')
+    expect(provider?.options.clientRegistrationDefaultResources).toEqual([
+      'http://localhost:8787/mcp'
+    ])
+    expect(provider?.options.scopes).toContain('mcp:read')
+  })
+
+  it('does not sign session responses as JWTs', () => {
+    const jwt = makeAuthOptions(baseConfig).plugins.find(
+      (plugin) => plugin.id === 'jwt'
+    )
+    expect(jwt?.options.disableSettingJwtHeader).toBe(true)
+  })
+})
