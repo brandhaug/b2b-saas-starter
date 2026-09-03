@@ -3,6 +3,7 @@ import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/e
 import {
   AccountDeletedEmail,
   EmailVerificationEmail,
+  MagicLinkEmail,
   OneTimeCodeEmail,
   PasskeyChangedEmail,
   PasswordResetEmail,
@@ -113,6 +114,14 @@ export function makeAuthEmailSender(): AuthEmailSender {
         to: email,
         subject: ONE_TIME_CODE_SUBJECTS[type],
         element: OneTimeCodeEmail({ code: otp, purpose: type })
+      }),
+    // The magic-link plugin's own callback shape — no `user`, because a link
+    // can be requested for an address that has no account yet.
+    sendMagicLink: ({ email, url }) =>
+      dispatch({
+        to: email,
+        subject: 'Your sign-in link',
+        element: MagicLinkEmail({ url })
       })
   }
 }

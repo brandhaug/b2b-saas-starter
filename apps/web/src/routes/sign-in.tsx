@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
-import { KeyRoundIcon } from 'lucide-react'
+import { KeyRoundIcon, MailIcon } from 'lucide-react'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
@@ -12,9 +12,11 @@ import {
   SocialSignInButtons
 } from '@/components/auth/social-sign-in'
 import {
+  sendMagicLinkWithAuthClient,
   signInSocialWithAuthClient,
   signInWithAuthClient,
   signInWithSsoAuthClient,
+  type SendMagicLink,
   type SignInWithEmail,
   type SignInWithPasskey,
   type SignInWithSocial,
@@ -23,6 +25,8 @@ import {
 } from '@/components/auth/auth-client-ports'
 import { type SsoRoutingDecision } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { FormTextField } from '@/components/form-text-field'
+import { TurnstileWidget } from '@/components/auth/turnstile-widget'
+import { Button } from '@/components/ui/button'
 import { carriedOAuthSearch, oauthContinuationUrl } from '@/lib/oauth-continuation'
 import {
   DEMO_CREDENTIALS,
@@ -30,10 +34,12 @@ import {
   DEMO_WORKSPACE_SLUG
 } from '@/lib/demo-workspace'
 import { getSocialProviderIds } from '@/lib/server/social-providers'
+import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { resolveSsoRoutingServerFn } from '@/lib/server/workspace-sso'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 
 export type {
+  SendMagicLink,
   SignInWithEmail,
   SignInWithPasskey,
   SignInWithSso
@@ -60,10 +66,14 @@ async function resolveSsoRouting(email: string) {
 
 export const Route = createFileRoute('/sign-in')({
   validateSearch: redirectSearch,
-  // The active provider ids are read on the server only (env-gated: with no
-  // provider configured the loader answers an empty list and the page renders
-  // exactly what it did before social sign-in existed).
-  loader: async () => ({ socialProviders: await getSocialProviderIds() }),
+  // The active provider ids and the Turnstile site key are read on the server
+  // only (env-gated: with nothing configured the loader answers an empty list
+  // and `null`, and the page renders exactly what it did before either
+  // existed).
+  loader: async () => ({
+    socialProviders: await getSocialProviderIds(),
+    turnstileSiteKey: await getTurnstileSiteKey()
+  }),
   component: SignInRoute,
   head: () => ({ meta: [{ title: pageTitle('Sign in') }] })
 })
@@ -92,6 +102,12 @@ function wantsTwoFactorRedirect(data: unknown): boolean {
 }
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
+// One message for every outcome, by design: the send endpoint answers
+// identically whether or not the email exists (account enumeration defense),
+// and the screen must not know more than the endpoint does.
+const LINK_SENT_MESSAGE =
+  'If this email exists in our system, check your inbox for a sign-in link. It works once and expires in ten minutes.'
+
 /**
  * Whether a failed credential sign-in was refused by the require-SSO gate.
  * Same probe discipline: the client's error is untyped JSON at this boundary.
@@ -109,13 +125,20 @@ function wasRefusedForSso(error: unknown): boolean {
 
 /**
  * The route's thin wrapper: reads the search param the router validated and
- * hands it to the page. Keeping the two apart is what lets the page be rendered
- * from a test with plain props, no route tree and no mocked router.
+ * the loader's server-provided values, then hands them to the page. Keeping
+ * the two apart is what lets the page be rendered from a test with plain
+ * props, no route tree and no mocked router.
  */
 function SignInRoute() {
   const { redirect } = Route.useSearch()
-  const { socialProviders } = Route.useLoaderData()
-  return <SignInPage redirect={redirect} socialProviders={socialProviders} />
+  const { socialProviders, turnstileSiteKey } = Route.useLoaderData()
+  return (
+    <SignInPage
+      redirect={redirect}
+      socialProviders={socialProviders}
+      turnstileSiteKey={turnstileSiteKey}
+    />
+  )
 }
 
 export function SignInPage({
@@ -125,7 +148,9 @@ export function SignInPage({
   signInPasskey,
   signInSocial = signInSocialWithAuthClient,
   signInWithSso = signInWithSsoAuthClient,
-  resolveRouting = resolveSsoRouting
+  resolveRouting = resolveSsoRouting,
+  sendMagicLink = sendMagicLinkWithAuthClient,
+  turnstileSiteKey = null
 }: {
   readonly redirect?: string | undefined
   /** Active provider ids from the loader; empty renders no provider buttons. */
@@ -135,12 +160,23 @@ export function SignInPage({
   readonly signInSocial?: SignInWithSocial
   readonly signInWithSso?: SignInWithSso
   readonly resolveRouting?: ResolveSsoRouting
+  readonly sendMagicLink?: SendMagicLink
+  /** Server-provided Turnstile site key; `null` renders no widget (provider-light). */
+  readonly turnstileSiteKey?: string | null | undefined
 }) {
   const router = useRouter()
+  // The Local Auth Paths as one screen's modes: password (default) and the
+  // emailed link. Mode is UI state, not a route, so switching loses nothing
+  // but the unused field.
+  const [mode, setMode] = useState<'password' | 'link'>('password')
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [ssoNotice, setSsoNotice] = useState<string | null>(null)
+  const [linkSent, setLinkSent] = useState(false)
+  // The challenge token; single-use, so a failed send clears it and the
+  // visitor answers a fresh challenge on retry.
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
 
-  const form = useForm({
+  const passwordForm = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
@@ -219,14 +255,108 @@ export function SignInPage({
     }
   })
 
+  const linkForm = useForm({
+    defaultValues: { email: '' },
+    onSubmit: async ({ value }) => {
+      setSubmitError(null)
+      if (turnstileSiteKey !== null && turnstileToken === null) {
+        setSubmitError('Complete the bot check before requesting a link.')
+        return
+      }
+      const result = await sendMagicLink({
+        email: value.email,
+        turnstileToken: turnstileToken ?? undefined
+      })
+      if (result.error) {
+        setTurnstileToken(null)
+        setSubmitError(
+          result.error.message?.includes('captcha') === true
+            ? 'The bot check failed — try the challenge again.'
+            : (result.error.message ?? 'Could not send the link')
+        )
+        return
+      }
+      setLinkSent(true)
+    }
+  })
+
+  if (mode === 'link') {
+    return (
+      <AuthCardForm
+        title="Sign in with an email link"
+        description="We will email you a link that signs you in without a password."
+        // The sent state is a confirmation, not a form — no wrapper, no
+        // hydration signal needed.
+        form={linkSent ? null : linkForm}
+        submit={
+          linkSent ? undefined : (
+            <AuthSubmitButton
+              form={linkForm}
+              icon={<MailIcon className="size-4" />}
+              label="Email me a sign-in link"
+              submittingLabel="Sending…"
+            />
+          )
+        }
+        error={submitError}
+        footer={footer({
+          mode,
+          redirect,
+          socialProviders,
+          signInPasskey
+        })}
+      >
+        {linkSent ? (
+          <p role="alert" className="text-sm text-muted-foreground">
+            {LINK_SENT_MESSAGE}
+          </p>
+        ) : (
+          <>
+            <linkForm.Field name="email" validators={{ onChange: emailValidator }}>
+              {(field) => (
+                <FormTextField
+                  name={field.name}
+                  label="Email"
+                  type="email"
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  value={field.state.value}
+                  errors={field.state.meta.errors}
+                  onBlur={field.handleBlur}
+                  onChange={field.handleChange}
+                  required
+                />
+              )}
+            </linkForm.Field>
+            {turnstileSiteKey === null ? null : (
+              <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+            )}
+            <Button
+              type="button"
+              variant="link"
+              onClick={() => {
+                setSubmitError(null)
+                setLinkSent(false)
+                setMode('password')
+              }}
+              className="justify-start p-0 text-sm"
+            >
+              Sign in with password instead
+            </Button>
+          </>
+        )}
+      </AuthCardForm>
+    )
+  }
+
   return (
     <AuthCardForm
       title="Sign in"
       description="Sign in with your email and password."
-      form={form}
+      form={passwordForm}
       submit={
         <AuthSubmitButton
-          form={form}
+          form={passwordForm}
           icon={<KeyRoundIcon className="size-4" />}
           label="Continue"
           submittingLabel="Signing in…"
@@ -234,7 +364,91 @@ export function SignInPage({
       }
       error={submitError}
       notice={ssoNotice}
-      footer={
+      footer={footer({
+        mode,
+        redirect,
+        socialProviders,
+        signInPasskey
+      })}
+    >
+      <LastSignInMethodHint />
+      <SocialSignInButtons
+        providers={socialProviders}
+        redirectTo={redirect}
+        signIn={signInSocial}
+      />
+
+      <passwordForm.Field name="email" validators={{ onChange: emailValidator }}>
+        {(field) => (
+          <FormTextField
+            name={field.name}
+            label="Email"
+            type="email"
+            placeholder="you@example.com"
+            // `webauthn` must be the LAST autocomplete token for the
+            // browser's conditional UI to offer passkeys on this field.
+            autoComplete="email webauthn"
+            value={field.state.value}
+            errors={field.state.meta.errors}
+            onBlur={field.handleBlur}
+            onChange={field.handleChange}
+            required
+          />
+        )}
+      </passwordForm.Field>
+
+      <passwordForm.Field name="password" validators={{ onChange: passwordValidator }}>
+        {(field) => (
+          <FormTextField
+            name={field.name}
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            value={field.state.value}
+            errors={field.state.meta.errors}
+            onBlur={field.handleBlur}
+            onChange={field.handleChange}
+            required
+          />
+        )}
+      </passwordForm.Field>
+
+      <Button
+        type="button"
+        variant="link"
+        onClick={() => {
+          setSubmitError(null)
+          setMode('link')
+        }}
+        className="justify-start p-0 text-sm"
+      >
+        Email me a sign-in link
+      </Button>
+    </AuthCardForm>
+  )
+}
+
+/**
+ * The shared card footer. The forgot-password link and the passkey block only
+ * make sense beside a password field, so they render in password mode only;
+ * the seeded-credential hints stay in both modes — the demo address works for
+ * a magic link too, which lands in the dev console log (log-mode email) with
+ * no provider configured.
+ */
+function footer({
+  mode,
+  redirect,
+  socialProviders,
+  signInPasskey
+}: {
+  mode: 'password' | 'link'
+  redirect?: string | undefined
+  socialProviders: ReadonlyArray<SocialProviderId>
+  signInPasskey?: SignInWithPasskey
+}) {
+  return (
+    <>
+      {mode === 'password' ? (
         <>
           {/* The passkey block sits at the point of action, after the form:
               same destination, different credential. Conditional-UI browsers
@@ -264,92 +478,50 @@ export function SignInPage({
               Forgot your password?
             </Link>
           </p>
-          {/* The seed workspace is the public reference app — the hero CTA
-              lands behind sign-in, so the credentials stay on the page in
-              production too (they exist only after seeding a local D1). */}
-          <p className="text-xs text-muted-foreground">
-            Seeded the local database? Sign in with{' '}
-            <code className="rounded-sm bg-muted px-1 py-0.5">
-              {DEMO_CREDENTIALS.email}
-            </code>{' '}
-            /{' '}
-            <code className="rounded-sm bg-muted px-1 py-0.5">
-              {DEMO_CREDENTIALS.password}
-            </code>
-            .
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Or as a plain member, to see the role-gated view:{' '}
-            <code className="rounded-sm bg-muted px-1 py-0.5">
-              {DEMO_MEMBER_CREDENTIALS.email}
-            </code>{' '}
-            /{' '}
-            <code className="rounded-sm bg-muted px-1 py-0.5">
-              {DEMO_MEMBER_CREDENTIALS.password}
-            </code>
-            .
-          </p>
-          <Link
-            to="/workspaces/$workspaceSlug"
-            params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
-            className="text-center text-sm text-primary underline underline-offset-4"
-          >
-            Open seeded workspace instead
-          </Link>
-          <p className="text-center text-sm text-muted-foreground">
-            No account yet?{' '}
-            <Link
-              to="/sign-up"
-              search={{}}
-              className="text-primary underline underline-offset-4"
-            >
-              Create one
-            </Link>
-          </p>
         </>
-      }
-    >
-      <LastSignInMethodHint />
-      <SocialSignInButtons
-        providers={socialProviders}
-        redirectTo={redirect}
-        signIn={signInSocial}
-      />
-
-      <form.Field name="email" validators={{ onChange: emailValidator }}>
-        {(field) => (
-          <FormTextField
-            name={field.name}
-            label="Email"
-            type="email"
-            placeholder="you@example.com"
-            // `webauthn` must be the LAST autocomplete token for the
-            // browser's conditional UI to offer passkeys on this field.
-            autoComplete="email webauthn"
-            value={field.state.value}
-            errors={field.state.meta.errors}
-            onBlur={field.handleBlur}
-            onChange={field.handleChange}
-            required
-          />
-        )}
-      </form.Field>
-
-      <form.Field name="password" validators={{ onChange: passwordValidator }}>
-        {(field) => (
-          <FormTextField
-            name={field.name}
-            label="Password"
-            type="password"
-            autoComplete="current-password"
-            value={field.state.value}
-            errors={field.state.meta.errors}
-            onBlur={field.handleBlur}
-            onChange={field.handleChange}
-            required
-          />
-        )}
-      </form.Field>
-    </AuthCardForm>
+      ) : null}
+      {/* The seed workspace is the public reference app — the hero CTA
+          lands behind sign-in, so the credentials stay on the page in
+          production too (they exist only after seeding a local D1). */}
+      <p className="text-xs text-muted-foreground">
+        Seeded the local database? Sign in with{' '}
+        <code className="rounded-sm bg-muted px-1 py-0.5">
+          {DEMO_CREDENTIALS.email}
+        </code>{' '}
+        /{' '}
+        <code className="rounded-sm bg-muted px-1 py-0.5">
+          {DEMO_CREDENTIALS.password}
+        </code>
+        .
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Or as a plain member, to see the role-gated view:{' '}
+        <code className="rounded-sm bg-muted px-1 py-0.5">
+          {DEMO_MEMBER_CREDENTIALS.email}
+        </code>{' '}
+        /{' '}
+        <code className="rounded-sm bg-muted px-1 py-0.5">
+          {DEMO_MEMBER_CREDENTIALS.password}
+        </code>
+        .
+      </p>
+      <Link
+        to="/workspaces/$workspaceSlug"
+        params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
+        className="text-center text-sm text-primary underline underline-offset-4"
+      >
+        Open seeded workspace instead
+      </Link>
+      <p className="text-center text-sm text-muted-foreground">
+        No account yet?{' '}
+        <Link
+          to="/sign-up"
+          search={{}}
+          className="text-primary underline underline-offset-4"
+        >
+          Create one
+        </Link>
+      </p>
+    </>
   )
 }

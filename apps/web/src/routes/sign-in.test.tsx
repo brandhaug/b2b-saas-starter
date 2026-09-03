@@ -1,7 +1,12 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import { SignInPage, type SignInWithEmail, type SignInWithPasskey } from './sign-in'
+import {
+  SignInPage,
+  type SendMagicLink,
+  type SignInWithEmail,
+  type SignInWithPasskey
+} from './sign-in'
 import {
   type SignInWithSocial,
   type SignInWithSso
@@ -17,6 +22,10 @@ const signInPasskey = vi.fn<SignInWithPasskey>()
 // tests drive the real component without the Better Auth client.
 const signInSocial = vi.fn<SignInWithSocial>()
 
+// The link-mode port, same contract: driven with a real function of the same
+// shape instead of replacing the auth client singleton.
+const sendMagicLink = vi.fn<SendMagicLink>()
+
 async function renderPage(
   redirect?: string,
   socialProviders: ReadonlyArray<'github' | 'google'> = []
@@ -28,6 +37,7 @@ async function renderPage(
       signIn={signIn}
       signInPasskey={signInPasskey}
       signInSocial={signInSocial}
+      sendMagicLink={sendMagicLink}
     />,
     { path: '/sign-in', destinations: ['/workspaces', '/workspaces/starter-lab'] }
   )
@@ -292,5 +302,85 @@ describe('SignInPage', () => {
     fillValidCredentials()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     await waitFor(() => expect(signIn).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe('SignInPage link mode', () => {
+  beforeEach(() => {
+    signIn.mockReset()
+    signIn.mockResolvedValue({ error: null })
+    sendMagicLink.mockReset()
+    sendMagicLink.mockResolvedValue({ error: null })
+  })
+
+  async function switchToLinkMode() {
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a sign-in link' }))
+    await screen.findByText('Sign in with password instead')
+  }
+
+  it('switches to an email-only form and back', async () => {
+    await renderPage()
+    await switchToLinkMode()
+    // Email-only: no password field, no forgot-password link in this mode.
+    expect(screen.queryByLabelText('Password')).toBeNull()
+    expect(screen.queryByText('Forgot your password?')).toBeNull()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Sign in with password instead' })
+    )
+    await screen.findByLabelText('Password')
+    expect(screen.queryByText('Sign in with password instead')).toBeNull()
+  })
+
+  it('sends the link and shows the non-disclosing sent confirmation', async () => {
+    await renderPage()
+    await switchToLinkMode()
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'demo@starter.local' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a sign-in link' }))
+    await waitFor(() => expect(sendMagicLink).toHaveBeenCalledTimes(1))
+    expect(sendMagicLink).toHaveBeenCalledWith({
+      email: 'demo@starter.local',
+      turnstileToken: undefined
+    })
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('check your inbox for a sign-in link')
+    expect(alert.textContent).toContain('ten minutes')
+    // The password path stays untouched by a link request.
+    expect(signIn).not.toHaveBeenCalled()
+  })
+
+  it('blocks submission while Turnstile is configured but unanswered', async () => {
+    await renderWithRouter(
+      <SignInPage
+        signIn={signIn}
+        sendMagicLink={sendMagicLink}
+        turnstileSiteKey="site-key"
+      />,
+      { path: '/sign-in', destinations: ['/workspaces'] }
+    )
+    await screen.findByLabelText('Email')
+    await switchToLinkMode()
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'demo@starter.local' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a sign-in link' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('Complete the bot check')
+    expect(sendMagicLink).not.toHaveBeenCalled()
+  })
+
+  it('surfaces send errors without claiming the link was sent', async () => {
+    sendMagicLink.mockResolvedValueOnce({ error: { message: 'rate_limited' } })
+    await renderPage()
+    await switchToLinkMode()
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'demo@starter.local' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a sign-in link' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('rate_limited')
+    expect(screen.queryByText(/check your inbox/)).toBeNull()
   })
 })

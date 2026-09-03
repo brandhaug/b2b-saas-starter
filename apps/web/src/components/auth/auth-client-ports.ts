@@ -92,9 +92,43 @@ export function signUpWithAuthClient(
   })
 }
 
-export type RequestPasswordReset = AuthPort<{ readonly email: string }>
+/**
+ * Magic-link sign-in: asks Better Auth to email a single-use link. The
+ * response is non-disclosing by design (`{ status: true }` whether or not the
+ * address has an account) — the screen must not know more than the endpoint
+ * does.
+ */
+export type SendMagicLink = AuthPort<{
+  readonly email: string
+  /** The Turnstile widget's token — present only when Turnstile is configured. */
+  readonly turnstileToken?: string | undefined
+}>
 
 /**
+ * Every callback lands on the app's `/magic-link/verify` page: success arrives
+ * with a session cookie, failure with `?error=…`. `newUserCallbackURL` gets
+ * the same destination so a first-time link lands signed-in as well — the
+ * plugin creates the account (verified) when the link is consumed.
+ */
+export function sendMagicLinkWithAuthClient(
+  input: Parameters<SendMagicLink>[0]
+): ReturnType<SendMagicLink> {
+  const payload = {
+    email: input.email,
+    callbackURL: `${window.location.origin}/magic-link/verify`,
+    newUserCallbackURL: `${window.location.origin}/magic-link/verify`,
+    errorCallbackURL: `${window.location.origin}/magic-link/verify`
+  }
+  if (input.turnstileToken === undefined) {
+    return authClient.signIn.magicLink(payload)
+  }
+  return authClient.signIn.magicLink({
+    ...payload,
+    fetchOptions: { headers: { 'x-turnstile-token': input.turnstileToken } }
+  })
+}
+
+export type RequestPasswordReset = AuthPort<{ readonly email: string }> /**
  * `redirectTo` is where Better Auth's token-exchange redirect lands once the
  * emailed link is clicked: the handler validates the token, then forwards it
  * to `/reset-password?token=…` (or `?error=INVALID_TOKEN`).

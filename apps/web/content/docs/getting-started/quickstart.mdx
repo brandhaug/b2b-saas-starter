@@ -37,7 +37,12 @@ Seeding creates two credential accounts so the reference workspace is reachable 
 | `demo@starter.local`   | `demo-starter-password` | System admin (`/admin`) + `starter-lab` owner |
 | `engineer@example.com` | `demo-starter-password` | `starter-lab` member                          |
 
-Sign in at `http://localhost:3071/sign-in`. Restart `pnpm run dev` after the first migrate + seed so the dev server attaches the persisted local D1 as the `DB` binding; without it the app runs provider-light on the in-memory seed layer. The [setup guide](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/setup.md) covers the details.
+Sign in at `http://localhost:3071/sign-in` — two Local Auth Paths are wired:
+
+- **Email and password** — the seeded credentials above.
+- **Magic link** — "Email me a sign-in link" switches the form to email-only. The link is single-use and expires after ten minutes; consuming it signs you in (and creates a verified account for a brand-new address). With no email provider configured the dispatched email lands in the dev server's console log under `email.dispatched`, link included, so local development needs no provider.
+
+Both paths share the sign-in rate limit and record an Audit Event (`auth.sign_in`, with the method named in its metadata). Restart `pnpm run dev` after the first migrate + seed so the dev server attaches the persisted local D1 as the `DB` binding; without it the app runs provider-light on the in-memory seed layer. The [setup guide](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/setup.md) covers the details.
 
 ### Signing in with an emailed code instead
 

@@ -112,6 +112,22 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     signInMethod: 'google'
   },
   {
+    // The magic-link consume hop: the emailed URL points here, the plugin
+    // validates the single-use token, opens the session, and redirects to the
+    // app's landing page — so the Location header carries the outcome, same
+    // shape as the verification row below. The send endpoint
+    // (`POST /sign-in/magic-link`) records nothing: it is non-disclosing by
+    // design and answers `{ status: true }` whether or not the address exists.
+    method: 'GET',
+    suffix: '/magic-link/verify',
+    success: 'auth.sign_in',
+    failure: 'auth.sign_in_failed',
+    actor: 'response',
+    target: 'session',
+    signInMethod: 'magic-link',
+    successFromRedirect: true
+  },
+  {
     method: 'POST',
     suffix: '/sign-up/email',
     success: 'auth.sign_up',
