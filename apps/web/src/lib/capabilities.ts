@@ -57,6 +57,7 @@ const starterEnv: StarterEnv = {
   BILLING_QUEUE: cloudflareEnv.BILLING_QUEUE,
   WORKSPACE_EXPORT_QUEUE: cloudflareEnv.WORKSPACE_EXPORT_QUEUE,
   WORKSPACE_EXPORT_BUCKET: cloudflareEnv.WORKSPACE_EXPORT_BUCKET,
+  NOTIFICATION_EMAIL_QUEUE: cloudflareEnv.NOTIFICATION_EMAIL_QUEUE,
   billing: billingOptionsFromEnv(cloudflareEnv)
 }
 

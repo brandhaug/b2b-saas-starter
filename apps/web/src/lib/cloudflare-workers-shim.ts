@@ -47,5 +47,6 @@ export const env = {
   // Seat-sync queue: unwired outside a real deployment — membership
   // mutations publish nothing and the provider webhook reconciles instead.
   BILLING_QUEUE: undefined,
-  DB: undefined
+  DB: undefined,
+  NOTIFICATION_EMAIL_QUEUE: undefined
 }

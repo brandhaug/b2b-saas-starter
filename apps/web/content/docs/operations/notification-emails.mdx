@@ -1,0 +1,56 @@
+---
+title: Notification emails and the daily digest
+description: Per-user, per-kind email preferences, the instant-email queue, and the 08:00 UTC digest cron.
+category: operations
+order: 30
+tags: [notifications, email, queues, cron]
+---
+
+A Notification is a user-facing message in the workspace feed. Each one has a kind, and every user chooses per kind how it reaches them by email: `off`, `instant`, or `digest`. The in-app feed is unaffected by the choice.
+
+## Kinds and defaults
+
+| Kind                            | Default   | What it means                                     |
+| ------------------------------- | --------- | ------------------------------------------------- |
+| `api_token.created`             | `instant` | An API token was minted in one of your workspaces |
+| `api_token.revoked`             | `instant` | An API token was revoked                          |
+| `workspace_member.role_changed` | `instant` | An owner or admin changed your role               |
+| `two_factor.changed`            | `instant` | Two-factor authentication was turned on or off    |
+| `webhook.delivery_failed`       | `digest`  | A webhook endpoint rejected a delivery or gave up |
+| `workspace_member.joined`       | `digest`  | Somebody accepted an invitation to your workspace |
+| `billing.plan_changed`          | `digest`  | A workspace moved to another plan                 |
+| `announcement`                  | `digest`  | Workspace-wide notices                            |
+
+The four security kinds default to instant because each one changes who can act on the account or the workspace. Defaults live in code, so the `notification_preferences` table holds only the choices a user made; a new kind needs no backfill.
+
+## Preferences
+
+Preferences are per user, not per workspace. The signed-in `/account` page has an "Email notifications" section with one row per kind and a three-way choice. Every notification email carries an unsubscribe link to `/account/notifications?kind=<kind>`, which opens the same matrix with that kind highlighted. The link is deliberately a signed-in page rather than a one-click endpoint: it carries no token, so a forwarded email cannot change anybody's preference.
+
+Each change records a `notification_preference.changed` Audit Event against the user, with the kind, the chosen channel, and the kind's default in the metadata.
+
+## Instant emails
+
+When a Notification is created, the feed capability resolves who can see it (the target user, or every member of the workspace for a broadcast) and enqueues one message on the `b2b-saas-starter-notification-emails` Cloudflare Queue per recipient whose channel for the kind is `instant`. The message carries only the Notification id and the recipient id. The background worker consumes it, re-reads the Notification and the recipient's current preference, renders the kind's React Email template, and sends it through Cloudflare Email. A Notification that was read in the meantime, or a preference that moved off instant, is acked without an email.
+
+Consumer settings: batches of 10, two concurrent invocations, three retries one minute apart, no dead-letter queue. After the third failure the message is dropped; the Notification stays in the feed and, when the recipient takes the kind as digest, appears in the next digest.
+
+## Daily digest
+
+A cron trigger on the background worker fires at `0 8 * * *` (08:00 UTC). The run reads every unread Notification created in the previous 24 hours, fans broadcasts out to the workspace members, keeps the pairs whose kind the recipient takes as `digest`, and sends one email per recipient with everything grouped, newest first. Nothing is sent to a recipient with no digest items. A Notification read in the app before 08:00 is not included.
+
+The schedule and the queue are declared once in `infra/bindings.ts`; alchemy and the generated `wrangler.jsonc` files read the same constants.
+
+## Provider-light behaviour
+
+- No `NOTIFICATION_EMAIL_QUEUE` binding: Notifications persist and show in the feed, no instant email is enqueued, the digest still runs.
+- No `EMAIL` binding or `CLOUDFLARE_EMAIL_FROM`: emails render and go to the worker log instead of an inbox.
+- Links in emails use `BETTER_AUTH_URL` as the app origin; local development falls back to `http://localhost:3071`.
+
+## Trying it locally
+
+1. Run `pnpm run db:migrate:local` and `pnpm run db:seed`, then `pnpm run dev`.
+2. Sign in as `demo@starter.local` and open `/account`. The demo owner has a mix: API token creation moved to the digest, webhook failures moved to instant, announcements off.
+3. Run `pnpm -C apps/background dev` and trigger the cron with wrangler's scheduled test endpoint: `curl "http://localhost:8788/__scheduled?cron=0+8+*+*+*"`. The digest email renders to the worker log.
+
+See ADR 0055 for the decision record.
