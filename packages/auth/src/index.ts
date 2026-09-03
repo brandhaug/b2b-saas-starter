@@ -173,7 +173,15 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // gets `/admin` and nothing inside a workspace, where the membership
       // row's `workspaceRoles` value decides.
       admin({
-        adminRoles: [adminSystemRole]
+        adminRoles: [adminSystemRole],
+        // Impersonation (ADR 0054): one hour, stated rather than left on the
+        // plugin's default so a default change is a visible diff. The
+        // capability's `IMPERSONATION_SESSION_SECONDS` quotes the same number;
+        // this package cannot import it (siblings, ADR 0051), so change both.
+        impersonationSessionDuration: 60 * 60,
+        // Stated: an admin's session carries `/admin`, which is exactly the
+        // escalation an impersonation must never hand out.
+        allowImpersonatingAdmins: false
       }),
       organization({
         // One workspace set per plan is billing's business; five is the
