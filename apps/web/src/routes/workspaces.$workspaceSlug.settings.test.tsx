@@ -7,6 +7,7 @@ import {
   type RenameWorkspace
 } from '@/components/workspace-general-settings'
 import { type SignOut } from '@/components/workspace-shell'
+import { type RequestWorkspaceExport } from '@/components/workspace-export-panel'
 import { WorkspaceSettingsPage } from './workspaces.$workspaceSlug.settings'
 
 // The page takes its params and loader projection as props, so the test renders
@@ -17,7 +18,23 @@ const signOut = vi.fn<SignOut>()
 const settingsSummary: WorkspaceSettingsPayload = {
   viewer: { role: 'owner' },
   workspaceName: 'Starter Lab',
-  unreadCount: 2
+  unreadCount: 2,
+  exports: {
+    availability: { available: true },
+    exports: [
+      {
+        id: 'exp_1',
+        status: 'ready',
+        requestedAt: '2026-05-16T07:30:00.000Z',
+        completedAt: '2026-05-16T07:30:05.000Z',
+        expiresAt: '2026-05-23T07:30:05.000Z',
+        sizeBytes: 4096,
+        failureReason: null,
+        downloadUrl:
+          'http://localhost:8787/exports/exp_1/download?expires=1&signature=abc'
+      }
+    ]
+  }
 }
 
 /**
@@ -26,7 +43,8 @@ const settingsSummary: WorkspaceSettingsPayload = {
  */
 const memberSettings: WorkspaceSettingsPayload = {
   ...settingsSummary,
-  viewer: { role: 'member' }
+  viewer: { role: 'member' },
+  exports: null
 }
 
 async function renderPage(data: WorkspaceSettingsPayload = settingsSummary) {
@@ -115,5 +133,66 @@ describe('WorkspaceSettingsPage lifecycle ports', () => {
       expect(remove).toHaveBeenCalledWith({ data: { workspaceSlug: 'starter-lab' } })
     )
     await waitFor(() => expect(assign).toHaveBeenCalledWith('/workspaces'))
+  })
+})
+
+describe('WorkspaceSettingsPage data export', () => {
+  it('offers the export button and the signed download link to an owner', async () => {
+    await renderPage()
+    screen.getByRole('heading', { name: 'Data export' })
+    screen.getByRole('button', { name: 'Request export' })
+    expect(
+      screen.getByRole('link', { name: 'Download ZIP' }).getAttribute('href')
+    ).toBe('http://localhost:8787/exports/exp_1/download?expires=1&signature=abc')
+  })
+
+  it('hides the whole export card from a non-owner', async () => {
+    await renderPage(memberSettings)
+    expect(screen.queryByRole('heading', { name: 'Data export' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Request export' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Download ZIP' })).toBeNull()
+  })
+
+  it('explains an unconfigured deployment instead of offering the button', async () => {
+    await renderPage({
+      ...settingsSummary,
+      exports: {
+        availability: {
+          available: false,
+          reason: 'Set WORKSPACE_EXPORT_BUCKET to enable.'
+        },
+        exports: []
+      }
+    })
+    expect(screen.queryByRole('button', { name: 'Request export' })).toBeNull()
+    screen.getByText('Set WORKSPACE_EXPORT_BUCKET to enable.')
+    screen.getByText('No exports yet')
+  })
+
+  it('requests an export through the port', async () => {
+    const requestExport = vi.fn<RequestWorkspaceExport>().mockResolvedValue({
+      id: 'exp_2',
+      status: 'pending',
+      requestedAt: '2026-05-16T08:00:00.000Z',
+      completedAt: null,
+      expiresAt: null,
+      sizeBytes: null,
+      failureReason: null
+    })
+    await renderWithRouter(
+      <WorkspaceSettingsPage
+        workspaceSlug="starter-lab"
+        data={settingsSummary}
+        ports={{ signOut, requestExport }}
+      />,
+      { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
+    )
+    await screen.findByRole('heading', { name: 'Workspace settings' })
+    fireEvent.click(screen.getByRole('button', { name: 'Request export' }))
+    await waitFor(() =>
+      expect(requestExport).toHaveBeenCalledWith({
+        data: { workspaceSlug: 'starter-lab' }
+      })
+    )
   })
 })

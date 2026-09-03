@@ -20,6 +20,10 @@ const EVENT_LABELS = new Map<string, string>(
     'workspace.renamed': 'Workspace renamed',
     'workspace.deleted': 'Workspace deleted',
     'workspace.onboarding_dismissed': 'Onboarding checklist dismissed',
+    // governance — workspace data export
+    'workspace.export_requested': 'Workspace export requested',
+    'workspace.export_completed': 'Workspace export ready',
+    'workspace.export_downloaded': 'Workspace export downloaded',
     // governance — membership
     'workspace_member.added': 'Member added',
     'workspace_member.removed': 'Member removed',

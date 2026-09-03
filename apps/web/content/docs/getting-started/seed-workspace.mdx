@@ -13,6 +13,7 @@ The Seed Workspace exists so the reference application, tests, and screenshots a
 - One workspace (`starter-lab`) with three members in three Workspace Roles (one owner, one admin, one member)
 - Seeded API Tokens, Webhook Endpoints, and Notifications for the workspace
 - An Onboarding Checklist that reads three of four steps done: members, an API Token, and a Webhook Endpoint exist, while the demo owner's account has no two-factor yet (the plan step only appears when billing is configured)
+- One finished Workspace Export (`exp_seed_ready`), downloadable through the API worker's signed route, so the settings page and the export flow have something to show without R2 (in-memory Seed layer only — the D1 seed writes no export row, since there is no artifact for it in a bucket)
 
 ## When it runs
 
