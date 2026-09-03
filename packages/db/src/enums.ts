@@ -46,11 +46,14 @@ export type ApiTokenScopeValue = (typeof apiTokenScopes)[number]
 /**
  * The delivery state machine written by the background worker through
  * `WebhookEndpoints.recordDeliveryAttempt` / `recordTerminalDeliveryAttempt`:
- * `delivered` on a 2xx, `failed` while retries remain, `failed_permanent` on a
- * non-retryable response, `dead_lettered` once attempts are exhausted.
+ * `pending` once an operator has replayed or test-sent a delivery and the
+ * queue has not dispatched it yet, `delivered` on a 2xx, `failed` while
+ * retries remain, `failed_permanent` on a non-retryable response,
+ * `dead_lettered` once attempts are exhausted.
  */
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const deliveryStatuses = [
+  'pending',
   'delivered',
   'failed',
   'failed_permanent',

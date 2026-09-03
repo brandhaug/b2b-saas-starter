@@ -368,6 +368,11 @@ export const webhookEndpoints = sqliteTable(
     // Stored at rest by design: outbound dispatch must sign payloads with the
     // plaintext secret. See webhook-endpoints.AGENTS.md in packages/capabilities.
     signingSecret: text('signing_secret').notNull(),
+    // Rotation grace: the secret a rotation replaced stays valid until
+    // `previous_secret_expires_at` so a receiver can roll without dropping
+    // deliveries. Both null until the first rotation; cleared once expired.
+    previousSigningSecret: text('previous_signing_secret'),
+    previousSecretExpiresAt: text('previous_secret_expires_at'),
     enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
     // Free-text subscriptions by design: a producer can add event types
     // without a migration (see webhook-endpoints.AGENTS.md in
@@ -391,7 +396,18 @@ export const webhookDeliveries = sqliteTable(
     attempts: integer('attempts').default(0).notNull(),
     lastAttemptAt: text('last_attempt_at'),
     nextAttemptAt: text('next_attempt_at'),
-    responseStatus: integer('response_status')
+    responseStatus: integer('response_status'),
+    // Operator tooling: the event payload at rest so a failed delivery can be
+    // replayed verbatim, the request headers and a truncated response body
+    // from the latest attempt, and the delivery this one was replayed from.
+    // `replayed_from` is a plain reference, not a foreign key: the original
+    // row may be pruned while its replay is still worth listing.
+    payload: text('payload', { mode: 'json' }).$type<JsonValue>(),
+    requestHeaders: text('request_headers', { mode: 'json' }).$type<
+      Record<string, string>
+    >(),
+    responseBody: text('response_body'),
+    replayedFrom: text('replayed_from')
   },
   (table) => [index('webhook_deliveries_endpoint_id_idx').on(table.endpointId)]
 )
