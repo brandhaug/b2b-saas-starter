@@ -1,6 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/server'
 import { type JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
-import { tokenPrincipal, type ApiTokenScope } from '@b2b-saas-starter/authz/client'
+import {
+  memberPrincipal,
+  tokenPrincipal,
+  type Principal
+} from '@b2b-saas-starter/authz/client'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
   mirroredRestPath,
@@ -21,15 +25,19 @@ import { type Context, Effect, Result } from 'effect'
 import { createMcpHandler } from 'agents/mcp/server'
 import { z } from 'zod'
 
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 
 import {
-  authenticate,
+  authenticateMcpCaller,
   enforceRateLimit,
+  mcpCallerActor,
+  mcpCallerWorkspaceSlug,
   observed,
-  provideWorkspace
+  provideWorkspace,
+  type McpCaller
 } from './request-guards.ts'
 import { type ApiEnv } from './env.ts'
+import { oauthChallengeHeader, oauthResourceConfig } from './oauth-access-token.ts'
 
 /**
  * The MCP Capability Interface: a real Model Context Protocol server served at
@@ -42,8 +50,8 @@ import { type ApiEnv } from './env.ts'
  * The protocol route sits outside the `StarterApi` contract on purpose —
  * JSON-RPC over streamable HTTP is its own wire shape, not a REST operation —
  * so it never appears in the OpenAPI document or the permission matrix. It
- * shares everything that matters with the REST groups: one bearer-token
- * authentication path (`authenticate`), the same `requirePermission` guard
+ * shares everything that matters with the REST groups: the bearer-token
+ * verification path, the same `requirePermission` guard
  * per tool, the same `mcp` rate-limit bucket, and the same capability
  * services underneath.
  *
@@ -55,6 +63,13 @@ import { type ApiEnv } from './env.ts'
  *
  * `GET /mcp` remains the REST discovery document served by the contract group;
  * it advertises exactly what this module registers.
+ *
+ * Two credentials open the route (ADR 0054): a workspace API Token, or an
+ * OAuth access token the web worker minted for a signed-in Member after the
+ * consent page bound it to one workspace. `authenticateMcpCaller` tells them
+ * apart; from there the only difference is who a tool authorizes as — the
+ * token's scopes, or the Member's role in the workspace, re-resolved from the
+ * membership table on every call.
  */
 
 export const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
@@ -204,10 +219,30 @@ function outcomeToToolResult(outcome: ToolOutcome): ToolResult {
 }
 
 /**
+ * Who a tool authorizes as. An API Token is its scopes. An OAuth caller is the
+ * Member the workspace layer just resolved — from the membership table, not
+ * from the token's role claim — so a member removed since consenting is
+ * refused (`no_principal`), and a role change applies on the next call.
+ */
+function callerPrincipal(
+  caller: McpCaller
+): Effect.Effect<Principal | null, never, WorkspaceContext> {
+  if (caller.kind === 'token') {
+    return Effect.succeed(tokenPrincipal(caller.token.scopes))
+  }
+  return Effect.map(WorkspaceContext, (ctx) => {
+    if (ctx.actor === null) {
+      return null
+    }
+    return memberPrincipal(ctx.actor.role)
+  })
+}
+
+/**
  * Builds one stateless server instance for a single request, bound to the
- * verified token's workspace. Every invocation re-checks its own permission
- * against the token's scopes first — the route gate only proved `mcp:read`;
- * a tool must never serve data its REST counterpart would deny.
+ * caller's workspace. Every invocation re-checks its own permission first —
+ * the route gate only proved `mcp:read`; a tool must never serve data its
+ * REST counterpart would deny.
  *
  * Tool callbacks are the one place this worker leaves Effect-land: the SDK
  * invokes plain async functions, so each callback bridges back onto the
@@ -215,15 +250,39 @@ function outcomeToToolResult(outcome: ToolOutcome): ToolResult {
  */
 export function buildMcpServer(
   env: ApiEnv,
-  scopes: ReadonlyArray<ApiTokenScope>,
-  workspaceSlug: string,
+  caller: McpCaller,
   services: Context.Context<CapabilityReadServices>
 ): McpServer {
   /**
-   * Bridges one tool/resource read onto the request's services: the workspace
-   * layer resolves this call's tenant, and the capability services come from
-   * the context the route captured — the isolate's, not a fresh graph per tool
-   * call.
+   * The request's services behind one read: the workspace layer resolves this
+   * call's tenant (and, for an OAuth caller, proves the Member still belongs
+   * to it), and the capability services come from the context the route
+   * captured — the isolate's, not a fresh graph per tool call. Returns the
+   * Effect; each seam runs it the way it needs.
+   */
+  function bridged<A>(
+    body: Effect.Effect<
+      A,
+      CapabilityReadError,
+      CapabilityReadServices | WorkspaceContext
+    >
+  ): Effect.Effect<A, CapabilityReadError, never> {
+    return Effect.provideContext(
+      provideWorkspace(
+        env,
+        mcpCallerWorkspaceSlug(caller),
+        body,
+        mcpCallerActor(caller)
+      ),
+      services
+    )
+  }
+
+  /**
+   * The tool seam: `Effect.result` sits OUTSIDE the workspace layer, so a slug
+   * the layer cannot resolve — or a caller who is no longer a member — fails
+   * while the layer builds, and that failure reaches the classifier as the
+   * typed `WorkspaceNotFound` it is, not as a defect at the promise seam.
    */
   function runRead<A>(
     body: Effect.Effect<
@@ -231,10 +290,8 @@ export function buildMcpServer(
       CapabilityReadError,
       CapabilityReadServices | WorkspaceContext
     >
-  ): Promise<A> {
-    return Effect.runPromise(
-      Effect.provideContext(provideWorkspace(env, workspaceSlug, body), services)
-    )
+  ): Promise<Result.Result<A, CapabilityReadError>> {
+    return Effect.runPromise(Effect.result(bridged(body)))
   }
 
   const server = new McpServer(
@@ -255,9 +312,10 @@ export function buildMcpServer(
         // One guard + one capability read, bridged onto the request-scoped
         // workspace layer. `requirePermission` needs a Scope, which only exists
         // inside the Effect runtime, hence the scoped wrapper here rather than
-        // in the capability itself.
+        // in the capability itself. The paging input rides to the same read
+        // the REST route serves — the two surfaces page identically.
         const guarded = Effect.gen(function* () {
-          yield* requirePermission(tokenPrincipal(scopes), operation.permission)
+          yield* requirePermission(yield* callerPrincipal(caller), operation.permission)
           // The SDK validated `args` against the registered schema before
           // invoking, so the parse is total. Paged collection reads carry the
           // same paging input REST serves; the one parameterized read gets
@@ -268,10 +326,10 @@ export function buildMcpServer(
           return yield* operation.read(undefined, ENDPOINT_ID_TOOL_INPUT.parse(args))
         }).pipe(Effect.scoped)
 
-        // `Effect.result` moves the typed error channel into the value before
-        // the promise seam, so classification stays compiler-checked. The
+        // `runRead` moves the typed error channel into the value before the
+        // promise seam, so classification stays compiler-checked. The
         // rejection handler only sees defects — never a typed failure.
-        return runRead(Effect.result(guarded)).then(outcomeToToolResult, () => ({
+        return runRead(guarded).then(outcomeToToolResult, () => ({
           content: [{ type: 'text', text: TOOL_FAILED_MESSAGE }],
           isError: true
         }))
@@ -284,15 +342,14 @@ export function buildMcpServer(
     OVERVIEW_RESOURCE_URI,
     {
       title: 'Workspace overview',
-      description:
-        "The API token's workspace record with its notification feed, as JSON."
+      description: "The caller's workspace record with its notification feed, as JSON."
     },
     () => {
       // The resource projects the same overview read the REST route and the
       // tools serve, pulled from the shared operation table like both of them.
-      // The SDK's resource callback has no error shape of its own, so a typed
-      // failure travels to the promise seam and rejects there — the protocol
-      // answers with its own internal error.
+      // The SDK's resource callback has no typed-error channel of its own, so
+      // the effect's failure rejects the raw promise seam (`bridge`, not
+      // `runRead`) and the protocol answers with its own internal error.
       const guarded = Effect.map(READ_OPERATIONS.overview.read(), (value) => ({
         contents: [
           {
@@ -303,7 +360,7 @@ export function buildMcpServer(
           }
         ]
       }))
-      return runRead(guarded)
+      return Effect.runPromise(bridged(guarded))
     }
   )
 
@@ -327,14 +384,44 @@ function rpcErrorResponse(
  * `packages/api`), so a rejected `POST /mcp` answers exactly as a rejected REST
  * route would. Only the JSON-RPC bodies below are this route's own shape.
  */
-function failureResponse(error: GuardFailure): HttpServerResponse.HttpServerResponse {
+function failureResponse(
+  env: ApiEnv,
+  request: HttpServerRequest.HttpServerRequest,
+  error: GuardFailure
+): HttpServerResponse.HttpServerResponse {
   const { status, body } = guardFailureResponse(error)
+  // RFC 9728: a 401 tells an OAuth-capable client where the protected-resource
+  // metadata is, which is how Claude finds the authorization server. Only
+  // when OAuth is configured — otherwise there is nothing to discover.
+  if (error._tag === 'Unauthorized' && oauthResourceConfig(env) !== undefined) {
+    const web = HttpServerRequest.toWebResult(request)
+    let origin = ''
+    if (Result.isSuccess(web)) {
+      origin = new URL(web.success.url).origin
+    }
+    return HttpServerResponse.jsonUnsafe(body, {
+      status,
+      headers: { 'www-authenticate': oauthChallengeHeader(origin) }
+    })
+  }
   return HttpServerResponse.jsonUnsafe(body, { status })
 }
 
 /**
- * The `POST /mcp` handler: rate-limit, authenticate, prove `mcp:read`, then
- * hand the request to the Agents SDK handler. Guard failures escape the body
+ * The route gate's principal: an API Token authorizes as its scopes; an OAuth
+ * caller authorizes as the role the token carries. The per-tool checks below
+ * re-resolve the Member's role from the membership table either way.
+ */
+function routeGatePrincipal(caller: McpCaller): Principal {
+  if (caller.kind === 'token') {
+    return tokenPrincipal(caller.token.scopes)
+  }
+  return memberPrincipal(caller.token.workspaceRole)
+}
+
+/**
+ * The `POST /mcp` handler: rate-limit, authenticate (API Token or OAuth access
+ * token), prove `mcp:read`, then hand the request to the Agents SDK handler. Guard failures escape the body
  * so `observed` records them like any other rejected request; everything past
  * the gate — parsing included — is the Agents handler's job, fed the
  * pre-parsed body through `fetch(request, { parsedBody })`.
@@ -342,9 +429,9 @@ function failureResponse(error: GuardFailure): HttpServerResponse.HttpServerResp
 function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest) {
   return Effect.gen(function* () {
     yield* enforceRateLimit(request, 'mcp')
-    const verified = yield* authenticate(request)
+    const caller = yield* authenticateMcpCaller(request)
     // `observed` supplies the request Scope that `requirePermission` needs.
-    yield* requirePermission(tokenPrincipal(verified.scopes), { mcp: ['read'] })
+    yield* requirePermission(routeGatePrincipal(caller), { mcp: ['read'] })
 
     // The router's request wraps the Worker's own fetch `Request`, so
     // `toWebResult` hands it straight back — absolute URL, original headers,
@@ -368,22 +455,19 @@ function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest)
     }
 
     // One handler per request is the documented usage for ordinary tools and
-    // resources; the factory closes over this request's verified token so
+    // resources; the factory closes over this request's verified caller so
     // every tool lands in the right workspace.
     // The capability services are built once per isolate and provided to this
     // request by `http.ts`; capturing them here carries them across the SDK's
     // promise seam instead of rebuilding the graph inside every tool call.
     const services = yield* Effect.context<CapabilityReadServices>()
-    const handle = createMcpHandler(
-      () => buildMcpServer(env, verified.scopes, verified.workspaceSlug, services),
-      {
-        corsOptions: false,
-        // Bearer-token auth already ran upstream; nothing for CORS to add.
-        // Strict stateless-only: legacy-protocol clients are rejected rather
-        // than served through the v1 compatibility fallback.
-        legacy: 'reject'
-      }
-    )
+    const handle = createMcpHandler(() => buildMcpServer(env, caller, services), {
+      corsOptions: false,
+      // Bearer-token auth already ran upstream; nothing for CORS to add.
+      // Strict stateless-only: legacy-protocol clients are rejected rather
+      // than served through the v1 compatibility fallback.
+      legacy: 'reject'
+    })
     // The one header a stock streamable-HTTP client always sends that a caller
     // here may omit: the handler negotiates its response body against
     // `accept`, and refuses the request without it.
@@ -408,7 +492,7 @@ export function mcpProtocolLayer(env: ApiEnv) {
       ),
       (outcome): HttpServerResponse.HttpServerResponse => {
         if (Result.isFailure(outcome)) {
-          return failureResponse(outcome.failure)
+          return failureResponse(env, request, outcome.failure)
         }
         return outcome.success
       }
