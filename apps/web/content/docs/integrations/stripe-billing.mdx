@@ -52,7 +52,7 @@ All three are optional fields in `packages/env/src/server.ts`. Unset, checkout a
 
 ## Queue topology
 
-Seat sync rides its own `b2b-saas-starter-billing` queue (produced by the web worker, consumed by the background worker) rather than sharing the webhook delivery queue — the message shapes and retry semantics are different. It has no dead-letter queue on purpose: sync is self-healing, so the next membership change re-syncs and the `customer.subscription.updated` webhook reconciles any drift. The full decision is recorded in ADR 0054 (`docs/adr/0054-seat-based-billing-with-queue-decoupled-seat-sync.md`).
+Seat sync rides its own `b2b-saas-starter-billing` queue (produced by the web worker, consumed by the background worker) rather than sharing the webhook delivery queue — the message shapes and retry semantics are different. It has no dead-letter queue on purpose: sync is self-healing, so the next membership change re-syncs and the `customer.subscription.updated` webhook reconciles any drift. The full decision is recorded in ADR 0060 (`docs/adr/0060-seat-based-billing-with-queue-decoupled-seat-sync.md`).
 
 ## Webhook setup
 

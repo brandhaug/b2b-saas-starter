@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Plans, entitlements, and the Stripe handoff. The plan catalog is the starter's pricing vocabulary — the public pricing page and the workspace billing page render the same list — and `workspaces.planId` is the entitlement state that catalog gives shape to. Checkout is provider-light: with the Stripe env unset every surface keeps working and `startCheckout` / `startPortalSession` fail `CapabilityUnavailable('provider_not_configured')` (CLAUDE.md rule 3). Seat billing (ADR 0054) adds a per-seat pricing shape, the seat-sync queue round trip, and the Billing Portal handoff.
+Plans, entitlements, and the Stripe handoff. The plan catalog is the starter's pricing vocabulary — the public pricing page and the workspace billing page render the same list — and `workspaces.planId` is the entitlement state that catalog gives shape to. Checkout is provider-light: with the Stripe env unset every surface keeps working and `startCheckout` / `startPortalSession` fail `CapabilityUnavailable('provider_not_configured')` (CLAUDE.md rule 3). Seat billing (ADR 0060) adds a per-seat pricing shape, the seat-sync queue round trip, and the Billing Portal handoff.
 
 ## Module layout
 
@@ -30,7 +30,7 @@ Four modules, so the entitlement gate is reachable without the provider:
 
 ## How seat sync flows
 
-`WorkspaceMembership.addMember` / `.removeMember` and `WorkspaceInvitations.accept` call `publishSeatSyncWith(publisher, { workspaceId, reason })` **after** their write — best-effort; a queue outage annotates the wide event and never fails the mutation. The background worker's `seat-sync-consumer.ts` decodes `SeatSyncQueueMessage` and hands it to `Billing.syncSeats`. The Stripe webhook handler reconciles on `customer.subscription.updated`, so provider-reported truth wins over anything a missed message left behind. See ADR 0054.
+`WorkspaceMembership.addMember` / `.removeMember` and `WorkspaceInvitations.accept` call `publishSeatSyncWith(publisher, { workspaceId, reason })` **after** their write — best-effort; a queue outage annotates the wide event and never fails the mutation. The background worker's `seat-sync-consumer.ts` decodes `SeatSyncQueueMessage` and hands it to `Billing.syncSeats`. The Stripe webhook handler reconciles on `customer.subscription.updated`, so provider-reported truth wins over anything a missed message left behind. See ADR 0060.
 
 ## Anti-patterns
 
@@ -38,5 +38,5 @@ Four modules, so the entitlement gate is reachable without the provider:
 - Don't re-derive "Stripe is configured" from env in a route or a component. Read `Billing.configured`.
 - Don't import `billing.ts`, `stripe.ts`, or the adapters to reach the plan gate or `seatUsage` — import `plan-catalog.ts`.
 - Don't let `stripe.ts` depend on the `Billing` service. The event policies and the verifier run in the background worker's plain `fetch` handler, before any layer is built.
-- Don't call Stripe from a membership mutation, or await `syncSeats` anywhere on the request path. The queue is the seam (ADR 0054).
+- Don't call Stripe from a membership mutation, or await `syncSeats` anywhere on the request path. The queue is the seam (ADR 0060).
 - Don't block member management at a seat ceiling. Seats prompt (`seatUsage`); resource ceilings refuse (`assertWithinPlanLimit`).

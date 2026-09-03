@@ -56,7 +56,7 @@ React Email templates and Cloudflare Email Service sending boundary. Outbound em
 ## Data Stores
 
 - **D1** — shared relational persistence.
-- **Cloudflare Queues** — retryable webhook delivery and future background fan-out. Backed by a dead-letter queue (`b2b-saas-starter-webhooks-dlq`) so messages exceeding `maxRetries` land somewhere replayable. A second queue (`b2b-saas-starter-workspace-exports`) carries workspace export jobs; its consumer marks the export row `failed` on the last attempt instead of dead-lettering. A third (`b2b-saas-starter-billing`) carries seat sync: membership/invitation mutations enqueue, the background worker mirrors the member count onto the Stripe subscription item — ADR 0054; no DLQ, since sync is self-healing and the provider webhook reconciles drift.
+- **Cloudflare Queues** — retryable webhook delivery and future background fan-out. Backed by a dead-letter queue (`b2b-saas-starter-webhooks-dlq`) so messages exceeding `maxRetries` land somewhere replayable. A second queue (`b2b-saas-starter-workspace-exports`) carries workspace export jobs; its consumer marks the export row `failed` on the last attempt instead of dead-lettering. A third (`b2b-saas-starter-billing`) carries seat sync: membership/invitation mutations enqueue, the background worker mirrors the member count onto the Stripe subscription item — ADR 0060; no DLQ, since sync is self-healing and the provider webhook reconciles drift.
 - **R2** — one env-gated bucket (`WORKSPACE_EXPORT_BUCKET`) for workspace export ZIPs only, lifecycle-deleted after seven days (ADR 0055). No other object storage and no upload surface (ADR 0028).
 - **Checked-in MDX/content** — public knowledge content, search, sitemap, and LLM docs artifacts.
 

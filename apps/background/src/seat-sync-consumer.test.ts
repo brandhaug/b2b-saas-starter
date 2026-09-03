@@ -2,15 +2,12 @@ import {
   Billing,
   type SeatSyncResult
 } from '@b2b-saas-starter/capabilities/billing/billing'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'
 
-import {
-  processSeatSyncMessage,
-  readSeatSyncDelivery,
-  type DeliveryOutcome
-} from './seat-sync-consumer.ts'
+import { processSeatSyncMessage, readSeatSyncDelivery } from './seat-sync-consumer.ts'
+import { type DeliveryOutcome } from './webhook-consumer.ts'
 
 /**
  * The seat-sync consumer against a recording `Billing` stub: the outcomes the

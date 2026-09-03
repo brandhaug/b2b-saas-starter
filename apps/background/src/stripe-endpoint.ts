@@ -183,18 +183,24 @@ function applySubscription(
   return Effect.gen(function* () {
     // Built per branch rather than ternaries: the fields a deletion carries
     // are disjoint from the ones a link or quantity report carries.
-    const input: ApplySubscriptionEventInput = {
-      workspaceId,
-      detail: { source }
-    }
+    let input: ApplySubscriptionEventInput
     if (link.kind === 'deleted') {
-      input.deleted = true
+      input = { workspaceId, deleted: true, detail: { source } }
+    } else if (link.kind === 'quantity') {
+      input = {
+        workspaceId,
+        customerId: link.customerId,
+        subscriptionId: link.subscriptionId,
+        subscriptionItemId: link.subscriptionItemId,
+        quantity: link.quantity,
+        detail: { source }
+      }
     } else {
-      input.customerId = link.customerId
-      input.subscriptionId = link.subscriptionId
-      if (link.kind === 'quantity') {
-        input.subscriptionItemId = link.subscriptionItemId
-        input.quantity = link.quantity
+      input = {
+        workspaceId,
+        customerId: link.customerId,
+        subscriptionId: link.subscriptionId,
+        detail: { source }
       }
     }
     const billing = yield* Billing

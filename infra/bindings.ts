@@ -118,6 +118,8 @@ export type StageResourceNames = {
   readonly database: string
   readonly webhookQueue: string
   readonly webhookDeadLetterQueue: string
+  /** The seat-sync queue (ADR 0060). */
+  readonly billingQueue: string
   readonly workspaceExportQueue: string
   readonly workspaceExportBucket: string
   readonly worker: (app: WorkerApp) => string
@@ -135,6 +137,7 @@ export function stageResourceNames(stage: string): StageResourceNames {
       database: 'b2b-saas-starter',
       webhookQueue: webhookQueueName,
       webhookDeadLetterQueue: webhookDeadLetterQueueName,
+      billingQueue: billingQueueName,
       workspaceExportQueue: workspaceExportQueueName,
       workspaceExportBucket: workspaceExportBucketName,
       worker: (app) => `b2b-saas-starter-${app}`
@@ -146,6 +149,7 @@ export function stageResourceNames(stage: string): StageResourceNames {
     database: prefix,
     webhookQueue: `${prefix}-webhooks`,
     webhookDeadLetterQueue: `${prefix}-webhooks-dlq`,
+    billingQueue: `${prefix}-billing`,
     workspaceExportQueue: `${prefix}-workspace-exports`,
     workspaceExportBucket: `${prefix}-workspace-exports`,
     worker: (app) => `${prefix}-${app}`

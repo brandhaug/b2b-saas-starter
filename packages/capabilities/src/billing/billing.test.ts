@@ -5,7 +5,8 @@ import {
   AuditEventLog,
   type RecordAuditEventInput
 } from '../governance/audit-event-log.ts'
-import { makeSeedRoster, type Member } from '../governance/workspace-membership.ts'
+import { makeSeedRoster } from '../governance/workspace-membership.ts'
+import { type Member } from '../governance/workspace-identity.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
 import { Billing } from './billing.ts'
 import { SeedBilling, type SeedSubscriptionFixture } from './billing.seed.ts'

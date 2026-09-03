@@ -5,10 +5,7 @@ import { type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
 import { useServerAction } from '@/hooks/use-server-action'
-import {
-  startCheckoutServerFn,
-  startPortalSessionServerFn
-} from '@/lib/server/billing'
+import { startCheckoutServerFn, startPortalSessionServerFn } from '@/lib/server/billing'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Identifier } from '@/components/page/identifier'
 import { Panel } from '@/components/page/panel'

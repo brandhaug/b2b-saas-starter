@@ -232,7 +232,7 @@ export const Stack = Alchemy.Stack(
     // Seat sync: membership and invitation mutations enqueue; the background
     // worker consumes and reconciles the Stripe subscription item quantity.
     const billingQueue = yield* Cloudflare.Queues.Queue('billing-queue', {
-      name: billingQueueName
+      name: names.billingQueue
     })
 
     // Only provision the SendEmail binding when a verified sender is
