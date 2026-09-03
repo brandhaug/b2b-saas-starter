@@ -74,3 +74,65 @@ export const webhookDlqConsumerSettings: QueueConsumerSettings = {
   maxRetries: 1,
   maxWaitTimeMs: 5000
 }
+
+/**
+ * Stage-aware physical names. `prod` keeps the historical names so the
+ * production stack's D1, queues, and Workers are untouched; every other stage
+ * (a `pr-<number>` preview, a developer's `dev_<user>`) gets its own copies
+ * under `b2b-saas-starter-<stage>-…`, so two stages never share a database or
+ * a queue. `write-wrangler.ts` renders the `prod` names, which is why
+ * `pnpm run infra:wrangler` output does not move when a preview deploys.
+ */
+export const productionStage = 'prod'
+
+export const stageNamePattern = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/
+
+/** `pr-<number>` stages are the ephemeral per-pull-request previews (ADR 0054). */
+export function isPreviewStage(stage: string): boolean {
+  return /^pr-\d+$/.test(stage)
+}
+
+export type WorkerApp = 'web' | 'api' | 'background'
+
+export type StageResourceNames = {
+  readonly stage: string
+  readonly database: string
+  readonly webhookQueue: string
+  readonly webhookDeadLetterQueue: string
+  readonly worker: (app: WorkerApp) => string
+}
+
+export function stageResourceNames(stage: string): StageResourceNames {
+  if (!stageNamePattern.test(stage)) {
+    throw new Error(
+      `Invalid stage "${stage}": use lowercase letters, digits, "-" or "_" (e.g. prod, pr-42).`
+    )
+  }
+  if (stage === productionStage) {
+    return {
+      stage,
+      database: 'b2b-saas-starter',
+      webhookQueue: webhookQueueName,
+      webhookDeadLetterQueue: webhookDeadLetterQueueName,
+      worker: (app) => `b2b-saas-starter-${app}`
+    }
+  }
+  const prefix = `b2b-saas-starter-${stage}`
+  return {
+    stage,
+    database: prefix,
+    webhookQueue: `${prefix}-webhooks`,
+    webhookDeadLetterQueue: `${prefix}-webhooks-dlq`,
+    worker: (app) => `${prefix}-${app}`
+  }
+}
+
+/**
+ * The `workers.dev` URL a Worker serves at when it has no custom domain:
+ * `https://<worker>.<account subdomain>.workers.dev`. The preview workflow and
+ * `alchemy.run.ts` derive `BETTER_AUTH_URL` and the sticky PR comment from
+ * this, so the two can never disagree about where a preview lives.
+ */
+export function workersDevUrl(workerName: string, subdomain: string): string {
+  return `https://${workerName}.${subdomain}.workers.dev`
+}

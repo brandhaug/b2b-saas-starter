@@ -322,6 +322,53 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
   ].join('\n')}\n`
 }
 
+// Where the SQL lands. Default: the persisted local D1 that `db:migrate:local`
+// targets. `--remote --database=<name>` executes against a deployed D1 by name
+// instead — the preview workflow seeds each `pr-<number>` stage's database this
+// way so the preview shows the Seed Workspace (ADR 0054). Remote mode passes no
+// wrangler config: the db package's config names the production database, and
+// wrangler resolves a bare name through the account (CLOUDFLARE_API_TOKEN and
+// CLOUDFLARE_ACCOUNT_ID) instead.
+type SeedTarget =
+  | { readonly kind: 'local' }
+  | { readonly kind: 'remote'; readonly database: string }
+
+function resolveTarget(argv: ReadonlyArray<string>): SeedTarget {
+  const remote = argv.includes('--remote')
+  const database = argv
+    .find((arg) => arg.startsWith('--database='))
+    ?.slice('--database='.length)
+  if (!remote && database === undefined) {
+    return { kind: 'local' }
+  }
+  if (!remote || !database) {
+    throw new Error(
+      'seed: remote seeding needs both --remote and --database=<d1 name> (e.g. b2b-saas-starter-pr-42)'
+    )
+  }
+  return { kind: 'remote', database }
+}
+
+// Resolved up front so a bad flag fails before the fixture is built or the SQL
+// file is written.
+const seedTarget = resolveTarget(process.argv)
+
+function wranglerArgs(target: SeedTarget, file: string): ReadonlyArray<string> {
+  if (target.kind === 'remote') {
+    return ['d1', 'execute', target.database, '--remote', `--file=${file}`]
+  }
+  return [
+    'd1',
+    'execute',
+    'b2b-saas-starter',
+    '--local',
+    // Use the db package's wrangler config so the seed lands in the
+    // same local D1 state that `db:migrate:local` targets.
+    '--config=packages/db/wrangler.jsonc',
+    `--file=${file}`
+  ]
+}
+
 // This script runs on Node at development time and shells out to `wrangler d1
 // execute`; the CLI argv, stdout, file write, subprocess, and exit code below
 // are the Node/process platform APIs that job needs. The Effect platform
@@ -345,16 +392,7 @@ function writeAndExecute(sql: string) {
       )
       const child = spawn(
         wranglerBin,
-        [
-          'd1',
-          'execute',
-          'b2b-saas-starter',
-          '--local',
-          // Use the db package's wrangler config so the seed lands in the
-          // same local D1 state that `db:migrate:local` targets.
-          '--config=packages/db/wrangler.jsonc',
-          '--file=.context/seed-starter-lab.sql'
-        ],
+        [...wranglerArgs(seedTarget, '.context/seed-starter-lab.sql')],
         { stdio: ['ignore', 'inherit', 'inherit'], cwd: repoRoot }
       )
       child.on('exit', (exitCode) => resume(Effect.succeed(exitCode ?? 1)))
