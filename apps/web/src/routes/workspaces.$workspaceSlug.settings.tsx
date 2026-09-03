@@ -4,6 +4,7 @@ import { pageTitle } from '@/components/page/page-title'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { RoutePending } from '@/components/route-pending'
+import { SsoPanel } from '@/components/sso-panel'
 import { WorkspaceShell, type SignOut } from '@/components/workspace-shell'
 import {
   WorkspaceGeneralSettings,
@@ -127,10 +128,9 @@ export function WorkspaceSettingsPage({
         <Panel title="Single sign-on">
           <div className="grid gap-3">
             <p className="text-sm text-muted-foreground">
-              Route one email domain to your identity provider. Sign-ins at
-              that domain go to the IdP once the connection is enabled; a first
-              SSO sign-in creates the member with the connection&apos;s default
-              role.
+              Route one email domain to your identity provider. Sign-ins at that domain
+              go to the IdP once the connection is enabled; a first SSO sign-in creates
+              the member with the connection&apos;s default role.
             </p>
             <SsoPanel
               workspaceSlug={workspaceSlug}

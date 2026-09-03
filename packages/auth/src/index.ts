@@ -205,7 +205,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // row's `workspaceRoles` value decides.
       admin({
         adminRoles: [adminSystemRole],
-        // Impersonation (ADR 0054): one hour, stated rather than left on the
+        // Impersonation (ADR 0055): one hour, stated rather than left on the
         // plugin's default so a default change is a visible diff. The
         // capability's `IMPERSONATION_SESSION_SECONDS` quotes the same number;
         // this package cannot import it (siblings, ADR 0051), so change both.
@@ -290,7 +290,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
           }
         }
       }),
-      // Workspace-scoped SSO (ADR 0054). The plugin owns the connection rows
+      // Workspace-scoped SSO (ADR 0055). The plugin owns the connection rows
       // and the protocol flows; the starter owns the vocabulary and the
       // routing rule. Configuration is per-workspace in the database — there
       // is deliberately no env var, because an owner configuring a connection

@@ -179,7 +179,7 @@ export function SeedNotificationFeed(
           }),
         record: (input) =>
           Effect.gen(function* () {
-            const row: SeedNotification = {
+            let row: SeedNotification = {
               id: yield* newCapabilityId('not'),
               title: input.title,
               message: input.message,

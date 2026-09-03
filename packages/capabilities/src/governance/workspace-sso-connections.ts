@@ -66,7 +66,7 @@ export type CreateOidcConnectionInput = {
   /**
    * Resolved by the app's test/discovery step before the connection is
    * registered, so the plugin stores a fully hydrated config and never needs
-   * runtime discovery at sign-in (ADR 0054: the strict `trustedOrigins` check
+   * runtime discovery at sign-in (ADR 0055: the strict `trustedOrigins` check
    * the plugin applies to discovery URLs would otherwise make every IdP an
    * operator env change).
    */
@@ -209,7 +209,7 @@ export type SsoConnectionsInterface = {
   >
 
   /**
-   * The domain-routing rule (ADR 0054): the connection an email address
+   * The domain-routing rule (ADR 0055): the connection an email address
    * resolves to, if any. Only `enabled` connections route, and a disabled
    * connection never intercepts a sign-in even though its row persists —
    * which is what makes the seeded example connection safe.

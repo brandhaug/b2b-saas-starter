@@ -42,7 +42,7 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'workspace_invitation.sent',
   'workspace_invitation.canceled',
   'workspace_invitation.accepted',
-  // governance — SSO connections (ADR 0054). The sign-in pair is `auth.`: it
+  // governance — SSO connections (ADR 0055). The sign-in pair is `auth.`: it
   // records over the auth catchall, next to the credential sign-in events.
   'workspace_sso.connection_created',
   'workspace_sso.connection_updated',

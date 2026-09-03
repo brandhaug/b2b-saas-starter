@@ -54,7 +54,7 @@ type SsoUpdateBody = {
  * endpoints) by the time they get here: the app's validation step resolved
  * them from the issuer, so the plugin never needs runtime discovery — whose
  * strict `trustedOrigins` check would otherwise make every IdP an operator
- * env change (ADR 0054).
+ * env change (ADR 0055).
  */
 export const webSsoBinding: WorkspaceSsoBinding = {
   create: async (input) => {
@@ -64,7 +64,7 @@ export const webSsoBinding: WorkspaceSsoBinding = {
       domain: input.domain,
       organizationId: input.workspaceId,
       // Connections are born disabled; the owner enables one after a
-      // successful test (ADR 0054).
+      // successful test (ADR 0055).
       enabled: false,
       defaultWorkspaceRole: input.defaultWorkspaceRole
     }

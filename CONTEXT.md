@@ -94,6 +94,7 @@ _Avoid_: IdP config, tenant SSO, integration
 **Domain Routing**:
 The sign-in rule that an email whose domain matches an enabled SSO Connection goes to that connection's identity provider.
 _Avoid_: Email fallback, forced SSO, redirect matching
+
 ## Relationships
 
 - A **Starter** includes exactly one **Reference Application**
@@ -120,6 +121,7 @@ _Avoid_: Email fallback, forced SSO, redirect matching
 
 - An **SSO Connection** belongs to exactly one **Workspace** and joins a first-time SSO sign-in as a **Member** with the connection's default **Workspace Role**
 - **Domain Routing** sends an email to one **SSO Connection** at sign-in; a disabled connection never routes
+
 ## Example Dialogue
 
 > **Dev:** "Should the landing page sell a made-up analytics product?"

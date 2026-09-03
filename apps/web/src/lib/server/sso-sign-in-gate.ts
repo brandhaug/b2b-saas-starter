@@ -4,7 +4,7 @@ import { Effect, Option, Schema } from 'effect'
 import { runCapabilities } from '../capabilities'
 
 /**
- * The server-side half of "require SSO for this domain" (ADR 0054): a
+ * The server-side half of "require SSO for this domain" (ADR 0055): a
  * workspace that flips the toggle refuses the credential path for its domain
  * outright, at the auth boundary, so a direct `POST /sign-in/email` cannot
  * sidestep the routing the sign-in page applies. The Turnstile gate in

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Workspace-scoped **SSO Connection** lifecycle and the **Domain Routing** rule (ADR 0054). A connection is one workspace's identity-provider configuration for one email domain — OIDC or SAML — owned by the workspace, configured by an owner in settings, never by an operator env var.
+Workspace-scoped **SSO Connection** lifecycle and the **Domain Routing** rule (ADR 0055). A connection is one workspace's identity-provider configuration for one email domain — OIDC or SAML — owned by the workspace, configured by an owner in settings, never by an operator env var.
 
 The `sso` plugin (`@better-auth/sso`) owns the protocol work and the rows; this capability owns the workspace-scoped contract on top:
 

@@ -300,7 +300,7 @@ function readAt(read: boolean): string | null {
  * The SSO connection rows come from the fixture through the same capability
  * read the settings page uses. The example OIDC connection's config blob is
  * JSON exactly as the plugin stores it; `enabled: false` keeps its domain
- * from routing sign-ins (ADR 0054).
+ * from routing sign-ins (ADR 0055).
  */
 function ssoConnectionRows(fixture: {
   readonly workspace: { readonly id: string }

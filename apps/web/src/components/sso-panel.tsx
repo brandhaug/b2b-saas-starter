@@ -34,7 +34,7 @@ import {
 } from '@/lib/server/workspace-sso'
 
 /**
- * The "Single sign-on" section of workspace settings (ADR 0054). Owners and
+ * The "Single sign-on" section of workspace settings (ADR 0055). Owners and
  * admins only — the loader withholds the whole segment from anyone without
  * `sso:list`, and every mutation here re-checks the matching statement on the
  * server.

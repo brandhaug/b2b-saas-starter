@@ -204,7 +204,7 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
  * One **disabled** example SSO connection, so the settings UI shows a
  * populated state in the demo. Disabled is the load-bearing part: the row
  * exists, but `resolveRouting` ignores it, so no sign-in is ever intercepted
- * (ADR 0054's routing rule). The domain matches none of the fixture member
+ * (ADR 0055's routing rule). The domain matches none of the fixture member
  * addresses either — belt and braces for a demo row that is never enabled.
  */
 export const seedSsoConnections: ReadonlyArray<SeedSsoConnection> = [

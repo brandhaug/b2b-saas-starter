@@ -111,7 +111,7 @@ export function SignInPage({
     onSubmit: async ({ value }) => {
       setSubmitError(null)
       setSsoNotice(null)
-      // Domain routing first (ADR 0054): an email whose domain belongs to an
+      // Domain routing first (ADR 0055): an email whose domain belongs to an
       // enabled connection goes to that IdP — the password path is never even
       // attempted. `requireSso` domains are additionally refused server-side,
       // so a direct POST cannot sidestep the rule.

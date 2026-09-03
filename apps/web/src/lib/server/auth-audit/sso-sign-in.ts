@@ -12,7 +12,7 @@ import { withWebRequestScope } from '../../observability'
 import { type RunAuditCapabilities } from './shared'
 
 /**
- * The SSO sign-in audit (ADR 0054) — the exchange-table rows cannot express
+ * The SSO sign-in audit (ADR 0055) — the exchange-table rows cannot express
  * it: the callback endpoints answer with a redirect whose body names nobody,
  * and the event is *workspace-scoped* (the connection's), while every
  * `EXCHANGE_ROWS` event is system-level with `workspaceId: null`.
