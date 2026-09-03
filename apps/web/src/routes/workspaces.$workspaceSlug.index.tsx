@@ -6,6 +6,10 @@ import {
   type MarkNotificationsRead
 } from '@/components/live-notifications'
 import { AttentionFeed } from '@/components/attention-feed'
+import {
+  OnboardingChecklist,
+  type DismissOnboardingChecklist
+} from '@/components/onboarding-checklist'
 import { attentionItems } from '@/lib/attention'
 import { PageHeader } from '@/components/page/page-header'
 import { pageTitle } from '@/components/page/page-title'
@@ -34,7 +38,7 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
   // The `workspaceDashboard` projection — shared with the REST `overview`
   // endpoint so app and Capability Interface views cannot drift — plus the
   // soft segments the attention feed reads, each dropped (null) for an actor
-  // without its permission.
+  // without its permission, plus the onboarding checklist.
   loader: ({ params, context }) =>
     loadWorkspaceDashboard({
       workspaceSlug: params.workspaceSlug,
@@ -68,9 +72,10 @@ export function WorkspaceDashboardPage({
   readonly ports?: {
     readonly listNotifications?: ListNotifications
     readonly markNotificationsRead?: MarkNotificationsRead
+    readonly dismissOnboardingChecklist?: DismissOnboardingChecklist
   }
 }) {
-  const { workspace, notifications, webhooks, unreadCount, viewer } = data
+  const { workspace, notifications, webhooks, unreadCount, viewer, progress } = data
 
   return (
     <WorkspaceShell
@@ -82,6 +87,16 @@ export function WorkspaceDashboardPage({
       <PageHeader
         title={workspace.name}
         description="What needs your attention, then what changed."
+      />
+      {/* Derived from live state on every load; renders nothing once an
+          owner or admin dismissed it for the workspace. */}
+      <OnboardingChecklist
+        workspaceSlug={workspace.slug}
+        progress={progress}
+        viewer={viewer}
+        {...(ports?.dismissOnboardingChecklist === undefined
+          ? {}
+          : { dismiss: ports.dismissOnboardingChecklist })}
       />
       <AttentionFeed
         workspaceSlug={workspace.slug}

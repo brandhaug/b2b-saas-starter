@@ -53,13 +53,23 @@ export function whenPermitted<A, E, R>(
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A | null, E, R | WorkspaceContext> {
   return Effect.gen(function* () {
-    const ctx = yield* WorkspaceContext
-    if (!ctx.actor) {
-      return null
-    }
-    if (!authorize(memberPrincipal(ctx.actor.role), permission).success) {
+    if (!(yield* permitted(permission))) {
       return null
     }
     return yield* effect
   })
+}
+
+/**
+ * The bare decision behind `whenPermitted`, for a read that shapes itself by
+ * permission rather than being dropped whole — the onboarding checklist skips
+ * two of its steps for an actor without `apiToken:list` and `webhook:list`.
+ * Same pure `authorize()`, same no-actor denial.
+ */
+export function permitted(
+  permission: PermissionRequest
+): Effect.Effect<boolean, never, WorkspaceContext> {
+  return Effect.map(WorkspaceContext, (ctx) =>
+    ctx.actor ? authorize(memberPrincipal(ctx.actor.role), permission).success : false
+  )
 }
