@@ -57,19 +57,37 @@ function pickBinding(
 }
 
 /**
- * Bucket selection for an auth request: credential sign-in endpoints
- * (`/sign-in/email`, `/sign-in/username`) land in `auth_sign_in`; other POSTs
- * in `auth_write`; everything else in `auth_read`.
+ * Path suffixes that carry credential material and so land in the tight
+ * `auth_sign_in` bucket: password and username sign-in, plus the email
+ * one-time-code endpoints — sending a code is an email-sending primitive and
+ * verifying one is a guessable-credential check, so both sit in the same
+ * bucket as a password guess (ADR 0030).
+ */
+const AUTH_SIGN_IN_SUFFIXES = [
+  '/sign-in/email',
+  '/sign-in/username',
+  '/sign-in/email-otp',
+  '/email-otp/send-verification-otp',
+  '/email-otp/verify-email',
+  '/email-otp/request-password-reset',
+  '/email-otp/reset-password'
+]
+
+/**
+ * Bucket selection for an auth request: credential sign-in and one-time-code
+ * endpoints land in `auth_sign_in`; other POSTs in `auth_write`; everything
+ * else in `auth_read`.
  */
 export function authRateLimitBucket(
   method: string,
   pathname: string
 ): AuthRateLimitBucket {
-  if (
-    method === 'POST' &&
-    (pathname.endsWith('/sign-in/email') || pathname.endsWith('/sign-in/username'))
-  ) {
-    return 'auth_sign_in'
+  if (method === 'POST') {
+    for (const suffix of AUTH_SIGN_IN_SUFFIXES) {
+      if (pathname.endsWith(suffix)) {
+        return 'auth_sign_in'
+      }
+    }
   }
   return method === 'POST' ? 'auth_write' : 'auth_read'
 }

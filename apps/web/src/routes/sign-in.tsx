@@ -323,6 +323,15 @@ export function SignInPage({
           ) : null}
           <p className="text-right">
             <Link
+              to="/sign-in/email-code"
+              search={redirect ? { redirect } : {}}
+              className="text-sm text-primary underline underline-offset-4"
+            >
+              Email me a code instead
+            </Link>
+          </p>
+          <p className="text-right">
+            <Link
               to="/forgot-password"
               search={{}}
               className="text-sm text-primary underline underline-offset-4"

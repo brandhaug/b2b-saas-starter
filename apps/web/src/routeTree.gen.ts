@@ -31,6 +31,7 @@ import { Route as AccountNotificationsRouteImport } from './routes/account_.noti
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
 import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
+import { Route as SignInEmailCodeRouteImport } from './routes/sign-in_.email-code'
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
 import { Route as DotwellKnownOauthAuthorizationServerSplatRouteImport } from './routes/[.]well-known.oauth-authorization-server.$'
 import { Route as KnowledgeBlogIndexRouteImport } from './routes/_knowledge.blog.index'
@@ -157,6 +158,11 @@ const OauthConsentRoute = OauthConsentRouteImport.update({
   path: '/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignInEmailCodeRoute = SignInEmailCodeRouteImport.update({
+  id: '/sign-in_/email-code',
+  path: '/sign-in/email-code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkspacesIndexRoute = WorkspacesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -264,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/account/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/oauth/consent': typeof OauthConsentRoute
+  '/sign-in/email-code': typeof SignInEmailCodeRoute
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
@@ -301,6 +308,7 @@ export interface FileRoutesByTo {
   '/account/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/oauth/consent': typeof OauthConsentRoute
+  '/sign-in/email-code': typeof SignInEmailCodeRoute
   '/help': typeof HelpIndexRoute
   '/workspaces': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
@@ -341,6 +349,7 @@ export interface FileRoutesById {
   '/account_/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/oauth/consent': typeof OauthConsentRoute
+  '/sign-in_/email-code': typeof SignInEmailCodeRoute
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
@@ -381,6 +390,7 @@ export interface FileRouteTypes {
     | '/account/notifications'
     | '/invitations/accept'
     | '/oauth/consent'
+    | '/sign-in/email-code'
     | '/help/'
     | '/workspaces/'
     | '/.well-known/oauth-authorization-server/$'
@@ -418,6 +428,7 @@ export interface FileRouteTypes {
     | '/account/notifications'
     | '/invitations/accept'
     | '/oauth/consent'
+    | '/sign-in/email-code'
     | '/help'
     | '/workspaces'
     | '/.well-known/oauth-authorization-server/$'
@@ -457,6 +468,7 @@ export interface FileRouteTypes {
     | '/account_/notifications'
     | '/invitations/accept'
     | '/oauth/consent'
+    | '/sign-in_/email-code'
     | '/help/'
     | '/workspaces/'
     | '/.well-known/oauth-authorization-server/$'
@@ -495,6 +507,7 @@ export interface RootRouteChildren {
   AccountNotificationsRoute: typeof AccountNotificationsRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   OauthConsentRoute: typeof OauthConsentRoute
+  SignInEmailCodeRoute: typeof SignInEmailCodeRoute
   HelpIndexRoute: typeof HelpIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -653,6 +666,13 @@ declare module '@tanstack/react-router' {
       path: '/oauth/consent'
       fullPath: '/oauth/consent'
       preLoaderRoute: typeof OauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in_/email-code': {
+      id: '/sign-in_/email-code'
+      path: '/sign-in/email-code'
+      fullPath: '/sign-in/email-code'
+      preLoaderRoute: typeof SignInEmailCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/workspaces/': {
@@ -849,6 +869,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountNotificationsRoute: AccountNotificationsRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
   OauthConsentRoute: OauthConsentRoute,
+  SignInEmailCodeRoute: SignInEmailCodeRoute,
   HelpIndexRoute: HelpIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }

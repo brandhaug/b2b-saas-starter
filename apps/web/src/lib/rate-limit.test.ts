@@ -45,6 +45,13 @@ describe('authRateLimitBucket', () => {
   it.each([
     ['POST', '/api/auth/sign-in/email', 'auth_sign_in'],
     ['POST', '/api/auth/sign-in/username', 'auth_sign_in'],
+    // Email one-time codes are credential material: sending and verifying
+    // them sit in the same tight bucket as a password guess.
+    ['POST', '/api/auth/sign-in/email-otp', 'auth_sign_in'],
+    ['POST', '/api/auth/email-otp/send-verification-otp', 'auth_sign_in'],
+    ['POST', '/api/auth/email-otp/verify-email', 'auth_sign_in'],
+    ['POST', '/api/auth/email-otp/request-password-reset', 'auth_sign_in'],
+    ['POST', '/api/auth/email-otp/reset-password', 'auth_sign_in'],
     // Session-management and other POSTs keep the generic write bucket.
     ['POST', '/api/auth/list-sessions', 'auth_write'],
     ['POST', '/api/auth/two-factor/enable', 'auth_write'],

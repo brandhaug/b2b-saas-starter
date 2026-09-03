@@ -281,4 +281,16 @@ describe('SignInPage', () => {
       'This workspace requires single sign-on for your email domain. Sign in with your identity provider.'
     )
   })
+
+  it('offers the email-code path without touching the credential form', async () => {
+    await renderPage('/workspaces')
+    const entry = screen.getByRole('link', { name: 'Email me a code instead' })
+    expect(entry.getAttribute('href')).toBe(
+      '/sign-in/email-code?redirect=%2Fworkspaces'
+    )
+    // The entry point is additive: the credential form still submits as-is.
+    fillValidCredentials()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await waitFor(() => expect(signIn).toHaveBeenCalledTimes(1))
+  })
 })
