@@ -22,6 +22,20 @@
   "ai": {
     "binding": "AI"
   },
+  "queues": {
+    "producers": [
+      {
+        "binding": "WORKSPACE_EXPORT_QUEUE",
+        "queue": "b2b-saas-starter-workspace-exports"
+      }
+    ]
+  },
+  "r2_buckets": [
+    {
+      "binding": "WORKSPACE_EXPORT_BUCKET",
+      "bucket_name": "b2b-saas-starter-workspace-exports"
+    }
+  ],
   "vars": {
     "WORKERS_AI_ENABLED": "false"
   },

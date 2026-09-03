@@ -45,7 +45,21 @@
         "max_batch_timeout": 5,
         "max_retries": 1,
         "max_concurrency": 1
+      },
+      {
+        "queue": "b2b-saas-starter-workspace-exports",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 3,
+        "max_concurrency": 1,
+        "retry_delay": 60
       }
     ]
-  }
+  },
+  "r2_buckets": [
+    {
+      "binding": "WORKSPACE_EXPORT_BUCKET",
+      "bucket_name": "b2b-saas-starter-workspace-exports"
+    }
+  ]
 }
