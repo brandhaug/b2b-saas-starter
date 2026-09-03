@@ -2,6 +2,7 @@ import {
   type AuditEvent,
   AuditEventLog
 } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute } from '@tanstack/react-router'
 import { Effect } from 'effect'
 
@@ -66,7 +67,7 @@ const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
     // The shared table timestamp — identical to the audit trail's rendering.
     cell: ({ row }) => (
       <span className="font-mono tabular-nums">
-        {formatDateTime(row.original.createdAt)} UTC
+        {formatDateTime(row.original.createdAt)}
       </span>
     )
   }
@@ -96,7 +97,7 @@ export const Route = createFileRoute('/admin')({
   },
   pendingComponent: RoutePending,
   component: AdminPage,
-  head: () => ({ meta: [{ title: 'System admin | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle('System admin') }] })
 })
 
 function AdminPage() {

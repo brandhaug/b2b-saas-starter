@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
 import { CheckCircle2Icon, CircleAlertIcon } from 'lucide-react'
 import { PublicLayout } from '@/components/public-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,7 +8,7 @@ import { pickOptionalStrings } from '@/lib/utils'
 export const Route = createFileRoute('/verify-email')({
   validateSearch: (search) => pickOptionalStrings(search, ['error']),
   component: VerifyEmailRoute,
-  head: () => ({ meta: [{ title: 'Verify email | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle('Verify email') }] })
 })
 
 /**

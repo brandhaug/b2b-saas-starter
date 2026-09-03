@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
 import { getAllPostMeta } from '@/lib/blog'
 import { formatUtc } from '@/lib/format-date'
 
@@ -7,13 +8,13 @@ export const Route = createFileRoute('/_knowledge/blog/')({
   component: BlogIndexPage,
   head: () => ({
     meta: [
-      { title: 'Blog | B2B SaaS Starter' },
+      { title: pageTitle('Blog') },
       {
         name: 'description',
         content:
           'Articles about the technology and library decisions in the B2B SaaS Starter.'
       },
-      { property: 'og:title', content: 'Blog | B2B SaaS Starter' },
+      { property: 'og:title', content: pageTitle('Blog') },
       {
         property: 'og:description',
         content:

@@ -57,7 +57,7 @@ const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
     // The shared table timestamp, identical to the admin dashboard's.
     cell: ({ row }) => (
       <span className="font-mono text-muted-foreground whitespace-nowrap tabular-nums">
-        {formatDateTime(row.original.createdAt)} UTC
+        {formatDateTime(row.original.createdAt)}
       </span>
     )
   },
@@ -232,7 +232,6 @@ export function WorkspaceAuditPage({
               data={events}
               pageSize={100}
               tableLabel="Audit events, newest first"
-              emptyMessage="No events."
             />
             <div className="flex items-center justify-end">
               {/* Keyset pagination has exactly one direction: older. The

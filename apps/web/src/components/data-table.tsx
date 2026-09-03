@@ -41,7 +41,7 @@ function isDate(cell: ReactNode | Date): cell is Date {
 }
 
 function formatDateCell(value: Date) {
-  return <span className="font-mono tabular-nums">{formatDateTime(value)} UTC</span>
+  return <span className="font-mono tabular-nums">{formatDateTime(value)}</span>
 }
 
 // v9 registers features explicitly (prerequisites before their slots). The

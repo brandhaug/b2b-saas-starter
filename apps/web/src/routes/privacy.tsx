@@ -1,17 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
 import { PublicLayout } from '@/components/public-layout'
 
 export const Route = createFileRoute('/privacy')({
   component: PrivacyPage,
   head: () => ({
     meta: [
-      { title: 'Privacy | B2B SaaS Starter' },
+      { title: pageTitle('Privacy') },
       {
         name: 'description',
         content:
           'How the reference app categorizes workspace, member, session, and audit data.'
       },
-      { property: 'og:title', content: 'Privacy | B2B SaaS Starter' },
+      { property: 'og:title', content: pageTitle('Privacy') },
       {
         property: 'og:description',
         content:

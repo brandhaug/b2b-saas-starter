@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { KeyRoundIcon } from 'lucide-react'
@@ -17,7 +18,7 @@ export type { ResetPassword } from '@/components/auth/auth-client-ports'
 export const Route = createFileRoute('/reset-password')({
   validateSearch: (search) => pickOptionalStrings(search, ['token', 'error']),
   component: ResetPasswordRoute,
-  head: () => ({ meta: [{ title: 'Reset password | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle('Reset password') }] })
 })
 
 type ResetPasswordValues = {

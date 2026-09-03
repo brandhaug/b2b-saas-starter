@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { UserPlusIcon } from 'lucide-react'
@@ -21,7 +22,7 @@ export const Route = createFileRoute('/sign-up')({
   // The site key is read on the server only; `null` keeps the widget unmounted.
   loader: async () => ({ turnstileSiteKey: await getTurnstileSiteKey() }),
   component: SignUpRoute,
-  head: () => ({ meta: [{ title: 'Create your account | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle('Create your account') }] })
 })
 
 type SignUpValues = {

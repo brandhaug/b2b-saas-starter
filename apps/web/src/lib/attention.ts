@@ -102,7 +102,7 @@ export function attentionItems({
         id: `event-${event.id}`,
         severity: 'info',
         title: auditEventLabel(event.eventType),
-        description: `${event.actor} · ${formatDateTime(event.createdAt)} UTC`,
+        description: `${event.actor} · ${formatDateTime(event.createdAt)}`,
         to: '/workspaces/$workspaceSlug/audit',
         linkLabel: 'Open the audit trail'
       })

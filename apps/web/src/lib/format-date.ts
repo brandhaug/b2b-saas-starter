@@ -37,9 +37,11 @@ const DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
 
 /**
  * The one timestamp presentation for tables — admin users, the audit trail,
- * anywhere `DataTable` renders a `Date`. One options object means the tables
- * cannot disagree about the shape of a timestamp.
+ * the attention feed, anywhere `DataTable` renders a `Date`. One options
+ * object means the tables cannot disagree about the shape of a timestamp, and
+ * the UTC suffix is part of the presentation, so callers never append it
+ * themselves.
  */
 export function formatDateTime(value: Date | string): string {
-  return formatUtc(value, DATE_TIME_OPTIONS)
+  return `${formatUtc(value, DATE_TIME_OPTIONS)} UTC`
 }

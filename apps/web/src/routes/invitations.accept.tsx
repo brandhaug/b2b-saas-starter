@@ -1,4 +1,5 @@
 import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
+import { pageTitle } from '@/components/page/page-title'
 import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { MailCheckIcon } from 'lucide-react'
@@ -51,7 +52,7 @@ export const Route = createFileRoute('/invitations/accept')({
   },
   pendingComponent: RoutePending,
   component: AcceptInvitationRoute,
-  head: () => ({ meta: [{ title: 'Accept invitation | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle('Accept invitation') }] })
 })
 
 /**

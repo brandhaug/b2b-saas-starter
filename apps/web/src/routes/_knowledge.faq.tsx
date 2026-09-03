@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
 import {
   Accordion,
   AccordionContent,
@@ -11,13 +12,13 @@ export const Route = createFileRoute('/_knowledge/faq')({
   component: FaqPage,
   head: () => ({
     meta: [
-      { title: 'FAQ | B2B SaaS Starter' },
+      { title: pageTitle('FAQ') },
       {
         name: 'description',
         content:
           'Answers about billing, licensing, and adopting the B2B SaaS Starter for your product.'
       },
-      { property: 'og:title', content: 'FAQ | B2B SaaS Starter' },
+      { property: 'og:title', content: pageTitle('FAQ') },
       {
         property: 'og:description',
         content:

@@ -1,4 +1,5 @@
 import { createFileRoute, Link, notFound, useLoaderData } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
 import { ArrowLeftIcon } from 'lucide-react'
 import { createElement, Suspense, useRef } from 'react'
 import { mdxComponents } from '@/components/mdx-components'
@@ -45,7 +46,7 @@ export const Route = createFileRoute('/_knowledge/docs/$category/$slug')({
       return {}
     }
     const { title, description, tags } = loaderData.frontmatter
-    const fullTitle = `${title} | Documentation | B2B SaaS Starter`
+    const fullTitle = pageTitle(title, 'Documentation')
 
     return {
       meta: [

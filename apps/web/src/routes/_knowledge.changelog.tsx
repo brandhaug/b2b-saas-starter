@@ -1,17 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
 import { GITHUB_URL } from '@/components/landing/github-url'
 
 export const Route = createFileRoute('/_knowledge/changelog')({
   component: ChangelogPage,
   head: () => ({
     meta: [
-      { title: 'Changelog | B2B SaaS Starter' },
+      { title: pageTitle('Changelog') },
       {
         name: 'description',
         content:
           'Release history for the B2B SaaS Starter: new capabilities, fixes, and breaking changes by version.'
       },
-      { property: 'og:title', content: 'Changelog | B2B SaaS Starter' },
+      { property: 'og:title', content: pageTitle('Changelog') },
       {
         property: 'og:description',
         content:

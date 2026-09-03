@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { ShieldCheckIcon } from 'lucide-react'
@@ -15,7 +16,7 @@ import { redirectSearch, safeRedirect } from '@/lib/utils'
 export const Route = createFileRoute('/two-factor')({
   validateSearch: redirectSearch,
   component: TwoFactorRoute,
-  head: () => ({ meta: [{ title: 'Two-factor verification | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle('Two-factor verification') }] })
 })
 
 function TwoFactorRoute() {

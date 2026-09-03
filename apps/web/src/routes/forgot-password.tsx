@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { MailQuestionIcon } from 'lucide-react'
@@ -14,7 +15,7 @@ import {
 export type { RequestPasswordReset } from '@/components/auth/auth-client-ports'
 
 export const Route = createFileRoute('/forgot-password')({
-  head: () => ({ meta: [{ title: 'Forgot password | B2B SaaS Starter' }] }),
+  head: () => ({ meta: [{ title: pageTitle('Forgot password') }] }),
   component: ForgotPasswordRoute
 })
 
