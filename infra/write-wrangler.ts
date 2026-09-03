@@ -3,6 +3,9 @@ import {
   apiRateLimits,
   billingConsumerSettings,
   billingQueueName,
+  notificationDigestCron,
+  notificationEmailConsumerSettings,
+  notificationEmailQueueName,
   webRateLimits,
   webhookConsumerSettings,
   webhookDeadLetterQueueName,
@@ -49,6 +52,7 @@ const workspaceExportProducer = {
   binding: WORKSPACE_EXPORT_QUEUE_BINDING,
   queue: workspaceExportQueueName
 }
+const NOTIFICATION_EMAIL_QUEUE_BINDING = 'NOTIFICATION_EMAIL_QUEUE'
 
 /** Producer only: seat-sync messages the background worker consumes. */
 const billingQueueProducer = {
@@ -102,6 +106,7 @@ type WranglerConfig = WorkerDefaults & {
     readonly binding: string
     readonly bucket_name: string
   }>
+  readonly triggers?: { readonly crons: ReadonlyArray<string> }
   readonly vars?: Record<string, string>
   readonly unsafe?: { readonly bindings: ReadonlyArray<WranglerRateLimit> }
 }
@@ -167,9 +172,19 @@ export const wranglerConfigs: ReadonlyArray<{
       ...workerDefaults('web', 'src/server.ts'),
       ai: { binding: AI_BINDING },
       // Producers only: membership and invitation mutations enqueue seat-sync
-      // messages the background worker consumes (`Billing.syncSeats`), and
-      // workspace settings enqueues export jobs.
-      queues: { producers: [billingQueueProducer, workspaceExportProducer] },
+      // messages the background worker consumes (`Billing.syncSeats`),
+      // workspace settings enqueues export jobs, and every surface that
+      // creates a Notification enqueues its instant email.
+      queues: {
+        producers: [
+          billingQueueProducer,
+          workspaceExportProducer,
+          {
+            binding: NOTIFICATION_EMAIL_QUEUE_BINDING,
+            queue: notificationEmailQueueName
+          }
+        ]
+      },
       r2_buckets: [workspaceExportBucket],
       vars: { WORKERS_AI_ENABLED: 'false' },
       unsafe: { bindings: rateLimits(webRateLimits) }
@@ -186,7 +201,11 @@ export const wranglerConfigs: ReadonlyArray<{
       queues: {
         producers: [
           { binding: WEBHOOK_QUEUE_BINDING, queue: webhookQueueName },
-          workspaceExportProducer
+          workspaceExportProducer,
+          {
+            binding: NOTIFICATION_EMAIL_QUEUE_BINDING,
+            queue: notificationEmailQueueName
+          }
         ]
       },
       r2_buckets: [workspaceExportBucket],
@@ -203,7 +222,15 @@ export const wranglerConfigs: ReadonlyArray<{
       ...workerDefaults('background', 'src/index.ts'),
       placement: { mode: 'smart' },
       queues: {
-        producers: [{ binding: WEBHOOK_QUEUE_BINDING, queue: webhookQueueName }],
+        producers: [
+          { binding: WEBHOOK_QUEUE_BINDING, queue: webhookQueueName },
+          // The worker creates Notifications too (webhook deliveries that gave
+          // up), so it produces instant-email messages for its own consumer.
+          {
+            binding: NOTIFICATION_EMAIL_QUEUE_BINDING,
+            queue: notificationEmailQueueName
+          }
+        ],
         consumers: [
           consumer(
             webhookQueueName,
@@ -217,10 +244,17 @@ export const wranglerConfigs: ReadonlyArray<{
           consumer(workspaceExportQueueName, workspaceExportConsumerSettings),
           // Mirrors each workspace's member count onto its Stripe
           // subscription item (seat sync); self-healing, so no DLQ.
-          consumer(billingQueueName, billingConsumerSettings)
+          consumer(billingQueueName, billingConsumerSettings),
+          // Sends one instant notification email per queue message.
+          consumer(notificationEmailQueueName, notificationEmailConsumerSettings)
         ]
       },
-      r2_buckets: [workspaceExportBucket]
+      r2_buckets: [workspaceExportBucket],
+      // The daily notification digest (ADR 0057).
+      triggers: { crons: [notificationDigestCron] },
+      // Links in notification emails point at the web app; local dev has no
+      // alchemy to forward the deploy value.
+      vars: { BETTER_AUTH_URL: 'http://localhost:3071' }
     }
   }
 ]

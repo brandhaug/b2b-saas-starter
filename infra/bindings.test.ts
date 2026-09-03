@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vite-plus/test'
 import {
   isPreviewStage,
+  notificationEmailQueueName,
   productionStage,
   stageResourceNames,
   webhookDeadLetterQueueName,
@@ -14,6 +15,7 @@ describe('stageResourceNames', () => {
     expect(names.database).toBe('b2b-saas-starter')
     expect(names.webhookQueue).toBe(webhookQueueName)
     expect(names.webhookDeadLetterQueue).toBe(webhookDeadLetterQueueName)
+    expect(names.notificationEmailQueue).toBe(notificationEmailQueueName)
     expect(names.worker('web')).toBe('b2b-saas-starter-web')
     expect(names.worker('api')).toBe('b2b-saas-starter-api')
     expect(names.worker('background')).toBe('b2b-saas-starter-background')
@@ -24,6 +26,9 @@ describe('stageResourceNames', () => {
     expect(names.database).toBe('b2b-saas-starter-pr-42')
     expect(names.webhookQueue).toBe('b2b-saas-starter-pr-42-webhooks')
     expect(names.webhookDeadLetterQueue).toBe('b2b-saas-starter-pr-42-webhooks-dlq')
+    expect(names.notificationEmailQueue).toBe(
+      'b2b-saas-starter-pr-42-notification-emails'
+    )
     expect(names.worker('web')).toBe('b2b-saas-starter-pr-42-web')
     expect(names.worker('background')).toBe('b2b-saas-starter-pr-42-background')
   })
@@ -36,6 +41,7 @@ describe('stageResourceNames', () => {
       names.database,
       names.webhookQueue,
       names.webhookDeadLetterQueue,
+      names.notificationEmailQueue,
       names.worker('web'),
       names.worker('api'),
       names.worker('background')

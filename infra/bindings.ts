@@ -50,6 +50,24 @@ export const billingConsumerSettings: QueueConsumerSettings = {
 }
 
 /**
+ * Instant notification emails: one message per (Notification, recipient) whose
+ * channel preference is `instant`. Produced by the web and API workers (any
+ * surface that creates a Notification) and consumed by the background worker,
+ * which renders and sends the email. No dead-letter queue on purpose: a
+ * message that exhausts its retries is dropped, and the recipient still sees
+ * the Notification in the feed and, when they take the digest, in the next
+ * digest email.
+ */
+export const notificationEmailQueueName = 'b2b-saas-starter-notification-emails'
+
+/**
+ * The daily digest schedule (ADR 0057): 08:00 UTC, one `scheduled` invocation
+ * on the background worker that groups the previous 24 hours of unread
+ * Notifications per recipient. Alchemy and wrangler both read this constant.
+ */
+export const notificationDigestCron = '0 8 * * *'
+
+/**
  * One compatibility date and flag set for every worker — production
  * (alchemy.run.ts) and local dev (each generated wrangler.jsonc) must run the
  * same runtime behavior, so changing the date cannot leave one worker behind.
@@ -122,6 +140,7 @@ export type StageResourceNames = {
   readonly billingQueue: string
   readonly workspaceExportQueue: string
   readonly workspaceExportBucket: string
+  readonly notificationEmailQueue: string
   readonly worker: (app: WorkerApp) => string
 }
 
@@ -140,6 +159,7 @@ export function stageResourceNames(stage: string): StageResourceNames {
       billingQueue: billingQueueName,
       workspaceExportQueue: workspaceExportQueueName,
       workspaceExportBucket: workspaceExportBucketName,
+      notificationEmailQueue: notificationEmailQueueName,
       worker: (app) => `b2b-saas-starter-${app}`
     }
   }
@@ -152,6 +172,7 @@ export function stageResourceNames(stage: string): StageResourceNames {
     billingQueue: `${prefix}-billing`,
     workspaceExportQueue: `${prefix}-workspace-exports`,
     workspaceExportBucket: `${prefix}-workspace-exports`,
+    notificationEmailQueue: `${prefix}-notification-emails`,
     worker: (app) => `${prefix}-${app}`
   }
 }
@@ -192,4 +213,15 @@ export const workspaceExportConsumerSettings: QueueConsumerSettings = {
   maxRetries: 3,
   maxWaitTimeMs: 1000,
   retryDelay: 60
+}
+
+// Instant notification emails: small batches so one slow send does not hold a
+// large batch. The consumer always retries with its own `backoffSeconds(attempts)`
+// delay (`consumeBatch`), so no queue-level `retryDelay` is set — the consumer's
+// ladder, not a platform default, schedules every redelivery.
+export const notificationEmailConsumerSettings: QueueConsumerSettings = {
+  batchSize: 10,
+  maxConcurrency: 2,
+  maxRetries: 3,
+  maxWaitTimeMs: 5000
 }

@@ -6,6 +6,8 @@ import {
   apiRateLimits,
   billingConsumerSettings,
   isPreviewStage,
+  notificationDigestCron,
+  notificationEmailConsumerSettings,
   stageResourceNames,
   webhookConsumerSettings,
   webhookDlqConsumerSettings,
@@ -235,6 +237,12 @@ export const Stack = Alchemy.Stack(
     const billingQueue = yield* Cloudflare.Queues.Queue('billing-queue', {
       name: names.billingQueue
     })
+    // Instant notification emails (ADR 0057). Produced by every worker that
+    // creates a Notification, consumed by the background worker.
+    const notificationEmailQueue = yield* Cloudflare.Queues.Queue(
+      'notification-email-queue',
+      { name: names.notificationEmailQueue }
+    )
 
     // Only provision the SendEmail binding when a verified sender is
     // configured — without it the email module stays inactive instead of
@@ -301,6 +309,7 @@ export const Stack = Alchemy.Stack(
         // Producer only — the background worker consumes; the API worker
         // enqueues webhook events after audit-worthy mutations.
         WEBHOOK_QUEUE: webhookQueue,
+        NOTIFICATION_EMAIL_QUEUE: notificationEmailQueue,
         AI: ai,
         ...rateLimitBindings(apiRateLimits),
         ...emailBinding,
@@ -320,12 +329,18 @@ export const Stack = Alchemy.Stack(
         DB: db,
         WEBHOOK_QUEUE: webhookQueue,
         BILLING_QUEUE: billingQueue,
+        NOTIFICATION_EMAIL_QUEUE: notificationEmailQueue,
+        // Notification emails link back to the web app.
+        BETTER_AUTH_URL,
         ...emailBinding,
         ...workspaceExportBindings,
         ...providerEnv
       },
       ...workerDefaults,
-      placement: smartPlacement
+      placement: smartPlacement,
+      // The daily notification digest (ADR 0057) — same constant the
+      // generated wrangler.jsonc carries under `triggers.crons`.
+      crons: [notificationDigestCron]
     })
 
     if (workspaceExportQueue) {
@@ -359,6 +374,13 @@ export const Stack = Alchemy.Stack(
       settings: webhookDlqConsumerSettings
     })
 
+    // Instant notification emails: rendered and sent by the background worker.
+    yield* Cloudflare.Queues.Consumer('notification-email-consumer', {
+      queueId: notificationEmailQueue.queueId,
+      scriptName: background.workerName,
+      settings: notificationEmailConsumerSettings
+    })
+
     const web = yield* Cloudflare.Website.Vite('web', {
       name: names.worker('web'),
       rootDir: './apps/web',
@@ -367,6 +389,7 @@ export const Stack = Alchemy.Stack(
         // Producer only — the background worker consumes; membership and
         // invitation mutations enqueue seat-sync messages.
         BILLING_QUEUE: billingQueue,
+        NOTIFICATION_EMAIL_QUEUE: notificationEmailQueue,
         ...rateLimitBindings(webRateLimits),
         AI: ai,
         ...emailBinding,
@@ -391,6 +414,7 @@ export const Stack = Alchemy.Stack(
       web,
       webhookQueue,
       webhookDeadLetterQueue,
+      notificationEmailQueue,
       workspaceExportQueue
     }
   })

@@ -7,7 +7,9 @@
   "name": "b2b-saas-starter-background",
   "main": "src/index.ts",
   "compatibility_date": "2026-05-16",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
@@ -27,6 +29,10 @@
       {
         "binding": "WEBHOOK_QUEUE",
         "queue": "b2b-saas-starter-webhooks"
+      },
+      {
+        "binding": "NOTIFICATION_EMAIL_QUEUE",
+        "queue": "b2b-saas-starter-notification-emails"
       }
     ],
     "consumers": [
@@ -61,6 +67,13 @@
         "max_retries": 3,
         "max_concurrency": 2,
         "retry_delay": 30
+      },
+      {
+        "queue": "b2b-saas-starter-notification-emails",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "max_concurrency": 2
       }
     ]
   },
@@ -69,5 +82,13 @@
       "binding": "WORKSPACE_EXPORT_BUCKET",
       "bucket_name": "b2b-saas-starter-workspace-exports"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": [
+      "0 8 * * *"
+    ]
+  },
+  "vars": {
+    "BETTER_AUTH_URL": "http://localhost:3071"
+  }
 }

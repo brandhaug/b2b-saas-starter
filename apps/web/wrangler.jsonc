@@ -7,7 +7,9 @@
   "name": "b2b-saas-starter-web",
   "main": "src/server.ts",
   "compatibility_date": "2026-05-16",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
@@ -31,6 +33,10 @@
       {
         "binding": "WORKSPACE_EXPORT_QUEUE",
         "queue": "b2b-saas-starter-workspace-exports"
+      },
+      {
+        "binding": "NOTIFICATION_EMAIL_QUEUE",
+        "queue": "b2b-saas-starter-notification-emails"
       }
     ]
   },
