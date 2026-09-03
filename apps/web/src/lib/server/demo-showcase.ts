@@ -4,6 +4,7 @@ import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/w
 import {
   workspaceDashboard,
   workspaceOverview,
+  workspaceProgress,
   type WorkspaceOverviewProjection
 } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { type WorkspaceViewer } from '@/lib/permissions'
@@ -104,13 +105,26 @@ export function loadDemoShowcase(): Promise<DemoShowcase | null> {
 export function loadDemoWorkspace(): Promise<WorkspaceDashboardPayload> {
   return runWorkspaceCapabilities(
     DEMO_WORKSPACE_SLUG,
-    Effect.map(workspaceDashboard, (core) => ({
-      ...core,
-      webhooks: null,
-      apiTokens: null,
-      invitations: null,
-      auditEvents: null,
-      viewer: { role: 'member' } satisfies WorkspaceViewer
-    }))
+    Effect.map(
+      Effect.all(
+        {
+          core: workspaceDashboard,
+          // The demo persona is a plain member, so the developer-platform
+          // steps stay out — the same shape `permitted()` gives the dashboard
+          // loader for an actor without `apiToken:list` and `webhook:list`.
+          progress: workspaceProgress({ developerPlatform: false })
+        },
+        { concurrency: 'unbounded' }
+      ),
+      ({ core, progress }) => ({
+        ...core,
+        webhooks: null,
+        apiTokens: null,
+        invitations: null,
+        auditEvents: null,
+        progress,
+        viewer: { role: 'member' } satisfies WorkspaceViewer
+      })
+    )
   )
 }
