@@ -1,8 +1,16 @@
 import { Database } from '@b2b-saas-starter/db/service'
 import { user, workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
-import { eq } from 'drizzle-orm'
+import { and, asc, eq, gt, type SQL } from 'drizzle-orm'
 import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
+import {
+  clampPageLimit,
+  cutKeysetPage,
+  decodeKeysetCursor,
+  seedKeysetPage,
+  type ListPageInput,
+  type Page
+} from '../internal/keyset-cursor.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
@@ -31,6 +39,16 @@ export type WorkspaceMembershipInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
+  /**
+   * The paged read the REST and MCP list surfaces serve (ADR 0054). The
+   * member wire shape carries no timestamp, so pages run forward on
+   * `id ASC` (user id) — the stable order a caller can resume. `listMembers`
+   * stays for the app's whole-roster reads.
+   */
+  readonly listMembersPage: (
+    input?: ListPageInput
+  ) => Effect.Effect<Page<Member>, CapabilityUnavailable, WorkspaceContext>
 
   /**
    * Every workspace the user is a member of, with their membership row.
@@ -132,6 +150,19 @@ export function SeedWorkspaceMembership(
 
       return {
         listMembers: Ref.get(roster),
+        listMembersPage: (input) =>
+          Effect.map(
+            Ref.get(roster),
+            // Forward on `id ASC` (user id) — the member wire shape carries no
+            // timestamp, so the id is the one stable order a page can resume.
+            (members) =>
+              seedKeysetPage(
+                members,
+                'asc',
+                (member) => ({ key: member.id, id: member.id }),
+                input
+              )
+          ),
         listWorkspacesForUser: (userId) =>
           Ref.get(roster).pipe(
             Effect.map((current) => {
@@ -284,6 +315,36 @@ export function LiveWorkspaceMembership(
           )
           return rows.map(toMember)
         }),
+        listMembersPage: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const conditions: Array<SQL> = [
+              eq(workspaceMembers.workspaceId, ctx.workspace.id)
+            ]
+            // Forward on user `id ASC` — no timestamp on the wire shape, so a
+            // cursor is every member with a strictly greater id.
+            if (input?.cursor !== undefined) {
+              const cursor = decodeKeysetCursor(input.cursor)
+              if (cursor === null) {
+                return { items: [], nextCursor: null }
+              }
+              conditions.push(gt(workspaceMembers.userId, cursor.id))
+            }
+            const rows = yield* unavailable(
+              db
+                .select({ member: workspaceMembers, user })
+                .from(workspaceMembers)
+                .innerJoin(user, eq(user.id, workspaceMembers.userId))
+                .where(and(...conditions))
+                .orderBy(asc(workspaceMembers.userId))
+                .limit(clampPageLimit(input?.limit) + 1)
+            )
+            return cutKeysetPage(
+              rows.map(toMember),
+              clampPageLimit(input?.limit),
+              (member) => ({ key: member.id, id: member.id })
+            )
+          }),
         listWorkspacesForUser: (userId) =>
           unavailable(
             db

@@ -2,6 +2,7 @@ import { DateTime, Effect, Layer, Option } from 'effect'
 
 import { assertWithinPlanLimit } from '../billing/plan-catalog.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { seedKeysetPage } from '../internal/keyset-cursor.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import {
   ensureValidWebhookUrl,
@@ -172,6 +173,25 @@ export function SeedWebhookEndpoints(
           }
           return projections
         }),
+        listPage: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const projections: Array<WebhookEndpoint> = []
+            for (const endpoint of endpoints) {
+              if (endpoint.workspaceId !== ctx.workspace.id) {
+                continue
+              }
+              projections.push(toProjection(endpoint))
+            }
+            // Forward on `id ASC` — no timestamp on the wire shape, so the
+            // stable order a page can resume is the id itself.
+            return seedKeysetPage(
+              projections,
+              'asc',
+              (endpoint) => ({ key: endpoint.id, id: endpoint.id }),
+              input
+            )
+          }),
         create: Effect.fnUntraced(function* (input) {
           yield* ensureValidWebhookUrl(input.url)
           const ctx = yield* WorkspaceContext

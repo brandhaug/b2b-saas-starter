@@ -37,3 +37,7 @@ API token lifecycle is wired today — see [`api-token-registry`](../developer-p
 - Don't expose `metadata` JSON on the wire without sanitizing — it can hold IPs, scopes, and other PII.
 - Don't provide `WorkspaceContext` from an unauthenticated request. The `list` method has no auth check — that's the route's job.
 - Don't widen the 100-row cap without a corresponding `since`/pagination cursor. Admin UI assumes the cap is the contract.
+
+## Paging (ADR 0054)
+
+`list` is already the paged read the REST/MCP surface serves: newest-first on `(createdAt DESC, id DESC)`, an optional caller `limit` (absent = the 100-row `AUDIT_EVENT_PAGE_SIZE` default; caller-supplied values clamp into `[1, 200]`), and a keyset `cursor` encoded by the shared `internal/keyset-cursor.ts` codec — the same opaque string the web audit page, REST, and MCP hand back and forth. An undecodable cursor yields an empty page, not an error.

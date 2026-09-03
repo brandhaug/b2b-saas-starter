@@ -1,9 +1,17 @@
 import { Database } from '@b2b-saas-starter/db/service'
 import { notifications, workspaceMembers } from '@b2b-saas-starter/db/schema'
-import { and, count, desc, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull, lt, or, type SQL } from 'drizzle-orm'
 import { Context, DateTime, Effect, Layer, Ref, Schema } from 'effect'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import {
+  clampPageLimit,
+  cutKeysetPage,
+  decodeKeysetCursor,
+  type ListPageInput,
+  type Page,
+  seedKeysetPage
+} from '../internal/keyset-cursor.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext, type Actor } from '../workspace-context.ts'
 
@@ -62,6 +70,16 @@ export type NotificationFeedInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
+  /**
+   * The paged read the REST and MCP list surfaces serve (ADR 0054):
+   * newest-first on `(createdAt DESC, id DESC)`, one bounded `Page` at a
+   * time. `list` stays for the whole-collection reads the app's own pages
+   * render — feeds are small by construction there.
+   */
+  readonly listPage: (
+    input?: ListPageInput
+  ) => Effect.Effect<Page<Notification>, CapabilityUnavailable, WorkspaceContext>
 
   readonly unreadCount: Effect.Effect<number, CapabilityUnavailable, WorkspaceContext>
 
@@ -136,6 +154,27 @@ export function SeedNotificationFeed(
           }
           return visible
         }),
+        listPage: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const current = yield* Ref.get(rows)
+            const visible: Array<SeedNotification> = []
+            for (const entry of current) {
+              if (visibleToActor(entry.userId, ctx.actor)) {
+                visible.push(entry)
+              }
+            }
+            // The store's insert order is not the wire order: the shared
+            // keyset helper orders `(createdAt DESC, id DESC)` and cuts the
+            // page, so a page fetch behaves exactly like Live's ordered SQL
+            // read. The userId-carrying store rows widen to the plain DTO.
+            return seedKeysetPage(
+              visible,
+              'desc',
+              (row) => ({ key: row.createdAt, id: row.id }),
+              input
+            )
+          }),
         unreadCount: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const current = yield* Ref.get(rows)
@@ -252,6 +291,47 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
           )
           return rows.map(toNotification)
         }),
+        listPage: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const limit = clampPageLimit(input?.limit)
+            const conditions: Array<SQL | undefined> = [
+              visibilityFilter(ctx.workspace.id, ctx.actor)
+            ]
+            // Keyset on `(createdAt DESC, id DESC)`: everything strictly
+            // before the cursor's position in that ordering. ISO timestamps
+            // compare lexicographically, so string comparison is correct.
+            if (input?.cursor !== undefined) {
+              const cursor = decodeKeysetCursor(input.cursor)
+              if (cursor === null) {
+                return { items: [], nextCursor: null }
+              }
+              const older = or(
+                lt(notifications.createdAt, cursor.key),
+                and(
+                  eq(notifications.createdAt, cursor.key),
+                  lt(notifications.id, cursor.id)
+                )
+              )
+              if (older !== undefined) {
+                conditions.push(older)
+              }
+            }
+            // One row past the page cap, so `cutKeysetPage` can see whether
+            // the cap actually cut rows off before offering a cursor.
+            const rows = yield* unavailable(
+              db
+                .select()
+                .from(notifications)
+                .where(and(...conditions))
+                .orderBy(desc(notifications.createdAt), desc(notifications.id))
+                .limit(limit + 1)
+            )
+            return cutKeysetPage(rows.map(toNotification), limit, (row) => ({
+              key: row.createdAt,
+              id: row.id
+            }))
+          }),
         unreadCount: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(

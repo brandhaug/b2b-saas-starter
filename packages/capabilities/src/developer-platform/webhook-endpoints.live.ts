@@ -1,7 +1,7 @@
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/schema'
 import { DateTime, Effect, Layer, Option } from 'effect'
-import { and, count, eq, sql } from 'drizzle-orm'
+import { and, asc, count, eq, gt, sql, type SQL } from 'drizzle-orm'
 
 import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
@@ -17,6 +17,11 @@ import {
 } from './webhook-endpoints.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import {
+  clampPageLimit,
+  cutKeysetPage,
+  decodeKeysetCursor
+} from '../internal/keyset-cursor.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -165,6 +170,58 @@ export const LiveWebhookEndpoints: Layer.Layer<
           successRate: deliverySuccessRate(row.total, Number(row.delivered))
         }))
       }),
+      listPage: (input) =>
+        Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          const limit = clampPageLimit(input?.limit)
+          const conditions: Array<SQL> = [
+            eq(webhookEndpoints.workspaceId, ctx.workspace.id)
+          ]
+          // Forward on `id ASC` — no timestamp on the wire shape, so the
+          // stable order a page can resume is the id itself; a cursor is
+          // then every endpoint with a strictly greater id.
+          if (input?.cursor !== undefined) {
+            const cursor = decodeKeysetCursor(input.cursor)
+            if (cursor === null) {
+              return { items: [], nextCursor: null }
+            }
+            conditions.push(gt(webhookEndpoints.id, cursor.id))
+          }
+          // One row past the page cap, so `cutKeysetPage` can see whether the
+          // cap actually cut rows off before offering a cursor.
+          const rows = yield* unavailable(
+            db
+              .select({
+                id: webhookEndpoints.id,
+                url: webhookEndpoints.url,
+                enabled: webhookEndpoints.enabled,
+                events: webhookEndpoints.events,
+                total: count(webhookDeliveries.id),
+                delivered: sql<number>`coalesce(sum(case when ${webhookDeliveries.status} = 'delivered' then 1 else 0 end), 0)`
+              })
+              .from(webhookEndpoints)
+              .leftJoin(
+                webhookDeliveries,
+                eq(webhookDeliveries.endpointId, webhookEndpoints.id)
+              )
+              .where(and(...conditions))
+              .groupBy(webhookEndpoints.id)
+              .orderBy(asc(webhookEndpoints.id))
+              .limit(limit + 1)
+          )
+          return cutKeysetPage(
+            rows.map((row) => ({
+              id: row.id,
+              url: row.url,
+              enabled: row.enabled,
+              events: row.events,
+              // oxlint-disable-next-line typescript/no-unnecessary-type-conversion -- the SUM column claim above is unchecked; see `list`
+              successRate: deliverySuccessRate(row.total, Number(row.delivered))
+            })),
+            limit,
+            (endpoint) => ({ key: endpoint.id, id: endpoint.id })
+          )
+        }),
       create: (input) =>
         Effect.gen(function* () {
           yield* ensureValidWebhookUrl(input.url)

@@ -123,6 +123,57 @@ export function notificationFeedContractCases(
         expect(yield* feed.markRead([ids.broadcastUnread, ids.broadcastRead])).toBe(1)
         expect(yield* feed.unreadCount).toBe(before - 1)
       })
+    ),
+    // Paging (ADR 0054): the REST/MCP list surface reads the same store
+    // through listPage, newest-first on (createdAt DESC, id DESC), with the
+    // visibility filter applied to every page — the row addressed to another
+    // user is invisible here and so appears on no page.
+    caseWith(
+      'pages newest-first over the visible rows and stops at exhaustion',
+      (ids) =>
+        Effect.gen(function* () {
+          const feed = yield* NotificationFeed
+          const walked: Array<string> = []
+          // Annotated: the cursor's type must not be inferred from the page
+          // result, or the loop's initializer would reference itself.
+          let cursor: string | null = null
+          let continueWalking = true
+          for (let guard = 0; guard < 10 && continueWalking; guard += 1) {
+            const page: {
+              readonly items: ReadonlyArray<{ readonly id: string }>
+              readonly nextCursor: string | null
+            } = yield* feed.listPage({
+              limit: 1,
+              cursor: cursor ?? undefined
+            })
+            for (const notification of page.items) {
+              walked.push(notification.id)
+            }
+            cursor = page.nextCursor
+            continueWalking = cursor !== null
+          }
+          expect(walked).toEqual([ids.broadcastUnread, ids.broadcastRead])
+        })
+    ),
+    caseWith('an undecodable cursor addresses no position', () =>
+      Effect.gen(function* () {
+        const feed = yield* NotificationFeed
+        const page = yield* feed.listPage({ cursor: 'not-a-cursor' })
+        expect(page.items).toEqual([])
+        expect(page.nextCursor).toBe(null)
+      })
+    ),
+    caseWith('limit clamps into the shared range', () =>
+      Effect.gen(function* () {
+        const feed = yield* NotificationFeed
+        // Zero clamps up to one row; the default covers both visible rows
+        // and names no next page.
+        const zero = yield* feed.listPage({ limit: 0 })
+        expect(zero.items.length).toBe(1)
+        const whole = yield* feed.listPage()
+        expect(whole.items.length).toBe(2)
+        expect(whole.nextCursor).toBe(null)
+      })
     )
   ]
 }

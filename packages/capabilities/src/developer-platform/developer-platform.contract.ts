@@ -9,6 +9,44 @@ import { WebhookEndpoints } from './webhook-endpoints.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 
 /**
+ * Walks a paged read one row at a time and returns the ids in page order.
+ * The loop cap is the runaway guard: a cursor that never reaches `null`
+ * stops the walk early, and the coverage assertions the callers run over
+ * the result fail loudly against a truncated walk.
+ */
+function walkPageIds<A, E, R>(
+  page: (input: {
+    limit: number
+    cursor?: string | undefined
+  }) => Effect.Effect<
+    { readonly items: ReadonlyArray<A>; readonly nextCursor: string | null },
+    E,
+    R
+  >,
+  idOf: (item: A) => string
+): Effect.Effect<Array<string>, E, R> {
+  return Effect.gen(function* () {
+    const ids: Array<string> = []
+    // Annotated: `cursor`'s type must not be inferred from the page result,
+    // or the loop's initializer would reference itself.
+    let cursor: string | null = null
+    let continueWalking = true
+    for (let guard = 0; guard < 25 && continueWalking; guard += 1) {
+      const result: {
+        readonly items: ReadonlyArray<A>
+        readonly nextCursor: string | null
+      } = yield* page({ limit: 1, cursor: cursor ?? undefined })
+      for (const item of result.items) {
+        ids.push(idOf(item))
+      }
+      cursor = result.nextCursor
+      continueWalking = cursor !== null
+    }
+    return ids
+  })
+}
+
+/**
  * The developer-platform mutation contract, written once and run against both
  * adapters — capabilities invariant 4, the same pattern as the membership /
  * invitations / lifecycle contracts.
@@ -221,6 +259,70 @@ export function developerPlatformContractCases(
         // row itself is listable through the same interface.
         const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
         expect(rows.some((row) => row.id === deliveryId)).toBe(true)
+      })
+    },
+    {
+      // Runs last in the list on purpose: it creates rows, and the walk
+      // assertions are order-independent but the later coverage suites are not.
+      name: 'token pages walk exactly once and an insert never disturbs the emitted prefix',
+      assert: Effect.gen(function* () {
+        const tokens = yield* ApiTokenRegistry
+        const first = yield* walkPageIds(
+          (input) => tokens.listPage(input),
+          (token) => token.id
+        )
+        // Every active token exactly once — the walk agrees with the
+        // whole-collection read as a set (row order may differ when rows
+        // share a createdAt instant; the tie is broken by id, not position).
+        expect(first.toSorted()).toEqual(
+          (yield* tokens.list).map((token) => token.id).toSorted()
+        )
+
+        const created = yield* tokens.create({
+          name: 'paging-stability',
+          scopes: ['read']
+        })
+        const second = yield* walkPageIds(
+          (input) => tokens.listPage(input),
+          (token) => token.id
+        )
+        // The inserted token appears exactly once, every previously emitted
+        // row keeps its position relative to the others, and nothing the
+        // first walk already served was dropped or duplicated.
+        const firstSet = new Set(first)
+        expect(second.filter((id) => id === created.id)).toEqual([created.id])
+        expect(second.filter((id) => !firstSet.has(id))).toEqual([created.id])
+        expect(second.filter((id) => firstSet.has(id))).toEqual(first)
+      })
+    },
+    {
+      name: 'webhook pages walk forward on id and an insert never duplicates a row',
+      assert: Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        const first = yield* walkPageIds(
+          (input) => webhooks.listPage(input),
+          (endpoint) => endpoint.id
+        )
+        // Forward order on `id ASC` — the wire shape carries no timestamp,
+        // so the id is the one stable order a page can resume.
+        expect(first).toEqual(first.toSorted())
+
+        const { endpoint } = yield* webhooks.create({
+          url: 'https://example.com/paging-hook',
+          events: ['demo.event']
+        })
+        const second = yield* walkPageIds(
+          (input) => webhooks.listPage(input),
+          (row) => row.id
+        )
+        // No duplicates, nothing lost: every pre-insert row survives the
+        // second walk exactly once, and the new endpoint lands somewhere
+        // valid in the id order — before or after the cursor alike.
+        const firstSet = new Set(first)
+        expect(second.filter((id) => id === endpoint.id)).toEqual([endpoint.id])
+        expect(second.filter((id) => !firstSet.has(id))).toEqual([endpoint.id])
+        expect(second.filter((id) => firstSet.has(id))).toEqual(first)
+        expect(second).toEqual(second.toSorted())
       })
     }
   ]

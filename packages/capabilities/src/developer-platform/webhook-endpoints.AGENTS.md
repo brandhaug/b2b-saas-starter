@@ -46,3 +46,7 @@ The capability is split along its section seams — no barrel file; consumers im
 - Don't expose webhook signing secrets through the `WebhookEndpoint` DTO. It intentionally omits the secret column.
 - Don't compute `successRate` in the route. It's part of the capability contract so the math stays consistent everywhere.
 - Don't filter mutations on endpoint id alone. Every mutation's lookup/where clause must include `workspaceId` from `WorkspaceContext` — see the cross-workspace regression test in `src/index.test.ts`.
+
+## Paging (ADR 0054)
+
+`listPage` serves the REST/MCP list surface: forward on `id ASC` — the wire shape carries no timestamp, so the id is the one stable order a page can resume — through the shared `internal/keyset-cursor.ts` recipe, `limit` clamped into `[1, 200]`. `list` (the grouped success-rate aggregate, unordered) stays the settings page's whole-collection read.

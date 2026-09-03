@@ -2,6 +2,7 @@ import { Context, Effect, Schema, type Option } from 'effect'
 
 import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts'
 import { literalTuple } from '../internal/literal-tuple.ts'
+import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import {
   type ListWebhookDeliveriesInput,
   type WebhookDelivery,
@@ -76,6 +77,16 @@ export type WebhookEndpointsInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
+  /**
+   * The paged read the REST and MCP list surfaces serve (ADR 0054). The wire
+   * shape carries no timestamp, so pages run forward on `id ASC` — the one
+   * stable order a caller can resume. `list` stays for the settings page's
+   * whole-collection read.
+   */
+  readonly listPage: (
+    input?: ListPageInput
+  ) => Effect.Effect<Page<WebhookEndpoint>, CapabilityUnavailable, WorkspaceContext>
 
   readonly create: (
     input: CreateWebhookEndpointInput

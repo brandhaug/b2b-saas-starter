@@ -1,9 +1,16 @@
 import { auditEvents, user, type JsonObject } from '@b2b-saas-starter/db/schema'
 import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
-import { Context, DateTime, Effect, Encoding, Layer, Result, Schema } from 'effect'
+import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { and, desc, eq, gte, lt, lte, or, type SQL } from 'drizzle-orm'
 
 import { type CapabilityUnavailable } from '../errors.ts'
+import {
+  clampPageLimit,
+  cutKeysetPage,
+  decodeKeysetCursor,
+  seedKeysetPage,
+  type KeysetCursorPosition
+} from '../internal/keyset-cursor.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { type AuditEventType, type AuditTargetType } from './audit-event-taxonomy.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -19,7 +26,7 @@ export const AuditEvent = Schema.Struct({
 })
 export type AuditEvent = typeof AuditEvent.Type
 
-/** Optional server-side filters for the per-workspace read. */
+/** Optional server-side filters and paging for the per-workspace read. */
 export type ListAuditEventsInput = {
   /** Only events whose `actorUserId` matches. */
   readonly actorUserId?: string
@@ -32,8 +39,17 @@ export type ListAuditEventsInput = {
   /**
    * Opaque keyset cursor from a previous page's `nextCursor`. An
    * undecodable cursor addresses no position and yields an empty page.
+   * `| undefined` mirrors `ListPageInput` so the REST/MCP page input can be
+   * passed through unchanged.
    */
-  readonly cursor?: string
+  readonly cursor?: string | undefined
+  /**
+   * Page size, clamped to the shared list ceiling (200). Absent means the
+   * audit page's own default below — the web app's audit trail keeps its
+   * documented page size while the REST contract's `limit` reaches here
+   * verbatim.
+   */
+  readonly limit?: number | undefined
 }
 
 export type AuditEventPage = {
@@ -43,28 +59,23 @@ export type AuditEventPage = {
 }
 
 /**
- * The per-workspace page size and pagination contract: exactly 100 events,
- * keyed on `(createdAt DESC, id DESC)`. The cap stays fixed — widening it is
- * a contract change (see the leaf node), not a parameter callers may pass.
+ * The per-workspace page size the audit read serves when the caller names
+ * none: exactly 100 events, keyed on `(createdAt DESC, id DESC)`. The web
+ * app's audit page rides this default; a caller-supplied `limit` (the REST
+ * contract's query parameter) may narrow it but never exceeds the shared
+ * list ceiling — see `internal/keyset-cursor.ts`.
  */
 export const AUDIT_EVENT_PAGE_SIZE = 100
 
-function encodeCursor(event: Pick<AuditEvent, 'createdAt' | 'id'>): string {
-  return Encoding.encodeBase64(`${event.createdAt} ${event.id}`)
+function pageLimit(input: ListAuditEventsInput | undefined): number {
+  if (input?.limit === undefined) {
+    return AUDIT_EVENT_PAGE_SIZE
+  }
+  return clampPageLimit(input.limit)
 }
 
-function decodeCursor(
-  cursor: string
-): { readonly createdAt: string; readonly id: string } | null {
-  const decoded = Encoding.decodeBase64String(cursor)
-  if (Result.isFailure(decoded)) {
-    return null
-  }
-  const [createdAt, id] = decoded.success.split(' ')
-  if (!createdAt || !id) {
-    return null
-  }
-  return { createdAt, id }
+function rowPosition(row: Pick<AuditEvent, 'createdAt' | 'id'>): KeysetCursorPosition {
+  return { key: row.createdAt, id: row.id }
 }
 
 /**
@@ -187,15 +198,11 @@ function toSeedWire(row: SeedAuditEventRow): AuditEvent {
  */
 function buildPage<T>(
   rows: ReadonlyArray<T>,
-  mapToWire: (row: T) => AuditEvent
+  mapToWire: (row: T) => AuditEvent,
+  limit: number
 ): AuditEventPage {
-  const events = rows.slice(0, AUDIT_EVENT_PAGE_SIZE).map(mapToWire)
-  const last = events.at(-1)
-  let nextCursor: string | null = null
-  if (last !== undefined && rows.length > AUDIT_EVENT_PAGE_SIZE) {
-    nextCursor = encodeCursor(last)
-  }
-  return { events, nextCursor }
+  const page = cutKeysetPage(rows.map(mapToWire), limit, rowPosition)
+  return { events: page.items, nextCursor: page.nextCursor }
 }
 
 /**
@@ -207,16 +214,7 @@ function pagedSeedRows(
   workspaceId: string | undefined,
   input: ListAuditEventsInput | undefined
 ): AuditEventPage {
-  let cursor: { readonly createdAt: string; readonly id: string } | null | undefined
-  if (input?.cursor === undefined) {
-    cursor = undefined
-  } else {
-    cursor = decodeCursor(input.cursor)
-  }
-  if (cursor === null) {
-    return { events: [], nextCursor: null }
-  }
-  let matched = rows.filter(
+  const matched = rows.filter(
     (row) =>
       (workspaceId === undefined || (row.workspaceId ?? null) === workspaceId) &&
       (input?.actorUserId === undefined ||
@@ -225,30 +223,11 @@ function pagedSeedRows(
       (input?.since === undefined || row.createdAt >= input.since) &&
       (input?.until === undefined || row.createdAt <= input.until)
   )
-  if (cursor !== undefined) {
-    matched = matched.filter(
-      (row) =>
-        row.createdAt < cursor.createdAt ||
-        (row.createdAt === cursor.createdAt && row.id < cursor.id)
-    )
-  }
-  const ordered = matched.toSorted((a, b) => {
-    if (a.createdAt > b.createdAt) {
-      return -1
-    }
-    if (a.createdAt < b.createdAt) {
-      return 1
-    }
-    // Same instant: id DESC breaks the tie.
-    if (a.id > b.id) {
-      return -1
-    }
-    if (a.id < b.id) {
-      return 1
-    }
-    return 0
-  })
-  return buildPage(ordered, toSeedWire)
+  // The cursor decode (empty page on a malformed one), the `(createdAt DESC,
+  // id DESC)` ordering, and the one-past-the-cap cut all come from the shared
+  // keyset module — the same recipe Live applies in SQL.
+  const page = seedKeysetPage(matched, 'desc', rowPosition, input)
+  return { events: page.items.map(toSeedWire), nextCursor: page.nextCursor }
 }
 
 /**
@@ -341,16 +320,13 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         // before the cursor's position in that ordering. ISO timestamps compare
         // lexicographically, so plain string comparison is correct here.
         if (input?.cursor !== undefined) {
-          const cursor = decodeCursor(input.cursor)
+          const cursor = decodeKeysetCursor(input.cursor)
           if (cursor === null) {
             return null
           }
           const older = or(
-            lt(auditEvents.createdAt, cursor.createdAt),
-            and(
-              eq(auditEvents.createdAt, cursor.createdAt),
-              lt(auditEvents.id, cursor.id)
-            )
+            lt(auditEvents.createdAt, cursor.key),
+            and(eq(auditEvents.createdAt, cursor.key), lt(auditEvents.id, cursor.id))
           )
           if (older !== undefined) {
             conditions.push(older)
@@ -365,7 +341,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         // actually cut rows off before it offers a cursor.
         return query
           .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
-          .limit(AUDIT_EVENT_PAGE_SIZE + 1)
+          .limit(pageLimit(input) + 1)
       }
 
       function pagedRows(workspaceId: string, input: ListAuditEventsInput | undefined) {
@@ -407,7 +383,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
             const rows = yield* pagedRows(ctx.workspace.id, input)
-            return buildPage(rows, toWireRow)
+            return buildPage(rows, toWireRow, pageLimit(input))
           }),
         listGlobal: globalRows,
         record: (input) =>

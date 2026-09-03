@@ -1,12 +1,17 @@
 import { apiTokens, workspaces } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, lt, or, type SQL } from 'drizzle-orm'
 
 import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
 import { AuthorizationDenied } from '../errors.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import {
+  clampPageLimit,
+  cutKeysetPage,
+  decodeKeysetCursor
+} from '../internal/keyset-cursor.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -87,6 +92,44 @@ export const LiveApiTokenRegistry: Layer.Layer<
         )
         return rows.map(toTokenProjection)
       }),
+      listPage: (input) =>
+        Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          const limit = clampPageLimit(input?.limit)
+          const conditions: Array<SQL | undefined> = [
+            activeTokenWhere(undefined, ctx.workspace.id)
+          ]
+          // Keyset on `(createdAt DESC, id DESC)`: everything strictly
+          // before the cursor's position in that ordering. ISO timestamps
+          // compare lexicographically, so string comparison is correct.
+          if (input?.cursor !== undefined) {
+            const cursor = decodeKeysetCursor(input.cursor)
+            if (cursor === null) {
+              return { items: [], nextCursor: null }
+            }
+            const older = or(
+              lt(apiTokens.createdAt, cursor.key),
+              and(eq(apiTokens.createdAt, cursor.key), lt(apiTokens.id, cursor.id))
+            )
+            if (older !== undefined) {
+              conditions.push(older)
+            }
+          }
+          // One row past the page cap, so `cutKeysetPage` can see whether
+          // the cap actually cut rows off before offering a cursor.
+          const rows = yield* unavailable(
+            db
+              .select()
+              .from(apiTokens)
+              .where(and(...conditions))
+              .orderBy(desc(apiTokens.createdAt), desc(apiTokens.id))
+              .limit(limit + 1)
+          )
+          return cutKeysetPage(rows.map(toTokenProjection), limit, (token) => ({
+            key: token.createdAt,
+            id: token.id
+          }))
+        }),
       create: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext

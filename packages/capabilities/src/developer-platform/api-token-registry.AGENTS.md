@@ -59,3 +59,7 @@ The narrow one exists so the denial half of the permission matrix is reachable w
 - Don't reuse `ApiTokenRegistry` for Better Auth session tokens. Sessions live in Better Auth's `session` table — these are two different auth principals.
 - Don't introduce a non-emitting mutation path. Every lifecycle state change (`create`, `revoke`) emits to `auditEvents` — that's the contract the admin audit view depends on. The one deliberate exception is `verifyBearerToken`'s `lastUsedAt` bump: it is an activity signal, not a lifecycle event, and per-request `api_token.used` events were removed for flooding the log.
 - Don't re-add a per-request write to `verifyBearerToken`. It runs on every authenticated API request; keep it read-mostly (throttled `lastUsedAt` bump only).
+
+## Paging (ADR 0054)
+
+`listPage` serves the REST/MCP list surface: newest-first on `(createdAt DESC, id DESC)` through the shared `internal/keyset-cursor.ts` recipe, `limit` clamped into `[1, 200]`. `list` stays the settings page's whole-collection read. Both adapters paginate identically — proven by the developer-platform contract's walk-and-insert cases.
