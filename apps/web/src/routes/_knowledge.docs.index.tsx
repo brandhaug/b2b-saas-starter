@@ -1,19 +1,20 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
 import { BookOpenIcon } from 'lucide-react'
 import { DOC_CATEGORIES, DOC_CATEGORY_ORDER, getAllDocMeta } from '@/lib/docs'
 
-export const Route = createFileRoute('/docs/')({
+export const Route = createFileRoute('/_knowledge/docs/')({
   loader: () => getAllDocMeta(),
   component: DocsIndex,
   head: () => ({
     meta: [
-      { title: 'Documentation | B2B SaaS Starter' },
+      { title: pageTitle('Documentation') },
       {
         name: 'description',
         content:
           'Concepts, recipes, and references for the starter architecture, capability interfaces, operations, and governance.'
       },
-      { property: 'og:title', content: 'Documentation | B2B SaaS Starter' },
+      { property: 'og:title', content: pageTitle('Documentation') },
       {
         property: 'og:description',
         content:

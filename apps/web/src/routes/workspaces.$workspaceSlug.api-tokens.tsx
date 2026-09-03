@@ -1,5 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ApiTokensPanel } from '@/components/api-tokens-panel'
+import { PageHeader } from '@/components/page/page-header'
+import { pageTitle } from '@/components/page/page-title'
+import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import {
@@ -18,9 +21,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/api-tokens')({
     }),
   pendingComponent: RoutePending,
   component: WorkspaceApiTokensRoute,
-  // Derives the document title from the page the shell names.
   head: ({ params }) => ({
-    meta: [{ title: `API tokens · ${params.workspaceSlug} | B2B SaaS Starter` }]
+    meta: [{ title: pageTitle('API tokens', params.workspaceSlug) }]
   })
 })
 
@@ -58,14 +60,15 @@ export function WorkspaceApiTokensPage({
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
-      title="API tokens"
-      description="Workspace-scoped bearer tokens for the API."
       unreadCount={unreadCount}
       viewer={viewer}
     >
-      <div className="grid gap-6">
-        <ApiTokensPanel workspaceSlug={workspaceSlug} tokens={tokens} viewer={viewer} />
-      </div>
+      <PageHeader
+        breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
+        title="API tokens"
+        description="Workspace-scoped bearer tokens for the API."
+      />
+      <ApiTokensPanel workspaceSlug={workspaceSlug} tokens={tokens} viewer={viewer} />
     </WorkspaceShell>
   )
 }

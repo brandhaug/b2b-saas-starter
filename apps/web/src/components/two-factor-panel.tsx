@@ -15,6 +15,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ActionFeedback } from '@/components/page/action-feedback'
+import { Identifier } from '@/components/page/identifier'
 import { authFailure } from '@/lib/auth-result'
 import { useServerAction } from '@/hooks/use-server-action'
 
@@ -259,9 +261,7 @@ function EnrollmentFlow({
           <p className="text-sm text-muted-foreground">
             Or enter this secret manually:
           </p>
-          <code className="break-all rounded-sm bg-muted px-2 py-1 font-mono text-xs">
-            {secretFromUri}
-          </code>
+          <Identifier>{secretFromUri}</Identifier>
         </div>
       </div>
       {enrollment.backupCodes !== null && enrollment.backupCodes.length > 0 ? (
@@ -471,11 +471,7 @@ function StatusMessage({ message }: { readonly message: string | null }) {
 }
 
 function SubmitError({ message }: { readonly message: string | null }) {
-  return message === null ? null : (
-    <p role="alert" className="text-xs text-destructive">
-      {message}
-    </p>
-  )
+  return <ActionFeedback error={message} />
 }
 
 /**

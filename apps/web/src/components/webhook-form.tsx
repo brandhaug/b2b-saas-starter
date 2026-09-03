@@ -8,6 +8,7 @@ import { useForm } from '@tanstack/react-form'
 
 import { CheckboxSetField } from '@/components/checkbox-set-field'
 import { FormTextField } from '@/components/form-text-field'
+import { Identifier } from '@/components/page/identifier'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -156,7 +157,7 @@ export function WebhookForm({
             Endpoint created. Copy the signing secret now, it will not be shown again.
           </AlertTitle>
           <AlertDescription>
-            <code className="break-all">{created.signingSecret}</code>
+            <Identifier className="px-2 py-1">{created.signingSecret}</Identifier>
           </AlertDescription>
         </Alert>
       ) : null}

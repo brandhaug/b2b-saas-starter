@@ -144,7 +144,7 @@ describe('changeMemberRole', () => {
  * member.
  */
 describe('loadWorkspaceMembers', () => {
-  it('lists the roster with the viewer role for an owner', async () => {
+  it('lists the roster plus the invitation segment for an owner', async () => {
     const payload = await loadWorkspaceMembers({
       workspaceSlug: 'starter-lab',
       userId: 'usr_demo'
@@ -153,14 +153,19 @@ describe('loadWorkspaceMembers', () => {
     expect(payload.unreadCount).toBeTypeOf('number')
     expect(payload.members.length).toBeGreaterThan(0)
     expect(payload.members.map((member) => member.id)).toContain('usr_dev')
+    // An owner holds `invitation:create`, so the invitation list is real data.
+    expect(payload.invitations).toBeInstanceOf(Array)
   })
 
-  it('shows a plain member the roster too — membership itself entitles the read', async () => {
+  it('shows a plain member the roster but withholds the invitations', async () => {
     const payload = await loadWorkspaceMembers({
       workspaceSlug: 'starter-lab',
       userId: 'usr_dev'
     })
     expect(payload.viewer).toEqual({ role: 'member' })
     expect(payload.members.length).toBeGreaterThan(0)
+    // Denied by the matrix — and denied server-side, so the invitation list
+    // never reaches the serialized loader payload at all.
+    expect(payload.invitations).toBeNull()
   })
 })

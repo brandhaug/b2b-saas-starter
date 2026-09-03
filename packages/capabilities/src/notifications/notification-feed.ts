@@ -1,7 +1,7 @@
 import { Database } from '@b2b-saas-starter/db/service'
 import { notifications } from '@b2b-saas-starter/db/schema'
-import { Context, Effect, Layer, Schema } from 'effect'
-import { and, count, desc, eq, isNull, or } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull, or } from 'drizzle-orm'
+import { Context, DateTime, Effect, Layer, Ref, Schema } from 'effect'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext, type Actor } from '../workspace-context.ts'
@@ -14,6 +14,12 @@ export const Notification = Schema.Struct({
   read: Schema.Boolean
 })
 export type Notification = typeof Notification.Type
+
+/** The wire input of `markRead`: the unread ids the actor is marking read. */
+export const MarkNotificationsReadInput = Schema.Struct({
+  ids: Schema.Array(Schema.String)
+})
+export type MarkNotificationsReadInput = typeof MarkNotificationsReadInput.Type
 
 /**
  * Seed rows may carry an optional target user id so tests can exercise the
@@ -31,6 +37,18 @@ export type NotificationFeedInterface = {
   >
 
   readonly unreadCount: Effect.Effect<number, CapabilityUnavailable, WorkspaceContext>
+
+  /**
+   * Stamps the given unread ids read for the current context and returns how
+   * many rows changed. Ids that are unknown, foreign, invisible to the actor,
+   * or already read are ignored — the call is idempotent. Marking a broadcast
+   * row read stamps the shared row (the table has no per-actor read state);
+   * the write is gated upstream by the same `notification:read` permission as
+   * the read, because it is the actor consuming their own feed.
+   */
+  readonly markRead: (
+    ids: ReadonlyArray<string>
+  ) => Effect.Effect<number, CapabilityUnavailable, WorkspaceContext>
 }
 
 export class NotificationFeed extends Context.Service<
@@ -45,29 +63,65 @@ function visibleToActor(
   return userId === undefined || userId === null || userId === actor?.userId
 }
 
+/**
+ * The in-memory feed. The rows live in a layer-scoped `Ref` so `markRead`
+ * mutates them — the Seed layer is a real adapter, not a static answer sheet,
+ * and Seed/Live equivalence covers the write path too.
+ */
 export function SeedNotificationFeed(
   seed: ReadonlyArray<SeedNotification>
 ): Layer.Layer<NotificationFeed> {
-  return Layer.succeed(NotificationFeed)({
-    list: Effect.gen(function* () {
-      const ctx = yield* WorkspaceContext
-      const visible: Array<Omit<SeedNotification, 'userId'>> = []
-      for (const entry of seed) {
-        const { userId, ...notification } = entry
-        if (visibleToActor(userId, ctx.actor)) {
-          visible.push(notification)
-        }
+  return Layer.effect(NotificationFeed)(
+    Effect.sync(() => {
+      const rows = Ref.makeUnsafe<Array<SeedNotification>>([...seed])
+      return {
+        list: Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          const current = yield* Ref.get(rows)
+          const visible: Array<Omit<SeedNotification, 'userId'>> = []
+          for (const entry of current) {
+            const { userId, ...notification } = entry
+            if (visibleToActor(userId, ctx.actor)) {
+              visible.push(notification)
+            }
+          }
+          return visible
+        }),
+        unreadCount: Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          const current = yield* Ref.get(rows)
+          return current.filter(
+            (notification) =>
+              !notification.read && visibleToActor(notification.userId, ctx.actor)
+          ).length
+        }),
+        markRead: (ids) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const requested = new Set(ids)
+            // `Ref.modify`, not `Ref.update` + a closure counter: modify runs
+            // its function exactly once per successful state transition, so
+            // the returned count is the transition's own answer and cannot
+            // double-count if the runtime retries the update.
+            return yield* Ref.modify(rows, (current) => {
+              let marked = 0
+              const next = current.map((row) => {
+                if (
+                  !requested.has(row.id) ||
+                  !visibleToActor(row.userId, ctx.actor) ||
+                  row.read
+                ) {
+                  return row
+                }
+                marked += 1
+                return { ...row, read: true }
+              })
+              return [marked, next]
+            })
+          })
       }
-      return visible
-    }),
-    unreadCount: Effect.gen(function* () {
-      const ctx = yield* WorkspaceContext
-      return seed.filter(
-        (notification) =>
-          !notification.read && visibleToActor(notification.userId, ctx.actor)
-      ).length
     })
-  })
+  )
 }
 
 function toNotification(row: typeof notifications.$inferSelect): Notification {
@@ -127,7 +181,45 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
               )
           )
           return rows[0]?.value ?? 0
-        })
+        }),
+        markRead: (ids) =>
+          Effect.gen(function* () {
+            if (ids.length === 0) {
+              return 0
+            }
+            const ctx = yield* WorkspaceContext
+            const readAt = yield* DateTime.now
+            // The visibility filter scopes the write exactly like the read: an
+            // id the actor cannot see is never stamped. Matching ids are
+            // selected first so the returned count is exact.
+            const matching = yield* unavailable(
+              db
+                .select({ id: notifications.id })
+                .from(notifications)
+                .where(
+                  and(
+                    visibilityFilter(ctx.workspace.id, ctx.actor),
+                    isNull(notifications.readAt),
+                    inArray(notifications.id, [...ids])
+                  )
+                )
+            )
+            if (matching.length === 0) {
+              return 0
+            }
+            yield* unavailable(
+              db
+                .update(notifications)
+                .set({ readAt: DateTime.toDate(readAt).toISOString() })
+                .where(
+                  inArray(
+                    notifications.id,
+                    matching.map((row) => row.id)
+                  )
+                )
+            )
+            return matching.length
+          })
       }
     })
   )

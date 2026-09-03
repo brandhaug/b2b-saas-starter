@@ -1,5 +1,8 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { InvitationPanel } from '@/components/invitation-panel'
+import { createFileRoute } from '@tanstack/react-router'
+import { PageHeader } from '@/components/page/page-header'
+import { pageTitle } from '@/components/page/page-title'
+import { Panel } from '@/components/page/panel'
+import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell, type SignOut } from '@/components/workspace-shell'
 import {
@@ -7,8 +10,6 @@ import {
   type DeleteWorkspace,
   type RenameWorkspace
 } from '@/components/workspace-general-settings'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
 import { viewerCan } from '@/lib/permissions'
 import {
   loadWorkspaceSettings,
@@ -28,9 +29,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
     }),
   pendingComponent: RoutePending,
   component: WorkspaceSettingsRoute,
-  // Derives the document title from the page the shell names.
   head: ({ params }) => ({
-    meta: [{ title: `Settings · ${params.workspaceSlug} | B2B SaaS Starter` }]
+    meta: [{ title: pageTitle('Settings', params.workspaceSlug) }]
   })
 })
 
@@ -74,16 +74,10 @@ export function WorkspaceSettingsPage({
     readonly deleteWorkspace?: DeleteWorkspace
   }
 }) {
-  const {
-    viewer,
-    workspaceName,
-    apiTokenCount,
-    webhookCount,
-    unreadCount,
-    invitations
-  } = data
-  // A `null` segment is the server's answer that this actor may not read it.
-  const canInvite = viewerCan(viewer, { invitation: ['create'] })
+  const { viewer, workspaceName, unreadCount } = data
+  // Rename and delete are gated per action, not per page: an admin may rename
+  // but never delete, a member sees neither. The server functions enforce the
+  // same statements.
   const canRename = viewerCan(viewer, { organization: ['update'] })
   const canDelete = viewerCan(viewer, { organization: ['delete'] })
 
@@ -92,106 +86,39 @@ export function WorkspaceSettingsPage({
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
       {...(ports?.signOut === undefined ? {} : { signOut: ports.signOut })}
-      title="Workspace settings"
-      description="API tokens, members, and webhook configuration."
       unreadCount={unreadCount}
       viewer={viewer}
     >
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle as="h2">Workspace</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-5">
-            {/* Rename and delete are gated per action, not per page: an admin
-                may rename but never delete, a member sees neither. The server
-                functions enforce the same statements. */}
-            {canRename || canDelete ? (
-              <WorkspaceGeneralSettings
-                workspaceSlug={workspaceSlug}
-                currentName={workspaceName}
-                canRename={canRename}
-                canDelete={canDelete}
-                {...(ports === undefined
-                  ? {}
-                  : {
-                      ports: {
-                        rename: ports.renameWorkspace,
-                        remove: ports.deleteWorkspace
-                      }
-                    })}
-              />
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Your role cannot change or delete the workspace.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle as="h2">Operational settings</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-5">
-            {apiTokenCount === null ? null : (
-              <div className="grid gap-2">
-                <Label>API tokens</Label>
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-mono tabular-nums">{apiTokenCount}</span> active
-                  workspace-scoped tokens. Creation and revocation live on the{' '}
-                  <Link
-                    to="/workspaces/$workspaceSlug/api-tokens"
-                    params={{ workspaceSlug }}
-                    className="underline underline-offset-2"
-                  >
-                    API tokens page
-                  </Link>
-                  .
-                </p>
-              </div>
-            )}
-            {invitations === null ? null : (
-              <div className="grid gap-2">
-                <Label>Members</Label>
-                <p className="text-sm text-muted-foreground">
-                  Invite someone by email. They join once they open the link and accept
-                  — the invitation carries the role chosen here.
-                </p>
-                {canInvite ? (
-                  <InvitationPanel
-                    workspaceSlug={workspaceSlug}
-                    invitations={invitations}
-                  />
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Your role cannot invite members.
-                  </p>
-                )}
-              </div>
-            )}
-            {webhookCount === null ? null : (
-              <div className="grid gap-2">
-                <Label>Outbound webhooks</Label>
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-mono tabular-nums">{webhookCount}</span>{' '}
-                  endpoint
-                  {webhookCount === 1 ? ' is' : 's are'} configured for selected
-                  workspace events. Registration, delivery history, and secret rotation
-                  live on the{' '}
-                  <Link
-                    to="/workspaces/$workspaceSlug/webhooks"
-                    params={{ workspaceSlug }}
-                    className="underline underline-offset-2"
-                  >
-                    Webhooks page
-                  </Link>
-                  .
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <PageHeader
+        breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
+        title="Workspace settings"
+        description="The workspace's name, and the decision to end it."
+      />
+      {/* Rename and delete are gated per action, not per page: an admin may
+          rename but never delete, a member sees neither. The server functions
+          enforce the same statements. */}
+      <Panel title="General">
+        {canRename || canDelete ? (
+          <WorkspaceGeneralSettings
+            workspaceSlug={workspaceSlug}
+            currentName={workspaceName}
+            canRename={canRename}
+            canDelete={canDelete}
+            {...(ports === undefined
+              ? {}
+              : {
+                  ports: {
+                    rename: ports.renameWorkspace,
+                    remove: ports.deleteWorkspace
+                  }
+                })}
+          />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Your role cannot change or delete the workspace.
+          </p>
+        )}
+      </Panel>
     </WorkspaceShell>
   )
 }

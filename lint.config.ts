@@ -817,6 +817,27 @@ const { lint = {} } = defineConfig({
         plugins: ['jsx-a11y']
       },
       {
+        // DESIGN.md class rules. One scheme (Catppuccin Mocha, always dark)
+        // makes a `dark:` variant dead code, and raw hex values belong only in
+        // index.css where the OKLch tokens are defined — everywhere else the
+        // semantic token is the interface. Both rules are scoped to the web
+        // app because that is the Tailwind surface; other packages have no
+        // stylesheet to drift from.
+        files: ['apps/web/**/*.{ts,tsx}'],
+        rules: {
+          'starter/no-dark-prefix': 'error',
+          'starter/no-hex-color': 'error'
+        }
+      },
+      {
+        // The root document carries the theme-color meta and the `<html>`
+        // scaffolding that must state values before index.css loads.
+        files: ['apps/web/src/routes/__root.tsx'],
+        rules: {
+          'starter/no-hex-color': 'off'
+        }
+      },
+      {
         files: ['packages/logger/src/**', 'apps/web/src/lib/observability.ts'],
         rules: {
           'anti-slop/no-unsafe-dictionary-type': 'off',
@@ -840,8 +861,8 @@ const { lint = {} } = defineConfig({
       },
       {
         files: [
-          'apps/web/src/routes/docs.$category.$slug.tsx',
-          'apps/web/src/routes/blog.$slug.tsx',
+          'apps/web/src/routes/_knowledge.docs.$category.$slug.tsx',
+          'apps/web/src/routes/_knowledge.blog.$slug.tsx',
           'apps/web/src/components/mdx-components.ts',
           'apps/web/src/components/mdx-mermaid.tsx'
         ],

@@ -1,4 +1,3 @@
-import { LaptopIcon } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useHydrated } from '@/lib/client-only-value'
 import { unwrapAuthResult, type AuthResult } from '@/lib/auth-result'
@@ -14,6 +13,8 @@ import {
 
 import { useServerAction } from '@/hooks/use-server-action'
 import { Button } from '@/components/ui/button'
+import { ActionFeedback } from '@/components/page/action-feedback'
+import { Panel } from '@/components/page/panel'
 import { formatUtc } from '@/lib/format-date'
 import {
   AlertDialog,
@@ -143,13 +144,11 @@ export function SessionsPanel({
   const othersExist = rows?.some((row) => row.token !== currentSessionToken)
 
   return (
-    <section className="grid gap-4" aria-label="Active sessions">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <LaptopIcon className="size-4 text-muted-foreground" />
-          <h3 className="text-sm font-medium">Active sessions</h3>
-        </div>
-        {othersExist ? (
+    <Panel
+      title="Active sessions"
+      description="Every device currently signed in as you. Revoking a session signs it out immediately."
+      actions={
+        othersExist ? (
           <AlertDialog>
             <AlertDialogTrigger render={<Button variant="outline" size="sm" />}>
               Sign out everywhere else
@@ -167,20 +166,15 @@ export function SessionsPanel({
               </div>
             </AlertDialogContent>
           </AlertDialog>
-        ) : null}
-      </header>
-
-      {loadError ? (
-        <p role="alert" className="text-xs text-destructive">
-          {loadError}
-        </p>
-      ) : null}
-      {act.error === null ? null : (
-        <p role="alert" className="text-xs text-destructive">
-          {act.error}
-        </p>
-      )}
-
+        ) : undefined
+      }
+      footer={
+        <>
+          <ActionFeedback error={loadError} />
+          <ActionFeedback error={act.error} />
+        </>
+      }
+    >
       {hydrated && isPending ? (
         <ul className="grid gap-2" aria-busy="true">
           {[0, 1].map((index) => (
@@ -250,6 +244,6 @@ export function SessionsPanel({
           })}
         </ul>
       ) : null}
-    </section>
+    </Panel>
   )
 }

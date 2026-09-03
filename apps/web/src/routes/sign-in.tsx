@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { KeyRoundIcon } from 'lucide-react'
@@ -22,7 +23,7 @@ export type { SignInWithEmail } from '@/components/auth/auth-client-ports'
 export const Route = createFileRoute('/sign-in')({
   validateSearch: redirectSearch,
   component: SignInRoute,
-  head: () => ({ meta: [{ title: 'Sign in | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle('Sign in') }] })
 })
 
 type SignInValues = {

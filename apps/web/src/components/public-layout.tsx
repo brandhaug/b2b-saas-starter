@@ -79,7 +79,9 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             ))}
           </nav>
           <SearchButton />
-          <Button render={<Link to="/sign-in" />}>Sign in</Button>
+          <Button nativeButton={false} render={<Link to="/sign-in" />}>
+            Sign in
+          </Button>
         </div>
       </header>
       {children}

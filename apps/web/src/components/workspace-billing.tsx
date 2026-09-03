@@ -1,13 +1,14 @@
 import { Check, Minus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
 import { useServerAction } from '@/hooks/use-server-action'
 import { startCheckoutServerFn } from '@/lib/server/billing'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ActionFeedback } from '@/components/page/action-feedback'
+import { Identifier } from '@/components/page/identifier'
+import { Panel } from '@/components/page/panel'
 import { Spinner } from '@/components/ui/spinner'
 
 const CHECKOUT_DISABLED =
@@ -84,65 +85,86 @@ export function BillingPlans({
   const currentPlan = plans.find((plan) => plan.id === currentPlanId)
 
   return (
-    <div className="grid gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle as="h2">Current plan</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center gap-3">
+    <>
+      <Panel title="Current plan">
+        <div className="flex flex-wrap items-center gap-3">
           <Badge>{currentPlan?.name ?? currentPlanId}</Badge>
           <p className="text-sm text-muted-foreground">
             Entitlements follow the workspace's plan
             {currentPlan === undefined ? '.' : `: ${entitlementSentence(currentPlan)}`}
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </Panel>
       {stripeConfigured ? null : (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Billing is an optional provider and Stripe is not configured on this
-          deployment. Set <code>STRIPE_SECRET_KEY</code>,{' '}
-          <code>STRIPE_WEBHOOK_SECRET</code>, and the per-plan price ids to activate
-          checkout. Everything else keeps working.
+          deployment. Set <Identifier>STRIPE_SECRET_KEY</Identifier>,{' '}
+          <Identifier>STRIPE_WEBHOOK_SECRET</Identifier>, and the per-plan price ids to
+          activate checkout. Everything else keeps working.
         </p>
       )}
-      {upgrade.error === null ? null : (
-        <Alert variant="destructive">
-          <AlertDescription>{upgrade.error}</AlertDescription>
-        </Alert>
-      )}
-      <div className="grid gap-4 md:grid-cols-3">
-        {plans.map((plan) => (
-          <Card key={plan.id}>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                {plan.name}
-                {plan.id === currentPlanId ? (
-                  <Badge variant="secondary">Current</Badge>
-                ) : null}
-              </CardTitle>
-              <p className="text-2xl font-semibold">{plan.price}</p>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
-              <p>{plan.description}</p>
-              <ul className="mt-2 grid gap-1">
-                <EntitlementRow label="API tokens" limit={plan.limits.apiTokens} />
-                <EntitlementRow
-                  label="Webhook endpoints"
-                  limit={plan.limits.webhookEndpoints}
-                />
-              </ul>
-              <PlanAction
-                plan={plan}
-                currentPlanId={currentPlanId}
-                canManageBilling={canManageBilling}
-                stripeConfigured={stripeConfigured}
-                pendingPlan={upgrade.pendingInput ?? null}
-                onUpgrade={() => upgrade.run(plan.id)}
-              />
-            </CardContent>
-          </Card>
-        ))}
+      <ActionFeedback error={upgrade.error} />
+      <Panel title="Plans">
+        <div className="grid gap-4 md:grid-cols-3">
+          {plans.map((plan) => (
+            <PlanTile
+              key={plan.id}
+              plan={plan}
+              currentPlanId={currentPlanId}
+              canManageBilling={canManageBilling}
+              stripeConfigured={stripeConfigured}
+              pendingPlan={upgrade.pendingInput ?? null}
+              onUpgrade={() => upgrade.run(plan.id)}
+            />
+          ))}
+        </div>
+      </Panel>
+    </>
+  )
+}
+
+/**
+ * One plan option inside the Plans panel: a muted lift on the panel surface,
+ * not a nested card. The action follows the plan's `purchase` mode.
+ */
+function PlanTile({
+  plan,
+  currentPlanId,
+  canManageBilling,
+  stripeConfigured,
+  pendingPlan,
+  onUpgrade
+}: {
+  readonly plan: BillingPlan
+  readonly currentPlanId: string
+  readonly canManageBilling: boolean
+  readonly stripeConfigured: boolean
+  readonly pendingPlan: string | null
+  readonly onUpgrade: () => void
+}) {
+  return (
+    <div className="grid gap-2 rounded-none border border-border bg-muted p-4 content-start">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-semibold">{plan.name}</h3>
+        {plan.id === currentPlanId ? <Badge variant="secondary">Current</Badge> : null}
       </div>
+      <p className="text-2xl font-semibold">{plan.price}</p>
+      <p className="text-sm text-muted-foreground">{plan.description}</p>
+      <ul className="grid gap-1 text-sm text-muted-foreground">
+        <EntitlementRow label="API tokens" limit={plan.limits.apiTokens} />
+        <EntitlementRow
+          label="Webhook endpoints"
+          limit={plan.limits.webhookEndpoints}
+        />
+      </ul>
+      <PlanAction
+        plan={plan}
+        currentPlanId={currentPlanId}
+        canManageBilling={canManageBilling}
+        stripeConfigured={stripeConfigured}
+        pendingPlan={pendingPlan}
+        onUpgrade={onUpgrade}
+      />
     </div>
   )
 }

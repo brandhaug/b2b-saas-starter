@@ -10,11 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as KnowledgeRouteImport } from './routes/_knowledge'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdminRouteImport } from './routes/admin'
-import { Route as ChangelogRouteImport } from './routes/changelog'
-import { Route as DocsRouteImport } from './routes/docs'
-import { Route as FaqRouteImport } from './routes/faq'
+import { Route as DemoRouteImport } from './routes/demo'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -25,14 +24,15 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
-import { Route as BlogIndexRouteImport } from './routes/blog.index'
-import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
-import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as KnowledgeChangelogRouteImport } from './routes/_knowledge.changelog'
+import { Route as KnowledgeFaqRouteImport } from './routes/_knowledge.faq'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
+import { Route as KnowledgeBlogIndexRouteImport } from './routes/_knowledge.blog.index'
+import { Route as KnowledgeBlogSlugRouteImport } from './routes/_knowledge.blog.$slug'
+import { Route as KnowledgeDocsIndexRouteImport } from './routes/_knowledge.docs.index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
-import { Route as DocsCategorySlugRouteImport } from './routes/docs.$category.$slug'
 import { Route as WorkspacesWorkspaceSlugIndexRouteImport } from './routes/workspaces.$workspaceSlug.index'
 import { Route as WorkspacesWorkspaceSlugApiTokensRouteImport } from './routes/workspaces.$workspaceSlug.api-tokens'
 import { Route as WorkspacesWorkspaceSlugAssistantRouteImport } from './routes/workspaces.$workspaceSlug.assistant'
@@ -41,10 +41,15 @@ import { Route as WorkspacesWorkspaceSlugBillingRouteImport } from './routes/wor
 import { Route as WorkspacesWorkspaceSlugMembersRouteImport } from './routes/workspaces.$workspaceSlug.members'
 import { Route as WorkspacesWorkspaceSlugSettingsRouteImport } from './routes/workspaces.$workspaceSlug.settings'
 import { Route as WorkspacesWorkspaceSlugWebhooksRouteImport } from './routes/workspaces.$workspaceSlug.webhooks'
+import { Route as KnowledgeDocsCategorySlugRouteImport } from './routes/_knowledge.docs.$category.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KnowledgeRoute = KnowledgeRouteImport.update({
+  id: '/_knowledge',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountRoute = AccountRouteImport.update({
@@ -57,19 +62,9 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ChangelogRoute = ChangelogRouteImport.update({
-  id: '/changelog',
-  path: '/changelog',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DocsRoute = DocsRouteImport.update({
-  id: '/docs',
-  path: '/docs',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FaqRoute = FaqRouteImport.update({
-  id: '/faq',
-  path: '/faq',
+const DemoRoute = DemoRouteImport.update({
+  id: '/demo',
+  path: '/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -122,20 +117,15 @@ const WorkspacesRoute = WorkspacesRouteImport.update({
   path: '/workspaces',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BlogIndexRoute = BlogIndexRouteImport.update({
-  id: '/blog/',
-  path: '/blog/',
-  getParentRoute: () => rootRouteImport,
+const KnowledgeChangelogRoute = KnowledgeChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => KnowledgeRoute,
 } as any)
-const BlogSlugRoute = BlogSlugRouteImport.update({
-  id: '/blog/$slug',
-  path: '/blog/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DocsIndexRoute = DocsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DocsRoute,
+const KnowledgeFaqRoute = KnowledgeFaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
+  getParentRoute: () => KnowledgeRoute,
 } as any)
 const HelpIndexRoute = HelpIndexRouteImport.update({
   id: '/help/',
@@ -152,15 +142,25 @@ const WorkspacesIndexRoute = WorkspacesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => WorkspacesRoute,
 } as any)
+const KnowledgeBlogIndexRoute = KnowledgeBlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
+  getParentRoute: () => KnowledgeRoute,
+} as any)
+const KnowledgeBlogSlugRoute = KnowledgeBlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
+  getParentRoute: () => KnowledgeRoute,
+} as any)
+const KnowledgeDocsIndexRoute = KnowledgeDocsIndexRouteImport.update({
+  id: '/docs/',
+  path: '/docs/',
+  getParentRoute: () => KnowledgeRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
-} as any)
-const DocsCategorySlugRoute = DocsCategorySlugRouteImport.update({
-  id: '/$category/$slug',
-  path: '/$category/$slug',
-  getParentRoute: () => DocsRoute,
 } as any)
 const WorkspacesWorkspaceSlugIndexRoute =
   WorkspacesWorkspaceSlugIndexRouteImport.update({
@@ -210,14 +210,18 @@ const WorkspacesWorkspaceSlugWebhooksRoute =
     path: '/$workspaceSlug/webhooks',
     getParentRoute: () => WorkspacesRoute,
   } as any)
+const KnowledgeDocsCategorySlugRoute =
+  KnowledgeDocsCategorySlugRouteImport.update({
+    id: '/docs/$category/$slug',
+    path: '/docs/$category/$slug',
+    getParentRoute: () => KnowledgeRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
-  '/changelog': typeof ChangelogRoute
-  '/docs': typeof DocsRouteWithChildren
-  '/faq': typeof FaqRoute
+  '/demo': typeof DemoRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -228,14 +232,13 @@ export interface FileRoutesByFullPath {
   '/two-factor': typeof TwoFactorRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
-  '/blog/$slug': typeof BlogSlugRoute
+  '/changelog': typeof KnowledgeChangelogRoute
+  '/faq': typeof KnowledgeFaqRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
-  '/blog/': typeof BlogIndexRoute
-  '/docs/': typeof DocsIndexRoute
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
+  '/blog/$slug': typeof KnowledgeBlogSlugRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
@@ -243,14 +246,16 @@ export interface FileRoutesByFullPath {
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
+  '/blog/': typeof KnowledgeBlogIndexRoute
+  '/docs/': typeof KnowledgeDocsIndexRoute
   '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
+  '/docs/$category/$slug': typeof KnowledgeDocsCategorySlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
-  '/changelog': typeof ChangelogRoute
-  '/faq': typeof FaqRoute
+  '/demo': typeof DemoRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -260,14 +265,13 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/two-factor': typeof TwoFactorRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/blog/$slug': typeof BlogSlugRoute
+  '/changelog': typeof KnowledgeChangelogRoute
+  '/faq': typeof KnowledgeFaqRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
-  '/blog': typeof BlogIndexRoute
-  '/docs': typeof DocsIndexRoute
   '/help': typeof HelpIndexRoute
   '/workspaces': typeof WorkspacesIndexRoute
+  '/blog/$slug': typeof KnowledgeBlogSlugRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
@@ -275,16 +279,18 @@ export interface FileRoutesByTo {
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
+  '/blog': typeof KnowledgeBlogIndexRoute
+  '/docs': typeof KnowledgeDocsIndexRoute
   '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugIndexRoute
+  '/docs/$category/$slug': typeof KnowledgeDocsCategorySlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_knowledge': typeof KnowledgeRouteWithChildren
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
-  '/changelog': typeof ChangelogRoute
-  '/docs': typeof DocsRouteWithChildren
-  '/faq': typeof FaqRoute
+  '/demo': typeof DemoRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -295,14 +301,13 @@ export interface FileRoutesById {
   '/two-factor': typeof TwoFactorRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
-  '/blog/$slug': typeof BlogSlugRoute
+  '/_knowledge/changelog': typeof KnowledgeChangelogRoute
+  '/_knowledge/faq': typeof KnowledgeFaqRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
-  '/blog/': typeof BlogIndexRoute
-  '/docs/': typeof DocsIndexRoute
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
+  '/_knowledge/blog/$slug': typeof KnowledgeBlogSlugRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/docs/$category/$slug': typeof DocsCategorySlugRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
@@ -310,7 +315,10 @@ export interface FileRoutesById {
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
+  '/_knowledge/blog/': typeof KnowledgeBlogIndexRoute
+  '/_knowledge/docs/': typeof KnowledgeDocsIndexRoute
   '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
+  '/_knowledge/docs/$category/$slug': typeof KnowledgeDocsCategorySlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -318,9 +326,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
-    | '/changelog'
-    | '/docs'
-    | '/faq'
+    | '/demo'
     | '/forgot-password'
     | '/pricing'
     | '/privacy'
@@ -331,14 +337,13 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/verify-email'
     | '/workspaces'
-    | '/blog/$slug'
+    | '/changelog'
+    | '/faq'
     | '/invitations/accept'
-    | '/blog/'
-    | '/docs/'
     | '/help/'
     | '/workspaces/'
+    | '/blog/$slug'
     | '/api/auth/$'
-    | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/assistant'
     | '/workspaces/$workspaceSlug/audit'
@@ -346,14 +351,16 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/webhooks'
+    | '/blog/'
+    | '/docs/'
     | '/workspaces/$workspaceSlug/'
+    | '/docs/$category/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/account'
     | '/admin'
-    | '/changelog'
-    | '/faq'
+    | '/demo'
     | '/forgot-password'
     | '/pricing'
     | '/privacy'
@@ -363,14 +370,13 @@ export interface FileRouteTypes {
     | '/terms'
     | '/two-factor'
     | '/verify-email'
-    | '/blog/$slug'
+    | '/changelog'
+    | '/faq'
     | '/invitations/accept'
-    | '/blog'
-    | '/docs'
     | '/help'
     | '/workspaces'
+    | '/blog/$slug'
     | '/api/auth/$'
-    | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/assistant'
     | '/workspaces/$workspaceSlug/audit'
@@ -378,15 +384,17 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/webhooks'
+    | '/blog'
+    | '/docs'
     | '/workspaces/$workspaceSlug'
+    | '/docs/$category/$slug'
   id:
     | '__root__'
     | '/'
+    | '/_knowledge'
     | '/account'
     | '/admin'
-    | '/changelog'
-    | '/docs'
-    | '/faq'
+    | '/demo'
     | '/forgot-password'
     | '/pricing'
     | '/privacy'
@@ -397,14 +405,13 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/verify-email'
     | '/workspaces'
-    | '/blog/$slug'
+    | '/_knowledge/changelog'
+    | '/_knowledge/faq'
     | '/invitations/accept'
-    | '/blog/'
-    | '/docs/'
     | '/help/'
     | '/workspaces/'
+    | '/_knowledge/blog/$slug'
     | '/api/auth/$'
-    | '/docs/$category/$slug'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/assistant'
     | '/workspaces/$workspaceSlug/audit'
@@ -412,16 +419,18 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/webhooks'
+    | '/_knowledge/blog/'
+    | '/_knowledge/docs/'
     | '/workspaces/$workspaceSlug/'
+    | '/_knowledge/docs/$category/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  KnowledgeRoute: typeof KnowledgeRouteWithChildren
   AccountRoute: typeof AccountRoute
   AdminRoute: typeof AdminRoute
-  ChangelogRoute: typeof ChangelogRoute
-  DocsRoute: typeof DocsRouteWithChildren
-  FaqRoute: typeof FaqRoute
+  DemoRoute: typeof DemoRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -432,9 +441,7 @@ export interface RootRouteChildren {
   TwoFactorRoute: typeof TwoFactorRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   WorkspacesRoute: typeof WorkspacesRouteWithChildren
-  BlogSlugRoute: typeof BlogSlugRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
-  BlogIndexRoute: typeof BlogIndexRoute
   HelpIndexRoute: typeof HelpIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -446,6 +453,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_knowledge': {
+      id: '/_knowledge'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof KnowledgeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account': {
@@ -462,25 +476,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/changelog': {
-      id: '/changelog'
-      path: '/changelog'
-      fullPath: '/changelog'
-      preLoaderRoute: typeof ChangelogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/docs': {
-      id: '/docs'
-      path: '/docs'
-      fullPath: '/docs'
-      preLoaderRoute: typeof DocsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/faq': {
-      id: '/faq'
-      path: '/faq'
-      fullPath: '/faq'
-      preLoaderRoute: typeof FaqRouteImport
+    '/demo': {
+      id: '/demo'
+      path: '/demo'
+      fullPath: '/demo'
+      preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -553,26 +553,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/blog/': {
-      id: '/blog/'
-      path: '/blog'
-      fullPath: '/blog/'
-      preLoaderRoute: typeof BlogIndexRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_knowledge/changelog': {
+      id: '/_knowledge/changelog'
+      path: '/changelog'
+      fullPath: '/changelog'
+      preLoaderRoute: typeof KnowledgeChangelogRouteImport
+      parentRoute: typeof KnowledgeRoute
     }
-    '/blog/$slug': {
-      id: '/blog/$slug'
-      path: '/blog/$slug'
-      fullPath: '/blog/$slug'
-      preLoaderRoute: typeof BlogSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/docs/': {
-      id: '/docs/'
-      path: '/'
-      fullPath: '/docs/'
-      preLoaderRoute: typeof DocsIndexRouteImport
-      parentRoute: typeof DocsRoute
+    '/_knowledge/faq': {
+      id: '/_knowledge/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof KnowledgeFaqRouteImport
+      parentRoute: typeof KnowledgeRoute
     }
     '/help/': {
       id: '/help/'
@@ -595,19 +588,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesIndexRouteImport
       parentRoute: typeof WorkspacesRoute
     }
+    '/_knowledge/blog/': {
+      id: '/_knowledge/blog/'
+      path: '/blog'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof KnowledgeBlogIndexRouteImport
+      parentRoute: typeof KnowledgeRoute
+    }
+    '/_knowledge/blog/$slug': {
+      id: '/_knowledge/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof KnowledgeBlogSlugRouteImport
+      parentRoute: typeof KnowledgeRoute
+    }
+    '/_knowledge/docs/': {
+      id: '/_knowledge/docs/'
+      path: '/docs'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof KnowledgeDocsIndexRouteImport
+      parentRoute: typeof KnowledgeRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/docs/$category/$slug': {
-      id: '/docs/$category/$slug'
-      path: '/$category/$slug'
-      fullPath: '/docs/$category/$slug'
-      preLoaderRoute: typeof DocsCategorySlugRouteImport
-      parentRoute: typeof DocsRoute
     }
     '/workspaces/$workspaceSlug/': {
       id: '/workspaces/$workspaceSlug/'
@@ -665,20 +672,37 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesWorkspaceSlugWebhooksRouteImport
       parentRoute: typeof WorkspacesRoute
     }
+    '/_knowledge/docs/$category/$slug': {
+      id: '/_knowledge/docs/$category/$slug'
+      path: '/docs/$category/$slug'
+      fullPath: '/docs/$category/$slug'
+      preLoaderRoute: typeof KnowledgeDocsCategorySlugRouteImport
+      parentRoute: typeof KnowledgeRoute
+    }
   }
 }
 
-interface DocsRouteChildren {
-  DocsIndexRoute: typeof DocsIndexRoute
-  DocsCategorySlugRoute: typeof DocsCategorySlugRoute
+interface KnowledgeRouteChildren {
+  KnowledgeChangelogRoute: typeof KnowledgeChangelogRoute
+  KnowledgeFaqRoute: typeof KnowledgeFaqRoute
+  KnowledgeBlogSlugRoute: typeof KnowledgeBlogSlugRoute
+  KnowledgeBlogIndexRoute: typeof KnowledgeBlogIndexRoute
+  KnowledgeDocsIndexRoute: typeof KnowledgeDocsIndexRoute
+  KnowledgeDocsCategorySlugRoute: typeof KnowledgeDocsCategorySlugRoute
 }
 
-const DocsRouteChildren: DocsRouteChildren = {
-  DocsIndexRoute: DocsIndexRoute,
-  DocsCategorySlugRoute: DocsCategorySlugRoute,
+const KnowledgeRouteChildren: KnowledgeRouteChildren = {
+  KnowledgeChangelogRoute: KnowledgeChangelogRoute,
+  KnowledgeFaqRoute: KnowledgeFaqRoute,
+  KnowledgeBlogSlugRoute: KnowledgeBlogSlugRoute,
+  KnowledgeBlogIndexRoute: KnowledgeBlogIndexRoute,
+  KnowledgeDocsIndexRoute: KnowledgeDocsIndexRoute,
+  KnowledgeDocsCategorySlugRoute: KnowledgeDocsCategorySlugRoute,
 }
 
-const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
+const KnowledgeRouteWithChildren = KnowledgeRoute._addFileChildren(
+  KnowledgeRouteChildren,
+)
 
 interface WorkspacesRouteChildren {
   WorkspacesIndexRoute: typeof WorkspacesIndexRoute
@@ -710,11 +734,10 @@ const WorkspacesRouteWithChildren = WorkspacesRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  KnowledgeRoute: KnowledgeRouteWithChildren,
   AccountRoute: AccountRoute,
   AdminRoute: AdminRoute,
-  ChangelogRoute: ChangelogRoute,
-  DocsRoute: DocsRouteWithChildren,
-  FaqRoute: FaqRoute,
+  DemoRoute: DemoRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
@@ -725,9 +748,7 @@ const rootRouteChildren: RootRouteChildren = {
   TwoFactorRoute: TwoFactorRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   WorkspacesRoute: WorkspacesRouteWithChildren,
-  BlogSlugRoute: BlogSlugRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
-  BlogIndexRoute: BlogIndexRoute,
   HelpIndexRoute: HelpIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }

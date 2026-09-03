@@ -1,17 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
 import { PublicLayout } from '@/components/public-layout'
 
 export const Route = createFileRoute('/terms')({
   component: TermsPage,
   head: () => ({
     meta: [
-      { title: 'Terms | B2B SaaS Starter' },
+      { title: pageTitle('Terms') },
       {
         name: 'description',
         content:
           'Implementation-copy terms covering acceptable use, accounts, billing, and API access for the starter.'
       },
-      { property: 'og:title', content: 'Terms | B2B SaaS Starter' },
+      { property: 'og:title', content: pageTitle('Terms') },
       {
         property: 'og:description',
         content:

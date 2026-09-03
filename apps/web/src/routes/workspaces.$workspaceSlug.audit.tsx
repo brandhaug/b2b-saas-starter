@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { Schema } from 'effect'
+import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAuditPage } from '@/components/workspace-audit-page'
 import { type ApplyWorkspaceAuditSearch } from '@/lib/audit-search'
@@ -62,9 +63,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
   },
   pendingComponent: RoutePending,
   component: WorkspaceAuditRoute,
-  // Derives the document title from the page the shell names.
   head: ({ params }) => ({
-    meta: [{ title: `Audit trail · ${params.workspaceSlug} | B2B SaaS Starter` }]
+    meta: [{ title: pageTitle('Audit trail', params.workspaceSlug) }]
   })
 })
 

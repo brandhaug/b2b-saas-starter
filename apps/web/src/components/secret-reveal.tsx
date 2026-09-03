@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { Identifier } from '@/components/page/identifier'
 import { cn } from '@/lib/utils'
 
 function maskSecret(secret: string) {
@@ -36,9 +37,9 @@ export function SecretReveal({
     // token must wrap inside a 343px column instead of forcing the row (and
     // the Show/Copy buttons) off-screen on a phone.
     <span className={cn('flex flex-wrap items-center gap-2', className)}>
-      <code className="min-w-0 max-w-full rounded-md bg-muted px-2 py-1 font-mono text-xs break-all">
+      <Identifier className="rounded-md px-2 py-1">
         {revealed ? secret : maskSecret(secret)}
-      </code>
+      </Identifier>
       <Button
         type="button"
         variant="ghost"

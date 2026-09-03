@@ -186,7 +186,7 @@ function MembershipList({
           key={workspace.id}
           className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
         >
-          <span className="min-w-0 text-sm break-all">{workspace.name}</span>
+          <span className="min-w-0 text-sm break-words">{workspace.name}</span>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{member.role}</Badge>
             <RoleChangeButtons

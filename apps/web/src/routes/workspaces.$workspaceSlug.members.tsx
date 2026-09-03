@@ -1,5 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { InvitationPanel } from '@/components/invitation-panel'
 import { MembersPanel } from '@/components/members-panel'
+import { PageHeader } from '@/components/page/page-header'
+import { pageTitle } from '@/components/page/page-title'
+import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import {
@@ -17,9 +21,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/members')({
     }),
   pendingComponent: RoutePending,
   component: WorkspaceMembersRoute,
-  // Derives the document title from the page the shell names.
   head: ({ params }) => ({
-    meta: [{ title: `Members · ${params.workspaceSlug} | B2B SaaS Starter` }]
+    meta: [{ title: pageTitle('Members', params.workspaceSlug) }]
   })
 })
 
@@ -51,20 +54,30 @@ export function WorkspaceMembersPage({
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
 }) {
-  const { viewer, unreadCount, members } = data
+  const { viewer, unreadCount, members, invitations } = data
 
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
-      title="Members"
-      description="Everyone with access to this workspace."
       unreadCount={unreadCount}
       viewer={viewer}
     >
-      <div className="grid gap-6">
-        <MembersPanel workspaceSlug={workspaceSlug} members={members} viewer={viewer} />
-      </div>
+      <PageHeader
+        breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
+        title="Members"
+        description="Everyone with access to this workspace, and everyone on their way in."
+      />
+      <MembersPanel workspaceSlug={workspaceSlug} members={members} viewer={viewer} />
+      {/* `null` means this actor may not read the invitation segment; the
+          panel gates its own form against `invitation:create`. */}
+      {invitations === null ? null : (
+        <InvitationPanel
+          workspaceSlug={workspaceSlug}
+          viewer={viewer}
+          invitations={invitations}
+        />
+      )}
     </WorkspaceShell>
   )
 }

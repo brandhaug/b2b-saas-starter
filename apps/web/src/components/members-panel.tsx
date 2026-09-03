@@ -4,7 +4,6 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import {
   Item,
@@ -14,6 +13,8 @@ import {
   ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
+import { ActionFeedback } from '@/components/page/action-feedback'
+import { Panel } from '@/components/page/panel'
 import { RoleChangeButtons } from '@/components/role-change-buttons'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { changeMemberRoleServerFn } from '@/lib/server/workspace-members'
@@ -59,17 +60,19 @@ export function MembersPanel({
 
   if (members.length === 0) {
     return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>No members yet</EmptyTitle>
-          <EmptyDescription>Invite someone from settings.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <Panel title="Roster" description="Everyone with access to this workspace.">
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>No members yet</EmptyTitle>
+            <EmptyDescription>Invite someone from the members page.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </Panel>
     )
   }
 
   return (
-    <div className="grid gap-2">
+    <Panel title="Roster" description="Everyone with access to this workspace.">
       <ItemGroup>
         {members.map((member) => {
           const changing = changeRole.pendingInput?.userId === member.id
@@ -100,11 +103,7 @@ export function MembersPanel({
           Your role cannot change member roles.
         </p>
       )}
-      {changeRole.error === null ? null : (
-        <Alert variant="destructive">
-          <AlertDescription>{changeRole.error}</AlertDescription>
-        </Alert>
-      )}
-    </div>
+      <ActionFeedback error={changeRole.error} />
+    </Panel>
   )
 }

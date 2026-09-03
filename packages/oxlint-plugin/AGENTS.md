@@ -12,9 +12,11 @@ Nothing imports this package at runtime. The root `lint.config.ts` loads `src/in
 
 | Rule                                 | Catches                                                                                          |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `no-dark-prefix`                     | A Tailwind `dark:` variant in a class string — one scheme exists, so the variant is dead code    |
 | `no-deep-workspace-imports`          | `@b2b-saas-starter/x/src/y.ts` specifiers, instead of the package's curated exports subpath      |
 | `no-effect-escape-hatch`             | `die`, `dieMessage`, `orDie`, `orDieWith`, which turn a typed failure into an opaque defect      |
 | `no-effect-internal-tags`            | `value._tag === 'Some'` and siblings, instead of `Option.isSome` and the other public guards     |
+| `no-hex-color`                       | A raw hex color literal in TypeScript — raw values live only in `apps/web/src/index.css`         |
 | `no-inline-schema-compile`           | `Schema.decodeUnknownResult(X)(input)` inside a function body, which rebuilds the codec per call |
 | `no-interface-merge-outside-dts`     | An `interface` inside a `declare` block in a `.ts` file, which `--fix` silently breaks           |
 | `no-mismatched-augmentation-context` | A `.d.ts` whose augmentation kind does not match whether the file is a module                    |
@@ -23,7 +25,9 @@ Nothing imports this package at runtime. The root `lint.config.ts` loads `src/in
 | `no-unsupported-effect-api`          | `Effect.async`, `Effect.zipRight`, `Effect.timeoutFail`, renamed in Effect v4                    |
 | `prefer-effect-predicate`            | Hand-written `(x) => x !== null` instead of `Predicate.isNotNull`                                |
 
-Four are written for this repo (`no-deep-workspace-imports`, `no-interface-merge-outside-dts`, `no-mismatched-augmentation-context`, `no-unknown-error-message`). Six are ported from [pingdotgg/t3code](https://github.com/pingdotgg/t3code/tree/main/oxlint-plugin-t3code) or [UsefulSoftwareCo/executor](https://github.com/UsefulSoftwareCo/executor/tree/main/scripts/oxlint-plugin-executor), both MIT, and each file names its source.
+Five are written for this repo (`no-dark-prefix`, `no-deep-workspace-imports`, `no-hex-color`, `no-interface-merge-outside-dts`, `no-mismatched-augmentation-context`, `no-unknown-error-message`). Six are ported from [pingdotgg/t3code](https://github.com/pingdotgg/t3code/tree/main/oxlint-plugin-t3code) or [UsefulSoftwareCo/executor](https://github.com/UsefulSoftwareCo/executor/tree/main/scripts/oxlint-plugin-executor), both MIT, and each file names its source.
+
+`no-dark-prefix` and `no-hex-color` are the DESIGN.md class rules: they are enabled only for `apps/web/**` from the root lint config, with `__root.tsx` exempted from the hex rule because the root document must state raw values before the stylesheet loads.
 
 ## Invariants
 

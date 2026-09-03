@@ -1,6 +1,8 @@
 import { use, type ReactNode } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { UserRoundIcon } from 'lucide-react'
+import { BookOpenIcon, UserRoundIcon } from 'lucide-react'
+import { getAllPostMeta } from '@/lib/blog'
+import { getAllDocMeta } from '@/lib/docs'
 import { publicLinks } from '@/lib/content'
 import { viewerCan } from '@/lib/permissions'
 import { WORKSPACE_NAV } from '@/lib/workspace-nav'
@@ -14,6 +16,12 @@ import {
   CommandList
 } from '@/components/ui/command'
 
+// The knowledge index the palette searches: both meta loaders are cached
+// promises (lib/docs.ts, lib/blog.ts), so this starts once when the lazy
+// dialog chunk loads and `use` suspends on the same instance every open.
+// oxlint-disable effect/noNewPromise -- this module is the promise boundary between the palette (react) and the Effect-native content; same exemption as lib/docs.ts
+const knowledgeMeta = Promise.all([getAllDocMeta(), getAllPostMeta()])
+
 /** The palette's context value, flattened for the dialog's two consumers. */
 function usePaletteSession() {
   const value = use(CommandPaletteContext)
@@ -21,6 +29,49 @@ function usePaletteSession() {
     viewer: value?.viewer ?? null,
     systemRole: value?.systemRole ?? null
   }
+}
+
+/**
+ * Docs and blog titles/descriptions as one searchable group — the promise is
+ * the cached meta index, so opening the palette neither re-reads nor ships
+ * article bodies.
+ */
+function KnowledgeEntries({ close }: { readonly close: () => void }) {
+  const navigate = useNavigate()
+  const [docs, posts] = use(knowledgeMeta)
+  return (
+    <CommandGroup heading="Knowledge">
+      {docs.map((doc) => (
+        <CommandItem
+          key={`docs/${doc.category}/${doc.slug}`}
+          keywords={[doc.frontmatter.description, doc.category]}
+          onSelect={() => {
+            close()
+            void navigate({
+              to: '/docs/$category/$slug',
+              params: { category: doc.category, slug: doc.slug }
+            })
+          }}
+        >
+          <BookOpenIcon aria-hidden className="size-4" />
+          {doc.frontmatter.title}
+        </CommandItem>
+      ))}
+      {posts.map((post) => (
+        <CommandItem
+          key={`blog/${post.slug}`}
+          keywords={[post.frontmatter.description]}
+          onSelect={() => {
+            close()
+            void navigate({ to: '/blog/$slug', params: { slug: post.slug } })
+          }}
+        >
+          <BookOpenIcon aria-hidden className="size-4" />
+          {post.frontmatter.title}
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  )
 }
 
 /**
@@ -64,6 +115,9 @@ export default function CommandPaletteDialog({
       rows.push(
         <CommandItem
           key={row.to}
+          // Grouped rows match their section name too — the sidebar says
+          // "General", the palette still answers "settings".
+          {...(row.group === undefined ? {} : { keywords: [row.group] })}
           onSelect={() => {
             close()
             void navigate({ to, params: { workspaceSlug } })
@@ -133,6 +187,9 @@ export default function CommandPaletteDialog({
             </CommandItem>
           ))}
         </CommandGroup>
+        {/* Suspends on the cached meta index the first time it opens — the
+            provider already wraps the dialog in a Suspense boundary. */}
+        <KnowledgeEntries close={close} />
         <CommandGroup heading="Workspace">{rows}</CommandGroup>
       </CommandList>
     </CommandDialog>

@@ -11,6 +11,42 @@ test('public homepage renders the starter showcase', async ({ page }) => {
   ).toBeVisible()
 })
 
+test('the homepage renders the live seed numbers and the real overview payload', async ({
+  page
+}) => {
+  await page.goto('/')
+  // The demo strip reads the same actorless projection the REST endpoint
+  // serves, so the numbers are the seed's own.
+  await expect(page.getByText('Endpoint success')).toBeVisible()
+  // The REST snippet embeds the workspace the curl line targets — the seed
+  // workspace's real name, not a hand-written placeholder.
+  await expect(page.getByText(/"name": "Starter Lab"/).first()).toBeVisible()
+})
+
+test('the live demo renders the dashboard without a session', async ({ page }) => {
+  await page.goto('/demo')
+  await expect(page.getByRole('heading', { name: 'Starter Lab' })).toBeVisible()
+  // The demo persona is a member: notifications render, owner panels do not.
+  await expect(page.getByText('Notifications')).toBeVisible()
+  await expect(page.getByText('Needs attention')).toHaveCount(0)
+  // Mark-as-read is the one member mutation, and the demo refuses it honestly.
+  // The click can land before React hydrates — dev-server module transforms
+  // delay hydration, the same warm-up variance the config documents — so the
+  // retry loop waits the transforms out until the refusal renders.
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Mark all read' }).click()
+    await expect(page.getByText(/read-only/i)).toBeVisible({ timeout: 1000 })
+  }).toPass({ timeout: 30_000 })
+})
+
+test('demo paths other than the fixed route are not found', async ({ page }) => {
+  // /demo is pinned to the showcase workspace; any other path under /demo
+  // matches no route, so the router's own not-found page answers — the
+  // route cannot be pointed at an arbitrary workspace.
+  await page.goto('/demo/does-not-exist')
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+})
+
 test('public docs render', async ({ page }) => {
   await page.goto('/docs')
   await expect(page.getByRole('heading', { name: 'Documentation' })).toBeVisible()

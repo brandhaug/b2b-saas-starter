@@ -2,14 +2,6 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
 import { SnippetPanel } from '@/components/landing/snippet-panel'
 
-const REST_SNIPPET = `curl -H "Authorization: Bearer bsk_live_xxx" \\
-  https://api.example.com/workspaces/starter-lab/overview
-
-{
-  "workspace": { "slug": "starter-lab", "name": "Starter Lab" },
-  "notifications": []
-}`
-
 const MCP_SNIPPET = `{
   "name": "b2b-saas-starter-mcp",
   "resources": ["workspace://overview"],
@@ -20,7 +12,7 @@ const MCP_SNIPPET = `{
   ]
 }`
 
-function CapabilitySection() {
+function CapabilitySection({ overviewJson }: { readonly overviewJson: string }) {
   return (
     <section className="band-deep bg-background text-foreground">
       <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:py-28">
@@ -36,9 +28,12 @@ function CapabilitySection() {
           </p>
         </div>
         <div className="mt-12 grid gap-4 lg:grid-cols-2">
+          {/* The response body below the curl line is the real `overview`
+              payload the route loader read for the seed workspace — the page
+              and the API cannot drift because they are the same bytes. */}
           <SnippetPanel
             label="REST · GET /workspaces/:slug/overview"
-            code={REST_SNIPPET}
+            code={`curl -H "Authorization: Bearer bsk_live_xxx" \\\n  https://api.example.com/workspaces/starter-lab/overview\n\n${overviewJson}`}
           />
           <SnippetPanel label="MCP · discovery" code={MCP_SNIPPET} />
         </div>

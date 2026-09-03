@@ -20,8 +20,12 @@ import {
   ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
+import { ActionFeedback } from '@/components/page/action-feedback'
+import { Identifier } from '@/components/page/identifier'
+import { ListSection, Panel } from '@/components/page/panel'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
+import { viewerCan, type Viewer } from '@/lib/permissions'
 import {
   cancelInvitationServerFn,
   sendInvitationServerFn,
@@ -56,11 +60,17 @@ function validateEmail(value: string): string | undefined {
 
 export function InvitationPanel({
   workspaceSlug,
+  viewer,
   invitations
 }: {
   readonly workspaceSlug: string
+  /** The payload's viewer; `invitation:create` decides the form vs its reason. */
+  readonly viewer: Viewer
   readonly invitations: ReadonlyArray<Invitation>
 }) {
+  // Presentation gate: the form yields to a reason for a role that cannot
+  // invite; the server fn re-checks the permission regardless.
+  const canInvite = viewerCan(viewer, { invitation: ['create'] })
   const [sent, setSent] = useState<SentInvitation | null>(null)
 
   // Same shape as `ApiTokenForm`: the server function rejects on failure and
@@ -92,92 +102,99 @@ export function InvitationPanel({
   })
 
   return (
-    <div className="grid gap-5">
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          void form.handleSubmit()
-        }}
-        className="grid gap-4"
-      >
-        <form.Field
-          name="email"
-          validators={{ onChange: ({ value }) => validateEmail(value) }}
+    <Panel
+      title="Invitations"
+      description="Invite someone by email; they join once they open the link and accept."
+    >
+      {canInvite ? (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            void form.handleSubmit()
+          }}
+          className="grid gap-4"
         >
-          {(field) => (
-            <FormTextField
-              name={field.name}
-              label="Invite by email"
-              value={field.state.value}
-              errors={field.state.meta.errors}
-              onBlur={field.handleBlur}
-              onChange={field.handleChange}
-              placeholder="teammate@example.com"
-            />
-          )}
-        </form.Field>
-
-        <form.Field name="role">
-          {(field) => (
-            <FieldSet>
-              <FieldLegend variant="label">Role</FieldLegend>
-              <RadioGroup
+          <form.Field
+            name="email"
+            validators={{ onChange: ({ value }) => validateEmail(value) }}
+          >
+            {(field) => (
+              <FormTextField
                 name={field.name}
+                label="Invite by email"
                 value={field.state.value}
-                onValueChange={(role) => field.handleChange(role)}
-                className="flex flex-wrap gap-3"
+                errors={field.state.meta.errors}
+                onBlur={field.handleBlur}
+                onChange={field.handleChange}
+                placeholder="teammate@example.com"
+              />
+            )}
+          </form.Field>
+
+          <form.Field name="role">
+            {(field) => (
+              <FieldSet>
+                <FieldLegend variant="label">Role</FieldLegend>
+                <RadioGroup
+                  name={field.name}
+                  value={field.state.value}
+                  onValueChange={(role) => field.handleChange(role)}
+                  className="flex flex-wrap gap-3"
+                >
+                  {WORKSPACE_ROLES.map((role) => (
+                    <FieldLabel key={role}>
+                      <RadioGroupItem value={role} />
+                      <span>{role}</span>
+                    </FieldLabel>
+                  ))}
+                </RadioGroup>
+              </FieldSet>
+            )}
+          </form.Field>
+
+          <form.Subscribe
+            selector={(state): readonly [boolean, boolean] => [
+              state.canSubmit,
+              state.isSubmitting
+            ]}
+          >
+            {([canSubmit, isSubmitting]) => (
+              <Button
+                type="submit"
+                disabled={!canSubmit || isSubmitting}
+                className="justify-self-start"
               >
-                {WORKSPACE_ROLES.map((role) => (
-                  <FieldLabel key={role}>
-                    <RadioGroupItem value={role} />
-                    <span>{role}</span>
-                  </FieldLabel>
-                ))}
-              </RadioGroup>
-            </FieldSet>
-          )}
-        </form.Field>
+                {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
+                Send invitation
+              </Button>
+            )}
+          </form.Subscribe>
 
-        <form.Subscribe
-          selector={(state): readonly [boolean, boolean] => [
-            state.canSubmit,
-            state.isSubmitting
-          ]}
-        >
-          {([canSubmit, isSubmitting]) => (
-            <Button
-              type="submit"
-              disabled={!canSubmit || isSubmitting}
-              className="justify-self-start"
-            >
-              {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-              Send invitation
-            </Button>
-          )}
-        </form.Subscribe>
+          {sent ? (
+            <Alert variant="ok" className="justify-self-stretch">
+              <AlertTitle>
+                {sent.delivered
+                  ? `Invitation sent to ${sent.invitation.email}.`
+                  : `Invitation created for ${sent.invitation.email}, but the email could not be sent; share this link instead.`}
+              </AlertTitle>
+              <AlertDescription>
+                <Identifier>{sent.inviteUrl}</Identifier>
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          <ActionFeedback error={send.error} />
+        </form>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Your role cannot invite members.
+        </p>
+      )}
 
-        {sent ? (
-          <Alert className="justify-self-stretch">
-            <AlertTitle>
-              {sent.delivered
-                ? `Invitation sent to ${sent.invitation.email}.`
-                : `Invitation created for ${sent.invitation.email}, but the email could not be sent; share this link instead.`}
-            </AlertTitle>
-            <AlertDescription>
-              <code className="break-all">{sent.inviteUrl}</code>
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {send.error === null ? null : (
-          <Alert variant="destructive">
-            <AlertDescription>{send.error}</AlertDescription>
-          </Alert>
-        )}
-      </form>
-
-      <div className="grid gap-2">
-        <h3 className="text-sm font-medium">Invitations</h3>
+      <ListSection
+        title="Pending invitations"
+        footer={<ActionFeedback error={cancel.error} />}
+      >
         {invitations.length === 0 ? (
           <Empty>
             <EmptyHeader>
@@ -215,12 +232,7 @@ export function InvitationPanel({
             ))}
           </ItemGroup>
         )}
-        {cancel.error === null ? null : (
-          <Alert variant="destructive">
-            <AlertDescription>{cancel.error}</AlertDescription>
-          </Alert>
-        )}
-      </div>
-    </div>
+      </ListSection>
+    </Panel>
   )
 }

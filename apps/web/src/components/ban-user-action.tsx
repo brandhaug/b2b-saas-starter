@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,11 +57,7 @@ export function BanUserAction({ user }: { readonly user: SystemUser }) {
               ? 'The user will be able to sign in again.'
               : 'The user will be signed out and blocked from signing in.'}
           </AlertDialogDescription>
-          {confirm.error === null ? null : (
-            <p role="alert" className="text-xs text-destructive">
-              {confirm.error}
-            </p>
-          )}
+          {confirm.error === null ? null : <ActionFeedback error={confirm.error} />}
           <div className="flex justify-end gap-2">
             <AlertDialogCancel disabled={confirm.pending}>Cancel</AlertDialogCancel>
             <AlertDialogAction

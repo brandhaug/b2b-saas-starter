@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAssistantPage } from '@/components/workspace-assistant-page'
 import { askAssistantServerFn, loadAssistantPage } from '@/lib/server/assistant'
@@ -11,9 +12,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/assistant')({
     }),
   pendingComponent: RoutePending,
   component: WorkspaceAssistantRoute,
-  // Derives the document title from the page the shell names.
   head: ({ params }) => ({
-    meta: [{ title: `AI assistant · ${params.workspaceSlug} | B2B SaaS Starter` }]
+    meta: [{ title: pageTitle('AI assistant', params.workspaceSlug) }]
   })
 })
 

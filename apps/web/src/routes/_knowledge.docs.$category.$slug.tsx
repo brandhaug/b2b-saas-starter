@@ -1,4 +1,5 @@
 import { createFileRoute, Link, notFound, useLoaderData } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
 import { ArrowLeftIcon } from 'lucide-react'
 import { createElement, Suspense, useRef } from 'react'
 import { mdxComponents } from '@/components/mdx-components'
@@ -12,7 +13,7 @@ import {
   loadDoc
 } from '@/lib/docs'
 
-export const Route = createFileRoute('/docs/$category/$slug')({
+export const Route = createFileRoute('/_knowledge/docs/$category/$slug')({
   // The loader resolves metadata (serializable) and decides existence; the
   // component itself is lazy-loaded in the component below, because a
   // component function cannot cross the server→client boundary — shipping
@@ -45,7 +46,7 @@ export const Route = createFileRoute('/docs/$category/$slug')({
       return {}
     }
     const { title, description, tags } = loaderData.frontmatter
-    const fullTitle = `${title} | Documentation | B2B SaaS Starter`
+    const fullTitle = pageTitle(title, 'Documentation')
 
     return {
       meta: [
@@ -66,7 +67,7 @@ export const Route = createFileRoute('/docs/$category/$slug')({
 
 function DocArticlePage() {
   const { category, slug } = Route.useParams()
-  const loaderData = useLoaderData({ from: '/docs/$category/$slug' })
+  const loaderData = useLoaderData({ from: '/_knowledge/docs/$category/$slug' })
   const articleRef = useRef<HTMLElement>(null)
 
   // Stable per-article identity (cached in lib/docs.ts), so a re-render

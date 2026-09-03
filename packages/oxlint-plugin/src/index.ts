@@ -1,7 +1,9 @@
 import { definePlugin } from '@oxlint/plugins'
+import noDarkPrefix from './rules/no-dark-prefix.ts'
 import noDeepWorkspaceImports from './rules/no-deep-workspace-imports.ts'
 import noEffectEscapeHatch from './rules/no-effect-escape-hatch.ts'
 import noEffectInternalTags from './rules/no-effect-internal-tags.ts'
+import noHexColor from './rules/no-hex-color.ts'
 import noInlineSchemaCompile from './rules/no-inline-schema-compile.ts'
 import noInterfaceMergeOutsideDts from './rules/no-interface-merge-outside-dts.ts'
 import noMismatchedAugmentationContext from './rules/no-mismatched-augmentation-context.ts'
@@ -16,9 +18,11 @@ import preferEffectPredicate from './rules/prefer-effect-predicate.ts'
 export default definePlugin({
   meta: { name: 'starter' },
   rules: {
+    'no-dark-prefix': noDarkPrefix,
     'no-deep-workspace-imports': noDeepWorkspaceImports,
     'no-effect-escape-hatch': noEffectEscapeHatch,
     'no-effect-internal-tags': noEffectInternalTags,
+    'no-hex-color': noHexColor,
     'no-inline-schema-compile': noInlineSchemaCompile,
     'no-interface-merge-outside-dts': noInterfaceMergeOutsideDts,
     'no-mismatched-augmentation-context': noMismatchedAugmentationContext,

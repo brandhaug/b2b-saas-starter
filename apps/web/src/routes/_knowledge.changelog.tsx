@@ -1,0 +1,54 @@
+import { createFileRoute } from '@tanstack/react-router'
+import { pageTitle } from '@/components/page/page-title'
+import { GITHUB_URL } from '@/components/landing/github-url'
+
+export const Route = createFileRoute('/_knowledge/changelog')({
+  component: ChangelogPage,
+  head: () => ({
+    meta: [
+      { title: pageTitle('Changelog') },
+      {
+        name: 'description',
+        content:
+          'Release history for the B2B SaaS Starter: new capabilities, fixes, and breaking changes by version.'
+      },
+      { property: 'og:title', content: pageTitle('Changelog') },
+      {
+        property: 'og:description',
+        content:
+          'Release history for the B2B SaaS Starter: new capabilities, fixes, and breaking changes by version.'
+      }
+    ]
+  })
+})
+
+/**
+ * Releases are cut by release-please from Conventional Commits, so the notes
+ * live where the tags live: GitHub Releases. This page links there rather
+ * than hand-maintaining a second copy that would drift the moment a version
+ * ships. (When a root CHANGELOG.md appears from the first release, this page
+ * can switch to rendering it via a `?raw` import.)
+ */
+function ChangelogPage() {
+  return (
+    <div className="mx-auto w-full max-w-3xl">
+      <h1 className="font-display text-3xl font-semibold">Changelog</h1>
+      <p className="mt-4 text-sm text-muted-foreground">
+        Every release is tagged and published from Conventional Commits by
+        release-please. Versioned notes, assets, and breaking changes live on GitHub
+        Releases:
+      </p>
+      <p className="mt-4">
+        <a
+          href={`${GITHUB_URL}/releases`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-sm text-primary underline underline-offset-4"
+        >
+          github.com/brandhaug/b2b-saas-starter/releases
+          <span className="sr-only">(opens in new tab)</span>
+        </a>
+      </p>
+    </div>
+  )
+}

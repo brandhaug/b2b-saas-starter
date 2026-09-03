@@ -1,4 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { PageHeader } from '@/components/page/page-header'
+import { pageTitle } from '@/components/page/page-title'
+import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { RoutePending } from '@/components/route-pending'
 import { WebhooksPanel } from '@/components/webhooks-panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
@@ -18,9 +21,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/webhooks')({
     }),
   pendingComponent: RoutePending,
   component: WorkspaceWebhooksRoute,
-  // Derives the document title from the page the shell names.
   head: ({ params }) => ({
-    meta: [{ title: `Webhooks · ${params.workspaceSlug} | B2B SaaS Starter` }]
+    meta: [{ title: pageTitle('Webhooks', params.workspaceSlug) }]
   })
 })
 
@@ -58,18 +60,19 @@ export function WorkspaceWebhooksPage({
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
-      title="Webhooks"
-      description="Outbound endpoints that receive workspace events."
       unreadCount={unreadCount}
       viewer={viewer}
     >
-      <div className="grid gap-6">
-        <WebhooksPanel
-          workspaceSlug={workspaceSlug}
-          endpoints={endpoints}
-          viewer={viewer}
-        />
-      </div>
+      <PageHeader
+        breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
+        title="Webhooks"
+        description="Outbound endpoints that receive workspace events."
+      />
+      <WebhooksPanel
+        workspaceSlug={workspaceSlug}
+        endpoints={endpoints}
+        viewer={viewer}
+      />
     </WorkspaceShell>
   )
 }

@@ -1,15 +1,12 @@
 /** Non-empty by construction, so `CHART_COLORS[0]` is always a usable fallback.
- *  Catppuccin accent hues (blue, green, mauve, peach, red, teal, yellow, pink,
- *  sky, flamingo) so charts harmonize with the semantic token palette. */
+ *  The chart palette is the five `--chart-*` tokens defined in index.css —
+ *  DESIGN.md names those five as the palette, reached by cycling — so charts
+ *  harmonize with the semantic tokens instead of forking the palette with raw
+ *  hex values. */
 export const CHART_COLORS: readonly [string, ...Array<string>] = [
-  '#89b4fa',
-  '#a6e3a1',
-  '#cba6f7',
-  '#fab387',
-  '#f38ba8',
-  '#94e2d5',
-  '#f9e2af',
-  '#f5c2e7',
-  '#89dceb',
-  '#f2cdcd'
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)'
 ]
