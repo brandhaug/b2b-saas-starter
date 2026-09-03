@@ -88,6 +88,12 @@ _Avoid_: Staging, preview environment, branch deploy
 A one-hour session a System Admin opens as another user through Better Auth's admin plugin, audited at start and stop, visible in the app shell, and barred from changing the account's credentials.
 _Avoid_: Login as, sudo mode, admin takeover
 
+**SSO Connection**:
+A workspace-owned single sign-on configuration (SAML or OIDC) that routes one email domain to an identity provider.
+_Avoid_: IdP config, tenant SSO, integration
+**Domain Routing**:
+The sign-in rule that an email whose domain matches an enabled SSO Connection goes to that connection's identity provider.
+_Avoid_: Email fallback, forced SSO, redirect matching
 ## Relationships
 
 - A **Starter** includes exactly one **Reference Application**
@@ -112,6 +118,8 @@ _Avoid_: Login as, sudo mode, admin takeover
 - An **Onboarding Checklist** derives its steps from **Members**, **API Tokens**, **Webhook Endpoints**, billing, and the actor's account; dismissing it records an **Audit Event**
 - An **Impersonation Session** is opened by a **System Admin**, records two **Audit Events**, and creates a **Notification** for the impersonated user
 
+- An **SSO Connection** belongs to exactly one **Workspace** and joins a first-time SSO sign-in as a **Member** with the connection's default **Workspace Role**
+- **Domain Routing** sends an email to one **SSO Connection** at sign-in; a disabled connection never routes
 ## Example Dialogue
 
 > **Dev:** "Should the landing page sell a made-up analytics product?"
@@ -184,3 +192,5 @@ _Avoid_: Login as, sudo mode, admin takeover
 - REST and MCP credentials should not be modeled as user sessions or provider secrets. Resolved: use workspace-scoped **API Tokens**.
 - "Webhook" is ambiguous. Resolved: use **Webhook Endpoint** for outbound workspace event delivery; provider callbacks are integration-specific routes.
 - "Demo data" should be deterministic and part of the reference app's local experience. Resolved: use a **Seed Workspace**.
+- "SSO" could mean operator-set provider configuration. Resolved: an **SSO Connection** is a **Workspace**-owned surface an owner configures in settings; only the internal-IdP host allowlist remains an operator concern.
+- "Require SSO" could mean the sign-in page merely prefers the IdP. Resolved: **Domain Routing** plus the per-connection require toggle is enforced at the auth boundary — the password path is refused for that domain, not discouraged.
