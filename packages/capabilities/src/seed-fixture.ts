@@ -1,6 +1,7 @@
 import { type ApiToken } from './developer-platform/api-token-registry.ts'
 import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
 import { type SeedNotification } from './notifications/notification-feed.ts'
+import { type SeedNotificationPreference } from './notifications/notification-preferences.ts'
 import { type WebhookEndpoint } from './developer-platform/webhook-endpoints.ts'
 import { type Member, type Workspace } from './governance/workspace-identity.ts'
 import {
@@ -219,6 +220,7 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
   // impersonated member, so only `usr_dev` sees it.
   {
     id: 'not_impersonation',
+    kind: 'account.impersonated',
     title: 'A System Admin accessed your account',
     message:
       'Martin Brandhaug started an impersonation session on your account. It ends when they stop it or after 60 minutes, and it cannot change your password, two-factor settings, or email.',
@@ -235,6 +237,7 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
   },
   {
     id: 'not_email',
+    kind: 'announcement',
     title: 'Cloudflare Email needs configuration',
     message: 'Set CLOUDFLARE_EMAIL_FROM before enabling real email delivery.',
     createdAt: '2026-05-16T08:10:00.000Z',
@@ -242,8 +245,18 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
   },
   {
     id: 'not_webhook',
-    title: 'Webhook endpoint created',
-    message: 'Outbound webhook deliveries will start on the next event.',
+    kind: 'webhook.delivery_failed',
+    title: 'Webhook delivery gave up',
+    message:
+      'https://example.com/webhooks/starter rejected api_token.created after six attempts.',
+    createdAt: '2026-05-16T07:30:00.000Z',
+    read: false
+  },
+  {
+    id: 'not_token',
+    kind: 'api_token.created',
+    title: 'API token created',
+    message: 'Ops Lead minted "MCP local client" with read and write scopes.',
     createdAt: '2026-05-16T06:00:00.000Z',
     read: true
   },
@@ -275,4 +288,16 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     createdAt: '2026-05-11T14:45:00.000Z',
     read: true
   }
+]
+
+/**
+ * The demo owner's explicit choices, one per channel, so the `/account`
+ * preferences section shows a mix on first load: a security kind moved to the
+ * digest, a digest kind moved to instant, and announcements turned off. Every
+ * other kind stays on its default. The D1 seed writes exactly these rows.
+ */
+export const seedNotificationPreferences: ReadonlyArray<SeedNotificationPreference> = [
+  { userId: demoUserIdentity.id, kind: 'api_token.created', channel: 'digest' },
+  { userId: demoUserIdentity.id, kind: 'webhook.delivery_failed', channel: 'instant' },
+  { userId: demoUserIdentity.id, kind: 'announcement', channel: 'off' }
 ]

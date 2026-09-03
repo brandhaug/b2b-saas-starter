@@ -83,6 +83,7 @@ export const notificationKinds = [
   'webhook.delivery_failed',
   'workspace_member.joined',
   'billing.plan_changed',
+  'account.impersonated',
   'announcement'
 ] as const
 export type NotificationKind = (typeof notificationKinds)[number]
@@ -98,7 +99,8 @@ export const securityNotificationKinds = [
   'api_token.created',
   'api_token.revoked',
   'workspace_member.role_changed',
-  'two_factor.changed'
+  'two_factor.changed',
+  'account.impersonated'
 ] as const satisfies ReadonlyArray<NotificationKind>
 
 /**

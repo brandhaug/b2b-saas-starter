@@ -70,16 +70,21 @@ import {
 } from './billing/seat-sync.ts'
 
 // notifications
+import { type NotificationEmailQueueBinding } from './notifications/notification-email-queue.ts'
+import { LiveNotificationFeed } from './notifications/notification-feed.live.ts'
+import { SeedNotificationFeed } from './notifications/notification-feed.seed.ts'
+import { type NotificationFeed } from './notifications/notification-feed.ts'
 import {
-  LiveNotificationFeed,
-  type NotificationFeed,
-  SeedNotificationFeed
-} from './notifications/notification-feed.ts'
+  LiveNotificationPreferences,
+  type NotificationPreferences,
+  SeedNotificationPreferences
+} from './notifications/notification-preferences.ts'
 
 import {
   seedApiTokens,
   seedAuditEvents,
   seedMembers,
+  seedNotificationPreferences,
   seedNotifications,
   seedSystemUsers,
   seedTwoFactorUserIds,
@@ -94,6 +99,7 @@ export type CapabilityServices =
   | AuditEventLog
   | Billing
   | NotificationFeed
+  | NotificationPreferences
   | PlatformUserAdmin
   | SeatSyncPublisher
   | WebhookEndpoints
@@ -138,11 +144,28 @@ const SeedGovernance = Layer.unwrap(
 const SeedAuditLog = SeedAuditEventLog(seedAuditEvents, seedSystemUsers)
 
 /**
- * One fixture notification feed, for the same reason as `SeedAuditLog`: the
- * user-admin seed writes `notifyUser` rows into it, and the feed the shell
- * reads has to be the very instance they landed in.
+ * Billing rides the governance seed so its audit writes land in the same
+ * fixture log every other capability reads.
  */
-const SeedNotifications = SeedNotificationFeed(seedNotifications)
+const SeedBillingLayer = SeedBilling().pipe(Layer.provide(SeedAuditLog))
+
+/**
+ * One fixture preference store + feed, shared for the same reason as
+ * `SeedAuditLog`: the feed resolves channels against the same preference store
+ * the `/account` page reads and writes, and the user-admin seed writes
+ * `notifyUser` rows into the very feed instance the shell reads.
+ */
+const SeedPreferences = SeedNotificationPreferences(seedNotificationPreferences).pipe(
+  Layer.provide(SeedAuditLog)
+)
+
+const SeedNotifications = Layer.merge(
+  SeedPreferences,
+  SeedNotificationFeed(seedNotifications, {
+    workspace: seedWorkspaceRecord,
+    members: seedMembers
+  }).pipe(Layer.provide(SeedPreferences))
+)
 
 const SeedCore = Layer.mergeAll(
   // The mutating developer-platform capabilities write audit events and fan
@@ -186,6 +209,12 @@ export type LiveCapabilitiesOptions = {
    * `webhookQueue` takes (CLAUDE.md rule 3).
    */
   readonly seatSyncQueue?: SeatSyncQueueBinding | undefined
+  /**
+   * The instant-email producer binding. Absent, Notifications persist and
+   * show in the feed but no instant email is enqueued — the digest cron still
+   * runs (CLAUDE.md rule 3).
+   */
+  readonly notificationEmailQueue?: NotificationEmailQueueBinding | undefined
   /**
    * Stripe checkout configuration (`STRIPE_SECRET_KEY` plus per-plan price
    * ids). Absent, checkout fails `provider_not_configured` and every other
@@ -235,11 +264,20 @@ export function makeLiveCapabilitiesLayer(
   // seat-sync publisher follows the same rule for the same reason.
   const publisher = LiveWebhookPublisher(options.webhookQueue)
   const seatSyncPublisher = LiveSeatSyncPublisher(options.seatSyncQueue)
+  // Same one-instance rule for the preference store the feed resolves against.
+  const preferences = LiveNotificationPreferences.pipe(Layer.provide(LiveAuditEventLog))
+  // And for the feed: a mergeAll member the shell reads AND the layer
+  // `PlatformUserAdmin` is provided so its impersonation `notifyUser` lands in
+  // the same instance every other consumer reads.
+  const feed = LiveNotificationFeed({
+    emailQueue: options.notificationEmailQueue
+  }).pipe(Layer.provide(preferences))
   return Layer.mergeAll(
     LiveApiTokenRegistry,
     LiveAuditEventLog,
     LiveBilling(options.billing),
-    LiveNotificationFeed,
+    preferences,
+    feed,
     LiveWebhookEndpoints,
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
@@ -253,9 +291,9 @@ export function makeLiveCapabilitiesLayer(
     Layer.provide(LiveAuditEventLog),
     // The user-admin capability notifies the impersonated user below its
     // interface, and the export adapter notifies the requester below its —
-    // the same `LiveNotificationFeed` value is a member above, so one
-    // instance serves both.
-    Layer.provide(LiveNotificationFeed),
+    // the same queue-wired `feed` value is a member above, so one instance
+    // serves both.
+    Layer.provide(feed),
     Layer.provide(publisher),
     Layer.provide(seatSyncPublisher)
   )

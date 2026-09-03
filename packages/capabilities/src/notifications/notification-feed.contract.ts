@@ -31,6 +31,7 @@ export function notificationFeedContractDataset(
   return [
     {
       id: ids.broadcastUnread,
+      kind: 'announcement',
       title: 'Broadcast needs attention',
       message: 'An unread workspace broadcast.',
       createdAt: '2026-06-10T08:00:00.000Z',
@@ -38,6 +39,7 @@ export function notificationFeedContractDataset(
     },
     {
       id: ids.broadcastRead,
+      kind: 'announcement',
       title: 'Already read broadcast',
       message: 'A broadcast that was read before the case ran.',
       createdAt: '2026-06-10T07:00:00.000Z',
@@ -45,6 +47,7 @@ export function notificationFeedContractDataset(
     },
     {
       id: ids.aliceUnread,
+      kind: 'announcement',
       userId: 'usr_alice',
       title: 'Addressed to Alice',
       message: 'Only Alice can see this row.',

@@ -37,12 +37,14 @@ import {
 import { selectCapabilitiesLayer, selectWorkspaceLayer } from './runtime.ts'
 import {
   NotificationFeed,
-  SeedNotificationFeed
+  type SeedNotification
 } from './notifications/notification-feed.ts'
 import {
   notificationFeedContractCases,
   notificationFeedContractDataset
 } from './notifications/notification-feed.contract.ts'
+import { SeedNotificationFeed } from './notifications/notification-feed.seed.ts'
+import { SeedNotificationPreferences } from './notifications/notification-preferences.ts'
 import { testWorkspaceContext, type Actor } from './workspace-context.ts'
 import {
   SeedWorkspaceLifecycle,
@@ -135,6 +137,18 @@ describe('seed audit event log contract', () => {
   }
 })
 
+/**
+ * The Seed feed resolves channel preferences when it fans a Notification out,
+ * so every feed fixture rides one empty preference store (defaults only).
+ */
+function seedFeed(rows: ReadonlyArray<SeedNotification>) {
+  return SeedNotificationFeed(rows).pipe(
+    Layer.provide(
+      SeedNotificationPreferences([]).pipe(Layer.provide(SeedAuditEventLog([])))
+    )
+  )
+}
+
 describe('seed notification feed contract', () => {
   const workspaceId = 'wrk_notification_contract'
   const workspace = {
@@ -153,7 +167,7 @@ describe('seed notification feed contract', () => {
     // A fresh fixture per case: the cases mutate the feed, so one shared
     // layer would let case order decide the outcome.
     const layer = Layer.merge(
-      SeedNotificationFeed(notificationFeedContractDataset(contractCase.dataset)),
+      seedFeed(notificationFeedContractDataset(contractCase.dataset)),
       testWorkspaceContext(workspace)
     )
     it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
@@ -167,7 +181,7 @@ describe('seed notification feed contract', () => {
         expect(marked).toBe(1)
       }),
       Layer.merge(
-        SeedNotificationFeed(notificationFeedContractDataset(ids)),
+        seedFeed(notificationFeedContractDataset(ids)),
         testWorkspaceContext(workspace, {
           userId: 'usr_alice',
           role: 'member',
@@ -287,8 +301,12 @@ describe('seed bearer token verification', () => {
 })
 
 describe('notification feed actor scoping', () => {
-  const base = { message: 'm', createdAt: '2026-05-16T09:00:00.000Z' }
-  const scopedFeed = SeedNotificationFeed([
+  const base: Pick<SeedNotification, 'kind' | 'message' | 'createdAt'> = {
+    kind: 'announcement',
+    message: 'm',
+    createdAt: '2026-05-16T09:00:00.000Z'
+  }
+  const scopedFeed = seedFeed([
     { id: 'not_broadcast', title: 'broadcast', read: false, ...base },
     { id: 'not_a_unread', title: 'for a', read: false, userId: 'usr_a', ...base },
     { id: 'not_a_read', title: 'for a, read', read: true, userId: 'usr_a', ...base },

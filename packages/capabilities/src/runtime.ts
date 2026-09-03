@@ -3,6 +3,7 @@ import { Layer } from 'effect'
 import { type LiveBillingOptions } from './billing/billing.live.ts'
 import { type SeatSyncQueueBinding } from './billing/seat-sync.ts'
 import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
+import { type NotificationEmailQueueBinding } from './notifications/notification-email-queue.ts'
 import { type WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
 import { type WorkspaceLifecycleBinding } from './governance/workspace-lifecycle.ts'
 import { type WorkspaceMemberBinding } from './governance/workspace-membership.ts'
@@ -36,6 +37,8 @@ export type StarterEnv = {
   readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding | undefined
   /** Export artifact bucket (ADR 0055). Absent, exports report unavailable. */
   readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding | undefined
+  /** The instant notification-email producer binding; absent means no instant emails. */
+  readonly NOTIFICATION_EMAIL_QUEUE?: NotificationEmailQueueBinding | undefined
   /**
    * The seat-sync queue the membership and invitation mutations enqueue onto;
    * the background worker consumes it. Absent (local dev, no queue binding),
@@ -92,6 +95,7 @@ export function starterEnv(
     | 'BILLING_QUEUE'
     | 'WORKSPACE_EXPORT_QUEUE'
     | 'WORKSPACE_EXPORT_BUCKET'
+    | 'NOTIFICATION_EMAIL_QUEUE'
   >
 ): StarterEnv {
   return {
@@ -99,7 +103,8 @@ export function starterEnv(
     WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
     BILLING_QUEUE: env.BILLING_QUEUE,
     WORKSPACE_EXPORT_QUEUE: env.WORKSPACE_EXPORT_QUEUE,
-    WORKSPACE_EXPORT_BUCKET: env.WORKSPACE_EXPORT_BUCKET
+    WORKSPACE_EXPORT_BUCKET: env.WORKSPACE_EXPORT_BUCKET,
+    NOTIFICATION_EMAIL_QUEUE: env.NOTIFICATION_EMAIL_QUEUE
   }
 }
 
@@ -111,6 +116,7 @@ function liveCapabilitiesOptions(env: StarterEnv) {
   return {
     webhookQueue: env.WEBHOOK_QUEUE,
     seatSyncQueue: env.BILLING_QUEUE,
+    notificationEmailQueue: env.NOTIFICATION_EMAIL_QUEUE,
     memberBinding: env.memberBinding,
     invitationBinding: env.invitationBinding,
     lifecycleBinding: env.lifecycleBinding,
