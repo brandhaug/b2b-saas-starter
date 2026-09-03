@@ -173,7 +173,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     actor: 'response',
     target: 'session'
   },
-  // Passkey lifecycle (ADR 0054). Registration demands a fresh session and
+  // Passkey lifecycle (ADR 0056). Registration demands a fresh session and
   // its response is the passkey row (never an actor), so both management rows
   // take the pre-handler actor — a failed add or remove is exactly the event
   // worth attributing. Sign-in is a session-opening exchange like the

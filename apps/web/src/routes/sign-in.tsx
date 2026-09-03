@@ -83,7 +83,7 @@ export function SignInPage({
   /**
    * One passkey sign-in, shared by the conditional-UI preload and the button:
    * a success carries the session (passkey sign-in needs no two-factor hop —
-   * the ceremony already proved two factors, ADR 0054); a cancellation or
+   * the ceremony already proved two factors, ADR 0056); a cancellation or
    * failure lands as this block's own message, never as a password failure.
    */
   const passkeySignIn = useServerAction(

@@ -235,7 +235,7 @@ async function handleAuth(request: Request): Promise<Response> {
           sendNotification,
           context
         )
-        // Same contract for passkey add/remove (ADR 0054): the account holder
+        // Same contract for passkey add/remove (ADR 0056): the account holder
         // is emailed on every successful credential change, so a hijacked
         // session cannot silently enroll or strip a passkey.
         yield* notifyPasskeyChangedEffect(

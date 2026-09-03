@@ -45,10 +45,13 @@ describe('refuseWhileImpersonating', () => {
     })
   )
 
-  it('names exactly the four account actions the ADR forbids', () => {
+  it('names exactly the account actions the ADRs forbid', () => {
     expect([...IMPERSONATION_FORBIDDEN_ACTIONS]).toEqual([
       'change_password',
       'change_two_factor',
+      // Passkeys join with ADR 0056: an enrolled credential survives the
+      // impersonation ending, so it is a persistence channel like a password.
+      'change_passkey',
       'change_email',
       'delete_account'
     ])

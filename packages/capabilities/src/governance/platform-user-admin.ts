@@ -68,6 +68,7 @@ export const IMPERSONATION_SESSION_SECONDS = 60 * 60
 export const IMPERSONATION_FORBIDDEN_ACTIONS = literalTuple(
   'change_password',
   'change_two_factor',
+  'change_passkey',
   'change_email',
   'delete_account'
 )

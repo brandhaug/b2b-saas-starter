@@ -218,7 +218,7 @@ export const twoFactor = sqliteTable(
 // plugin's model name (`passkey`) because the drizzle adapter resolves
 // `schema[modelName]`. One row per registered WebAuthn credential; the public
 // key is the verifier's input, never a secret. Plugin-owned shape: camelCase
-// columns, epoch-integer dates (ADR 0054).
+// columns, epoch-integer dates (ADR 0056).
 export const passkey = sqliteTable(
   'passkey',
   {

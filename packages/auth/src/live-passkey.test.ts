@@ -27,7 +27,7 @@ import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './inde
 // authenticator that speaks just enough WebAuthn: one ES256 credential,
 // `none`-format attestation, and assertions signed over the real challenge
 // bytes. The two-factor case at the bottom is the mechanical proof of ADR
-// 0054's central claim: a passkey sign-in opens a session even while TOTP is
+// 0056's central claim: a passkey sign-in opens a session even while TOTP is
 // enabled, because the plugin creates the session directly instead of going
 // through the credential-sign-in path the two-factor hook intercepts.
 
@@ -588,7 +588,7 @@ describe('passkey plugin', () => {
         )
 
         // The passkey ceremony opens a session DIRECTLY — no twoFactorRedirect
-        // hop exists on this path (ADR 0054): the two-factor plugin's after
+        // hop exists on this path (ADR 0056): the two-factor plugin's after
         // hook matches the credential sign-in endpoints only.
         yield* Effect.promise(() =>
           registerPasskey(freshCookieHeader, authenticator, 'Key')

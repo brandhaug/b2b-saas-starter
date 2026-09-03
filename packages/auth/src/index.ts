@@ -192,7 +192,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       }),
       // WebAuthn passkeys: registration demands a session, sign-in opens one
       // directly. `rpID`/`origin` derive from the app URL on the config — no
-      // separate env var, and `localhost` works out of the box (ADR 0054).
+      // separate env var, and `localhost` works out of the box (ADR 0056).
       passkey({
         rpID: passkeyRpID(options.baseURL),
         rpName: 'B2B SaaS Starter',
