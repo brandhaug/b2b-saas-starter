@@ -6,6 +6,7 @@ import {
   user,
   webhookEndpoints,
   workspaceMembers,
+  workspaceSsoConnections,
   workspaces
 } from '@b2b-saas-starter/db/schema'
 import {
@@ -16,7 +17,8 @@ import {
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   demoMemberIdentity,
-  demoUserIdentity
+  demoUserIdentity,
+  seedSsoConnections
 } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
@@ -294,6 +296,41 @@ function readAt(read: boolean): string | null {
   return null
 }
 
+/**
+ * The SSO connection rows come from the fixture through the same capability
+ * read the settings page uses. The example OIDC connection's config blob is
+ * JSON exactly as the plugin stores it; `enabled: false` keeps its domain
+ * from routing sign-ins (ADR 0054).
+ */
+function ssoConnectionRows(fixture: {
+  readonly workspace: { readonly id: string }
+}): ReadonlyArray<string> {
+  return seedSsoConnections.map((connection) =>
+    insert(workspaceSsoConnections, {
+      id: `row_${connection.id}`,
+      issuer: connection.issuer,
+      oidcConfig:
+        connection.protocol === 'oidc'
+          ? JSON.stringify({
+              clientId: `seed-client-${connection.clientIdLastFour ?? '0000'}`,
+              authorizationEndpoint: connection.oidc?.authorizationEndpoint,
+              tokenEndpoint: connection.oidc?.tokenEndpoint,
+              jwksEndpoint: connection.oidc?.jwksEndpoint
+            })
+          : null,
+      samlConfig: null,
+      userId: demoUserIdentity.id,
+      providerId: connection.id,
+      workspaceId: fixture.workspace.id,
+      domain: connection.domain,
+      enabled: connection.enabled,
+      requireSso: connection.requireSso,
+      defaultWorkspaceRole: connection.defaultWorkspaceRole,
+      createdAt: new Date(connection.createdAt)
+    })
+  )
+}
+
 function notificationRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.notifications.map((notification) =>
     insert(notifications, {
@@ -317,6 +354,7 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...credentialRows(hashes.demoPassword),
     ...tokenRows(fixture, hashes.tokens),
     ...webhookRows(fixture),
+    ...ssoConnectionRows(fixture),
     ...auditRows(fixture),
     ...notificationRows(fixture)
   ].join('\n')}\n`

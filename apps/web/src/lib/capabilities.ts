@@ -39,7 +39,11 @@ export type { CapabilityServices }
  */
 export type CapabilityBindings = Pick<
   StarterEnv,
-  'memberBinding' | 'invitationBinding' | 'lifecycleBinding' | 'userAdminBinding'
+  | 'memberBinding'
+  | 'invitationBinding'
+  | 'lifecycleBinding'
+  | 'userAdminBinding'
+  | 'ssoBinding'
 >
 
 /** Stripe checkout configuration from the Worker env; `undefined` when unset. */

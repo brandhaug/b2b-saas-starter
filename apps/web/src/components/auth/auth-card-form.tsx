@@ -30,6 +30,7 @@ export function AuthCardForm({
   form,
   submit,
   error,
+  notice,
   footer,
   children
 }: {
@@ -41,6 +42,8 @@ export function AuthCardForm({
   readonly submit?: ReactNode
   /** Submit failure message; rendered as a destructive alert inside the form. */
   readonly error?: string | null
+  /** Guidance rather than failure (e.g. a require-SSO domain refusing the password path). */
+  readonly notice?: string | null
   /** Rendered in the card body after the form (links, hints). */
   readonly footer?: ReactNode
   readonly children: ReactNode
@@ -87,6 +90,11 @@ export function AuthCardForm({
                 {error ? (
                   <Alert ref={errorRef} tabIndex={-1} variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                ) : null}
+                {notice ? (
+                  <Alert>
+                    <AlertDescription>{notice}</AlertDescription>
                   </Alert>
                 ) : null}
               </form>

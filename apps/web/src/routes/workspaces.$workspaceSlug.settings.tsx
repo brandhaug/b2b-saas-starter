@@ -74,12 +74,13 @@ export function WorkspaceSettingsPage({
     readonly deleteWorkspace?: DeleteWorkspace
   }
 }) {
-  const { viewer, workspaceName, unreadCount } = data
+  const { viewer, workspaceName, unreadCount, ssoConnections } = data
   // Rename and delete are gated per action, not per page: an admin may rename
   // but never delete, a member sees neither. The server functions enforce the
   // same statements.
   const canRename = viewerCan(viewer, { organization: ['update'] })
   const canDelete = viewerCan(viewer, { organization: ['delete'] })
+  const canManageSso = viewerCan(viewer, { sso: ['update'] })
 
   return (
     <WorkspaceShell
@@ -119,6 +120,26 @@ export function WorkspaceSettingsPage({
           </p>
         )}
       </Panel>
+      {/* Single sign-on (ADR 0055): the segment is absent for an actor
+          without sso:list, and the management controls degrade to a reason
+          for an actor who can read but not manage. */}
+      {ssoConnections === null ? null : (
+        <Panel title="Single sign-on">
+          <div className="grid gap-3">
+            <p className="text-sm text-muted-foreground">
+              Route one email domain to your identity provider. Sign-ins at
+              that domain go to the IdP once the connection is enabled; a first
+              SSO sign-in creates the member with the connection&apos;s default
+              role.
+            </p>
+            <SsoPanel
+              workspaceSlug={workspaceSlug}
+              connections={ssoConnections}
+              canManage={canManageSso}
+            />
+          </div>
+        </Panel>
+      )}
     </WorkspaceShell>
   )
 }

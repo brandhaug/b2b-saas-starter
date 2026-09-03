@@ -18,7 +18,9 @@ import {
   type AuthExchange
 } from '@/lib/server/auth-audit/exchanges'
 import { recordAuthAudit } from '@/lib/server/auth-audit/record'
+import { recordSsoSignInAudit } from '@/lib/server/auth-audit/sso-sign-in'
 import { type AuthAuditContext } from '@/lib/server/auth-audit/shared'
+import { enforceSsoRequired } from '@/lib/server/sso-sign-in-gate'
 import {
   impersonationForbiddenAction,
   impersonationGuardResponse
@@ -190,6 +192,14 @@ async function handleAuth(request: Request): Promise<Response> {
           })
           return guardResponse
         }
+        // The require-SSO gate (ADR 0055): a workspace that demands SSO for
+        // its domain refuses the credential path here, so the sign-in page's
+        // routing is backed by an enforcement point. Null = not applicable.
+        const ssoRequiredResponse = yield* enforceSsoRequired(request, exchange)
+        if (ssoRequiredResponse !== null) {
+          yield* Effect.annotateLogsScoped({ outcome: 'sso_required' })
+          return ssoRequiredResponse
+        }
         // The effectful-better-auth mount: toWeb → auth.handler → fromWeb.
         // The Auth service comes from authRuntime's layer; only the request
         // is provided per call.
@@ -213,6 +223,9 @@ async function handleAuth(request: Request): Promise<Response> {
         if (authAudit !== 'skipped') {
           yield* Effect.annotateLogsScoped({ authAudit })
         }
+        // SSO sign-ins audit through their own path (ADR 0055): the callback
+        // redirects name no actor and the event is workspace-scoped.
+        yield* recordSsoSignInAudit(exchange, response)
         // Security notification for a two-factor state change (best-effort,
         // same contract as the audit above): the account holder is emailed on
         // every successful enable/disable, so a hijacked session cannot

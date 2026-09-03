@@ -17,7 +17,22 @@ const signOut = vi.fn<SignOut>()
 const settingsSummary: WorkspaceSettingsPayload = {
   viewer: { role: 'owner' },
   workspaceName: 'Starter Lab',
-  unreadCount: 2
+  unreadCount: 2,
+  // The disabled seeded example connection — the populated state the demo
+  // workspace shows (ADR 0055).
+  ssoConnections: [
+    {
+      id: 'sso_example_oidc',
+      protocol: 'oidc',
+      domain: 'acme-corp.example',
+      issuer: 'https://login.acme-corp.example',
+      enabled: false,
+      requireSso: false,
+      defaultWorkspaceRole: 'member',
+      clientIdLastFour: '7f2a',
+      createdAt: '2026-05-15T09:30:00.000Z'
+    }
+  ]
 }
 
 /**
@@ -26,7 +41,10 @@ const settingsSummary: WorkspaceSettingsPayload = {
  */
 const memberSettings: WorkspaceSettingsPayload = {
   ...settingsSummary,
-  viewer: { role: 'member' }
+  viewer: { role: 'member' },
+  // SSO connections are security posture: the member's payload carries no
+  // connection list at all, not an empty one.
+  ssoConnections: null
 }
 
 async function renderPage(data: WorkspaceSettingsPayload = settingsSummary) {
