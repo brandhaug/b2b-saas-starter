@@ -124,6 +124,13 @@ const SeedAuditLog = SeedAuditEventLog(seedAuditEvents, seedSystemUsers)
  */
 const SeedBillingLayer = SeedBilling().pipe(Layer.provide(SeedAuditLog))
 
+/**
+ * One fixture notification feed, for the same reason as `SeedAuditLog`: the
+ * user-admin seed writes `notifyUser` rows into it, and the feed the shell
+ * reads has to be the very instance they landed in.
+ */
+const SeedNotifications = SeedNotificationFeed(seedNotifications)
+
 export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   // The mutating developer-platform capabilities write audit events and fan
   // out webhooks below their interface; the shared fixture audit log and the
@@ -132,13 +139,17 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedApiTokenRegistry(seedApiTokens),
   SeedAuditLog,
   SeedBillingLayer,
-  SeedNotificationFeed(seedNotifications),
+  SeedNotifications,
   SeedWebhookEndpoints(seedWebhookEndpoints),
   SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships),
   SeedWorkspaceOnboarding({ twoFactorUserIds: seedTwoFactorUserIds })
-).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedWebhookPublisher))
+).pipe(
+  Layer.provide(SeedAuditLog),
+  Layer.provide(SeedNotifications),
+  Layer.provide(SeedWebhookPublisher)
+)
 
 export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
@@ -196,7 +207,13 @@ export function makeLiveCapabilitiesLayer(
     LiveWorkspaceLifecycle(options.lifecycleBinding),
     LivePlatformUserAdmin(options.userAdminBinding),
     LiveWorkspaceOnboarding
-  ).pipe(Layer.provide(LiveAuditEventLog), Layer.provide(publisher))
+  ).pipe(
+    Layer.provide(LiveAuditEventLog),
+    // The user-admin capability notifies the impersonated user below its
+    // interface, so the feed is provided to the merged layer like the audit log.
+    Layer.provide(LiveNotificationFeed),
+    Layer.provide(publisher)
+  )
 }
 
 /**

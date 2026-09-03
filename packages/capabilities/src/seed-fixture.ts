@@ -1,6 +1,6 @@
 import { type ApiToken } from './developer-platform/api-token-registry.ts'
 import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
-import { type Notification } from './notifications/notification-feed.ts'
+import { type SeedNotification } from './notifications/notification-feed.ts'
 import { type WebhookEndpoint } from './developer-platform/webhook-endpoints.ts'
 import { type Member, type Workspace } from './governance/workspace-identity.ts'
 import {
@@ -137,6 +137,26 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     actorUserId: 'usr_martin',
     createdAt: '2026-05-15T12:10:00.000Z'
   },
+  // One completed impersonation (ADR 0054), so `/admin`'s trail and the
+  // showcase show the start/stop pair against the same admin and target.
+  {
+    id: 'aud_impersonation_started',
+    eventType: 'system_admin.impersonation_started',
+    targetType: 'user',
+    targetId: 'usr_dev',
+    actor: 'Martin Brandhaug',
+    actorUserId: 'usr_martin',
+    createdAt: '2026-05-15T13:00:00.000Z'
+  },
+  {
+    id: 'aud_impersonation_stopped',
+    eventType: 'system_admin.impersonation_stopped',
+    targetType: 'user',
+    targetId: 'usr_dev',
+    actor: 'Martin Brandhaug',
+    actorUserId: 'usr_martin',
+    createdAt: '2026-05-15T13:12:00.000Z'
+  },
   {
     id: 'aud_token',
     eventType: 'api_token.created',
@@ -151,7 +171,18 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   }
 ]
 
-export const seedNotifications: ReadonlyArray<Notification> = [
+export const seedNotifications: ReadonlyArray<SeedNotification> = [
+  // The user-facing half of the seeded impersonation above: targeted at the
+  // impersonated member, so only `usr_dev` sees it.
+  {
+    id: 'not_impersonation',
+    title: 'A System Admin accessed your account',
+    message:
+      'Martin Brandhaug started an impersonation session on your account. It ends when they stop it or after 60 minutes, and it cannot change your password, two-factor settings, or email.',
+    createdAt: '2026-05-15T13:00:00.000Z',
+    read: false,
+    userId: 'usr_dev'
+  },
   {
     id: 'not_email',
     title: 'Cloudflare Email needs configuration',

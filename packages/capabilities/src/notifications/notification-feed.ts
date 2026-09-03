@@ -1,8 +1,9 @@
 import { Database } from '@b2b-saas-starter/db/service'
-import { notifications } from '@b2b-saas-starter/db/schema'
+import { notifications, workspaceMembers } from '@b2b-saas-starter/db/schema'
 import { and, count, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { Context, DateTime, Effect, Layer, Ref, Schema } from 'effect'
 import { type CapabilityUnavailable } from '../errors.ts'
+import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext, type Actor } from '../workspace-context.ts'
 
@@ -29,6 +30,19 @@ export type SeedNotification = Notification & {
   readonly userId?: string | null
 }
 
+/**
+ * A user-targeted notification about the account itself rather than one
+ * workspace: an impersonation, a security change. The feed is workspace-scoped
+ * by design, so the write fans the message out to every workspace the user is
+ * a member of — whichever one they open next shows it. A user with no
+ * memberships receives nothing; the audit trail still records the event.
+ */
+export type NotifyUserInput = {
+  readonly userId: string
+  readonly title: string
+  readonly message: string
+}
+
 export type NotificationFeedInterface = {
   readonly list: Effect.Effect<
     ReadonlyArray<Notification>,
@@ -49,6 +63,14 @@ export type NotificationFeedInterface = {
   readonly markRead: (
     ids: ReadonlyArray<string>
   ) => Effect.Effect<number, CapabilityUnavailable, WorkspaceContext>
+
+  /**
+   * Identity-keyed write (no `WorkspaceContext`): one unread row per workspace
+   * the user is a member of, visible only to that user. Newest first on read.
+   */
+  readonly notifyUser: (
+    input: NotifyUserInput
+  ) => Effect.Effect<void, CapabilityUnavailable>
 }
 
 export class NotificationFeed extends Context.Service<
@@ -118,6 +140,22 @@ export function SeedNotificationFeed(
               })
               return [marked, next]
             })
+          }),
+        notifyUser: (input) =>
+          Effect.gen(function* () {
+            const id = yield* newCapabilityId('not')
+            const createdAt = yield* DateTime.now
+            yield* Ref.update(rows, (current) => [
+              {
+                id,
+                title: input.title,
+                message: input.message,
+                createdAt: DateTime.formatIso(createdAt),
+                read: false,
+                userId: input.userId
+              },
+              ...current
+            ])
           })
       }
     })
@@ -219,6 +257,32 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
                 )
             )
             return matching.length
+          }),
+        notifyUser: (input) =>
+          Effect.gen(function* () {
+            const memberships = yield* unavailable(
+              db
+                .select({ workspaceId: workspaceMembers.workspaceId })
+                .from(workspaceMembers)
+                .where(eq(workspaceMembers.userId, input.userId))
+            )
+            if (memberships.length === 0) {
+              return
+            }
+            const createdAt = DateTime.formatIso(yield* DateTime.now)
+            const values: Array<typeof notifications.$inferInsert> = []
+            for (const membership of memberships) {
+              values.push({
+                id: yield* newCapabilityId('not'),
+                workspaceId: membership.workspaceId,
+                userId: input.userId,
+                title: input.title,
+                message: input.message,
+                readAt: null,
+                createdAt
+              })
+            }
+            yield* unavailable(db.insert(notifications).values(values))
           })
       }
     })

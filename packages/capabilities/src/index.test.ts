@@ -2,7 +2,12 @@ import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Option } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { SeedLayer } from './layers.ts'
-import { seedMembers, seedWorkspaceRecord, demoUserIdentity } from './seed-fixture.ts'
+import {
+  demoMemberIdentity,
+  demoUserIdentity,
+  seedMembers,
+  seedWorkspaceRecord
+} from './seed-fixture.ts'
 import { SeedWorkspaceInvitations } from './governance/workspace-invitations.seed.ts'
 import {
   makeSeedRoster,
@@ -494,10 +499,11 @@ describe('seed workspace membership contract', () => {
 describe('seed platform user admin contract', () => {
   const cases = platformUserAdminContractCases(
     {
-      existing: demoUserIdentity.id,
+      existing: demoMemberIdentity.id,
       outsider: 'usr_outsider',
       unknown: 'usr_stranger',
-      workspaceId: seedWorkspaceRecord.id
+      workspaceId: seedWorkspaceRecord.id,
+      admin: demoUserIdentity.id
     },
     expect
   )

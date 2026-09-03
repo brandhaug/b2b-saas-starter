@@ -2,7 +2,11 @@ import { Effect } from 'effect'
 import { type ContractExpectMatchers } from './contract-expect.ts'
 import { type CapabilityUnavailable, type UserAdminRejected } from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
-import { PlatformUserAdmin } from './platform-user-admin.ts'
+import { AuditEventLog } from './audit-event-log.ts'
+import {
+  IMPERSONATION_SESSION_SECONDS,
+  PlatformUserAdmin
+} from './platform-user-admin.ts'
 
 /**
  * The platform-user-admin contract, written once and run against both adapters
@@ -23,6 +27,8 @@ export type UserAdminContractIds = {
   readonly unknown: string
   /** The workspace `existing` holds a membership in when each case starts. */
   readonly workspaceId: string
+  /** A System Admin account: the impersonation actor, and the target the cases must refuse. */
+  readonly admin: string
 }
 
 export type UserAdminContractCase = {
@@ -30,7 +36,7 @@ export type UserAdminContractCase = {
   readonly assert: Effect.Effect<
     void,
     CapabilityUnavailable | UserAdminRejected,
-    PlatformUserAdmin
+    PlatformUserAdmin | AuditEventLog
   >
 }
 
@@ -113,6 +119,61 @@ export function platformUserAdminContractCases(
             role: 'admin',
             actorUserId: null
           })
+        )
+        expect(failureTag(outcome)).toBe('UserAdminRejected')
+      })
+    },
+    {
+      name: 'starts impersonation, audits it against the target and the admin, and stops it',
+      assert: Effect.gen(function* () {
+        const admin = yield* PlatformUserAdmin
+        const audit = yield* AuditEventLog
+        const started = yield* admin.startImpersonation({
+          userId: ids.existing,
+          actorUserId: ids.admin
+        })
+        expect(started.userId).toBe(ids.existing)
+        expect(started.expiresInSeconds).toBe(IMPERSONATION_SESSION_SECONDS)
+
+        yield* admin.stopImpersonation({ userId: ids.existing, actorUserId: ids.admin })
+
+        const events = yield* audit.listGlobal
+        const trail = events.filter(
+          (event) =>
+            event.targetId === ids.existing &&
+            event.eventType.startsWith('system_admin.impersonation_')
+        )
+        expect(
+          trail.some(
+            (event) => event.eventType === 'system_admin.impersonation_started'
+          )
+        ).toBe(true)
+        expect(
+          trail.some(
+            (event) => event.eventType === 'system_admin.impersonation_stopped'
+          )
+        ).toBe(true)
+        // Both events name their admin: the wire row carries the actor's display
+        // name, never an empty attribution.
+        expect(trail.every((event) => event.actor.length > 0)).toBe(true)
+      })
+    },
+    {
+      name: 'refuses impersonating a System Admin',
+      assert: Effect.gen(function* () {
+        const admin = yield* PlatformUserAdmin
+        const outcome = yield* Effect.exit(
+          admin.startImpersonation({ userId: ids.admin, actorUserId: ids.admin })
+        )
+        expect(failureTag(outcome)).toBe('UserAdminRejected')
+      })
+    },
+    {
+      name: 'refuses impersonating an unknown user',
+      assert: Effect.gen(function* () {
+        const admin = yield* PlatformUserAdmin
+        const outcome = yield* Effect.exit(
+          admin.startImpersonation({ userId: ids.unknown, actorUserId: ids.admin })
         )
         expect(failureTag(outcome)).toBe('UserAdminRejected')
       })

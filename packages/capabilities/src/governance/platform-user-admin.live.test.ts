@@ -20,7 +20,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           existing: 'usr_owner',
           outsider: 'usr_outsider',
           unknown: 'usr_nobody',
-          workspaceId: 'wrk_user_admin_contract'
+          workspaceId: 'wrk_user_admin_contract',
+          admin: 'usr_sysadmin'
         },
         expect
       )) {

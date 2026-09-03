@@ -3,8 +3,14 @@ import { Database } from '@b2b-saas-starter/db/service'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 
-import { type CapabilityUnavailable, UserAdminRejected } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  ImpersonationForbidden,
+  UserAdminRejected
+} from '../errors.ts'
+import { literalTuple } from '../internal/literal-tuple.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   findWorkspaceMember,
@@ -19,7 +25,7 @@ import { AuditEventLog } from './audit-event-log.ts'
  * A user account at system level: what `/admin` lists and acts on. Deliberately
  * narrower than the `user` table — no ban reason or expiry rides the wire yet,
  * because the admin surface does not promise them (ADR 0024 defers the rich
- * ban flow along with impersonation).
+ * ban flow).
  */
 export const SystemUserAccount = Schema.Struct({
   id: Schema.String,
@@ -44,6 +50,68 @@ export type ChangeWorkspaceRoleInput = BanInput & {
   readonly role: WorkspaceRole
 }
 
+/**
+ * How long an impersonation session lives, in seconds. Stated here so the
+ * capability's audit metadata, the notification copy, and the plugin option in
+ * `packages/auth` (`impersonationSessionDuration`) quote one number. The auth
+ * package cannot import this one (siblings, ADR 0051), so its option restates
+ * the value — change both together.
+ */
+export const IMPERSONATION_SESSION_SECONDS = 60 * 60
+
+/**
+ * The account actions an impersonation session may never perform (ADR 0054).
+ * The vocabulary is the capability's; the app maps Better Auth's endpoints onto
+ * it at the catchall (`apps/web/src/lib/server/impersonation-guard.ts`) and the
+ * UI hides the matching controls.
+ */
+export const IMPERSONATION_FORBIDDEN_ACTIONS = literalTuple(
+  'change_password',
+  'change_two_factor',
+  'change_email',
+  'delete_account'
+)
+
+export type ImpersonationForbiddenAction =
+  (typeof IMPERSONATION_FORBIDDEN_ACTIONS)[number]
+
+/** The one field of a session the guard reads. */
+export type ImpersonationAwareSession = {
+  readonly impersonatedBy?: string | null | undefined
+}
+
+/**
+ * Refuses a forbidden account action for an impersonation session, and lets
+ * every other session through. Pure: no store, no binding — both adapters and
+ * the app's request boundary call this one function so the rule cannot drift
+ * between them.
+ */
+export function refuseWhileImpersonating(
+  session: ImpersonationAwareSession,
+  action: ImpersonationForbiddenAction
+): Effect.Effect<void, ImpersonationForbidden> {
+  if (session.impersonatedBy === undefined || session.impersonatedBy === null) {
+    return Effect.void
+  }
+  return Effect.fail(new ImpersonationForbidden({ action }))
+}
+
+export type StartImpersonationInput = UserAdminRef & {
+  /** The System Admin starting the session — never null: an unattributed impersonation is refused. */
+  readonly actorUserId: string
+}
+
+export type StopImpersonationInput = UserAdminRef & {
+  /** The System Admin whose session is restored, read from `session.impersonatedBy`. */
+  readonly actorUserId: string
+}
+
+/** What a started impersonation session promises the caller. */
+export type ImpersonationStarted = {
+  readonly userId: string
+  readonly expiresInSeconds: number
+}
+
 export type PlatformUserAdminInterface = {
   /** Every account, for `/admin`'s user list. Not paginated yet — neither is the plugin read it replaces. */
   readonly listUsers: Effect.Effect<
@@ -65,6 +133,23 @@ export type PlatformUserAdminInterface = {
   readonly changeWorkspaceRole: (
     input: ChangeWorkspaceRoleInput
   ) => Effect.Effect<Member, CapabilityUnavailable | UserAdminRejected>
+  /**
+   * Opens an impersonation session on `userId` for the admin `actorUserId`
+   * (ADR 0054). Refuses an unknown account, a System Admin target, and the
+   * admin's own account before touching the binding; records
+   * `system_admin.impersonation_started` and notifies the impersonated user.
+   * The session itself (cookies, expiry) is Better Auth's — the binding owns it.
+   */
+  readonly startImpersonation: (
+    input: StartImpersonationInput
+  ) => Effect.Effect<ImpersonationStarted, CapabilityUnavailable | UserAdminRejected>
+  /**
+   * Ends the impersonation session on `userId` and restores the admin's own.
+   * Records `system_admin.impersonation_stopped` against the same pair.
+   */
+  readonly stopImpersonation: (
+    input: StopImpersonationInput
+  ) => Effect.Effect<void, CapabilityUnavailable | UserAdminRejected>
 }
 
 export class PlatformUserAdmin extends Context.Service<
@@ -90,6 +175,10 @@ export type PlatformUserAdminBinding = {
     readonly memberId: string
     readonly role: WorkspaceRole
   }) => Promise<void>
+  /** `admin.impersonateUser` — swaps the request's session cookie for the target's. */
+  readonly impersonateUser: (input: { readonly userId: string }) => Promise<void>
+  /** `admin.stopImpersonating` — restores the admin's own session cookie. */
+  readonly stopImpersonating: () => Promise<void>
 }
 
 const { callBinding } = makeBindingCaller<PlatformUserAdminBinding, UserAdminRejected>({
@@ -97,6 +186,19 @@ const { callBinding } = makeBindingCaller<PlatformUserAdminBinding, UserAdminRej
   noBindingReason: 'no_user_admin_binding',
   Rejected: UserAdminRejected
 })
+
+/**
+ * The notification the impersonated user receives, worded once for both
+ * adapters. It fires when the session starts — the one moment guaranteed to
+ * happen, since a session the admin never stops simply expires.
+ */
+function impersonationNotice(adminName: string) {
+  const minutes = IMPERSONATION_SESSION_SECONDS / 60
+  return {
+    title: 'A System Admin accessed your account',
+    message: `${adminName} started an impersonation session on your account. It ends when they stop it or after ${minutes} minutes, and it cannot change your password, two-factor settings, or email.`
+  }
+}
 
 function toAccount(row: typeof user.$inferSelect): SystemUserAccount {
   return {
@@ -112,11 +214,12 @@ function toAccount(row: typeof user.$inferSelect): SystemUserAccount {
 
 export function LivePlatformUserAdmin(
   binding?: PlatformUserAdminBinding
-): Layer.Layer<PlatformUserAdmin, never, Database | AuditEventLog> {
+): Layer.Layer<PlatformUserAdmin, never, Database | AuditEventLog | NotificationFeed> {
   return Layer.effect(PlatformUserAdmin)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
+      const notifications = yield* NotificationFeed
 
       const unavailable = orUnavailable('platform-user-admin')
 
@@ -127,11 +230,13 @@ export function LivePlatformUserAdmin(
        */
       const requireAccount = Effect.fnUntraced(function* (userId: string) {
         const rows = yield* unavailable(
-          db.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1)
+          db.select().from(user).where(eq(user.id, userId)).limit(1)
         )
-        if (!rows[0]) {
+        const row = rows[0]
+        if (!row) {
           return yield* Effect.fail(new UserAdminRejected({ reason: 'unknown_user' }))
         }
+        return toAccount(row)
       })
 
       /**
@@ -206,10 +311,64 @@ export function LivePlatformUserAdmin(
               metadata: { role: input.role }
             })
             return member
+          }),
+        startImpersonation: (input) =>
+          Effect.gen(function* () {
+            const target = yield* requireAccount(input.userId)
+            yield* refuseImpersonationTarget(target, input.actorUserId)
+            const admin = yield* requireAccount(input.actorUserId)
+            yield* callBinding(binding, (bound) =>
+              bound.impersonateUser({ userId: input.userId })
+            )
+            yield* audit.record({
+              actorUserId: input.actorUserId,
+              eventType: 'system_admin.impersonation_started',
+              targetType: 'user',
+              targetId: input.userId,
+              metadata: { expiresInSeconds: IMPERSONATION_SESSION_SECONDS }
+            })
+            yield* notifications.notifyUser({
+              userId: input.userId,
+              ...impersonationNotice(admin.name)
+            })
+            return {
+              userId: input.userId,
+              expiresInSeconds: IMPERSONATION_SESSION_SECONDS
+            }
+          }),
+        stopImpersonation: (input) =>
+          Effect.gen(function* () {
+            yield* callBinding(binding, (bound) => bound.stopImpersonating())
+            yield* audit.record({
+              actorUserId: input.actorUserId,
+              eventType: 'system_admin.impersonation_stopped',
+              targetType: 'user',
+              targetId: input.userId
+            })
           })
       }
     })
   )
+}
+
+/**
+ * The two refusals both adapters make before any session is minted: a System
+ * Admin is never impersonated (their session would carry `/admin`, which is
+ * exactly the escalation the plugin's `allowImpersonatingAdmins: false`
+ * default also refuses), and an admin does not impersonate themself — the
+ * result would be a shorter-lived copy of the session they already hold.
+ */
+function refuseImpersonationTarget(
+  target: SystemUserAccount,
+  actorUserId: string
+): Effect.Effect<void, UserAdminRejected> {
+  if (target.id === actorUserId) {
+    return Effect.fail(new UserAdminRejected({ reason: 'cannot_impersonate_self' }))
+  }
+  if (target.systemRole === 'admin') {
+    return Effect.fail(new UserAdminRejected({ reason: 'cannot_impersonate_admin' }))
+  }
+  return Effect.void
 }
 
 /**
@@ -229,11 +388,16 @@ export type SeedMembership = {
 export function SeedPlatformUserAdmin(
   users: ReadonlyArray<SystemUserAccount>,
   memberships: ReadonlyArray<SeedMembership> = []
-): Layer.Layer<PlatformUserAdmin> {
+): Layer.Layer<PlatformUserAdmin, never, AuditEventLog | NotificationFeed> {
   return Layer.effect(
     PlatformUserAdmin,
     Effect.gen(function* () {
+      const audit = yield* AuditEventLog
+      const notifications = yield* NotificationFeed
       const roster = yield* Ref.make<ReadonlyArray<SystemUserAccount>>(users)
+      // The one impersonation the fixture can hold at a time, keyed by the
+      // impersonated user: Better Auth holds one admin cookie per browser.
+      const impersonating = yield* Ref.make<string | null>(null)
       // Roles keyed `${workspaceId}:${userId}`, seeded from `memberships`.
       const overrides = yield* Ref.make<ReadonlyMap<string, WorkspaceRole>>(
         new Map(memberships.map((m) => [`${m.workspaceId}:${m.userId}`, m.role]))
@@ -292,6 +456,45 @@ export function SeedPlatformUserAdmin(
               role: input.role,
               systemRole: account.systemRole
             }
+          }),
+        startImpersonation: (input) =>
+          Effect.gen(function* () {
+            const target = yield* requireAccount(input.userId)
+            yield* refuseImpersonationTarget(target, input.actorUserId)
+            const admin = yield* requireAccount(input.actorUserId)
+            yield* Ref.set(impersonating, input.userId)
+            yield* audit.record({
+              actorUserId: input.actorUserId,
+              eventType: 'system_admin.impersonation_started',
+              targetType: 'user',
+              targetId: input.userId,
+              metadata: { expiresInSeconds: IMPERSONATION_SESSION_SECONDS }
+            })
+            yield* notifications.notifyUser({
+              userId: input.userId,
+              ...impersonationNotice(admin.name)
+            })
+            return {
+              userId: input.userId,
+              expiresInSeconds: IMPERSONATION_SESSION_SECONDS
+            }
+          }),
+        stopImpersonation: (input) =>
+          Effect.gen(function* () {
+            const current = yield* Ref.get(impersonating)
+            if (current !== input.userId) {
+              // Mirrors the plugin's 400 "not impersonating anyone".
+              return yield* Effect.fail(
+                new UserAdminRejected({ reason: 'not_impersonating' })
+              )
+            }
+            yield* Ref.set(impersonating, null)
+            yield* audit.record({
+              actorUserId: input.actorUserId,
+              eventType: 'system_admin.impersonation_stopped',
+              targetType: 'user',
+              targetId: input.userId
+            })
           })
       }
     })

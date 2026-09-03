@@ -63,7 +63,15 @@ const insertFixtureRows = Effect.gen(function* () {
     },
     // Actors on the audit read-contract dataset rows (FK to `user`).
     { id: 'usr_alice', email: 'alice@live.test', name: 'Alice' },
-    { id: 'usr_bob', email: 'bob@live.test', name: 'Bob' }
+    { id: 'usr_bob', email: 'bob@live.test', name: 'Bob' },
+    // The System Admin the user-admin impersonation cases act as, and the
+    // admin target they must refuse.
+    {
+      id: 'usr_sysadmin',
+      email: 'sysadmin@live.test',
+      name: 'Sys Admin',
+      role: 'admin'
+    }
   ])
   // `workspaces` and `workspace_members` are owned by the organization plugin:
   // their timestamps default to epoch integers, and a member row carries a
@@ -288,7 +296,12 @@ export function fakeUserAdminBinding(db: EffectDatabase): PlatformUserAdminBindi
             .set({ role: input.role })
             .where(eq(workspaceMembers.id, input.memberId))
         )
-      )
+      ),
+    // The plugin's impersonation endpoints only move cookies and a session
+    // row; neither is observable through the capability, so the stand-ins
+    // resolve and the suite asserts on the audit and notification rows.
+    impersonateUser: () => Effect.runPromise(Effect.void),
+    stopImpersonating: () => Effect.runPromise(Effect.void)
   }
 }
 
