@@ -223,3 +223,40 @@ export function TwoFactorChangedEmail({ enabled }: TwoFactorChangedEmailProps) {
 TwoFactorChangedEmail.PreviewProps = {
   enabled: true
 } satisfies TwoFactorChangedEmailProps
+
+type PasskeyChangedEmailProps = {
+  readonly added: boolean
+}
+
+/**
+ * Security notification for a passkey change (added or removed). Same shape
+ * as the two-factor notification: no action link on purpose — the recipient
+ * manages passkeys from the app's `/account` page, and the email must not
+ * become a clickable attack surface.
+ */
+export function PasskeyChangedEmail({ added }: PasskeyChangedEmailProps) {
+  // The rule against ternaries applies here too; plain branches keep the
+  // two wordings next to each other.
+  let verb = 'added'
+  let preview = 'A passkey was added to your account'
+  if (!added) {
+    verb = 'removed'
+    preview = 'A passkey was removed from your account'
+  }
+  return (
+    <EmailLayout preview={preview} heading={<>Passkey {verb}</>}>
+      <Text className="text-base text-gray-700 mt-4">
+        A passkey was just {verb} for your B2B SaaS Starter account. If that was you, no
+        action is needed.
+      </Text>
+      <Text className="text-sm text-gray-500 mt-4">
+        If you did not make this change, reset your password immediately and review your
+        account security settings.
+      </Text>
+    </EmailLayout>
+  )
+}
+
+PasskeyChangedEmail.PreviewProps = {
+  added: true
+} satisfies PasskeyChangedEmailProps
