@@ -1,6 +1,12 @@
 import { Effect, Layer } from 'effect'
+import { Billing } from './billing/billing.ts'
+import { STARTER_PLAN } from './billing/plan-catalog.ts'
+import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
+import { WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
 import { type Workspace } from './governance/workspace-identity.ts'
 import { WorkspaceMembership } from './governance/workspace-membership.ts'
+import { WorkspaceOnboarding } from './governance/workspace-onboarding.ts'
+import { literalTuple } from './internal/literal-tuple.ts'
 import {
   NotificationFeed,
   type Notification
@@ -114,5 +120,119 @@ export function listWorkspacesForUser(
         ),
       { concurrency: 'unbounded' }
     )
+  })
+}
+
+/**
+ * The onboarding checklist steps, in display order. Labels and links are the
+ * UI's — this is the vocabulary, the way the audit taxonomy is.
+ */
+export const WORKSPACE_PROGRESS_STEPS = literalTuple(
+  'invite_member',
+  'create_api_token',
+  'add_webhook_endpoint',
+  'enable_two_factor',
+  'choose_plan'
+)
+
+export type WorkspaceProgressStepId = (typeof WORKSPACE_PROGRESS_STEPS)[number]
+
+export type WorkspaceProgressStep = {
+  readonly id: WorkspaceProgressStepId
+  readonly complete: boolean
+}
+
+export type WorkspaceProgressProjection = {
+  /** The steps the caller may see, in display order. Never empty. */
+  readonly steps: ReadonlyArray<WorkspaceProgressStep>
+  readonly completedCount: number
+  readonly totalCount: number
+  /** When an owner or admin dismissed the checklist, or `null` while it shows. */
+  readonly dismissedAt: string | null
+}
+
+export type WorkspaceProgressOptions = {
+  /**
+   * Whether to read (and therefore show) the API-token and webhook steps.
+   * Those two reads sit behind `apiToken:list` and `webhook:list`, which a
+   * `member` does not hold, and a projection cannot check authorization — so
+   * the caller decides, the way `whenPermitted` does for a segment. `false`
+   * skips the reads: the steps are absent from the result, not hidden later.
+   */
+  readonly developerPlatform: boolean
+}
+
+/** The list's length, or `null` when the caller may not read the list at all. */
+function countWhen<E, R>(
+  permitted: boolean,
+  list: Effect.Effect<ReadonlyArray<unknown>, E, R>
+): Effect.Effect<number | null, E, R> {
+  if (!permitted) {
+    return Effect.succeed(null)
+  }
+  return Effect.map(list, (items) => items.length)
+}
+
+/**
+ * The workspace onboarding checklist, computed live on every read: a step is
+ * complete when the owning capability says the thing exists — more than one
+ * Member, at least one API Token, at least one Webhook Endpoint, two-factor on
+ * the actor's account, a plan other than the free one. No step is stored, so
+ * revoking the last token reopens its step. Billing's step appears only when
+ * the provider is configured (`Billing.configured`); an unconfigured deploy
+ * cannot choose a plan, so it is not asked to.
+ */
+export function workspaceProgress(
+  options: WorkspaceProgressOptions
+): Effect.Effect<
+  WorkspaceProgressProjection,
+  CapabilityUnavailable,
+  | WorkspaceContext
+  | WorkspaceMembership
+  | ApiTokenRegistry
+  | WebhookEndpoints
+  | Billing
+  | WorkspaceOnboarding
+> {
+  return Effect.gen(function* () {
+    const membership = yield* WorkspaceMembership
+    const tokens = yield* ApiTokenRegistry
+    const webhooks = yield* WebhookEndpoints
+    const billing = yield* Billing
+    const onboarding = yield* WorkspaceOnboarding
+
+    const facts = yield* Effect.all(
+      {
+        members: membership.listMembers,
+        tokenCount: countWhen(options.developerPlatform, tokens.list),
+        webhookCount: countWhen(options.developerPlatform, webhooks.list),
+        billingConfigured: billing.configured,
+        plan: billing.currentPlan,
+        twoFactor: onboarding.actorTwoFactorEnabled,
+        dismissedAt: onboarding.dismissedAt
+      },
+      { concurrency: 'unbounded' }
+    )
+
+    const steps: Array<WorkspaceProgressStep> = [
+      { id: 'invite_member', complete: facts.members.length > 1 }
+    ]
+    if (facts.tokenCount !== null) {
+      steps.push({ id: 'create_api_token', complete: facts.tokenCount > 0 })
+    }
+    if (facts.webhookCount !== null) {
+      steps.push({ id: 'add_webhook_endpoint', complete: facts.webhookCount > 0 })
+    }
+    steps.push({ id: 'enable_two_factor', complete: facts.twoFactor })
+    if (facts.billingConfigured) {
+      steps.push({ id: 'choose_plan', complete: facts.plan.id !== STARTER_PLAN.id })
+    }
+
+    return {
+      steps,
+      completedCount: steps.filter((step) => step.complete).length,
+      totalCount: steps.length,
+      dismissedAt: facts.dismissedAt
+    }
   })
 }

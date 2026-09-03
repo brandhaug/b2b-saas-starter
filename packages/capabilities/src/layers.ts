@@ -41,6 +41,11 @@ import {
   type WorkspaceLifecycleBinding
 } from './governance/workspace-lifecycle.ts'
 import {
+  LiveWorkspaceOnboarding,
+  SeedWorkspaceOnboarding,
+  type WorkspaceOnboarding
+} from './governance/workspace-onboarding.ts'
+import {
   LivePlatformUserAdmin,
   SeedPlatformUserAdmin,
   type PlatformUserAdmin,
@@ -68,6 +73,7 @@ import {
   seedMembers,
   seedNotifications,
   seedSystemUsers,
+  seedTwoFactorUserIds,
   seedUserAdminMemberships,
   seedWebhookEndpoints,
   seedWorkspaceRecord
@@ -84,6 +90,7 @@ export type CapabilityServices =
   | WorkspaceInvitations
   | WorkspaceLifecycle
   | WorkspaceMembership
+  | WorkspaceOnboarding
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
@@ -129,7 +136,8 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedWebhookEndpoints(seedWebhookEndpoints),
   SeedWebhookPublisher,
   SeedGovernance,
-  SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships)
+  SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships),
+  SeedWorkspaceOnboarding({ twoFactorUserIds: seedTwoFactorUserIds })
 ).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedWebhookPublisher))
 
 export type LiveCapabilitiesOptions = {
@@ -186,7 +194,8 @@ export function makeLiveCapabilitiesLayer(
     LiveWorkspaceInvitations(options.invitationBinding),
     LiveWorkspaceMembership(options.memberBinding),
     LiveWorkspaceLifecycle(options.lifecycleBinding),
-    LivePlatformUserAdmin(options.userAdminBinding)
+    LivePlatformUserAdmin(options.userAdminBinding),
+    LiveWorkspaceOnboarding
   ).pipe(Layer.provide(LiveAuditEventLog), Layer.provide(publisher))
 }
 
