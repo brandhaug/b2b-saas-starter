@@ -462,3 +462,23 @@ export const workspaceExports = sqliteTable(
     index('workspace_exports_requested_by_user_id_idx').on(table.requestedByUserId)
   ]
 )
+
+/**
+ * The Stripe subscription state one workspace carries: the customer the
+ * Billing Portal is opened for, and the subscription item whose quantity
+ * mirrors the workspace's member count on a per-seat plan. One row per
+ * workspace, written only by the billing capability from provider events;
+ * a workspace without a row has never checked out.
+ */
+export const workspaceSubscriptions = sqliteTable('workspace_subscriptions', {
+  workspaceId: workspaceRef().primaryKey(),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  // Null once the subscription is deleted: the customer survives (invoices
+  // stay reachable in the portal), the seat item does not.
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  stripeSubscriptionItemId: text('stripe_subscription_item_id'),
+  // The quantity Stripe last reported. `syncSeats` compares the member count
+  // against this before calling the provider.
+  seatQuantity: integer('seat_quantity').default(0).notNull(),
+  updatedAt: text('updated_at').notNull()
+})
