@@ -1,7 +1,12 @@
-import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
+import {
+  Billing,
+  type ApplySubscriptionEventInput
+} from '@b2b-saas-starter/capabilities/billing/billing'
 import {
   planForStripeEvent,
-  verifyStripeSignature
+  subscriptionLinkForStripeEvent,
+  verifyStripeSignature,
+  type StripeSubscriptionLink
 } from '@b2b-saas-starter/capabilities/billing/stripe'
 import { withTriggerScope } from '@b2b-saas-starter/logger'
 import { Effect, Result, Schema, type Scope } from 'effect'
@@ -15,17 +20,32 @@ import { runInvocation, type Env } from './webhook-consumer.ts'
 /**
  * The subset of a Stripe event body this worker understands. Everything else
  * decodes fine and is ignored — an unknown event type is not an error, the
- * same leniency the webhook delivery reader applies.
+ * same leniency the webhook delivery reader applies. The `items` array is the
+ * subscription's line items; the starter bills exactly one (the seat price),
+ * so the policy reads only its first entry.
  */
 export const StripeEventBody = Schema.Struct({
   type: Schema.String,
   data: Schema.Struct({
     object: Schema.Struct({
+      id: Schema.optionalKey(Schema.String),
       client_reference_id: Schema.optionalKey(Schema.String),
+      customer: Schema.optionalKey(Schema.String),
+      subscription: Schema.optionalKey(Schema.String),
       metadata: Schema.optionalKey(
         Schema.Struct({
           workspaceId: Schema.optionalKey(Schema.String),
           planId: Schema.optionalKey(Schema.String)
+        })
+      ),
+      items: Schema.optionalKey(
+        Schema.Struct({
+          data: Schema.Array(
+            Schema.Struct({
+              id: Schema.optionalKey(Schema.String),
+              quantity: Schema.optionalKey(Schema.Number)
+            })
+          )
         })
       )
     })
@@ -87,27 +107,49 @@ export function processStripeEvent(
     const object = event.data.object
     const metadata = object.metadata ?? {}
     yield* Effect.annotateLogsScoped({ stripeEventType: event.type })
+
+    // Half one: the plan change the event policy resolves (checkout sessions
+    // carry it in metadata, deletions pin the downgrade).
     const plan = planForStripeEvent(event.type)
+    if (plan) {
+      const target = resolvePlanTarget(
+        plan,
+        metadata.workspaceId ?? object.client_reference_id,
+        metadata
+      )
+      if ('skipReason' in target) {
+        yield* Effect.annotateLogsScoped({
+          outcome: 'skipped',
+          skipReason: target.skipReason
+        })
+        return
+      }
+      yield* applyPlan(target.workspaceId, target.planId, event.type)
+    }
+
+    // Half two: the subscription state the same or another event carries —
+    // checkout linkage, seat-quantity reconciliation, or a deletion. A
+    // subscription event with no plan change still lands here.
+    const link = subscriptionLinkForStripeEvent(event.type, object)
+    if (link) {
+      const workspaceId = metadata.workspaceId ?? object.client_reference_id
+      if (!workspaceId) {
+        yield* Effect.annotateLogsScoped({
+          outcome: 'skipped',
+          skipReason: 'missing_workspace'
+        })
+        return
+      }
+      yield* applySubscription(workspaceId, link, event.type)
+      return
+    }
+
     if (!plan) {
       yield* Effect.annotateLogsScoped({
         outcome: 'ignored',
         reason: 'unhandled_event_type'
       })
-      return
     }
-    const target = resolvePlanTarget(
-      plan,
-      metadata.workspaceId ?? object.client_reference_id,
-      metadata
-    )
-    if ('skipReason' in target) {
-      yield* Effect.annotateLogsScoped({
-        outcome: 'skipped',
-        skipReason: target.skipReason
-      })
-      return
-    }
-    yield* applyPlan(target.workspaceId, target.planId, event.type)
   })
 }
 
@@ -126,6 +168,39 @@ function applyPlan(
     })
     if (applied) {
       yield* Effect.annotateLogsScoped({ outcome: 'applied' })
+    } else {
+      yield* Effect.annotateLogsScoped({ outcome: 'unknown_workspace' })
+    }
+  })
+}
+
+/** One subscription-state update per handled event; annotates like `applyPlan`. */
+function applySubscription(
+  workspaceId: string,
+  link: StripeSubscriptionLink,
+  source: string
+): Effect.Effect<void, CapabilityUnavailable, Billing | Scope.Scope> {
+  return Effect.gen(function* () {
+    // Built per branch rather than ternaries: the fields a deletion carries
+    // are disjoint from the ones a link or quantity report carries.
+    const input: ApplySubscriptionEventInput = {
+      workspaceId,
+      detail: { source }
+    }
+    if (link.kind === 'deleted') {
+      input.deleted = true
+    } else {
+      input.customerId = link.customerId
+      input.subscriptionId = link.subscriptionId
+      if (link.kind === 'quantity') {
+        input.subscriptionItemId = link.subscriptionItemId
+        input.quantity = link.quantity
+      }
+    }
+    const billing = yield* Billing
+    const applied = yield* billing.applySubscriptionEvent(input)
+    if (applied) {
+      yield* Effect.annotateLogsScoped({ outcome: 'subscription_applied' })
     } else {
       yield* Effect.annotateLogsScoped({ outcome: 'unknown_workspace' })
     }

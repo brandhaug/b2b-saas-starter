@@ -31,6 +31,25 @@ export const webhookQueueName = 'b2b-saas-starter-webhooks'
 export const webhookDeadLetterQueueName = 'b2b-saas-starter-webhooks-dlq'
 
 /**
+ * The seat-sync queue. Membership and invitation mutations enqueue one
+ * message per change; the background worker consumes it and mirrors the
+ * member count onto the Stripe subscription item (`Billing.syncSeats`), so a
+ * membership mutation never awaits Stripe. No dead-letter queue on purpose:
+ * sync is self-healing — the next mutation re-syncs, and the
+ * `customer.subscription.updated` webhook reconciles any drift — so an
+ * exhausted message can be dropped rather than replayed.
+ */
+export const billingQueueName = 'b2b-saas-starter-billing'
+
+export const billingConsumerSettings: QueueConsumerSettings = {
+  batchSize: 10,
+  maxConcurrency: 2,
+  maxRetries: 3,
+  maxWaitTimeMs: 5000,
+  retryDelay: 30
+}
+
+/**
  * One compatibility date and flag set for every worker — production
  * (alchemy.run.ts) and local dev (each generated wrangler.jsonc) must run the
  * same runtime behavior, so changing the date cannot leave one worker behind.
