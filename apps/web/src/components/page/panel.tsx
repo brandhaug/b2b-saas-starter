@@ -58,6 +58,34 @@ export function Panel({
 }
 
 /**
+ * The list half of the resource-panel shape, and `CreateSection`'s sibling:
+ * the section's `h3`, then its rows — the list, or the empty state in the
+ * list's place — and an optional trailing footer (a denied-action reason, a
+ * mutation's failure). Every resource panel reads as
+ * `Panel > CreateSection + ListSection`, so a new one copies the anatomy
+ * instead of hand-rolling the heading-and-empty markup a fourth time.
+ */
+export function ListSection({
+  title,
+  footer,
+  children
+}: {
+  readonly title: string
+  /** Trailing copy under the rows, such as a denied-action reason. */
+  readonly footer?: ReactNode
+  /** The rows, or the empty state in their place when the list is empty. */
+  readonly children: ReactNode
+}) {
+  return (
+    <div className="grid gap-2">
+      <h3 className="text-sm font-medium">{title}</h3>
+      {children}
+      {footer}
+    </div>
+  )
+}
+
+/**
  * The create-or-reason half of the resource-panel shape: a titled form when
  * the viewer's role may create, the reason in its place when it may not.
  * `allowed` is `viewerCan(...)` at every call site — never a role name — and

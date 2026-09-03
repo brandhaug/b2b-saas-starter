@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/item'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Identifier } from '@/components/page/identifier'
-import { Panel } from '@/components/page/panel'
+import { ListSection, Panel } from '@/components/page/panel'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { viewerCan, type Viewer } from '@/lib/permissions'
@@ -191,8 +191,10 @@ export function InvitationPanel({
         </p>
       )}
 
-      <div className="grid gap-2">
-        <h3 className="text-sm font-medium">Pending invitations</h3>
+      <ListSection
+        title="Pending invitations"
+        footer={<ActionFeedback error={cancel.error} />}
+      >
         {invitations.length === 0 ? (
           <Empty>
             <EmptyHeader>
@@ -230,8 +232,7 @@ export function InvitationPanel({
             ))}
           </ItemGroup>
         )}
-        <ActionFeedback error={cancel.error} />
-      </div>
+      </ListSection>
     </Panel>
   )
 }

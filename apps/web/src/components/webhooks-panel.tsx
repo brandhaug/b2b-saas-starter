@@ -19,7 +19,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { WebhookForm, type CreateWebhookEndpoint } from '@/components/webhook-form'
 import { ConfirmButton } from '@/components/confirm-button'
 import { ActionFeedback } from '@/components/page/action-feedback'
-import { CreateSection, Panel } from '@/components/page/panel'
+import { CreateSection, ListSection, Panel } from '@/components/page/panel'
 import { Identifier } from '@/components/page/identifier'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { SecretReveal } from '@/components/secret-reveal'
@@ -158,8 +158,17 @@ export function WebhooksPanel({
         />
       </CreateSection>
 
-      <div className="grid gap-2">
-        <h3 className="text-sm font-medium">Endpoints</h3>
+      <ListSection
+        title="Endpoints"
+        footer={
+          <>
+            {/* Stacked, not merged: each mutation's failure renders in its
+                own alert, the same idiom the sessions panel uses. */}
+            <ActionFeedback error={disable.error} />
+            <ActionFeedback error={rotate.error} />
+          </>
+        }
+      >
         {endpoints.length === 0 ? (
           <Empty>
             <EmptyHeader>
@@ -252,9 +261,7 @@ export function WebhooksPanel({
             ))}
           </ItemGroup>
         )}
-      </div>
-
-      <ActionFeedback error={disable.error === null ? rotate.error : disable.error} />
+      </ListSection>
     </Panel>
   )
 }

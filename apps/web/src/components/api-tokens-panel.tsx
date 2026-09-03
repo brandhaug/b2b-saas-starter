@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/item'
 import { ConfirmButton } from '@/components/confirm-button'
 import { ActionFeedback } from '@/components/page/action-feedback'
-import { CreateSection, Panel } from '@/components/page/panel'
+import { CreateSection, ListSection, Panel } from '@/components/page/panel'
 import { Identifier } from '@/components/page/identifier'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { formatUtcOr } from '@/lib/format-date'
@@ -87,8 +87,16 @@ export function ApiTokensPanel({
         />
       </CreateSection>
 
-      <div className="grid gap-2">
-        <h3 className="text-sm font-medium">Active tokens</h3>
+      <ListSection
+        title="Active tokens"
+        footer={
+          canRevoke ? undefined : (
+            <p className="text-xs text-muted-foreground">
+              Your role cannot revoke tokens.
+            </p>
+          )
+        }
+      >
         {tokens.length === 0 ? (
           <Empty>
             <EmptyHeader>
@@ -134,12 +142,7 @@ export function ApiTokensPanel({
             ))}
           </ItemGroup>
         )}
-        {canRevoke ? null : (
-          <p className="text-xs text-muted-foreground">
-            Your role cannot revoke tokens.
-          </p>
-        )}
-      </div>
+      </ListSection>
 
       <ActionFeedback error={revoke.error} />
     </Panel>
