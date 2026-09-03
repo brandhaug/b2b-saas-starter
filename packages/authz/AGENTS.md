@@ -12,7 +12,7 @@ Built on `createAccessControl` from `better-auth/plugins/access`, which is pure 
 
 Four concepts, in dependency order:
 
-1. **Statements** (`statements.ts`) — one entry per resource, listing every action it understands. `starterStatements` = the organization plugin's own five resources (`organization`, `member`, `invitation`, `team`, `ac` — Better Auth's abbreviation of "access control", kept because the plugin checks that key by name) plus the starter's six, all full-named (`apiToken`, `webhook`, `auditLog`, `notification`, `assistant`, `mcp`).
+1. **Statements** (`statements.ts`) — one entry per resource, listing every action it understands. `starterStatements` = the organization plugin's own five resources (`organization`, `member`, `invitation`, `team`, `ac` — Better Auth's abbreviation of "access control", kept because the plugin checks that key by name) plus the starter's seven, all full-named (`apiToken`, `webhook`, `auditLog`, `notification`, `assistant`, `mcp`, `onboarding`).
 2. **Roles** (`roles.ts`) — `owner`, `admin`, `member`, plus the synthetic roles that API token scopes map onto.
 3. **Principal** (`principal.ts`) — who is asking, and the pure `authorize(principal, request)` decision.
 4. **Guard** (`guard.ts`) — `requirePermission(principal, request)`, the Effect that fails `AuthorizationDenied`.
@@ -34,7 +34,7 @@ Four concepts, in dependency order:
 | `admin`  | every statement except `organization:delete`                 |
 | `member` | `ac:read`, `notification:read`, `assistant:read`, `mcp:read` |
 
-`member` deliberately **cannot** read the audit log or list API tokens. Both leak the workspace's security posture. The empty arrays in `memberRole` say so out loud; do not "tidy" them away.
+`member` deliberately **cannot** read the audit log or list API tokens. Both leak the workspace's security posture. The empty arrays in `memberRole` say so out loud; do not "tidy" them away. `onboarding:dismiss` is also withheld: the onboarding checklist is read-only for a member and dismissing it is a workspace-level call (ADR 0054).
 
 | Token scope | Gets                                              |
 | ----------- | ------------------------------------------------- |

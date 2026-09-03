@@ -42,7 +42,8 @@ const PERMISSIONS = [
   { label: 'auditLog:read', request: { auditLog: ['read'] } },
   { label: 'notification:read', request: { notification: ['read'] } },
   { label: 'assistant:read', request: { assistant: ['read'] } },
-  { label: 'mcp:read', request: { mcp: ['read'] } }
+  { label: 'mcp:read', request: { mcp: ['read'] } },
+  { label: 'onboarding:dismiss', request: { onboarding: ['dismiss'] } }
 ] satisfies ReadonlyArray<Permission>
 
 const EVERY_LABEL = PERMISSIONS.map((permission) => permission.label)
