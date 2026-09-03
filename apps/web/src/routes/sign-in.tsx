@@ -25,6 +25,10 @@ import { type SsoRoutingDecision } from '@b2b-saas-starter/capabilities/governan
 import { Button } from '@/components/ui/button'
 import { FormTextField } from '@/components/form-text-field'
 import {
+  carriedOAuthSearch,
+  oauthContinuationUrl
+} from '@/components/auth/oauth-continuation'
+import {
   DEMO_CREDENTIALS,
   DEMO_MEMBER_CREDENTIALS,
   DEMO_WORKSPACE_SLUG
@@ -238,12 +242,27 @@ export function SignInPage({
       if (twoFactorRedirect) {
         // Two-factor is enabled: the credentials set a short-lived challenge
         // cookie, not a session. The code lands on the challenge page, which
-        // preserves the redirect target through its own search param.
+        // preserves the redirect target through its own search param — and,
+        // for a sign-in an MCP client started, the provider's signed OAuth
+        // query, so the verified code resumes that authorization.
+        const oauthSearch = carriedOAuthSearch(window.location.search)
+        if (oauthSearch) {
+          router.history.push(`/two-factor${oauthSearch}`)
+          return
+        }
         router.history.push(
           redirect
             ? `/two-factor?redirect=${encodeURIComponent(redirect)}`
             : '/two-factor'
         )
+        return
+      }
+      // A sign-in an MCP client started resumes the authorization: the
+      // provider answered with the next hop (the consent page, or the client's
+      // redirect URI), which may be another origin — a full navigation.
+      const continuation = oauthContinuationUrl(result.data)
+      if (continuation !== null) {
+        window.location.assign(continuation)
         return
       }
       router.history.push(safeRedirect(redirect))

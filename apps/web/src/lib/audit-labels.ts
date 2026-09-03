@@ -17,6 +17,8 @@ const EVENT_LABELS = new Map<string, string>(
     'webhook.delivery_failed': 'Webhook delivery failed',
     'webhook.delivery_dead_lettered': 'Webhook delivery dead-lettered',
     'webhook.delivery_replayed': 'Webhook delivery replayed',
+    'mcp_client.consent_granted': 'MCP client connected',
+    'mcp_client.consent_revoked': 'MCP client disconnected',
     // governance — workspace lifecycle
     'workspace.created': 'Workspace created',
     'workspace.renamed': 'Workspace renamed',

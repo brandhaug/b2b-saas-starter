@@ -9,6 +9,14 @@ import { Effect, Layer, ManagedRuntime, Schema } from 'effect'
 import { causeMessage } from './cause-message'
 import { makeAuthEmailSender } from './server/auth-emails'
 import { socialAccountAuditHooks } from './server/social-account-audit'
+import { fetchClientMetadataResource } from './server/client-metadata-fetch'
+
+/**
+ * The MCP resource identifier when `MCP_RESOURCE_URL` is unset: the local API
+ * dev server. A deployment sets the real URL (ADR 0054); the default exists so
+ * the consent flow works with nothing configured, like every other provider.
+ */
+const LOCAL_MCP_RESOURCE = 'http://localhost:8787/mcp'
 
 /**
  * Defect raised when something reaches for the D1 binding that the local
@@ -86,6 +94,13 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
         )
       )
     )
+  },
+  // The OAuth 2.1 server MCP clients connect through (ADR 0054): tokens are
+  // bound to the API worker's `/mcp`, and client metadata documents are
+  // fetched through the Workers-safe transport.
+  mcp: {
+    resource: env.MCP_RESOURCE_URL ?? LOCAL_MCP_RESOURCE,
+    fetchClientMetadataResource
   }
 }))
 

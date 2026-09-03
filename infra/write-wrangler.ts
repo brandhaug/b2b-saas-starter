@@ -186,7 +186,12 @@ export const wranglerConfigs: ReadonlyArray<{
         ]
       },
       r2_buckets: [workspaceExportBucket],
-      vars: { WORKERS_AI_ENABLED: 'false' },
+      vars: {
+        WORKERS_AI_ENABLED: 'false',
+        // The MCP resource the web worker's OAuth server binds tokens to: the
+        // local API dev server (ADR 0054). Production sets the real URL.
+        MCP_RESOURCE_URL: 'http://localhost:8787/mcp'
+      },
       unsafe: { bindings: rateLimits(webRateLimits) }
     }
   },
@@ -211,7 +216,12 @@ export const wranglerConfigs: ReadonlyArray<{
       r2_buckets: [workspaceExportBucket],
       vars: {
         WORKERS_AI_ENABLED: 'false',
-        CLOUDFLARE_EMAIL_FROM: 'noreply@example.com'
+        CLOUDFLARE_EMAIL_FROM: 'noreply@example.com',
+        // OAuth for `POST /mcp` (ADR 0054): trust tokens the local web dev
+        // server issues for this worker's `/mcp`. Unset both and `/mcp` takes
+        // API Tokens only.
+        MCP_OAUTH_ISSUER: 'http://localhost:3071/api/auth',
+        MCP_RESOURCE_URL: 'http://localhost:8787/mcp'
       },
       unsafe: { bindings: rateLimits(apiRateLimits) }
     }

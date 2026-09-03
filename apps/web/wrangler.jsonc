@@ -45,7 +45,8 @@
     }
   ],
   "vars": {
-    "WORKERS_AI_ENABLED": "false"
+    "WORKERS_AI_ENABLED": "false",
+    "MCP_RESOURCE_URL": "http://localhost:8787/mcp"
   },
   "unsafe": {
     "bindings": [

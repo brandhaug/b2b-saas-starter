@@ -1,3 +1,4 @@
+import { oauthProviderClient } from '@better-auth/oauth-provider/client'
 import { passkeyClient } from '@better-auth/passkey/client'
 import { ssoClient } from '@better-auth/sso/client'
 import {
@@ -9,12 +10,16 @@ import {
 import { createAuthClient } from 'better-auth/react'
 
 export const authClient = createAuthClient({
+  // `oauthProviderClient` attaches the page's signed OAuth query to sign-in
+  // requests, which is how a sign-in that started from an MCP client's
+  // authorization request resumes that authorization (ADR 0054).
   plugins: [
     usernameClient(),
     adminClient(),
     twoFactorClient(),
     passkeyClient(),
     ssoClient(),
-    lastLoginMethodClient()
+    lastLoginMethodClient(),
+    oauthProviderClient()
   ]
 })

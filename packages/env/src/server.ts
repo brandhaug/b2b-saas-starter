@@ -36,6 +36,13 @@ export const ServerEnvSchema = Schema.Struct({
   GOOGLE_CLIENT_SECRET: optional,
   OTEL_EXPORTER_OTLP_ENDPOINT: optional,
   OTEL_EXPORTER_OTLP_HEADERS: optional,
+  // MCP OAuth (ADR 0054): the API worker's `/mcp` URL that access tokens are
+  // audience-bound to, and the web worker's Better Auth base URL the API worker
+  // trusts as token issuer. Unset on the API worker, `/mcp` accepts API Tokens
+  // only; unset on the web worker, the resource defaults to the local API dev
+  // server so the consent flow keeps working provider-light.
+  MCP_RESOURCE_URL: optional,
+  MCP_OAUTH_ISSUER: optional,
   SERVICE_VERSION: optional,
   GIT_COMMIT_SHA: optional,
   ENVIRONMENT: optional,
@@ -93,6 +100,8 @@ export const optionalModuleEnvPlainKeys = [
   'GITHUB_CLIENT_ID',
   'GOOGLE_CLIENT_ID',
   'OTEL_EXPORTER_OTLP_ENDPOINT',
+  'MCP_RESOURCE_URL',
+  'MCP_OAUTH_ISSUER',
   'SERVICE_VERSION',
   'GIT_COMMIT_SHA',
   'ENVIRONMENT',
