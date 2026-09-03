@@ -1,7 +1,11 @@
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vite-plus/test'
-import { type AuthConfigInterface, makeAuthOptions } from './index.ts'
+import {
+  type AuthConfigInterface,
+  MAGIC_LINK_EXPIRES_IN_SECONDS,
+  makeAuthOptions
+} from './index.ts'
 import { testMcpConfig } from './test-mcp.ts'
 
 type AuthPlugin = ReturnType<typeof makeAuthOptions>['plugins'][number]
@@ -28,7 +32,8 @@ const baseConfig: AuthConfigInterface = {
   emails: {
     sendResetPassword: () => Promise.resolve(),
     sendVerificationEmail: () => Promise.resolve(),
-    sendOneTimeCode: () => Promise.resolve()
+    sendOneTimeCode: () => Promise.resolve(),
+    sendMagicLink: () => Promise.resolve()
   },
   // The provider-light default: no provider resolved, so no social surface.
   socialProviders: {},
@@ -197,6 +202,23 @@ describe('makeAuthOptions', () => {
       const options = makeAuthOptions(baseConfig)
       const otpOptions = pluginOptions(options.plugins, 'email-otp')
       expect(otpOptions.sendVerificationOTP).toBe(baseConfig.emails.sendOneTimeCode)
+    })
+  })
+
+  describe('magic-link knobs', () => {
+    it('pins the link window to ten minutes and hashes the stored token', () => {
+      const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'magic-link')
+      expect(MAGIC_LINK_EXPIRES_IN_SECONDS).toBe(60 * 10)
+      expect(options.expiresIn).toBe(MAGIC_LINK_EXPIRES_IN_SECONDS)
+      expect(options.storeToken).toBe('hashed')
+      // Sign-up through a link stays on: the plugin marks the new user
+      // verified, because consuming the link is the mailbox proof.
+      expect(options.disableSignUp).toBe(false)
+    })
+
+    it("passes the app's adapter through as the plugin's own callback", () => {
+      const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'magic-link')
+      expect(options.sendMagicLink).toBe(baseConfig.emails.sendMagicLink)
     })
   })
 

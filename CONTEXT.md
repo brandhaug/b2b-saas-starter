@@ -25,7 +25,7 @@ The starter's deployment and persistence model is designed around Cloudflare Wor
 _Avoid_: Multi-cloud, platform-agnostic
 
 **Local Auth Path**:
-The email-and-password sign-in path that works without external provider configuration.
+A sign-in path that works without external provider configuration: email-and-password, or the emailed magic link.
 _Avoid_: Fallback auth, demo auth
 
 **Passkey**:
@@ -196,7 +196,7 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 > **Domain expert:** "Yes, but only as interaction patterns. In this context they present workspace state, not developer productivity analytics."
 >
 > **Dev:** "Should OAuth be required for local development?"
-> **Domain expert:** "No. The **Local Auth Path** must work by default — email/password sign-in works with no provider secrets configured."
+> **Domain expert:** "No. The **Local Auth Path** must work by default — email/password sign-in works with no provider secrets configured, and the magic-link path works too: with no email provider the link lands in the dev log instead of an inbox."
 >
 > **Dev:** "Should Stripe be required before someone can try the starter?"
 > **Domain expert:** "No. Billing should be an **Optional Provider** whose surfaces activate when Stripe configuration exists."
@@ -243,7 +243,7 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 - "Feature" is too generic for this repository's vocabulary. Resolved: reusable SaaS capabilities are named for what they are (workspaces, webhooks, notifications), not lumped as features.
 - "Cloudflare support" understates the platform decision. Resolved: the starter is **Cloudflare-First**, not platform-agnostic.
 - Other products' vocabulary (developer-productivity analytics especially) must not become this repo's domain language. Resolved: copy UX patterns, but express workspace data through this repo's own capabilities.
-- "OAuth support" should not make local setup dependent on GitHub or any other provider. Resolved: email/password is the **Local Auth Path**.
+- "OAuth support" should not make local setup dependent on GitHub or any other provider. Resolved: email/password and the magic link are the **Local Auth Paths**.
 - "Billing included" means billing is an **Optional Provider**, not that Stripe setup is mandatory for local development.
 - Sentry and PostHog are included but should not become required setup steps. Resolved: both are **Optional Providers**.
 - REST and MCP should not drift into separate demos. Resolved: both are **Capability Interfaces** for the same underlying behavior.
