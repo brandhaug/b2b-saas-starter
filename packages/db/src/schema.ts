@@ -2,6 +2,7 @@ import {
   deliveryStatuses,
   invitationStatuses,
   systemRoles,
+  workspaceExportStatuses,
   workspaceRoles,
   type ApiTokenScopeValue
 } from './enums.ts'
@@ -21,10 +22,12 @@ export {
   deliveryStatuses,
   invitationStatuses,
   systemRoles,
+  workspaceExportStatuses,
   workspaceRoles,
   type ApiTokenScopeValue,
   type DeliveryStatus,
-  type SystemRoleValue
+  type SystemRoleValue,
+  type WorkspaceExportStatus
 } from './enums.ts'
 /**
  * What a `mode: 'json'` text column can hold: exactly what
@@ -423,5 +426,39 @@ export const auditEvents = sqliteTable(
       table.createdAt
     ),
     index('audit_events_actor_user_id_idx').on(table.actorUserId)
+  ]
+)
+
+/**
+ * Workspace data export jobs (ADR 0054). One row per request: `pending` until
+ * the background worker builds the archive, then `ready` with the R2 object
+ * key, or `failed`. `downloadSecret` is the per-export HMAC key behind the
+ * signed download link — both workers share this table, so no cross-worker
+ * secret is needed. `expiresAt` mirrors the bucket's lifecycle rule.
+ */
+export const workspaceExports = sqliteTable(
+  'workspace_exports',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    // Set null rather than cascade: an export outlives the account that asked
+    // for it, and the row is what the audit trail's `targetId` points at.
+    requestedByUserId: text('requested_by_user_id').references(() => user.id, {
+      onDelete: 'set null'
+    }),
+    status: text('status', { enum: workspaceExportStatuses })
+      .default('pending')
+      .notNull(),
+    objectKey: text('object_key'),
+    sizeBytes: integer('size_bytes'),
+    downloadSecret: text('download_secret').notNull(),
+    failureReason: text('failure_reason'),
+    createdAt: isoCreatedAt(),
+    completedAt: text('completed_at'),
+    expiresAt: text('expires_at')
+  },
+  (table) => [
+    workspaceIdIndex('workspace_exports', table.workspaceId),
+    index('workspace_exports_requested_by_user_id_idx').on(table.requestedByUserId)
   ]
 )
