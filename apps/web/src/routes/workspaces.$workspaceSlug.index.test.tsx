@@ -42,7 +42,9 @@ async function renderDashboard(data: WorkspaceDashboardPayload) {
         '/workspaces/starter-lab/members',
         '/workspaces/starter-lab/api-tokens',
         '/workspaces/starter-lab/webhooks',
-        '/workspaces/starter-lab/audit'
+        '/workspaces/starter-lab/audit',
+        '/workspaces/starter-lab/billing',
+        '/account'
       ]
     }
   )
@@ -89,5 +91,23 @@ describe('WorkspaceDashboardPage', () => {
     expect(screen.queryByText('Webhook delivery')).toBeNull()
     // The rest of the dashboard still renders.
     screen.getByText('Notifications')
+  })
+
+  it('shows the owner the Seed Workspace checklist with a dismiss control', async () => {
+    await renderDashboard(
+      await loadWorkspaceDashboard({ workspaceSlug: 'starter-lab', userId: 'usr_demo' })
+    )
+    screen.getByText('Set up your workspace')
+    screen.getByText('3 of 4')
+    screen.getByRole('button', { name: 'Dismiss' })
+  })
+
+  it('shows a member the checklist read-only, without the developer-platform steps', async () => {
+    await renderDashboard(
+      await loadWorkspaceDashboard({ workspaceSlug: 'starter-lab', userId: 'usr_dev' })
+    )
+    screen.getByText('Set up your workspace')
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
+    expect(screen.queryByText('Create an API token')).toBeNull()
   })
 })

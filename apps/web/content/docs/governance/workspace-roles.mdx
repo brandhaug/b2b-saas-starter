@@ -12,7 +12,7 @@ A Workspace Role is the permission level a Member has within one Workspace. The 
 
 ## How a role becomes a decision
 
-Roles are not checked by name. `@b2b-saas-starter/authz` declares a statement per resource (`apiToken`, `webhook`, `auditLog`, `module`, `notification`, `integration`, plus the five Better Auth `organization` plugin owns), maps each role to the actions it holds, and exposes one `authorize()` call. A route names the permission — `{ apiToken: ['create'] }` — and never the role, so the mapping lives in exactly one table. API Token scopes map onto the same statements as synthetic roles, which is why a browser session and a Bearer token resolve through the same decision.
+Roles are not checked by name. `@b2b-saas-starter/authz` declares a statement per resource (`apiToken`, `webhook`, `auditLog`, `notification`, `assistant`, `mcp`, `onboarding`, plus the five Better Auth `organization` plugin owns), maps each role to the actions it holds, and exposes one `authorize()` call. A route names the permission — `{ apiToken: ['create'] }` — and never the role, so the mapping lives in exactly one table. API Token scopes map onto the same statements as synthetic roles, which is why a browser session and a Bearer token resolve through the same decision.
 
 ## Owner
 

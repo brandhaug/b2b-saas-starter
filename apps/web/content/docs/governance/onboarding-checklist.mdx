@@ -1,0 +1,29 @@
+---
+title: Onboarding checklist
+description: The dashboard's setup steps, derived from live workspace state and dismissable by owners and admins.
+category: governance
+order: 40
+tags: [onboarding, workspace, dashboard]
+---
+
+Every workspace dashboard opens with an Onboarding Checklist: the handful of things a new Workspace usually sets up, with a plain "3 of 5" count. Each step links to the page that completes it.
+
+## The steps
+
+| Step                              | Complete when                                          | Completes at |
+| --------------------------------- | ------------------------------------------------------ | ------------ |
+| Invite a member                   | the workspace has more than one Member                 | Members      |
+| Create an API token               | at least one active API Token exists                   | API tokens   |
+| Add a webhook endpoint            | at least one Webhook Endpoint exists                   | Webhooks     |
+| Enable two-factor on your account | the signed-in user's account has two-factor enabled    | Account      |
+| Choose a plan                     | the workspace is on a plan other than the free Starter | Billing      |
+
+The plan step appears only when billing is configured (Stripe secret and price ids set). Without a provider the checklist has four steps, which is what the Seed Workspace shows locally.
+
+## Nothing is stored per step
+
+The steps are computed on every read by the `workspaceProgress` projection in the capabilities package, from the same services the rest of the app uses. There is no "step done" flag to get out of sync: revoke the last API Token and its step reopens. The two-factor step is about the person looking, so two Members of one workspace can see it differently.
+
+## Dismissing
+
+Owners and admins can dismiss the checklist for the whole workspace. The dismissal is the one thing persisted (a timestamp on the workspace) and it records a `workspace.onboarding_dismissed` Audit Event naming who dismissed it. Members see the checklist read-only. A member also does not see the API-token and webhook steps, because reading those lists is a permission a member does not hold.

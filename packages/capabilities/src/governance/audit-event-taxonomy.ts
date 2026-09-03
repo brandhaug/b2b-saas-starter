@@ -32,6 +32,7 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'workspace.created',
   'workspace.renamed',
   'workspace.deleted',
+  'workspace.onboarding_dismissed',
   // governance — membership
   'workspace_member.added',
   'workspace_member.removed',

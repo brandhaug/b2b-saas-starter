@@ -23,7 +23,8 @@ export const starterResources = {
   auditLog: ['read'],
   notification: ['read'],
   assistant: ['read'],
-  mcp: ['read']
+  mcp: ['read'],
+  onboarding: ['dismiss']
 } as const
 
 /**

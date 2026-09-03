@@ -16,23 +16,27 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import {
   workspaceDashboard,
-  type WorkspaceDashboardProjection
+  workspaceProgress,
+  type WorkspaceDashboardProjection,
+  type WorkspaceProgressProjection
 } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
-import { whenPermitted } from './authorize'
+import { permitted, whenPermitted } from './authorize'
 import { workspacePage, type WorkspacePageFrame } from './page-frame'
 
 /**
  * The dashboard payload, assembled per actor: the `workspaceDashboard`
  * projection (everything `notification:read` covers) plus the soft segments
- * the attention feed reads, each `null` for an actor without its permission.
- * A member gets the notifications panel and nothing else — the segments are
- * never read, so nothing permission-shaped reaches their SSR payload. See
- * `workspace-settings.ts` for why a permission-shaped payload is declared in
- * the app rather than in `@b2b-saas-starter/capabilities`.
+ * the attention feed reads, each `null` for an actor without its permission,
+ * plus the onboarding checklist, whose API-token and webhook steps are absent
+ * for that same actor. A member gets the notifications panel and nothing
+ * else — the segments are never read, so nothing permission-shaped reaches
+ * their SSR payload. See `workspace-settings.ts` for why a permission-shaped
+ * payload is declared in the app rather than in
+ * `@b2b-saas-starter/capabilities`.
  */
 export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
   readonly viewer: WorkspaceViewer | null
@@ -41,7 +45,19 @@ export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
   readonly invitations: ReadonlyArray<Invitation> | null
   /** The newest audit events, for the dashboard's trailing activity card. */
   readonly auditEvents: ReadonlyArray<AuditEvent> | null
+  readonly progress: WorkspaceProgressProjection
 }
+
+/**
+ * The checklist's developer-platform steps read the token and endpoint lists,
+ * which the matrix withholds from a `member`. The projection cannot decide
+ * that, so the loader does — the same decision `whenPermitted` makes for the
+ * webhook segment, applied to two steps instead of one segment.
+ */
+const progress = Effect.flatMap(
+  permitted({ apiToken: ['list'], webhook: ['list'] }),
+  (developerPlatform) => workspaceProgress({ developerPlatform })
+)
 
 const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspacePage(
   { notification: ['read'] },
@@ -67,7 +83,8 @@ const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspac
             Effect.flatMap(AuditEventLog, (log) =>
               Effect.map(log.list(), (page) => page.events.slice(0, 5))
             )
-          )
+          ),
+          progress
         },
         { concurrency: 'unbounded' }
       ),

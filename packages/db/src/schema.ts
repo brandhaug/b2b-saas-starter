@@ -235,6 +235,13 @@ export const workspaces = sqliteTable('workspaces', {
   // additionalFields: typed, queryable, defaulted — `planId` is part of the
   // public `Workspace` DTO, so it does not belong in `metadata`.
   planId: text('planId').default('starter').notNull(),
+  // Starter-owned, capability-only: when an owner or admin dismissed the
+  // workspace's onboarding checklist. Read and written solely by the
+  // `workspace-onboarding` capability, never by the plugin — so unlike
+  // `planId` it deliberately has no `additionalFields` entry: nothing that
+  // goes through a plugin endpoint needs it back. Epoch integer like the
+  // rest of this plugin-shaped table.
+  onboardingDismissedAt: integer('onboardingDismissedAt', { mode: 'timestamp' }),
   ...authTimestamps()
 })
 

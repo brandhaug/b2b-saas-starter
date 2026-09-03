@@ -54,7 +54,10 @@ export const memberRole = accessControl.newRole({
   auditLog: [],
   notification: ['read'],
   assistant: ['read'],
-  mcp: ['read']
+  mcp: ['read'],
+  // Members see the onboarding checklist read-only; dismissing it is a
+  // workspace-level decision for owners and admins.
+  onboarding: []
 })
 
 export const workspaceRoleAccess = {

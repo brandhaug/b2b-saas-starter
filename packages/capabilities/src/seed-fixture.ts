@@ -63,6 +63,13 @@ export const seedMembers: ReadonlyArray<Member> = [
   demoMemberIdentity
 ]
 
+/**
+ * Fixture accounts with two-factor enabled. The demo owner is deliberately not
+ * one of them, so the onboarding checklist's two-factor step stays open in
+ * the Seed Workspace — the partially complete state the reference app shows.
+ */
+export const seedTwoFactorUserIds: ReadonlyArray<string> = ['usr_martin']
+
 export const seedSystemUsers: ReadonlyArray<SystemUserAccount> = [
   ...seedMembers.map((member) => ({
     id: member.id,
