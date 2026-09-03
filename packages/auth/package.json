@@ -13,6 +13,7 @@
   "dependencies": {
     "@b2b-saas-starter/authz": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
+    "@better-auth/passkey": "catalog:",
     "better-auth": "catalog:",
     "effect": "catalog:",
     "effectful-better-auth": "catalog:"

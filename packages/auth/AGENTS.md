@@ -36,6 +36,7 @@ Order matters. `tanstackStartCookies()` must stay **last** so cookies set by oth
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `username()`                                                                    | username sign-in alongside the Local Auth Path                                                                                                                                                                                                                                                                                                            |
 | `twoFactor({ ... })`                                                            | TOTP only, verified before it counts as on; backup codes at enrollment                                                                                                                                                                                                                                                                                    |
+| `passkey({ ... })`                                                              | WebAuthn passkeys (ADR 0056): `rpID`/`origin` derive from `baseURL`, so localhost works with zero env; registration demands a session, sign-in opens one directly                                                                                                                                                                                          |
 | `admin({ adminRoles, impersonationSessionDuration, allowImpersonatingAdmins })` | System Admin axis — `user.role`, ban/unban, impersonation (ADR 0054), `listUsers` for `/admin`. `adminRoles` reads `adminSystemRole` from `@b2b-saas-starter/db/enums`, never a restated `'admin'` literal. Impersonation is one hour (the capability's `IMPERSONATION_SESSION_SECONDS` restates the number — siblings) and admins are never impersonable |
 | `organization({ ... })`                                                         | Workspace membership and invitations (ADR 0051)                                                                                                                                                                                                                                                                                                           |
 | `tanstackStartCookies()`                                                        | bridges the session cookie into TanStack Start; **last**                                                                                                                                                                                                                                                                                                  |
@@ -43,6 +44,12 @@ Order matters. `tanstackStartCookies()` must stay **last** so cookies set by oth
 The starter ships no OAuth providers: `socialProviders` is absent from both `AuthConfig` and the options object rather than passed empty. A fork adds one by extending `makeAuthOptions`, never by wiring a provider that exists but is disabled.
 
 The array goes through `plugins(...)` from `effectful-better-auth`, and `makeAuthOptions` returns a single non-union object type. A bare array literal in a function body widens to a union array and silently drops plugin schema inference — `SessionUserRole` is what catches that.
+
+## Passkeys (ADR 0056)
+
+The plugin's `rpID` and `origin` are **derived, never configured separately**: `passkeyRpID(baseURL)` returns the URL's hostname and `passkeyOrigin(baseURL)` its origin, both exported for the options tests. `localhost` is a valid WebAuthn rpID, so the Local Auth Path gains passkeys with zero configuration — passkeys are not an Optional Provider and get no env gate. A fork serving several origins widens `origin` to the plugin's array form.
+
+**A passkey sign-in satisfies the two-factor requirement.** The two-factor plugin's gate is an after-hook matching the credential sign-in endpoints only; the passkey plugin's verification endpoint creates its session directly, so a TOTP-enabled user signs in with a passkey and lands in the app with no code hop. The ceremony is two factors in one gesture (credential possession + authenticator user verification, requested as `preferred`). This is pinned in `src/live-passkey.test.ts`, which runs a full mocked WebAuthn ceremony (a software ES256 authenticator: minimal CBOR, `none`-format attestation, DER-wrapped signatures) against a real local D1 — the same harness the plugin's table mapping and management endpoints are tested through.
 
 ## The organization plugin's mapping
 
@@ -72,7 +79,7 @@ The starter's domain word is **Workspace** and the plugin's is "organization". T
 
 ## External references
 
-- Decision record: [ADR 0051](../../docs/adr/0051-workspace-membership-on-better-auth-organization-plugin.md)
+- Decision records: [ADR 0051](../../docs/adr/0051-workspace-membership-on-better-auth-organization-plugin.md), [ADR 0056](../../docs/adr/0056-passkeys-on-better-auth-passkey-plugin.md)
 - Architecture security model: [`ARCHITECTURE.md`](../../ARCHITECTURE.md#security)
 - Table shapes: [`@b2b-saas-starter/db`](../db/AGENTS.md)
-- Live coverage: `src/live-auth.test.ts` — the plugin's endpoints against a real local D1.
+- Live coverage: `src/live-auth.test.ts` — the plugin's endpoints against a real local D1. `src/live-passkey.test.ts` — the passkey ceremony end to end, including the two-factor bypass proof.

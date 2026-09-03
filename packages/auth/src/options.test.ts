@@ -125,6 +125,29 @@ describe('makeAuthOptions', () => {
     })
   })
 
+  describe('passkey knobs', () => {
+    it('derives rpID and origin from the app URL, not a second env var', () => {
+      const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'passkey')
+      // `localhost` is a valid WebAuthn rpID, so the Local Auth Path gains
+      // passkeys with zero configuration.
+      expect(options.rpID).toBe('localhost')
+      expect(options.origin).toBe('http://localhost:3071')
+    })
+
+    it('derives a production rpID that drops the subdomain port only', () => {
+      const config = { ...baseConfig, baseURL: 'https://app.example.com' }
+      const options = pluginOptions(makeAuthOptions(config).plugins, 'passkey')
+      expect(options.rpID).toBe('app.example.com')
+      expect(options.origin).toBe('https://app.example.com')
+    })
+
+    it('drops a path and trailing slash from the origin', () => {
+      const config = { ...baseConfig, baseURL: 'https://app.example.com/' }
+      const options = pluginOptions(makeAuthOptions(config).plugins, 'passkey')
+      expect(options.origin).toBe('https://app.example.com')
+    })
+  })
+
   describe('organization knobs', () => {
     it('caps workspaces per user and pins invitation hygiene', () => {
       const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'organization')
