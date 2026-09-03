@@ -3,6 +3,7 @@ import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
 import { type SeedNotification } from './notifications/notification-feed.ts'
 import { type WebhookEndpoint } from './developer-platform/webhook-endpoints.ts'
 import { type Member, type Workspace } from './governance/workspace-identity.ts'
+import { type SeedSsoConnection } from './governance/workspace-sso-connections.seed.ts'
 import {
   type SeedMembership,
   type SystemUserAccount
@@ -196,5 +197,33 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     message: 'Outbound webhook deliveries will start on the next event.',
     createdAt: '2026-05-16T06:00:00.000Z',
     read: true
+  }
+]
+
+/**
+ * One **disabled** example SSO connection, so the settings UI shows a
+ * populated state in the demo. Disabled is the load-bearing part: the row
+ * exists, but `resolveRouting` ignores it, so no sign-in is ever intercepted
+ * (ADR 0054's routing rule). The domain matches none of the fixture member
+ * addresses either — belt and braces for a demo row that is never enabled.
+ */
+export const seedSsoConnections: ReadonlyArray<SeedSsoConnection> = [
+  {
+    id: 'sso_example_oidc',
+    protocol: 'oidc',
+    domain: 'acme-corp.example',
+    issuer: 'https://login.acme-corp.example',
+    enabled: false,
+    requireSso: false,
+    defaultWorkspaceRole: 'member',
+    clientIdLastFour: '7f2a',
+    createdAt: '2026-05-15T09:30:00.000Z',
+    workspaceId: seedWorkspaceRecord.id,
+    oidc: {
+      authorizationEndpoint: 'https://login.acme-corp.example/authorize',
+      tokenEndpoint: 'https://login.acme-corp.example/token',
+      jwksEndpoint: 'https://login.acme-corp.example/jwks',
+      userInfoEndpoint: 'https://login.acme-corp.example/userinfo'
+    }
   }
 ]

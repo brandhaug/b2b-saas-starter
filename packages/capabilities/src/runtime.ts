@@ -5,6 +5,7 @@ import { type WebhookQueueBinding } from './developer-platform/webhook-publisher
 import { type WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
 import { type WorkspaceLifecycleBinding } from './governance/workspace-lifecycle.ts'
 import { type WorkspaceMemberBinding } from './governance/workspace-membership.ts'
+import { type WorkspaceSsoBinding } from './governance/workspace-sso-connections.ts'
 import { type PlatformUserAdminBinding } from './governance/platform-user-admin.ts'
 import {
   makeLiveCapabilitiesLayer,
@@ -55,6 +56,12 @@ export type StarterEnv = {
    * `CapabilityUnavailable`.
    */
   readonly userAdminBinding?: PlatformUserAdminBinding | undefined
+  /**
+   * Adapter onto the `sso` plugin's register/update/delete endpoints (ADR
+   * 0054). Absent, connection reads and domain routing still work and the
+   * settings mutations fail `CapabilityUnavailable`.
+   */
+  readonly ssoBinding?: WorkspaceSsoBinding | undefined
   /**
    * Stripe checkout configuration, forwarded to the Live billing layer.
    * Absent (env unset), checkout fails `provider_not_configured` and the rest

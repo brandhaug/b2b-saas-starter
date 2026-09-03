@@ -4,6 +4,7 @@ import {
   webhookEndpoints,
   workspaceInvitations,
   workspaceMembers,
+  workspaceSsoConnections,
   workspaces
 } from '@b2b-saas-starter/db/schema'
 import {
@@ -25,6 +26,7 @@ import {
 import { type WorkspaceInvitationBinding } from '../governance/workspace-invitations.ts'
 import { type WorkspaceLifecycleBinding } from '../governance/workspace-lifecycle.ts'
 import { type WorkspaceMemberBinding } from '../governance/workspace-membership.ts'
+import { type WorkspaceSsoBinding } from '../governance/workspace-sso-connections.ts'
 import { makeLiveCapabilitiesLayer, type CapabilityServices } from '../layers.ts'
 import { type StarterEnv } from '../runtime.ts'
 import { liveWorkspaceContext, type WorkspaceContext } from '../workspace-context.ts'
@@ -164,6 +166,83 @@ const insertFixtureRows = Effect.gen(function* () {
     events: ['webhook_endpoint.created'],
     createdAt: iso
   })
+  // SSO connection fixtures: one enabled OIDC connection that routes
+  // `@routed.test`, one disabled example that must never intercept a sign-in,
+  // and one connection on another workspace for scoping assertions. The
+  // config blobs are JSON strings exactly as the plugin stores them.
+  //
+  // oxlint-disable effect/noGlobals -- fixed literal dates, not clock reads; drizzle's timestamp mode requires Date instances
+  yield* db.insert(workspaceSsoConnections).values([
+    {
+      id: 'sso_live_oidc',
+      issuer: 'https://login.routed.test',
+      oidcConfig: JSON.stringify({
+        clientId: 'client-live-abcd',
+        clientSecret: 'sec_live_secret',
+        authorizationEndpoint: 'https://login.routed.test/authorize',
+        tokenEndpoint: 'https://login.routed.test/token',
+        jwksEndpoint: 'https://login.routed.test/jwks'
+      }),
+      samlConfig: null,
+      userId: 'usr_owner',
+      providerId: 'sso_live_oidc',
+      workspaceId: 'wrk_live',
+      domain: 'routed.test',
+      enabled: true,
+      requireSso: true,
+      defaultWorkspaceRole: 'admin',
+      createdAt: new Date(iso)
+    },
+    {
+      id: 'sso_live_disabled',
+      issuer: 'https://login.disabled.test',
+      oidcConfig: JSON.stringify({ clientId: 'client-disabled' }),
+      samlConfig: null,
+      userId: 'usr_owner',
+      providerId: 'sso_live_disabled',
+      workspaceId: 'wrk_live',
+      domain: 'disabled.test',
+      enabled: false,
+      requireSso: false,
+      defaultWorkspaceRole: 'member',
+      createdAt: new Date(iso)
+    },
+    {
+      id: 'sso_other_oidc',
+      issuer: 'https://login.other.test',
+      oidcConfig: JSON.stringify({ clientId: 'client-other' }),
+      samlConfig: null,
+      userId: 'usr_owner',
+      providerId: 'sso_other_oidc',
+      workspaceId: 'wrk_other',
+      domain: 'routed.test',
+      enabled: true,
+      requireSso: false,
+      defaultWorkspaceRole: 'member',
+      createdAt: new Date(iso)
+    },
+    {
+      id: 'sso_live_saml',
+      issuer: 'https://app.origin.test',
+      oidcConfig: null,
+      samlConfig: JSON.stringify({
+        issuer: 'https://app.origin.test',
+        entryPoint: 'https://idp.saml.test/sso',
+        idpMetadata: {
+          metadata: '<EntityDescriptor entityID="https://idp.saml.test"/>'
+        }
+      }),
+      userId: 'usr_owner',
+      providerId: 'sso_live_saml',
+      workspaceId: 'wrk_live',
+      domain: 'saml.test',
+      enabled: false,
+      requireSso: false,
+      defaultWorkspaceRole: 'member',
+      createdAt: new Date(iso)
+    }
+  ])
+  // oxlint-enable effect/noGlobals
 })
 
 /**
@@ -209,6 +288,7 @@ export function inWorkspace<A, E>(
     readonly invitationBinding?: WorkspaceInvitationBinding
     readonly lifecycleBinding?: WorkspaceLifecycleBinding
     readonly userAdminBinding?: PlatformUserAdminBinding
+    readonly ssoBinding?: WorkspaceSsoBinding
   }
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {
   return Effect.provide(
@@ -218,7 +298,8 @@ export function inWorkspace<A, E>(
         memberBinding: bindings?.memberBinding,
         invitationBinding: bindings?.invitationBinding,
         lifecycleBinding: bindings?.lifecycleBinding,
-        userAdminBinding: bindings?.userAdminBinding
+        userAdminBinding: bindings?.userAdminBinding,
+        ssoBinding: bindings?.ssoBinding
       }),
       liveWorkspaceContext(slug, actor)
     )
@@ -460,4 +541,136 @@ export function fakeLifecycleBinding(db: EffectDatabase) {
 export function pluginRejection(statusCode: number, message: string) {
   // oxlint-disable-next-line effect/noNewError -- the plugin's rejection shape, built by hand rather than imported
   return Object.assign(new Error(message), { statusCode })
+}
+
+// oxlint-disable effect/noGlobals -- fixture blobs mirror the plugin's stored JSON shape so read-backs parse; not an application serialization seam
+
+/** The OIDC half of the register body's stored blob. */
+function oidcBlob(input: {
+  readonly oidcConfig?:
+    | {
+        readonly clientId: string
+        readonly clientSecret: string
+        readonly endpoints: {
+          readonly authorizationEndpoint: string
+          readonly tokenEndpoint: string
+          readonly jwksEndpoint: string
+        }
+      }
+    | undefined
+}): string | null {
+  if (input.oidcConfig === undefined) {
+    return null
+  }
+  return JSON.stringify({
+    clientId: input.oidcConfig.clientId,
+    clientSecret: input.oidcConfig.clientSecret,
+    authorizationEndpoint: input.oidcConfig.endpoints.authorizationEndpoint,
+    tokenEndpoint: input.oidcConfig.endpoints.tokenEndpoint,
+    jwksEndpoint: input.oidcConfig.endpoints.jwksEndpoint
+  })
+}
+
+/** The SAML half of the register body's stored blob. */
+function samlBlob(input: {
+  readonly issuer: string
+  readonly samlConfig?:
+    | {
+        readonly metadataXml: string
+        readonly entryPoint: string
+      }
+    | undefined
+}): string | null {
+  if (input.samlConfig === undefined) {
+    return null
+  }
+  return JSON.stringify({
+    issuer: input.issuer,
+    entryPoint: input.samlConfig.entryPoint,
+    idpMetadata: { metadata: input.samlConfig.metadataXml }
+  })
+}
+
+// oxlint-enable effect/noGlobals
+
+/** The named shape the update statement builds — no anonymous dictionaries. */
+type FakeSsoUpdateSet = {
+  enabled?: boolean
+  requireSso?: boolean
+  defaultWorkspaceRole?: 'member' | 'admin'
+  oidcConfig?: string
+}
+
+/**
+ * A stand-in for the `sso` plugin's register/update/delete endpoints, on the
+ * same terms as `fakeMemberBinding`: it performs the row writes the plugin
+ * would (minus the protocol validation `packages/auth` covers) so the live
+ * suites can assert the capability's half — resolved workspace, read-back,
+ * audit — against real D1.
+ */
+export function fakeSsoBinding(db: EffectDatabase) {
+  const calls = new Array<unknown>()
+  const binding: WorkspaceSsoBinding = {
+    create: (input) => {
+      calls.push(input)
+      return Effect.runPromise(
+        Effect.asVoid(
+          db.insert(workspaceSsoConnections).values({
+            id: `row_${input.providerId}`,
+            issuer: input.issuer,
+            oidcConfig: oidcBlob(input),
+            samlConfig: samlBlob(input),
+            userId: 'usr_owner',
+            providerId: input.providerId,
+            workspaceId: input.workspaceId,
+            domain: input.domain,
+            enabled: false,
+            requireSso: false,
+            defaultWorkspaceRole: input.defaultWorkspaceRole,
+            // oxlint-disable-next-line effect/noGlobals -- fixed literal date, not a clock read
+            createdAt: new Date(1_782_000_000_000)
+          })
+        )
+      )
+    },
+    update: (input) => {
+      calls.push(input)
+      const set: FakeSsoUpdateSet = {}
+      if (input.enabled !== undefined) {
+        set.enabled = input.enabled
+      }
+      if (input.requireSso !== undefined) {
+        set.requireSso = input.requireSso
+      }
+      if (input.defaultWorkspaceRole !== undefined) {
+        set.defaultWorkspaceRole = input.defaultWorkspaceRole
+      }
+      if (input.oidcCredentials !== undefined) {
+        // oxlint-disable-next-line effect/noGlobals -- fixture blob, see above
+        set.oidcConfig = JSON.stringify({
+          clientId: input.oidcCredentials.clientId,
+          clientSecret: input.oidcCredentials.clientSecret
+        })
+      }
+      return Effect.runPromise(
+        Effect.asVoid(
+          db
+            .update(workspaceSsoConnections)
+            .set(set)
+            .where(eq(workspaceSsoConnections.providerId, input.providerId))
+        )
+      )
+    },
+    remove: (input) => {
+      calls.push(input)
+      return Effect.runPromise(
+        Effect.asVoid(
+          db
+            .delete(workspaceSsoConnections)
+            .where(eq(workspaceSsoConnections.providerId, input.providerId))
+        )
+      )
+    }
+  }
+  return { binding, calls }
 }

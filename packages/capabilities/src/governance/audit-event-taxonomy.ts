@@ -5,10 +5,11 @@
  *
  * Naming is `<namespace>.<past_tense_verb>`, snake_case, with a `_failed`
  * suffix for the failure half of a success/failure pair. Namespaces follow the
- * bounded contexts: `auth.` (account lifecycle over the auth catchall),
- * `api_token.` / `webhook_endpoint.` (developer platform),
- * `workspace.` / `workspace_member.` / `workspace_invitation.` (governance),
- * `system_admin.` (Better Auth admin endpoints — system-level, no workspace).
+ * bounded contexts: `auth.` (account lifecycle over the auth catchall,
+ * including SSO sign-in), `api_token.` / `webhook_endpoint.` (developer
+ * platform), `workspace.` / `workspace_member.` / `workspace_invitation.` /
+ * `workspace_sso.` (governance), `system_admin.` (Better Auth admin endpoints
+ * — system-level, no workspace).
  *
  * The unions are enforced at the WRITE boundary (`AuditEventLog.record` /
  * `prepareRecord` input). The read path stays lenient (`Schema.String` on the
@@ -41,6 +42,13 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'workspace_invitation.sent',
   'workspace_invitation.canceled',
   'workspace_invitation.accepted',
+  // governance — SSO connections (ADR 0054). The sign-in pair is `auth.`: it
+  // records over the auth catchall, next to the credential sign-in events.
+  'workspace_sso.connection_created',
+  'workspace_sso.connection_updated',
+  'workspace_sso.connection_removed',
+  'auth.sso_sign_in',
+  'auth.sso_sign_in_failed',
   // billing
   'billing.checkout_started',
   'billing.plan_changed',
@@ -99,7 +107,8 @@ export const AUDIT_TARGET_TYPES = literalTuple(
   'webhook_endpoint',
   'workspace',
   'workspace_member',
-  'workspace_invitation'
+  'workspace_invitation',
+  'workspace_sso_connection'
 )
 
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number]

@@ -71,6 +71,26 @@ export type NotificationFeedInterface = {
   readonly notifyUser: (
     input: NotifyUserInput
   ) => Effect.Effect<void, CapabilityUnavailable>
+
+  /**
+   * Records one workspace-scoped notification (ADR 0055's failed-test owner
+   * notification is the first producer). Upstream emitters call this after
+   * the thing they are describing has happened — the audit log is the record
+   * of the change itself, this is the message a member sees in their feed.
+   * Id and `createdAt` are owned here; a `userId` targets one member, `null`
+   * broadcasts to the workspace.
+   */
+  readonly record: (
+    input: RecordNotificationInput
+  ) => Effect.Effect<void, CapabilityUnavailable, WorkspaceContext>
+}
+
+/** What a producer hands the feed to surface a workspace message. */
+export type RecordNotificationInput = {
+  readonly title: string
+  readonly message: string
+  /** `null` broadcasts to everyone in the workspace (the seed rows' shape). */
+  readonly userId: string | null
 }
 
 export class NotificationFeed extends Context.Service<
@@ -156,6 +176,20 @@ export function SeedNotificationFeed(
               },
               ...current
             ])
+          }),
+        record: (input) =>
+          Effect.gen(function* () {
+            const row: SeedNotification = {
+              id: yield* newCapabilityId('not'),
+              title: input.title,
+              message: input.message,
+              createdAt: DateTime.formatIso(yield* DateTime.now),
+              read: false
+            }
+            if (input.userId !== null) {
+              row = { ...row, userId: input.userId }
+            }
+            yield* Ref.update(rows, (current) => [row, ...current])
           })
       }
     })
@@ -283,6 +317,21 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
               })
             }
             yield* unavailable(db.insert(notifications).values(values))
+          }),
+        record: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const createdAt = yield* DateTime.now
+            yield* unavailable(
+              db.insert(notifications).values({
+                id: yield* newCapabilityId('not'),
+                workspaceId: ctx.workspace.id,
+                userId: input.userId,
+                title: input.title,
+                message: input.message,
+                createdAt: DateTime.formatIso(createdAt)
+              })
+            )
           })
       }
     })

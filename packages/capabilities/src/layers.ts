@@ -51,6 +51,12 @@ import {
   type PlatformUserAdmin,
   type PlatformUserAdminBinding
 } from './governance/platform-user-admin.ts'
+import { LiveSsoConnections } from './governance/workspace-sso-connections.live.ts'
+import { SeedSsoConnections } from './governance/workspace-sso-connections.seed.ts'
+import {
+  type SsoConnections,
+  type WorkspaceSsoBinding
+} from './governance/workspace-sso-connections.ts'
 
 // billing
 import {
@@ -72,6 +78,7 @@ import {
   seedAuditEvents,
   seedMembers,
   seedNotifications,
+  seedSsoConnections,
   seedSystemUsers,
   seedTwoFactorUserIds,
   seedUserAdminMemberships,
@@ -85,6 +92,7 @@ export type CapabilityServices =
   | Billing
   | NotificationFeed
   | PlatformUserAdmin
+  | SsoConnections
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceInvitations
@@ -140,6 +148,7 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   SeedAuditLog,
   SeedBillingLayer,
   SeedNotifications,
+  SeedSsoConnections(seedSsoConnections),
   SeedWebhookEndpoints(seedWebhookEndpoints),
   SeedWebhookPublisher,
   SeedGovernance,
@@ -186,6 +195,13 @@ export type LiveCapabilitiesOptions = {
    * `CapabilityUnavailable`.
    */
   readonly userAdminBinding?: PlatformUserAdminBinding | undefined
+  /**
+   * Adapter onto the `sso` plugin's register/update/delete endpoints (ADR
+   * 0054). Absent, connection reads and domain routing still work and the
+   * settings mutations fail `CapabilityUnavailable` — the same provider-light
+   * posture the other bindings take.
+   */
+  readonly ssoBinding?: WorkspaceSsoBinding | undefined
 }
 
 export function makeLiveCapabilitiesLayer(
@@ -200,6 +216,7 @@ export function makeLiveCapabilitiesLayer(
     LiveAuditEventLog,
     LiveBilling(options.billing),
     LiveNotificationFeed,
+    LiveSsoConnections(options.ssoBinding),
     LiveWebhookEndpoints,
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
