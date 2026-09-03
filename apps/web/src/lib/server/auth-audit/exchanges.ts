@@ -49,10 +49,15 @@ export type ExchangeRow = {
   readonly signInMethod?: string
   /**
    * A success on this row also emails the account holder — a second factor
-   * must never change silently. The value is the enrollment state the change
-   * leaves behind (`two-factor-notification.ts`).
+   * or a sign-in credential must never change silently. The value is the
+   * state the change leaves behind (`two-factor-notification.ts` /
+   * `passkey-notification.ts`).
    */
-  readonly notifyOnSuccess?: 'two-factor-enabled' | 'two-factor-disabled'
+  readonly notifyOnSuccess?:
+    | 'two-factor-enabled'
+    | 'two-factor-disabled'
+    | 'passkey-added'
+    | 'passkey-removed'
 }
 
 export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
@@ -167,6 +172,39 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     failure: 'auth.two_factor_verification_failed',
     actor: 'response',
     target: 'session'
+  },
+  // Passkey lifecycle (ADR 0054). Registration demands a fresh session and
+  // its response is the passkey row (never an actor), so both management rows
+  // take the pre-handler actor — a failed add or remove is exactly the event
+  // worth attributing. Sign-in is a session-opening exchange like the
+  // credential ones, and rides the shared `auth.sign_in` pair with its own
+  // method marker.
+  {
+    method: 'POST',
+    suffix: '/passkey/verify-registration',
+    success: 'auth.passkey_added',
+    failure: 'auth.passkey_added_failed',
+    actor: 'session',
+    target: 'user',
+    notifyOnSuccess: 'passkey-added'
+  },
+  {
+    method: 'POST',
+    suffix: '/passkey/delete-passkey',
+    success: 'auth.passkey_removed',
+    failure: 'auth.passkey_removed_failed',
+    actor: 'session',
+    target: 'user',
+    notifyOnSuccess: 'passkey-removed'
+  },
+  {
+    method: 'POST',
+    suffix: '/passkey/verify-authentication',
+    success: 'auth.sign_in',
+    failure: 'auth.sign_in_failed',
+    actor: 'response',
+    target: 'session',
+    signInMethod: 'passkey'
   },
   // Better Auth admin mutations, from the `system_admin.` taxonomy namespace.
   // The response never names the acting admin, so the actor is always the
@@ -314,5 +352,21 @@ export function twoFactorChangeExchange(
   exchange: AuthExchange
 ): { readonly enabled: boolean } | null {
   const notify = exchangeRow(exchange)?.notifyOnSuccess
-  return notify === undefined ? null : { enabled: notify === 'two-factor-enabled' }
+  return notify === 'two-factor-enabled' || notify === 'two-factor-disabled'
+    ? { enabled: notify === 'two-factor-enabled' }
+    : null
+}
+
+/**
+ * The passkey change an exchange performs, or `null` when it changes no
+ * passkey. `added` is the state the success leaves behind — the security
+ * notification names the direction.
+ */
+export function passkeyChangeExchange(
+  exchange: AuthExchange
+): { readonly added: boolean } | null {
+  const notify = exchangeRow(exchange)?.notifyOnSuccess
+  return notify === 'passkey-added' || notify === 'passkey-removed'
+    ? { added: notify === 'passkey-added' }
+    : null
 }

@@ -24,8 +24,12 @@ import {
   impersonationGuardResponse
 } from '@/lib/server/impersonation-guard'
 import { makeTurnstileLayer } from '@/lib/server/turnstile'
-import { sendTwoFactorChangedEmail } from '@/lib/server/auth-emails'
+import {
+  sendTwoFactorChangedEmail,
+  sendPasskeyChangedEmail
+} from '@/lib/server/auth-emails'
 import { notifyTwoFactorChangedEffect } from '@/lib/server/two-factor-notification'
+import { notifyPasskeyChangedEffect } from '@/lib/server/passkey-notification'
 import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
 
 /** The notification sender, bound to the provider-light email dispatcher. */
@@ -34,6 +38,14 @@ function sendNotification(input: {
   readonly enabled: boolean
 }) {
   return sendTwoFactorChangedEmail({ email: input.email, enabled: input.enabled })
+}
+
+/** The passkey notification sender, on the same dispatcher. */
+function sendPasskeyNotification(input: {
+  readonly email: string
+  readonly added: boolean
+}) {
+  return sendPasskeyChangedEmail({ email: input.email, added: input.added })
 }
 
 /**
@@ -221,6 +233,15 @@ async function handleAuth(request: Request): Promise<Response> {
           exchange,
           response,
           sendNotification,
+          context
+        )
+        // Same contract for passkey add/remove (ADR 0054): the account holder
+        // is emailed on every successful credential change, so a hijacked
+        // session cannot silently enroll or strip a passkey.
+        yield* notifyPasskeyChangedEffect(
+          exchange,
+          response,
+          sendPasskeyNotification,
           context
         )
         yield* Effect.annotateLogsScoped({ outcome: 'ok', statusCode: response.status })

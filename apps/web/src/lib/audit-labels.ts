@@ -51,6 +51,10 @@ const EVENT_LABELS = new Map<string, string>(
     'auth.two_factor_disable_failed': 'Two-factor disable failed',
     'auth.two_factor_verified': 'Two-factor code verified',
     'auth.two_factor_verification_failed': 'Two-factor verification failed',
+    'auth.passkey_added': 'Passkey added',
+    'auth.passkey_added_failed': 'Passkey add failed',
+    'auth.passkey_removed': 'Passkey removed',
+    'auth.passkey_removed_failed': 'Passkey removal failed',
     // Better Auth admin endpoints (system-level)
     'system_admin.user_created': 'System user created',
     'system_admin.user_creation_failed': 'System user creation failed',

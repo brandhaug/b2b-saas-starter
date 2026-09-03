@@ -1,16 +1,21 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import { SignInPage, type SignInWithEmail } from './sign-in'
+import { SignInPage, type SignInWithEmail, type SignInWithPasskey } from './sign-in'
 
 // The page's own `signIn` port, handed in as a prop. The router is real, so the
 // redirect assertions read the resulting location instead of asking whether a
 // `history.push` double was called.
 const signIn = vi.fn<SignInWithEmail>()
+const signInPasskey = vi.fn<SignInWithPasskey>()
 
 async function renderPage(redirect?: string) {
   const rendered = await renderWithRouter(
-    <SignInPage {...(redirect === undefined ? {} : { redirect })} signIn={signIn} />,
+    <SignInPage
+      {...(redirect === undefined ? {} : { redirect })}
+      signIn={signIn}
+      signInPasskey={signInPasskey}
+    />,
     { path: '/sign-in', destinations: ['/workspaces', '/workspaces/starter-lab'] }
   )
   await screen.findByLabelText('Email')
@@ -30,6 +35,12 @@ describe('SignInPage', () => {
   beforeEach(() => {
     signIn.mockReset()
     signIn.mockResolvedValue({ error: null })
+    signInPasskey.mockReset()
+    signInPasskey.mockResolvedValue({ data: null, error: null })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('shows validation errors and disables submit for invalid input', async () => {
@@ -83,5 +94,65 @@ describe('SignInPage', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('Invalid email or password')
     expect(router.state.location.pathname).toBe('/sign-in')
+  })
+
+  it('offers the passkey button alongside the credential form', async () => {
+    await renderPage()
+    const passkey = screen.getByRole('button', { name: 'Sign in with a passkey' })
+    expect(passkey).toBeDefined()
+    // The conditional-UI half of the contract: the email field carries the
+    // `webauthn` autocomplete token, last.
+    expect(screen.getByLabelText('Email').getAttribute('autocomplete')).toBe(
+      'email webauthn'
+    )
+  })
+
+  it('signs in through the passkey port and redirects on success', async () => {
+    const { router } = await renderPage('/workspaces/starter-lab')
+    signInPasskey.mockResolvedValue({
+      data: { user: { id: 'usr_demo' } },
+      error: null
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with a passkey' }))
+
+    // The button opens the modal ceremony: no autofill option at all.
+    await waitFor(() => expect(signInPasskey).toHaveBeenCalledWith(undefined))
+    // A passkey sign-in opens the session in the ceremony itself — there is
+    // no two-factor hop to route through.
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/workspaces/starter-lab')
+    )
+  })
+
+  it('surfaces a cancelled passkey ceremony without navigating', async () => {
+    const { router } = await renderPage()
+    signInPasskey.mockResolvedValue({ error: { message: 'Auth cancelled' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with a passkey' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('Auth cancelled')
+    expect(router.state.location.pathname).toBe('/sign-in')
+  })
+
+  it('preloads conditional UI where the browser supports passkey autofill', async () => {
+    vi.stubGlobal('PublicKeyCredential', {
+      isConditionalMediationAvailable: () => Promise.resolve(true)
+    })
+    await renderPage()
+
+    await waitFor(() => expect(signInPasskey).toHaveBeenCalledWith({ autoFill: true }))
+  })
+
+  it('does not preload conditional UI where the browser lacks support', async () => {
+    vi.stubGlobal('PublicKeyCredential', {
+      isConditionalMediationAvailable: () => Promise.resolve(false)
+    })
+    await renderPage()
+
+    const button = screen.getByRole('button', { name: 'Sign in with a passkey' })
+    expect(button).toBeDefined()
+    expect(signInPasskey).not.toHaveBeenCalled()
   })
 })

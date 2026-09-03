@@ -2,6 +2,7 @@ import { type AuthEmailSender } from '@b2b-saas-starter/auth'
 import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import {
   EmailVerificationEmail,
+  PasskeyChangedEmail,
   PasswordResetEmail,
   TwoFactorChangedEmail
 } from '@b2b-saas-starter/email/templates'
@@ -110,5 +111,25 @@ export function sendTwoFactorChangedEmail(input: {
     to: input.email,
     subject: 'Two-factor authentication changed',
     element: TwoFactorChangedEmail({ enabled: input.enabled })
+  })
+}
+
+/**
+ * The passkey security notification (`passkey-notification.ts` drives it),
+ * on the same best-effort contract as the two-factor one.
+ */
+export function sendPasskeyChangedEmail(input: {
+  readonly email: string
+  readonly added: boolean
+}): Promise<void> {
+  // Plain branches, like the template's own two wordings.
+  let subject = 'Passkey added to your account'
+  if (!input.added) {
+    subject = 'Passkey removed from your account'
+  }
+  return dispatch({
+    to: input.email,
+    subject,
+    element: PasskeyChangedEmail({ added: input.added })
   })
 }
