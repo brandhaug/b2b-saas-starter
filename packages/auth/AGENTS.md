@@ -38,6 +38,7 @@ Order matters. `tanstackStartCookies()` must stay **last** so cookies set by oth
 | `twoFactor({ ... })`                                                            | TOTP only, verified before it counts as on; backup codes at enrollment                                                                                                                                                                                                                                                                                    |
 | `admin({ adminRoles, impersonationSessionDuration, allowImpersonatingAdmins })` | System Admin axis — `user.role`, ban/unban, impersonation (ADR 0054), `listUsers` for `/admin`. `adminRoles` reads `adminSystemRole` from `@b2b-saas-starter/db/enums`, never a restated `'admin'` literal. Impersonation is one hour (the capability's `IMPERSONATION_SESSION_SECONDS` restates the number — siblings) and admins are never impersonable |
 | `organization({ ... })`                                                         | Workspace membership and invitations (ADR 0051)                                                                                                                                                                                                                                                                                                           |
+| `sso({ ... })`          | Workspace-scoped SSO connections — OIDC + SAML, provisioning, domain routing (ADR 0055) |
 | `tanstackStartCookies()`                                                        | bridges the session cookie into TanStack Start; **last**                                                                                                                                                                                                                                                                                                  |
 
 The starter ships no OAuth providers: `socialProviders` is absent from both `AuthConfig` and the options object rather than passed empty. A fork adds one by extending `makeAuthOptions`, never by wiring a provider that exists but is disabled.
@@ -53,6 +54,16 @@ The starter's domain word is **Workspace** and the plugin's is "organization". T
 - `additionalFields` on `organization`: `planId`, which is the starter's own and part of the public `Workspace` DTO, and `updatedAt`, which the plugin's organization model does not declare. Both are `input: false` — a plan change is billing's job, not a caller's. Neither belongs in `metadata`: the plugin strips unknown columns from endpoint responses, and it stringifies `metadata` itself.
 - `ac: accessControl` and `roles: workspaceRoleAccess` come from [`authz`](../authz/AGENTS.md). The plugin's own endpoints and `requirePermission` read the same objects, so they cannot disagree.
 - `teams: { enabled: false }`, stated rather than defaulted. `dynamicAccessControl` is absent for the same reason: both want tables the schema does not have.
+
+## The sso plugin's mapping
+
+Workspace SSO (ADR 0054) follows the organization mapping's rules with a second plugin:
+
+- `schema.ssoProvider.modelName = 'workspaceSsoConnections'`, `fields: { organizationId: 'workspaceId' }` — the connection's `organizationId` is the Better Auth organization that backs the Workspace, which is what `organizationProvisioning` provisions against.
+- The starter's columns (`enabled`, `requireSso`, `defaultWorkspaceRole`) are `additionalFields` with `input: true` (the app's settings surface sets them through the plugin's register/update bodies); `createdAt` is an `additionalField` with `input: false` and the usual `defaultValue: () => new Date()` for the same no-Clock reason as `workspaces.updatedAt`.
+- `organizationProvisioning.getRole` reads `defaultWorkspaceRole` off the provider row through `provisionedRoleOf` — the plugin types additional fields as plain strings and its callback parameter as the field-less `BaseSSOProvider`, so the read is deliberately loose and `isSsoProvisionedRole` (`@b2b-saas-starter/db/enums`) decides. Anything outside `member | admin` — including a bogus value written by a raw API call — provisions as `member`. SSO never mints `owner`.
+- The app registers OIDC connections fully hydrated (`skipDiscovery` + explicit endpoints): the plugin's own register-time discovery demands the IdP origin in `trustedOrigins`, which would make every new IdP an operator env change. See ADR 0054 §3.
+- `defaultSSO` stays unused (env-configured providers are the shape this exists to avoid) and `domainVerification` stays off — domain control comes from the owner role that configures the connection.
 
 ## Invariants
 

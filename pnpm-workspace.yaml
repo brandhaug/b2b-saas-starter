@@ -24,6 +24,7 @@ auditConfig:
 catalog:
   '@babel/core': 8.0.1
   '@base-ui/react': 1.7.0
+  '@better-auth/sso': 1.7.2
   '@cloudflare/workers-types': 5.20260828.1
   '@effect/language-service': 0.87.2
   '@effect/platform-node': 4.0.0-rc.112

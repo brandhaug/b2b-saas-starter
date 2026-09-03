@@ -2,6 +2,7 @@ import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz/clie
 import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import * as schema from '@b2b-saas-starter/db/schema'
+import { sso } from '@better-auth/sso'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { organization } from 'better-auth/plugins/organization'
@@ -71,6 +72,36 @@ export type AuthConfigInterface = {
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
   '@b2b-saas-starter/auth/AuthConfig'
 ) {}
+
+/**
+ * The provisioning role for `organizationProvisioning.getRole`. The plugin
+ * types `additionalFields` as plain strings, so the stored value is compared
+ * against the one provisioned role above `member`: anything else — including
+ * a bogus `owner` written by a raw API call — provisions as `member`. SSO
+ * never mints the role that can delete the workspace or change the
+ * connection.
+ */
+const SSO_ADMIN_ROLE = 'admin'
+
+/**
+ * The plugin's callback contract is promise-returning and runs outside any
+ * Effect (like the `additionalFields` date defaults below), so the wrapper
+ * here is a plain promise — the Effect-boundary promise rules do not apply to
+ * this file's plugin-callback seams.
+ */
+function provisionedRoleOf(data: {
+  readonly provider: {
+    readonly providerId: string
+    readonly defaultWorkspaceRole?: string | null
+  }
+}): Promise<'member' | 'admin'> {
+  if (data.provider.defaultWorkspaceRole === SSO_ADMIN_ROLE) {
+    // oxlint-disable-next-line effect/noNewPromise -- plugin callback runs outside Effect
+    return Promise.resolve('admin')
+  }
+  // oxlint-disable-next-line effect/noNewPromise -- plugin callback runs outside Effect
+  return Promise.resolve('member')
+}
 
 /**
  * Kept as a plain function returning a single (non-union) object type: the
@@ -256,6 +287,67 @@ export function makeAuthOptions(options: AuthConfigInterface) {
           invitation: {
             modelName: 'workspaceInvitations',
             fields: { organizationId: 'workspaceId' }
+          }
+        }
+      }),
+      // Workspace-scoped SSO (ADR 0054). The plugin owns the connection rows
+      // and the protocol flows; the starter owns the vocabulary and the
+      // routing rule. Configuration is per-workspace in the database — there
+      // is deliberately no env var, because an owner configuring a connection
+      // is the whole point (the Optional Provider here is owner-gated, not
+      // operator-gated).
+      sso({
+        // Connections start disabled and an owner enables one after a
+        // successful test, so a half-configured IdP never intercepts sign-ins.
+        // Enforced by the app's settings surface; the plugin has no option for
+        // it, which is why `enabled` is an additionalField below.
+        // A first SSO sign-in creates the user when needed and joins them to
+        // the connection's workspace with the connection's own default
+        // Workspace Role — `member` unless the owner configured `admin`.
+        // `owner` is unreachable by design: see `ssoProvisionedRoles`.
+        organizationProvisioning: {
+          getRole: provisionedRoleOf
+        },
+        // Stated rather than left on the plugin's implicit default of 10, so a
+        // change is a visible diff. Counted per registering user; workspace
+        // connections are additionally capped by the owner/admin gate on the
+        // register endpoint itself.
+        providersLimit: 10,
+        schema: {
+          ssoProvider: {
+            // `modelName` is the drizzle schema export key, not the SQL table
+            // name — same rule as the organization mapping above.
+            modelName: 'workspaceSsoConnections',
+            // The plugin names its foreign key `organizationId`; the column
+            // spells it the starter's way, remapped once here.
+            fields: { organizationId: 'workspaceId' },
+            additionalFields: {
+              enabled: {
+                type: 'boolean',
+                required: false,
+                input: true,
+                defaultValue: false
+              },
+              requireSso: {
+                type: 'boolean',
+                required: false,
+                input: true,
+                defaultValue: false
+              },
+              defaultWorkspaceRole: {
+                type: 'string',
+                required: false,
+                input: true,
+                defaultValue: 'member'
+              },
+              createdAt: {
+                type: 'date',
+                required: false,
+                input: false,
+                // oxlint-disable-next-line effect/noGlobals -- plugin callback runs outside Effect; no Clock available
+                defaultValue: () => new Date()
+              }
+            }
           }
         }
       }),
