@@ -5,6 +5,8 @@ import { SeedLayer } from './layers.ts'
 import {
   demoMemberIdentity,
   demoUserIdentity,
+  seedMcpClientConnections,
+  seedMcpClients,
   seedMembers,
   seedWorkspaceRecord
 } from './seed-fixture.ts'
@@ -35,6 +37,9 @@ import {
   LiveWebhookPublisher,
   SeedWebhookPublisher
 } from './developer-platform/webhook-publisher.ts'
+import { SeedMcpClientConnections } from './developer-platform/mcp-client-connections.seed.ts'
+import { mcpClientConnectionsContractCases } from './developer-platform/mcp-client-connections.contract.ts'
+import { McpClientConnections } from './developer-platform/mcp-client-connections.ts'
 import { selectCapabilitiesLayer, selectWorkspaceLayer } from './runtime.ts'
 import {
   NotificationFeed,
@@ -108,6 +113,76 @@ describe('seed developer-platform contract', () => {
 
 // The plan-limit gate needs a workspace whose plan actually caps the resource;
 // the demo fixture sits on `team` (uncapped).
+describe('seed mcp client connections contract', () => {
+  const auditLog = SeedAuditEventLog([])
+  const layer = Layer.mergeAll(
+    auditLog,
+    testWorkspaceContext(seedWorkspaceRecord),
+    SeedMcpClientConnections({
+      clients: seedMcpClients,
+      connections: seedMcpClientConnections
+    }).pipe(Layer.provide(auditLog))
+  )
+  for (const contractCase of mcpClientConnectionsContractCases(expect)) {
+    it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
+  }
+})
+
+// The fixture-consent flows the contract cannot cover from an empty store:
+// list ordering and the revoke post-condition, against the demo owner's
+// standing consent to the fixture client.
+describe('seed mcp client connections', () => {
+  const auditLog = SeedAuditEventLog([])
+  const layer = Layer.mergeAll(
+    auditLog,
+    testWorkspaceContext(seedWorkspaceRecord),
+    SeedMcpClientConnections({
+      clients: seedMcpClients,
+      connections: seedMcpClientConnections
+    }).pipe(Layer.provide(auditLog))
+  )
+
+  it.effect(
+    'lists only the owner’s connections, newest first, without the owner key',
+    () =>
+      Effect.gen(function* () {
+        const connections = yield* McpClientConnections
+        const listed = yield* connections.listForUser('usr_demo')
+        expect(listed).toHaveLength(seedMcpClientConnections.length)
+        expect(listed[0]).toMatchObject({
+          id: seedMcpClientConnections[0]?.id,
+          client: seedMcpClients[0]
+        })
+        expect(yield* connections.listForUser('usr_nobody')).toEqual([])
+      }).pipe(Effect.provide(layer))
+  )
+
+  it.effect('revoke removes the connection and records consent_revoked once', () =>
+    Effect.gen(function* () {
+      const connections = yield* McpClientConnections
+      const log = yield* AuditEventLog
+      const connection = seedMcpClientConnections[0]
+      if (connection === undefined) {
+        return yield* Effect.die('fixture lost its connection')
+      }
+
+      expect(
+        yield* connections.revoke({
+          userId: 'usr_demo',
+          connectionId: connection.id
+        })
+      ).toBe(true)
+
+      const listed = yield* connections.listForUser('usr_demo')
+      expect(listed.some((row) => row.id === connection.id)).toBe(false)
+      const page = yield* log.list({ eventType: 'mcp_client.consent_revoked' })
+      expect(
+        page.events.some((event) => event.targetId === connection.client.clientId)
+      ).toBe(true)
+    }).pipe(Effect.provide(layer))
+  )
+})
+
 describe('seed developer-platform plan-limit contract', () => {
   const auditLog = SeedAuditEventLog([])
   const layer = Layer.mergeAll(
