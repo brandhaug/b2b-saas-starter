@@ -30,8 +30,13 @@ test('the live demo renders the dashboard without a session', async ({ page }) =
   await expect(page.getByText('Notifications')).toBeVisible()
   await expect(page.getByText('Needs attention')).toHaveCount(0)
   // Mark-as-read is the one member mutation, and the demo refuses it honestly.
-  await page.getByRole('button', { name: 'Mark all read' }).click()
-  await expect(page.getByText(/read-only/i)).toBeVisible()
+  // The click can land before React hydrates — dev-server module transforms
+  // delay hydration, the same warm-up variance the config documents — so the
+  // retry loop waits the transforms out until the refusal renders.
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Mark all read' }).click()
+    await expect(page.getByText(/read-only/i)).toBeVisible({ timeout: 1000 })
+  }).toPass({ timeout: 30_000 })
 })
 
 test('the demo route 404s an unknown workspace instead of faking one', async ({

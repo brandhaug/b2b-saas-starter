@@ -18,13 +18,19 @@ function ClosingSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button
+              nativeButton={false}
               render={<Link to="/demo/$workspaceSlug" params={{ workspaceSlug }} />}
               size="lg"
             >
               Open the live demo
               <ArrowRightIcon className="size-4" />
             </Button>
-            <Button render={<Link to="/docs" />} size="lg" variant="outline">
+            <Button
+              nativeButton={false}
+              render={<Link to="/docs" />}
+              size="lg"
+              variant="outline"
+            >
               Read the docs
             </Button>
           </div>

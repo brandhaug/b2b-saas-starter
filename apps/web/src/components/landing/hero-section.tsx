@@ -39,13 +39,19 @@ function HeroSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
                   workspace with no sign-in and no mutation path; the real app
                   is one sign-in away from there. */}
               <Button
+                nativeButton={false}
                 render={<Link to="/demo/$workspaceSlug" params={{ workspaceSlug }} />}
                 size="lg"
               >
                 Open the live demo
                 <ArrowRightIcon className="size-4" />
               </Button>
-              <Button render={<Link to="/sign-in" />} size="lg" variant="outline">
+              <Button
+                nativeButton={false}
+                render={<Link to="/sign-in" />}
+                size="lg"
+                variant="outline"
+              >
                 Sign in
               </Button>
               <a
