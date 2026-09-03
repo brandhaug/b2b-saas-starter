@@ -28,6 +28,22 @@ bun run deploy
 
 Sensitive values are wrapped in `effect/Redacted` inside `alchemy.run.ts` so they never appear in logs or stack traces. Optional providers are validated in `packages/env/src/server.ts` — missing config keeps the relevant provider inactive rather than failing startup. See the secret matrix in `ARCHITECTURE.md` for the full list (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`, `SENTRY_DSN`, `POSTHOG_KEY`/`POSTHOG_HOST`, `CLOUDFLARE_EMAIL_FROM`, `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`, `WORKERS_AI_ENABLED`, `OPENAI_API_KEY`).
 
+## Preview deployments per pull request
+
+Every pull request opened from this repository gets its own Alchemy stage, `pr-<number>`, with a separate D1 database, webhook queues, and three Workers named `b2b-saas-starter-pr-<number>-{web,api,background}`. The `Preview` workflow deploys the stage on every push, runs the migrations, seeds the Seed Workspace so the preview opens with data, and keeps one comment on the pull request pointing at the web, API, and background URLs. Closing the pull request destroys the stage.
+
+Previews run provider-light: Turnstile, Stripe, Sentry, PostHog, email, and AI stay off regardless of what the deploying environment has configured, and `ENVIRONMENT` is `preview`. The same stage can be deployed from a laptop:
+
+```bash
+export CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… CLOUDFLARE_WORKERS_SUBDOMAIN=<your subdomain>
+export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
+ALCHEMY_STAGE=pr-42 pnpm run deploy:stage
+ALCHEMY_STAGE=pr-42 pnpm run db:seed:stage
+ALCHEMY_STAGE=pr-42 pnpm run destroy:stage
+```
+
+The required secrets and the reasoning are in `docs/deploying.md` and ADR 0054.
+
 ## Rolling back
 
 `bun run destroy` (which is `bun alchemy.run.ts --destroy`) tears the entire stack down. Targeted rollbacks today go through redeploying a previous commit from CI — there is no versioned rollback flag in the starter's scripts.

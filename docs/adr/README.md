@@ -11,6 +11,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0019 — CI with Alchemy deploy on merge](./0019-ci-with-manual-alchemy-deploy.md)
 - [0049 — Persisted local D1 in dev and e2e](./0049-persisted-local-d1-in-dev-and-e2e.md)
 - [0053 — pnpm and Vite+ toolchain](./0053-pnpm-and-vite-plus-toolchain.md)
+- [0054 — Ephemeral per-pull-request preview stages](./0054-ephemeral-pr-preview-stages.md)
 
 ## Application architecture
 
