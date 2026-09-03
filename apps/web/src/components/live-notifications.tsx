@@ -80,7 +80,11 @@ export function LiveNotifications({
     (ids: ReadonlyArray<string>) => markRead({ data: { workspaceSlug, ids } }),
     {
       failureMessage: MARK_READ_FAILED,
-      invalidate: false,
+      // Default invalidation on purpose: the unread count lives in two
+      // places — this query and the loader payload that badges the header and
+      // feeds the attention list. The refetch updates the panel immediately;
+      // `router.invalidate()` refreshes the loader's count so the badge never
+      // disagrees with the panel.
       onSuccess: () => {
         void refetch()
       }
