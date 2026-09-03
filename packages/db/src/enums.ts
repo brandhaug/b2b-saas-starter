@@ -44,6 +44,17 @@ export const apiTokenScopes = ['read', 'write', 'admin'] as const
 export type ApiTokenScopeValue = (typeof apiTokenScopes)[number]
 
 /**
+ * The Workspace Roles an SSO Connection may hand a provisioned member, stored
+ * in `workspace_sso_connections.defaultWorkspaceRole` and read by Better
+ * Auth's `sso` plugin at sign-in. Deliberately narrower than `workspaceRoles`:
+ * `owner` is absent, because a connection must never mint the role that can
+ * delete the workspace or change the connection itself.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const ssoProvisionedRoles = ['member', 'admin'] as const
+export type SsoProvisionedRoleValue = (typeof ssoProvisionedRoles)[number]
+
+/**
  * The delivery state machine written by the background worker through
  * `WebhookEndpoints.recordDeliveryAttempt` / `recordTerminalDeliveryAttempt`:
  * `delivered` on a 2xx, `failed` while retries remain, `failed_permanent` on a

@@ -1,6 +1,7 @@
 import {
   deliveryStatuses,
   invitationStatuses,
+  ssoProvisionedRoles,
   systemRoles,
   workspaceRoles,
   type ApiTokenScopeValue
@@ -20,10 +21,12 @@ export {
   apiTokenScopes,
   deliveryStatuses,
   invitationStatuses,
+  ssoProvisionedRoles,
   systemRoles,
   workspaceRoles,
   type ApiTokenScopeValue,
   type DeliveryStatus,
+  type SsoProvisionedRoleValue,
   type SystemRoleValue
 } from './enums.ts'
 /**
@@ -290,6 +293,52 @@ export const workspaceInvitations = sqliteTable(
     workspaceIdIndex('workspace_invitations', table.workspaceId),
     index('workspace_invitations_email_idx').on(table.email),
     index('workspace_invitations_inviter_id_idx').on(table.inviterId)
+  ]
+)
+
+// Owned by Better Auth's `sso` plugin, same rules as the three organization
+// tables above: the export key must stay the plugin's model name (`ssoProvider`
+// is remapped onto `workspaceSsoConnections` in `packages/auth`), and the
+// column shape is the plugin's — camelCase fields, a JSON-stringified config
+// per protocol (plain `text`, like `workspaces.metadata`, because the plugin
+// stringify/parses it itself), an epoch-integer `createdAt` via
+// `additionalFields`. The starter's own columns (`enabled`, `requireSso`,
+// `defaultWorkspaceRole`) are plugin `additionalFields`, not stray columns, so
+// the plugin's register/update endpoints accept and return them.
+export const workspaceSsoConnections = sqliteTable(
+  'workspace_sso_connections',
+  {
+    id: id(),
+    issuer: text('issuer').notNull(),
+    // JSON-stringified OIDC / SAML config blobs written by the plugin. The
+    // OIDC blob carries the client secret — reads go through the capability's
+    // sanitized projection, never the raw column.
+    oidcConfig: text('oidcConfig'),
+    samlConfig: text('samlConfig'),
+    userId: text('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    providerId: text('providerId').unique().notNull(),
+    // The plugin names its foreign key `organizationId`; the column spells it
+    // the starter's way, remapped in `packages/auth` like `workspaceMembers`.
+    workspaceId: workspaceRef('workspaceId'),
+    domain: text('domain').notNull(),
+    // additionalFields — see the comment above the table.
+    enabled: integer('enabled', { mode: 'boolean' }).default(false).notNull(),
+    requireSso: integer('requireSso', { mode: 'boolean' }).default(false).notNull(),
+    defaultWorkspaceRole: text('defaultWorkspaceRole', {
+      enum: ssoProvisionedRoles
+    })
+      .default('member')
+      .notNull(),
+    createdAt: authCreatedAt()
+  },
+  (table) => [
+    workspaceIdIndex('workspace_sso_connections', table.workspaceId),
+    // The sign-in domain-routing lookup scans by domain first; the plugin
+    // allows one IdP to serve several comma-separated domains, so this is an
+    // index, not a unique constraint.
+    index('workspace_sso_connections_domain_idx').on(table.domain)
   ]
 )
 
