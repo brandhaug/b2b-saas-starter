@@ -28,8 +28,15 @@ import { formatUtcOr } from '@/lib/format-date'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import {
   disableWebhookEndpointServerFn,
-  rotateWebhookSecretServerFn
+  replayWebhookDeliveryServerFn,
+  rotateWebhookSecretServerFn,
+  sendTestEventServerFn
 } from '@/lib/server/webhooks'
+import {
+  WebhookDeliveriesDrawer,
+  type ReplayDelivery,
+  type SendTestEvent
+} from '@/components/webhook-deliveries-drawer'
 import { useServerAction } from '@/hooks/use-server-action'
 
 const DISABLE_FAILED = 'Failed to disable endpoint'
@@ -56,31 +63,44 @@ export type RotateWebhookSecret = (input: {
 }) => Promise<string | null>
 
 function Deliveries({
-  deliveries
+  deliveries,
+  onOpenDrawer
 }: {
   readonly deliveries: ReadonlyArray<WebhookDelivery>
+  readonly onOpenDrawer: () => void
 }) {
-  if (deliveries.length === 0) {
-    return <p className="text-xs text-muted-foreground">No delivery attempts yet.</p>
-  }
   return (
-    <ul className="grid gap-1">
-      {deliveries.map((delivery) => (
-        <li key={delivery.id} className="flex items-center gap-2 text-xs">
-          <Badge variant={webhookDeliveryStatusVariant(delivery.status)}>
-            {delivery.status}
-          </Badge>
-          <span className="font-mono">{delivery.eventType}</span>
-          <span className="text-muted-foreground">
-            attempt {delivery.attempts}
-            {delivery.responseStatus === null
-              ? ''
-              : ` · ${delivery.responseStatus}`} ·{' '}
-            {formatUtcOr(delivery.lastAttemptAt, 'never')}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <div className="grid gap-2">
+      <Button
+        variant="ghost"
+        size="xs"
+        onClick={onOpenDrawer}
+        aria-label={`Delivery attempts (${deliveries.length})`}
+      >
+        Delivery attempts ({deliveries.length})
+      </Button>
+      {deliveries.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No delivery attempts yet.</p>
+      ) : (
+        <ul className="grid gap-1">
+          {deliveries.slice(0, 3).map((delivery) => (
+            <li key={delivery.id} className="flex items-center gap-2 text-xs">
+              <Badge variant={webhookDeliveryStatusVariant(delivery.status)}>
+                {delivery.status}
+              </Badge>
+              <span className="font-mono">{delivery.eventType}</span>
+              <span className="text-muted-foreground">
+                attempt {delivery.attempts}
+                {delivery.responseStatus === null
+                  ? ''
+                  : ` · ${delivery.responseStatus}`}{' '}
+                · {formatUtcOr(delivery.lastAttemptAt, 'never')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 
@@ -96,7 +116,9 @@ export function WebhooksPanel({
   viewer,
   disableEndpoint = disableWebhookEndpointServerFn,
   rotateSecret = rotateWebhookSecretServerFn,
-  createEndpoint
+  createEndpoint,
+  replayDelivery = replayWebhookDeliveryServerFn,
+  sendTestEvent = sendTestEventServerFn
 }: {
   readonly workspaceSlug: string
   readonly endpoints: ReadonlyArray<
@@ -108,6 +130,8 @@ export function WebhooksPanel({
   readonly disableEndpoint?: DisableWebhookEndpoint
   readonly rotateSecret?: RotateWebhookSecret
   readonly createEndpoint?: CreateWebhookEndpoint
+  readonly replayDelivery?: ReplayDelivery
+  readonly sendTestEvent?: SendTestEvent
 }) {
   const router = useRouter()
   const [rotatedSecret, setRotatedSecret] = useState<{
@@ -118,6 +142,8 @@ export function WebhooksPanel({
   // this surface, so it takes a click to arm and a second to commit — the same
   // two-step pattern the settings page's delete uses.
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  // The endpoint whose deliveries drawer is open, if any.
+  const [drawerEndpointId, setDrawerEndpointId] = useState<string | null>(null)
 
   const canCreate = viewerCan(viewer, { webhook: ['create'] })
   const canDisable = viewerCan(viewer, { webhook: ['disable'] })
@@ -143,6 +169,8 @@ export function WebhooksPanel({
   )
 
   const busyId = disable.pendingInput ?? rotate.pendingInput ?? null
+  const drawerEndpoint =
+    endpoints.find((endpoint) => endpoint.id === drawerEndpointId) ?? null
 
   return (
     <Panel>
@@ -206,7 +234,10 @@ export function WebhooksPanel({
                   </div>
                 </ItemContent>
 
-                <Deliveries deliveries={endpoint.deliveries} />
+                <Deliveries
+                  deliveries={endpoint.deliveries}
+                  onOpenDrawer={() => setDrawerEndpointId(endpoint.id)}
+                />
 
                 {(canDisable || canRotate) && endpoint.enabled ? (
                   <ItemActions className="flex-wrap">
@@ -253,6 +284,10 @@ export function WebhooksPanel({
                           label="Webhook secret"
                           className="flex items-center gap-2"
                         />
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          The replaced secret keeps signing deliveries for 24 hours, so
+                          your receiver can swap it in without dropping anything.
+                        </p>
                       </AlertDescription>
                     </Alert>
                   </>
@@ -262,6 +297,23 @@ export function WebhooksPanel({
           </ItemGroup>
         )}
       </ListSection>
+
+      {drawerEndpoint === null ? null : (
+        <WebhookDeliveriesDrawer
+          workspaceSlug={workspaceSlug}
+          endpoint={drawerEndpoint}
+          open
+          onOpenChange={(nextOpen) => {
+            if (nextOpen) {
+              return
+            }
+            setDrawerEndpointId(null)
+          }}
+          viewer={viewer}
+          replayDelivery={replayDelivery}
+          sendTestEvent={sendTestEvent}
+        />
+      )}
     </Panel>
   )
 }

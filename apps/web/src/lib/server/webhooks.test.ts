@@ -1,7 +1,11 @@
 import { SeedWebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints.seed'
-import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import {
+  WebhookEndpoints,
+  type WebhookEndpoint
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { SeedWebhookPublisher } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { SeedNotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
   testWorkspaceContext,
   type Actor
@@ -16,7 +20,9 @@ import { Effect, Layer } from 'effect'
 import {
   disableWebhookEndpoint,
   loadWorkspaceWebhooks,
-  rotateWebhookSecret
+  replayWebhookDelivery,
+  rotateWebhookSecret,
+  sendTestEvent
 } from './webhooks'
 
 /**
@@ -60,6 +66,19 @@ const seedEndpoints: ReadonlyArray<WebhookEndpoint> = [
   }
 ]
 
+/**
+ * One fixture endpoint layer per case: the Seed adapters now also need the
+ * notification feed (dead-letter notifications) and the audit log (terminal
+ * deliveries), provided here exactly once per layer.
+ */
+function endpointLayer() {
+  return SeedWebhookEndpoints(seedEndpoints).pipe(
+    Layer.provide(SeedAuditEventLog([])),
+    Layer.provide(SeedWebhookPublisher),
+    Layer.provide(SeedNotificationFeed([]))
+  )
+}
+
 /** Turns a typed failure into a value, so a denial is asserted not thrown. */
 function outcome<A, E extends { readonly _tag: string; readonly reason?: string }, R>(
   effect: Effect.Effect<A, E, R>
@@ -73,10 +92,7 @@ function outcome<A, E extends { readonly _tag: string; readonly reason?: string 
 describe('disableWebhookEndpoint', () => {
   it('lets an actor with webhook:disable disable', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(
-        Layer.provide(SeedAuditEventLog([])),
-        Layer.provide(SeedWebhookPublisher)
-      ),
+      endpointLayer(),
       testWorkspaceContext(workspace, ADMIN)
     )
     const result = await Effect.runPromise(
@@ -91,10 +107,7 @@ describe('disableWebhookEndpoint', () => {
 
   it('denies a plain member — webhook:disable is withheld from member', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(
-        Layer.provide(SeedAuditEventLog([])),
-        Layer.provide(SeedWebhookPublisher)
-      ),
+      endpointLayer(),
       testWorkspaceContext(workspace, MEMBER)
     )
     const result = await Effect.runPromise(
@@ -111,13 +124,7 @@ describe('disableWebhookEndpoint', () => {
   })
 
   it('fails closed with no resolved actor', async () => {
-    const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(
-        Layer.provide(SeedAuditEventLog([])),
-        Layer.provide(SeedWebhookPublisher)
-      ),
-      testWorkspaceContext(workspace, null)
-    )
+    const layer = Layer.mergeAll(endpointLayer(), testWorkspaceContext(workspace, null))
     const result = await Effect.runPromise(
       Effect.scoped(
         outcome(disableWebhookEndpoint({ endpointId: 'wh_1' })).pipe(
@@ -132,10 +139,7 @@ describe('disableWebhookEndpoint', () => {
 describe('rotateWebhookSecret', () => {
   it('returns the new secret to an actor with webhook:rotateSecret', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(
-        Layer.provide(SeedAuditEventLog([])),
-        Layer.provide(SeedWebhookPublisher)
-      ),
+      endpointLayer(),
       testWorkspaceContext(workspace, OWNER)
     )
     const result = await Effect.runPromise(
@@ -148,10 +152,7 @@ describe('rotateWebhookSecret', () => {
 
   it('denies a plain member — webhook:rotateSecret is withheld from member', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(
-        Layer.provide(SeedAuditEventLog([])),
-        Layer.provide(SeedWebhookPublisher)
-      ),
+      endpointLayer(),
       testWorkspaceContext(workspace, MEMBER)
     )
     const result = await Effect.runPromise(
@@ -167,10 +168,7 @@ describe('rotateWebhookSecret', () => {
 
   it('resolves no secret for an unknown endpoint — none is minted', async () => {
     const layer = Layer.mergeAll(
-      SeedWebhookEndpoints(seedEndpoints).pipe(
-        Layer.provide(SeedAuditEventLog([])),
-        Layer.provide(SeedWebhookPublisher)
-      ),
+      endpointLayer(),
       testWorkspaceContext(workspace, OWNER)
     )
     const result = await Effect.runPromise(
@@ -181,6 +179,135 @@ describe('rotateWebhookSecret', () => {
       )
     )
     expect(result).toBeNull()
+  })
+})
+
+describe('replayWebhookDelivery', () => {
+  it('requeues a failed delivery with attempts reset for webhook:replay', async () => {
+    const auditLog = SeedAuditEventLog([])
+    const layer = Layer.mergeAll(
+      SeedWebhookEndpoints(seedEndpoints).pipe(
+        Layer.provide(auditLog),
+        Layer.provide(SeedWebhookPublisher),
+        Layer.provide(SeedNotificationFeed([]))
+      ),
+      testWorkspaceContext(workspace, OWNER)
+    )
+    // Seed a failed delivery with recorded payload through the same interface.
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          // Seed the failure the operator replays, through the same interface
+          // the queue consumer writes with.
+          const webhooks = yield* WebhookEndpoints
+          yield* webhooks.recordDeliveryAttempt({
+            id: 'whd_failed',
+            endpointId: 'wh_1',
+            workspaceId: workspace.id,
+            eventType: 'api_token.created',
+            status: 'dead_lettered',
+            attempts: 6,
+            responseStatus: 503,
+            payload: { hello: 'world' }
+          })
+          const result = yield* outcome(
+            replayWebhookDelivery({ deliveryId: 'whd_failed' })
+          )
+          expect(result).toMatchObject({ tag: 'ok' })
+          if (!('value' in result)) {
+            return
+          }
+          // The copy lists back through the same service: pending, attempts
+          // reset, linked to its source.
+          const rows = yield* webhooks.listDeliveries({ endpointId: 'wh_1' })
+          const copy = rows.find((row) => row.id === result.value.deliveryId)
+          expect(copy).toMatchObject({
+            status: 'pending',
+            attempts: 0,
+            replayedFrom: 'whd_failed'
+          })
+          expect(copy?.payload).toEqual({ hello: 'world' })
+        }).pipe(Effect.provide(layer))
+      )
+    )
+  })
+
+  it('denies a plain member — webhook:replay is withheld from member', async () => {
+    const layer = Layer.mergeAll(
+      endpointLayer(),
+      testWorkspaceContext(workspace, MEMBER)
+    )
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        outcome(replayWebhookDelivery({ deliveryId: 'whd_missing' })).pipe(
+          Effect.provide(layer)
+        )
+      )
+    )
+    expect(result).toEqual({
+      tag: 'AuthorizationDenied',
+      reason: 'insufficient_permission'
+    })
+  })
+})
+
+describe('sendTestEvent', () => {
+  it('queues a pending webhook.test_event for webhook:test', async () => {
+    const layer = Layer.mergeAll(
+      endpointLayer(),
+      testWorkspaceContext(workspace, OWNER)
+    )
+    const row = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const sent = yield* sendTestEvent({ endpointId: 'wh_1' })
+          const webhooks = yield* WebhookEndpoints
+          const rows = yield* webhooks.listDeliveries({ endpointId: 'wh_1' })
+          return rows.find((delivery) => delivery.id === sent.deliveryId)
+        }).pipe(Effect.provide(layer))
+      )
+    )
+    expect(row).toMatchObject({
+      status: 'pending',
+      attempts: 0,
+      eventType: 'webhook.test_event'
+    })
+  })
+
+  it('refuses a disabled endpoint', async () => {
+    const layer = Layer.mergeAll(
+      endpointLayer(),
+      testWorkspaceContext(workspace, OWNER)
+    )
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        outcome(
+          Effect.gen(function* () {
+            // Disable first through the same surface the UI uses, then ask for
+            // the test send — one layer build, so the mutation is visible.
+            yield* disableWebhookEndpoint({ endpointId: 'wh_1' })
+            return yield* sendTestEvent({ endpointId: 'wh_1' })
+          })
+        ).pipe(Effect.provide(layer))
+      )
+    )
+    expect(result).toMatchObject({ tag: 'WebhookDispatchRejected' })
+  })
+
+  it('denies a plain member — webhook:test is withheld from member', async () => {
+    const layer = Layer.mergeAll(
+      endpointLayer(),
+      testWorkspaceContext(workspace, MEMBER)
+    )
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        outcome(sendTestEvent({ endpointId: 'wh_1' })).pipe(Effect.provide(layer))
+      )
+    )
+    expect(result).toEqual({
+      tag: 'AuthorizationDenied',
+      reason: 'insufficient_permission'
+    })
   })
 })
 

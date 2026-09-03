@@ -1,5 +1,8 @@
 import {
   type CreatedWebhookEndpoint,
+  type WebhookDispatchRejected,
+  type WebhookEndpointNotFound,
+  type WebhookDeliveryNotFound,
   WebhookEndpoints,
   type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -170,6 +173,84 @@ export const rotateWebhookSecretServerFn = createServerFn({ method: 'POST' })
       rotateWebhookSecret({
         endpointId: data.endpointId
       }),
+      { userId: session.user.id }
+    )
+  })
+
+// All input constraints live in the schema — no imperative re-validation.
+const ReplayDeliveryInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  deliveryId: Schema.NonEmptyString
+})
+
+const decodeReplayDelivery = Schema.decodeUnknownSync(ReplayDeliveryInput)
+
+/**
+ * The effect below the session gate for a replay. Fails with the capability's
+ * typed errors (`WebhookDeliveryNotFound` 404, `WebhookDispatchRejected` 409)
+ * which `callServerFn` folds into the drawer's failure message.
+ */
+export function replayWebhookDelivery(input: {
+  readonly deliveryId: string
+}): Effect.Effect<
+  { readonly deliveryId: string },
+  | AuthorizationDenied
+  | CapabilityUnavailable
+  | WebhookDeliveryNotFound
+  | WebhookDispatchRejected,
+  Scope.Scope | WorkspaceContext | WebhookEndpoints
+> {
+  return Effect.gen(function* () {
+    yield* requireWorkspacePermission({ webhook: ['replay'] })
+    const webhooks = yield* WebhookEndpoints
+    return yield* webhooks.replayDelivery(input)
+  })
+}
+
+export const replayWebhookDeliveryServerFn = createServerFn({ method: 'POST' })
+  .validator((input) => decodeReplayDelivery(input))
+  .handler(async ({ data }): Promise<{ readonly deliveryId: string }> => {
+    const session = await requireRequestSession()
+    return runWorkspaceCapabilities(
+      data.workspaceSlug,
+      replayWebhookDelivery({ deliveryId: data.deliveryId }),
+      { userId: session.user.id }
+    )
+  })
+
+// All input constraints live in the schema — no imperative re-validation.
+const SendTestEventInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  endpointId: Schema.NonEmptyString
+})
+
+const decodeSendTestEvent = Schema.decodeUnknownSync(SendTestEventInput)
+
+/** Same seam as `replayWebhookDelivery`, for the endpoint-level test send. */
+export function sendTestEvent(input: {
+  readonly endpointId: string
+}): Effect.Effect<
+  { readonly deliveryId: string },
+  | AuthorizationDenied
+  | CapabilityUnavailable
+  | WebhookEndpointNotFound
+  | WebhookDispatchRejected,
+  Scope.Scope | WorkspaceContext | WebhookEndpoints
+> {
+  return Effect.gen(function* () {
+    yield* requireWorkspacePermission({ webhook: ['test'] })
+    const webhooks = yield* WebhookEndpoints
+    return yield* webhooks.sendTestEvent(input)
+  })
+}
+
+export const sendTestEventServerFn = createServerFn({ method: 'POST' })
+  .validator((input) => decodeSendTestEvent(input))
+  .handler(async ({ data }): Promise<{ readonly deliveryId: string }> => {
+    const session = await requireRequestSession()
+    return runWorkspaceCapabilities(
+      data.workspaceSlug,
+      sendTestEvent({ endpointId: data.endpointId }),
       { userId: session.user.id }
     )
   })
