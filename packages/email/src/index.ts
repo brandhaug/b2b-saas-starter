@@ -88,11 +88,17 @@ export const LogEmailDispatcherLayer: Layer.Layer<EmailDispatcher> = Layer.succe
 )({
   send: (message) =>
     Effect.gen(function* () {
-      yield* renderMessage(message)
+      const rendered = yield* renderMessage(message)
       yield* Effect.log('email.dispatched', {
         mode: 'log',
         to: message.to,
-        subject: message.subject
+        subject: message.subject,
+        // The rendered plain text, body and all: log mode exists so flows that
+        // email a link (magic link, password reset, verification) complete
+        // without a provider — a log line that names the recipient but drops
+        // the link leaves the flow unfinishable. Dev/test only; a configured
+        // EMAIL binding never takes this branch.
+        text: rendered.text
       })
       return EmailDeliveryResult.make({
         mode: 'log',
