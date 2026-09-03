@@ -32,6 +32,12 @@ type WebWorkerEnv = {
   // page explains instead of offering a button.
   readonly WORKSPACE_EXPORT_QUEUE?: import('@b2b-saas-starter/capabilities/governance/workspace-export').WorkspaceExportQueueBinding
   readonly WORKSPACE_EXPORT_BUCKET?: import('@b2b-saas-starter/capabilities/governance/workspace-export').WorkspaceExportBucketBinding
+  // Seat-sync queue producer. Optional and unwired by default: without it the
+  // membership mutations publish nothing and seat sync heals on the next
+  // mutation or provider webhook (CLAUDE.md rule 3).
+  readonly BILLING_QUEUE?: import(
+    '@b2b-saas-starter/capabilities/billing/seat-sync'
+  ).SeatSyncQueueBinding
 } & Readonly<import('@b2b-saas-starter/env/server').ServerEnv>
 
 // `env` from `cloudflare:workers` is typed as `Cloudflare.Env`

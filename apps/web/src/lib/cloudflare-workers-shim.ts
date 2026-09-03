@@ -37,5 +37,8 @@ export const env = {
   // the web app assumes the API worker's local dev port.
   API_PUBLIC_URL: process.env.API_PUBLIC_URL,
   WORKSPACE_EXPORT_BUCKET: process.env.WORKSPACE_EXPORT_BUCKET,
+  // Seat-sync queue: unwired outside a real deployment — membership
+  // mutations publish nothing and the provider webhook reconciles instead.
+  BILLING_QUEUE: undefined,
   DB: undefined
 }

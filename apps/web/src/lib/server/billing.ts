@@ -96,3 +96,33 @@ export const startCheckoutServerFn = createServerFn({ method: 'POST' })
       { userId: session.user.id }
     )
   })
+
+// All input constraints live in the schema — no imperative re-validation.
+const PortalInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
+const decodePortalInput = Schema.decodeUnknownSync(PortalInput)
+
+/**
+ * The "Manage billing" action below the session and permission gates. The
+ * return URL is composed server-side from the configured base URL — same
+ * open-redirect posture as checkout — and the portal itself owns invoices,
+ * payment method, and cancellation.
+ */
+export const startPortalSessionServerFn = createServerFn({ method: 'POST' })
+  .validator((input) => decodePortalInput(input))
+  .handler(async ({ data }): Promise<{ url: string }> => {
+    const session = await requireRequestSession()
+    const base = cloudflareEnv.BETTER_AUTH_URL.replace(/\/$/, '')
+    return runWorkspaceCapabilities(
+      data.workspaceSlug,
+      Effect.gen(function* () {
+        yield* requireWorkspacePermission({ organization: ['update'] })
+        const billing = yield* Billing
+        return yield* billing.startPortalSession({
+          returnUrl: `${base}/workspaces/${encodeURIComponent(data.workspaceSlug)}/billing`
+        })
+      }),
+      { userId: session.user.id }
+    )
+  })

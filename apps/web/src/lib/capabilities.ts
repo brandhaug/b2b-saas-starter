@@ -59,12 +59,14 @@ function stripeBillingConfig(): StarterEnv['billing'] | undefined {
 // D1 binding exists and activates the Live layer; under the local dev shim
 // (`cloudflare-workers-shim.ts`) `DB` is undefined and the in-memory Seed
 // layer keeps the app working provider-light (CLAUDE.md rule 3). Unset Stripe
-// vars leave `billing` off and checkout degrades to `provider_not_configured`.
+// vars leave `billing` off and checkout degrades to `provider_not_configured`;
+// an unwired `BILLING_QUEUE` leaves seat sync to the provider webhooks.
 const stripeBilling = stripeBillingConfig()
 // The export bindings (ADR 0055) ride along the same way: absent under the
 // shim and in an unconfigured deploy, present when alchemy provisioned them.
 const workerBindings: StarterEnv = {
   DB: cloudflareEnv.DB,
+  BILLING_QUEUE: cloudflareEnv.BILLING_QUEUE,
   WORKSPACE_EXPORT_QUEUE: cloudflareEnv.WORKSPACE_EXPORT_QUEUE,
   WORKSPACE_EXPORT_BUCKET: cloudflareEnv.WORKSPACE_EXPORT_BUCKET
 }
