@@ -28,6 +28,10 @@ _Avoid_: Multi-cloud, platform-agnostic
 The email-and-password sign-in path that works without external provider configuration.
 _Avoid_: Fallback auth, demo auth
 
+**Passkey**:
+A WebAuthn credential registered to a user's account for phishing-resistant passwordless sign-in.
+_Avoid_: WebAuthn key, biometric login, security key login
+
 **Optional Provider**:
 A capability with production wiring that remains inactive until its required external provider configuration exists.
 _Avoid_: Stub, fake provider, required service
@@ -96,6 +100,7 @@ _Avoid_: Login as, sudo mode, admin takeover
 - A **Reference Application** keeps optional providers env-gated: local development works with no provider configuration
 - The **Starter** is **Cloudflare-First**
 - The **Reference Application** supports a **Local Auth Path**
+- A **Passkey** belongs to exactly one user account and satisfies the two-factor requirement at sign-in
 - Billing is an **Optional Provider**
 - REST and MCP are **Capability Interfaces** over the same workspace behavior
 - **Public Knowledge Content** is searched from generated indexes, while **Workspace** state comes from D1-backed capabilities
