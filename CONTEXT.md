@@ -68,6 +68,14 @@ _Avoid_: Log line, activity item, notification
 A user-facing message about workspace, billing, or API token activity.
 _Avoid_: Audit event, log line, email
 
+**Seat Quantity**:
+The number of Members a per-seat plan bills for one Workspace, mirrored onto the Stripe subscription item's quantity.
+_Avoid_: User limit, license, headcount cap
+
+**Billing Portal**:
+The Stripe-hosted surface where a Workspace's invoices, payment method, and cancellation are managed.
+_Avoid_: Billing settings, payment page
+
 **API Token**:
 A workspace-scoped credential for REST and MCP access.
 _Avoid_: Personal access token, integration secret, session token
@@ -115,6 +123,8 @@ _Avoid_: Backup, data dump, GDPR export
 - A **System Admin** manages users globally and is distinct from a **Workspace Role**
 - An **Audit Event** can be associated with a user, workspace, system admin action, or provider action
 - A **Notification** can be created from workspace, billing, or API token activity
+- A **Workspace** on a per-seat plan bills one **Seat Quantity** per **Member**
+- Invoices, payment methods, and cancellation are managed in the **Billing Portal**, not in the Reference Application
 - An **API Token** belongs to exactly one **Workspace** and can create **Audit Events**
 - A **Webhook Endpoint** belongs to exactly one **Workspace** and receives selected outbound events
 - A **Seed Workspace** demonstrates **Members**, **Notifications**, and the developer-platform capabilities
@@ -191,7 +201,7 @@ _Avoid_: Backup, data dump, GDPR export
 - Sentry and PostHog are included but should not become required setup steps. Resolved: both are **Optional Providers**.
 - REST and MCP should not drift into separate demos. Resolved: both are **Capability Interfaces** for the same underlying behavior.
 - Public docs, FAQ, help, and blog content should not be modeled as workspace data. Resolved: they are **Public Knowledge Content**.
-- "Team", "seat", and "collaborator" should not compete with the workspace model. Resolved: use **Member**, **Invitation**, and **Workspace Role**.
+- "Team", "seat", and "collaborator" should not compete with the workspace model. Resolved: use **Member**, **Invitation**, and **Workspace Role**. Billing still needs the word, so **Seat Quantity** names what the provider bills — a number, never a person.
 - "Admin" is ambiguous. Resolved: use **System Admin** for global Better Auth admin users and **Workspace Role** for workspace-level permissions.
 - "Audit log" should not be confused with operational logs. Resolved: persisted governance records are **Audit Events**.
 - "Notification" should not be used for persisted governance history. Resolved: **Notifications** are user-facing messages, while **Audit Events** are inspectable governance records.
