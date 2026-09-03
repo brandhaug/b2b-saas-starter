@@ -35,8 +35,10 @@ import {
 } from '@/components/auth/auth-client-ports'
 import { authClient } from '@/lib/auth-client'
 import { SearchButton } from '@/components/command-palette'
+import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { CommandPaletteContext } from '@/lib/command-palette-context'
+import { useImpersonation, type StopImpersonating } from '@/lib/impersonation'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { findWorkspace, useWorkspaceDirectory } from '@/lib/workspace-directory'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
@@ -48,7 +50,7 @@ import {
 
 const SIGN_OUT_FAILED = 'Sign-out failed'
 
-export { type SignOut }
+export { type SignOut, type StopImpersonating }
 
 export function WorkspaceShell({
   children,
@@ -56,7 +58,8 @@ export function WorkspaceShell({
   workspaceSlug,
   viewer,
   systemRole,
-  signOut = signOutWithAuthClient
+  signOut = signOutWithAuthClient,
+  stopImpersonating
 }: {
   readonly children: ReactNode
   /**
@@ -86,8 +89,13 @@ export function WorkspaceShell({
    */
   readonly systemRole?: string | null | undefined
   readonly signOut?: SignOut
+  /** The impersonation banner's one server call, forwarded for tests. */
+  readonly stopImpersonating?: StopImpersonating | undefined
 }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  // Read off the route context rather than threaded in: every gated route
+  // carries `session`, and the banner has to show on all of them (ADR 0054).
+  const impersonation = useImpersonation()
   // The sign-out call lives at the shell level so its failure can outlive the
   // menu that triggered it — a closed dropdown must not swallow the error.
   const router = useRouter()
@@ -133,6 +141,12 @@ export function WorkspaceShell({
         />
       </aside>
       <div className="min-w-0">
+        {impersonation === null ? null : (
+          <ImpersonationBanner
+            impersonation={impersonation}
+            {...(stopImpersonating === undefined ? {} : { stopImpersonating })}
+          />
+        )}
         <div>
           <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>

@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Workspace-scoped notification stream: webhook-delivery anomalies and human-authored announcements. Powers the bell icon, the dashboard attention list, and the notification panel in the workspace shell. Notifications are inserted by background jobs and the seed fixture; there is no in-product authoring path, but the feed is no longer read-only — `markRead` stamps rows read.
+Workspace-scoped notification stream: webhook-delivery anomalies, human-authored announcements, and account-level notices (an impersonation of the user's account, ADR 0054). Powers the bell icon, the dashboard attention list, and the notification panel in the workspace shell. Notifications are inserted by background jobs, the seed fixture, and `notifyUser`; there is no in-product authoring path. `markRead` stamps rows read, and `notifyUser` is the one identity-keyed write.
 
 ## Public surface
 
@@ -11,6 +11,7 @@ Workspace-scoped notification stream: webhook-delivery anomalies and human-autho
 - `NotificationFeed.unreadCount` — `number`, computed with a `count(*)` query over rows with `readAt IS NULL` (no in-memory filtering).
 - `NotificationFeed.markRead(ids)` — stamps the given unread ids read and returns how many rows changed. Idempotent: unknown, foreign, invisible, or already-read ids change nothing. The visibility filter is the read's filter, so the write never touches a row the actor cannot see. Input type: `MarkNotificationsReadInput` (`{ ids: string[] }`).
 - **Actor scoping:** rows with `userId = NULL` are workspace broadcasts, visible to everyone; rows with a `userId` are only visible to that actor (`WorkspaceContext.actor`). Without an actor in context, only broadcast rows are returned. The Seed layer applies the same filter (seed rows may carry an optional `userId` via `SeedNotification`).
+- `NotificationFeed.notifyUser({ userId, title, message })` — **identity-keyed write**, no `WorkspaceContext`: inserts one unread, user-targeted row per workspace the user is a member of (`workspaceMembers`), so whichever workspace they open next shows it. A user with no memberships receives nothing. Used by `platform-user-admin` at impersonation start. The Seed layer holds its rows in a `Ref` so a write reads back.
 - All methods can fail with `CapabilityUnavailable` (503) when D1 is unreachable.
 
 ## The permission decision: `notification:read`, not a write action
@@ -35,3 +36,4 @@ The role matrix has no `notification:write` action, and `markRead` deliberately 
 - Don't return `readAt` raw. The DTO collapses it to a boolean by design so the wire shape stays cacheable.
 - Don't fan out to email/Slack from inside the capability. Outbound dispatch belongs in the background worker; this capability owns persistence only.
 - Don't add a `notification:write` permission for feed writes. The decision above is recorded; revisit it only with a real second write behaviour (authoring, deleting).
+- Don't give `notifyUser` a `workspaceId` parameter. It is for account-level notices; a workspace-scoped producer should read `WorkspaceContext` in a method of its own.

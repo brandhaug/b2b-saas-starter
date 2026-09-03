@@ -30,6 +30,10 @@ import { render, type RenderResult } from '@testing-library/react'
  * have to be registered, because navigating to an unregistered path resolves to
  * the router's not-found handling and the pathname assertion would then be
  * checking nothing. Each gets a placeholder component; only the location matters.
+ *
+ * `routeContext` is what the route under test's `beforeLoad` returns — the
+ * stand-in for a gate's `{ session }`, for components that read the route
+ * context (`useRouteContext`) instead of taking it as a prop.
  */
 export async function renderWithRouter(
   ui: ReactNode,
@@ -37,13 +41,16 @@ export async function renderWithRouter(
     readonly path?: string
     readonly destinations?: ReadonlyArray<string>
     readonly initialEntry?: string
+    readonly routeContext?: Record<string, unknown>
   }
 ): Promise<RenderResult & { readonly router: AnyRouter }> {
   const path = options?.path ?? '/'
   const rootRoute = createRootRoute()
+  const routeContext = options?.routeContext ?? {}
   const routeUnderTest = createRoute({
     getParentRoute: () => rootRoute,
     path,
+    beforeLoad: () => routeContext,
     component: () => ui
   })
   const destinations = [...new Set(options?.destinations ?? [])]

@@ -84,6 +84,10 @@ _Avoid_: Setup wizard, progress tracker, getting-started flags
 An ephemeral, fully isolated deployment of the starter (`pr-<number>`) created for one pull request and destroyed when it closes; it carries the Seed Workspace and no optional providers.
 _Avoid_: Staging, preview environment, branch deploy
 
+**Impersonation Session**:
+A one-hour session a System Admin opens as another user through Better Auth's admin plugin, audited at start and stop, visible in the app shell, and barred from changing the account's credentials.
+_Avoid_: Login as, sudo mode, admin takeover
+
 ## Relationships
 
 - A **Starter** includes exactly one **Reference Application**
@@ -106,6 +110,7 @@ _Avoid_: Staging, preview environment, branch deploy
 - A **Webhook Endpoint** belongs to exactly one **Workspace** and receives selected outbound events
 - A **Seed Workspace** demonstrates **Members**, **Notifications**, and the developer-platform capabilities
 - An **Onboarding Checklist** derives its steps from **Members**, **API Tokens**, **Webhook Endpoints**, billing, and the actor's account; dismissing it records an **Audit Event**
+- An **Impersonation Session** is opened by a **System Admin**, records two **Audit Events**, and creates a **Notification** for the impersonated user
 
 ## Example Dialogue
 

@@ -79,3 +79,17 @@ export class PlanLimitExceeded extends Schema.TaggedError<PlanLimitExceeded>()(
   },
   { httpApiStatus: 402 }
 ) {}
+
+/**
+ * An account action refused because the acting session is a System Admin
+ * impersonation session: changing the password, the second factor, or the
+ * email address, or deleting the account. The request was answerable and the
+ * answer is no — the real account holder has to make these changes, so an
+ * impersonating admin sees a 403 rather than a retry hint.
+ */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class ImpersonationForbidden extends Schema.TaggedError<ImpersonationForbidden>()(
+  'ImpersonationForbidden',
+  { action: Schema.String },
+  { httpApiStatus: 403 }
+) {}

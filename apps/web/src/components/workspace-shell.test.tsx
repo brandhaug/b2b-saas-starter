@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import { WorkspaceShell, type SignOut } from './workspace-shell'
+import { WorkspaceShell, type SignOut, type StopImpersonating } from './workspace-shell'
 
 // The identity line reads the live Better Auth client, whose session hook
 // fetches a relative URL no jsdom test can answer — stub it to the
@@ -15,6 +15,24 @@ vi.mock('@/lib/auth-client', () => ({
 // The shell's own `signOut` port, handed in as a prop. Everything else — the
 // router, `Link`, `useRouter` — is the real TanStack implementation.
 const signOut = vi.fn<SignOut>()
+const stopImpersonating = vi.fn<StopImpersonating>()
+
+/** What a gated route's `beforeLoad` puts on the context: the projected session. */
+function sessionContext(impersonatedBy: string | null) {
+  return {
+    session: {
+      user: {
+        id: 'usr_dev',
+        name: 'Product Engineer',
+        email: 'engineer@example.com',
+        emailVerified: true,
+        role: 'user',
+        twoFactorEnabled: false
+      },
+      impersonatedBy
+    }
+  }
+}
 
 async function renderShell(props?: {
   readonly workspaceSlug?: string | null
@@ -23,9 +41,12 @@ async function renderShell(props?: {
   readonly role?: 'owner' | 'admin' | 'member'
   /** The Better Auth system role of the signed-in user. */
   readonly systemRole?: string | null
+  /** The route context the shell is rendered under; gated routes carry `session`. */
+  readonly routeContext?: Record<string, unknown>
 }) {
   return renderWithRouter(
     <WorkspaceShell
+      stopImpersonating={stopImpersonating}
       workspaceSlug={
         props?.workspaceSlug === undefined ? 'starter-lab' : props.workspaceSlug
       }
@@ -36,14 +57,44 @@ async function renderShell(props?: {
     >
       <p>Dashboard content</p>
     </WorkspaceShell>,
-    { path: '/workspaces/starter-lab', destinations: ['/sign-in'] }
+    renderOptions(props?.routeContext)
   )
+}
+
+function renderOptions(routeContext: Record<string, unknown> | undefined) {
+  const base = { path: '/workspaces/starter-lab', destinations: ['/sign-in', '/admin'] }
+  if (routeContext === undefined) {
+    return base
+  }
+  return { ...base, routeContext }
 }
 
 describe('WorkspaceShell', () => {
   beforeEach(() => {
     signOut.mockReset()
     signOut.mockResolvedValue(undefined)
+    stopImpersonating.mockReset()
+    stopImpersonating.mockResolvedValue(undefined)
+  })
+
+  it('shows no impersonation banner for an ordinary session or a public page', async () => {
+    const { unmount } = await renderShell({ routeContext: sessionContext(null) })
+    expect(screen.queryByRole('button', { name: 'Stop impersonating' })).toBeNull()
+    unmount()
+    await renderShell()
+    expect(screen.queryByRole('button', { name: 'Stop impersonating' })).toBeNull()
+  })
+
+  it('shows who is impersonated on an impersonation session, and Stop returns to /admin', async () => {
+    // The banner reads the route's `session` context (what `requireSession`
+    // puts there), so the test renders under a route carrying one.
+    const { router } = await renderShell({ routeContext: sessionContext('usr_admin') })
+    const banner = screen.getByRole('status')
+    expect(banner.textContent).toContain('Product Engineer')
+    expect(banner.textContent).toContain('engineer@example.com')
+    fireEvent.click(screen.getByRole('button', { name: 'Stop impersonating' }))
+    await waitFor(() => expect(stopImpersonating).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/admin'))
   })
 
   it('renders children (the page names itself via its own PageHeader)', async () => {

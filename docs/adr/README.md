@@ -46,6 +46,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0030 — Sensitive surface rate limiting](./0030-sensitive-surface-rate-limiting.md)
 - [0031 — Env-gated Turnstile](./0031-env-gated-turnstile.md)
 - [0051 — Workspace membership on Better Auth's organization plugin](./0051-workspace-membership-on-better-auth-organization-plugin.md)
+- [0054 — System Admin impersonation](./0054-system-admin-impersonation.md)
 
 ## Optional providers
 

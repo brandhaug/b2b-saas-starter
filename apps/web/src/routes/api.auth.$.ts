@@ -19,6 +19,10 @@ import {
 } from '@/lib/server/auth-audit/exchanges'
 import { recordAuthAudit } from '@/lib/server/auth-audit/record'
 import { type AuthAuditContext } from '@/lib/server/auth-audit/shared'
+import {
+  impersonationForbiddenAction,
+  impersonationGuardResponse
+} from '@/lib/server/impersonation-guard'
 import { makeTurnstileLayer } from '@/lib/server/turnstile'
 import { sendTwoFactorChangedEmail } from '@/lib/server/auth-emails'
 import { notifyTwoFactorChangedEffect } from '@/lib/server/two-factor-notification'
@@ -33,25 +37,12 @@ function sendNotification(input: {
 }
 
 /**
- * Everything the audits whose responses never name their actor need, gathered
- * BEFORE the auth handler consumes the request: the acting user's session id
- * (admin responses never name their actor; sign-out and the session
- * revocations name nobody) and, for admin mutations, a clone of the JSON body
- * (`userId` target). `undefined` for anything else, or a request that carries
- * no session — anonymous probes are rate-limited noise.
+ * The request's session, read BEFORE the auth handler consumes the request. A
+ * failed session read must never fail the auth request it observes, so it
+ * resolves `null` on any error.
  */
-async function readAuthAuditContext(
-  request: Request,
-  exchange: AuthExchange
-): Promise<AuthAuditContext | undefined> {
-  if (exchange.method !== 'POST' || !needsPreHandlerActor(exchange)) {
-    return undefined
-  }
-  // The clone is taken before the handler runs — Better Auth consumes the
-  // original request's body. A failed session read must never fail the auth
-  // request it observes.
-  const requestClone = request.clone()
-  const session = await authRuntime
+function readPreHandlerSession(request: Request) {
+  return authRuntime
     .runPromise(
       withWebRequestScope(
         { event: 'auth.session' },
@@ -61,13 +52,46 @@ async function readAuthAuditContext(
       )
     )
     .catch(() => null)
+}
+
+type PreHandlerSession = NonNullable<Awaited<ReturnType<typeof readPreHandlerSession>>>
+
+/**
+ * Everything the pre-handler reads need, gathered once: the session, for the
+ * audits whose responses never name their actor (admin responses never name
+ * their actor; sign-out and the session revocations name nobody) and for the
+ * impersonation guard (ADR 0054); plus, for admin mutations, a clone of the
+ * JSON body (`userId` target). `undefined` throughout for anything else, or a
+ * request that carries no session — anonymous probes are rate-limited noise.
+ */
+async function readPreHandlerContext(
+  request: Request,
+  exchange: AuthExchange
+): Promise<{
+  readonly session: PreHandlerSession | undefined
+  readonly audit: AuthAuditContext | undefined
+}> {
+  const audited = exchange.method === 'POST' && needsPreHandlerActor(exchange)
+  const guarded = impersonationForbiddenAction(exchange) !== null
+  if (!audited && !guarded) {
+    return { session: undefined, audit: undefined }
+  }
+  // The clone is taken before the handler runs — Better Auth consumes the
+  // original request's body.
+  const requestClone = request.clone()
+  const session = await readPreHandlerSession(request)
   if (!session) {
-    return undefined
+    return { session: undefined, audit: undefined }
   }
   return {
-    actorUserId: session.user.id,
-    actorEmail: session.user.email,
-    request: requestClone
+    session,
+    audit: audited
+      ? {
+          actorUserId: session.user.id,
+          actorEmail: session.user.email,
+          request: requestClone
+        }
+      : undefined
   }
 }
 
@@ -144,12 +168,28 @@ async function handleAuth(request: Request): Promise<Response> {
           })
           return turnstileResponse
         }
-        // Pre-handler audit context before Better Auth runs: it reads the
-        // session and — for admin mutations — a body clone that the handler's
-        // consumption of the request would otherwise make unreadable.
-        const context = yield* Effect.promise(() =>
-          readAuthAuditContext(request, exchange)
+        // Pre-handler reads before Better Auth runs: the session (for the
+        // audits whose responses never name their actor, and for the
+        // impersonation guard) and — for admin mutations — a body clone that
+        // the handler's consumption of the request would otherwise make
+        // unreadable.
+        const { session, audit: context } = yield* Effect.promise(() =>
+          readPreHandlerContext(request, exchange)
         )
+        // An impersonation session may not change the account's password,
+        // second factor or email, or delete it (ADR 0054). Decided by the
+        // capability's guard, answered here before Better Auth sees the request.
+        const guardResponse = yield* impersonationGuardResponse(
+          exchange,
+          session?.session
+        )
+        if (guardResponse !== null) {
+          yield* Effect.annotateLogsScoped({
+            outcome: 'impersonation_blocked',
+            statusCode: guardResponse.status
+          })
+          return guardResponse
+        }
         // The effectful-better-auth mount: toWeb → auth.handler → fromWeb.
         // The Auth service comes from authRuntime's layer; only the request
         // is provided per call.

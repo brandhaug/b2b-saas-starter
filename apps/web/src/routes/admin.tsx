@@ -8,6 +8,7 @@ import { Effect } from 'effect'
 
 import { AdminUserActions } from '@/components/admin-user-actions'
 import { BanUserAction } from '@/components/ban-user-action'
+import { ImpersonateUserAction } from '@/components/impersonate-user-action'
 import { DataTable, type DataTableColumnDef } from '@/components/data-table'
 import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
@@ -52,7 +53,12 @@ const userColumns: Array<DataTableColumnDef<SystemUser>> = [
     // Screen readers announce an empty column header as nothing; name it.
     header: () => <span className="sr-only">Actions</span>,
     enableSorting: false,
-    cell: ({ row }) => <BanUserAction user={row.original} />
+    cell: ({ row }) => (
+      <div className="flex justify-end gap-1">
+        <ImpersonateUserAction user={row.original} />
+        <BanUserAction user={row.original} />
+      </div>
+    )
   }
 ]
 
@@ -108,7 +114,7 @@ function AdminPage() {
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
       <PageHeader
         title="System admin"
-        description="Better Auth admin dashboard without impersonation UI."
+        description="Users, impersonation, and the global audit trail."
       />
       <Panel title="Users">
         <DataTable

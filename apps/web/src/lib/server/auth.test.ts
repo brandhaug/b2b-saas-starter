@@ -38,14 +38,43 @@ describe('toRouteSession', () => {
 
     expect(routeSession.user).toEqual({
       id: 'usr_1',
+      name: 'Demo',
       email: 'demo@starter.local',
       emailVerified: true,
       role: 'admin',
       twoFactorEnabled: false
     })
-    expect(Object.keys(routeSession)).toEqual(['user'])
+    expect(routeSession.impersonatedBy).toBeNull()
+    expect(Object.keys(routeSession)).toEqual(['user', 'impersonatedBy'])
     expect(JSON.stringify(routeSession)).not.toContain('tok_secret')
     expect(JSON.stringify(routeSession)).not.toContain('203.0.113.7')
     expect(JSON.stringify(routeSession)).not.toContain('Mozilla')
+  })
+
+  it('carries the impersonating admin for an impersonation session', () => {
+    const routeSession = toRouteSession({
+      session: {
+        id: 'ses_2',
+        token: 'tok_secret',
+        createdAt: new Date('2026-08-01T00:00:00Z'),
+        updatedAt: new Date('2026-08-01T00:00:00Z'),
+        userId: 'usr_2',
+        expiresAt: new Date('2026-08-01T01:00:00Z'),
+        impersonatedBy: 'usr_admin'
+      },
+      user: {
+        id: 'usr_2',
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+        name: 'Member',
+        banned: false,
+        email: 'member@starter.local',
+        emailVerified: true,
+        twoFactorEnabled: false
+      }
+    } satisfies Parameters<typeof toRouteSession>[0])
+
+    expect(routeSession.impersonatedBy).toBe('usr_admin')
+    expect(routeSession.user.role).toBe('')
   })
 })
