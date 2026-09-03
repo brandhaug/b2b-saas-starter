@@ -1,6 +1,8 @@
 import {
   deliveryStatuses,
   invitationStatuses,
+  notificationChannels,
+  notificationKinds,
   systemRoles,
   workspaceExportStatuses,
   workspaceRoles,
@@ -21,11 +23,16 @@ export {
   apiTokenScopes,
   deliveryStatuses,
   invitationStatuses,
+  notificationChannels,
+  notificationKinds,
+  securityNotificationKinds,
   systemRoles,
   workspaceExportStatuses,
   workspaceRoles,
   type ApiTokenScopeValue,
   type DeliveryStatus,
+  type NotificationChannel,
+  type NotificationKind,
   type SystemRoleValue,
   type WorkspaceExportStatus
 } from './enums.ts'
@@ -395,12 +402,38 @@ export const notifications = sqliteTable(
     id: id(),
     workspaceId: workspaceRefNullable(),
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    // What the notification is about; selects the email template and the
+    // recipient's channel preference. Rows written before the column existed
+    // read as `announcement`.
+    kind: text('kind', { enum: notificationKinds }).default('announcement').notNull(),
     title: text('title').notNull(),
     message: text('message').notNull(),
     readAt: text('read_at'),
     createdAt: isoCreatedAt()
   },
   (table) => [workspaceIdIndex('notifications', table.workspaceId)]
+)
+
+/**
+ * One row per (user, kind) the user has set explicitly. A missing row means
+ * the kind's default channel applies (`instant` for the security kinds,
+ * `digest` otherwise) — the defaults live in code, not in seeded rows, so a
+ * new kind needs no backfill.
+ */
+export const notificationPreferences = sqliteTable(
+  'notification_preferences',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: notificationKinds }).notNull(),
+    channel: text('channel', { enum: notificationChannels }).notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('notification_preferences_user_kind_idx').on(table.userId, table.kind)
+  ]
 )
 
 export const auditEvents = sqliteTable(

@@ -66,3 +66,46 @@ export type DeliveryStatus = (typeof deliveryStatuses)[number]
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const workspaceExportStatuses = ['pending', 'ready', 'failed'] as const
 export type WorkspaceExportStatus = (typeof workspaceExportStatuses)[number]
+
+/**
+ * What a Notification is about. Stored in `notifications.kind` and keyed on by
+ * `notification_preferences`: a user chooses a delivery channel per kind, and
+ * the email template is picked per kind. Naming follows the audit taxonomy
+ * (`<namespace>.<past_tense_verb>`), but this is a separate, smaller
+ * vocabulary — a Notification is user-facing, an Audit Event is governance.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const notificationKinds = [
+  'api_token.created',
+  'api_token.revoked',
+  'workspace_member.role_changed',
+  'two_factor.changed',
+  'webhook.delivery_failed',
+  'workspace_member.joined',
+  'billing.plan_changed',
+  'announcement'
+] as const
+export type NotificationKind = (typeof notificationKinds)[number]
+
+/**
+ * The kinds whose default email channel is `instant`: each one is a change to
+ * who can act on the account or the workspace, and waiting for the morning
+ * digest would leave the affected user last to know. Every other kind defaults
+ * to `digest`.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const securityNotificationKinds = [
+  'api_token.created',
+  'api_token.revoked',
+  'workspace_member.role_changed',
+  'two_factor.changed'
+] as const satisfies ReadonlyArray<NotificationKind>
+
+/**
+ * How a user receives one kind of Notification by email: not at all, one
+ * email per Notification as it is created, or folded into the daily digest.
+ * The in-app feed is unaffected by the choice.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const notificationChannels = ['off', 'instant', 'digest'] as const
+export type NotificationChannel = (typeof notificationChannels)[number]
