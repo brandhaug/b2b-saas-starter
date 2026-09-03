@@ -9,16 +9,20 @@ import { Effect } from 'effect'
 // literal the consumer is bound to.
 import {
   billingQueueName,
+  notificationEmailQueueName,
   webhookDeadLetterQueueName,
   workspaceExportQueueName
 } from '../../../infra/bindings.ts'
 import { buildWorkspaceExport } from './export-consumer.ts'
+import { sendDailyDigest } from './notification-digest.ts'
+import { sendNotificationEmail } from './notification-email-consumer.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
 import { deliverSeatSync } from './seat-sync-consumer.ts'
 import {
   consumeBatch,
   deliverWebhook,
   recordDeadLetter,
+  runInvocation,
   type Env
 } from './webhook-consumer.ts'
 
@@ -48,8 +52,29 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
       return consumeBatch(env, batch, (message) => buildWorkspaceExport(message, env))
     }
     if (batch.queue === billingQueueName) {
-      return consumeBatch(env, batch, (message) => deliverSeatSync(message, env))
+      return consumeBatch(env, batch, (message) => deliverSeatSync(message, env))    }
+    if (batch.queue === notificationEmailQueueName) {
+      return consumeBatch(env, batch, (message) => sendNotificationEmail(message, env))
     }
     return consumeBatch(env, batch, (message) => deliverWebhook(message, env))
+  },
+
+  // The daily notification digest (ADR 0055): one cron trigger, declared in
+  // `infra/bindings.ts` as `notificationDigestCron`. The run reads its window
+  // from `Clock`, so the handler only forwards the platform's scheduled time
+  // for the wide event.
+  scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    wireWideEventProviders(env)
+    return runInvocation(
+      env,
+      // The scope already logged a failing run; a rejected `scheduled` promise
+      // would only make Cloudflare re-run a digest that partly went out.
+      Effect.asVoid(
+        Effect.catchCause(
+          sendDailyDigest(env, controller.scheduledTime),
+          (_cause) => Effect.void
+        )
+      )
+    )
   }
 })

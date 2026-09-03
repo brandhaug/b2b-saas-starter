@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@b2b-saas-starter/capabilities": "workspace:*",
+    "@b2b-saas-starter/email": "workspace:*",
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
     "@sentry/cloudflare": "catalog:",
@@ -18,6 +19,8 @@
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@react-email/render": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",

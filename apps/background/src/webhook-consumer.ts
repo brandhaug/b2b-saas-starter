@@ -18,6 +18,9 @@ import {
   type WorkspaceExportQueueBinding
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type NotificationEmailQueueBinding } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { type SendEmailBinding } from '@b2b-saas-starter/email'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import {
   currentTraceId,
@@ -52,6 +55,13 @@ export type Env = Partial<ServerEnv> & {
   // was unset at deploy time; the capability then reports unavailable.
   readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding
   readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding
+  // Producer port for instant notification emails — this worker both consumes
+  // the queue and produces onto it (webhook deliveries that gave up create a
+  // Notification). Absent, Notifications persist and no instant email goes out.
+  readonly NOTIFICATION_EMAIL_QUEUE?: NotificationEmailQueueBinding
+  // Cloudflare Email send binding, for the notification emails. Absent, the
+  // dispatcher logs instead of sending (CLAUDE.md rule 3).
+  readonly EMAIL?: SendEmailBinding
 }
 
 /** Wire shape of queue messages — the schema is shared with the producer. */
@@ -154,6 +164,42 @@ function annotateMalformed(outcome: string): Effect.Effect<void, never, Scope.Sc
   return Effect.annotateLogsScoped({ outcome, skipReason: 'malformed_message' })
 }
 
+/**
+ * The user-facing half of a delivery that gave up: one workspace-broadcast
+ * Notification of kind `webhook.delivery_failed`, beside the audit event the
+ * capability already batched with the terminal row. This is where the feed's
+ * instant-email fan-out starts for the kind (ADR 0055). Best-effort — a feed
+ * outage must not turn a settled delivery into a retry loop.
+ */
+function notifyDeliveryGaveUp(
+  message: WebhookMessage,
+  endpointUrl: string | null,
+  status: 'failed_permanent' | 'dead_lettered'
+): Effect.Effect<void, never, NotificationFeed> {
+  return Effect.gen(function* () {
+    const feed = yield* NotificationFeed
+    let detail = `${message.eventType} was not delivered after retries.`
+    if (status === 'failed_permanent') {
+      detail = `${message.eventType} was rejected and will not be retried.`
+    }
+    const target = endpointUrl ?? `endpoint ${message.endpointId}`
+    yield* feed.create({
+      workspaceId: message.workspaceId,
+      userId: null,
+      kind: 'webhook.delivery_failed',
+      title: 'Webhook delivery failed',
+      message: `${target}: ${detail}`
+    })
+  }).pipe(
+    // The cause goes on the log record whole; the wide event keeps the flag.
+    Effect.catchCause((cause) =>
+      Effect.logWarning('notification_create_failed', cause).pipe(
+        Effect.annotateLogs({ notificationCreate: 'failed' })
+      )
+    )
+  )
+}
+
 /** Fields every consumer stamps onto its wide event once decoded. */
 function annotateMessageFields(message: WebhookMessage) {
   return Effect.annotateLogsScoped({
@@ -214,7 +260,7 @@ export function processWebhookMessage(
 ): Effect.Effect<
   DeliveryOutcome,
   CapabilityUnavailable,
-  WebhookEndpoints | HttpClient.HttpClient | Scope.Scope
+  WebhookEndpoints | NotificationFeed | HttpClient.HttpClient | Scope.Scope
 > {
   return Effect.gen(function* () {
     // A malformed body is terminal — mirroring how permanent delivery failures
@@ -261,6 +307,7 @@ export function processWebhookMessage(
         outcome: 'failed_permanent',
         skipReason: `invalid_url: ${urlCheck.reason}`
       })
+      yield* notifyDeliveryGaveUp(message, target.url, 'failed_permanent')
       return 'ack' satisfies DeliveryOutcome
     }
     const deliveryId = yield* deliveryIdFor(delivery)
@@ -315,6 +362,9 @@ export function processWebhookMessage(
       nextAttemptAt: plan.nextAttemptAt
     })
     yield* Effect.annotateLogsScoped({ outcome: plan.status, responseStatus })
+    if (plan.status === 'failed_permanent') {
+      yield* notifyDeliveryGaveUp(message, target.url, 'failed_permanent')
+    }
     return plan.outcome satisfies DeliveryOutcome
   })
 }
@@ -358,7 +408,11 @@ function deliverWebhook(
  */
 export function processDeadLetterMessage(
   delivery: WebhookQueueDelivery
-): Effect.Effect<void, CapabilityUnavailable, WebhookEndpoints | Scope.Scope> {
+): Effect.Effect<
+  void,
+  CapabilityUnavailable,
+  WebhookEndpoints | NotificationFeed | Scope.Scope
+> {
   return Effect.gen(function* () {
     // Same terminal outcome as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.
@@ -377,6 +431,7 @@ export function processDeadLetterMessage(
       status: 'dead_lettered'
     })
     yield* Effect.annotateLogsScoped({ outcome: 'dead_lettered' })
+    yield* notifyDeliveryGaveUp(message, null, 'dead_lettered')
   })
 }
 
