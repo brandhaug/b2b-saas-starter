@@ -129,6 +129,24 @@ const MATRIX: ReadonlyArray<GatedOperation> = [
     })
   },
 
+  // Workspace export is owner-only: `workspaceExport:*` sits outside both the
+  // read and the write scope, so only an `admin`-scoped token reaches it.
+  {
+    operation: 'POST /workspaces/{slug}/exports',
+    permission: 'workspaceExport:request',
+    expected: 403,
+    request: makeRequest('POST', `/workspaces/${SLUG}/exports`)
+  },
+  {
+    operation: 'POST /workspaces/{slug}/exports/{exportId}/download-link',
+    permission: 'workspaceExport:download',
+    expected: 403,
+    request: makeRequest(
+      'POST',
+      `/workspaces/${SLUG}/exports/exp_seed_ready/download-link`
+    )
+  },
+
   // The assistant and MCP surfaces each carry their own statement now.
   {
     operation: 'POST /assistant/answer',

@@ -16,6 +16,7 @@ import {
   WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
+import { WorkspaceExport } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import {
   Member,
   Workspace
@@ -149,6 +150,7 @@ export type GatedGroup =
   | 'workspace'
   | 'api-token-registry'
   | 'webhook-endpoints'
+  | 'workspace-exports'
   | 'assistant'
   | 'mcp'
 
@@ -156,6 +158,7 @@ const GROUP_BUCKETS = {
   workspace: 'rest_read',
   'api-token-registry': 'rest_write',
   'webhook-endpoints': 'rest_write',
+  'workspace-exports': 'rest_write',
   assistant: 'assistant',
   mcp: 'mcp'
 } satisfies Record<GatedGroup, RateLimitBucket>
@@ -216,6 +219,18 @@ export class BearerAuth extends HttpApiMiddleware.Service<
   security: { bearer: HttpApiSecurity.bearer },
   error: [Unauthorized, RateLimited, CapabilityUnavailable]
 }) {}
+
+/**
+ * The export named by a download-link request is not one this workspace can
+ * hand out right now: unknown, pending, failed, or past its retention horizon.
+ * One answer for every case, so a probing caller learns nothing about which.
+ */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class WorkspaceExportNotDownloadable extends Schema.TaggedError<WorkspaceExportNotDownloadable>()(
+  'WorkspaceExportNotDownloadable',
+  { exportId: Schema.String },
+  { httpApiStatus: 404 }
+) {}
 
 // HttpApi reads these tuple element types to build each endpoint's error union.
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
@@ -336,6 +351,44 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
   )
   .middleware(BearerAuth)
 
+const ExportIdParams = Schema.Struct({ slug: Schema.String, exportId: Schema.String })
+
+/** A signed, time-limited download link for one ready export (ADR 0054). */
+export const WorkspaceExportDownloadLinkDto = Schema.Struct({
+  url: Schema.String,
+  expiresAt: Schema.String
+})
+export type WorkspaceExportDownloadLinkDto = typeof WorkspaceExportDownloadLinkDto.Type
+
+/**
+ * Workspace data export (ADR 0054). Both operations name the owner-only
+ * `workspaceExport` statements, so a `read` or `write` token is refused and
+ * only an `admin`-scoped token — the owner set — reaches them. The download
+ * itself is not a contract operation: `GET /exports/:exportId/download` is a
+ * public signed route served beside the contract (see `apps/api`), the way
+ * `POST /mcp` is.
+ */
+export const WorkspaceExportApi = HttpApiGroup.make('workspace-exports')
+  .add(
+    HttpApiEndpoint.post('request', '/workspaces/:slug/exports', {
+      params: SlugParams,
+      success: WorkspaceExport.pipe(HttpApiSchema.status(202)),
+      error: WORKSPACE_ERRORS
+    })
+  )
+  .add(
+    HttpApiEndpoint.post(
+      'download-link',
+      '/workspaces/:slug/exports/:exportId/download-link',
+      {
+        params: ExportIdParams,
+        success: WorkspaceExportDownloadLinkDto,
+        error: [WorkspaceExportNotDownloadable, ...WORKSPACE_ERRORS]
+      }
+    )
+  )
+  .middleware(BearerAuth)
+
 export const AssistantApi = HttpApiGroup.make('assistant')
   .add(
     HttpApiEndpoint.post('answer', '/assistant/answer', {
@@ -380,6 +433,7 @@ export const StarterApi = HttpApi.make('b2b-saas-starter')
   .add(WorkspaceApi)
   .add(ApiTokenApi)
   .add(WebhookApi)
+  .add(WorkspaceExportApi)
   .add(AssistantApi)
   .add(McpApi)
   .annotateMerge(
