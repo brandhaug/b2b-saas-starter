@@ -7,6 +7,7 @@ import {
   type SeedMembership,
   type SystemUserAccount
 } from './governance/platform-user-admin.ts'
+import { type SeedWorkspaceExportFixture } from './governance/workspace-export.seed.ts'
 
 export const seedWorkspaceRecord: Workspace = {
   id: 'wrk_starter',
@@ -179,8 +180,32 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     // audit page (issue #118) has something to show in Seed/dev.
     workspaceId: 'wrk_starter',
     createdAt: '2026-05-14T08:20:00.000Z'
+  },
+  {
+    id: 'aud_export',
+    eventType: 'workspace.export_completed',
+    targetType: 'workspace_export',
+    targetId: 'exp_seed_ready',
+    actor: 'system',
+    actorUserId: null,
+    workspaceId: 'wrk_starter',
+    createdAt: '2026-05-16T07:30:05.000Z'
   }
 ]
+
+/**
+ * The fixture's one finished export (ADR 0055): `ready` and downloadable, so
+ * the settings page lists an archive and the API worker's signed download
+ * route has bytes to serve before anyone clicks "Request export". The secret
+ * is a fixture credential like `SEED_API_TOKEN` — it signs demo links only.
+ */
+export const seedWorkspaceExportFixture: SeedWorkspaceExportFixture = {
+  id: 'exp_seed_ready',
+  requestedByUserId: demoUserIdentity.id,
+  downloadSecret: 'seed-export-download-secret',
+  ageMs: 60 * 60 * 1000,
+  buildMs: 5000
+}
 
 export const seedNotifications: ReadonlyArray<SeedNotification> = [
   // The user-facing half of the seeded impersonation above: targeted at the
@@ -193,6 +218,13 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     createdAt: '2026-05-15T13:00:00.000Z',
     read: false,
     userId: 'usr_dev'
+  },
+  {
+    id: 'not_export',
+    title: 'Workspace export ready',
+    message: 'Your export of Starter Lab is ready to download from workspace settings.',
+    createdAt: '2026-05-16T07:30:05.000Z',
+    read: false
   },
   {
     id: 'not_email',
