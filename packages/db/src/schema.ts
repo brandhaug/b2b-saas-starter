@@ -430,7 +430,7 @@ export const auditEvents = sqliteTable(
 )
 
 /**
- * Workspace data export jobs (ADR 0054). One row per request: `pending` until
+ * Workspace data export jobs (ADR 0055). One row per request: `pending` until
  * the background worker builds the archive, then `ready` with the R2 object
  * key, or `failed`. `downloadSecret` is the per-export HMAC key behind the
  * signed download link — both workers share this table, so no cross-worker

@@ -346,7 +346,7 @@ describe('request observability', () => {
   })
 })
 
-describe('workspace exports (ADR 0054)', () => {
+describe('workspace exports (ADR 0055)', () => {
   test('POST /workspaces/:slug/exports requests an export with the owner-set token', () =>
     Effect.runPromise(
       Effect.gen(function* () {

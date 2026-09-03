@@ -8,7 +8,7 @@ import { enforceRateLimit, observed } from './request-guards.ts'
 /**
  * `GET /exports/:exportId/download?expires=<unix>&signature=<hex>` — the
  * signed, time-limited download the web app and the REST `download-link`
- * operation hand out (ADR 0054).
+ * operation hand out (ADR 0055).
  *
  * Public by design: the signature is the credential. The capability verifies
  * it against the export's own secret, checks the expiry and the artifact's

@@ -38,6 +38,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 ## Background work and delivery
 
 - [0033 — Cloudflare Queues for webhook delivery](./0033-cloudflare-queues-for-webhook-delivery.md)
+- [0055 — R2 for workspace export artifacts](./0055-r2-for-workspace-export-artifacts.md)
 
 ## Observability, security, and configuration
 

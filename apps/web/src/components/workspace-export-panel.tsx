@@ -39,7 +39,7 @@ function formatSize(sizeBytes: number | null): string {
 }
 
 /**
- * The owner's export card (ADR 0054). Rendered only when the loader handed the
+ * The owner's export card (ADR 0055). Rendered only when the loader handed the
  * segment over — the loader withholds it from admins and members, so absence is
  * the denial and this component never checks a role. When the deployment has
  * no export bucket the segment says so and the button is replaced by the

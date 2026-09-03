@@ -87,7 +87,7 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     mcpProtocolLayer(env),
     // The root directory — see the comment on `rootIndexLayer`.
     rootIndexLayer,
-    // The signed export download (ADR 0054): a public route whose credential
+    // The signed export download (ADR 0055): a public route whose credential
     // is the signature in its query string, not a bearer token, so it rides
     // beside the contract like `/mcp`. See `export-download.ts`.
     exportDownloadLayer(env),

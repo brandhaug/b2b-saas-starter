@@ -207,7 +207,7 @@ export function webhookGroup(env: ApiEnv) {
 }
 
 /**
- * Workspace data export over the REST surface (ADR 0054). `request` enqueues
+ * Workspace data export over the REST surface (ADR 0055). `request` enqueues
  * the job; `download-link` mints the signed URL, re-checking the permission on
  * the way — the link then points at the public signed route on this worker,
  * so it is prefixed with this request's own origin.

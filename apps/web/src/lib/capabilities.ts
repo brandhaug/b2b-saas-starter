@@ -61,7 +61,7 @@ function stripeBillingConfig(): StarterEnv['billing'] | undefined {
 // layer keeps the app working provider-light (CLAUDE.md rule 3). Unset Stripe
 // vars leave `billing` off and checkout degrades to `provider_not_configured`.
 const stripeBilling = stripeBillingConfig()
-// The export bindings (ADR 0054) ride along the same way: absent under the
+// The export bindings (ADR 0055) ride along the same way: absent under the
 // shim and in an unconfigured deploy, present when alchemy provisioned them.
 const workerBindings: StarterEnv = {
   DB: cloudflareEnv.DB,

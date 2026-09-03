@@ -29,7 +29,7 @@ import {
 type OptionalEmailBinding = { EMAIL?: Cloudflare.Email.SendEmail }
 
 /**
- * The workspace export bindings (ADR 0054), spread into every worker on the
+ * The workspace export bindings (ADR 0055), spread into every worker on the
  * same terms as EMAIL: both keys are absent — not `undefined` — when
  * `WORKSPACE_EXPORT_BUCKET` was not set, and the capability then reports
  * unavailable instead of failing a request.
@@ -124,7 +124,7 @@ function resolveBetterAuthUrl(stage: string, webWorkerName: string): string {
 // there is no second email var name.
 const CLOUDFLARE_EMAIL_FROM = readEnv('CLOUDFLARE_EMAIL_FROM')
 // Optional: when unset, no export bucket or queue is provisioned and the
-// `WorkspaceExports` capability reports unavailable (ADR 0054). The value is
+// `WorkspaceExports` capability reports unavailable (ADR 0055). The value is
 // the bucket name; `infra/bindings.ts` carries the local-dev default.
 const WORKSPACE_EXPORT_BUCKET = readEnv('WORKSPACE_EXPORT_BUCKET')
 
@@ -253,7 +253,7 @@ export const Stack = Alchemy.Stack(
       emailBinding.EMAIL = transactionalEmail
     }
 
-    // Workspace export (ADR 0054): one queue for the jobs, one R2 bucket for
+    // Workspace export (ADR 0055): one queue for the jobs, one R2 bucket for
     // the archives, both only when an operator named the bucket. The lifecycle
     // rule deletes every artifact after the retention window — the same
     // horizon `WorkspaceExports` stamps onto `expiresAt`.

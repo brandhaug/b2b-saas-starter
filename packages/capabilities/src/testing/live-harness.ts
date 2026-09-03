@@ -210,7 +210,7 @@ export function inWorkspace<A, E>(
     readonly invitationBinding?: WorkspaceInvitationBinding
     readonly lifecycleBinding?: WorkspaceLifecycleBinding
     readonly userAdminBinding?: PlatformUserAdminBinding
-    /** Stub export queue + bucket (ADR 0054); absent, exports report unavailable. */
+    /** Stub export queue + bucket (ADR 0055); absent, exports report unavailable. */
     readonly workspaceExports?: LiveWorkspaceExportsOptions
   }
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {

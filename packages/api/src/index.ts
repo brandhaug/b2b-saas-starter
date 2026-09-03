@@ -353,7 +353,7 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
 
 const ExportIdParams = Schema.Struct({ slug: Schema.String, exportId: Schema.String })
 
-/** A signed, time-limited download link for one ready export (ADR 0054). */
+/** A signed, time-limited download link for one ready export (ADR 0055). */
 export const WorkspaceExportDownloadLinkDto = Schema.Struct({
   url: Schema.String,
   expiresAt: Schema.String
@@ -361,7 +361,7 @@ export const WorkspaceExportDownloadLinkDto = Schema.Struct({
 export type WorkspaceExportDownloadLinkDto = typeof WorkspaceExportDownloadLinkDto.Type
 
 /**
- * Workspace data export (ADR 0054). Both operations name the owner-only
+ * Workspace data export (ADR 0055). Both operations name the owner-only
  * `workspaceExport` statements, so a `read` or `write` token is refused and
  * only an `admin`-scoped token — the owner set — reaches them. The download
  * itself is not a contract operation: `GET /exports/:exportId/download` is a

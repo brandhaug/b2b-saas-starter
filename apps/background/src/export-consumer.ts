@@ -28,7 +28,7 @@ import {
 } from './webhook-consumer.ts'
 
 /**
- * The workspace export consumer (ADR 0054). One message names one `pending`
+ * The workspace export consumer (ADR 0055). One message names one `pending`
  * export row; the consumer resolves the workspace the way a request would,
  * snapshots it through the capability services, builds the archive, and hands
  * the bytes to `WorkspaceExports.complete`, which stores them, flips the row,

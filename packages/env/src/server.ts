@@ -35,7 +35,7 @@ export const ServerEnvSchema = Schema.Struct({
   SERVICE_VERSION: optional,
   GIT_COMMIT_SHA: optional,
   ENVIRONMENT: optional,
-  // Workspace data export (ADR 0054): the R2 bucket name gates provisioning at
+  // Workspace data export (ADR 0055): the R2 bucket name gates provisioning at
   // deploy time; the API worker's public origin is where the web app points
   // signed download links.
   WORKSPACE_EXPORT_BUCKET: optional,

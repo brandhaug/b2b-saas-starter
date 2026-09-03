@@ -39,7 +39,7 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
         Effect.as(recordDeadLetter(message, env), 'ack')
       )
     }
-    // Workspace export jobs (ADR 0054): build the archive into R2.
+    // Workspace export jobs (ADR 0055): build the archive into R2.
     if (batch.queue === workspaceExportQueueName) {
       return consumeBatch(env, batch, (message) => buildWorkspaceExport(message, env))
     }

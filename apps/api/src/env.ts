@@ -19,7 +19,7 @@ export type ApiEnv = RateLimitBindings &
     readonly DB?: D1Database
     readonly AI?: WorkersAIBinding
     readonly WEBHOOK_QUEUE?: WebhookQueueBinding
-    // Workspace export (ADR 0054): the queue to request one and the bucket to
+    // Workspace export (ADR 0055): the queue to request one and the bucket to
     // serve signed downloads from. Both absent when unconfigured.
     readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding
     readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding

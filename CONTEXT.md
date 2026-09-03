@@ -92,6 +92,10 @@ _Avoid_: Staging, preview environment, branch deploy
 A one-hour session a System Admin opens as another user through Better Auth's admin plugin, audited at start and stop, visible in the app shell, and barred from changing the account's credentials.
 _Avoid_: Login as, sudo mode, admin takeover
 
+**Workspace Export**:
+An owner-requested ZIP of a workspace's members, invitations, API Token metadata, Webhook Endpoints, Audit Events, Notifications, and settings, built in the background and downloaded through a signed, time-limited link.
+_Avoid_: Backup, data dump, GDPR export
+
 ## Relationships
 
 - A **Starter** includes exactly one **Reference Application**
@@ -116,6 +120,8 @@ _Avoid_: Login as, sudo mode, admin takeover
 - A **Seed Workspace** demonstrates **Members**, **Notifications**, and the developer-platform capabilities
 - An **Onboarding Checklist** derives its steps from **Members**, **API Tokens**, **Webhook Endpoints**, billing, and the actor's account; dismissing it records an **Audit Event**
 - An **Impersonation Session** is opened by a **System Admin**, records two **Audit Events**, and creates a **Notification** for the impersonated user
+- A **Workspace Export** belongs to exactly one **Workspace**, is requested by an owner, and creates **Audit Events** and a **Notification**
+- A **Workspace Export** is the access half of a data subject request; account deletion is the erasure half
 
 ## Example Dialogue
 
@@ -167,6 +173,9 @@ _Avoid_: Login as, sudo mode, admin takeover
 > **Dev:** "Are billing webhooks and customer webhooks the same thing?"
 > **Domain expert:** "No. Provider callbacks are integration-specific routes, while a **Webhook Endpoint** is a workspace-owned outbound event target."
 >
+> **Dev:** "Is a workspace export the same thing as a backup?"
+> **Domain expert:** "No. A **Workspace Export** is what an owner takes with them or hands to a data subject: the projections the app shows, never secrets, built once and kept for seven days. A backup is an operator's concern."
+>
 > **Dev:** "Should the app start empty after local setup?"
 > **Domain expert:** "No. It should include a **Seed Workspace** so the reference app, tests, and screenshots have stable starter data."
 
@@ -189,3 +198,4 @@ _Avoid_: Login as, sudo mode, admin takeover
 - REST and MCP credentials should not be modeled as user sessions or provider secrets. Resolved: use workspace-scoped **API Tokens**.
 - "Webhook" is ambiguous. Resolved: use **Webhook Endpoint** for outbound workspace event delivery; provider callbacks are integration-specific routes.
 - "Demo data" should be deterministic and part of the reference app's local experience. Resolved: use a **Seed Workspace**.
+- "Export" could mean a database backup or a GDPR-specific artifact. Resolved: a **Workspace Export** is an owner-facing ZIP of the workspace's own projections; GDPR requests are served with it plus account deletion, not by a separate export.

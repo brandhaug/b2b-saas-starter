@@ -16,7 +16,7 @@ import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 
 /**
- * Workspace data export (ADR 0054) on the session surface: the settings page's
+ * Workspace data export (ADR 0055) on the session surface: the settings page's
  * export segment and the "Request export" mutation. Both name the owner-only
  * `workspaceExport` statements — the loader withholds the segment from every
  * other role, and the server function re-checks the permission before the
