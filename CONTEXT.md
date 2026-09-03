@@ -76,6 +76,10 @@ _Avoid_: Provider webhook, callback URL, integration
 A deterministic workspace included for local development, tests, and showcase screenshots.
 _Avoid_: Fake account, sample tenant
 
+**Onboarding Checklist**:
+The workspace dashboard's list of setup steps, each derived from live capability state on every read and never stored as a flag; owners and admins can dismiss it for the workspace.
+_Avoid_: Setup wizard, progress tracker, getting-started flags
+
 ## Relationships
 
 - A **Starter** includes exactly one **Reference Application**
@@ -97,6 +101,7 @@ _Avoid_: Fake account, sample tenant
 - An **API Token** belongs to exactly one **Workspace** and can create **Audit Events**
 - A **Webhook Endpoint** belongs to exactly one **Workspace** and receives selected outbound events
 - A **Seed Workspace** demonstrates **Members**, **Notifications**, and the developer-platform capabilities
+- An **Onboarding Checklist** derives its steps from **Members**, **API Tokens**, **Webhook Endpoints**, billing, and the actor's account; dismissing it records an **Audit Event**
 
 ## Example Dialogue
 
