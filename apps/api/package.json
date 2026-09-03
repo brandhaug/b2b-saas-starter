@@ -22,6 +22,7 @@
     "@sentry/cloudflare": "catalog:",
     "agents": "catalog:",
     "effect": "catalog:",
+    "jose": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

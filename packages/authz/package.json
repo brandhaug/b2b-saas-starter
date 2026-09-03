@@ -5,7 +5,8 @@
   "exports": {
     "./client": "./src/client.ts",
     "./errors": "./src/errors.ts",
-    "./guard": "./src/guard.ts"
+    "./guard": "./src/guard.ts",
+    "./mcp-access-token": "./src/mcp-access-token.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -15,7 +16,8 @@
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",
     "better-auth": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "jose": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",

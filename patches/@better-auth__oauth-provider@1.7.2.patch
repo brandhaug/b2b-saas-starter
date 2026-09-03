@@ -1,0 +1,78 @@
+diff --git a/dist/oauth-D8xpKR0_.d.mts b/dist/oauth-D8xpKR0_.d.mts
+index 47f2a9db17e9b22cf7ae24709c111db3c3574304..aa16145b17c71af802801a2f688a2bac42270412 100644
+--- a/dist/oauth-D8xpKR0_.d.mts
++++ b/dist/oauth-D8xpKR0_.d.mts
+@@ -110,7 +110,6 @@ declare function buildOAuthDeviceGrant(): {
+     resource: {
+       oneOf: ({
+         type: string;
+-        items?: undefined;
+       } | {
+         type: string;
+         items: {
+@@ -786,9 +785,6 @@ declare const oauthProvider: <O extends OAuthOptions<Scope[]>>(options: O) => {
+             required: false;
+             schema: {
+               type: "string";
+-              format?: undefined;
+-              minimum?: undefined;
+-              items?: undefined;
+             };
+             description: string;
+           } | {
+@@ -797,9 +793,6 @@ declare const oauthProvider: <O extends OAuthOptions<Scope[]>>(options: O) => {
+             required: true;
+             schema: {
+               type: "string";
+-              format?: undefined;
+-              minimum?: undefined;
+-              items?: undefined;
+             };
+             description: string;
+           } | {
+@@ -809,8 +802,6 @@ declare const oauthProvider: <O extends OAuthOptions<Scope[]>>(options: O) => {
+             schema: {
+               type: "string";
+               format: string;
+-              minimum?: undefined;
+-              items?: undefined;
+             };
+             description: string;
+           } | {
+@@ -820,8 +811,6 @@ declare const oauthProvider: <O extends OAuthOptions<Scope[]>>(options: O) => {
+             schema: {
+               type: "integer";
+               minimum: number;
+-              format?: undefined;
+-              items?: undefined;
+             };
+             description: string;
+           } | {
+@@ -833,8 +822,6 @@ declare const oauthProvider: <O extends OAuthOptions<Scope[]>>(options: O) => {
+               items: {
+                 type: "string";
+               };
+-              format?: undefined;
+-              minimum?: undefined;
+             };
+             description: string;
+           })[];
+@@ -1073,7 +1060,6 @@ declare const oauthProvider: <O extends OAuthOptions<Scope[]>>(options: O) => {
+                       oneOf: ({
+                         type: string;
+                         description: string;
+-                        items?: undefined;
+                       } | {
+                         type: string;
+                         items: {
+@@ -1393,10 +1379,8 @@ declare const oauthProvider: <O extends OAuthOptions<Scope[]>>(options: O) => {
+           description: string;
+           security: ({
+             bearerAuth: never[];
+-            OAuth2?: undefined;
+           } | {
+             OAuth2: string[];
+-            bearerAuth?: undefined;
+           })[];
+           parameters: {
+             name: string;

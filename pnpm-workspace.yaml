@@ -24,6 +24,9 @@ auditConfig:
 catalog:
   '@babel/core': 8.0.1
   '@base-ui/react': 1.7.0
+  '@better-auth/cimd': 1.7.2
+  '@better-auth/mcp': 1.7.2
+  '@better-auth/oauth-provider': 1.7.2
   '@better-auth/passkey': 1.7.2
   '@better-auth/sso': 1.7.2
   '@cloudflare/workers-types': 5.20260828.1
@@ -79,6 +82,7 @@ catalog:
   effectful-better-auth: 0.3.1
   eslint-plugin-better-tailwindcss: 4.7.0
   jsdom: 30.0.1
+  jose: 6.2.10
   lucide-react: 1.35.0
   mermaid: 11.17.2
   oxlint: 1.80.0
@@ -135,6 +139,8 @@ overrides:
   ws: 8.21.0
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
+patchedDependencies:
+  '@better-auth/oauth-provider@1.7.2': patches/@better-auth__oauth-provider@1.7.2.patch
 peerDependencyRules:
   allowAny:
     - vite
