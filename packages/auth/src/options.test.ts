@@ -27,7 +27,8 @@ const baseConfig: AuthConfigInterface = {
   trustedOrigins: [],
   emails: {
     sendResetPassword: () => Promise.resolve(),
-    sendVerificationEmail: () => Promise.resolve()
+    sendVerificationEmail: () => Promise.resolve(),
+    sendOneTimeCode: () => Promise.resolve()
   },
   // The provider-light default: no provider resolved, so no social surface.
   socialProviders: {},
@@ -172,6 +173,30 @@ describe('makeAuthOptions', () => {
       expect(options.emailVerification.sendVerificationEmail).toBe(
         baseConfig.emails.sendVerificationEmail
       )
+    })
+  })
+
+  describe('email-otp knobs', () => {
+    it('pins six digits, ten minutes, and three attempts', () => {
+      // Stated rather than defaulted (only the six is Better Auth's default),
+      // so a plugin default change cannot silently lengthen the brute-force
+      // window a leaked code has.
+      const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'email-otp')
+      expect(options.otpLength).toBe(6)
+      expect(options.expiresIn).toBe(60 * 10)
+      expect(options.allowedAttempts).toBe(3)
+    })
+
+    it('hashes codes at rest and refuses to register unknown addresses', () => {
+      const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'email-otp')
+      expect(options.storeOTP).toBe('hashed')
+      expect(options.disableSignUp).toBe(true)
+    })
+
+    it("passes the app's one-time-code adapter through as the plugin's callback", () => {
+      const options = makeAuthOptions(baseConfig)
+      const otpOptions = pluginOptions(options.plugins, 'email-otp')
+      expect(otpOptions.sendVerificationOTP).toBe(baseConfig.emails.sendOneTimeCode)
     })
   })
 
