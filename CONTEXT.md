@@ -80,6 +80,10 @@ _Avoid_: Fake account, sample tenant
 The workspace dashboard's list of setup steps, each derived from live capability state on every read and never stored as a flag; owners and admins can dismiss it for the workspace.
 _Avoid_: Setup wizard, progress tracker, getting-started flags
 
+**Preview Stage**:
+An ephemeral, fully isolated deployment of the starter (`pr-<number>`) created for one pull request and destroyed when it closes; it carries the Seed Workspace and no optional providers.
+_Avoid_: Staging, preview environment, branch deploy
+
 ## Relationships
 
 - A **Starter** includes exactly one **Reference Application**

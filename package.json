@@ -34,6 +34,9 @@
     "db:seed": "node scripts/seed.ts",
     "deploy": "alchemy deploy --stage prod --yes",
     "destroy": "alchemy destroy --stage prod",
+    "deploy:stage": "alchemy deploy --yes --stage \"${ALCHEMY_STAGE:?set ALCHEMY_STAGE, e.g. pr-42}\"",
+    "destroy:stage": "alchemy destroy --yes --stage \"${ALCHEMY_STAGE:?set ALCHEMY_STAGE, e.g. pr-42}\"",
+    "db:seed:stage": "node scripts/seed.ts --remote --database=\"b2b-saas-starter-${ALCHEMY_STAGE:?set ALCHEMY_STAGE, e.g. pr-42}\"",
     "prepare": "command -v vp >/dev/null 2>&1 && vp config --no-agent || true",
     "infra:wrangler": "node infra/write-wrangler.ts && vp fmt --write apps/api/wrangler.jsonc apps/background/wrangler.jsonc apps/web/wrangler.jsonc"
   },

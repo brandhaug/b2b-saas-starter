@@ -102,6 +102,74 @@ Both paths run `alchemy deploy --stage prod`. The stage is part of the
 state-store identity, so always deploy with the same stage or the CLI
 treats the stack as new.
 
+## Preview stages per pull request
+
+Every pull request opened from this repository (not from a fork, and not
+by Dependabot) gets an ephemeral Alchemy stage named `pr-<number>`
+([ADR 0054](./adr/0054-ephemeral-pr-preview-stages.md)). The
+[Preview workflow](../.github/workflows/preview.yml) deploys it on
+`opened`, `synchronize`, and `reopened`, applies the migrations, seeds
+the Seed Workspace (`starter-lab`, demo sign-in in
+[setup.md](./setup.md)), smoke-tests the API and web Workers, and keeps
+one sticky comment on the PR with the three URLs:
+
+| Worker     | URL                                                                       |
+| ---------- | ------------------------------------------------------------------------- |
+| web        | `https://b2b-saas-starter-pr-<number>-web.<subdomain>.workers.dev`        |
+| api        | `https://b2b-saas-starter-pr-<number>-api.<subdomain>.workers.dev`        |
+| background | `https://b2b-saas-starter-pr-<number>-background.<subdomain>.workers.dev` |
+
+Closing or merging the PR runs `alchemy destroy` for the stage, which
+deletes its D1 database, queues, and Workers. Each stage is fully
+isolated from `prod` and from every other PR: `stageResourceNames` in
+`infra/bindings.ts` prefixes every physical name with the stage, and
+`prod` keeps the historical names, so `pnpm run infra:wrangler` output
+does not change.
+
+Previews are provider-light on purpose. A `pr-<number>` stage drops
+every optional provider value even if the deploying shell has one
+(Turnstile, Stripe, Sentry, PostHog, OTLP, OpenAI, Workers AI, email)
+and sets `ENVIRONMENT=preview`. A preview is publicly reachable and
+signs in with the documented demo credentials, so never point one at
+real data.
+
+### Repository secrets for previews
+
+The workflow reads **repository** secrets (Settings → Secrets and
+variables → Actions), not the `production` environment:
+
+| Secret                       | Required | Value                                                                                           |
+| ---------------------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`       | yes      | A token with the permissions from step 2 above; a separate token from production is a good idea |
+| `CLOUDFLARE_ACCOUNT_ID`      | yes      | From step 1 above                                                                               |
+| `PREVIEW_BETTER_AUTH_SECRET` | yes      | `openssl rand -base64 32`; shared by all preview stages, never the production value             |
+
+`BETTER_AUTH_URL` is not a secret here: the workflow resolves the
+account's `workers.dev` subdomain through the API and `alchemy.run.ts`
+derives the URL from the stage's web Worker name.
+
+### Running a preview stage from a laptop
+
+The same scripts the workflow uses take the stage from `ALCHEMY_STAGE`
+(or pass `--stage` to `alchemy` yourself; Alchemy also reads a plain
+`STAGE` variable):
+
+```bash
+export CLOUDFLARE_API_TOKEN=…
+export CLOUDFLARE_ACCOUNT_ID=…
+export CLOUDFLARE_WORKERS_SUBDOMAIN=<subdomain>   # or set BETTER_AUTH_URL explicitly
+export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
+
+ALCHEMY_STAGE=pr-42 pnpm run deploy:stage     # provision + migrate
+ALCHEMY_STAGE=pr-42 pnpm run db:seed:stage    # seed the Seed Workspace
+ALCHEMY_STAGE=pr-42 pnpm run destroy:stage    # tear it down again
+```
+
+Pick any stage name matching `[a-z0-9]+([-_][a-z0-9]+)*`; only names of
+the form `pr-<number>` get the preview rules above (providers dropped,
+URL derived). A stage such as `dev_martin` gets isolated resources but
+otherwise deploys like production, so it needs `BETTER_AUTH_URL`.
+
 ## Verifying the first deploy
 
 1. Open `BETTER_AUTH_URL` — the landing page should render.

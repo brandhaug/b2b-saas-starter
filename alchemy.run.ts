@@ -4,12 +4,13 @@ import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
 import {
   apiRateLimits,
+  isPreviewStage,
+  stageResourceNames,
   webhookConsumerSettings,
-  webhookDeadLetterQueueName,
   webhookDlqConsumerSettings,
-  webhookQueueName,
   webRateLimits,
   workerCompatibility,
+  workersDevUrl,
   type RateLimitBindingSpec
 } from './infra/bindings.ts'
 import {
@@ -85,10 +86,25 @@ function presentEntries<A>(
   return entries
 }
 
+// The stage comes from the Alchemy CLI (`--stage pr-42`, or `$STAGE`; the
+// `deploy:stage`/`destroy:stage` scripts pass `$ALCHEMY_STAGE` through as the
+// flag). It is read inside the Stack below via the `Stage` service, so the
+// module scope only resolves the values that do not depend on it.
 const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
-const BETTER_AUTH_URL = requiredEnv('BETTER_AUTH_URL')
-const BETTER_AUTH_TRUSTED_ORIGINS =
-  readEnv('BETTER_AUTH_TRUSTED_ORIGINS') ?? BETTER_AUTH_URL
+// Preview stages (ADR 0054) can derive their URL from the account's
+// `workers.dev` subdomain instead of requiring a per-PR `BETTER_AUTH_URL`.
+const CLOUDFLARE_WORKERS_SUBDOMAIN = readEnv('CLOUDFLARE_WORKERS_SUBDOMAIN')
+
+function resolveBetterAuthUrl(stage: string, webWorkerName: string): string {
+  const explicit = readEnv('BETTER_AUTH_URL')
+  if (explicit) {
+    return explicit
+  }
+  if (isPreviewStage(stage) && CLOUDFLARE_WORKERS_SUBDOMAIN) {
+    return workersDevUrl(webWorkerName, CLOUDFLARE_WORKERS_SUBDOMAIN)
+  }
+  return requiredEnv('BETTER_AUTH_URL')
+}
 // Optional: when unset, the SendEmail binding is skipped and the email
 // module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers
 // read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalProviderEnv` below —
@@ -109,6 +125,35 @@ const optionalProviderEnv = {
   ...Object.fromEntries(
     presentEntries(optionalModuleEnvPlainKeys, (key) => readEnv(key) || undefined)
   )
+}
+
+// Preview stages carry only the deploy identity. Every env-gated provider
+// (Turnstile, Stripe, Sentry, PostHog, OTLP, OpenAI, Workers AI, email) stays
+// unset on a `pr-<number>` stage even when the deploying shell has the values,
+// so a preview can never charge a card, page an on-call, or send real mail.
+// `ENVIRONMENT` defaults to `preview` so the required-env gate runs in its
+// deployed (warn-only) mode rather than treating the Worker as local dev.
+const previewPlainKeys: ReadonlySet<string> = new Set([
+  'ENVIRONMENT',
+  'SERVICE_VERSION',
+  'GIT_COMMIT_SHA'
+])
+
+function providerEnvForStage(stage: string) {
+  if (!isPreviewStage(stage)) {
+    return optionalProviderEnv
+  }
+  const kept = Object.fromEntries(
+    Object.entries(optionalProviderEnv).filter(([key]) => previewPlainKeys.has(key))
+  )
+  return { ENVIRONMENT: 'preview', ...kept }
+}
+
+function emailFromForStage(stage: string): string | undefined {
+  if (isPreviewStage(stage)) {
+    return
+  }
+  return CLOUDFLARE_EMAIL_FROM
 }
 
 const observability: Cloudflare.WorkerObservability = {
@@ -141,8 +186,18 @@ export const Stack = Alchemy.Stack(
     state: Cloudflare.state()
   },
   Effect.gen(function* () {
+    // `prod` keeps the historical names; any other stage gets its own D1,
+    // queues, and Workers under `b2b-saas-starter-<stage>-…` (infra/bindings.ts).
+    const stage = yield* Alchemy.Stage
+    const names = stageResourceNames(stage)
+    const providerEnv = providerEnvForStage(stage)
+    const emailFrom = emailFromForStage(stage)
+    const BETTER_AUTH_URL = resolveBetterAuthUrl(stage, names.worker('web'))
+    const BETTER_AUTH_TRUSTED_ORIGINS =
+      readEnv('BETTER_AUTH_TRUSTED_ORIGINS') ?? BETTER_AUTH_URL
+
     const db = yield* Cloudflare.D1.Database('b2b-saas-starter-db', {
-      name: 'b2b-saas-starter',
+      name: names.database,
       // Alchemy 2.0 takes the migrations input as `migrations` ({ dir, table? });
       // a `migrationsDir` prop is silently dropped and the database deploys with
       // no schema applied.
@@ -150,23 +205,23 @@ export const Stack = Alchemy.Stack(
     })
 
     const webhookDeadLetterQueue = yield* Cloudflare.Queues.Queue('webhook-queue-dlq', {
-      name: webhookDeadLetterQueueName
+      name: names.webhookDeadLetterQueue
     })
 
     const webhookQueue = yield* Cloudflare.Queues.Queue('webhook-queue', {
-      name: webhookQueueName
+      name: names.webhookQueue
     })
 
     // Only provision the SendEmail binding when a verified sender is
     // configured — without it the email module stays inactive instead of
     // failing the deploy.
     let transactionalEmail: Cloudflare.Email.SendEmail | undefined
-    if (CLOUDFLARE_EMAIL_FROM) {
+    if (emailFrom) {
       transactionalEmail = yield* Cloudflare.Email.SendEmail('EMAIL', {
         // Restrict the Worker to sending from the verified default. Add
         // more `allowedSenderAddresses` here as you verify additional
         // domains in Cloudflare Email Routing.
-        allowedSenderAddresses: [CLOUDFLARE_EMAIL_FROM]
+        allowedSenderAddresses: [emailFrom]
       })
     }
 
@@ -182,7 +237,7 @@ export const Stack = Alchemy.Stack(
     }
 
     const api = yield* Cloudflare.Worker('api', {
-      name: 'b2b-saas-starter-api',
+      name: names.worker('api'),
       main: './apps/api/src/index.ts',
       env: {
         DB: db,
@@ -192,20 +247,20 @@ export const Stack = Alchemy.Stack(
         AI: ai,
         ...rateLimitBindings(apiRateLimits),
         ...emailBinding,
-        ...optionalProviderEnv
+        ...providerEnv
       },
       ...workerDefaults,
       placement: smartPlacement
     })
 
     const background = yield* Cloudflare.Worker('background', {
-      name: 'b2b-saas-starter-background',
+      name: names.worker('background'),
       main: './apps/background/src/index.ts',
       env: {
         DB: db,
         WEBHOOK_QUEUE: webhookQueue,
         ...emailBinding,
-        ...optionalProviderEnv
+        ...providerEnv
       },
       ...workerDefaults,
       placement: smartPlacement
@@ -227,14 +282,14 @@ export const Stack = Alchemy.Stack(
     })
 
     const web = yield* Cloudflare.Website.Vite('web', {
-      name: 'b2b-saas-starter-web',
+      name: names.worker('web'),
       rootDir: './apps/web',
       env: {
         DB: db,
         ...rateLimitBindings(webRateLimits),
         AI: ai,
         ...emailBinding,
-        ...optionalProviderEnv,
+        ...providerEnv,
         BETTER_AUTH_SECRET,
         BETTER_AUTH_URL,
         BETTER_AUTH_TRUSTED_ORIGINS
@@ -243,6 +298,7 @@ export const Stack = Alchemy.Stack(
     })
 
     return {
+      stage,
       api,
       background,
       db,
