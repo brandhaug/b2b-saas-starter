@@ -150,7 +150,7 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 - A **Member** has exactly one **Workspace Role** per **Workspace**
 - A **System Admin** manages users globally and is distinct from a **Workspace Role**
 - An **Audit Event** can be associated with a user, workspace, system admin action, or provider action
-- A **Notification** can be created from workspace, billing, or API token activity
+- A **Notification** can be created from workspace, billing, API token, or webhook delivery activity
 - A **Workspace** on a per-seat plan bills one **Seat Quantity** per **Member**
 - Invoices, payment methods, and cancellation are managed in the **Billing Portal**, not in the Reference Application
 - An **API Token** belongs to exactly one **Workspace** and can create **Audit Events**
