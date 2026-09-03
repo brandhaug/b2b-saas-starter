@@ -57,11 +57,18 @@ const getSessionServerFn = createServerFn({ method: 'GET' }).handler(readSession
 export type RouteSession = {
   readonly user: {
     readonly id: string
+    readonly name: string
     readonly email: string
     readonly emailVerified: boolean
     readonly role: string
     readonly twoFactorEnabled: boolean
   }
+  /**
+   * The System Admin whose impersonation session this is (ADR 0054), or
+   * `null` for an ordinary session. The shell's banner and the account page's
+   * hidden controls read it; the server re-checks the real session anyway.
+   */
+  readonly impersonatedBy: string | null
 }
 
 /**
@@ -72,6 +79,7 @@ export function toRouteSession(session: Session): RouteSession {
   return {
     user: {
       id: session.user.id,
+      name: session.user.name,
       email: session.user.email,
       // The plugin schema marks these optional; the gate only ever reads
       // them as scalars, so normalize to definite values here.
@@ -80,7 +88,8 @@ export function toRouteSession(session: Session): RouteSession {
       emailVerified: session.user.emailVerified,
       role: session.user.role ?? '',
       twoFactorEnabled: session.user.twoFactorEnabled ?? false
-    }
+    },
+    impersonatedBy: session.session.impersonatedBy ?? null
   }
 }
 

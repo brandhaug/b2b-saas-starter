@@ -4,6 +4,7 @@ import { SessionsPanel } from '@/components/sessions-panel'
 import { PageHeader } from '@/components/page/page-header'
 import { pageTitle } from '@/components/page/page-title'
 import { Panel } from '@/components/page/panel'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { authClient } from '@/lib/auth-client'
 import { requireSession } from '@/lib/server/auth'
@@ -36,7 +37,19 @@ function AccountRoute() {
         title="Two-factor authentication"
         description="Require a time-based one-time code from an authenticator app at every sign-in."
       >
-        <TwoFactorPanel twoFactorEnabled={session.user.twoFactorEnabled} />
+        {/* Hidden, not merely disabled, for an impersonation session (ADR
+            0054): the catchall refuses the endpoints anyway, so a control
+            that always fails would only teach the admin to ignore errors. */}
+        {session.impersonatedBy === null ? (
+          <TwoFactorPanel twoFactorEnabled={session.user.twoFactorEnabled} />
+        ) : (
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
+          <Alert role="status">
+            <AlertDescription>
+              Two-factor settings cannot be changed while impersonating this user.
+            </AlertDescription>
+          </Alert>
+        )}
       </Panel>
 
       <SessionsPanel currentSessionToken={currentSession.data?.session.token ?? ''} />
