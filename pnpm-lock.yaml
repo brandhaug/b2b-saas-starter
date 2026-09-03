@@ -133,8 +133,8 @@ catalogs:
       specifier: 4.1.11
       version: 4.1.11
     agents:
-      specifier: 0.21.0
-      version: 0.21.0
+      specifier: 0.22.0
+      version: 0.22.0
     alchemy:
       specifier: 2.0.0-beta.74
       version: 2.0.0-beta.74
@@ -410,7 +410,7 @@ importers:
         version: 10.72.0(@cloudflare/workers-types@5.20260828.1)(wrangler@4.127.0(@cloudflare/workers-types@5.20260828.1)(@types/node@26.4.0))
       agents:
         specifier: 'catalog:'
-        version: 0.21.0(@babel/core@8.0.1)(@babel/runtime@7.29.7)(@cloudflare/workers-types@5.20260828.1)(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(react@19.2.8)(rolldown@1.1.5)(zod@4.4.3)
+        version: 0.22.0(@babel/core@8.0.1)(@babel/runtime@7.29.7)(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(react@19.2.8)(rolldown@1.1.5)(zod@4.4.3)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
@@ -5905,9 +5905,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  agents@0.21.0:
-    resolution: {integrity: sha512-8A048JJFMog7t68NrIQOT9CGcQ9O+h8NpP/Udw2kd4fAHvDn2T/+3Do85XT+xGj2VpciGbW+58RwLpVM9AA9eA==}
-    hasBin: true
+  agents@0.22.0:
+    resolution: {integrity: sha512-dIy/BRdO5GSqdOIp0pmkcLmHCCxIKb4RBByXFXmXG6Nc6WBSNYRXoLLDvWj2fJAfi4l5/OndJjZuBAP0vW0DZQ==}
     peerDependencies:
       '@ai-sdk/react': ^3.0.0 || ^4.0.0
       '@cloudflare/codemode': '>=0.5.0'
@@ -8521,11 +8520,6 @@ packages:
   parseurl@1.3.3:
     resolution: {integrity: sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==}
     engines: {node: '>= 0.8'}
-
-  partyserver@0.5.10:
-    resolution: {integrity: sha512-t2B3mhTL1IOxCsj8rZgn4TxTuub7oLhypjc1/fGPNsbgnn9OsHms6uR3QEd5bFJ/7xrFo771j3DdUlll8cxgBg==}
-    peerDependencies:
-      '@cloudflare/workers-types': ^4.20260424.1 || ^5.20260703.1
 
   partysocket@1.3.0:
     resolution: {integrity: sha512-1zToNyolZFK/7nuAw/K2bZrNzFqaZyRoCEkS+9vG6WSC5ikrN6qWRe96q6ImU51uptz2r+dAwSkwhJVdQi4LiA==}
@@ -13925,7 +13919,7 @@ snapshots:
 
   acorn@8.18.0: {}
 
-  agents@0.21.0(@babel/core@8.0.1)(@babel/runtime@7.29.7)(@cloudflare/workers-types@5.20260828.1)(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(react@19.2.8)(rolldown@1.1.5)(zod@4.4.3):
+  agents@0.22.0(@babel/core@8.0.1)(@babel/runtime@7.29.7)(@modelcontextprotocol/client@2.0.0)(@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(react@19.2.8)(rolldown@1.1.5)(zod@4.4.3):
     dependencies:
       '@babel/plugin-proposal-decorators': 8.0.2(@babel/core@8.0.1)
       '@cfworker/json-schema': 4.1.1
@@ -13937,10 +13931,8 @@ snapshots:
       esbuild: 0.28.2
       mimetext: 3.0.28
       nanoid: 3.3.18
-      partyserver: 0.5.10(@cloudflare/workers-types@5.20260828.1)
       partysocket: 1.3.0(react@19.2.8)
       yaml: 2.9.0
-      yargs: 18.1.0
       zod: 4.4.3
     optionalDependencies:
       react: 19.2.8
@@ -13949,7 +13941,6 @@ snapshots:
       - '@babel/core'
       - '@babel/plugin-transform-runtime'
       - '@babel/runtime'
-      - '@cloudflare/workers-types'
       - rolldown
 
   ajv-formats@2.1.1(ajv@8.20.0):
@@ -16949,11 +16940,6 @@ snapshots:
       peberminta: 0.9.0
 
   parseurl@1.3.3: {}
-
-  partyserver@0.5.10(@cloudflare/workers-types@5.20260828.1):
-    dependencies:
-      '@cloudflare/workers-types': 5.20260828.1
-      nanoid: 3.3.18
 
   partysocket@1.3.0(react@19.2.8):
     dependencies:
