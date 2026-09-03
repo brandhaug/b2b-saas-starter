@@ -92,7 +92,10 @@ const readScopeStatements = {
 export const readScopeRole = accessControl.newRole(readScopeStatements)
 
 /**
- * The read set plus the mutations a machine client is trusted with.
+ * The read set plus the mutations a machine client is trusted with: the
+ * webhook operator surface (create, update, delete, replay, test send) rides
+ * with `create` — none of it can escalate the token's own authority, unlike
+ * `apiToken:create`, which stays owner-only.
  *
  * `apiToken: ['create']` is deliberately absent. Minting is the one mutation
  * that would let a token escalate itself — a `write` token allowed to create
@@ -104,7 +107,14 @@ export const writeScopeRole = accessControl.newRole({
   invitation: ['create'],
   // Extends the read set — restating it would silently drop any read action
   // later added to the `webhook` statements.
-  webhook: [...readScopeStatements.webhook, 'create']
+  webhook: [
+    ...readScopeStatements.webhook,
+    'create',
+    'update',
+    'delete',
+    'replay',
+    'test'
+  ]
 })
 
 /**

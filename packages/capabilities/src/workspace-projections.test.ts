@@ -18,6 +18,7 @@ import {
   type SeedWorkspaceOnboardingOptions
 } from './governance/workspace-onboarding.ts'
 import { type Member } from './governance/workspace-identity.ts'
+import { SeedNotificationFeed } from './notifications/notification-feed.ts'
 import { SeedLayer } from './layers.ts'
 import {
   demoUserIdentity,
@@ -69,7 +70,11 @@ function fixtureLayer(fixture: Fixture) {
         ),
         SeedWebhookEndpoints(fixture.webhooks ?? []).pipe(
           Layer.provide(audit),
-          Layer.provide(SeedWebhookPublisher)
+          Layer.provide(SeedWebhookPublisher),
+          // The webhook capability records dead-letter notifications below its
+          // interface, so the Seed adapter needs the feed even when the
+          // projection under test never reads one.
+          Layer.provide(SeedNotificationFeed([]))
         ),
         SeedBilling({ stripeConfigured: fixture.stripeConfigured ?? false }).pipe(
           Layer.provide(audit)

@@ -25,9 +25,12 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'api_token.revoked',
   'webhook_endpoint.created',
   'webhook_endpoint.disabled',
+  'webhook_endpoint.updated',
+  'webhook_endpoint.deleted',
   'webhook_endpoint.secret_rotated',
   'webhook.delivery_failed',
   'webhook.delivery_dead_lettered',
+  'webhook.delivery_replayed',
   // governance — workspace lifecycle
   'workspace.created',
   'workspace.renamed',

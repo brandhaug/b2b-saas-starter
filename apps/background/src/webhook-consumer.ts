@@ -6,7 +6,8 @@ import {
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import {
   backoffSeconds,
-  planDeliveryAttempt
+  planDeliveryAttempt,
+  truncateResponseBody
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import {
@@ -87,14 +88,26 @@ export function readQueueDelivery(
 }
 
 /**
- * The delivery row id for one queue message. Derived deterministically from
- * the queue's message id, so every redelivery of the same message signs and
- * persists the *same* `deliveryId` — a receiver deduplicating on it collapses
- * retries, and a crash between POST and persist cannot fork identities. The
- * random fallback only covers envelopes without an id (never produced by a
- * real queue), keeping the minting path testable in isolation.
+/**
+ * The delivery row id for one queue message. Prefers the `deliveryId` an
+ * operator dispatch (replay, test send) stamped on the message — that row
+ * already exists as `pending` and the consumer's attempts resolve *it* — and
+ * otherwise derives deterministically from the queue's message id, so every
+ * redelivery of the same message signs and persists the *same* `deliveryId` —
+ * a receiver deduplicating on it collapses retries, and a crash between POST
+ * and persist cannot fork identities. The random fallback only covers
+ * envelopes without an id (never produced by a real queue), keeping the
+ * minting path testable in isolation.
  */
 function deliveryIdFor(delivery: QueueDelivery<WebhookMessage>): Effect.Effect<string> {
+  if (delivery.kind === 'message' && delivery.message.deliveryId !== undefined) {
+    return Effect.succeed(delivery.message.deliveryId)
+  }
+  if (delivery.id !== undefined && delivery.id.length > 0) {
+    return Effect.succeed(`whd_${delivery.id}`)
+  }
+  return newDeliveryId
+}
   if (delivery.id !== undefined && delivery.id.length > 0) {
     return Effect.succeed(`whd_${delivery.id}`)
   }
@@ -273,23 +286,25 @@ export function processWebhookMessage(
       eventType: message.eventType,
       payload: message.payload
     })
-    const signature = yield* computeWebhookSignature(
-      target.signingSecret,
-      timestamp,
-      body
+    // One signature per active signing secret: the current one, plus the
+    // rotated-out one while its 24h grace window is open (the receiver may
+    // still hold it). The header lists them all; receivers try each.
+    const signatures = yield* Effect.forEach(target.signingSecrets, (secret) =>
+      computeWebhookSignature(secret, timestamp, body)
     )
+    const requestHeaders = {
+      'content-type': 'application/json',
+      'user-agent': 'b2b-saas-starter-webhooks/0.1',
+      'x-b2b-starter-event': message.eventType,
+      'x-b2b-starter-timestamp': String(timestamp),
+      'x-b2b-starter-signature': signatureHeaderValue(timestamp, signatures),
+      [TRACE_HEADER]: traceId
+    }
     const client = yield* HttpClient.HttpClient
     const responseResult = yield* Effect.result(
       client
         .post(target.url, {
-          headers: {
-            'content-type': 'application/json',
-            'user-agent': 'b2b-saas-starter-webhooks/0.1',
-            'x-b2b-starter-event': message.eventType,
-            'x-b2b-starter-timestamp': String(timestamp),
-            'x-b2b-starter-signature': signatureHeaderValue(timestamp, signature),
-            [TRACE_HEADER]: traceId
-          },
+          headers: requestHeaders,
           body: HttpBody.text(body, 'application/json')
         })
         // A hung receiver must not stall the batch; timeout surfaces as a
@@ -300,6 +315,17 @@ export function processWebhookMessage(
       onSuccess: (response) => response.status,
       onFailure: () => 0
     })
+    // Operator evidence from the latest attempt: the response body is read
+    // truncated (a receiver's error page is the thing an operator reads), or
+    // null when there was no response at all. A body read failure degrades to
+    // null — the row still records the attempt.
+    let responseBody: string | null = null
+    if (Result.isSuccess(responseResult)) {
+      const text = yield* Effect.result(responseResult.success.text)
+      if (Result.isSuccess(text)) {
+        responseBody = truncateResponseBody(text.success)
+      }
+    }
     // The dispatch half of the delivery state machine lives below the
     // capability interface: classification, persisted status, and the
     // backoff-aligned retry schedule all come from the capability.
@@ -314,7 +340,12 @@ export function processWebhookMessage(
       status: plan.status,
       attempts,
       responseStatus: plan.responseStatus,
-      nextAttemptAt: plan.nextAttemptAt
+      nextAttemptAt: plan.nextAttemptAt,
+      // Operator evidence columns: what was sent and what came back, so the
+      // deliveries drawer can replay or diagnose without re-deriving it.
+      payload: message.payload,
+      requestHeaders,
+      responseBody
     })
     yield* Effect.annotateLogsScoped({ outcome: plan.status, responseStatus })
     if (plan.status === 'failed_permanent') {

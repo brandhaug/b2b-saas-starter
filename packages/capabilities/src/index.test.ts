@@ -36,6 +36,7 @@ import {
 } from './developer-platform/webhook-publisher.ts'
 import { selectCapabilitiesLayer, selectWorkspaceLayer } from './runtime.ts'
 import {
+  LiveNotificationFeed,
   NotificationFeed,
   type SeedNotification
 } from './notifications/notification-feed.ts'
@@ -85,10 +86,16 @@ const seedWorkspaceLayer = Layer.merge(
 describe('seed developer-platform contract', () => {
   const auditLog = SeedAuditEventLog([])
   const publisher = SeedWebhookPublisher
+  const notificationFeed = SeedNotificationFeed([])
   const layer = Layer.mergeAll(
     Layer.merge(auditLog, testWorkspaceContext(seedWorkspaceRecord)),
     SeedApiTokenRegistry([]).pipe(Layer.provide(auditLog), Layer.provide(publisher)),
-    SeedWebhookEndpoints([]).pipe(Layer.provide(auditLog), Layer.provide(publisher))
+    SeedWebhookEndpoints([]).pipe(
+      Layer.provide(auditLog),
+      Layer.provide(publisher),
+      Layer.provide(notificationFeed)
+    ),
+    notificationFeed
   )
   for (const contractCase of developerPlatformContractCases(expect)) {
     it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
@@ -444,6 +451,7 @@ describe('webhook endpoint workspace scoping', () => {
     return Layer.merge(
       LiveWebhookEndpoints.pipe(
         Layer.provide(LiveAuditEventLog),
+        Layer.provide(LiveNotificationFeed),
         Layer.provide(LiveWebhookPublisher()),
         Layer.provide(layerFromD1(fake.binding))
       ),

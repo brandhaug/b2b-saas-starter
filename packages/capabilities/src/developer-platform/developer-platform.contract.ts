@@ -5,7 +5,13 @@ import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts
 import { type InvalidWebhookUrl } from './webhook-url.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { ApiTokenRegistry } from './api-token-registry.ts'
-import { WebhookEndpoints } from './webhook-endpoints.ts'
+import {
+  WEBHOOK_TEST_EVENT_TYPE,
+  type WebhookDispatchRejected,
+  type WebhookEndpointNotFound,
+  type WebhookDeliveryNotFound,
+  WebhookEndpoints
+} from './webhook-endpoints.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 
@@ -24,7 +30,12 @@ export type DeveloperPlatformContractCase = {
   readonly name: string
   readonly assert: Effect.Effect<
     void,
-    CapabilityUnavailable | InvalidWebhookUrl | PlanLimitExceeded,
+    | CapabilityUnavailable
+    | InvalidWebhookUrl
+    | PlanLimitExceeded
+    | WebhookEndpointNotFound
+    | WebhookDeliveryNotFound
+    | WebhookDispatchRejected,
     ApiTokenRegistry | WebhookEndpoints | AuditEventLog | WorkspaceContext
   >
 }
@@ -225,6 +236,192 @@ export function developerPlatformContractCases(
       })
     },
     {
+      name: 'update writes only the provided fields and 404s a foreign endpoint',
+      assert: Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        const { endpoint } = yield* webhooks.create({
+          url: 'https://example.com/update-hook',
+          events: ['demo.event']
+        })
+
+        const updated = yield* webhooks.update({
+          endpointId: endpoint.id,
+          events: ['demo.event', 'demo.other'],
+          enabled: false
+        })
+        expect(updated.url).toBe('https://example.com/update-hook')
+        expect(updated.enabled).toBe(false)
+        expect(updated.events).toEqual(['demo.event', 'demo.other'])
+
+        // A disabled endpoint can be re-enabled through update — the one way
+        // back from `disable`.
+        const reEnabled = yield* webhooks.update({
+          endpointId: endpoint.id,
+          enabled: true
+        })
+        expect(reEnabled.enabled).toBe(true)
+
+        const outcome = yield* Effect.exit(
+          webhooks.update({ endpointId: 'wh_missing', enabled: false })
+        )
+        expect(failureTag(outcome)).toBe('WebhookEndpointNotFound')
+
+        // An updated URL re-validates against the SSRF guard on both adapters.
+        const invalid = yield* Effect.exit(
+          webhooks.update({ endpointId: endpoint.id, url: 'http://localhost/hook' })
+        )
+        expect(failureTag(invalid)).toBe('InvalidWebhookUrl')
+      })
+    },
+    {
+      name: 'delete removes the endpoint, its deliveries, and its dispatch target',
+      assert: Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        const ctx = yield* WorkspaceContext
+        const { endpoint } = yield* webhooks.create({
+          url: 'https://example.com/delete-hook',
+          events: ['demo.event']
+        })
+        yield* webhooks.recordDeliveryAttempt({
+          id: 'whd_contract_delete',
+          endpointId: endpoint.id,
+          workspaceId: ctx.workspace.id,
+          eventType: 'demo.event',
+          status: 'delivered',
+          attempts: 1,
+          responseStatus: 200
+        })
+
+        expect(yield* webhooks.delete({ endpointId: endpoint.id })).toBe(true)
+        expect((yield* webhooks.list).some((each) => each.id === endpoint.id)).toBe(
+          false
+        )
+        // The delivery rows cascaded with the endpoint row.
+        expect(
+          yield* webhooks.listDeliveries({ endpointId: endpoint.id })
+        ).toHaveLength(0)
+        expect(yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)).toBe(
+          null
+        )
+        // Deleting a second time matches nothing.
+        expect(yield* webhooks.delete({ endpointId: endpoint.id })).toBe(false)
+      })
+    },
+    {
+      name: 'replay creates a pending copy with attempts reset and a replayedFrom link',
+      assert: Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        const log = yield* AuditEventLog
+        const ctx = yield* WorkspaceContext
+        const { endpoint } = yield* webhooks.create({
+          url: 'https://example.com/replay-hook',
+          events: ['demo.event']
+        })
+        yield* webhooks.recordDeliveryAttempt({
+          id: 'whd_contract_failed',
+          endpointId: endpoint.id,
+          // Terminal statuses batch an audit event scoped to this workspace,
+          // so the real id is required (the FK is real on D1).
+          workspaceId: ctx.workspace.id,
+          eventType: 'demo.event',
+          status: 'dead_lettered',
+          attempts: 6,
+          responseStatus: 503,
+          payload: { tokenId: 'tok_replay' }
+        })
+        const auditsBefore = (yield* log.listGlobal).filter(
+          (event) => event.eventType === 'webhook.delivery_replayed'
+        ).length
+
+        const replayed = yield* webhooks.replayDelivery({
+          deliveryId: 'whd_contract_failed'
+        })
+
+        const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
+        const copy = rows.find((row) => row.id === replayed.deliveryId)
+        expect(copy === undefined).toBe(false)
+        expect(copy).toMatchObject({
+          status: 'pending',
+          attempts: 0,
+          replayedFrom: 'whd_contract_failed',
+          eventType: 'demo.event',
+          responseStatus: null
+        })
+        expect(copy?.payload).toEqual({ tokenId: 'tok_replay' })
+        // The source row is untouched — replay adds history, it never rewrites it.
+        const source = rows.find((row) => row.id === 'whd_contract_failed')
+        expect(source).toMatchObject({ status: 'dead_lettered', attempts: 6 })
+        // The replay audited itself.
+        const auditsAfter = (yield* log.listGlobal).filter(
+          (event) => event.eventType === 'webhook.delivery_replayed'
+        ).length
+        expect(auditsAfter).toBe(auditsBefore + 1)
+
+        // A delivered row offers no replay, and a foreign id reads as not found.
+        const deliveredOutcome = yield* Effect.exit(
+          webhooks.replayDelivery({ deliveryId: replayed.deliveryId })
+        )
+        expect(failureTag(deliveredOutcome)).toBe('WebhookDispatchRejected')
+        const missingOutcome = yield* Effect.exit(
+          webhooks.replayDelivery({ deliveryId: 'whd_missing' })
+        )
+        expect(failureTag(missingOutcome)).toBe('WebhookDeliveryNotFound')
+      })
+    },
+    {
+      name: 'a failed delivery without recorded payload refuses to replay',
+      assert: Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        const { endpoint } = yield* webhooks.create({
+          url: 'https://example.com/no-payload-hook',
+          events: ['demo.event']
+        })
+        yield* webhooks.recordDeliveryAttempt({
+          id: 'whd_contract_nopayload',
+          endpointId: endpoint.id,
+          workspaceId: 'irrelevant-to-list-scoping',
+          eventType: 'demo.event',
+          status: 'failed',
+          attempts: 1,
+          responseStatus: 500
+        })
+        const outcome = yield* Effect.exit(
+          webhooks.replayDelivery({ deliveryId: 'whd_contract_nopayload' })
+        )
+        expect(failureTag(outcome)).toBe('WebhookDispatchRejected')
+      })
+    },
+    {
+      name: 'sendTestEvent queues a pending webhook.test_event to one endpoint',
+      assert: Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        const { endpoint } = yield* webhooks.create({
+          url: 'https://example.com/test-hook',
+          events: ['demo.event']
+        })
+
+        const sent = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
+
+        const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
+        const row = rows.find((candidate) => candidate.id === sent.deliveryId)
+        expect(row).toMatchObject({
+          status: 'pending',
+          attempts: 0,
+          eventType: WEBHOOK_TEST_EVENT_TYPE
+        })
+
+        // Unknown endpoint 404s; a disabled one refuses the dispatch.
+        const missing = yield* Effect.exit(
+          webhooks.sendTestEvent({ endpointId: 'wh_missing' })
+        )
+        expect(failureTag(missing)).toBe('WebhookEndpointNotFound')
+        yield* webhooks.disable({ endpointId: endpoint.id })
+        const disabled = yield* Effect.exit(
+          webhooks.sendTestEvent({ endpointId: endpoint.id })
+        )
+        expect(failureTag(disabled)).toBe('WebhookDispatchRejected')
+      })
+    },
       // Runs last in the list on purpose: it creates rows, and the walk
       // assertions are order-independent but the later coverage suites are not.
       name: 'token pages walk exactly once and an insert never disturbs the emitted prefix',
