@@ -1,6 +1,5 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
-import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { type DemoShowcase } from '@/lib/server/demo-showcase'
 
 /**
@@ -45,8 +44,7 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
           ))}
         </dl>
         <Link
-          to="/demo/$workspaceSlug"
-          params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
+          to="/demo"
           className="inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-4 hover:no-underline"
         >
           Open the live demo

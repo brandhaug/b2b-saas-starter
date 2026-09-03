@@ -24,7 +24,7 @@ test('the homepage renders the live seed numbers and the real overview payload',
 })
 
 test('the live demo renders the dashboard without a session', async ({ page }) => {
-  await page.goto('/demo/starter-lab')
+  await page.goto('/demo')
   await expect(page.getByRole('heading', { name: 'Starter Lab' })).toBeVisible()
   // The demo persona is a member: notifications render, owner panels do not.
   await expect(page.getByText('Notifications')).toBeVisible()
@@ -39,9 +39,10 @@ test('the live demo renders the dashboard without a session', async ({ page }) =
   }).toPass({ timeout: 30_000 })
 })
 
-test('the demo route 404s an unknown workspace instead of faking one', async ({
-  page
-}) => {
+test('demo paths other than the fixed route are not found', async ({ page }) => {
+  // /demo is pinned to the showcase workspace; any other path under /demo
+  // matches no route, so the router's own not-found page answers — the
+  // route cannot be pointed at an arbitrary workspace.
   await page.goto('/demo/does-not-exist')
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
 })

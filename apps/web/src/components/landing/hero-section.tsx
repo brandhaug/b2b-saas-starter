@@ -17,7 +17,7 @@ const BILL_OF_MATERIALS: ReadonlyArray<string> = [
   'Alchemy v2'
 ]
 
-function HeroSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
+function HeroSection() {
   return (
     <section className="border-b border-border">
       <div className="mx-auto max-w-7xl px-4 pt-16 pb-10 sm:px-6 lg:pt-24">
@@ -38,11 +38,7 @@ function HeroSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
               {/* The demo tree renders the reference dashboard for the seed
                   workspace with no sign-in and no mutation path; the real app
                   is one sign-in away from there. */}
-              <Button
-                nativeButton={false}
-                render={<Link to="/demo/$workspaceSlug" params={{ workspaceSlug }} />}
-                size="lg"
-              >
+              <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
                 Open the live demo
                 <ArrowRightIcon className="size-4" />
               </Button>

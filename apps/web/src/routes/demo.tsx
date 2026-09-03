@@ -6,20 +6,25 @@ import {
 } from '@/components/live-notifications'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
-import { type WorkspaceDashboardPayload } from '@/lib/server/workspace-dashboard'
+import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { loadDemoWorkspace } from '@/lib/server/demo-showcase'
+import { type WorkspaceDashboardPayload } from '@/lib/server/workspace-dashboard'
 
-export const Route = createFileRoute('/demo/$workspaceSlug')({
-  // The same actorless, read-only read the homepage strip uses: the demo
-  // persona is a plain member, so the payload carries only what
-  // `notification:read` reaches — the owner segments arrive as `null` because
-  // the loader never reads them, exactly as the permission shape demands. An
-  // unknown workspace still 404s through the shared failure mapping.
-  loader: ({ params }) => loadDemoWorkspace(params.workspaceSlug),
+export const Route = createFileRoute('/demo')({
+  // The same actorless, read-only read the homepage strip uses, pinned to the
+  // one showcase workspace: the demo persona is a plain member, so the payload
+  // carries only what `notification:read` reaches — the owner segments arrive
+  // as `null` because the loader never reads them, exactly as the permission
+  // shape demands. The slug is fixed on purpose: this route serves what the
+  // REST `overview` endpoint gates behind a bearer token, so it must never
+  // open that projection to any other workspace the deployment carries. A
+  // missing showcase workspace (an unseeded deployment) still 404s through the
+  // shared failure mapping.
+  loader: () => loadDemoWorkspace(),
   pendingComponent: RoutePending,
   component: DemoWorkspaceRoute,
-  head: ({ params }) => ({
-    meta: [{ title: pageTitle('Live demo', params.workspaceSlug) }]
+  head: () => ({
+    meta: [{ title: pageTitle('Live demo', DEMO_WORKSPACE_SLUG) }]
   })
 })
 

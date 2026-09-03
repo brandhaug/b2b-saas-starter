@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { GITHUB_URL } from '@/components/landing/github-url'
 import { DEV_SERVERS, INSTALL_AND_RUN } from '@/lib/toolchain'
 
-function ClosingSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
+function ClosingSection() {
   return (
     <section className="band-deep bg-background text-foreground">
       <div className="mx-auto grid max-w-7xl items-center gap-x-20 gap-y-12 px-4 py-24 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:py-28">
@@ -17,11 +17,7 @@ function ClosingSection({ workspaceSlug }: { readonly workspaceSlug: string }) {
             workspace: no Stripe key, no OAuth app, no email domain required.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button
-              nativeButton={false}
-              render={<Link to="/demo/$workspaceSlug" params={{ workspaceSlug }} />}
-              size="lg"
-            >
+            <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
               Open the live demo
               <ArrowRightIcon className="size-4" />
             </Button>

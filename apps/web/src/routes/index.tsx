@@ -9,7 +9,6 @@ import { RuntimeMapSection } from '@/components/landing/runtime-map-section'
 import { PublicLayout } from '@/components/public-layout'
 import { getAllPostMeta } from '@/lib/blog'
 import { getAllDocMeta } from '@/lib/docs'
-import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { loadDemoShowcase } from '@/lib/server/demo-showcase'
 
 export const Route = createFileRoute('/')({
@@ -55,7 +54,7 @@ function HomePage() {
   return (
     <PublicLayout>
       <main id="main-content">
-        <HeroSection workspaceSlug={DEMO_WORKSPACE_SLUG} />
+        <HeroSection />
         {/* `null` means the showcase workspace is missing in this deployment:
             the page renders without the numbers instead of failing. */}
         {demo === null ? null : <DemoStrip demo={demo} />}
@@ -69,7 +68,7 @@ function HomePage() {
         <RuntimeMapSection />
         <ProvidersSection />
         <KnowledgeSection recentDocs={recentDocs} recentPosts={recentPosts} />
-        <ClosingSection workspaceSlug={DEMO_WORKSPACE_SLUG} />
+        <ClosingSection />
       </main>
     </PublicLayout>
   )

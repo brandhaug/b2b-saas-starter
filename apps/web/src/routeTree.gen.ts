@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as KnowledgeRouteImport } from './routes/_knowledge'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as DemoRouteImport } from './routes/demo'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -25,7 +26,6 @@ import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
 import { Route as KnowledgeChangelogRouteImport } from './routes/_knowledge.changelog'
 import { Route as KnowledgeFaqRouteImport } from './routes/_knowledge.faq'
-import { Route as DemoWorkspaceSlugRouteImport } from './routes/demo.$workspaceSlug'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
@@ -60,6 +60,11 @@ const AccountRoute = AccountRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoRoute = DemoRouteImport.update({
+  id: '/demo',
+  path: '/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -121,11 +126,6 @@ const KnowledgeFaqRoute = KnowledgeFaqRouteImport.update({
   id: '/faq',
   path: '/faq',
   getParentRoute: () => KnowledgeRoute,
-} as any)
-const DemoWorkspaceSlugRoute = DemoWorkspaceSlugRouteImport.update({
-  id: '/demo/$workspaceSlug',
-  path: '/demo/$workspaceSlug',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const HelpIndexRoute = HelpIndexRouteImport.update({
   id: '/help/',
@@ -221,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
+  '/demo': typeof DemoRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -233,7 +234,6 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/changelog': typeof KnowledgeChangelogRoute
   '/faq': typeof KnowledgeFaqRoute
-  '/demo/$workspaceSlug': typeof DemoWorkspaceSlugRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
@@ -255,6 +255,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
+  '/demo': typeof DemoRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -266,7 +267,6 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/changelog': typeof KnowledgeChangelogRoute
   '/faq': typeof KnowledgeFaqRoute
-  '/demo/$workspaceSlug': typeof DemoWorkspaceSlugRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/help': typeof HelpIndexRoute
   '/workspaces': typeof WorkspacesIndexRoute
@@ -290,6 +290,7 @@ export interface FileRoutesById {
   '/_knowledge': typeof KnowledgeRouteWithChildren
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
+  '/demo': typeof DemoRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -302,7 +303,6 @@ export interface FileRoutesById {
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/_knowledge/changelog': typeof KnowledgeChangelogRoute
   '/_knowledge/faq': typeof KnowledgeFaqRoute
-  '/demo/$workspaceSlug': typeof DemoWorkspaceSlugRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
@@ -326,6 +326,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
+    | '/demo'
     | '/forgot-password'
     | '/pricing'
     | '/privacy'
@@ -338,7 +339,6 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/changelog'
     | '/faq'
-    | '/demo/$workspaceSlug'
     | '/invitations/accept'
     | '/help/'
     | '/workspaces/'
@@ -360,6 +360,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
+    | '/demo'
     | '/forgot-password'
     | '/pricing'
     | '/privacy'
@@ -371,7 +372,6 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/changelog'
     | '/faq'
-    | '/demo/$workspaceSlug'
     | '/invitations/accept'
     | '/help'
     | '/workspaces'
@@ -394,6 +394,7 @@ export interface FileRouteTypes {
     | '/_knowledge'
     | '/account'
     | '/admin'
+    | '/demo'
     | '/forgot-password'
     | '/pricing'
     | '/privacy'
@@ -406,7 +407,6 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/_knowledge/changelog'
     | '/_knowledge/faq'
-    | '/demo/$workspaceSlug'
     | '/invitations/accept'
     | '/help/'
     | '/workspaces/'
@@ -430,6 +430,7 @@ export interface RootRouteChildren {
   KnowledgeRoute: typeof KnowledgeRouteWithChildren
   AccountRoute: typeof AccountRoute
   AdminRoute: typeof AdminRoute
+  DemoRoute: typeof DemoRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -440,7 +441,6 @@ export interface RootRouteChildren {
   TwoFactorRoute: typeof TwoFactorRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   WorkspacesRoute: typeof WorkspacesRouteWithChildren
-  DemoWorkspaceSlugRoute: typeof DemoWorkspaceSlugRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   HelpIndexRoute: typeof HelpIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -474,6 +474,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo': {
+      id: '/demo'
+      path: '/demo'
+      fullPath: '/demo'
+      preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -559,13 +566,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/faq'
       preLoaderRoute: typeof KnowledgeFaqRouteImport
       parentRoute: typeof KnowledgeRoute
-    }
-    '/demo/$workspaceSlug': {
-      id: '/demo/$workspaceSlug'
-      path: '/demo/$workspaceSlug'
-      fullPath: '/demo/$workspaceSlug'
-      preLoaderRoute: typeof DemoWorkspaceSlugRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/help/': {
       id: '/help/'
@@ -737,6 +737,7 @@ const rootRouteChildren: RootRouteChildren = {
   KnowledgeRoute: KnowledgeRouteWithChildren,
   AccountRoute: AccountRoute,
   AdminRoute: AdminRoute,
+  DemoRoute: DemoRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
@@ -747,7 +748,6 @@ const rootRouteChildren: RootRouteChildren = {
   TwoFactorRoute: TwoFactorRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   WorkspacesRoute: WorkspacesRouteWithChildren,
-  DemoWorkspaceSlugRoute: DemoWorkspaceSlugRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
   HelpIndexRoute: HelpIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
