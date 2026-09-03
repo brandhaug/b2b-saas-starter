@@ -4,7 +4,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./templates": "./src/templates.tsx"
+    "./templates": "./src/templates.tsx",
+    "./notification-templates": "./src/notification-templates.tsx",
+    "./notification-emails": "./src/notification-emails.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -13,6 +15,7 @@
     "dev": "email dev --dir src"
   },
   "dependencies": {
+    "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/failure": "workspace:*",
     "@react-email/components": "catalog:",
