@@ -13,6 +13,10 @@ import {
   WebhookQueueMessage,
   type WebhookQueueBinding
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
+import {
+  type WorkspaceExportBucketBinding,
+  type WorkspaceExportQueueBinding
+} from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import {
@@ -43,6 +47,11 @@ export type Env = Partial<ServerEnv> & {
   // the binding to `starterEnv`, and every other worker declares it the same
   // way, so one structural shape describes the queue across all three.
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding
+  // Workspace export (ADR 0054): the job queue this worker consumes and the
+  // bucket it writes archives to. Both absent when `WORKSPACE_EXPORT_BUCKET`
+  // was unset at deploy time; the capability then reports unavailable.
+  readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding
+  readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding
 }
 
 /** Wire shape of queue messages — the schema is shared with the producer. */
