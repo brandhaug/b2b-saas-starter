@@ -99,9 +99,13 @@ export function SeedNotificationFeed(
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
             const requested = new Set(ids)
-            let marked = 0
-            yield* Ref.update(rows, (current) =>
-              current.map((row) => {
+            // `Ref.modify`, not `Ref.update` + a closure counter: modify runs
+            // its function exactly once per successful state transition, so
+            // the returned count is the transition's own answer and cannot
+            // double-count if the runtime retries the update.
+            return yield* Ref.modify(rows, (current) => {
+              let marked = 0
+              const next = current.map((row) => {
                 if (
                   !requested.has(row.id) ||
                   !visibleToActor(row.userId, ctx.actor) ||
@@ -112,8 +116,8 @@ export function SeedNotificationFeed(
                 marked += 1
                 return { ...row, read: true }
               })
-            )
-            return marked
+              return [marked, next]
+            })
           })
       }
     })
