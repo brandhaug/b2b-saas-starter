@@ -254,6 +254,26 @@ const PROTECTED_ERRORS = [
 
 export const SlugParams = Schema.Struct({ slug: Schema.String })
 
+/**
+ * The query vocabulary every paged list endpoint shares (ADR 0054): an
+ * optional opaque `cursor` and an optional `limit`. `limit` defaults to 50
+ * and is capped at 200 by the capability layer — the contract accepts any
+ * number and lets the clamp, not a 400, absorb out-of-range values.
+ */
+export const ListPageQuery = Schema.Struct({
+  cursor: Schema.optionalKey(Schema.String),
+  limit: Schema.optionalKey(Schema.NumberFromString)
+})
+export type ListPageQuery = typeof ListPageQuery.Type
+
+/** The success shape of every paged list endpoint: one bounded `Page`. */
+function PageDto<Item extends Schema.Top>(item: Item) {
+  return Schema.Struct({
+    items: Schema.Array(item),
+    nextCursor: Schema.NullOr(Schema.String)
+  })
+}
+
 export const WorkspaceOverviewDto = Schema.Struct({
   workspace: Workspace,
   notifications: Schema.Array(Notification)
@@ -277,35 +297,40 @@ export const WorkspaceApi = HttpApiGroup.make('workspace')
   .add(
     HttpApiEndpoint.get('members', '/workspaces/:slug/members', {
       params: SlugParams,
-      success: Schema.Array(Member),
+      query: ListPageQuery,
+      success: PageDto(Member),
       error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('notifications', '/workspaces/:slug/notifications', {
       params: SlugParams,
-      success: Schema.Array(Notification),
+      query: ListPageQuery,
+      success: PageDto(Notification),
       error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('api-tokens', '/workspaces/:slug/api-tokens', {
       params: SlugParams,
-      success: Schema.Array(ApiToken),
+      query: ListPageQuery,
+      success: PageDto(ApiToken),
       error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('webhooks', '/workspaces/:slug/webhooks', {
       params: SlugParams,
-      success: Schema.Array(WebhookEndpoint),
+      query: ListPageQuery,
+      success: PageDto(WebhookEndpoint),
       error: WORKSPACE_ERRORS
     })
   )
   .add(
     HttpApiEndpoint.get('audit-events', '/workspaces/:slug/audit-events', {
       params: SlugParams,
-      success: Schema.Array(AuditEvent),
+      query: ListPageQuery,
+      success: PageDto(AuditEvent),
       error: WORKSPACE_ERRORS
     })
   )

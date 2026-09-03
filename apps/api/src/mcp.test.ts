@@ -26,6 +26,31 @@ describe('mcp ↔ rest operation mirror', () => {
       )
     }
   })
+
+  test('list tools advertise the paging input; non-list tools take none', () => {
+    const AdvertisedInput = Schema.Struct({
+      properties: Schema.Record(Schema.String, Schema.Unknown)
+    })
+    const decodeAdvertisedInput = Schema.decodeUnknownSync(AdvertisedInput)
+    const byName = new Map(
+      mcpDiscoveryDocument().tools.map((tool) => [tool.name, tool])
+    )
+    for (const operation of readOperations()) {
+      const tool = byName.get(operation.toolName)
+      expect(tool).toBeDefined()
+      // Decoded, not asserted: the advertised input is JSON Schema the SDK
+      // generated from zod.
+      const { properties } = decodeAdvertisedInput(tool?.inputSchema)
+      if (operation.paged) {
+        // ADR 0054: list tools take the same optional cursor/limit the REST
+        // route accepts.
+        expect(properties.cursor).toBeDefined()
+        expect(properties.limit).toBeDefined()
+      } else {
+        expect(properties).toEqual({})
+      }
+    }
+  })
 })
 
 /**
@@ -251,6 +276,28 @@ describe('POST /mcp protocol', () => {
         const body = yield* jsonBody(res, Ok(CallToolResult))
         expect(body.result.isError).not.toBe(true)
         expect(body.result.content[0]?.text).toContain('not_email')
+      })
+    ))
+
+  test('tools/call list_notifications honors the paging input like REST', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(
+          rpc(
+            'tools/call',
+            {
+              name: 'list_notifications',
+              arguments: { limit: 2, cursor: 'not-a-cursor' }
+            },
+            'list_notifications'
+          )
+        )
+        expect(res.status).toBe(200)
+        const body = yield* jsonBody(res, Ok(CallToolResult))
+        expect(body.result.isError).not.toBe(true)
+        // An undecodable cursor addresses no position — the empty page the
+        // REST route serves for the same input.
+        expect(body.result.content[0]?.text).toContain('[]')
       })
     ))
 

@@ -60,27 +60,44 @@ export const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
 const OVERVIEW_RESOURCE_URI = 'workspace://overview'
 
 /**
- * Every tool takes no arguments: each one is a whole-collection workspace read,
- * exactly like the REST route it mirrors. The zod schema is what the MCP SDK
- * registers with, and the JSON Schema `GET /mcp` advertises is generated from
- * it — minus the `$schema` dialect header, which a tool descriptor's
- * `inputSchema` has no use for — so "no input" is declared once.
+ * Every tool's arguments mirror its REST counterpart's query: the five list
+ * tools take the same optional `cursor`/`limit` the REST route accepts
+ * (ADR 0054) and the overview resource takes none. Out-of-range limits are
+ * clamped by the capability layer, exactly as REST clamps them — the wire
+ * schema stays permissive so MCP and REST cannot disagree about what a valid
+ * page request is. The zod schema is what the MCP SDK registers with, and the
+ * JSON Schema `GET /mcp` advertises is generated from it — minus the
+ * `$schema` dialect header, which a tool descriptor's `inputSchema` has no
+ * use for.
  */
 const NO_TOOL_INPUT = z.object({})
+const PAGED_TOOL_INPUT = z.object({
+  cursor: z.string().optional(),
+  limit: z.number().optional()
+})
+type ToolInput = z.infer<typeof PAGED_TOOL_INPUT>
 // oxlint-disable-next-line eslint/no-unused-vars -- destructured to drop the dialect header from the advertised schema
 const { $schema: _dialect, ...NO_TOOL_INPUT_SCHEMA } = z.toJSONSchema(NO_TOOL_INPUT)
+// oxlint-disable-next-line eslint/no-unused-vars -- destructured to drop the dialect header from the advertised schema
+const { $schema: _dialectPaged, ...PAGED_TOOL_INPUT_SCHEMA } =
+  z.toJSONSchema(PAGED_TOOL_INPUT)
 
 /**
  * One tool descriptor, projected from one row of the shared operation table
  * (operations.ts) rather than hand-mirrored: same name, same permission, same
- * capability read as the REST endpoint it names. Every tool is a read over a
- * surviving capability — MCP exposes what REST exposes, nothing resurrected.
+ * capability read as the REST endpoint it names — and, for lists, the same
+ * paging input. Every tool is a read over a surviving capability — MCP
+ * exposes what REST exposes, nothing resurrected.
  */
 function toolDescriptor(operation: WorkspaceReadOperation): McpToolDescriptor {
+  let inputSchema = NO_TOOL_INPUT_SCHEMA
+  if (operation.paged) {
+    inputSchema = PAGED_TOOL_INPUT_SCHEMA
+  }
   return {
     name: operation.toolName,
     description: `${operation.toolDescription} Mirrors GET /workspaces/{slug}/${operation.path}.`,
-    inputSchema: NO_TOOL_INPUT_SCHEMA
+    inputSchema
   }
 }
 
@@ -198,21 +215,26 @@ export function buildMcpServer(
 
   for (const operation of readOperations()) {
     const descriptor = toolDescriptor(operation)
+    let registeredInput = NO_TOOL_INPUT
+    if (operation.paged) {
+      registeredInput = PAGED_TOOL_INPUT
+    }
     server.registerTool(
       descriptor.name,
       {
         title: descriptor.name,
         description: descriptor.description,
-        inputSchema: NO_TOOL_INPUT
+        inputSchema: registeredInput
       },
-      () => {
+      (args: ToolInput) => {
         // One guard + one capability read, bridged onto the request-scoped
         // workspace layer. `requirePermission` needs a Scope, which only exists
         // inside the Effect runtime, hence the scoped wrapper here rather than
-        // in the capability itself.
+        // in the capability itself. The paging input rides to the same read
+        // the REST route serves — the two surfaces page identically.
         const guarded = Effect.gen(function* () {
           yield* requirePermission(tokenPrincipal(scopes), operation.permission)
-          return yield* operation.read()
+          return yield* operation.read(args)
         }).pipe(Effect.scoped)
 
         // `Effect.result` moves the typed error channel into the value before

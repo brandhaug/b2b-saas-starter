@@ -2,6 +2,7 @@ import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
 import { StarterApi, WorkspaceExportNotDownloadable } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import { Effect, Option, Result } from 'effect'
@@ -87,17 +88,21 @@ export function workspaceGroup(env: ApiEnv) {
      * cannot work: within the generic body the index resolves to the union of
      * all six rows, and TypeScript rejects the union against any one
      * endpoint's schema.)
+     *
+     * The decoded `query` rides along: list rows page on it (ADR 0054), and
+     * the overview row ignores it — one shape for every row of the table.
      */
     function workspaceRead<A, E, R>(
       op: {
         readonly path: ReadOperationEndpoint
         readonly permission: PermissionRequest
-        readonly read: () => Effect.Effect<A, E, R>
+        readonly read: (page?: ListPageInput) => Effect.Effect<A, E, R>
       },
       params: { readonly slug: string },
+      query: ListPageInput | undefined,
       request: HttpServerRequest.HttpServerRequest
     ) {
-      return read(op.path, op.permission, params.slug, request, op.read())
+      return read(op.path, op.permission, params.slug, request, op.read(query))
     }
 
     // Every read composes gate + capability from the shared operation
@@ -105,22 +110,22 @@ export function workspaceGroup(env: ApiEnv) {
     // so the two Capability Interfaces cannot disagree about permissions.
     return handlers
       .handle('overview', ({ params, request }) =>
-        workspaceRead(READ_OPERATIONS.overview, params, request)
+        workspaceRead(READ_OPERATIONS.overview, params, undefined, request)
       )
-      .handle('members', ({ params, request }) =>
-        workspaceRead(READ_OPERATIONS.members, params, request)
+      .handle('members', ({ params, query, request }) =>
+        workspaceRead(READ_OPERATIONS.members, params, query, request)
       )
-      .handle('notifications', ({ params, request }) =>
-        workspaceRead(READ_OPERATIONS.notifications, params, request)
+      .handle('notifications', ({ params, query, request }) =>
+        workspaceRead(READ_OPERATIONS.notifications, params, query, request)
       )
-      .handle('api-tokens', ({ params, request }) =>
-        workspaceRead(READ_OPERATIONS['api-tokens'], params, request)
+      .handle('api-tokens', ({ params, query, request }) =>
+        workspaceRead(READ_OPERATIONS['api-tokens'], params, query, request)
       )
-      .handle('webhooks', ({ params, request }) =>
-        workspaceRead(READ_OPERATIONS.webhooks, params, request)
+      .handle('webhooks', ({ params, query, request }) =>
+        workspaceRead(READ_OPERATIONS.webhooks, params, query, request)
       )
-      .handle('audit-events', ({ params, request }) =>
-        workspaceRead(READ_OPERATIONS['audit-events'], params, request)
+      .handle('audit-events', ({ params, query, request }) =>
+        workspaceRead(READ_OPERATIONS['audit-events'], params, query, request)
       )
   })
 }

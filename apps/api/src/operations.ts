@@ -4,6 +4,7 @@ import {
   type CapabilityUnavailable,
   type WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
+import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
@@ -71,7 +72,15 @@ export type WorkspaceReadOperation = {
    */
   readonly path: ReadOperationEndpoint
   readonly permission: PermissionRequest
-  readonly read: () => CapabilityRead
+  /**
+   * The capability read, taking the request's paging input. List rows page
+   * (`ListPageInput`: cursor + clamped limit, ADR 0054); the overview row
+   * ignores it — REST and MCP pass the same value, so neither surface can
+   * page differently.
+   */
+  readonly read: (page?: ListPageInput) => CapabilityRead
+  /** Whether the row is a paged list (drives the MCP tool's input schema). */
+  readonly paged: boolean
   /** The MCP tool that projects this same operation. */
   readonly toolName: string
   /** Tool description body; the mirrored REST operation is appended on the wire. */
@@ -87,6 +96,7 @@ export const READ_OPERATIONS = {
     path: 'overview',
     permission: { notification: ['read'] },
     read: () => workspaceOverview,
+    paged: false,
     toolName: 'get_workspace_overview',
     toolDescription: 'The workspace record plus its notification feed.'
   },
@@ -97,15 +107,19 @@ export const READ_OPERATIONS = {
   members: {
     path: 'members',
     permission: { ac: ['read'] },
-    read: () =>
-      Effect.flatMap(WorkspaceMembership, (membership) => membership.listMembers),
+    read: (page) =>
+      Effect.flatMap(WorkspaceMembership, (membership) =>
+        membership.listMembersPage(page)
+      ),
+    paged: true,
     toolName: 'list_members',
     toolDescription: 'List the workspace members and their roles.'
   },
   notifications: {
     path: 'notifications',
     permission: { notification: ['read'] },
-    read: () => Effect.flatMap(NotificationFeed, (feed) => feed.list),
+    read: (page) => Effect.flatMap(NotificationFeed, (feed) => feed.listPage(page)),
+    paged: true,
     toolName: 'list_notifications',
     toolDescription: "List the API token's workspace notifications."
   },
@@ -114,25 +128,35 @@ export const READ_OPERATIONS = {
   'api-tokens': {
     path: 'api-tokens',
     permission: { apiToken: ['list'] },
-    read: () => Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list),
+    read: (page) => Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.listPage(page)),
+    paged: true,
     toolName: 'list_api_tokens',
     toolDescription: 'List the workspace API token projections (never the secrets).'
   },
   webhooks: {
     path: 'webhooks',
     permission: { webhook: ['list'] },
-    read: () => Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list),
+    read: (page) =>
+      Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.listPage(page)),
+    paged: true,
     toolName: 'list_webhooks',
     toolDescription: 'List registered webhook endpoints and their success rates.'
   },
   'audit-events': {
     path: 'audit-events',
     permission: { auditLog: ['read'] },
-    read: () =>
+    read: (page) =>
+      // The audit read names its page `events` on the capability side; the
+      // list contract's `Page` shape (`items`) is applied here, once, so the
+      // REST route and the MCP tool share it.
       Effect.map(
-        Effect.flatMap(AuditEventLog, (log) => log.list()),
-        (page) => page.events
+        Effect.flatMap(AuditEventLog, (log) => log.list(page)),
+        (auditPage) => ({
+          items: auditPage.events,
+          nextCursor: auditPage.nextCursor
+        })
       ),
+    paged: true,
     toolName: 'list_audit_events',
     toolDescription: 'Read a page of the workspace audit trail.'
   }
