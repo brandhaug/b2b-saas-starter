@@ -36,7 +36,7 @@ export const ServerEnvSchema = Schema.Struct({
   GOOGLE_CLIENT_SECRET: optional,
   OTEL_EXPORTER_OTLP_ENDPOINT: optional,
   OTEL_EXPORTER_OTLP_HEADERS: optional,
-  // MCP OAuth (ADR 0054): the API worker's `/mcp` URL that access tokens are
+  // MCP OAuth (ADR 0055): the API worker's `/mcp` URL that access tokens are
   // audience-bound to, and the web worker's Better Auth base URL the API worker
   // trusts as token issuer. Unset on the API worker, `/mcp` accepts API Tokens
   // only; unset on the web worker, the resource defaults to the local API dev

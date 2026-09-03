@@ -84,6 +84,10 @@ _Avoid_: Billing settings, payment page
 A workspace-scoped credential for REST and MCP access.
 _Avoid_: Personal access token, integration secret, session token
 
+**MCP Client**:
+An interactive AI client (Claude, Cursor, and similar) that a user connects to exactly one Workspace through OAuth consent, instead of pasting an API Token.
+_Avoid_: Integration, OAuth app, connected account
+
 **Webhook Endpoint**:
 A workspace-owned outbound event delivery target.
 _Avoid_: Provider webhook, callback URL, integration
@@ -161,6 +165,7 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 - A **Workspace** on a per-seat plan bills one **Seat Quantity** per **Member**
 - Invoices, payment methods, and cancellation are managed in the **Billing Portal**, not in the Reference Application
 - An **API Token** belongs to exactly one **Workspace** and can create **Audit Events**
+- An **MCP Client** is connected by a **Member** to exactly one **Workspace**, acts with that Member's **Workspace Role**, and its connection and disconnection create **Audit Events**
 - A **Webhook Endpoint** belongs to exactly one **Workspace** and receives selected outbound events
 - A **Seed Workspace** demonstrates **Members**, **Notifications**, and the developer-platform capabilities
 - An **Onboarding Checklist** derives its steps from **Members**, **API Tokens**, **Webhook Endpoints**, billing, and the actor's account; dismissing it records an **Audit Event**

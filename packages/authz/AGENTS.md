@@ -69,9 +69,13 @@ The guard composes beside `enforceRateLimit` (`apps/api/src/handlers.ts`) and re
 
 ## The client entry point
 
-`@b2b-saas-starter/authz/client` (`src/client.ts`) re-exports the pure half — `authorize`, the principals, the roles, the statements — and nothing that imports `effect` or the logger. It exists so browser code can ask the same question the guard asks: `apps/web/src/lib/permissions.ts` wraps it as `viewerCan(viewer, permission)` and the workspace UI hides or explains a control with it. Importing `./guard` from a component would pull Effect and the wide-event logger into the client bundle. There is no root entry point: the package exports only `./client`, `./errors`, `./guard` and `./roles`.
+`@b2b-saas-starter/authz/client` (`src/client.ts`) re-exports the pure half — `authorize`, the principals, the roles, the statements — and nothing that imports `effect` or the logger. It exists so browser code can ask the same question the guard asks: `apps/web/src/lib/permissions.ts` wraps it as `viewerCan(viewer, permission)` and the workspace UI hides or explains a control with it. Importing `./guard` from a component would pull Effect and the wide-event logger into the client bundle. There is no root entry point: the package exports only `./client`, `./errors`, `./guard` and `./mcp-access-token`.
 
 The UI check is presentation only. It stops a member being shown a form that would fail on submit; the enforcement is the server withholding the data (`whenPermitted`) and the guard refusing the mutation.
+
+## The MCP access-token contract
+
+`./mcp-access-token` (`src/mcp-access-token.ts`) is the claim vocabulary the two workers share for the MCP OAuth path (ADR 0055): the `starter_workspace_id` / `_slug` / `_role` claim names the authorization server stamps, the `mcp:read` scope the resource server requires, and `mcpAccessTokenPrincipal` — the pure mapping from a verified JWT payload to the principal (or the reason it is refused: malformed claims, missing `mcp:read`, a DPoP-bound `cnf`). Signature, issuer, audience and expiry are jose's job in `apps/api`; this module checks only what the starter itself stamped, and both sides import the names from here so a claim the issuer writes and a claim the verifier reads cannot drift.
 
 ## Anti-patterns
 

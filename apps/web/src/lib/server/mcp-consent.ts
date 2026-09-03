@@ -8,7 +8,7 @@ import { signedOAuthQuery } from '../oauth-query'
 import { currentRequest } from '../request-context'
 
 /**
- * Server functions for the OAuth consent page (ADR 0054): declarations only.
+ * Server functions for the OAuth consent page (ADR 0055): declarations only.
  * The behaviour — the Better Auth endpoint calls that turn a workspace pick
  * into a consent and an authorization code — lives in `mcp-consent.effects.ts`
  * and is reached through dynamic `import()`, so the route tree never carries

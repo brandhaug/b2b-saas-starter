@@ -95,7 +95,7 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
       )
     )
   },
-  // The OAuth 2.1 server MCP clients connect through (ADR 0054): tokens are
+  // The OAuth 2.1 server MCP clients connect through (ADR 0055): tokens are
   // bound to the API worker's `/mcp`, and client metadata documents are
   // fetched through the Workers-safe transport.
   mcp: {

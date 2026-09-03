@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The MCP Clients a user has connected through OAuth (ADR 0054): the standing
+The MCP Clients a user has connected through OAuth (ADR 0055): the standing
 consents to interactive clients (Claude, Cursor, …), each bound to exactly one
 Workspace. The consent rows themselves are written by Better Auth's OAuth
 provider during the authorization flow — this capability owns everything the

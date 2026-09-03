@@ -18,7 +18,7 @@ import { type ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
 
 /**
- * `POST /mcp` with an OAuth access token (ADR 0054), end to end through the
+ * `POST /mcp` with an OAuth access token (ADR 0055), end to end through the
  * worker's web handler: the authorization server is played by a key pair
  * generated here, published through a stubbed `fetch` at the issuer's JWKS URL
  * — the same remote key set the worker uses in production, so the caching and

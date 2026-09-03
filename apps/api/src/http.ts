@@ -95,7 +95,7 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     selectCapabilitiesLayer(starterEnv(env)),
     selectAssistantLayer(env),
     makeRateLimiterLayer(env),
-    // The OAuth access-token verifier for `POST /mcp` (ADR 0054): one per
+    // The OAuth access-token verifier for `POST /mcp` (ADR 0055): one per
     // isolate, so its cached JWKS outlives the request. Inactive when the
     // issuer env is unset.
     makeOAuthTokenVerifierLayer(env)

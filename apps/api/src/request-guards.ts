@@ -114,7 +114,7 @@ export function verifyToken(
 /**
  * Who is calling the MCP server: a workspace API Token (scripts, CI) or an
  * OAuth access token minted for a signed-in Member by the web worker (Claude,
- * Cursor, …) — ADR 0054. Both name exactly one workspace; only the OAuth caller
+ * Cursor, …) — ADR 0055. Both name exactly one workspace; only the OAuth caller
  * names a user, which is what lets its calls resolve a real `Actor` and
  * authorize as that Member rather than as a scope set.
  */

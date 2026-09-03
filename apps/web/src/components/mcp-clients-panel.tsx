@@ -21,7 +21,7 @@ export type RevokeMcpClient = (input: {
 const REVOKE_FAILED = 'The connection could not be revoked'
 
 /**
- * The account page's connected MCP clients (ADR 0054): every OAuth consent the
+ * The account page's connected MCP clients (ADR 0055): every OAuth consent the
  * user holds, each bound to one workspace, with revoke. The list comes from
  * the route loader, so a successful revoke invalidates the route rather than
  * keeping its own copy.

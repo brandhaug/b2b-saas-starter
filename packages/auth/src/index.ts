@@ -154,7 +154,7 @@ export type AuthConfigInterface = {
    */
   readonly runBackground: (promise: Promise<unknown>) => void
   /**
-   * The MCP OAuth authorization server's two deployment facts (ADR 0054):
+   * The MCP OAuth authorization server's two deployment facts (ADR 0055):
    * `resource` is the API worker's `/mcp` URL that every access token is
    * audience-bound to (`MCP_RESOURCE_URL`), and `fetchClientMetadataResource`
    * is the outbound transport `@better-auth/cimd` fetches Client ID Metadata

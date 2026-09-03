@@ -552,7 +552,7 @@ describe('account lifecycle email flows', () => {
 })
 
 /**
- * The MCP OAuth authorization server (ADR 0054), driven the way an MCP client
+ * The MCP OAuth authorization server (ADR 0055), driven the way an MCP client
  * drives it: discovery, then the authorization code flow with PKCE, with the
  * starter's two hops in the middle — the consent page picks a workspace and
  * vouches for the pick on `oauth2/continue`, then accepts on `oauth2/consent`.

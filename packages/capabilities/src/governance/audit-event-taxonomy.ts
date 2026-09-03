@@ -31,7 +31,7 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'webhook.delivery_failed',
   'webhook.delivery_dead_lettered',
   'webhook.delivery_replayed',
-  // developer-platform — MCP Clients connected through OAuth (ADR 0054)
+  // developer-platform — MCP Clients connected through OAuth (ADR 0055)
   'mcp_client.consent_granted',
   'mcp_client.consent_revoked',
   // governance — workspace lifecycle

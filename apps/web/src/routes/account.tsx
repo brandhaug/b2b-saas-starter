@@ -121,10 +121,7 @@ function AccountRoute() {
         title="MCP clients"
         description="AI clients you connected through OAuth. Each one reaches exactly one workspace, with what your role there allows."
       >
-        <McpClientsPanel
-          connections={connections}
-          revoke={revokeMcpClientServerFn}
-        />
+        <McpClientsPanel connections={connections} revoke={revokeMcpClientServerFn} />
       </Panel>
     </WorkspaceShell>
   )

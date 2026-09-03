@@ -11,7 +11,7 @@ import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 
 /**
- * The starter's half of the `@better-auth/mcp` configuration (ADR 0054): how
+ * The starter's half of the `@better-auth/mcp` configuration (ADR 0055): how
  * the consent page's workspace pick becomes a token claim, and nothing else.
  *
  * Better Auth invokes every callback here outside any Effect, so this module

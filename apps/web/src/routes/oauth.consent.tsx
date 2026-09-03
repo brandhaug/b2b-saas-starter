@@ -19,7 +19,7 @@ import { callServerFn } from '@/lib/server-call'
 import { pickOptionalStrings } from '@/lib/utils'
 
 /**
- * The OAuth consent page (ADR 0054): an MCP client has asked to connect, the
+ * The OAuth consent page (ADR 0055): an MCP client has asked to connect, the
  * user is signed in, and two things are decided here — which one Workspace the
  * client gets, and whether the requested scopes are acceptable. The provider
  * sends every authorization here (it is both its post-login and consent hop),

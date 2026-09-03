@@ -128,7 +128,7 @@ export const seedApiTokens: ReadonlyArray<ApiToken> = [
 /**
  * The one MCP Client the fixture knows: a Client ID Metadata Document client
  * (its `clientId` is the HTTPS URL of that document), the shape every
- * interactive MCP client registers with (ADR 0054).
+ * interactive MCP client registers with (ADR 0055).
  */
 export const seedMcpClients: ReadonlyArray<McpClientSummary> = [
   {

@@ -11,7 +11,7 @@ import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from 'jos
 import { type ApiEnv } from './env.ts'
 
 /**
- * The OAuth half of `/mcp` authentication (ADR 0054): a Bearer JWT minted by
+ * The OAuth half of `/mcp` authentication (ADR 0055): a Bearer JWT minted by
  * the web worker's `@better-auth/mcp` authorization server, verified here as
  * the resource server. API Tokens remain the other half — see
  * `request-guards.ts`, which routes a credential to one or the other by shape.
