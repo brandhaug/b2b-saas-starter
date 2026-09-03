@@ -276,7 +276,9 @@ function auditRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.auditEvents.map((event) =>
     insert(auditEvents, {
       id: event.id,
-      workspaceId: fixture.workspace.id,
+      // System-level events (admin mutations, account security) carry no
+      // workspace; everything else scopes to the seed workspace.
+      workspaceId: event.workspaceId ?? fixture.workspace.id,
       actorUserId: fixture.members.find((member) => member.name === event.actor)?.id,
       eventType: event.eventType,
       targetType: event.targetType,
