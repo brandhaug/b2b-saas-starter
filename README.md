@@ -13,9 +13,9 @@ A starter repository for shipping a B2B SaaS on Cloudflare's platform without ma
 - **TanStack Start** web app (SSR + server functions) on a Cloudflare Worker, plus a separate Worker for public REST and MCP.
 - **Effect v4** application layer in [`packages/capabilities`](./packages/capabilities) shared across web, API, MCP, background, and tests.
 - **Drizzle ORM** over a single shared Cloudflare **D1** database, with Better Auth tables included.
-- **Better Auth** with email/password, username, and the admin plugin.
+- **Better Auth** with email/password, username, magic link, email one-time codes, passkeys, TOTP two-factor, workspace-scoped SSO, env-gated social sign-in, an OAuth 2.1 authorization server for interactive MCP clients, and the admin and organization plugins.
 - **Alchemy v2** IaC in [`alchemy.run.ts`](./alchemy.run.ts) — provisions D1, Queues + DLQ, Email Service, RateLimit bindings, and the three Workers.
-- **Background worker** with queue-backed outbound webhook delivery (with DLQ).
+- **Background worker** with four queues — webhook delivery (with DLQ), workspace export builds, billing seat sync, and instant notification emails — plus a daily notification digest cron.
 - **React Email** templates wired to Cloudflare's `SendEmail` binding.
 - **Wide-event observability** via Effect's `Logger`, with `x-trace-id` propagation across services.
 - **Storybook** for UI states, **Vitest** for unit/integration, **Playwright** for E2E.
@@ -49,12 +49,17 @@ packages/
   capabilities/ Effect application layer (workspaces, webhooks, audit, ...)
   db/           Drizzle schema for the shared D1 database
   auth/         Better Auth factory
+  authz/        Permission statements, static roles, and the requirePermission guard
   email/        React Email templates + SendEmail binding
   api/          Shared API contracts
+  sdk/          Typed client derived from the shared REST contract
   ai/           Effect AI starter assistant
   logger/       Wide-event Effect logger
+  rate-limit/   Rate-limit port with the in-memory fallback for local dev and tests
+  failure/      One safe reader for an unknown thrown value
   env/          Schema-derived env validation
   config/       Shared TS/tooling configs
+  oxlint-plugin/ Repo-local oxlint rules (starter/*)
 alchemy.run.ts  Cloudflare IaC entry
 docs/adr/       Architectural decision records
 ```

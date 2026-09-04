@@ -106,7 +106,7 @@ treats the stack as new.
 
 Every pull request opened from this repository (not from a fork, and not
 by Dependabot) gets an ephemeral Alchemy stage named `pr-<number>`
-([ADR 0054](./adr/0054-ephemeral-pr-preview-stages.md)). The
+([ADR 0065](./adr/0065-ephemeral-pr-preview-stages.md)). The
 [Preview workflow](../.github/workflows/preview.yml) deploys it on
 `opened`, `synchronize`, and `reopened`, applies the migrations, seeds
 the Seed Workspace (`starter-lab`, demo sign-in in
