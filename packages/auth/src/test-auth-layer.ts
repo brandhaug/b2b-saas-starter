@@ -6,7 +6,8 @@ import {
   cookiePairs,
   mergeCookiePairs,
   signUpSession as signUpSessionWith,
-  type Service
+  type Service,
+  type SignUpSession
 } from 'effectful-better-auth'
 import {
   Auth,
@@ -118,16 +119,17 @@ export function signUpSession(email: string) {
  * (the one-time reveal of the otpauth URI and backup codes), then a first
  * verified code. Enabling stores an unverified secret only — the FIRST
  * verified code is what flips `twoFactorEnabled`, and it rotates the session
- * token, so the returned cookie is the sign-up cookie merged through every
- * rotation the ceremony caused. The `full` surface is used because its
- * response headers are what carry those cookies.
+ * token, so the returned cookie is the sign-up jar merged through every
+ * rotation the ceremony caused — pair-wise, so cookies the rotations do not
+ * touch (e.g. `last_used_login_method`) survive. The `full` surface is used
+ * because its response headers are what carry those cookies.
  */
-export function enableTotp(cookieHeader: string) {
+export function enableTotp(session: SignUpSession) {
   return Effect.gen(function* () {
     const auth = yield* Auth.Tag
     const enabled = yield* auth.full.enableTwoFactor({
       body: { password: SIGN_UP_PASSWORD },
-      headers: new Headers({ cookie: cookieHeader })
+      headers: session.headers
     })
     const response = enabled.response
     if (response.method !== 'totp') {
@@ -144,7 +146,10 @@ export function enableTotp(cookieHeader: string) {
     const { code } = yield* auth.api.generateTOTP({
       body: { secret: decodeUriSecret(secret) }
     })
-    const afterEnable = mergeCookiePairs([cookieHeader], cookiePairs(enabled.headers))
+    const afterEnable = mergeCookiePairs(
+      session.cookiePairs,
+      cookiePairs(enabled.headers)
+    )
     const verified = yield* auth.full.verifyTOTP({
       body: { code },
       headers: new Headers({ cookie: cookieHeaderOf(afterEnable) })

@@ -198,10 +198,7 @@ describe('workspace SSO over the sso plugin', () => {
         )
         const state = authorizationUrl.searchParams.get('state')
         expect(state).toBeTruthy()
-        const stateCookie = signIn.headers
-          .getSetCookie()
-          .map((cookie) => cookie.split(';')[0])
-          .join('; ')
+        const stateCookie = cookieHeader(cookiePairs(signIn.headers))
 
         // The IdP redirects back with a code; the stubbed token endpoint
         // answers with a signed ID token, the JWKS endpoint with the key.

@@ -509,12 +509,12 @@ describe('passkey plugin', () => {
   it('satisfies the two-factor requirement: TOTP-enabled users sign in without a code', () =>
     run(
       Effect.gen(function* () {
-        const { cookieHeader } = yield* signUpSession('passkey@twofactor.test')
+        const session = yield* signUpSession('passkey@twofactor.test')
         const authenticator = makeAuthenticator()
 
         // Enable TOTP the way the account panel does — the shared ceremony's
         // returned cookie carries the session through every rotation.
-        const { freshCookieHeader } = yield* enableTotp(cookieHeader)
+        const { freshCookieHeader } = yield* enableTotp(session)
 
         // The passkey ceremony opens a session DIRECTLY — no twoFactorRedirect
         // hop exists on this path (ADR 0056): the two-factor plugin's after
