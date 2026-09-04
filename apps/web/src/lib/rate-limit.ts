@@ -58,14 +58,15 @@ function pickBinding(
 
 /**
  * Path suffixes that carry credential material and so land in the tight
- * `auth_sign_in` bucket: password and username sign-in, plus the email
- * one-time-code endpoints — sending a code is an email-sending primitive and
- * verifying one is a guessable-credential check, so both sit in the same
- * bucket as a password guess (ADR 0030).
+ * `auth_sign_in` bucket: password and username sign-in, the magic-link send,
+ * and the email one-time-code endpoints — sending a code or a link is an
+ * email-sending primitive and verifying either is a guessable-credential
+ * check, so all sit in the same bucket as a password guess (ADR 0030).
  */
 const AUTH_SIGN_IN_SUFFIXES = [
   '/sign-in/email',
   '/sign-in/username',
+  '/sign-in/magic-link',
   '/sign-in/email-otp',
   '/email-otp/send-verification-otp',
   '/email-otp/verify-email',

@@ -16,6 +16,7 @@ import { admin } from 'better-auth/plugins/admin'
 import { lastLoginMethod } from 'better-auth/plugins'
 import { emailOTP } from 'better-auth/plugins/email-otp'
 import { jwt } from 'better-auth/plugins/jwt'
+import { magicLink } from 'better-auth/plugins/magic-link'
 import { organization } from 'better-auth/plugins/organization'
 import { twoFactor } from 'better-auth/plugins/two-factor'
 import { username } from 'better-auth/plugins/username'
@@ -57,6 +58,8 @@ export type AuthEmailSender = {
   readonly sendVerificationEmail: AuthEmailCallback
   /** The email-otp plugin's `sendVerificationOTP` callback. */
   readonly sendOneTimeCode: AuthOneTimeCodeCallback
+  /** The magic-link plugin's `sendMagicLink` callback. */
+  readonly sendMagicLink: AuthMagicLinkCallback
 }
 
 /**
@@ -96,6 +99,26 @@ export type AuthOneTimeCodeCallback = (data: {
   readonly otp: string
   readonly type: OneTimeCodePurpose
 }) => Promise<void>
+
+/**
+ * The magic-link plugin's own callback shape, narrowed the same way: the
+ * plugin passes `{ email, url, token, metadata }` and the starter reads the
+ * address and the URL. Unlike the two above there is no `user` — a magic link
+ * can be requested for an address that has no account yet, and the plugin
+ * creates the user only when the link is consumed.
+ */
+export type AuthMagicLinkCallback = (data: {
+  readonly email: string
+  readonly url: string
+}) => Promise<void>
+
+/**
+ * How long a magic link stays live, in seconds. Ten minutes: long enough for
+ * an email round trip, short enough that a link sitting in a shared inbox is
+ * not a standing credential. Exported so the email template's copy and the
+ * app's "expired" state can name the same number.
+ */
+export const MAGIC_LINK_EXPIRES_IN_SECONDS = 60 * 10
 
 /**
  * The social providers this package can wire, keyed the way Better Auth's
@@ -181,7 +204,6 @@ export type AuthConfigInterface = {
    * the rejection — nothing here attaches a `catch`.
    */
   readonly runBackground: (promise: Promise<unknown>) => void
-  /**
   /**
    * The MCP OAuth authorization server's two deployment facts (ADR 0055):
    * `resource` is the API worker's `/mcp` URL that every access token is
@@ -397,6 +419,26 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     },
     plugins: plugins(
       username(),
+      // The second Local Auth Path: an emailed single-use link, the same
+      // `verification` table the reset and verification tokens use. It works
+      // with the log-mode dispatcher, so local dev needs no provider — the
+      // link lands in the console.
+      magicLink({
+        expiresIn: MAGIC_LINK_EXPIRES_IN_SECONDS,
+        // The stored copy is a hash: the emailed token is the credential, and
+        // a read of the `verification` table must not be enough to mint a
+        // session. Better Auth hashes the incoming token before lookup.
+        storeToken: 'hashed',
+        // Sign-up through a link is allowed (stated, not defaulted): the plugin
+        // creates the user with `emailVerified: true`, because consuming the
+        // link is proof of mailbox control — the same proof the verification
+        // email asks for. `requireEmailVerification` therefore has nothing
+        // left to gate for a magic-link account.
+        disableSignUp: false,
+        // Same pass-through as the lifecycle callbacks above: the port carries
+        // the plugin's own signature, so the app's adapter is the callback.
+        sendMagicLink: options.emails.sendMagicLink
+      }),
       // TOTP only: the twoFactor plugin's `otp` method (email codes as a
       // *second* factor) is out of scope for the starter — one-time codes in
       // the account lifecycle are the separate emailOTP plugin below. The

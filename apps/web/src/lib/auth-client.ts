@@ -5,6 +5,7 @@ import {
   adminClient,
   emailOTPClient,
   lastLoginMethodClient,
+  magicLinkClient,
   twoFactorClient,
   usernameClient
 } from 'better-auth/client/plugins'
@@ -16,6 +17,7 @@ export const authClient = createAuthClient({
   // authorization request resumes that authorization (ADR 0054).
   plugins: [
     usernameClient(),
+    magicLinkClient(),
     adminClient(),
     twoFactorClient(),
     emailOTPClient(),

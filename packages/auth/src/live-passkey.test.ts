@@ -45,7 +45,8 @@ let authLayer: Layer.Layer<AuthService>
 const capturingEmailSender: AuthEmailSender = {
   sendResetPassword: () => Promise.resolve(),
   sendVerificationEmail: () => Promise.resolve(),
-  sendOneTimeCode: () => Promise.resolve()
+  sendOneTimeCode: () => Promise.resolve(),
+  sendMagicLink: () => Promise.resolve()
 }
 
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process

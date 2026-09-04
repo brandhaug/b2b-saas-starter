@@ -83,6 +83,10 @@ describe('exchangeRow', () => {
     expect(isAudited({ method: 'GET', pathname: '/api/auth/callback/google' })).toBe(
       true
     )
+    // The magic-link consume hop is the sign-in itself: audited as one.
+    expect(isAudited({ method: 'GET', pathname: '/api/auth/magic-link/verify' })).toBe(
+      true
+    )
   })
 
   it('rejects other auth traffic', () => {
@@ -106,6 +110,10 @@ describe('exchangeRow', () => {
     expect(isAudited({ method: 'POST', pathname: '/api/auth/unlink-account' })).toBe(
       false
     )
+    // The magic-link send is non-disclosing by design — it records nothing.
+    expect(
+      isAudited({ method: 'POST', pathname: '/api/auth/sign-in/magic-link' })
+    ).toBe(false)
   })
 })
 
@@ -231,6 +239,33 @@ describe('authAuditInput', () => {
       actorUserId: null
     })
     expect(failure?.eventType).toBe('auth.password_reset_failed')
+  })
+
+  it('maps the magic-link consume hop to a sign-in pair with its method named', () => {
+    // Success: 302 to the app's landing page with no `error` param. The
+    // redirect names nobody, so the event stays unattributed — same accepted
+    // shape as the email-verification row.
+    const success = authAuditInput({
+      method: 'GET',
+      pathname: '/api/auth/magic-link/verify',
+      status: 302,
+      actorUserId: null,
+      locationHeader: 'http://localhost:3071/magic-link/verify'
+    })
+    expect(success?.eventType).toBe('auth.sign_in')
+    expect(success?.metadata).toEqual({ method: 'magic-link', statusCode: 302 })
+    expect(success?.actorUserId).toBeNull()
+
+    // Failure: 302 with an `error` param — an expired, used, or bad link.
+    const failure = authAuditInput({
+      method: 'GET',
+      pathname: '/api/auth/magic-link/verify',
+      status: 302,
+      actorUserId: null,
+      locationHeader: 'http://localhost:3071/magic-link/verify?error=INVALID_TOKEN'
+    })
+    expect(failure?.eventType).toBe('auth.sign_in_failed')
+    expect(failure?.metadata).toEqual({ method: 'magic-link', statusCode: 302 })
   })
 
   it('reads email-verification outcome from the redirect Location', () => {

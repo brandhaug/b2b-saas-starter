@@ -260,10 +260,44 @@ export function OneTimeCodeEmail({ code, purpose }: OneTimeCodeEmailProps) {
   )
 }
 
+type MagicLinkEmailProps = {
+  readonly url: string
+}
+
+/**
+ * The Better Auth magic-link sign-in link. The same hop shape as the reset
+ * and verification links: `url` points at the auth handler's
+ * `/magic-link/verify` route, which consumes the token, opens the session,
+ * and redirects into the app — the template never learns the token. Copy
+ * names the ten-minute window pinned in `packages/auth`
+ * (`MAGIC_LINK_EXPIRES_IN_SECONDS`), stated here rather than imported so the
+ * two packages stay siblings.
+ */
+export function MagicLinkEmail({ url }: MagicLinkEmailProps) {
+  return (
+    <EmailLayout preview="Your sign-in link" heading="Sign in to B2B SaaS Starter">
+      <Text className="text-base text-gray-700 mt-4">
+        Somebody asked for a sign-in link for this email address. If that was you, open
+        the link to sign in without a password. It works once and expires in ten
+        minutes.
+      </Text>
+      <ActionLink href={url} label="Sign in" />
+      <Text className="text-sm text-gray-500 mt-4">
+        If you did not ask for the link, you can ignore this email; opening it is the
+        only thing the link can do.
+      </Text>
+    </EmailLayout>
+  )
+}
+
 OneTimeCodeEmail.PreviewProps = {
   code: '123456',
   purpose: 'sign-in'
 } satisfies OneTimeCodeEmailProps
+
+MagicLinkEmail.PreviewProps = {
+  url: 'http://localhost:3071/api/auth/magic-link/verify?token=example&callbackURL=http%3A%2F%2Flocalhost%3A3071%2Fmagic-link%2Fverify'
+} satisfies MagicLinkEmailProps
 
 type TwoFactorChangedEmailProps = {
   readonly enabled: boolean

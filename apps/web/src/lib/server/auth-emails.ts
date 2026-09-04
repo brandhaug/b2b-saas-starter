@@ -3,6 +3,7 @@ import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/e
 import {
   AccountDeletedEmail,
   EmailVerificationEmail,
+  MagicLinkEmail,
   OneTimeCodeEmail,
   PasskeyChangedEmail,
   PasswordResetEmail,
@@ -21,9 +22,10 @@ import { webRuntime } from '../observability'
  * directions); this module is the app's side of that seam.
  *
  * Provider-light by the same selector the invitation flow uses: with no
- * `EMAIL` binding configured this is the logging dispatcher, so password reset
- * and email verification work end to end locally without an email provider —
- * the link lands in the console log instead of an inbox.
+ * `EMAIL` binding configured this is the logging dispatcher, so password
+ * reset, email verification, the one-time codes, and the magic link all work
+ * end to end locally without an email provider — the link or code lands in
+ * the console log instead of an inbox.
  *
  * Unlike `sendInvitation`, a send failure here is not downgraded to a
  * `delivered: false` result: Better Auth's endpoints have no honest "sent but
@@ -113,6 +115,14 @@ export function makeAuthEmailSender(): AuthEmailSender {
         to: email,
         subject: ONE_TIME_CODE_SUBJECTS[type],
         element: OneTimeCodeEmail({ code: otp, purpose: type })
+      }),
+    // The magic-link plugin's own callback shape — no `user`, because a link
+    // can be requested for an address that has no account yet.
+    sendMagicLink: ({ email, url }) =>
+      dispatch({
+        to: email,
+        subject: 'Your sign-in link',
+        element: MagicLinkEmail({ url })
       })
   }
 }

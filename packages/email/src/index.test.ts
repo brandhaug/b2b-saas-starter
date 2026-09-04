@@ -8,7 +8,11 @@ import {
   type SendEmailBinding,
   type SendEmailBuilderArgs
 } from './index.ts'
-import { OneTimeCodeEmail, WorkspaceInvitationEmail } from './templates.tsx'
+import {
+  MagicLinkEmail,
+  OneTimeCodeEmail,
+  WorkspaceInvitationEmail
+} from './templates.tsx'
 
 describe('EmailDispatcher', () => {
   it('logs delivery when no binding is configured', () =>
@@ -104,4 +108,35 @@ describe('OneTimeCodeEmail', () => {
       )
       expect(html).not.toContain('href=')
     }).pipe(Effect.runPromise))
+})
+
+describe('MagicLinkEmail', () => {
+  it('renders html and text that both carry the sign-in link', () => {
+    const send = vi.fn<(message: SendEmailBuilderArgs) => Promise<void>>(() =>
+      Promise.resolve()
+    )
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const dispatcher = yield* EmailDispatcher
+        yield* dispatcher.send({
+          from: 'noreply@example.com',
+          to: 'user@example.com',
+          subject: 'Your sign-in link',
+          element: MagicLinkEmail({
+            url: 'http://localhost:3071/api/auth/magic-link/verify?token=tok'
+          })
+        })
+
+        const sent = send.mock.calls[0]?.[0]
+        expect(sent?.html).toContain(
+          'http://localhost:3071/api/auth/magic-link/verify?token=tok'
+        )
+        expect(sent?.html).toContain('ten minutes')
+        expect(sent?.text).toContain(
+          'http://localhost:3071/api/auth/magic-link/verify?token=tok'
+        )
+      }).pipe(Effect.provide(makeCloudflareEmailDispatcherLayer({ send })))
+    )
+  })
 })

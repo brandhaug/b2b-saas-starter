@@ -8,6 +8,7 @@ import {
   oauthClient,
   oauthClientResource,
   user,
+  verification,
   workspaceInvitations,
   workspaces
 } from '@b2b-saas-starter/db/schema'
@@ -44,7 +45,7 @@ let authLayer: Layer.Layer<AuthService>
 // The lifecycle-email port, capturing what Better Auth hands it instead of
 // sending: these tests assert on the URLs and the calls, not on delivery.
 const sentEmails: Array<{
-  readonly kind: 'reset' | 'verification'
+  readonly kind: 'reset' | 'verification' | 'magic-link'
   readonly email: string
   readonly url: string
 }> = []
@@ -75,6 +76,10 @@ const capturingEmailSender: AuthEmailSender = {
   },
   sendOneTimeCode: (data) => {
     sentCodes.push({ email: data.email, otp: data.otp, type: data.type })
+    return Promise.resolve()
+  },
+  sendMagicLink: (data) => {
+    sentEmails.push({ kind: 'magic-link', email: data.email, url: data.url })
     return Promise.resolve()
   }
 }
@@ -1051,6 +1056,111 @@ describe('email-otp plugin', () => {
           })
         )
         expect(fresh.user.email).toBe(email)
+      })
+    ))
+})
+
+describe('magic-link sign-in', () => {
+  // The app's adapter sends these three callbacks with every request; the
+  // tests mirror them so the hop's redirects are the ones users see.
+  const callbacks = {
+    callbackURL: 'http://localhost:3071/magic-link/verify',
+    newUserCallbackURL: 'http://localhost:3071/magic-link/verify',
+    errorCallbackURL: 'http://localhost:3071/magic-link/verify'
+  }
+
+  it('round-trips a link for an existing user: request, hop, session', () =>
+    run(
+      Effect.gen(function* () {
+        const email = 'linker@magic.test'
+        const auth = yield* Auth.Tag
+        yield* signUpSession(email)
+        const before = sentEmails.length
+
+        const requested = yield* auth.api.signInMagicLink({
+          body: { email, ...callbacks },
+          // The endpoint is `requireHeaders: true` (it carries the CSRF
+          // middleware); a bare header set satisfies the requirement here.
+          headers: new Headers()
+        })
+        expect(requested.status).toBe(true)
+
+        const sent = sentEmails
+          .slice(before)
+          .filter((entry) => entry.kind === 'magic-link')
+        expect(sent).toHaveLength(1)
+        const url = sent[0]?.url ?? ''
+        expect(url).toContain('http://localhost:3071/api/auth/magic-link/verify?token=')
+
+        const response = yield* Effect.promise(() =>
+          auth.instance.handler(new Request(url))
+        )
+        expect(response.status).toBe(302)
+        expect(response.headers.get('location')).toBe(
+          'http://localhost:3071/magic-link/verify'
+        )
+        // The hop opens the session itself — the arrival at the landing page
+        // is already signed in.
+        expect(response.headers.get('set-cookie')).toContain('better-auth')
+      })
+    ))
+
+  it('stores the token hashed, not as the emailed plaintext', () =>
+    run(
+      Effect.gen(function* () {
+        const email = 'hashed@magic.test'
+        const auth = yield* Auth.Tag
+        const before = sentEmails.length
+
+        yield* auth.api.signInMagicLink({
+          body: { email, ...callbacks },
+          headers: new Headers()
+        })
+
+        const url = sentEmails
+          .slice(before)
+          .find((entry) => entry.kind === 'magic-link')?.url
+        const token = new URL(url ?? '').searchParams.get('token') ?? ''
+        expect(token).not.toBe('')
+        // A read of the `verification` table must not be enough to mint a
+        // session: the identifier is the hash, never the emailed token.
+        const rows = yield* Effect.promise(() => db.select().from(verification))
+        expect(rows.some((row) => row.identifier === token)).toBe(false)
+      })
+    ))
+
+  it('creates a verified user when an unknown email consumes a link', () =>
+    run(
+      Effect.gen(function* () {
+        const email = 'newcomer@magic.test'
+        const auth = yield* Auth.Tag
+        const before = sentEmails.length
+
+        yield* auth.api.signInMagicLink({
+          body: { email, ...callbacks },
+          headers: new Headers()
+        })
+        const url = sentEmails
+          .slice(before)
+          .find((entry) => entry.kind === 'magic-link')?.url
+
+        const response = yield* Effect.promise(() =>
+          auth.instance.handler(new Request(url ?? ''))
+        )
+        // A brand-new account lands on the new-user callback, signed in —
+        // consuming the link is the mailbox proof, so `requireEmailVerification`
+        // has nothing left to gate.
+        expect(response.status).toBe(302)
+        expect(response.headers.get('location')).toBe(
+          'http://localhost:3071/magic-link/verify'
+        )
+        expect(response.headers.get('set-cookie')).toContain('better-auth')
+
+        const rows = yield* Effect.promise(() =>
+          db.select().from(user).where(eq(user.email, email))
+        )
+        expect(rows).toHaveLength(1)
+        expect(rows[0]?.emailVerified).toBe(true)
       })
     ))
 })

@@ -114,3 +114,25 @@ test('seeded demo user signs in and reaches the workspace dashboard', async ({
   // The seeded dashboard renders real capability data, not the auth screen.
   await expect(page.getByRole('heading', { name: /starter lab/i })).toBeVisible()
 })
+
+test('seeded demo user can request a magic link', async ({ page }) => {
+  test.skip(
+    !hasLocalD1State(),
+    'requires a migrated + seeded local D1 (bun run db:migrate:local && bun run db:seed)'
+  )
+  await page.goto('/sign-in')
+  await page.locator('form[data-hydrated="true"]').waitFor()
+  // The second Local Auth Path: switch the form to email-only and send.
+  await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Sign in with an email link' })
+  ).toBeVisible()
+  await page.getByLabel('Email', { exact: true }).fill('demo@starter.local')
+  await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+  // Non-disclosing confirmation: the link itself lands in the dev console log
+  // (log-mode email dispatch), which the browser cannot reach — the send
+  // succeeding is what this flow asserts.
+  await expect(page.getByRole('alert')).toContainText(
+    'check your inbox for a sign-in link'
+  )
+})

@@ -117,20 +117,27 @@ async function readPreHandlerContext(
 }
 
 /**
- * The sign-up gate (ADR 0031): when TURNSTILE is configured, the widget's
+ * The Turnstile gates (ADR 0031): when TURNSTILE is configured, the widget's
  * token must ride the `x-turnstile-token` header and verify against
- * siteverify before Better Auth sees the request. Unconfigured, `verify`
- * returns `inactive` and the request passes through untouched — provider-
- * light local development is unaffected. Returns a JSON error response for
- * `rejected` / `unavailable`, or `undefined` to let the request proceed.
- * Runs OUTSIDE the request scope (no `Effect.annotateLogsScoped` here); the caller
- * annotates the wide event from the response it gets back.
+ * siteverify before Better Auth sees the request. Gated surfaces are the ones
+ * an anonymous visitor can point at somebody else's inbox — sign-up and the
+ * magic-link send. Unconfigured, `verify` returns `inactive` and the request
+ * passes through untouched — provider-light local development is unaffected.
+ * Returns a JSON error response for `rejected` / `unavailable`, or `undefined`
+ * to let the request proceed. Runs OUTSIDE the request scope (no
+ * `Effect.annotateLogsScoped` here); the caller annotates the wide event from
+ * the response it gets back.
  */
-function verifySignUpTurnstile(
+const TURNSTILE_GATED_POST_PATHS = ['/sign-up/email', '/sign-in/magic-link']
+
+function verifyTurnstile(
   request: Request,
   exchange: AuthExchange
 ): Effect.Effect<Response | null> {
-  if (exchange.method !== 'POST' || !exchange.pathname.endsWith('/sign-up/email')) {
+  if (
+    exchange.method !== 'POST' ||
+    !TURNSTILE_GATED_POST_PATHS.some((suffix) => exchange.pathname.endsWith(suffix))
+  ) {
     return Effect.succeed(null)
   }
   const token = request.headers.get('x-turnstile-token') ?? ''
@@ -182,7 +189,7 @@ async function handleAuth(request: Request): Promise<Response> {
           })
         }
         // Turnstile gate before Better Auth consumes the request (ADR 0031).
-        const turnstileResponse = yield* verifySignUpTurnstile(request, exchange)
+        const turnstileResponse = yield* verifyTurnstile(request, exchange)
         if (turnstileResponse !== null) {
           yield* Effect.annotateLogsScoped({
             outcome: 'turnstile_blocked',

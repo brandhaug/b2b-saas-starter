@@ -294,6 +294,19 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     actorUserId: null,
     workspaceId: 'wrk_starter',
     createdAt: '2026-05-16T07:30:05.000Z'
+  },
+  {
+    id: 'aud_magic_link',
+    eventType: 'auth.sign_in',
+    targetType: 'session',
+    // A session the magic link opened; no fixture row exists for it.
+    targetId: null,
+    actor: 'Demo User',
+    actorUserId: 'usr_demo',
+    // Stands for the magic-link Local Auth Path: the auth-catchall audit rows
+    // write `method: 'magic-link'` into the event's metadata (which the wire
+    // shape deliberately does not surface — same for every producer).
+    createdAt: '2026-05-13T09:45:00.000Z'
   }
 ]
 
