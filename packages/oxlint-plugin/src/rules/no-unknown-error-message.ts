@@ -13,7 +13,7 @@ import {
  * site re-derives the same `instanceof Error` probe.
  *
  * `apps/web/src/lib/cause-message.ts` is the sanctioned reader in the web app, and
- * the package-private normalizers named in the root `vite.config.ts` lint
+ * the package-private normalizers named in the root `lint.config.ts`
  * overrides are each their own
  * package's typed boundary. Everywhere else, keep the failure in the Effect error
  * channel and match on its tag.

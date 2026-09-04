@@ -2,11 +2,11 @@
 
 Cloudflare-first B2B SaaS starter. The public site showcases the repository itself; the authenticated app is a reference implementation for workspaces, members/RBAC, API/MCP, email, webhooks, notifications, audit, and admin.
 
-See [CONTEXT.md](./CONTEXT.md) for canonical domain language, [ARCHITECTURE.md](./ARCHITECTURE.md) for the system map and security model, and [DESIGN.md](./DESIGN.md) for the visual identity — design tokens, typography, and component contracts. Decisions live in [docs/adr](./docs/adr).
+[CONTEXT.md](./CONTEXT.md) holds the domain language, [ARCHITECTURE.md](./ARCHITECTURE.md) the system map and security model, [DESIGN.md](./DESIGN.md) the visual identity, [docs/adr](./docs/adr) the decisions.
 
 ## Project posture
 
-Nothing here is in production use. Refactor freely, rename what reads wrong, and drop stored shapes rather than migrating them — no backwards compatibility, no deprecation path, no compatibility shims for old data.
+Nothing here is in production use. Refactor freely, rename what reads wrong, and drop stored shapes rather than migrating them. No backwards compatibility, no deprecation path, no shims for old data.
 
 ## Intent Node Index
 
@@ -15,65 +15,46 @@ Nothing here is in production use. Refactor freely, rename what reads wrong, and
 | Web app           | [apps/web/AGENTS.md](apps/web/AGENTS.md)                             |
 | API worker        | [apps/api/AGENTS.md](apps/api/AGENTS.md)                             |
 | Background worker | [apps/background/AGENTS.md](apps/background/AGENTS.md)               |
-| Database          | [packages/db/AGENTS.md](packages/db/AGENTS.md)                       |
+| HTTP contract     | [packages/api/AGENTS.md](packages/api/AGENTS.md)                     |
 | Capabilities      | [packages/capabilities/AGENTS.md](packages/capabilities/AGENTS.md)   |
+| Database          | [packages/db/AGENTS.md](packages/db/AGENTS.md)                       |
 | Authentication    | [packages/auth/AGENTS.md](packages/auth/AGENTS.md)                   |
 | Authorization     | [packages/authz/AGENTS.md](packages/authz/AGENTS.md)                 |
+| Email             | [packages/email/AGENTS.md](packages/email/AGENTS.md)                 |
+| Environment       | [packages/env/AGENTS.md](packages/env/AGENTS.md)                     |
 | Observability     | [packages/logger/AGENTS.md](packages/logger/AGENTS.md)               |
 | Typed SDK         | [packages/sdk/AGENTS.md](packages/sdk/AGENTS.md)                     |
 | Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md) |
 
-Capabilities are grouped into bounded-context folders under `packages/capabilities/src/`: `developer-platform/`, `governance/`, `notifications/`. Each capability has a leaf intent node beside its source file — see the package node for the map and the "Where to put a new capability" rules.
+Each capability under `packages/capabilities/src/<context>/` has a leaf node beside its source; the package node holds the map.
 
 ## Setup
 
-Requires the [Vite+ CLI](https://viteplus.dev) (`vp`, >= 0.3.0) — it provides
-the managed Node runtime and the pnpm version pinned in `package.json`.
+Requires the [Vite+ CLI](https://viteplus.dev) (`vp`, >= 0.3.0), which provides the Node runtime and the pinned pnpm.
 
 ```bash
 vp install
-pnpm run dev
-pnpm run build
-pnpm run test
+pnpm run dev        # web on http://localhost:3071
+pnpm run check      # typecheck + lint + format:check + dead-code + test
 ```
 
-- Web dev server: `http://localhost:3071`
-- API worker dev server: `pnpm -C apps/api dev`
-- Background worker dev server: `pnpm -C apps/background dev`
-- Package manager: pnpm only (pin in `packageManager`, catalog in
-  `pnpm-workspace.yaml`)
-- Task runner: Vite Task (`vp run`), not Turbo
-- Formatting: `vp fmt` (Oxfmt)
-- Linting: `vp lint` (Oxlint, type-aware)
-
-**Validation requirement.** The pre-commit hook only formats staged files — it
-does not gate commits. Run `pnpm run check` (typecheck + lint + format:check +
-dead-code + test) before you commit; the PR Gate workflow enforces the same bar
-in CI.
-
-## Dependencies
-
-- Versions are single-sourced in the `catalog` block of `pnpm-workspace.yaml`.
-  When adding or upgrading a dependency, add it to the catalog and reference it
-  with `"catalog:"` so the workspace resolves the shared version instead of
-  pinning one.
-- Toolchain versions (`vite`, `vitest`, `oxlint`, `oxfmt`) are pinned by the
-  local `vite-plus` package — do not bump them in the catalog by hand; they move
-  with `vp upgrade` (`vp toolchain` shows the bundled versions).
+- pnpm only; versions single-sourced in the `catalog` block of `pnpm-workspace.yaml`, referenced as `"catalog:"`. Toolchain versions (`vite`, `vitest`, `oxlint`, `oxfmt`) move with `vp upgrade`, never by hand.
+- Task runner is Vite Task (`vp run`), formatting `vp fmt`, linting `vp lint`.
+- The pre-commit hook only formats. Run `pnpm run check` before committing; PR Gate enforces the same bar. `pnpm run check:fix` applies lint and format fixes; re-run `check` after it.
 
 ## Cross-Cutting Rules
 
-1. Use Effect v4 typed errors, services, schemas, and HTTP API contracts for application behavior.
-2. Use `packages/capabilities` for business use cases; route handlers and UI components should not duplicate behavior.
-3. Keep local development provider-light. Optional providers must stay inactive when their env vars are unset instead of failing the app.
-4. Use Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, and Alchemy.
-5. Borrow interaction and visual patterns from other products freely, but never import their domain language — every behavior here is expressed through this starter's own capabilities.
-6. Do not adopt architecture (games, PWA, realtime, Durable Objects) without a concrete starter use case — complexity needs a reason in this repo, not a precedent elsewhere.
-7. Put every declaration merge (`declare module`, same-name interface merges) in a `.d.ts` file. Match the augmentation to the file: `declare module 'x'` needs a top-level import so the file is a module, while `declare global` and `declare namespace` need the file to have none. Elsewhere `consistent-type-definitions` rewrites `interface` to `type`. Two lint rules enforce this now (`starter/no-interface-merge-outside-dts`, `starter/no-mismatched-augmentation-context`); see `apps/web/src/router-register.d.ts` for the module case and `apps/web/src/worker-env.d.ts` for the global one. `vp lint --fix` does not run in a hook any more, so run `pnpm run check:fix` deliberately and re-run `pnpm run check` after it.
+1. Effect v4 typed errors, services, schemas, and HTTP API contracts for application behavior.
+2. Business use cases live in `packages/capabilities`. Route handlers and UI components do not duplicate behavior.
+3. Provider-light local development: an optional provider whose env vars are unset stays inactive instead of failing the app.
+4. Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, Alchemy.
+5. Borrow interaction patterns from other products, never their domain language.
+6. No new architecture (games, PWA, realtime, Durable Objects) without a concrete starter use case.
+7. Every declaration merge goes in a `.d.ts` file. `declare module 'x'` needs a top-level import; `declare global` and `declare namespace` need none. Enforced by `starter/no-interface-merge-outside-dts` and `starter/no-mismatched-augmentation-context`; examples in `apps/web/src/router-register.d.ts` and `apps/web/src/worker-env.d.ts`.
+8. Seed (in-memory) and Live (D1) adapters stay equivalent for the demo identity. `packages/capabilities/src/seed-fixture.ts` is the one source for `usr_demo` / `starter-lab`; `scripts/seed.ts` adds only the password. Client-side navigation resolves membership against the fixture, so a user present in one layer only 404s on SPA navigation while full-page loads succeed.
 
 ## Commit & Release Conventions
 
-- **All commits and PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/)**: `type(scope): subject`, where `type` is one of `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `revert`. Use `!` or a `BREAKING CHANGE:` footer for breaking changes.
-- This convention is enforced by the **PR Gate** workflow (`.github/workflows/pr-gate.yml`), which fails any PR whose title does not conform.
-- Releases are automated by [release-please](https://github.com/googleapis/release-please-action): merging Conventional Commits to `master` opens a release PR titled `chore(master): release ...`; merging it tags and publishes the release.
-- `CLAUDE.md` is a symlink to this file so Claude Code reads the same conventions.
+- Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/) (`type(scope): subject`); PR Gate rejects non-conforming titles. Breaking changes use `!` or a `BREAKING CHANGE:` footer.
+- release-please opens `chore(master): release ...` PRs from merged commits; merging one tags and publishes.
+- `CLAUDE.md` is a symlink to this file.

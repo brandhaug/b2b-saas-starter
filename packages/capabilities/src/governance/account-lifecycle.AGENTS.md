@@ -1,64 +1,25 @@
-# account-lifecycle
+# Account Lifecycle
 
 ## Purpose & Scope
 
-Self-service account deletion and its workspace teardown — what happens to a
-user's **Workspace** memberships when they delete their own account. Contract
-(`account-lifecycle.ts`), seed adapter (`account-lifecycle.seed.ts`), live
-adapter (`account-lifecycle.live.ts`).
+Self-service account deletion and the workspace teardown it implies (ADR 0059). Identity-keyed throughout: the actor asks about every workspace they belong to at once, before one is selected.
 
-Identity-keyed throughout (no `WorkspaceContext`): the actor is asking about
-every workspace they belong to at once, before any single one is selected —
-the same family as `WorkspaceMembership.listWorkspacesForUser`.
+## Entry Points & Contracts
 
-## The ownership rule
+- `planDeletion(userId)` never mutates, so the account page can name the workspaces needing an owner first.
+- `prepareDeletion(userId)` runs the teardown (leave, delete, detach) and fails `AccountDeletionBlocked` (409, carrying the blocking workspaces) without touching anything if a step is blocked.
+- `deleteAccount` plans, gates, then hands off to the store; a refusal there (wrong password, no credential) is `AccountDeletionRejected` (409).
+- `planAccountDeletion` is the shared rule, per membership, in precedence order: sole member gives `delete_workspace`, sole owner of a shared workspace `blocked_sole_owner` (the plugin refuses that leave too), otherwise `leave`. One blocked workspace blocks the account; `deletionMetadata` yields counts, never workspace names.
+- Audits `workspace.deleted` with `workspaceId: null` (the real id cascades away), `workspace_member.removed` with `metadata.reason: 'account_deleted'`, and an actorless `account.deleted` naming the account in `targetId`.
+- Without an `AccountLifecycleBinding` the plan still reads; teardown fails `CapabilityUnavailable('no_account_lifecycle_binding')`.
 
-`planAccountDeletion` is the rule both adapters share, per membership, in
-order of precedence:
+## Patterns & Pitfalls
 
-1. The user is the workspace's only member → `delete_workspace` (the workspace
-   goes with the account).
-2. The user is an owner and the only owner → `blocked_sole_owner` (leaving
-   would strand the other members; the organization plugin refuses that leave
-   too, so the rule here is what the store enforces).
-3. Otherwise → `leave` (other owners remain, or the user was never one).
-
-`canDelete` is the conjunction; one blocked workspace blocks the account.
-
-## The store's sequencing, not this package's
-
-The delete rides Better Auth's `/delete-user` endpoint (`user.deleteUser`
-enabled in `packages/auth`), and the endpoint owns the order: password
-verified FIRST (a wrong password is a 4xx before anything runs), then the
-app's `beforeDelete` hook — which is where `prepareDeletion` executes — then
-the user row goes, then `afterDelete` (`recordDeleted`). The Live adapter's
-`deleteAccount` is therefore only the password-verified hand-off plus a
-pre-check plan gate; the app supplies the hooks and the binding. Seed runs
-the same sequence inline (`deleteAccount` = plan → credential check →
-prepare → record) so the contract holds on both sides.
-
-`prepareDeletion` also NULLs the two columns whose restricting foreign keys
-would otherwise block the user-row delete — `audit_events.actor_user_id` and
-`api_tokens.created_by_user_id` — after the workspace loop, so a blocked plan
-detaches nothing. History survives as system rows; `recordDeleted` writes
-`account.deleted` **actorless** (`actorUserId: null`) for the same reason:
-the actor row is gone by the time it records, so the event names the account
-in `targetId`.
-
-## Binding
-
-`AccountLifecycleBinding` is the structural port (ADR 0051's rule): the three
-session-bound writes — `leaveWorkspace` (plugin `removeMember`, addressed by
-membership row id), `deleteWorkspace` (plugin `deleteOrganization`), and
-`deleteUser` (the core endpoint, password in, session user out). Only the app
-can supply it; absent, the plan still reads and every teardown step fails
-`CapabilityUnavailable` (`no_account_lifecycle_binding`).
+- The store owns the order: password verified first, then the app's `beforeDelete` hook running `prepareDeletion` (`apps/web/src/lib/server/account-delete-hooks.ts`), then the user row, then `afterDelete` calling `recordDeleted`. Live `deleteAccount` is only the pre-check plus hand-off.
+- `prepareDeletion` NULLs `audit_events.actor_user_id` and `api_tokens.created_by_user_id` after the workspace loop, because those restricting foreign keys block the user-row delete and a blocked plan must detach nothing.
+- The seed fixture has no credentials: any non-empty password passes, the empty string models rejection.
 
 ## Anti-patterns
 
-- Don't tear down workspaces outside `prepareDeletion` — a delete path that
-  skips the hook runs against a user row whose memberships still exist.
-- Don't attribute `account.deleted` to the deleted user: the FK rejects the
-  insert after the row is gone.
-- Don't widen the plan's step with `memberId` — the wire shape carries no
-  internal row ids; the adapters keep the membership rows beside the plan.
+- No teardown outside `prepareDeletion`; skipping the hook leaves memberships behind.
+- No attributing `account.deleted` to the deleted user or `workspace.deleted` to its workspace: the FK rejects the first, the second cascades the event away.
