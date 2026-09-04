@@ -27,7 +27,8 @@ let authLayer: Layer.Layer<AuthService>
 
 const capturingEmailSender: AuthEmailSender = {
   sendResetPassword: () => Promise.resolve(),
-  sendVerificationEmail: () => Promise.resolve()
+  sendVerificationEmail: () => Promise.resolve(),
+  sendOneTimeCode: () => Promise.resolve()
 }
 
 /* -------------------------------------------------------------------------- */
