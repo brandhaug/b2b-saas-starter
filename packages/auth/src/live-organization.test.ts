@@ -219,17 +219,17 @@ describe('two-factor plugin', () => {
   it('enables TOTP, verifies it, and flips twoFactorEnabled on the user', () =>
     run(
       Effect.gen(function* () {
-        const { cookieHeader, userId } = yield* signUpSession('totp@twofactor.test')
+        const session = yield* signUpSession('totp@twofactor.test')
 
         // The shared ceremony runs the account panel's flow — enable, then the
         // first verified code, which flips `twoFactorEnabled` and rotates the
         // session token (the response body is the one-time reveal).
-        const { response } = yield* enableTotp(cookieHeader)
+        const { response } = yield* enableTotp(session)
         expect(response.totpURI).toContain('otpauth://totp/')
         expect(response.backupCodes.length).toBeGreaterThan(0)
 
         const rows = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.id, userId))
+          db.select().from(user).where(eq(user.id, session.userId))
         )
         expect(rows[0]?.twoFactorEnabled).toBe(true)
       })

@@ -7,15 +7,18 @@ import {
   type RegistrationResponseJSON
 } from '@better-auth/passkey/client'
 import { Effect, type Layer } from 'effect'
+import {
+  cookieHeader as toCookieHeader,
+  cookiePairs,
+  mergeCookiePairs
+} from 'effectful-better-auth'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import { Auth } from './index.ts'
 import {
   buildAuthLayer,
   enableTotp,
-  mergeCookies,
   provisionAuthD1,
-  responseCookies,
   signUpSession,
   type AuthService,
   type ProvisionedAuthD1
@@ -350,38 +353,48 @@ function makeAuthenticator() {
 /* -------------------------------------------------------------------------- */
 
 /** Runs one full registration ceremony, returning the passkey row it wrote. */
-async function registerPasskey(
-  cookieHeader: string,
+function registerPasskey(
+  sessionCookie: string,
   authenticator: ReturnType<typeof makeAuthenticator>,
   name: string
 ) {
-  const auth = await Effect.runPromise(Effect.provide(Auth.Tag, authLayer))
-  const optionsResponse = await auth.instance.api.generatePasskeyRegistrationOptions({
-    headers: new Headers({ cookie: cookieHeader }),
-    returnHeaders: true
-  })
-  const challengeCookie = responseCookies(optionsResponse.headers)
-  const registrationResponse = await authenticator.register(optionsResponse.response)
-  return auth.instance.api.verifyPasskeyRegistration({
-    body: { response: registrationResponse, name },
-    headers: new Headers({ cookie: mergeCookies(cookieHeader, challengeCookie) })
+  return Effect.gen(function* () {
+    const auth = yield* Auth.Tag
+    // The `full` surface carries the WebAuthn challenge cookie the verify
+    // step must present alongside the session.
+    const optionsResponse = yield* auth.full.generatePasskeyRegistrationOptions({
+      headers: new Headers({ cookie: sessionCookie })
+    })
+    const registrationResponse = yield* Effect.promise(() =>
+      authenticator.register(optionsResponse.response)
+    )
+    return yield* auth.api.verifyPasskeyRegistration({
+      body: { response: registrationResponse, name },
+      headers: new Headers({
+        cookie: toCookieHeader(
+          mergeCookiePairs([sessionCookie], cookiePairs(optionsResponse.headers))
+        )
+      })
+    })
   })
 }
 
 /** Runs one full sign-in ceremony, returning the verify response and its cookies. */
-async function signInWithPasskey(authenticator: ReturnType<typeof makeAuthenticator>) {
-  const auth = await Effect.runPromise(Effect.provide(Auth.Tag, authLayer))
-  const optionsResponse = await auth.instance.api.generatePasskeyAuthenticationOptions({
-    returnHeaders: true
+function signInWithPasskey(authenticator: ReturnType<typeof makeAuthenticator>) {
+  return Effect.gen(function* () {
+    const auth = yield* Auth.Tag
+    const optionsResponse = yield* auth.full.generatePasskeyAuthenticationOptions()
+    const assertionResponse = yield* Effect.promise(() =>
+      authenticator.authenticate(optionsResponse.response)
+    )
+    const verification = yield* auth.full.verifyPasskeyAuthentication({
+      body: { response: assertionResponse },
+      headers: new Headers({
+        cookie: toCookieHeader(cookiePairs(optionsResponse.headers))
+      })
+    })
+    return { verification, cookies: toCookieHeader(cookiePairs(verification.headers)) }
   })
-  const challengeCookie = responseCookies(optionsResponse.headers)
-  const assertionResponse = await authenticator.authenticate(optionsResponse.response)
-  const verification = await auth.instance.api.verifyPasskeyAuthentication({
-    body: { response: assertionResponse },
-    headers: new Headers({ cookie: challengeCookie }),
-    returnHeaders: true
-  })
-  return { verification, cookies: responseCookies(verification.headers) }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -395,8 +408,10 @@ describe('passkey plugin', () => {
         const { cookieHeader } = yield* signUpSession('passkey@owner.test')
         const authenticator = makeAuthenticator()
 
-        const created = yield* Effect.promise(() =>
-          registerPasskey(cookieHeader, authenticator, 'MacBook Touch ID')
+        const created = yield* registerPasskey(
+          cookieHeader,
+          authenticator,
+          'MacBook Touch ID'
         )
         expect(created.name).toBe('MacBook Touch ID')
         expect(created.deviceType).toBe('multiDevice')
@@ -414,9 +429,7 @@ describe('passkey plugin', () => {
       Effect.gen(function* () {
         const { cookieHeader } = yield* signUpSession('passkey@manage.test')
         const authenticator = makeAuthenticator()
-        const created = yield* Effect.promise(() =>
-          registerPasskey(cookieHeader, authenticator, 'Phone')
-        )
+        const created = yield* registerPasskey(cookieHeader, authenticator, 'Phone')
         const headers = new Headers({ cookie: cookieHeader })
         const auth = yield* Auth.Tag
 
@@ -445,11 +458,9 @@ describe('passkey plugin', () => {
       Effect.gen(function* () {
         const { cookieHeader } = yield* signUpSession('passkey@signin.test')
         const authenticator = makeAuthenticator()
-        yield* Effect.promise(() => registerPasskey(cookieHeader, authenticator, 'Key'))
+        yield* registerPasskey(cookieHeader, authenticator, 'Key')
 
-        const { verification, cookies } = yield* Effect.promise(() =>
-          signInWithPasskey(authenticator)
-        )
+        const { verification, cookies } = yield* signInWithPasskey(authenticator)
         expect(verification.response.user.email).toBe('passkey@signin.test')
         expect(verification.response.session).toBeDefined()
 
@@ -469,32 +480,28 @@ describe('passkey plugin', () => {
       Effect.gen(function* () {
         const { cookieHeader } = yield* signUpSession('passkey@tamper.test')
         const authenticator = makeAuthenticator()
-        yield* Effect.promise(() => registerPasskey(cookieHeader, authenticator, 'Key'))
+        yield* registerPasskey(cookieHeader, authenticator, 'Key')
         const auth = yield* Auth.Tag
 
-        const optionsResponse = yield* Effect.promise(() =>
-          auth.instance.api.generatePasskeyAuthenticationOptions({
-            returnHeaders: true
-          })
-        )
+        const optionsResponse = yield* auth.full.generatePasskeyAuthenticationOptions()
         // The ceremony answers a DIFFERENT challenge than the one stored in
         // the cookie — a replay with a stale clientDataJSON.
         const assertionResponse = yield* Effect.promise(() =>
           authenticator.authenticate({ challenge: 'an-old-challenge' })
         )
-        const attempt = yield* Effect.promise(() =>
-          auth.instance.api
-            .verifyPasskeyAuthentication({
-              body: { response: assertionResponse },
-              headers: new Headers({
-                cookie: responseCookies(optionsResponse.headers)
-              })
+        const attempt = yield* auth.api
+          .verifyPasskeyAuthentication({
+            body: { response: assertionResponse },
+            headers: new Headers({
+              cookie: toCookieHeader(cookiePairs(optionsResponse.headers))
             })
-            .then(
-              () => ({ refused: false }),
-              () => ({ refused: true })
-            )
-        )
+          })
+          .pipe(
+            Effect.match({
+              onFailure: () => ({ refused: true }),
+              onSuccess: () => ({ refused: false })
+            })
+          )
         expect(attempt.refused).toBe(true)
       })
     ))
@@ -502,22 +509,18 @@ describe('passkey plugin', () => {
   it('satisfies the two-factor requirement: TOTP-enabled users sign in without a code', () =>
     run(
       Effect.gen(function* () {
-        const { cookieHeader } = yield* signUpSession('passkey@twofactor.test')
+        const session = yield* signUpSession('passkey@twofactor.test')
         const authenticator = makeAuthenticator()
 
         // Enable TOTP the way the account panel does — the shared ceremony's
         // returned cookie carries the session through every rotation.
-        const { freshCookieHeader } = yield* enableTotp(cookieHeader)
+        const { freshCookieHeader } = yield* enableTotp(session)
 
         // The passkey ceremony opens a session DIRECTLY — no twoFactorRedirect
         // hop exists on this path (ADR 0056): the two-factor plugin's after
         // hook matches the credential sign-in endpoints only.
-        yield* Effect.promise(() =>
-          registerPasskey(freshCookieHeader, authenticator, 'Key')
-        )
-        const { verification, cookies } = yield* Effect.promise(() =>
-          signInWithPasskey(authenticator)
-        )
+        yield* registerPasskey(freshCookieHeader, authenticator, 'Key')
+        const { verification, cookies } = yield* signInWithPasskey(authenticator)
         expect(verification.response.session).toBeDefined()
 
         const rows = yield* Effect.promise(() =>

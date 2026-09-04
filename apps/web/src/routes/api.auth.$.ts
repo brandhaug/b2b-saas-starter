@@ -2,8 +2,7 @@ import { Auth } from '@b2b-saas-starter/auth'
 import { env } from 'cloudflare:workers'
 import { createFileRoute } from '@tanstack/react-router'
 import { Effect } from 'effect'
-import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
-import { toHttpEffect } from 'effectful-better-auth'
+import { handleWebRequest } from 'effectful-better-auth'
 import { authRuntime } from '@/lib/auth-runtime'
 import { withWebRequestScope } from '@/lib/observability'
 import {
@@ -235,16 +234,9 @@ async function handleAuth(request: Request): Promise<Response> {
           yield* Effect.annotateLogsScoped({ outcome: 'sso_connection_disabled' })
           return disabledSsoResponse
         }
-        // The effectful-better-auth mount: toWeb → auth.handler → fromWeb.
-        // The Auth service comes from authRuntime's layer; only the request
-        // is provided per call.
-        const serverResponse = yield* toHttpEffect(Auth.Tag).pipe(
-          Effect.provideService(
-            HttpServerRequest.HttpServerRequest,
-            HttpServerRequest.fromWeb(request)
-          )
-        )
-        const response = HttpServerResponse.toWeb(serverResponse)
+        // The effectful-better-auth mount. The Auth service comes from
+        // authRuntime's layer; only the request is handed over per call.
+        const response = yield* handleWebRequest(Auth.Tag, request)
         // Governance audit for credential sign-in attempts (ADR 0025) —
         // best-effort by contract, so it can't fail the auth response. It
         // annotates its own failure reason onto this wide event; the outcome is

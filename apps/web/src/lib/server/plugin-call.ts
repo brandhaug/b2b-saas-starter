@@ -1,9 +1,9 @@
 import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
-import { runAuth, type Api } from 'effectful-better-auth'
-import { type Effect } from 'effect'
+import { MissingRequestHeaders, runAuth, type Api } from 'effectful-better-auth'
+import { Effect } from 'effect'
 
 import { authRuntime } from '../auth-runtime'
-import { requestHeaders } from './require-headers'
+import { currentRequest } from '../request-context'
 
 /**
  * The two ways the server-only `*-binding.ts` adapters (invitation, member,
@@ -30,15 +30,22 @@ type AuthApi = Api<AuthOptions>
  * the admin role), so the session cookie is not optional — it is the whole
  * reason these adapters have to exist in the app at all. Headers are read at
  * call time, so one module-level adapter serves every request without
- * capturing one, and a call with no in-flight request to take them from fails
- * as `MissingRequestHeaders` (see `./require-headers.ts`) — which classifies
- * as unavailable, never as a refusal.
+ * capturing one. The library carries them as ambient `CurrentHeaders`, so
+ * `api.*` calls inside `build` may omit `headers`; the raw `Headers` are still
+ * handed to `build` for the callers that forward them elsewhere (the MCP
+ * consent re-entry builds a request carrier from them). A call with no
+ * in-flight request rejects with the library's `MissingRequestHeaders`, which
+ * classifies as unavailable, never as a refusal — and rejects before the
+ * runtime is touched, so a no-request caller never boots the auth instance.
  */
 export function sessionCall<A, E>(
   build: (api: AuthApi, headers: Headers) => Effect.Effect<A, E>
 ): Promise<A> {
-  const headers = requestHeaders()
-  return runAuth({
+  const headers = currentRequest()?.headers
+  if (headers === undefined) {
+    return Effect.runPromise(Effect.fail(new MissingRequestHeaders()))
+  }
+  return runAuth<AuthOptions, A, E>({
     tag: Auth.Tag,
     runtime: authRuntime,
     headers,
@@ -55,9 +62,5 @@ export function sessionCall<A, E>(
 export function serverCall<A, E>(
   build: (api: AuthApi) => Effect.Effect<A, E>
 ): Promise<A> {
-  return runAuth({
-    tag: Auth.Tag,
-    runtime: authRuntime,
-    build: (api) => build(api)
-  })
+  return runAuth({ tag: Auth.Tag, runtime: authRuntime, build })
 }

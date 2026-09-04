@@ -19,6 +19,22 @@ const PluginRejection = Schema.Struct({
 const decodePluginRejection = Schema.decodeUnknownOption(PluginRejection)
 
 /**
+ * The app's `sessionCall` rejects with `effectful-better-auth`'s
+ * `MissingRequestHeaders` when there is no in-flight request to take session
+ * headers from. It carries no `statusCode` on purpose: nothing about the
+ * binding is wrong, there was no store to ask. Recognized by `_tag` — the
+ * error has no other field — so it names its reason instead of falling
+ * through to the error's generic message.
+ */
+const MissingRequestHeadersRejection = Schema.Struct({
+  _tag: Schema.Literal('MissingRequestHeaders')
+})
+
+const isMissingRequestHeaders = Schema.is(MissingRequestHeadersRejection)
+
+const NO_REQUEST_HEADERS = 'no_request_headers'
+
+/**
  * How a rejected binding call should be classified.
  *
  * `refusedByWorkspace` means the workspace declined the change on its merits —
@@ -32,6 +48,9 @@ export type PluginBindingFailure = {
 }
 
 export function readPluginBindingFailure(cause: unknown): PluginBindingFailure {
+  if (isMissingRequestHeaders(cause)) {
+    return { refusedByWorkspace: false, reason: NO_REQUEST_HEADERS }
+  }
   const rejection = decodePluginRejection(cause)
   if (Option.isNone(rejection)) {
     return { refusedByWorkspace: false, reason: failureMessage(cause) }
