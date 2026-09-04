@@ -35,7 +35,10 @@ export const Route = createFileRoute('/account')({
     Promise.all([
       loadNotificationPreferences({ userId: context.session.user.id }),
       loadMcpClientConnections({ userId: context.session.user.id })
-    ]).then(([preferences, connections]) => ({ preferences, connections })),
+    ]).then(([preferencePayload, connections]) => ({
+      preferences: preferencePayload.preferences,
+      connections
+    })),
   component: AccountRoute,
   head: () => ({ meta: [{ title: pageTitle('Account') }] })
 })

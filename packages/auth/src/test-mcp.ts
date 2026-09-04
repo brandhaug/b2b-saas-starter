@@ -1,4 +1,4 @@
-import { type AuthConfig } from './index.ts'
+import { type AuthConfigInterface } from './index.ts'
 
 /**
  * The `AuthConfig.mcp` every test suite carries: the local resource URL and a
@@ -7,7 +7,7 @@ import { type AuthConfig } from './index.ts'
  * rest mock or skip the provider), so a call here is a bug, and the throw is
  * the assertion.
  */
-export function testMcpConfig(): AuthConfig['mcp'] {
+export function testMcpConfig(): AuthConfigInterface['mcp'] {
   return {
     resource: 'http://localhost:8787/mcp',
     fetchClientMetadataResource: () => {

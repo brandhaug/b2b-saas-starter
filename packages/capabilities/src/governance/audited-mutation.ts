@@ -56,6 +56,13 @@ export type AuditedMutation = (
   input: AuditedMutationInput
 ) => Effect.Effect<boolean, CapabilityUnavailable>
 
+/** A single write statement wrapped for the batch, or the batch's whole write list. */
+function isSingle(
+  statement: BatchStatement | ReadonlyArray<BatchStatement>
+): statement is BatchStatement {
+  return !Array.isArray(statement)
+}
+
 /**
  * Builds the audited-mutation combinator for one Live layer. Effectful because
  * it resolves the `RawD1` binding `batch` needs once, at layer construction,
@@ -75,10 +82,10 @@ export function auditedMutations(
         const auditStatement = yield* deps.prepareAuditRecord(input.auditEvent)
         const written = input.write()
         const statements: Array<BatchStatement> = []
-        if (Array.isArray(written)) {
-          statements.push(...written)
-        } else {
+        if (isSingle(written)) {
           statements.push(written)
+        } else {
+          statements.push(...written)
         }
         yield* deps.unavailable(batch([...statements, auditStatement]))
         return true
