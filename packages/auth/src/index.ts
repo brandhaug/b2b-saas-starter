@@ -5,6 +5,7 @@ import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import * as schema from '@b2b-saas-starter/db/schema'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
+import { lastLoginMethod } from 'better-auth/plugins'
 import { organization } from 'better-auth/plugins/organization'
 import { twoFactor } from 'better-auth/plugins/two-factor'
 import { username } from 'better-auth/plugins/username'
@@ -44,12 +45,73 @@ export type AuthEmailCallback = (data: {
   readonly url: string
 }) => Promise<void>
 
+/**
+ * The social providers this package can wire, keyed the way Better Auth's
+ * `socialProviders` option is. A structural local type on purpose: the
+ * resolver (`activeSocialProviders`) lives in `@b2b-saas-starter/env`, which
+ * this package must not depend on — the app passes the resolved bag here,
+ * same as `requireEmailVerification`. A missing key is the only absent state:
+ * the resolver never emits `undefined` values, and an empty object resolves
+ * to zero providers inside Better Auth. The keys are stated explicitly —
+ * which providers exist is a closed set this type owns.
+ */
+export type SocialProviderCredentialsByName = {
+  readonly github?: SocialProviderCredentials
+  readonly google?: SocialProviderCredentials
+}
+
+/** One configured social provider. Both halves are required to be active. */
+export type SocialProviderCredentials = {
+  readonly clientId: string
+  readonly clientSecret: string
+}
+
+/**
+ * The slice of a Better Auth account row the linking audit needs. Kept
+ * narrower than Better Auth's own `Account` type so the app's adapter depends
+ * on the two fields it reads, not the token columns it must not.
+ */
+export type AuthAccountChange = {
+  readonly providerId: string
+  readonly userId: string
+}
+
+/**
+ * The account-linking port, carried on `AuthConfig` and assigned straight to
+ * Better Auth's `databaseHooks.account.create.after` / `delete.after` — no
+ * rename wrapper, same shape as the email port above. Fires for every account
+ * row; the app filters which provider ids are audit-worthy.
+ */
+export type AuthAccountHooks = {
+  readonly onAccountLinked: (account: AuthAccountChange) => Promise<void>
+  readonly onAccountUnlinked: (account: AuthAccountChange) => Promise<void>
+}
+
 export type AuthConfigInterface = {
   readonly db: DrizzleDatabase
   readonly secret: string
   readonly baseURL: string
   readonly trustedOrigins: ReadonlyArray<string>
   readonly emails: AuthEmailSender
+  /**
+   * The social sign-in providers that are active, resolved from worker env by
+   * the caller (`activeSocialProviders` in `@b2b-saas-starter/env`): a
+   * provider appears here only when both its client id and secret are set,
+   * and an absent provider is absent from the Better Auth config entirely —
+   * never present-but-disabled. An empty object (the provider-light default)
+   * keeps `socialProviders` off the options object altogether, so the Local
+   * Auth Path's shape is identical whether or not any provider is wired.
+   */
+  readonly socialProviders: SocialProviderCredentialsByName
+  /**
+   * The account-linking audit port: Better Auth invokes these database hooks
+   * outside any Effect when an account row is created or deleted, so like
+   * `emails` the port is structural and the app supplies the adapter
+   * (`apps/web/src/lib/server/social-account-audit.ts`) that records the
+   * governance audit events. `credential` accounts are the app's to filter —
+   * the credential sign-up path already has its own audit row.
+   */
+  readonly accountHooks: AuthAccountHooks
   /**
    * Better Auth's `requireEmailVerification`, decided by the app from
    * `ENVIRONMENT` (`requireEmailVerification` in `@b2b-saas-starter/env`):
@@ -108,6 +170,29 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     secret: options.secret,
     baseURL: options.baseURL,
     trustedOrigins: [...options.trustedOrigins],
+    // Passed through as resolved — the same identity-not-equivalence stance as
+    // the email port. An empty object means zero providers inside Better Auth:
+    // no provider exists at all (nothing exists-but-disabled), and the Local
+    // Auth Path's runtime shape is unchanged either way.
+    socialProviders: options.socialProviders,
+    databaseHooks: {
+      account: {
+        // The linking audit port, assigned straight to Better Auth's hooks —
+        // fires for every account row (credential included); the app's
+        // adapter decides which provider ids are audit-worthy. The parameter
+        // is the port's narrowed shape: Better Auth's full `Account` row is
+        // assignable to it, so the adapter never sees the token columns the
+        // port does not declare.
+        create: {
+          after: (account: AuthAccountChange) =>
+            options.accountHooks.onAccountLinked(account)
+        },
+        delete: {
+          after: (account: AuthAccountChange) =>
+            options.accountHooks.onAccountUnlinked(account)
+        }
+      }
+    },
     database: drizzleAdapter(options.db, {
       provider: 'sqlite',
       schema
@@ -290,6 +375,12 @@ export function makeAuthOptions(options: AuthConfigInterface) {
           }
         }
       }),
+      // The "last signed in with X" hint on the sign-in page: cookie-backed
+      // by the core plugin's default (`storeInDatabase` stays off — no new
+      // user column, no migration, and a wiped cookie is cosmetic, not data
+      // loss). The cookie is client-readable on purpose; the client plugin
+      // reads it on the sign-in screen.
+      lastLoginMethod(),
       // Better Auth requires cookie-integration plugins last so cookies set by
       // other plugins' hooks are forwarded to the framework cookie store.
       tanstackStartCookies()

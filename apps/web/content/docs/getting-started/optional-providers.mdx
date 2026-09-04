@@ -51,6 +51,19 @@ Create a widget under the Cloudflare dashboard → Turnstile, with your deployme
 
 **Verify:** set both variables in `.env`, restart, and load `/sign-up` — the challenge widget appears and a valid solution lets sign-up through; submitting without one shows the "bot check" error.
 
+## Social sign-in
+
+GitHub and Google sign-in over Better Auth's `socialProviders`. See [social sign-in](../integrations/social-sign-in.mdx) for the provider setup, the exact OAuth callback URLs, and the account-linking rules.
+
+| Variable               | Value                          |
+| ---------------------- | ------------------------------ |
+| `GITHUB_CLIENT_ID`     | GitHub OAuth app client ID     |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
+| `GOOGLE_CLIENT_ID`     | Google OAuth client ID         |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret     |
+
+**Unconfigured:** the provider buttons do not render and the provider is absent from the Better Auth config — the **Local Auth Path** is the whole auth surface.
+
 ## Assistant (Workers AI or OpenAI-compatible)
 
 The starter assistant answers `POST /assistant/answer` on the API worker and, in the web app, at `/workspaces/$slug/assistant` — a chat page that calls `AssistantService` directly through a TanStack Start server function (no REST round-trip). Both surfaces pick the provider with `selectAssistantLayer` from `packages/ai`, in order:

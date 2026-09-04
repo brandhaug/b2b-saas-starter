@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./social": "./src/social.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

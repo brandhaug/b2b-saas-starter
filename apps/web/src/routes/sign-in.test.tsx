@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { SignInPage, type SignInWithEmail, type SignInWithPasskey } from './sign-in'
+import { type SignInWithSocial } from '@/components/auth/auth-client-ports'
 
 // The page's own `signIn` port, handed in as a prop. The router is real, so the
 // redirect assertions read the resulting location instead of asking whether a
@@ -9,12 +10,21 @@ import { SignInPage, type SignInWithEmail, type SignInWithPasskey } from './sign
 const signIn = vi.fn<SignInWithEmail>()
 const signInPasskey = vi.fn<SignInWithPasskey>()
 
-async function renderPage(redirect?: string) {
+// The social port, same treatment: a fake of the same shape, so the button
+// tests drive the real component without the Better Auth client.
+const signInSocial = vi.fn<SignInWithSocial>()
+
+async function renderPage(
+  redirect?: string,
+  socialProviders: ReadonlyArray<'github' | 'google'> = []
+) {
   const rendered = await renderWithRouter(
     <SignInPage
       {...(redirect === undefined ? {} : { redirect })}
+      socialProviders={socialProviders}
       signIn={signIn}
       signInPasskey={signInPasskey}
+      signInSocial={signInSocial}
     />,
     { path: '/sign-in', destinations: ['/workspaces', '/workspaces/starter-lab'] }
   )
@@ -154,5 +164,46 @@ describe('SignInPage', () => {
     const button = screen.getByRole('button', { name: 'Sign in with a passkey' })
     expect(button).toBeDefined()
     expect(signInPasskey).not.toHaveBeenCalled()
+  })
+
+  describe('social providers', () => {
+    beforeEach(() => {
+      signInSocial.mockReset()
+      signInSocial.mockResolvedValue({ error: null })
+    })
+
+    // The accept criterion: with no env vars set, the sign-in UI is unchanged.
+    it('renders no provider buttons and no divider when none are configured', async () => {
+      await renderPage()
+      expect(screen.queryByRole('button', { name: 'Continue with GitHub' })).toBeNull()
+      expect(screen.queryByText('or continue with email')).toBeNull()
+      // The email form is exactly the page that existed before social.
+      expect(screen.getByLabelText('Email')).toBeDefined()
+      expect(screen.getByLabelText('Password')).toBeDefined()
+    })
+
+    it('renders one button per active provider and starts the flow on click', async () => {
+      await renderPage(undefined, ['github', 'google'])
+      const github = screen.getByRole('button', { name: 'Continue with GitHub' })
+      expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeDefined()
+      expect(screen.getByText('or continue with email')).toBeDefined()
+
+      fireEvent.click(github)
+      await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(1))
+      expect(signInSocial).toHaveBeenCalledWith({
+        provider: 'github',
+        callbackURL: `${window.location.origin}/workspaces`
+      })
+    })
+
+    it('carries a same-origin redirect target into the provider callback', async () => {
+      await renderPage('/workspaces/starter-lab', ['github'])
+      fireEvent.click(screen.getByRole('button', { name: 'Continue with GitHub' }))
+      await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(1))
+      expect(signInSocial).toHaveBeenCalledWith({
+        provider: 'github',
+        callbackURL: `${window.location.origin}/workspaces/starter-lab`
+      })
+    })
   })
 })

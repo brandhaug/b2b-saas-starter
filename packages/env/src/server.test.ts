@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vite-plus/test'
-import { auditRequiredEnv, requireEmailVerification } from './server.ts'
+import {
+  activeSocialProviders,
+  auditRequiredEnv,
+  requireEmailVerification
+} from './server.ts'
 
 describe('requireEmailVerification', () => {
   it('is on in production only', () => {
@@ -11,6 +15,47 @@ describe('requireEmailVerification', () => {
     expect(requireEmailVerification('')).toBe(false)
     expect(requireEmailVerification('staging')).toBe(false)
     expect(requireEmailVerification('preview')).toBe(false)
+  })
+})
+
+describe('activeSocialProviders', () => {
+  it('activates a provider only when both halves of its credential are set', () => {
+    expect(
+      activeSocialProviders({
+        GITHUB_CLIENT_ID: 'id',
+        GITHUB_CLIENT_SECRET: 'secret',
+        GOOGLE_CLIENT_ID: 'google-id'
+      })
+    ).toEqual({
+      github: { clientId: 'id', clientSecret: 'secret' }
+    })
+  })
+
+  it('treats unset, empty, and explicitly null as unconfigured — never half-configured', () => {
+    const providers = activeSocialProviders({
+      GITHUB_CLIENT_ID: '',
+      GITHUB_CLIENT_SECRET: 'secret',
+      GOOGLE_CLIENT_ID: null,
+      GOOGLE_CLIENT_SECRET: null
+    })
+    expect(providers).toEqual({})
+  })
+
+  it('activates both providers when both pairs are configured', () => {
+    const providers = activeSocialProviders({
+      GITHUB_CLIENT_ID: 'gh-id',
+      GITHUB_CLIENT_SECRET: 'gh-secret',
+      GOOGLE_CLIENT_ID: 'google-id',
+      GOOGLE_CLIENT_SECRET: 'google-secret'
+    })
+    expect(providers.github).toEqual({
+      clientId: 'gh-id',
+      clientSecret: 'gh-secret'
+    })
+    expect(providers.google).toEqual({
+      clientId: 'google-id',
+      clientSecret: 'google-secret'
+    })
   })
 })
 

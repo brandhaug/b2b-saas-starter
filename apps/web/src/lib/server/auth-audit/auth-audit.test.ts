@@ -77,6 +77,12 @@ describe('exchangeRow', () => {
       true
     )
     expect(isAudited({ method: 'GET', pathname: '/api/auth/verify-email' })).toBe(true)
+    expect(isAudited({ method: 'GET', pathname: '/api/auth/callback/github' })).toBe(
+      true
+    )
+    expect(isAudited({ method: 'GET', pathname: '/api/auth/callback/google' })).toBe(
+      true
+    )
   })
 
   it('rejects other auth traffic', () => {
@@ -91,6 +97,15 @@ describe('exchangeRow', () => {
         pathname: '/api/auth/reset-password/tok_reset'
       })
     ).toBe(false)
+    // Social initiation is not an outcome: the round trip completes at the
+    // callback, which is the audited row. Same for the link initiation.
+    expect(isAudited({ method: 'POST', pathname: '/api/auth/sign-in/social' })).toBe(
+      false
+    )
+    expect(isAudited({ method: 'POST', pathname: '/api/auth/link-social' })).toBe(false)
+    expect(isAudited({ method: 'POST', pathname: '/api/auth/unlink-account' })).toBe(
+      false
+    )
   })
 })
 
@@ -259,6 +274,49 @@ describe('authAuditInput', () => {
     })
     expect(input?.eventType).toBe('auth.email_verified')
     expect(input?.actorUserId).toBe('usr_demo')
+  })
+
+  it('reads the social callback outcome from the redirect Location, naming the provider', () => {
+    // Success: 302 to the app's callback URL, no `error` param. The actor is
+    // the pre-handler session when one exists (the link flow); a fresh
+    // social sign-in records unattributed — the account-linking events carry
+    // the attribution for that path.
+    const success = authAuditInput({
+      method: 'GET',
+      pathname: '/api/auth/callback/github',
+      status: 302,
+      actorUserId: null,
+      locationHeader: 'http://localhost:3071/workspaces'
+    })
+    expect(success).toMatchObject({
+      eventType: 'auth.sign_in',
+      actorUserId: null
+    })
+    expect(success?.metadata).toEqual({ method: 'github', statusCode: 302 })
+
+    const attributed = authAuditInput({
+      method: 'GET',
+      pathname: '/api/auth/callback/google',
+      status: 302,
+      actorUserId: 'usr_demo',
+      locationHeader: 'http://localhost:3071/workspaces'
+    })
+    expect(attributed).toMatchObject({
+      eventType: 'auth.sign_in',
+      actorUserId: 'usr_demo',
+      targetType: 'session'
+    })
+
+    // Failure: 302 to the error URL with an `error` param — for example the
+    // refused implicit link (`account_not_linked`).
+    const failure = authAuditInput({
+      method: 'GET',
+      pathname: '/api/auth/callback/github',
+      status: 302,
+      actorUserId: null,
+      locationHeader: 'http://localhost:3071/api/auth/error?error=account_not_linked'
+    })
+    expect(failure?.eventType).toBe('auth.sign_in_failed')
   })
 
   it('maps a username sign-in to the same event pair, method named', () => {

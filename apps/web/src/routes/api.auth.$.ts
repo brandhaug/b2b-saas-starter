@@ -84,7 +84,10 @@ async function readPreHandlerContext(
   readonly session: PreHandlerSession | undefined
   readonly audit: AuthAuditContext | undefined
 }> {
-  const audited = exchange.method === 'POST' && needsPreHandlerActor(exchange)
+  // The social callbacks are GET rows with a session actor — the only GETs
+  // that need one — so the method guard lives in `needsPreHandlerActor`'s row
+  // lookup, not here.
+  const audited = needsPreHandlerActor(exchange)
   const guarded = impersonationForbiddenAction(exchange) !== null
   if (!audited && !guarded) {
     return { session: undefined, audit: undefined }

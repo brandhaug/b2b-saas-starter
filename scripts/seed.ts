@@ -238,6 +238,46 @@ function credentialRows(demoPasswordHash: string): ReadonlyArray<string> {
   )
 }
 
+/**
+ * A linked social provider for the demo owner, so `/account` shows the
+ * linked-providers surface on the seeded reference app: one provider row next
+ * to the credential row, unlinkable because another sign-in method remains.
+ * The account id names no real GitHub subject — signing in *as* it is not
+ * possible, it is fixture state for the account page exactly like the seed
+ * webhook endpoints are fixture state for the settings page.
+ */
+const linkedProviderAccounts: ReadonlyArray<{
+  readonly accountRowId: string
+  readonly userId: string
+  readonly providerId: 'github' | 'google'
+  readonly accountId: string
+  readonly issuer: string
+}> = [
+  {
+    accountRowId: 'acc_demo_github',
+    userId: demoUserIdentity.id,
+    providerId: 'github',
+    accountId: '99000001',
+    // GitHub exposes no OIDC issuer; better-auth keys its accounts on this
+    // synthetic namespace (same value the live flow writes).
+    issuer: 'local:oauth:github'
+  }
+]
+
+function linkedProviderRows(): ReadonlyArray<string> {
+  return linkedProviderAccounts.map((linked) =>
+    insert(account, {
+      id: linked.accountRowId,
+      accountId: linked.accountId,
+      providerId: linked.providerId,
+      issuer: linked.issuer,
+      userId: linked.userId,
+      createdAt: 1_778_918_400,
+      updatedAt: 1_778_918_400
+    })
+  )
+}
+
 function tokenRows(
   fixture: Fixture,
   tokenHashes: ReadonlyArray<string>
@@ -341,6 +381,7 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...userRows(fixture),
     ...membershipRows(fixture),
     ...credentialRows(hashes.demoPassword),
+    ...linkedProviderRows(),
     ...tokenRows(fixture, hashes.tokens),
     ...webhookRows(fixture),
     ...subscriptionRows(fixture),

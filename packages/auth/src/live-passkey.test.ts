@@ -61,6 +61,12 @@ beforeAll(
               baseURL: BASE_URL,
               trustedOrigins: [],
               emails: capturingEmailSender,
+              // No provider configured: the Local Auth Path shape, unchanged.
+              socialProviders: {},
+              accountHooks: {
+                onAccountLinked: () => Promise.resolve(),
+                onAccountUnlinked: () => Promise.resolve()
+              },
               requireEmailVerification: false,
               runBackground: (promise) => {
                 void promise.catch(() => undefined)
