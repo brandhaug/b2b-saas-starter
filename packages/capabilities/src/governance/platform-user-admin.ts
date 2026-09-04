@@ -11,6 +11,7 @@ import {
 import { literalTuple } from '../internal/literal-tuple.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
+import { type NotificationKind } from '../notifications/notification-kinds.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   findWorkspaceMember,
@@ -196,9 +197,10 @@ const { callBinding } = makeBindingCaller<PlatformUserAdminBinding, UserAdminRej
 function impersonationNotice(adminName: string) {
   const minutes = IMPERSONATION_SESSION_SECONDS / 60
   return {
+    kind: 'account.impersonated',
     title: 'A System Admin accessed your account',
     message: `${adminName} started an impersonation session on your account. It ends when they stop it or after ${minutes} minutes, and it cannot change your password, two-factor settings, or email.`
-  }
+  } satisfies { kind: NotificationKind; title: string; message: string }
 }
 
 function toAccount(row: typeof user.$inferSelect): SystemUserAccount {

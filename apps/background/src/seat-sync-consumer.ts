@@ -13,7 +13,8 @@ import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/error
 import { parentSpanFromHeaders, withTriggerScope } from '@b2b-saas-starter/logger'
 import { Effect, Result, Schema, type Scope } from 'effect'
 
-import { type Env, type DeliveryOutcome } from './webhook-consumer.ts'
+import { type DeliveryOutcome } from './queue-consumer.ts'
+import { type Env } from './webhook-consumer.ts'
 
 /**
  * The seat-sync consumer: per-seat billing's half of the background worker.

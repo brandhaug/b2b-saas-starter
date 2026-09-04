@@ -3,10 +3,13 @@ import {
   SeedWorkspaceMembership,
   type WorkspaceMembership
 } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { SeedNotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed.seed'
 import {
-  NotificationFeed,
-  SeedNotificationFeed
-} from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+  SeedNotificationPreferences,
+  type NotificationPreferences
+} from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
+import { seedNotificationPreferences } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { SeedSeatSyncPublisher } from '@b2b-saas-starter/capabilities/billing/seat-sync'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
@@ -116,7 +119,9 @@ type RecordedNotifications = { current: Recorded }
  * plain seed feed (the tag is an Effect of its own service, so one layer can
  * wrap another's).
  */
-function recordingFeed(recorded: { current: Recorded }): Layer.Layer<NotificationFeed> {
+function recordingFeed(recorded: {
+  current: Recorded
+}): Layer.Layer<NotificationFeed, never, NotificationPreferences> {
   return Layer.effect(NotificationFeed)(
     Effect.map(NotificationFeed, (inner) => ({
       ...inner,
@@ -129,7 +134,7 @@ function recordingFeed(recorded: { current: Recorded }): Layer.Layer<Notificatio
         return inner.record(input)
       }
     }))
-  ).pipe(Layer.provide(SeedNotificationFeed([])), Layer.provide(SeedSeatSyncPublisher))
+  ).pipe(Layer.provide(SeedNotificationFeed([])))
 }
 
 function provide<A, E>(
@@ -148,6 +153,11 @@ function provide<A, E>(
     readonly recorded?: RecordedNotifications | undefined
   } = {}
 ): Promise<A> {
+  // The feed reads the member's notification preferences, so the preferences
+  // layer rides underneath — the same wiring `layers.ts` composes.
+  const preferences = SeedNotificationPreferences(seedNotificationPreferences).pipe(
+    Layer.provide(SeedAuditEventLog([], members))
+  )
   return Effect.runPromise(
     Effect.scoped(effect).pipe(
       Effect.provide(
@@ -164,7 +174,13 @@ function provide<A, E>(
             ? SeedNotificationFeed([])
             : recordingFeed(options.recorded),
           testWorkspaceContext(workspace, who)
-        ).pipe(Layer.provide(SeedSeatSyncPublisher))
+        ).pipe(
+          // Membership changes trigger seat sync (ADR 0060) and the feed
+          // reads notification preferences — the same wiring `layers.ts`
+          // composes for both.
+          Layer.provide(SeedSeatSyncPublisher),
+          Layer.provide(preferences)
+        )
       )
     )
   )

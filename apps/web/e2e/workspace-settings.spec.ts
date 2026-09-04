@@ -41,5 +41,9 @@ test('a member sees no api token form and no webhook delivery card', async ({
   await expect(page.getByText('Outbound webhooks', { exact: true })).toHaveCount(0)
 
   await page.goto('/workspaces/starter-lab')
-  await expect(page.getByText('Webhook delivery')).toHaveCount(0)
+  // `exact` matters here too: a member's notification feed legitimately shows
+  // a seeded `webhook.delivery_failed` broadcast ("Webhook delivery gave up"),
+  // and what the matrix withholds is the `webhook:list`-gated chart Panel,
+  // whose title is exactly "Webhook delivery".
+  await expect(page.getByText('Webhook delivery', { exact: true })).toHaveCount(0)
 })

@@ -26,6 +26,7 @@ import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
 import { Route as KnowledgeChangelogRouteImport } from './routes/_knowledge.changelog'
 import { Route as KnowledgeFaqRouteImport } from './routes/_knowledge.faq'
+import { Route as AccountNotificationsRouteImport } from './routes/account_.notifications'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
@@ -126,6 +127,11 @@ const KnowledgeFaqRoute = KnowledgeFaqRouteImport.update({
   id: '/faq',
   path: '/faq',
   getParentRoute: () => KnowledgeRoute,
+} as any)
+const AccountNotificationsRoute = AccountNotificationsRouteImport.update({
+  id: '/account_/notifications',
+  path: '/account/notifications',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const HelpIndexRoute = HelpIndexRouteImport.update({
   id: '/help/',
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/changelog': typeof KnowledgeChangelogRoute
   '/faq': typeof KnowledgeFaqRoute
+  '/account/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
@@ -267,6 +274,7 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/changelog': typeof KnowledgeChangelogRoute
   '/faq': typeof KnowledgeFaqRoute
+  '/account/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/help': typeof HelpIndexRoute
   '/workspaces': typeof WorkspacesIndexRoute
@@ -303,6 +311,7 @@ export interface FileRoutesById {
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/_knowledge/changelog': typeof KnowledgeChangelogRoute
   '/_knowledge/faq': typeof KnowledgeFaqRoute
+  '/account_/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
@@ -339,6 +348,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/changelog'
     | '/faq'
+    | '/account/notifications'
     | '/invitations/accept'
     | '/help/'
     | '/workspaces/'
@@ -372,6 +382,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/changelog'
     | '/faq'
+    | '/account/notifications'
     | '/invitations/accept'
     | '/help'
     | '/workspaces'
@@ -407,6 +418,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/_knowledge/changelog'
     | '/_knowledge/faq'
+    | '/account_/notifications'
     | '/invitations/accept'
     | '/help/'
     | '/workspaces/'
@@ -441,6 +453,7 @@ export interface RootRouteChildren {
   TwoFactorRoute: typeof TwoFactorRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   WorkspacesRoute: typeof WorkspacesRouteWithChildren
+  AccountNotificationsRoute: typeof AccountNotificationsRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   HelpIndexRoute: typeof HelpIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -566,6 +579,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/faq'
       preLoaderRoute: typeof KnowledgeFaqRouteImport
       parentRoute: typeof KnowledgeRoute
+    }
+    '/account_/notifications': {
+      id: '/account_/notifications'
+      path: '/account/notifications'
+      fullPath: '/account/notifications'
+      preLoaderRoute: typeof AccountNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/help/': {
       id: '/help/'
@@ -748,6 +768,7 @@ const rootRouteChildren: RootRouteChildren = {
   TwoFactorRoute: TwoFactorRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   WorkspacesRoute: WorkspacesRouteWithChildren,
+  AccountNotificationsRoute: AccountNotificationsRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
   HelpIndexRoute: HelpIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

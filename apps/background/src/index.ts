@@ -9,16 +9,20 @@ import { Effect } from 'effect'
 // literal the consumer is bound to.
 import {
   billingQueueName,
+  notificationEmailQueueName,
   webhookDeadLetterQueueName,
   workspaceExportQueueName
 } from '../../../infra/bindings.ts'
 import { buildWorkspaceExport } from './export-consumer.ts'
+import { sendDailyDigest } from './notification-digest.ts'
+import { sendNotificationEmail } from './notification-email-consumer.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
 import { deliverSeatSync } from './seat-sync-consumer.ts'
 import {
   consumeBatch,
   deliverWebhook,
   recordDeadLetter,
+  runInvocation,
   type Env
 } from './webhook-consumer.ts'
 
@@ -50,6 +54,24 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
     if (batch.queue === billingQueueName) {
       return consumeBatch(env, batch, (message) => deliverSeatSync(message, env))
     }
+    if (batch.queue === notificationEmailQueueName) {
+      return consumeBatch(env, batch, (message) => sendNotificationEmail(message, env))
+    }
     return consumeBatch(env, batch, (message) => deliverWebhook(message, env))
+  },
+
+  // The daily notification digest (ADR 0061): one cron trigger, declared in
+  // `infra/bindings.ts` as `notificationDigestCron`. The run reads its window
+  // from `Clock`, so the handler only forwards the platform's scheduled time
+  // for the wide event. Sends are counted inside the run, so a rejection
+  // means nothing went out; `sendDailyDigest` retries the reads before the
+  // failure reaches this boundary, and a final failure rejects so the failed
+  // cron invocation is recorded.
+  scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    wireWideEventProviders(env)
+    return runInvocation(
+      env,
+      Effect.asVoid(sendDailyDigest(env, controller.scheduledTime))
+    )
   }
 })

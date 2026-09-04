@@ -329,9 +329,10 @@ function completeRow(
       targetId: row.record.id,
       metadata: { sizeBytes: archive.length }
     })
-    yield* feed.notify({
+    yield* feed.create({
       workspaceId: row.workspaceId,
       userId: row.requestedByUserId,
+      kind: 'announcement',
       ...readyNotification(row.workspaceName, expiresAt)
     })
   })

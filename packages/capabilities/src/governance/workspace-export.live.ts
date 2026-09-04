@@ -287,9 +287,10 @@ export function LiveWorkspaceExports(
             if (!applied) {
               return false
             }
-            yield* feed.notify({
+            yield* feed.create({
               workspaceId: input.workspaceId,
               userId: found.row.requestedByUserId,
+              kind: 'announcement',
               title: 'Workspace export ready',
               message: `Your export of ${found.workspace.name} is ready to download from workspace settings until ${expiresAt}.`
             })
