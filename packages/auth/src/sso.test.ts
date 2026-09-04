@@ -140,6 +140,11 @@ beforeAll(
               baseURL: 'http://localhost:3071',
               trustedOrigins: [],
               emails: capturingEmailSender,
+              socialProviders: {},
+              accountHooks: {
+                onAccountLinked: () => Promise.resolve(),
+                onAccountUnlinked: () => Promise.resolve()
+              },
               requireEmailVerification: false,
               runBackground: (promise) => {
                 void promise.catch(() => undefined)
