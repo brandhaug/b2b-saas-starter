@@ -31,6 +31,6 @@ export type { AccountDeletionPlan }
 export const deleteAccountServerFn = createServerFn({ method: 'POST' })
   .validator((input) => decodeDelete(input))
   .handler(async ({ data }): Promise<AccountDeletionPlan> => {
-    const { deleteAccountHandler } = await import('./account.effects')
+    const { deleteAccountHandler } = await import('./account-delete')
     return deleteAccountHandler({ password: data.password })
   })

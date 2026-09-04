@@ -27,6 +27,9 @@ import {
 // user-level, not workspace-level, so the route keeps its own session gate
 // (same reasoning as /invitations/accept). There is no workspace to resolve —
 // and nothing to be a member of.
+/** Module-level so the `connections` default keeps a stable reference. */
+const NO_CONNECTIONS: ReadonlyArray<McpClientConnection> = []
+
 export const Route = createFileRoute('/account')({
   beforeLoad: async ({ location }) => {
     const session = await requireSession(location.href)
@@ -38,6 +41,7 @@ export const Route = createFileRoute('/account')({
   // involved.
   loader: async ({ context }) => {
     const userId = context.session.user.id
+    // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the account read and the MCP-client read parallel
     const [account, connections] = await Promise.all([
       loadAccountPageData({ userId }),
       loadMcpClientConnections({ userId })
@@ -60,7 +64,7 @@ export function AccountPage({
   session,
   deletionPlan,
   preferences,
-  connections = [],
+  connections = NO_CONNECTIONS,
   currentSessionToken,
   sessionsPorts
 }: {

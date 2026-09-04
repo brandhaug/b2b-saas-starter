@@ -5,17 +5,16 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/account-lifecycle'
 
 import { runCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
 import {
   notificationPreferencesPayload,
   type NotificationPreferenceRow
 } from './notification-preferences'
 
 /**
- * The `/account` page's server behaviour — the read half is a plain module
- * function (the loader calls it directly, testable against the Seed layer
- * like `loadWorkspaceDashboard`); the delete is a server fn whose handler
- * lives here behind its session gate.
+ * The `/account` page's server reads — plain module functions the route's
+ * loader calls directly, testable against the Seed layer like
+ * `loadWorkspaceDashboard`. The delete is a server fn whose handler lives in
+ * `account-delete.ts`, reached through a dynamic import (see `account.ts`).
  *
  * This surface is user-level, not workspace-level: no `WorkspaceContext`, no
  * workspace permission gate — the ownership rule lives in the capability, and
@@ -75,20 +74,4 @@ export async function loadAccountPage(input: {
     )
   )
   return { deletionPlan }
-}
-
-export async function deleteAccountHandler(input: {
-  readonly password: string
-}): Promise<AccountDeletionPlan> {
-  const session = await requireRequestSession()
-  // The binding is imported lazily so this module (reached from the route
-  // tree only through a dynamic import) never pulls the Better Auth server
-  // instance into the client bundle.
-  const { webAccountLifecycleBinding } = await import('./account-binding')
-  return runCapabilities(
-    Effect.flatMap(AccountLifecycle, (lifecycle) =>
-      lifecycle.deleteAccount({ userId: session.user.id, password: input.password })
-    ),
-    { accountLifecycleBinding: webAccountLifecycleBinding }
-  )
 }
