@@ -55,7 +55,6 @@ function WorkspacesPage() {
               will be its first owner, or ask a workspace owner to add you.
             </p>
             <CreateWorkspaceForm
-              userId={session.user.id}
               onCreated={(workspace) =>
                 void navigate({
                   to: '/workspaces/$workspaceSlug',
