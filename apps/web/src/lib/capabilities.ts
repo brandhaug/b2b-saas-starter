@@ -45,6 +45,7 @@ export type CapabilityBindings = Pick<
   | 'lifecycleBinding'
   | 'userAdminBinding'
   | 'ssoBinding'
+  | 'accountLifecycleBinding'
 >
 
 // Real Worker bindings (the same import `auth-runtime.ts` uses). In production the
