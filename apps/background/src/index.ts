@@ -8,7 +8,6 @@ import { Effect } from 'effect'
 // the wrangler generator read too — the consumer branch must key off the same
 // literal the consumer is bound to.
 import {
-import {
   billingQueueName,
   webhookDeadLetterQueueName,
   workspaceExportQueueName
