@@ -144,12 +144,6 @@ const SeedGovernance = Layer.unwrap(
 const SeedAuditLog = SeedAuditEventLog(seedAuditEvents, seedSystemUsers)
 
 /**
- * Billing rides the governance seed so its audit writes land in the same
- * fixture log every other capability reads.
- */
-const SeedBillingLayer = SeedBilling().pipe(Layer.provide(SeedAuditLog))
-
-/**
  * One fixture preference store + feed, shared for the same reason as
  * `SeedAuditLog`: the feed resolves channels against the same preference store
  * the `/account` page reads and writes, and the user-admin seed writes

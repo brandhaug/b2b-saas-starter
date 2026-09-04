@@ -7,7 +7,7 @@ import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'
 
 import { processSeatSyncMessage, readSeatSyncDelivery } from './seat-sync-consumer.ts'
-import { type DeliveryOutcome } from './webhook-consumer.ts'
+import { type DeliveryOutcome } from './queue-consumer.ts'
 
 /**
  * The seat-sync consumer against a recording `Billing` stub: the outcomes the
