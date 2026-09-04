@@ -104,7 +104,7 @@ function DocArticlePage() {
           </nav>
 
           <header className="mb-8">
-            <h1 className="font-display mb-2 text-2xl font-semibold tracking-tight">
+            <h1 className="font-display mb-2 text-2xl font-semibold">
               {frontmatter.title}
             </h1>
             <p className="text-sm text-muted-foreground">{frontmatter.description}</p>

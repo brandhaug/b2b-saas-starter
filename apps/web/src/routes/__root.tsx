@@ -1,11 +1,14 @@
 import '@fontsource-variable/geist/index.css'
 import '@fontsource-variable/geist-mono/index.css'
-import '@fontsource-variable/fraunces/opsz.css'
-// Latin variable woff2 for the two text faces, resolved by Vite so the preload
-// href always matches the emitted asset. Without these, the fonts start
-// loading two round-trips deep (CSS → font file) after first paint.
+import '@fontsource-variable/newsreader/opsz.css'
+// Latin variable woff2 for the faces that render above the fold, resolved by
+// Vite so the preload href always matches the emitted asset. Without these,
+// the fonts start loading two round-trips deep (CSS → font file) after first
+// paint — the display face included, or the landing hero flashes its serif
+// fallback before Newsreader lands.
 import geistLatinWoff2 from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
 import geistMonoLatinWoff2 from '@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url'
+import newsreaderLatinWoff2 from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url'
 import { type QueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, type ReactNode } from 'react'
 import {
@@ -64,9 +67,11 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     links: [
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-      /* Preload the latin variable woff2 for the two text faces. The family
-         names in index.css resolve to the fontsource `@font-face` rules, which
-         otherwise start loading two round-trips deep (CSS → font file). */
+      /* Preload the latin variable woff2 for the text faces and the display
+         face: the family names in index.css resolve to the fontsource
+         `@font-face` rules, which otherwise start loading two round-trips
+         deep (CSS → font file). The display preload keeps the landing hero
+         from flashing its serif fallback. */
       {
         rel: 'preload',
         href: geistLatinWoff2,
@@ -77,6 +82,13 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       {
         rel: 'preload',
         href: geistMonoLatinWoff2,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous'
+      },
+      {
+        rel: 'preload',
+        href: newsreaderLatinWoff2,
         as: 'font',
         type: 'font/woff2',
         crossOrigin: 'anonymous'
