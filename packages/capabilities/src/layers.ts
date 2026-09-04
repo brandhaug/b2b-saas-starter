@@ -25,11 +25,8 @@ import {
 } from './governance/account-lifecycle.ts'
 import { SeedAccountLifecycle } from './governance/account-lifecycle.seed.ts'
 import { LiveAccountLifecycle } from './governance/account-lifecycle.live.ts'
-import {
-  type AuditEventLog,
-  LiveAuditEventLog,
-  SeedAuditEventLog
-} from './governance/audit-event-log.ts'
+import { type AuditEventLog, SeedAuditEventLog } from './governance/audit-event-log.ts'
+import { LiveAuditEventLog } from './governance/audit-event-log.live.ts'
 import { LiveWorkspaceInvitations } from './governance/workspace-invitations.live.ts'
 import { SeedWorkspaceInvitations } from './governance/workspace-invitations.seed.ts'
 import {
@@ -37,12 +34,12 @@ import {
   type WorkspaceInvitations
 } from './governance/workspace-invitations.ts'
 import {
-  LiveWorkspaceMembership,
   makeSeedRoster,
   SeedWorkspaceMembership,
   type WorkspaceMemberBinding,
   type WorkspaceMembership
 } from './governance/workspace-membership.ts'
+import { LiveWorkspaceMembership } from './governance/workspace-membership.live.ts'
 import {
   LiveWorkspaceLifecycle,
   SeedWorkspaceLifecycle,
@@ -55,11 +52,11 @@ import {
   type WorkspaceOnboarding
 } from './governance/workspace-onboarding.ts'
 import {
-  LivePlatformUserAdmin,
-  SeedPlatformUserAdmin,
   type PlatformUserAdmin,
   type PlatformUserAdminBinding
 } from './governance/platform-user-admin.ts'
+import { LivePlatformUserAdmin } from './governance/platform-user-admin.live.ts'
+import { SeedPlatformUserAdmin } from './governance/platform-user-admin.seed.ts'
 import {
   LiveWorkspaceExports,
   type LiveWorkspaceExportsOptions
@@ -230,7 +227,19 @@ const SeedExports = SeedWorkspaceExports({
 
 export const SeedLayer: CapabilitiesLayer = Layer.merge(SeedCore, SeedExports)
 
-export type LiveCapabilitiesOptions = {
+/**
+ * The optional provider ports and option bags `makeLiveCapabilitiesLayer`
+ * consumes, declared once. Adding an optional binding means adding one field
+ * here; `LiveCapabilitiesOptions` is this record, `StarterEnv` composes it
+ * beside its worker-binding names, and the live-harness bag passes it straight
+ * through — no per-site field list to keep in step.
+ *
+ * Every field is optional and explicitly `| undefined` (the repo runs with
+ * `exactOptionalPropertyTypes`, so a bare `?:` would forbid passing a key
+ * whose value is `undefined` — exactly what a worker env bag hands over for
+ * an unset var).
+ */
+export type CapabilityBindings = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
   /**
    * The seat-sync queue the membership and invitation mutations enqueue onto.
@@ -297,6 +306,9 @@ export type LiveCapabilitiesOptions = {
    */
   readonly ssoBinding?: WorkspaceSsoBinding | undefined
 }
+
+/** The env fields `makeLiveCapabilitiesLayer` consumes — see {@link CapabilityBindings}. */
+export type LiveCapabilitiesOptions = CapabilityBindings
 
 export function makeLiveCapabilitiesLayer(
   options: LiveCapabilitiesOptions = {}

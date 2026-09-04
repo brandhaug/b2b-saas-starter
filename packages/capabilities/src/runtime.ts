@@ -1,20 +1,15 @@
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { Layer } from 'effect'
-import { type LiveBillingOptions } from './billing/billing.live.ts'
 import { type SeatSyncQueueBinding } from './billing/seat-sync.ts'
 import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
-import { type AccountLifecycleBinding } from './governance/account-lifecycle.ts'
 import { type NotificationEmailQueueBinding } from './notifications/notification-email-queue.ts'
-import { type WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
-import { type WorkspaceLifecycleBinding } from './governance/workspace-lifecycle.ts'
-import { type WorkspaceMemberBinding } from './governance/workspace-membership.ts'
-import { type WorkspaceSsoBinding } from './governance/workspace-sso-connections.ts'
-import { type PlatformUserAdminBinding } from './governance/platform-user-admin.ts'
 import {
   type WorkspaceExportBucketBinding,
   type WorkspaceExportQueueBinding
 } from './governance/workspace-export.ts'
 import {
+  type CapabilityBindings,
+  type LiveCapabilitiesOptions,
   makeLiveCapabilitiesLayer,
   makeLiveLayerFromD1,
   SeedLayer,
@@ -32,6 +27,13 @@ import { type CapabilityUnavailable, type WorkspaceNotFound } from './errors.ts'
 
 type D1Binding = Parameters<typeof layerFromD1>[0]
 
+/**
+ * A worker's env, as the selectors read it. The worker-binding fields keep
+ * the env-var names the runtime hands over; the plugin-backed write adapters
+ * and per-provider option bags are the shared {@link CapabilityBindings}
+ * record, so a new optional binding is declared once there instead of once
+ * per consumer of these options.
+ */
 export type StarterEnv = {
   readonly DB?: D1Binding | undefined
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding | undefined
@@ -47,54 +49,7 @@ export type StarterEnv = {
    * those mutations publish nothing — seat sync heals on the next mutation.
    */
   readonly BILLING_QUEUE?: SeatSyncQueueBinding | undefined
-  /**
-   * Adapter onto the organization plugin's member endpoints, supplied by the
-   * app because two of the three endpoints need the request's session headers
-   * and only the app holds them. Not a worker binding like the fields above —
-   * it rides here so one `StarterEnv` still selects the whole layer.
-   *
-   * Absent, membership reads work and mutations fail `CapabilityUnavailable`.
-   */
-  readonly memberBinding?: WorkspaceMemberBinding | undefined
-  /**
-   * Adapter onto the organization plugin's invitation endpoints. Every one of
-   * them is `requireHeaders: true`, so unlike `memberBinding` there is no
-   * headerless half — the app must supply this or invitations stay read-only.
-   *
-   * Absent, invitation reads work and mutations fail `CapabilityUnavailable`.
-   */
-  readonly invitationBinding?: WorkspaceInvitationBinding | undefined
-  /**
-   * Adapter onto the organization plugin's workspace lifecycle endpoints.
-   * Absent, lifecycle mutations fail `CapabilityUnavailable`.
-   */
-  readonly lifecycleBinding?: WorkspaceLifecycleBinding | undefined
-  /**
-   * Adapter onto the admin plugin's user endpoints plus one organization-plugin
-   * member call. Absent, `/admin` reads work and its mutations fail
-   * `CapabilityUnavailable`.
-   */
-  readonly userAdminBinding?: PlatformUserAdminBinding | undefined
-  /**
-  /**
-   * Adapter onto the `sso` plugin's register/update/delete endpoints (ADR
-   * 0054). Absent, connection reads and domain routing still work and the
-   * settings mutations fail `CapabilityUnavailable`.
-   */
-  readonly ssoBinding?: WorkspaceSsoBinding | undefined
-  /**
-   * Adapter onto the account lifecycle's three session-bound writes — leave a
-   * workspace, delete one, delete the account itself. Absent, the deletion
-   * plan still reads and every teardown step fails `CapabilityUnavailable`.
-   */
-  readonly accountLifecycleBinding?: AccountLifecycleBinding | undefined
-  /**
-   * Stripe checkout configuration, forwarded to the Live billing layer.
-   * Absent (env unset), checkout fails `provider_not_configured` and the rest
-   * of the app is unaffected — provider-light degradation.
-   */
-  readonly billing?: LiveBillingOptions | undefined
-}
+} & CapabilityBindings
 
 /**
  * The worker-bindings projection: the `{ DB, WEBHOOK_QUEUE }` subset of a
@@ -126,18 +81,19 @@ export function starterEnv(
 /**
  * The env fields `makeLiveCapabilitiesLayer` consumes, projected once so both
  * selectors forward the same set and none can drift out of one of them.
+ *
+ * The plugin bindings and option bags ride on `StarterEnv` under their option
+ * names (they are the shared `CapabilityBindings`), so they flow through the
+ * spread untouched. Only the ports whose worker env names differ have a line
+ * here — that mapping is the env-name seam, not a second field list.
  */
-function liveCapabilitiesOptions(env: StarterEnv) {
+function liveCapabilitiesOptions(env: StarterEnv): LiveCapabilitiesOptions {
+  const bindings: CapabilityBindings = env
   return {
+    ...bindings,
     webhookQueue: env.WEBHOOK_QUEUE,
     seatSyncQueue: env.BILLING_QUEUE,
     notificationEmailQueue: env.NOTIFICATION_EMAIL_QUEUE,
-    memberBinding: env.memberBinding,
-    invitationBinding: env.invitationBinding,
-    lifecycleBinding: env.lifecycleBinding,
-    userAdminBinding: env.userAdminBinding,
-    accountLifecycleBinding: env.accountLifecycleBinding,
-    billing: env.billing,
     workspaceExports: {
       queue: env.WORKSPACE_EXPORT_QUEUE,
       bucket: env.WORKSPACE_EXPORT_BUCKET

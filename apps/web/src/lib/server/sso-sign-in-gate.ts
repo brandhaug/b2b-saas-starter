@@ -7,7 +7,7 @@ import { Effect, Option, Schema } from 'effect'
 import { runCapabilities } from '../capabilities'
 
 /**
- * The server-side half of the domain-routing rule (ADR 0055), enforced at the
+ * The server-side half of the domain-routing rule (ADR 0069), enforced at the
  * auth boundary for both of Better Auth's sign-in paths:
  *
  * - `POST /sign-in/email` — a workspace that flipped "require SSO for this

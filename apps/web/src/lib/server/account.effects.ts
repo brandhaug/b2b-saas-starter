@@ -65,13 +65,3 @@ export function loadAccountPageData(input: { readonly userId: string }): Promise
  * Loads the deletion plan. Identity-keyed by design — the plan spans every
  * workspace the user belongs to, before any single one is selected.
  */
-export async function loadAccountPage(input: {
-  readonly userId: string
-}): Promise<AccountPagePayload> {
-  const deletionPlan = await runCapabilities(
-    Effect.flatMap(AccountLifecycle, (lifecycle) =>
-      lifecycle.planDeletion(input.userId)
-    )
-  )
-  return { deletionPlan }
-}

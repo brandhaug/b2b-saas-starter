@@ -5,71 +5,28 @@ import {
 } from '@b2b-saas-starter/capabilities/runtime'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import {
-  backoffSeconds,
   planDeliveryAttempt,
-  truncateResponseBody
+  truncateResponseBody,
+  WEBHOOK_USER_AGENT
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
-import {
-  WebhookQueueMessage,
-  type WebhookQueueBinding
-} from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
-import {
-  type WorkspaceExportBucketBinding,
-  type WorkspaceExportQueueBinding
-} from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { type NotificationEmailQueueBinding } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { type SendEmailBinding } from '@b2b-saas-starter/email'
-import { type ServerEnv } from '@b2b-saas-starter/env/server'
+import { currentTraceId, TRACE_HEADER } from '@b2b-saas-starter/logger'
+import { Clock, DateTime, Effect, Result, Schema, type Scope } from 'effect'
+import { HttpBody, HttpClient } from 'effect/unstable/http'
+
+import { webhookDlqConsumerSettings } from '../../../infra/bindings.ts'
 import {
-  currentTraceId,
-  makeOtlpLayer,
-  TRACE_HEADER,
-  WideEventLoggerLive,
-  withTriggerScope
-} from '@b2b-saas-starter/logger'
-import {
-  Clock,
-  DateTime,
-  Effect,
-  Layer,
-  ManagedRuntime,
-  Result,
-  Schema,
-  type Scope
-} from 'effect'
-import { FetchHttpClient, HttpBody, HttpClient } from 'effect/unstable/http'
-import {
-  queueDelivery,
-  queueParentSpan as sharedQueueParentSpan,
+  consumerInvocation,
   type DeliveryOutcome,
+  type Env,
+  queueDelivery,
   type QueueDelivery,
   type QueueEnvelope
 } from './queue-consumer.ts'
 import { computeWebhookSignature, signatureHeaderValue } from './webhook-signing.ts'
-
-// Bindings plus optional env. The same shape `ApiEnv` describes for apps/api.
-export type Env = Partial<ServerEnv> & {
-  readonly DB?: D1Database
-  // The producer port, not workers-types' `Queue`: this worker only forwards
-  // the binding to `starterEnv`, and every other worker declares it the same
-  // way, so one structural shape describes the queue across all three.
-  readonly WEBHOOK_QUEUE?: WebhookQueueBinding
-  // Workspace export (ADR 0055): the job queue this worker consumes and the
-  // bucket it writes archives to. Both absent when `WORKSPACE_EXPORT_BUCKET`
-  // was unset at deploy time; the capability then reports unavailable.
-  readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding
-  readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding
-  // Producer port for instant notification emails — this worker both consumes
-  // the queue and produces onto it (webhook deliveries that gave up create a
-  // Notification). Absent, Notifications persist and no instant email goes out.
-  readonly NOTIFICATION_EMAIL_QUEUE?: NotificationEmailQueueBinding
-  // Cloudflare Email send binding, for the notification emails. Absent, the
-  // dispatcher logs instead of sending (CLAUDE.md rule 3).
-  readonly EMAIL?: SendEmailBinding
-}
 
 /** Wire shape of queue messages — the schema is shared with the producer. */
 export type WebhookMessage = typeof WebhookQueueMessage.Type
@@ -143,7 +100,7 @@ function annotateMalformed(outcome: string): Effect.Effect<void, never, Scope.Sc
  * The user-facing half of a delivery that gave up: one workspace-broadcast
  * Notification of kind `webhook.delivery_failed`, beside the audit event the
  * capability already batched with the terminal row. This is where the feed's
- * instant-email fan-out starts for the kind (ADR 0055). Best-effort — a feed
+ * instant-email fan-out starts for the kind (ADR 0061). Best-effort — a feed
  * outage must not turn a settled delivery into a retry loop.
  */
 function notifyDeliveryGaveUp(
@@ -182,31 +139,6 @@ function annotateMessageFields(message: WebhookMessage) {
     workspaceId: message.workspaceId,
     eventType: message.eventType
   })
-}
-
-// One fetch client and one logger set per isolate: neither performs I/O on
-// behalf of a single invocation, so both are safe to memoize for the isolate's
-// life — and cheaper than rebuilding them per queue batch or cron tick.
-const staticRuntime = ManagedRuntime.make(
-  Layer.mergeAll(FetchHttpClient.layer, WideEventLoggerLive)
-)
-
-/**
- * Runs one worker invocation. The exporter half of observability is the part
- * that must be per invocation: `local: true` builds it fresh so the OTLP
- * exporters flush before the handler's promise settles — a Worker may not
- * perform I/O on behalf of an invocation that already ended, so a per-isolate
- * exporter would go silent after its first flush (see `makeOtlpLayer`). It is
- * provided inside `staticRuntime`, so the console loggers are already in
- * context when the OTLP layer merges with them.
- */
-export function runInvocation<A, E>(
-  env: Env,
-  effect: Effect.Effect<A, E, HttpClient.HttpClient>
-) {
-  return staticRuntime.runPromise(
-    Effect.provide(effect, makeOtlpLayer('background', env), { local: true })
-  )
 }
 
 /**
@@ -293,7 +225,7 @@ export function processWebhookMessage(
     )
     const requestHeaders = {
       'content-type': 'application/json',
-      'user-agent': 'b2b-saas-starter-webhooks/0.1',
+      'user-agent': WEBHOOK_USER_AGENT,
       'x-b2b-starter-event': message.eventType,
       'x-b2b-starter-timestamp': String(timestamp),
       'x-b2b-starter-signature': signatureHeaderValue(timestamp, signatures),
@@ -360,27 +292,20 @@ function deliverWebhook(
 ): Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient> {
   // The one boundary decode per delivery: the trace continuation and the
   // consumer read the same result. endpointId/eventType land on the wide event
-  // via `Effect.annotateLogsScoped` inside the scope, so the envelope metadata
-  // carries only the attempt count.
+  // via `Effect.annotateLogsScoped` inside the scope; the entry's metadata
+  // carries the attempt count.
   const delivery = readQueueDelivery(envelope)
-  return withTriggerScope(
-    {
-      service: 'background',
-      event: 'webhook_delivery',
-      parent: sharedQueueParentSpan(delivery),
-      spanKind: 'consumer',
-      env,
-      metadata: { attempts: delivery.attempts }
-    },
+  return consumerInvocation(env, {
+    event: 'webhook_delivery',
+    delivery,
+    onFailure: 'retry',
     // The `x-trace-id` forwarded to the receiver is this scope's OTel trace id,
     // so the header a receiver quotes back resolves in the trace backend too.
-    Effect.gen(function* () {
+    program: Effect.gen(function* () {
       const traceId = yield* currentTraceId
       return yield* processWebhookMessage(delivery, traceId)
     }).pipe(Effect.provide(selectCapabilitiesLayer(starterEnv(env))))
-    // `_cause` is deliberately unused: the wide event above already logged the
-    // failure cause on exit, and the queue needs an outcome, not an exception.
-  ).pipe(Effect.catchCause((_cause) => Effect.succeed<DeliveryOutcome>('retry')))
+  })
 }
 
 /**
@@ -430,62 +355,48 @@ export function processDeadLetterMessage(
  * Dead-letter consumer entry: wraps `processDeadLetterMessage` with the real
  * capabilities layer and a wide event so operators can see (and replay)
  * exhausted deliveries.
+ *
+ * DLQ durability: the terminal `dead_lettered` row — and the audit event
+ * batched with it — is the only durable evidence that a message gave up, so
+ * the write's one failure channel folds into a bounded retry instead of an
+ * ack: a one-off D1 blip must not erase the evidence forever. The bound is
+ * the DLQ consumer's own `maxRetries`; past it the message is acknowledged
+ * anyway with the loss on the wide event. Loop safety stands either way —
+ * this handler never throws, so a DLQ message can never crash the batch.
  */
-function recordDeadLetter(envelope: QueueEnvelope, env: Env): Effect.Effect<void> {
+function recordDeadLetter(
+  envelope: QueueEnvelope,
+  env: Env
+): Effect.Effect<DeliveryOutcome> {
   const delivery = readQueueDelivery(envelope)
-  const program = processDeadLetterMessage(delivery).pipe(
-    Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
-  )
-  return withTriggerScope(
-    {
-      service: 'background',
-      event: 'webhook_dead_letter',
-      env,
-      parent: sharedQueueParentSpan(delivery),
-      spanKind: 'consumer',
-      metadata: { attempts: delivery.attempts }
-    },
-    program
-    // Always ack dead letters — failing here would loop the DLQ.
-  ).pipe(Effect.catchCause((_cause) => Effect.void))
-}
-
-/**
- * One batch loop for both consumers: run `perMessage` over each message
- * concurrently, then ack or retry (`backoffSeconds(attempts)` delay) per its
- * outcome. The dead-letter caller maps every outcome to `'ack'` — failing a
- * DLQ message would loop the DLQ.
- */
-export function consumeBatch(
-  env: Env,
-  batch: MessageBatch<unknown>,
-  perMessage: (
-    message: Message<unknown>
-  ) => Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient>
-): Promise<void> {
-  return runInvocation(
-    env,
-    // The batch loop adds no requirements of its own, so the loop's context is
-    // `perMessage`'s: `HttpClient`, which the isolate runtime's
-    // FetchHttpClient provides. The DLQ caller, needing nothing, still fits —
-    // an `Effect<_, _, never>` is an `Effect<_, _, HttpClient>`.
-    Effect.forEach(
-      batch.messages,
-      (message) =>
-        perMessage(message).pipe(
-          Effect.flatMap((outcome) =>
-            Effect.sync(() => {
-              if (outcome === 'ack') {
-                message.ack()
-              } else {
-                message.retry({ delaySeconds: backoffSeconds(message.attempts) })
-              }
-            })
-          )
-        ),
-      { concurrency: 'unbounded', discard: true }
+  const program: Effect.Effect<DeliveryOutcome, never, Scope.Scope> =
+    processDeadLetterMessage(delivery).pipe(
+      Effect.provide(selectCapabilitiesLayer(starterEnv(env))),
+      // `as<'ack'>(...)`, not `satisfies`: under pipe inference the naked type
+      // parameter widens the satisfies-checked literal to `string`.
+      Effect.as<'ack'>('ack'),
+      Effect.catchTag(
+        'CapabilityUnavailable',
+        (): Effect.Effect<DeliveryOutcome, never, Scope.Scope> => {
+          if (delivery.attempts < webhookDlqConsumerSettings.maxRetries) {
+            return Effect.annotateLogsScoped({
+              outcome: 'retry',
+              skipReason: 'terminal_write_failed'
+            }).pipe(Effect.as<'retry'>('retry'))
+          }
+          return Effect.annotateLogsScoped({
+            outcome: 'dead_lettered',
+            skipReason: 'terminal_write_failed'
+          }).pipe(Effect.as<'ack'>('ack'))
+        }
+      )
     )
-  )
+  return consumerInvocation(env, {
+    event: 'webhook_dead_letter',
+    delivery,
+    onFailure: 'ack',
+    program
+  })
 }
 
 export { deliverWebhook, recordDeadLetter }

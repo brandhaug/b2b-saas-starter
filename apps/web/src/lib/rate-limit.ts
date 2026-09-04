@@ -4,25 +4,37 @@ import {
   type CloudflareRateLimit,
   type RateLimiterInterface as GenericRateLimiterInterface
 } from '@b2b-saas-starter/rate-limit'
+import {
+  webFallbackLimits,
+  webRateLimitBindingNames,
+  type WebRateLimitBindingName,
+  type WebRateLimitBucket
+} from '@b2b-saas-starter/infra'
 import { Context, Layer } from 'effect'
 
-// Thin config module over @b2b-saas-starter/rate-limit: this file owns the
-// web app's auth bucket union, fallback limits, and env-binding map; the
-// mechanism (Cloudflare binding dispatch, module-scope in-memory fallback,
-// degraded-mode telemetry, clientKey) lives in the shared package. The
-// module-scope fallback store matters here: the auth route rebuilds the
-// layer per request, so per-layer state would reset on every request and
-// never limit anything.
+// Thin config module over @b2b-saas-starter/rate-limit: the binding names and
+// fallback limits come from `@b2b-saas-starter/infra` — the same records the
+// generated wrangler config and Alchemy's bindings are emitted from (a plain
+// leaf module, safe for the client bundle) — so this file owns only the
+// mechanism wiring. The mechanism (Cloudflare binding dispatch, module-scope
+// in-memory fallback, degraded-mode telemetry, clientKey) lives in the shared
+// package. The module-scope fallback store matters here: the auth route
+// rebuilds the layer per request, so per-layer state would reset on every
+// request and never limit anything.
 
-export type RateLimitBindings = {
-  readonly RATE_LIMITER_AUTH_READ?: CloudflareRateLimit
-  readonly RATE_LIMITER_AUTH_WRITE?: CloudflareRateLimit
-  readonly RATE_LIMITER_AUTH_SIGN_IN?: CloudflareRateLimit
-}
+// The env type is derived from the infra name record, not spelled: renaming a
+// binding in infra renames the key here and in the generated wrangler config
+// together, and a bucket added to infra surfaces here the moment its row is
+// written.
+export type RateLimitBindings = Readonly<
+  Partial<Record<WebRateLimitBindingName, CloudflareRateLimit>>
+>
 
 export { clientKey }
 
-type AuthRateLimitBucket = 'auth_read' | 'auth_write' | 'auth_sign_in'
+// The web app's auth buckets are the infra table's `web*` union — the same
+// rows the worker's rate-limit bindings are generated from.
+type AuthRateLimitBucket = WebRateLimitBucket
 
 export type RateLimiterInterface = GenericRateLimiterInterface<AuthRateLimitBucket>
 
@@ -30,30 +42,16 @@ export class RateLimiter extends Context.Service<RateLimiter, RateLimiterInterfa
   '@b2b-saas-starter/web/RateLimiter'
 ) {}
 
-// Credential endpoints get their own, much tighter bucket: the generic write
-// bucket's 20/min is fine for session management POSTs, but a credential-
-// stuffing attacker should not get twenty password guesses per minute per IP.
-const FALLBACK_LIMITS = {
-  auth_read: 60,
-  auth_write: 20,
-  auth_sign_in: 5
-} satisfies Record<AuthRateLimitBucket, number>
+// The numbers live beside the specs in infra (the `auth_sign_in` budget is
+// tight on purpose — see the note on `webRateLimitTuning` there); the
+// annotation fails the build if a bucket ever lacks a row.
+const FALLBACK_LIMITS: Record<AuthRateLimitBucket, number> = webFallbackLimits
 
 function pickBinding(
   env: RateLimitBindings,
   bucket: AuthRateLimitBucket
 ): CloudflareRateLimit | undefined {
-  switch (bucket) {
-    case 'auth_read': {
-      return env.RATE_LIMITER_AUTH_READ
-    }
-    case 'auth_write': {
-      return env.RATE_LIMITER_AUTH_WRITE
-    }
-    case 'auth_sign_in': {
-      return env.RATE_LIMITER_AUTH_SIGN_IN
-    }
-  }
+  return env[webRateLimitBindingNames[bucket]]
 }
 
 /**

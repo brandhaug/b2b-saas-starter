@@ -39,7 +39,7 @@ REST routes stay token-only. OAuth is the interactive path, not a second REST cr
 
 ## Configuration
 
-Two env vars, both optional. `MCP_RESOURCE_URL` is the API Worker's `/mcp` URL; the web worker binds tokens to it (locally it defaults to `http://localhost:8787/mcp`). `MCP_OAUTH_ISSUER` is the web worker's `/api/auth` base URL; the API Worker trusts tokens from it. With either unset on the API Worker, `POST /mcp` accepts API Tokens only and serves no protected-resource metadata, so a client learns there is nothing to authorize against. The decision is recorded in [ADR 0055](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/adr/0055-oauth-for-interactive-mcp-clients-beside-api-tokens.md).
+Two env vars, both optional. `MCP_RESOURCE_URL` is the API Worker's `/mcp` URL; the web worker binds tokens to it (locally it defaults to `http://localhost:8787/mcp`). `MCP_OAUTH_ISSUER` is the web worker's `/api/auth` base URL; the API Worker trusts tokens from it. With either unset on the API Worker, `POST /mcp` accepts API Tokens only and serves no protected-resource metadata, so a client learns there is nothing to authorize against. The decision is recorded in [ADR 0068](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/adr/0068-oauth-for-interactive-mcp-clients-beside-api-tokens.md).
 
 ## Why one set of capabilities
 

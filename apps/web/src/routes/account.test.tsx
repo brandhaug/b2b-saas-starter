@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { AccountPage } from './account'
-import { loadAccountPage } from '@/lib/server/account.effects'
+import { loadAccountPageData } from '@/lib/server/account.effects'
 import { type RouteSession } from '@/lib/server/auth'
 import {
   type ListSessions,
@@ -11,8 +11,8 @@ import {
 import { renderWithRouter } from '@/test/router-harness'
 
 /**
- * The payload comes from the real loader body (`loadAccountPage`) against the
- * Seed layer rather than a hand-written fixture, so a payload shape change
+ * The payload comes from the real loader body (`loadAccountPageData`) against
+ * the Seed layer rather than a hand-written fixture, so a payload shape change
  * cannot pass here while failing in the app. The seed fixture has `usr_demo`
  * as one of two owners of `starter-lab`, so their plan is a `leave` — the
  * deletable state.
@@ -59,7 +59,7 @@ function browserSession(overrides: {
 
 describe('/account', () => {
   it('loads the real plan for a seed member: deletable, leave step', async () => {
-    const { deletionPlan } = await loadAccountPage({ userId: 'usr_demo' })
+    const { deletionPlan } = await loadAccountPageData({ userId: 'usr_demo' })
     expect(deletionPlan.canDelete).toBe(true)
     expect(deletionPlan.steps).toHaveLength(1)
     expect(deletionPlan.steps[0]?.workspace.slug).toBe('starter-lab')
@@ -78,7 +78,7 @@ describe('/account', () => {
         })
       ]
     })
-    const payload = await loadAccountPage({ userId: 'usr_demo' })
+    const payload = await loadAccountPageData({ userId: 'usr_demo' })
     await renderWithRouter(
       <AccountPage
         session={routeSession()}
@@ -105,7 +105,7 @@ describe('/account', () => {
   it('shows the deletion consequences for an ordinary session', async () => {
     listSessions.mockReset()
     listSessions.mockResolvedValue({ data: [browserSession({ token: 'tok_current' })] })
-    const payload = await loadAccountPage({ userId: 'usr_demo' })
+    const payload = await loadAccountPageData({ userId: 'usr_demo' })
     await renderWithRouter(
       <AccountPage
         session={routeSession()}
@@ -126,7 +126,7 @@ describe('/account', () => {
   it('hides the account controls from an impersonation session', async () => {
     listSessions.mockReset()
     listSessions.mockResolvedValue({ data: [browserSession({ token: 'tok_current' })] })
-    const payload = await loadAccountPage({ userId: 'usr_demo' })
+    const payload = await loadAccountPageData({ userId: 'usr_demo' })
     await renderWithRouter(
       <AccountPage
         session={routeSession({ impersonatedBy: 'usr_admin' })}

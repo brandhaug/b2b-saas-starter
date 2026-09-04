@@ -33,7 +33,7 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'webhook.delivery_failed',
   'webhook.delivery_dead_lettered',
   'webhook.delivery_replayed',
-  // developer-platform — MCP Clients connected through OAuth (ADR 0055)
+  // developer-platform — MCP Clients connected through OAuth (ADR 0068)
   'mcp_client.consent_granted',
   'mcp_client.consent_revoked',
   // governance — workspace lifecycle
@@ -53,7 +53,7 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'workspace_invitation.sent',
   'workspace_invitation.canceled',
   'workspace_invitation.accepted',
-  // governance — SSO connections (ADR 0055). The sign-in pair is `auth.`: it
+  // governance — SSO connections (ADR 0069). The sign-in pair is `auth.`: it
   // records over the auth catchall, next to the credential sign-in events.
   'workspace_sso.connection_created',
   'workspace_sso.connection_updated',

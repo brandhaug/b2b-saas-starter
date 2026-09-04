@@ -4,6 +4,7 @@ import { type CapabilityUnavailable, type MembershipChangeRejected } from '../er
 import { failureTag } from '../internal/failure-tag.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
+import { AuditEventLog } from './audit-event-log.ts'
 import { WorkspaceMembership } from './workspace-membership.ts'
 
 /**
@@ -33,7 +34,7 @@ export type MembershipContractCase = {
   readonly assert: Effect.Effect<
     void,
     CapabilityUnavailable | MembershipChangeRejected,
-    WorkspaceMembership | WorkspaceContext
+    WorkspaceMembership | WorkspaceContext | AuditEventLog
   >
 }
 
@@ -129,6 +130,39 @@ export function workspaceMembershipContractCases(
 
         expect(after.length).toBe(before.length)
         expect(after.some((each) => each.id === ids.member)).toBe(true)
+      })
+    },
+    {
+      // One audit case for the whole mutation family, mirroring the
+      // `api_token.revoked` case in the developer-platform contract: the
+      // deltas are counted around this case's own mutations, so sharing a
+      // layer with the cases above cannot flake.
+      name: 'membership changes record workspace_member audit events',
+      assert: Effect.gen(function* () {
+        const membership = yield* WorkspaceMembership
+        const log = yield* AuditEventLog
+        function countOf(eventType: string) {
+          return Effect.map(log.list({ eventType }), (page) => page.events.length)
+        }
+        const addedBefore = yield* countOf('workspace_member.added')
+        const removedBefore = yield* countOf('workspace_member.removed')
+        const roleBefore = yield* countOf('workspace_member.role_changed')
+
+        yield* membership.addMember({ userId: ids.newcomer, role: 'member' })
+        yield* membership.changeRole({ userId: ids.newcomer, role: 'admin' })
+        yield* membership.removeMember({ userId: ids.newcomer })
+
+        expect(yield* countOf('workspace_member.added')).toBe(addedBefore + 1)
+        expect(yield* countOf('workspace_member.removed')).toBe(removedBefore + 1)
+        expect(yield* countOf('workspace_member.role_changed')).toBe(roleBefore + 1)
+        // Each event names the member it is about, with the target type both
+        // adapters write.
+        expect(
+          (yield* log.list({ eventType: 'workspace_member.added' })).events.some(
+            (event) =>
+              event.targetId === ids.newcomer && event.targetType === 'workspace_member'
+          )
+        ).toBe(true)
       })
     },
     {

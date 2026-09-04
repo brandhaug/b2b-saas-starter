@@ -14,12 +14,8 @@ import {
   type CapabilityReadServices,
   type WorkspaceReadOperation
 } from './operations.ts'
-import {
-  guardFailureResponse,
-  type GuardFailure,
-  type McpDiscovery,
-  type McpToolDescriptor
-} from '@b2b-saas-starter/api'
+import { guardFailureResponse, type GuardFailure } from '@b2b-saas-starter/api/errors'
+import { type McpDiscovery, type McpToolDescriptor } from '@b2b-saas-starter/api'
 import {
   HttpRouter,
   HttpServerResponse,
@@ -69,7 +65,7 @@ import { oauthChallengeHeader, oauthResourceConfig } from './oauth-access-token.
  * `GET /mcp` remains the REST discovery document served by the contract group;
  * it advertises exactly what this module registers.
  *
- * Two credentials open the route (ADR 0055): a workspace API Token, or an
+ * Two credentials open the route (ADR 0068): a workspace API Token, or an
  * OAuth access token the web worker minted for a signed-in Member after the
  * consent page bound it to one workspace. `authenticateMcpCaller` tells them
  * apart; from there the only difference is who a tool authorizes as — the
@@ -91,7 +87,18 @@ const OVERVIEW_RESOURCE_URI = 'workspace://overview'
  * declared once.
  */
 const NO_TOOL_INPUT = z.object({})
-const PAGED_TOOL_INPUT = z.object({
+/**
+ * The paging input every list tool takes — the same optional `cursor`/`limit`
+ * the REST route accepts (ADR 0057), whose contract-side owner is
+ * `ListPageQuery` in `@b2b-saas-starter/api`. Known behavioral divergence,
+ * documented on both declarations: REST's Effect-v4 query codec treats an
+ * undecodable optional as absent — `?limit=abc` decodes the field away and
+ * the read serves the default page — while this zod schema rejects a
+ * non-numeric `limit` with a tool-call error. Same vocabulary, one edge case
+ * apart; deriving one schema system from the other is not worth the bridge.
+ * Exported so `mcp.test.ts` can pin the advertised shape against drift.
+ */
+export const PAGED_TOOL_INPUT = z.object({
   cursor: z.string().optional(),
   limit: z.number().optional()
 })

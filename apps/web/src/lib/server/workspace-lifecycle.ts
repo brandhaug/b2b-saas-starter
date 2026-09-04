@@ -28,8 +28,7 @@ const CreateWorkspaceInput = Schema.Struct({
   name: Schema.NonEmptyString.check(Schema.isMaxLength(80)),
   slug: Schema.NonEmptyString.check(Schema.isPattern(WORKSPACE_SLUG_PATTERN)).check(
     Schema.isMinLength(3)
-  ),
-  userId: Schema.String
+  )
 })
 
 const decodeCreateInput = Schema.decodeUnknownSync(CreateWorkspaceInput)
@@ -40,14 +39,16 @@ export const createWorkspaceServerFn = createServerFn({ method: 'POST' })
     // Creating is not a workspace-scoped call: there is no workspace to resolve,
     // so this runs through `runCapabilities` with no `WorkspaceContext`. The
     // plugin itself makes the creator its first owner.
-    await requireRequestSession()
+    const session = await requireRequestSession()
     return runCapabilities(
       Effect.gen(function* () {
         const lifecycle = yield* WorkspaceLifecycle
         return yield* lifecycle.create({
           name: data.name,
           slug: data.slug,
-          userId: data.userId
+          // The acting user comes from the session, never the request body —
+          // `createOrganization` is a trusted headerless endpoint.
+          userId: session.user.id
         })
       }),
       { lifecycleBinding: webWorkspaceLifecycleBinding }

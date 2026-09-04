@@ -3,6 +3,7 @@ import { DateTime, Effect, Layer, Option, Ref } from 'effect'
 import { MembershipChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
+import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { fabricateSeedMember, type Workspace } from './workspace-identity.ts'
 import { type SeedRoster } from './workspace-membership.ts'
 import {
@@ -60,6 +61,12 @@ function findPending(
  * In-memory invitations, never Better Auth. The store lives in a `Ref` built
  * per layer construction, so a mutation is observable within the request or
  * test that made it and no state leaks into the next one.
+ *
+ * Mutations record the same `workspace_invitation.*` audit events the Live
+ * adapter records, read ambiently via `Effect.serviceOption`: the Seed
+ * composition (`layers.ts`) shares one fixture log so records land where the
+ * contract cases read them, while a harness that provides no log simply gets
+ * no records.
  */
 export function SeedWorkspaceInvitations(options: {
   /**
@@ -115,12 +122,31 @@ export function SeedWorkspaceInvitations(options: {
               )
             }
             yield* Ref.update(store, (rows) => [created, ...rows])
+            // Same event, target, and metadata as the Live adapter.
+            const audit = yield* Effect.serviceOption(AuditEventLog)
+            if (Option.isSome(audit)) {
+              yield* recordInWorkspace(audit.value, {
+                eventType: 'workspace_invitation.sent',
+                targetType: 'workspace_invitation',
+                targetId: created.id,
+                metadata: { email: input.email, role: input.role }
+              })
+            }
             return created
           }),
         cancel: (input) =>
           Effect.gen(function* () {
-            yield* findPending(store, input.invitationId)
+            const pending = yield* findPending(store, input.invitationId)
             yield* settle(store, input.invitationId, 'canceled')
+            const audit = yield* Effect.serviceOption(AuditEventLog)
+            if (Option.isSome(audit)) {
+              yield* recordInWorkspace(audit.value, {
+                eventType: 'workspace_invitation.canceled',
+                targetType: 'workspace_invitation',
+                targetId: input.invitationId,
+                metadata: { email: pending.email }
+              })
+            }
           }),
         accept: (input) =>
           Effect.gen(function* () {
@@ -134,6 +160,19 @@ export function SeedWorkspaceInvitations(options: {
             // invitation's real address is known, so it rides along.
             const joined = fabricateSeedMember(input.userId, pending.role, input.email)
             yield* Ref.update(options.roster, (current) => [...current, joined])
+            // No `WorkspaceContext` to read, matching Live: the event names the
+            // invitation's own workspace and the accepting user directly.
+            const audit = yield* Effect.serviceOption(AuditEventLog)
+            if (Option.isSome(audit)) {
+              yield* audit.value.record({
+                workspaceId: options.workspace.id,
+                actorUserId: input.userId,
+                eventType: 'workspace_invitation.accepted',
+                targetType: 'workspace_invitation',
+                targetId: input.invitationId,
+                metadata: { email: pending.email, role: pending.role }
+              })
+            }
             // Acceptance adds a member, so it triggers the same seat sync the
             // membership seed triggers — keyed off the fixture workspace.
             yield* publishSeatSyncWith(seatSync, {

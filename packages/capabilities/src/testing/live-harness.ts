@@ -27,9 +27,12 @@ import {
 import { type WorkspaceInvitationBinding } from '../governance/workspace-invitations.ts'
 import { type WorkspaceLifecycleBinding } from '../governance/workspace-lifecycle.ts'
 import { type WorkspaceMemberBinding } from '../governance/workspace-membership.ts'
-import { type LiveWorkspaceExportsOptions } from '../governance/workspace-export.live.ts'
 import { type WorkspaceSsoBinding } from '../governance/workspace-sso-connections.ts'
-import { makeLiveCapabilitiesLayer, type CapabilityServices } from '../layers.ts'
+import {
+  type CapabilityBindings,
+  makeLiveCapabilitiesLayer,
+  type CapabilityServices
+} from '../layers.ts'
 import { type StarterEnv } from '../runtime.ts'
 import { liveWorkspaceContext, type WorkspaceContext } from '../workspace-context.ts'
 import { type CapabilityUnavailable, type WorkspaceNotFound } from '../errors.ts'
@@ -280,36 +283,18 @@ export const LIVE_SUITE_TIMEOUT = '120 seconds'
  * Runs an effect against the live capability layers of one workspace. The
  * plugin-backed bindings ride in a bag rather than as trailing positionals:
  * a suite that needs only the invitation one would otherwise pass a hole.
+ * The bag is the shared {@link CapabilityBindings} record, so a suite can
+ * reach any optional provider port without this signature growing per field.
  */
 export function inWorkspace<A, E>(
   slug: string,
   effect: Effect.Effect<A, E, WorkspaceContext | CapabilityServices>,
   actor?: { readonly userId: string },
-  bindings?: {
-    readonly memberBinding?: WorkspaceMemberBinding
-    readonly invitationBinding?: WorkspaceInvitationBinding
-    readonly lifecycleBinding?: WorkspaceLifecycleBinding
-    readonly userAdminBinding?: PlatformUserAdminBinding
-    readonly accountLifecycleBinding?: AccountLifecycleBinding
-    /** Stub export queue + bucket (ADR 0055); absent, exports report unavailable. */
-    readonly workspaceExports?: LiveWorkspaceExportsOptions
-    readonly ssoBinding?: WorkspaceSsoBinding
-  }
+  bindings: CapabilityBindings = {}
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {
   return Effect.provide(
     effect,
-    Layer.merge(
-      makeLiveCapabilitiesLayer({
-        memberBinding: bindings?.memberBinding,
-        invitationBinding: bindings?.invitationBinding,
-        lifecycleBinding: bindings?.lifecycleBinding,
-        userAdminBinding: bindings?.userAdminBinding,
-        workspaceExports: bindings?.workspaceExports,
-        ssoBinding: bindings?.ssoBinding,
-        accountLifecycleBinding: bindings?.accountLifecycleBinding
-      }),
-      liveWorkspaceContext(slug, actor)
-    )
+    Layer.merge(makeLiveCapabilitiesLayer(bindings), liveWorkspaceContext(slug, actor))
   )
 }
 

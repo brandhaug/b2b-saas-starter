@@ -38,7 +38,7 @@ function stubBilling(
 function run(body: unknown, billing: Layer.Layer<Billing>) {
   return Effect.map(
     Effect.scoped(
-      processSeatSyncMessage(readSeatSyncDelivery({ body })).pipe(
+      processSeatSyncMessage(readSeatSyncDelivery({ body, attempts: 0 })).pipe(
         Effect.provide(billing)
       )
     ),
@@ -54,7 +54,7 @@ const message = {
 
 describe('readSeatSyncDelivery', () => {
   it('decodes a seat-sync message', () => {
-    const delivery = readSeatSyncDelivery({ body: message })
+    const delivery = readSeatSyncDelivery({ body: message, attempts: 1 })
     expect(delivery.kind).toBe('message')
     if (delivery.kind === 'message') {
       expect(delivery.message.workspaceId).toBe('wrk_starter')
@@ -62,12 +62,15 @@ describe('readSeatSyncDelivery', () => {
   })
 
   it('reports a malformed body instead of throwing', () => {
-    expect(readSeatSyncDelivery({ body: { nope: true } }).kind).toBe('malformed')
+    expect(readSeatSyncDelivery({ body: { nope: true }, attempts: 1 }).kind).toBe(
+      'malformed'
+    )
     // A webhook delivery body is not a seat-sync body, even though it decodes
     // as an object — the `kind` discriminant is what the consumer trusts.
     expect(
       readSeatSyncDelivery({
-        body: { endpointId: 'wh_1', workspaceId: 'wrk_starter', payload: {} }
+        body: { endpointId: 'wh_1', workspaceId: 'wrk_starter', payload: {} },
+        attempts: 1
       }).kind
     ).toBe('malformed')
   })

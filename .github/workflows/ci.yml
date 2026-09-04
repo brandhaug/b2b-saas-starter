@@ -91,6 +91,21 @@ jobs:
           BETTER_AUTH_TRUSTED_ORIGINS: ${{ secrets.BETTER_AUTH_TRUSTED_ORIGINS }}
           # Optional — the SendEmail binding is skipped when unset (alchemy.run.ts).
           CLOUDFLARE_EMAIL_FROM: ${{ secrets.CLOUDFLARE_EMAIL_FROM }}
+      # The workers.dev URLs are not known until deploy time: the account's
+      # subdomain comes from the Cloudflare API, and the worker names come from
+      # stageResourceNames in infra/bindings.ts (`prod` keeps the historical
+      # names, so no stage infix). Deriving them here keeps the workflow
+      # forkable instead of pinning one deployer's subdomain.
+      - name: Resolve deployed URLs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          subdomain="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" |
+            jq -er '.result.subdomain')"
+          echo "API_URL=https://b2b-saas-starter-api.$subdomain.workers.dev" >> "$GITHUB_ENV"
+          echo "WEB_URL=https://b2b-saas-starter-web.$subdomain.workers.dev" >> "$GITHUB_ENV"
       # A green deploy only proves the upload succeeded; the deploy job fails
       # unless the uploaded workers actually serve. Probes the health route on
       # the API worker and the web app root. `--retry` rides out propagation
@@ -98,9 +113,7 @@ jobs:
       # failure (not just transport errors) retry, then fail the job.
       - name: Smoke test the deployment
         run: |
-          for url in \
-            https://b2b-saas-starter-api.brandhaug.workers.dev/health \
-            https://b2b-saas-starter-web.brandhaug.workers.dev/; do
+          for url in "$API_URL/health" "$WEB_URL/"; do
             echo "Probing $url"
             curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$url" > /dev/null
           done

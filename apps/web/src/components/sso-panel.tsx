@@ -25,7 +25,7 @@ import {
 } from '@/lib/server/workspace-sso'
 
 /**
- * The "Single sign-on" section of workspace settings (ADR 0055). Owners and
+ * The "Single sign-on" section of workspace settings (ADR 0069). Owners and
  * admins only — the loader withholds the whole segment from anyone without
  * `sso:list`, and each control asks its own statement (`sso:create` adds,
  * `sso:update` tests and flips, `sso:remove` removes); the server re-checks

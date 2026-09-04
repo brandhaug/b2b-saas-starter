@@ -22,7 +22,7 @@ import {
  * carried pointer segments for all of them, which duplicated every other
  * page's data on a page that renders none of it.
  *
- * The exception is Single sign-on (ADR 0055): the connection list is security
+ * The exception is Single sign-on (ADR 0069): the connection list is security
  * posture (`sso:list`, withheld from members), and the settings page hosts the
  * management surface — so its segment rides here, soft-gated like every
  * second-permission segment. The DTO the capability returns is secret-free.

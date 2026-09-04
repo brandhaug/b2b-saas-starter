@@ -1,7 +1,9 @@
 import { currentTraceparent } from '@b2b-saas-starter/logger'
-import { Context, Effect, Layer, Result, Schema } from 'effect'
+import { Context, Effect, Layer, Schema } from 'effect'
 
 import { type CapabilityUnavailable } from '../errors.ts'
+import { bestEffort } from '../internal/best-effort.ts'
+import { withTraceparent } from '../internal/traceparent.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 
 /**
@@ -95,33 +97,12 @@ export function publishSeatSyncWith(
     readonly reason: SeatSyncReason
   }
 ): Effect.Effect<void> {
-  return Effect.gen(function* () {
-    const published = yield* Effect.result(publisher.publish(input))
-    if (Result.isFailure(published)) {
-      yield* Effect.void.pipe(
-        Effect.annotateLogs({
-          seatSyncPublish: 'failed',
-          seatSyncPublishReason: published.failure.reason
-        })
-      )
-    }
-  })
-}
-
-/**
- * Adds the producing request's `traceparent` onto a queue message — the same
- * continuation the webhook publisher stamps, so the background consumer joins
- * the trace the membership mutation opened instead of starting an unrelated
- * one. Absent outside a span (tests, direct calls).
- */
-function withTraceparent(
-  message: SeatSyncQueueMessage,
-  traceparent: string | undefined
-): SeatSyncQueueMessage {
-  if (traceparent === undefined) {
-    return message
-  }
-  return { ...message, traceparent }
+  return Effect.asVoid(
+    bestEffort(publisher.publish(input), (failure) => ({
+      seatSyncPublish: 'failed',
+      seatSyncPublishReason: failure.reason
+    }))
+  )
 }
 
 export function LiveSeatSyncPublisher(

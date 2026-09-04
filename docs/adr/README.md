@@ -11,8 +11,8 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0019 — CI with Alchemy deploy on merge](./0019-ci-with-manual-alchemy-deploy.md)
 - [0049 — Persisted local D1 in dev and e2e](./0049-persisted-local-d1-in-dev-and-e2e.md)
 - [0053 — pnpm and Vite+ toolchain](./0053-pnpm-and-vite-plus-toolchain.md)
-- [0054 — Ephemeral per-pull-request preview stages](./0054-ephemeral-pr-preview-stages.md)
 - [0063 — Client-only vendor graphs stay out of the web Worker's server bundle](./0063-client-only-vendor-graphs-stay-out-of-the-web-worker-server-bundle.md)
+- [0065 — Ephemeral per-pull-request preview stages](./0065-ephemeral-pr-preview-stages.md)
 
 ## Application architecture
 
@@ -36,9 +36,11 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0026 — Workspace API tokens](./0026-workspace-api-tokens.md)
 - [0027 — Public content search first](./0027-public-content-search-first.md)
 - [0032 — Workspace outbound webhooks](./0032-workspace-outbound-webhooks.md)
-- [0062 — Webhook operator tooling: replay and rotation grace](./0062-webhook-operator-tooling-replay-and-rotation-grace.md)
-- [0054 — Derived workspace onboarding checklist](./0054-derived-workspace-onboarding-checklist.md)
-- [0055 — OAuth 2.1 for interactive MCP clients, beside API Tokens](./0055-oauth-for-interactive-mcp-clients-beside-api-tokens.md)
+- [0054 — System Admin impersonation](./0054-system-admin-impersonation.md)
+- [0060 — Seat-based billing with queue-decoupled seat sync](./0060-seat-based-billing-with-queue-decoupled-seat-sync.md)
+- [0062 — Webhook operator tooling: replay as linked rows and rotation with a signing grace window](./0062-webhook-operator-tooling-replay-and-rotation-grace.md)
+- [0066 — Derived workspace onboarding checklist](./0066-derived-workspace-onboarding-checklist.md)
+- [0068 — OAuth 2.1 for interactive MCP clients, beside API Tokens](./0068-oauth-for-interactive-mcp-clients-beside-api-tokens.md)
 
 ## Background work and delivery
 
@@ -49,20 +51,21 @@ Each record is a short, statement-style decision: a title plus prose describing 
 ## Observability, security, and configuration
 
 - [0007 — Wide event observability](./0007-wide-event-observability.md)
-- [0050 — OpenTelemetry export, scoped per invocation](./0050-opentelemetry-export-scoped-per-invocation.md)
 - [0030 — Sensitive surface rate limiting](./0030-sensitive-surface-rate-limiting.md)
 - [0031 — Env-gated Turnstile](./0031-env-gated-turnstile.md)
+- [0050 — OpenTelemetry export, scoped per invocation](./0050-opentelemetry-export-scoped-per-invocation.md)
 - [0051 — Workspace membership on Better Auth's organization plugin](./0051-workspace-membership-on-better-auth-organization-plugin.md)
-- [0054 — System Admin impersonation](./0054-system-admin-impersonation.md)
 - [0056 — Passkeys on Better Auth's passkey plugin](./0056-passkeys-on-better-auth-passkey-plugin.md)
-- [0063 — Email one-time codes on the email-otp plugin](./0063-email-one-time-codes.md)
 - [0059 — Account deletion on the store's delete endpoint](./0059-account-deletion-on-the-store-delete-endpoint.md)
+- [0064 — Magic link as the second Local Auth Path](./0064-magic-link-as-second-local-auth-path.md)
+- [0067 — Email one-time codes on the email-otp plugin](./0067-email-one-time-codes.md)
+- [0069 — Workspace-scoped SSO with owner-configured connections](./0069-workspace-scoped-sso.md)
 
 ## Optional providers
 
 - [0008 — Effect AI starter assistant](./0008-effect-ai-starter-assistant.md)
 - [0014 — Cloudflare Email Service](./0014-cloudflare-email-service.md)
-- [0057 — Social sign-in as an absent-until-configured provider](./0057-social-sign-in-as-absent-until-configured-provider.md)
+- [0070 — Social sign-in as an absent-until-configured provider](./0070-social-sign-in-as-absent-until-configured-provider.md)
 
 ## UI and frontend
 

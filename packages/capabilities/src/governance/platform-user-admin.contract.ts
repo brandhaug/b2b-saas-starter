@@ -109,6 +109,45 @@ export function platformUserAdminContractCases(
       })
     },
     {
+      // One audit case for the ban/unban/role-change family (the
+      // impersonation pair has its own case below). Same
+      // delta-around-my-own-mutations shape as the developer-platform
+      // contract's `api_token.revoked` case, read through `listGlobal`
+      // because `/admin` has no workspace context to scope a `list` with.
+      name: 'bans, unbans, and role changes record system_admin audit events',
+      assert: Effect.gen(function* () {
+        const admin = yield* PlatformUserAdmin
+        const audit = yield* AuditEventLog
+        function trailOf(eventType: string) {
+          return Effect.map(
+            audit.listGlobal,
+            (events) =>
+              events.filter(
+                (event) =>
+                  event.eventType === eventType && event.targetId === ids.existing
+              ).length
+          )
+        }
+
+        const bannedBefore = yield* trailOf('system_admin.user_banned')
+        yield* admin.banUser({ userId: ids.existing, actorUserId: null })
+        expect(yield* trailOf('system_admin.user_banned')).toBe(bannedBefore + 1)
+
+        const unbannedBefore = yield* trailOf('system_admin.user_unbanned')
+        yield* admin.unbanUser({ userId: ids.existing, actorUserId: null })
+        expect(yield* trailOf('system_admin.user_unbanned')).toBe(unbannedBefore + 1)
+
+        const roleBefore = yield* trailOf('system_admin.user_role_changed')
+        yield* admin.changeWorkspaceRole({
+          userId: ids.existing,
+          workspaceId: ids.workspaceId,
+          role: 'admin',
+          actorUserId: null
+        })
+        expect(yield* trailOf('system_admin.user_role_changed')).toBe(roleBefore + 1)
+      })
+    },
+    {
       name: 'rejects a role change for a user who is not a member',
       assert: Effect.gen(function* () {
         const admin = yield* PlatformUserAdmin

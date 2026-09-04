@@ -7,6 +7,7 @@ import { createWorkspaceServerFn } from '@/lib/server/workspace-lifecycle'
 import { callServerFn } from '@/lib/server-call'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
+import { validateWorkspaceName } from '@/lib/workspace-name'
 
 const CREATE_WORKSPACE_FAILED = 'Failed to create workspace'
 
@@ -27,16 +28,6 @@ function suggestSlug(name: string): string {
     .replaceAll(/-+$/g, '')
 }
 
-function validateName(value: string): string | undefined {
-  if (value.trim().length === 0) {
-    return 'Workspace name is required'
-  }
-  if (value.length > 80) {
-    return 'Workspace name must be under 80 characters'
-  }
-  return
-}
-
 function validateSlug(value: string): string | undefined {
   if (!/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(value)) {
     return 'Use lowercase letters, digits, and hyphens; start and end with a letter or digit'
@@ -52,16 +43,13 @@ export type CreateWorkspace = (input: {
   readonly data: {
     readonly name: string
     readonly slug: string
-    readonly userId: string
   }
 }) => Promise<CreatedWorkspace>
 
 export function CreateWorkspaceForm({
-  userId,
   onCreated,
   createWorkspace = createWorkspaceServerFn
 }: {
-  readonly userId: string
   readonly onCreated?: (workspace: CreatedWorkspace) => void
   readonly createWorkspace?: CreateWorkspace
 }) {
@@ -75,7 +63,7 @@ export function CreateWorkspaceForm({
     onSubmit: async ({ value }) => {
       setSubmitError(null)
       const outcome = await callServerFn(
-        () => createWorkspace({ data: { name: value.name, slug: value.slug, userId } }),
+        () => createWorkspace({ data: { name: value.name, slug: value.slug } }),
         CREATE_WORKSPACE_FAILED
       )
       if (!outcome.ok) {
@@ -98,7 +86,7 @@ export function CreateWorkspaceForm({
     >
       <form.Field
         name="name"
-        validators={{ onChange: ({ value }) => validateName(value) }}
+        validators={{ onChange: ({ value }) => validateWorkspaceName(value) }}
       >
         {(field) => (
           <FormTextField

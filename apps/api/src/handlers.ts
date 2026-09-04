@@ -6,11 +6,8 @@ import {
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
-import {
-  StarterApi,
-  WorkspaceExportNotDownloadable,
-  type QueuedDeliveryResponse
-} from '@b2b-saas-starter/api'
+import { StarterApi, type QueuedDeliveryResponse } from '@b2b-saas-starter/api'
+import { WorkspaceExportNotDownloadable } from '@b2b-saas-starter/api/errors'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import { Effect, Option, Result } from 'effect'
 import { HttpServerRequest } from 'effect/unstable/http'
@@ -33,13 +30,15 @@ const WEBHOOK_DELETED = {
 } satisfies { readonly status: 'deleted' }
 
 /**
- * Write sibling of the local `read` helper in `workspaceGroup`. Bearer auth and
- * the group's rate-limit bucket are the contract's `BearerAuth` middleware's
- * job, so a handler composes only the permission gate and the capability call.
- * The event name is passed whole — writes name themselves
- * (`api-tokens.create`), unlike reads under `workspace.*`.
+ * The one wrapper every workspace-scoped handler composes — reads and writes
+ * alike: the permission gate, the per-slug workspace layer, and the request's
+ * wide event. Bearer auth and the group's rate-limit bucket are the contract's
+ * `BearerAuth` middleware's job, so a handler composes only this and the
+ * capability call. The event name is passed whole — reads sit under
+ * `workspace.*` (see `workspaceRead`), writes name themselves
+ * (`api-tokens.create`).
  */
-function write<A, E, R>(
+function workspaceOperation<A, E, R>(
   env: ApiEnv,
   event: string,
   permission: PermissionRequest,
@@ -69,25 +68,6 @@ export function healthGroup(env: ApiEnv) {
 
 export function workspaceGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'workspace', (handlers) => {
-    function read<A, E, R>(
-      event: string,
-      permission: PermissionRequest,
-      slug: string,
-      request: HttpServerRequest.HttpServerRequest,
-      body: Effect.Effect<A, E, R>
-    ) {
-      return observed(
-        env,
-        request,
-        `workspace.${event}`,
-        { workspaceSlug: slug },
-        Effect.gen(function* () {
-          yield* enforcePermission(permission, slug)
-          return yield* provideWorkspace(env, slug, body)
-        })
-      )
-    }
-
     /**
      * Generic in the row, not in the key: the call site hands over the table
      * entry itself, so `A`/`E`/`R` are inferred from that row's own capability
@@ -117,8 +97,9 @@ export function workspaceGroup(env: ApiEnv) {
       // 0057), the overview row ignores it — one shape for every row of the
       // table. The one parameterized read names which endpoint it served, the
       // same way the write handlers annotate ids below.
-      return read(
-        op.event,
+      return workspaceOperation(
+        env,
+        `workspace.${op.event}`,
         op.permission,
         params.slug,
         request,
@@ -168,7 +149,7 @@ export function apiTokenGroup(env: ApiEnv) {
     params: { readonly slug: string; readonly tokenId: string },
     request: HttpServerRequest.HttpServerRequest
   ) {
-    return write(
+    return workspaceOperation(
       env,
       event,
       { apiToken: ['revoke'] },
@@ -185,7 +166,7 @@ export function apiTokenGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'api-token-registry', (handlers) =>
     handlers
       .handle('create', ({ params, payload, request }) =>
-        write(
+        workspaceOperation(
           env,
           'api-tokens.create',
           { apiToken: ['create'] },
@@ -220,7 +201,7 @@ export function webhookGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'webhook-endpoints', (handlers) =>
     handlers
       .handle('create', ({ params, payload, request }) =>
-        write(
+        workspaceOperation(
           env,
           'webhooks.create',
           { webhook: ['create'] },
@@ -239,7 +220,7 @@ export function webhookGroup(env: ApiEnv) {
         )
       )
       .handle('update', ({ params, payload, request }) =>
-        write(
+        workspaceOperation(
           env,
           'webhooks.update',
           { webhook: ['update'] },
@@ -266,7 +247,7 @@ export function webhookGroup(env: ApiEnv) {
         )
       )
       .handle('delete', ({ params, request }) =>
-        write(
+        workspaceOperation(
           env,
           'webhooks.delete',
           { webhook: ['delete'] },
@@ -282,7 +263,7 @@ export function webhookGroup(env: ApiEnv) {
         )
       )
       .handle('rotate-secret', ({ params, request }) =>
-        write(
+        workspaceOperation(
           env,
           'webhooks.rotate-secret',
           { webhook: ['rotateSecret'] },
@@ -301,7 +282,7 @@ export function webhookGroup(env: ApiEnv) {
         )
       )
       .handle('test-event', ({ params, request }) =>
-        write(
+        workspaceOperation(
           env,
           'webhooks.test-event',
           { webhook: ['test'] },
@@ -321,7 +302,7 @@ export function webhookGroup(env: ApiEnv) {
         )
       )
       .handle('replay-delivery', ({ params, request }) =>
-        write(
+        workspaceOperation(
           env,
           'webhooks.replay-delivery',
           { webhook: ['replay'] },
@@ -395,7 +376,7 @@ export function workspaceExportGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'workspace-exports', (handlers) =>
     handlers
       .handle('request', ({ params, request }) =>
-        write(
+        workspaceOperation(
           env,
           'workspace-exports.request',
           { workspaceExport: ['request'] },
@@ -410,7 +391,7 @@ export function workspaceExportGroup(env: ApiEnv) {
         )
       )
       .handle('download-link', ({ params, request }) =>
-        write(
+        workspaceOperation(
           env,
           'workspace-exports.download-link',
           { workspaceExport: ['download'] },

@@ -20,7 +20,7 @@ const settingsSummary: WorkspaceSettingsPayload = {
   workspaceName: 'Starter Lab',
   unreadCount: 2,
   // The disabled seeded example connection — the populated state the demo
-  // workspace shows (ADR 0055).
+  // workspace shows (ADR 0069).
   ssoConnections: [
     {
       id: 'sso_example_oidc',

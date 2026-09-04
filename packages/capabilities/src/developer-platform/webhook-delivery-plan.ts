@@ -95,6 +95,21 @@ export function isReplayableDeliveryStatus(status: WebhookDeliveryStatus): boole
 export const RESPONSE_BODY_MAX_LENGTH = 2048
 
 /**
+ * How many delivery rows `listDeliveries` serves — the operator drawer's
+ * history cap, named once so both adapters page identically.
+ */
+export const DELIVERIES_PAGE_SIZE = 20
+
+/**
+ * The `User-Agent` header every dispatch posts with. The background worker
+ * stamps it onto outgoing requests and the seed fixture's recorded history
+ * carries the same value, so the deliveries drawer reads like the real thing.
+ * One constant because the consumer's replay-detection and the fixture's
+ * realism must not drift.
+ */
+export const WEBHOOK_USER_AGENT = 'b2b-saas-starter-webhooks/0.1'
+
+/**
  * Truncates a receiver's response body for storage. Rows are operator
  * evidence, not an archive: a marker records that truncation happened so a
  * reader never mistakes a cut body for the whole one.

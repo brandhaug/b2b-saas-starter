@@ -124,6 +124,106 @@ const LINK_SENT_MESSAGE =
   'If this email exists in our system, check your inbox for a sign-in link. It works once and expires in ten minutes.'
 
 /**
+ * The credential sign-in's outcome ladder, in the one order the hops chain:
+ * domain-routed SSO first (ADR 0069) — the password path is never attempted
+ * when the email's domain routes; then the credential exchange itself, whose
+ * `sso_required` refusal surfaces as guidance rather than a bare failure;
+ * then the two-factor challenge hop (carrying the MCP client's signed OAuth
+ * query when there is one); then an OAuth continuation; and finally the
+ * redirect target. Every dead end reports through exactly one of the two
+ * callbacks; every hop that leaves the page navigates itself.
+ */
+async function applySignInOutcome({
+  email,
+  password,
+  redirect,
+  resolveRouting,
+  signInWithSso,
+  signIn,
+  push,
+  onSubmitError,
+  onSsoNotice
+}: {
+  readonly email: string
+  readonly password: string
+  readonly redirect?: string | undefined
+  readonly resolveRouting: ResolveSsoRouting
+  readonly signInWithSso: SignInWithSso
+  readonly signIn: SignInWithEmail
+  /** Client-side navigation, for the in-app hops. */
+  readonly push: (target: string) => void
+  readonly onSubmitError: (message: string) => void
+  readonly onSsoNotice: (message: string) => void
+}): Promise<void> {
+  // Domain routing first (ADR 0069): an email whose domain belongs to an
+  // enabled connection goes to that IdP — the password path is never even
+  // attempted. `requireSso` domains are additionally refused server-side, so
+  // a direct POST cannot sidestep the rule.
+  const routing = await resolveRouting(email)
+  if (routing !== null) {
+    const sso = await signInWithSso({
+      email,
+      callbackURL: safeRedirect(redirect)
+    })
+    if (sso.error) {
+      onSubmitError(sso.error.message ?? 'Single sign-in failed')
+      return
+    }
+    if (sso.data?.url) {
+      window.location.assign(sso.data.url)
+      return
+    }
+    // Unreachable while the plugin answers a routing match with a URL, but an
+    // explicit failure beats silently attempting the password path the
+    // routing decision just refused.
+    onSubmitError('Single sign-in failed')
+    return
+  }
+  const result = await signIn({ email, password })
+  if (result.error) {
+    // The server-side gate answers a require-SSO domain with this code;
+    // surface it as guidance rather than a bare failed sign-in.
+    if (wasRefusedForSso(result.error)) {
+      onSsoNotice(
+        'This workspace requires single sign-on for your email domain. Sign in with your identity provider.'
+      )
+      return
+    }
+    onSubmitError(result.error.message ?? 'Sign-in failed')
+    return
+  }
+  const twoFactorRedirect =
+    result.data !== null &&
+    result.data !== undefined &&
+    wantsTwoFactorRedirect(result.data)
+  if (twoFactorRedirect) {
+    // Two-factor is enabled: the credentials set a short-lived challenge
+    // cookie, not a session. The code lands on the challenge page, which
+    // preserves the redirect target through its own search param — and, for a
+    // sign-in an MCP client started, the provider's signed OAuth query, so
+    // the verified code resumes that authorization.
+    const oauthSearch = carriedOAuthSearch(window.location.search)
+    if (oauthSearch) {
+      push(`/two-factor${oauthSearch}`)
+      return
+    }
+    push(
+      redirect ? `/two-factor?redirect=${encodeURIComponent(redirect)}` : '/two-factor'
+    )
+    return
+  }
+  // A sign-in an MCP client started resumes the authorization: the provider
+  // answered with the next hop (the consent page, or the client's redirect
+  // URI), which may be another origin — a full navigation.
+  const continuation = oauthContinuationUrl(result.data)
+  if (continuation !== null) {
+    window.location.assign(continuation)
+    return
+  }
+  push(safeRedirect(redirect))
+}
+
+/**
  * The route's thin wrapper: reads the search param the router validated and
  * the loader's server-provided values, then hands them to the page. Keeping
  * the two apart is what lets the page be rendered from a test with plain
@@ -181,77 +281,19 @@ export function SignInPage({
     onSubmit: async ({ value }) => {
       setSubmitError(null)
       setSsoNotice(null)
-      // Domain routing first (ADR 0055): an email whose domain belongs to an
-      // enabled connection goes to that IdP — the password path is never even
-      // attempted. `requireSso` domains are additionally refused server-side,
-      // so a direct POST cannot sidestep the rule.
-      const routing = await resolveRouting(value.email)
-      if (routing !== null) {
-        const sso = await signInWithSso({
-          email: value.email,
-          callbackURL: safeRedirect(redirect)
-        })
-        if (sso.error) {
-          setSubmitError(sso.error.message ?? 'Single sign-in failed')
-          return
-        }
-        if (sso.data?.url) {
-          window.location.assign(sso.data.url)
-          return
-        }
-        // Unreachable while the plugin answers a routing match with a URL,
-        // but an explicit failure beats silently attempting the password
-        // path the routing decision just refused.
-        setSubmitError('Single sign-in failed')
-        return
-      }
-      const result = await signIn({
+      await applySignInOutcome({
         email: value.email,
-        password: value.password
+        password: value.password,
+        redirect,
+        resolveRouting,
+        signInWithSso,
+        signIn,
+        push: (target) => {
+          router.history.push(target)
+        },
+        onSubmitError: setSubmitError,
+        onSsoNotice: setSsoNotice
       })
-      if (result.error) {
-        // The server-side gate answers a require-SSO domain with this code;
-        // surface it as guidance rather than a bare failed sign-in.
-        if (wasRefusedForSso(result.error)) {
-          setSsoNotice(
-            'This workspace requires single sign-on for your email domain. Sign in with your identity provider.'
-          )
-          return
-        }
-        setSubmitError(result.error.message ?? 'Sign-in failed')
-        return
-      }
-      const twoFactorRedirect =
-        result.data !== null &&
-        result.data !== undefined &&
-        wantsTwoFactorRedirect(result.data)
-      if (twoFactorRedirect) {
-        // Two-factor is enabled: the credentials set a short-lived challenge
-        // cookie, not a session. The code lands on the challenge page, which
-        // preserves the redirect target through its own search param — and,
-        // for a sign-in an MCP client started, the provider's signed OAuth
-        // query, so the verified code resumes that authorization.
-        const oauthSearch = carriedOAuthSearch(window.location.search)
-        if (oauthSearch) {
-          router.history.push(`/two-factor${oauthSearch}`)
-          return
-        }
-        router.history.push(
-          redirect
-            ? `/two-factor?redirect=${encodeURIComponent(redirect)}`
-            : '/two-factor'
-        )
-        return
-      }
-      // A sign-in an MCP client started resumes the authorization: the
-      // provider answered with the next hop (the consent page, or the client's
-      // redirect URI), which may be another origin — a full navigation.
-      const continuation = oauthContinuationUrl(result.data)
-      if (continuation !== null) {
-        window.location.assign(continuation)
-        return
-      }
-      router.history.push(safeRedirect(redirect))
     }
   })
 
@@ -429,6 +471,49 @@ export function SignInPage({
 }
 
 /**
+ * The seeded-credential hints, rendered in both modes: the seed workspace is
+ * the public reference app — the hero CTA lands behind sign-in, so the
+ * credentials stay on the page in production too (they exist only after
+ * seeding a local D1). The demo address works for a magic link too, which
+ * lands in the dev console log (log-mode email) with no provider configured.
+ */
+function DemoCredentialsFooter() {
+  return (
+    <>
+      <p className="text-xs text-muted-foreground">
+        Seeded the local database? Sign in with{' '}
+        <code className="rounded-sm bg-muted px-1 py-0.5">
+          {DEMO_CREDENTIALS.email}
+        </code>{' '}
+        /{' '}
+        <code className="rounded-sm bg-muted px-1 py-0.5">
+          {DEMO_CREDENTIALS.password}
+        </code>
+        .
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Or as a plain member, to see the role-gated view:{' '}
+        <code className="rounded-sm bg-muted px-1 py-0.5">
+          {DEMO_MEMBER_CREDENTIALS.email}
+        </code>{' '}
+        /{' '}
+        <code className="rounded-sm bg-muted px-1 py-0.5">
+          {DEMO_MEMBER_CREDENTIALS.password}
+        </code>
+        .
+      </p>
+      <Link
+        to="/workspaces/$workspaceSlug"
+        params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
+        className="text-center text-sm text-primary underline underline-offset-4"
+      >
+        Open seeded workspace instead
+      </Link>
+    </>
+  )
+}
+
+/**
  * The shared card footer. The forgot-password link and the passkey block only
  * make sense beside a password field, so they render in password mode only;
  * the seeded-credential hints stay in both modes — the demo address works for
@@ -480,38 +565,7 @@ function footer({
           </p>
         </>
       ) : null}
-      {/* The seed workspace is the public reference app — the hero CTA
-          lands behind sign-in, so the credentials stay on the page in
-          production too (they exist only after seeding a local D1). */}
-      <p className="text-xs text-muted-foreground">
-        Seeded the local database? Sign in with{' '}
-        <code className="rounded-sm bg-muted px-1 py-0.5">
-          {DEMO_CREDENTIALS.email}
-        </code>{' '}
-        /{' '}
-        <code className="rounded-sm bg-muted px-1 py-0.5">
-          {DEMO_CREDENTIALS.password}
-        </code>
-        .
-      </p>
-      <p className="text-xs text-muted-foreground">
-        Or as a plain member, to see the role-gated view:{' '}
-        <code className="rounded-sm bg-muted px-1 py-0.5">
-          {DEMO_MEMBER_CREDENTIALS.email}
-        </code>{' '}
-        /{' '}
-        <code className="rounded-sm bg-muted px-1 py-0.5">
-          {DEMO_MEMBER_CREDENTIALS.password}
-        </code>
-        .
-      </p>
-      <Link
-        to="/workspaces/$workspaceSlug"
-        params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
-        className="text-center text-sm text-primary underline underline-offset-4"
-      >
-        Open seeded workspace instead
-      </Link>
+      <DemoCredentialsFooter />
       <p className="text-center text-sm text-muted-foreground">
         No account yet?{' '}
         <Link

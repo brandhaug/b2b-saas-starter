@@ -1,9 +1,11 @@
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { describe, expect, test } from 'vite-plus/test'
 import { Effect, Schema } from 'effect'
+import { z } from 'zod'
 import { buildWebHandler } from './http.ts'
-import { mcpDiscoveryDocument } from './mcp.ts'
+import { PAGED_TOOL_INPUT, mcpDiscoveryDocument } from './mcp.ts'
 import { mirroredRestPath, readOperations } from './operations.ts'
+import { jsonBody } from './test-utils.ts'
 
 /**
  * There is no MCP tool table left to mirror: `GET /mcp` and the SDK server are
@@ -57,6 +59,20 @@ describe('mcp ↔ rest operation mirror', () => {
         expect(Object.keys(properties)).toEqual(['endpointId'])
       }
     }
+  })
+
+  test('the paged tool input names the same paging vocabulary as the REST query', () => {
+    // `ListPageQuery` (packages/api) owns this vocabulary for REST — optional
+    // `cursor` string, optional `limit` number (ADR 0057). Pinning the zod
+    // schema's advertised shape here keeps the two surfaces from drifting on
+    // field names, types, or optionality; the one known behavioral edge (an
+    // undecodable `limit`) is documented on both declarations.
+    const schema = z.toJSONSchema(PAGED_TOOL_INPUT)
+    expect(schema.properties).toEqual({
+      cursor: { type: 'string' },
+      limit: { type: 'number' }
+    })
+    expect(schema.required).toBeUndefined()
   })
 })
 
@@ -167,30 +183,9 @@ const ResourceReadResult = Schema.Struct({
   contents: Schema.Array(Schema.Struct({ uri: Schema.String, text: Schema.String }))
 })
 
-// Same decode-at-the-boundary idea as `index.test.ts`, plus SSE handling:
-// the streamable-HTTP protocol may answer a single request with an SSE body,
-// so unwrap the `data:` frame before decoding.
-function jsonBody<S extends Schema.Top>(
-  response: Response,
-  schema: S
-): Effect.Effect<S['Type'], never, S['DecodingServices']> {
-  return Effect.promise(() => response.text()).pipe(
-    Effect.flatMap((text) => {
-      // oxlint-disable-next-line effect/noTernary -- tests unwrap the protocol's SSE framing before decoding; there is no Effect codec for SSE frames
-      const raw = response.headers.get('content-type')?.includes('text/event-stream')
-        ? text
-            .split('\n')
-            .filter((line) => line.startsWith('data:'))
-            .map((line) => line.slice('data:'.length).trim())
-            .join('\n')
-        : text
-      // oxlint-disable-next-line effect/noGlobals -- see above: decoding the wire format this test asserts on
-      return Effect.try(() => JSON.parse(raw))
-    }),
-    Effect.flatMap((raw) => Schema.decodeUnknownEffect(schema)(raw)),
-    Effect.orDie
-  )
-}
+// The JSON-Schema side of the paging-input equivalence with the contract's
+// `ListPageQuery` is asserted in the operation-mirror describe below; the
+// SSE-unwrap decode itself lives in `test-utils.ts`.
 
 /** The contract's tagged-error body: `{ _tag, ...fields }`, as REST serves it. */
 const GuardFailureBody = Schema.Struct({

@@ -805,10 +805,6 @@ const { lint = {} } = defineConfig({
         }
       },
       {
-        files: ['apps/web/src/routes/**/*.{ts,tsx}'],
-        rules: {}
-      },
-      {
         files: ['apps/web/src/components/ui/**'],
         rules: {
           'react/forbid-elements': 'off',

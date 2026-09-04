@@ -10,7 +10,7 @@ import { type OAuthConsentPayload, type OAuthRedirect } from './mcp-consent'
 import { sessionCall } from './plugin-call'
 
 /**
- * The consent page's behaviour (ADR 0055), below the session gate.
+ * The consent page's behaviour (ADR 0068), below the session gate.
  *
  * Granting is three calls to the app's own OAuth provider, in an order the
  * plugin fixes: (1) `setActiveOrganization` writes the pick onto the session —

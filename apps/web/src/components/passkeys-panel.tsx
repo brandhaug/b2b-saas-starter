@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
   addPasskeyWithAuthClient,
@@ -26,8 +25,8 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { useServerAction } from '@/hooks/use-server-action'
+import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-rows'
 import { unwrapAuthResult } from '@/lib/auth-result'
-import { useHydrated } from '@/lib/client-only-value'
 import { formatUtc } from '@/lib/format-date'
 
 export type {
@@ -91,41 +90,22 @@ export function PasskeysPanel({
   readonly updatePasskey?: UpdatePasskeyName
   readonly deletePasskey?: DeletePasskey
 }) {
-  const hydrated = useHydrated()
-  const {
-    data: rows,
-    error: queryError,
-    isPending,
-    refetch
-  } = useQuery({
+  const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
     queryKey: PASSKEYS_QUERY_KEY,
-    queryFn: async (): Promise<ReadonlyArray<PasskeyRowView>> => {
-      const result = await listPasskeys()
-      if (result.error) {
-        // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- TanStack Query surfaces failure states by rejecting the query function; there is no Effect channel here
-        throw new Error(result.error.message ?? 'Could not load passkeys')
-      }
-      return toViewModels(result.data ?? [])
-    },
-    enabled: hydrated,
-    retry: false
+    list: listPasskeys,
+    toRows: toViewModels,
+    loadFailedMessage: 'Could not load passkeys'
   })
-  const loadError = queryError?.message ?? null
   // The passkey list is this panel's own query, so the action refetches it
   // rather than invalidating the route (same contract as SessionsPanel). The
   // Better Auth call unwraps through the shared `unwrapAuthResult`, like every
   // other panel.
-  const remove = useServerAction(
-    (input: { readonly id: string }) =>
+  const remove = useAuthClientAction({
+    refetch,
+    call: (input: { readonly id: string }) =>
       unwrapAuthResult(() => deletePasskey(input), ACTION_FAILED),
-    {
-      failureMessage: ACTION_FAILED,
-      invalidate: false,
-      onSuccess: () => {
-        void refetch()
-      }
-    }
-  )
+    failureMessage: ACTION_FAILED
+  })
 
   return (
     <>

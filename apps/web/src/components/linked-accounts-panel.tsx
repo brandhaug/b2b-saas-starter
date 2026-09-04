@@ -1,5 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
-import { useHydrated } from '@/lib/client-only-value'
 import { unwrapAuthResult, type AuthResult } from '@/lib/auth-result'
 import {
   listAccountsWithAuthClient,
@@ -9,7 +7,7 @@ import {
   type UnlinkAccount
 } from '@/components/auth/auth-client-ports'
 import { loginMethodLabel } from '@/components/auth/social-provider-labels'
-import { useServerAction } from '@/hooks/use-server-action'
+import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-rows'
 import { Button } from '@/components/ui/button'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { formatUtc } from '@/lib/format-date'
@@ -68,37 +66,18 @@ export function LinkedAccountsPanel({
   readonly listAccounts?: ListLinkedAccounts
   readonly unlinkAccount?: UnlinkAccount
 }) {
-  const hydrated = useHydrated()
-  const {
-    data: rows,
-    error: queryError,
-    isPending,
-    refetch
-  } = useQuery({
+  const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
     queryKey: ACCOUNTS_QUERY_KEY,
-    queryFn: async (): Promise<ReadonlyArray<LinkedAccountRowView>> => {
-      const result = await listAccounts()
-      if (result.error) {
-        // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- TanStack Query surfaces failure states by rejecting the query function; there is no Effect channel here
-        throw new Error(result.error.message ?? 'Could not load linked providers')
-      }
-      return toViewModels(result.data ?? [])
-    },
-    enabled: hydrated,
-    retry: false
+    list: listAccounts,
+    toRows: toViewModels,
+    loadFailedMessage: 'Could not load linked providers'
   })
-  const loadError = queryError?.message ?? null
-  const act = useServerAction(
-    (action: () => Promise<AuthResult<unknown>>) =>
+  const act = useAuthClientAction({
+    refetch,
+    call: (action: () => Promise<AuthResult<unknown>>) =>
       unwrapAuthResult(action, ACTION_FAILED),
-    {
-      failureMessage: ACTION_FAILED,
-      invalidate: false,
-      onSuccess: () => {
-        void refetch()
-      }
-    }
-  )
+    failureMessage: ACTION_FAILED
+  })
 
   const canUnlink = (rows?.length ?? 0) > 1
 

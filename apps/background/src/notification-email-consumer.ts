@@ -10,22 +10,20 @@ import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifica
 import {
   EmailDispatcher,
   selectEmailDispatcherLayer,
-  type EmailRenderError,
   type EmailSendError
 } from '@b2b-saas-starter/email'
 import { notificationEmailFor } from '@b2b-saas-starter/email/notification-emails'
-import { withTriggerScope } from '@b2b-saas-starter/logger'
 import { Effect, Layer, Schema, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
 import {
-  queueDelivery,
-  queueParentSpan,
+  consumerInvocation,
   type DeliveryOutcome,
+  type Env,
+  queueDelivery,
   type QueueDelivery,
   type QueueEnvelope
 } from './queue-consumer.ts'
-import { type Env } from './webhook-consumer.ts'
 
 const ack: DeliveryOutcome = 'ack'
 
@@ -45,8 +43,9 @@ export function readNotificationEmailDelivery(
  * Sends one instant notification email. Re-reads everything at send time: the
  * Notification (skipped when it was read or deleted since enqueue), the
  * recipient (skipped when they can no longer see it), and the recipient's
- * channel for the kind (skipped unless it is still `instant`). Only a render
- * or send failure retries — a skip is a settled outcome.
+ * channel for the kind (skipped unless it is still `instant`). A send failure
+ * retries; a render failure is terminal (see the catch below) and a skip is a
+ * settled outcome.
  *
  * Requirements stay open so tests inject stub layers; `sendNotificationEmail`
  * wraps this with the real layers and the wide-event scope.
@@ -56,7 +55,7 @@ export function processNotificationEmailMessage(
   appUrl: string
 ): Effect.Effect<
   DeliveryOutcome,
-  CapabilityUnavailable | EmailRenderError | EmailSendError,
+  CapabilityUnavailable | EmailSendError,
   NotificationFeed | NotificationPreferences | EmailDispatcher | Scope.Scope
 > {
   return Effect.gen(function* () {
@@ -92,18 +91,33 @@ export function processNotificationEmailMessage(
     const dispatcher = yield* EmailDispatcher
     const kindLabel = describeNotificationKind(kind).label
     const workspaceName = context.workspace?.name ?? null
-    yield* dispatcher.send({
-      to: context.recipient.email,
-      subject: `[B2B SaaS Starter] ${kindLabel}: ${context.notification.title}`,
-      element: notificationEmailFor(kind, {
-        kindLabel,
-        title: context.notification.title,
-        message: context.notification.message,
-        workspaceName,
-        openUrl: openUrlFor(appUrl, context),
-        preferencesUrl: preferencesUrl(appUrl, kind)
+    yield* dispatcher
+      .send({
+        to: context.recipient.email,
+        subject: `[B2B SaaS Starter] ${kindLabel}: ${context.notification.title}`,
+        element: notificationEmailFor(kind, {
+          kindLabel,
+          title: context.notification.title,
+          message: context.notification.message,
+          workspaceName,
+          openUrl: openUrlFor(appUrl, context),
+          preferencesUrl: preferencesUrl(appUrl, kind)
+        })
       })
-    })
+      .pipe(
+        // A render failure is a deterministic template bug: redelivery can
+        // never fix it and this queue has no DLQ, so an identical retry would
+        // burn every attempt and drop the email silently. Terminal like a
+        // malformed body — annotate the wide event and ack. A send failure
+        // keeps its error channel and rides the queue's backoff.
+        Effect.catchTag('EmailRenderError', (error) =>
+          Effect.annotateLogsScoped({
+            outcome: 'skipped',
+            skipReason: 'render_failed',
+            renderError: error.message
+          }).pipe(Effect.as(ack))
+        )
+      )
     yield* Effect.annotateLogsScoped({ outcome: 'sent' })
     return ack
   })
@@ -112,23 +126,19 @@ export function processNotificationEmailMessage(
 /**
  * Queue consumer entry: the boundary decode, the real capability and email
  * layers, and a `notification_email` wide event per message. A failure is
- * logged on the event and retried by the queue.
+ * logged on the event and retried by the queue; render failures went terminal
+ * inside `processNotificationEmailMessage`.
  */
 export function sendNotificationEmail(
   envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
   const delivery = readNotificationEmailDelivery(envelope)
-  return withTriggerScope(
-    {
-      service: 'background',
-      event: 'notification_email',
-      parent: queueParentSpan(delivery),
-      spanKind: 'consumer',
-      env,
-      metadata: { attempts: delivery.attempts }
-    },
-    processNotificationEmailMessage(delivery, appUrlFrom(env)).pipe(
+  return consumerInvocation(env, {
+    event: 'notification_email',
+    delivery,
+    onFailure: 'retry',
+    program: processNotificationEmailMessage(delivery, appUrlFrom(env)).pipe(
       Effect.provide(
         Layer.merge(
           selectCapabilitiesLayer(starterEnv(env)),
@@ -136,6 +146,5 @@ export function sendNotificationEmail(
         )
       )
     )
-    // The wide event already logged the cause; the queue needs an outcome.
-  ).pipe(Effect.catchCause((_cause) => Effect.succeed<DeliveryOutcome>('retry')))
+  })
 }

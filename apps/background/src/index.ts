@@ -18,13 +18,8 @@ import { sendDailyDigest } from './notification-digest.ts'
 import { sendNotificationEmail } from './notification-email-consumer.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
 import { deliverSeatSync } from './seat-sync-consumer.ts'
-import {
-  consumeBatch,
-  deliverWebhook,
-  recordDeadLetter,
-  runInvocation,
-  type Env
-} from './webhook-consumer.ts'
+import { deliverWebhook, recordDeadLetter } from './webhook-consumer.ts'
+import { consumeBatch, runInvocation, type Env } from './queue-consumer.ts'
 
 export default Sentry.withSentry((env: Env) => makeSentryOptions('background', env), {
   // Pure platform adapter: routing, signature checks, and Stripe processing
@@ -35,17 +30,15 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
     return handleStripeRequest(request, env)
   },
 
-  // Queue message bodies are untyped at runtime; `processWebhookMessage` and
-  // `processDeadLetterMessage` decode the envelope at their boundary. Both
-  // consumers share one batch loop (`consumeBatch`); dead letters always ack.
-  // The seat-sync branch routes on its own queue the same way, so its messages
-  // never reach the webhook delivery reader.
+  // Queue message bodies are untyped at runtime; every consumer decodes the
+  // envelope at its own boundary. All queues share one batch loop
+  // (`consumeBatch`); dead letters ack, unless the terminal-row write itself
+  // just failed — that one failure folds into a bounded retry so the
+  // `dead_lettered` evidence is not lost to a store blip.
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     wireWideEventProviders(env)
     if (batch.queue === webhookDeadLetterQueueName) {
-      return consumeBatch(env, batch, (message) =>
-        Effect.as(recordDeadLetter(message, env), 'ack')
-      )
+      return consumeBatch(env, batch, (message) => recordDeadLetter(message, env))
     }
     // Workspace export jobs (ADR 0055): build the archive into R2.
     if (batch.queue === workspaceExportQueueName) {

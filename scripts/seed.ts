@@ -19,10 +19,10 @@ import {
   hashApiToken,
   SEED_API_TOKEN
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   demoMemberIdentity,
   demoUserIdentity,
+  seedAuditEvents,
   seedMcpClientConnections,
   seedMcpClients,
   seedSsoConnections
@@ -126,7 +126,6 @@ const collectFixture = Effect.gen(function* () {
   const membership = yield* WorkspaceMembership
   const tokens = yield* ApiTokenRegistry
   const webhooks = yield* WebhookEndpoints
-  const audit = yield* AuditEventLog
   const notificationFeed = yield* NotificationFeed
   const notificationPrefs = yield* NotificationPreferences
   const userAdmin = yield* PlatformUserAdmin
@@ -144,7 +143,6 @@ const collectFixture = Effect.gen(function* () {
     deliveries: yield* Effect.forEach(endpoints, (endpoint) =>
       webhooks.listDeliveries({ endpointId: endpoint.id })
     ),
-    auditEvents: yield* audit.listGlobal,
     notifications: yield* notificationFeed.list,
     // The demo owner's explicit email choices — only the non-default rows are
     // stored, exactly as the Live adapter would after the user picked them.
@@ -359,8 +357,15 @@ function webhookDeliveryRows(fixture: Fixture): ReadonlyArray<string> {
   )
 }
 
-function auditRows(fixture: Fixture): ReadonlyArray<string> {
-  return fixture.auditEvents.map((event) =>
+/**
+ * The audit rows come straight from the fixture's source rows
+ * (`seedAuditEvents`): the wire projection the Seed adapter serves hides
+ * `actorUserId`, so the fixture is the only place the column exists — and a
+ * row's `targetId` must reach D1 verbatim rather than be re-derived. Both
+ * columns are written exactly as the fixture carries them.
+ */
+function auditRows(): ReadonlyArray<string> {
+  return seedAuditEvents.map((event) =>
     insert(auditEvents, {
       id: event.id,
       // A row is workspace-scoped only when it says so; omitted means
@@ -368,10 +373,10 @@ function auditRows(fixture: Fixture): ReadonlyArray<string> {
       // system events (admin mutations, account security) never leak into a
       // workspace trail.
       workspaceId: event.workspaceId ?? null,
-      actorUserId: fixture.members.find((member) => member.name === event.actor)?.id,
+      actorUserId: event.actorUserId ?? null,
       eventType: event.eventType,
       targetType: event.targetType,
-      targetId: event.id,
+      targetId: event.targetId,
       metadata: { seeded: true },
       createdAt: event.createdAt
     })
@@ -533,7 +538,7 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...subscriptionRows(fixture),
     ...webhookDeliveryRows(fixture),
     ...mcpClientRows(),
-    ...auditRows(fixture),
+    ...auditRows(),
     ...notificationRows(fixture),
     ...notificationPreferenceRows(fixture)
   ].join('\n')}\n`

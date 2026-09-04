@@ -1,6 +1,6 @@
 import { type WorkspaceExport } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -130,11 +130,7 @@ export function WorkspaceExportPanel({
           ))}
         </ItemGroup>
       )}
-      {request.error === null ? null : (
-        <Alert variant="destructive">
-          <AlertDescription>{request.error}</AlertDescription>
-        </Alert>
-      )}
+      <ActionFeedback error={request.error} />
     </div>
   )
 }

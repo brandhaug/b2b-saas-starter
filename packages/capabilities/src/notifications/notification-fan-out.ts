@@ -1,5 +1,7 @@
 import { Effect, Result } from 'effect'
 
+import { bestEffort } from '../internal/best-effort.ts'
+import { withTraceparent } from '../internal/traceparent.ts'
 import {
   type NotificationEmailQueueBinding,
   type NotificationEmailQueueMessage
@@ -18,16 +20,6 @@ export type InstantFanOutInput = {
   readonly kind: NotificationKind
   readonly recipients: ReadonlyArray<EmailQueueRecipient>
   readonly traceparent: string | undefined
-}
-
-function withTraceparent(
-  message: NotificationEmailQueueMessage,
-  traceparent: string | undefined
-): NotificationEmailQueueMessage {
-  if (traceparent === undefined) {
-    return message
-  }
-  return { ...message, traceparent }
 }
 
 /**
@@ -69,19 +61,17 @@ export function enqueueInstantEmails(
     if (messages.length === 0) {
       return
     }
-    const sent = yield* Effect.result(
+    const sent = yield* bestEffort(
       Effect.tryPromise({
         try: () => queue.sendBatch(messages),
         catch: (cause) => cause
+      }),
+      () => ({
+        notificationEmailEnqueue: 'failed',
+        notificationEmailRecipients: messages.length
       })
     )
     if (Result.isFailure(sent)) {
-      yield* Effect.void.pipe(
-        Effect.annotateLogs({
-          notificationEmailEnqueue: 'failed',
-          notificationEmailRecipients: messages.length
-        })
-      )
       return
     }
     yield* Effect.void.pipe(

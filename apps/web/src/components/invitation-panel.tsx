@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/item'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Identifier } from '@/components/page/identifier'
-import { ListSection, Panel } from '@/components/page/panel'
+import { CreateSection, ListSection, Panel } from '@/components/page/panel'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { viewerCan, type Viewer } from '@/lib/permissions'
@@ -106,7 +106,11 @@ export function InvitationPanel({
       title="Invitations"
       description="Invite someone by email; they join once they open the link and accept."
     >
-      {canInvite ? (
+      <CreateSection
+        allowed={canInvite}
+        title="Invite a member"
+        deniedReason="Your role cannot invite members."
+      >
         <form
           onSubmit={(event) => {
             event.preventDefault()
@@ -185,11 +189,7 @@ export function InvitationPanel({
           ) : null}
           <ActionFeedback error={send.error} />
         </form>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          Your role cannot invite members.
-        </p>
-      )}
+      </CreateSection>
 
       <ListSection
         title="Pending invitations"

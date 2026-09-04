@@ -12,20 +12,113 @@ export type RateLimitBindingSpec = {
   readonly period: 10 | 60
 }
 
-export const apiRateLimits: ReadonlyArray<RateLimitBindingSpec> = [
-  { name: 'RATE_LIMITER_REST', namespaceId: '1001', limit: 60, period: 60 },
-  { name: 'RATE_LIMITER_REST_WRITE', namespaceId: '1002', limit: 20, period: 60 },
-  { name: 'RATE_LIMITER_ASSISTANT', namespaceId: '1004', limit: 20, period: 60 },
-  { name: 'RATE_LIMITER_MCP', namespaceId: '1005', limit: 30, period: 60 }
-]
+/**
+ * The rate-limit buckets each worker's code names. The app shims
+ * (`apps/api/src/rate-limit.ts`, `apps/web/src/lib/rate-limit.ts`,
+ * `apps/web/src/worker-env.d.ts`) derive their env types and resolvers from
+ * these unions, so a bucket added here fails their build until its row below
+ * (and the contract's bucket union) exists — the buckets cannot drift between
+ * infra and the apps the way hand-spelled names could.
+ */
+export type ApiRateLimitBucket = 'rest_read' | 'rest_write' | 'assistant' | 'mcp'
+export type WebRateLimitBucket = 'auth_read' | 'auth_write' | 'auth_sign_in'
 
-export const webRateLimits: ReadonlyArray<RateLimitBindingSpec> = [
-  { name: 'RATE_LIMITER_AUTH_READ', namespaceId: '2001', limit: 60, period: 60 },
-  { name: 'RATE_LIMITER_AUTH_WRITE', namespaceId: '2002', limit: 20, period: 60 },
-  // Credential sign-in only — tighter than the generic write bucket so a
-  // credential-stuffing attacker does not get twenty password guesses/min/IP.
-  { name: 'RATE_LIMITER_AUTH_SIGN_IN', namespaceId: '2003', limit: 5, period: 60 }
-]
+/**
+ * Bucket → binding name: the ONE place each rate-limit binding name is
+ * spelled. The specs below bind these names into the generated wrangler
+ * configs and Alchemy's worker envs, and the app shims resolve their env
+ * through them, so renaming a binding is one row here and the whole chain
+ * moves together.
+ */
+export const apiRateLimitBindingNames = {
+  rest_read: 'RATE_LIMITER_REST',
+  rest_write: 'RATE_LIMITER_REST_WRITE',
+  assistant: 'RATE_LIMITER_ASSISTANT',
+  mcp: 'RATE_LIMITER_MCP'
+} satisfies Record<ApiRateLimitBucket, ApiRateLimitBindingName>
+
+export const webRateLimitBindingNames = {
+  auth_read: 'RATE_LIMITER_AUTH_READ',
+  auth_write: 'RATE_LIMITER_AUTH_WRITE',
+  auth_sign_in: 'RATE_LIMITER_AUTH_SIGN_IN'
+} satisfies Record<WebRateLimitBucket, WebRateLimitBindingName>
+
+/** The binding names themselves, for env types keyed by binding. */
+export type ApiRateLimitBindingName =
+  | 'RATE_LIMITER_REST'
+  | 'RATE_LIMITER_REST_WRITE'
+  | 'RATE_LIMITER_ASSISTANT'
+  | 'RATE_LIMITER_MCP'
+
+export type WebRateLimitBindingName =
+  | 'RATE_LIMITER_AUTH_READ'
+  | 'RATE_LIMITER_AUTH_WRITE'
+  | 'RATE_LIMITER_AUTH_SIGN_IN'
+
+// Namespace, budget, and window per bucket — keyed by bucket like the names.
+const apiRateLimitTuning = {
+  rest_read: { namespaceId: '1001', limit: 60, period: 60 },
+  rest_write: { namespaceId: '1002', limit: 20, period: 60 },
+  assistant: { namespaceId: '1004', limit: 20, period: 60 },
+  mcp: { namespaceId: '1005', limit: 30, period: 60 }
+} satisfies Record<ApiRateLimitBucket, Omit<RateLimitBindingSpec, 'name'>>
+
+// Credential sign-in only — tighter than the generic write bucket so a
+// credential-stuffing attacker does not get twenty password guesses/min/IP.
+const webRateLimitTuning = {
+  auth_read: { namespaceId: '2001', limit: 60, period: 60 },
+  auth_write: { namespaceId: '2002', limit: 20, period: 60 },
+  auth_sign_in: { namespaceId: '2003', limit: 5, period: 60 }
+} satisfies Record<WebRateLimitBucket, Omit<RateLimitBindingSpec, 'name'>>
+
+/**
+ * Joins the name and tuning tables into the specs the two emitters bind, and
+ * the per-bucket budgets the app shims install as their in-memory fallback
+ * limits. One cast, contained: `Object.fromEntries` widens the key, while the
+ * `Record<Bucket, _>` return type owns exhaustiveness.
+ */
+/** What `rateLimitSpecs` joins a name table and a tuning table into. */
+type RateLimitTable<Bucket extends string> = {
+  readonly specs: Array<RateLimitBindingSpec>
+  readonly fallbackLimits: Record<Bucket, number>
+}
+
+function rateLimitSpecs<Bucket extends string>(
+  names: Record<Bucket, string>,
+  tuning: Record<Bucket, Omit<RateLimitBindingSpec, 'name'>>
+): RateLimitTable<Bucket> {
+  // SAFETY: Object.keys erases literal keys, but every key of `tuning` is a
+  // `Bucket` — the `Record<Bucket, _>` parameters own that exhaustiveness —
+  // so the assertion only restores what the operator dropped.
+  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see SAFETY above
+  const buckets = Object.keys(tuning) as Array<Bucket>
+  return {
+    specs: buckets.map((bucket) => ({ name: names[bucket], ...tuning[bucket] })),
+    // SAFETY: Object.fromEntries widens the key the same way Object.keys
+    // does; the `RateLimitTable` return annotation is the check.
+    // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see SAFETY above
+    fallbackLimits: Object.fromEntries(
+      buckets.map((bucket) => [bucket, tuning[bucket].limit])
+    ) as Record<Bucket, number>
+  }
+}
+
+const apiRateLimitTable = rateLimitSpecs(apiRateLimitBindingNames, apiRateLimitTuning)
+const webRateLimitTable = rateLimitSpecs(webRateLimitBindingNames, webRateLimitTuning)
+
+/** The specs `alchemy.run.ts` and `infra/write-wrangler.ts` both emit. */
+export const apiRateLimits: ReadonlyArray<RateLimitBindingSpec> =
+  apiRateLimitTable.specs
+
+export const webRateLimits: ReadonlyArray<RateLimitBindingSpec> =
+  webRateLimitTable.specs
+
+/** The per-bucket budgets behind the specs' `limit`, importable once. */
+export const apiFallbackLimits: Readonly<Record<ApiRateLimitBucket, number>> =
+  apiRateLimitTable.fallbackLimits
+
+export const webFallbackLimits: Readonly<Record<WebRateLimitBucket, number>> =
+  webRateLimitTable.fallbackLimits
 
 export const webhookQueueName = 'b2b-saas-starter-webhooks'
 export const webhookDeadLetterQueueName = 'b2b-saas-starter-webhooks-dlq'
@@ -66,6 +159,27 @@ export const notificationEmailQueueName = 'b2b-saas-starter-notification-emails'
  * Notifications per recipient. Alchemy and wrangler both read this constant.
  */
 export const notificationDigestCron = '0 8 * * *'
+
+/**
+ * Binding key names: the env-facing half of a queue binding. The physical
+ * queue names above are single-sourced already; these keys are the other
+ * half a rename could desynchronize between Alchemy's worker `env` objects
+ * and the generated wrangler configs, so both emitters read them from this
+ * record instead of inlining the strings.
+ */
+export const queueBindingKeys = {
+  webhookQueue: 'WEBHOOK_QUEUE',
+  billingQueue: 'BILLING_QUEUE',
+  notificationEmailQueue: 'NOTIFICATION_EMAIL_QUEUE',
+  workspaceExportQueue: 'WORKSPACE_EXPORT_QUEUE'
+} satisfies Record<QueueBindingKey, string>
+
+/** The queue bindings a worker's env may carry, by role. */
+export type QueueBindingKey =
+  | 'webhookQueue'
+  | 'billingQueue'
+  | 'notificationEmailQueue'
+  | 'workspaceExportQueue'
 
 /**
  * One compatibility date and flag set for every worker — production
@@ -124,12 +238,29 @@ export const productionStage = 'prod'
 
 export const stageNamePattern = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/
 
-/** `pr-<number>` stages are the ephemeral per-pull-request previews (ADR 0054). */
+/** `pr-<number>` stages are the ephemeral per-pull-request previews (ADR 0065). */
 export function isPreviewStage(stage: string): boolean {
   return /^pr-\d+$/.test(stage)
 }
 
 export type WorkerApp = 'web' | 'api' | 'background'
+
+/**
+ * Each worker's entry point, relative to its own app directory — the shape
+ * the generated wrangler configs want under `main`. `workerMainPath` composes
+ * the repo-root-relative spelling Alchemy runs under, so both emitters
+ * resolve from this one record rather than spelling the path twice.
+ */
+export const workerEntryPoints = {
+  web: 'src/server.ts',
+  api: 'src/index.ts',
+  background: 'src/index.ts'
+} satisfies Record<WorkerApp, string>
+
+/** `main` as Alchemy spells it: repo-root-relative. */
+export function workerMainPath(app: WorkerApp): string {
+  return `./apps/${app}/${workerEntryPoints[app]}`
+}
 
 export type StageResourceNames = {
   readonly stage: string

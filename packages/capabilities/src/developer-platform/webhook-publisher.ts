@@ -1,9 +1,11 @@
 import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { Database } from '@b2b-saas-starter/db/service'
 import { webhookEndpoints } from '@b2b-saas-starter/db/schema'
-import { Context, Effect, Layer, Result, Schema } from 'effect'
+import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import { type CapabilityUnavailable } from '../errors.ts'
+import { bestEffort } from '../internal/best-effort.ts'
+import { withTraceparent } from '../internal/traceparent.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
@@ -112,35 +114,15 @@ export function publishWebhookEventWith(
   publisher: WebhookPublisherInterface,
   input: PublishWebhookEventInput
 ): Effect.Effect<void, never, WorkspaceContext> {
-  return Effect.gen(function* () {
-    const published = yield* Effect.result(publisher.publish(input))
-    if (Result.isFailure(published)) {
-      yield* Effect.void.pipe(
-        Effect.annotateLogs({
-          webhookPublish: 'failed',
-          webhookPublishReason: published.failure.reason
-        })
-      )
-    }
-  })
+  return Effect.asVoid(
+    bestEffort(publisher.publish(input), (failure) => ({
+      webhookPublish: 'failed',
+      webhookPublishReason: failure.reason
+    }))
+  )
 }
 
 const unavailable = orUnavailable('webhook-publisher')
-
-/**
- * Adds the producing request's `traceparent` onto a queue message. The field
- * is an optional *key* on the wire schema, so it is only present when a span
- * exists (tests, direct calls run without one).
- */
-function withTraceparent(
-  message: WebhookQueueMessage,
-  traceparent: string | undefined
-): WebhookQueueMessage {
-  if (traceparent === undefined) {
-    return message
-  }
-  return { ...message, traceparent }
-}
 
 /**
  * Stamps the pre-resolved delivery row onto an operator message. Schema types

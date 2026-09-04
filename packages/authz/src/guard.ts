@@ -1,5 +1,5 @@
 import { Effect, type Scope } from 'effect'
-import { AuthorizationDenied } from './errors.ts'
+import { AUTHORIZATION_DENIED_REASONS, AuthorizationDenied } from './errors.ts'
 import {
   authorize,
   type PermissionRequest,
@@ -53,7 +53,9 @@ export function requirePermission(
         authReason: 'no_principal',
         permission: describe(request)
       })
-      return yield* Effect.fail(new AuthorizationDenied({ reason: 'no_principal' }))
+      return yield* Effect.fail(
+        new AuthorizationDenied({ reason: AUTHORIZATION_DENIED_REASONS.noPrincipal })
+      )
     }
 
     const decision = authorize(principal, request)
@@ -68,7 +70,9 @@ export function requirePermission(
       permission: describe(request)
     })
     return yield* Effect.fail(
-      new AuthorizationDenied({ reason: 'insufficient_permission' })
+      new AuthorizationDenied({
+        reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
+      })
     )
   })
 }

@@ -6,7 +6,10 @@ import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { selectWorkspaceContextLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { type ActorRef } from '@b2b-saas-starter/capabilities/workspace-context'
 import { type McpAccessTokenPrincipal } from '@b2b-saas-starter/authz/mcp-access-token'
-import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
+import {
+  AUTHORIZATION_DENIED_REASONS,
+  AuthorizationDenied
+} from '@b2b-saas-starter/authz/errors'
 import { Effect, Layer, Redacted, Result, type Scope } from 'effect'
 import { HttpServerRequest } from 'effect/unstable/http'
 
@@ -14,10 +17,9 @@ import {
   ApiPrincipal,
   BearerAuth,
   rateLimitBucketFor,
-  RateLimited,
-  Unauthorized,
   type ApiPrincipalValue
 } from '@b2b-saas-starter/api'
+import { RateLimited, Unauthorized } from '@b2b-saas-starter/api/errors'
 import { starterEnv, type ApiEnv } from './env.ts'
 import { looksLikeJwt, OAuthTokenVerifier } from './oauth-access-token.ts'
 import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
@@ -114,7 +116,7 @@ export function verifyToken(
 /**
  * Who is calling the MCP server: a workspace API Token (scripts, CI) or an
  * OAuth access token minted for a signed-in Member by the web worker (Claude,
- * Cursor, …) — ADR 0055. Both name exactly one workspace; only the OAuth caller
+ * Cursor, …) — ADR 0068. Both name exactly one workspace; only the OAuth caller
  * names a user, which is what lets its calls resolve a real `Actor` and
  * authorize as that Member rather than as a scope set.
  */
@@ -205,7 +207,9 @@ export function enforcePermission(
         tokenWorkspaceSlug: verified.workspaceSlug
       })
       return yield* Effect.fail(
-        new AuthorizationDenied({ reason: 'token_workspace_mismatch' })
+        new AuthorizationDenied({
+          reason: AUTHORIZATION_DENIED_REASONS.tokenWorkspaceMismatch
+        })
       )
     }
 

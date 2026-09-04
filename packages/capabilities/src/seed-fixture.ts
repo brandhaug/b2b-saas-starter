@@ -7,13 +7,14 @@ import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
 import { type SeedNotification } from './notifications/notification-feed.ts'
 import { type SeedNotificationPreference } from './notifications/notification-preferences.ts'
 import { type SeedWebhookEndpointFixture } from './developer-platform/webhook-endpoints.seed.ts'
-import { type SeedWebhookDeliveryFixture } from './developer-platform/webhook-delivery-plan.ts'
+import {
+  type SeedWebhookDeliveryFixture,
+  WEBHOOK_USER_AGENT
+} from './developer-platform/webhook-delivery-plan.ts'
 import { type Member, type Workspace } from './governance/workspace-identity.ts'
 import { type SeedSsoConnection } from './governance/workspace-sso-connections.seed.ts'
-import {
-  type SeedMembership,
-  type SystemUserAccount
-} from './governance/platform-user-admin.ts'
+import { type SystemUserAccount } from './governance/platform-user-admin.ts'
+import { type SeedMembership } from './governance/platform-user-admin.seed.ts'
 import { type SeedWorkspaceExportFixture } from './governance/workspace-export.seed.ts'
 
 export const seedWorkspaceRecord: Workspace = {
@@ -128,7 +129,7 @@ export const seedApiTokens: ReadonlyArray<ApiToken> = [
 /**
  * The one MCP Client the fixture knows: a Client ID Metadata Document client
  * (its `clientId` is the HTTPS URL of that document), the shape every
- * interactive MCP client registers with (ADR 0055).
+ * interactive MCP client registers with (ADR 0068).
  */
 const seedMcpClient: McpClientSummary = {
   clientId: 'https://mcp-client.example.com/oauth/client-metadata.json',
@@ -173,13 +174,14 @@ export const seedWebhookEndpoints: ReadonlyArray<SeedWebhookEndpointFixture> = [
 
 /**
  * The request header block the background worker posts with every delivery —
- * the same shape `apps/background` records onto the row. Fixture helper so the
- * seeded history reads like the real thing.
+ * the same shape `apps/background` records onto the row, with the capability's
+ * own `WEBHOOK_USER_AGENT`. Fixture helper so the seeded history reads like
+ * the real thing.
  */
 function seedDeliveryRequestHeaders(eventType: string) {
   return {
     'content-type': 'application/json',
-    'user-agent': 'b2b-saas-starter-webhooks/0.1',
+    'user-agent': WEBHOOK_USER_AGENT,
     'x-b2b-starter-event': eventType,
     'x-b2b-starter-timestamp': '1779501690',
     'x-b2b-starter-signature':
@@ -408,7 +410,7 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
  * One **disabled** example SSO connection, so the settings UI shows a
  * populated state in the demo. Disabled is the load-bearing part: the row
  * exists, but `resolveRouting` ignores it, so no sign-in is ever intercepted
- * (ADR 0055's routing rule). The domain matches none of the fixture member
+ * (ADR 0069's routing rule). The domain matches none of the fixture member
  * addresses either — belt and braces for a demo row that is never enabled.
  */
 export const seedSsoConnections: ReadonlyArray<SeedSsoConnection> = [

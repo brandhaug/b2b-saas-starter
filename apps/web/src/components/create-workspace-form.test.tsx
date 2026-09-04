@@ -3,8 +3,6 @@ import { describe, expect, it, vi } from 'vite-plus/test'
 import { CreateWorkspaceForm, type CreateWorkspace } from './create-workspace-form'
 import { renderWithRouter } from '@/test/router-harness'
 
-const userId = 'usr_tester'
-
 const createdWorkspace = {
   id: 'wrk_new',
   slug: 'acme-corp',
@@ -13,13 +11,11 @@ const createdWorkspace = {
 }
 
 async function renderForm(createWorkspace: CreateWorkspace) {
-  return renderWithRouter(
-    <CreateWorkspaceForm userId={userId} createWorkspace={createWorkspace} />
-  )
+  return renderWithRouter(<CreateWorkspaceForm createWorkspace={createWorkspace} />)
 }
 
 describe('CreateWorkspaceForm', () => {
-  it('submits the name, slug, and user id through its port', async () => {
+  it('submits the name and slug through its port', async () => {
     const createWorkspace = vi.fn<CreateWorkspace>().mockResolvedValue(createdWorkspace)
     await renderForm(createWorkspace)
 
@@ -31,7 +27,7 @@ describe('CreateWorkspaceForm', () => {
     // The slug mirrored the typed name without the visitor touching that field.
     await waitFor(() =>
       expect(createWorkspace).toHaveBeenCalledWith({
-        data: { name: 'Acme Corp', slug: 'acme-corp', userId }
+        data: { name: 'Acme Corp', slug: 'acme-corp' }
       })
     )
   })
@@ -57,7 +53,7 @@ describe('CreateWorkspaceForm', () => {
 
     await waitFor(() =>
       expect(createWorkspace).toHaveBeenCalledWith({
-        data: { name: 'Something Else', slug: 'my-slug', userId }
+        data: { name: 'Something Else', slug: 'my-slug' }
       })
     )
   })

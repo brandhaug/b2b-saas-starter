@@ -1,13 +1,17 @@
-import { createDrizzleDb, type DrizzleDatabase } from '@b2b-saas-starter/db/client'
+import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { account, user, workspaceMembers } from '@b2b-saas-starter/db/schema'
-import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
-import { Effect, Layer } from 'effect'
+import { Effect, type Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 import { createSign, generateKeyPairSync } from 'node:crypto'
-import { type Service } from 'effectful-better-auth'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
-import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './index.ts'
-import { testMcpConfig } from './test-mcp.ts'
+import { Auth } from './index.ts'
+import {
+  buildAuthLayer,
+  provisionAuthD1,
+  signUpSession,
+  type AuthService,
+  type ProvisionedAuthD1
+} from './test-auth-layer.ts'
 
 // The `sso` plugin's OIDC flow is only observable end to end against a real
 // database AND a real IdP. This suite stands the IdP up as a `globalThis.fetch`
@@ -16,21 +20,12 @@ import { testMcpConfig } from './test-mcp.ts'
 // domain, redirect out, callback in — so provisioning and role assignment are
 // asserted against the rows the plugin actually wrote, not a mocked service.
 
-type AuthService = Service<AuthOptions>
-
 const ISSUER = 'https://idp.roundtrip.test'
 const PROVIDER_ID = 'rt_oidc'
 
-let testD1: TestD1
 let db: DrizzleDatabase
+let provisioned: ProvisionedAuthD1
 let authLayer: Layer.Layer<AuthService>
-
-const capturingEmailSender: AuthEmailSender = {
-  sendResetPassword: () => Promise.resolve(),
-  sendVerificationEmail: () => Promise.resolve(),
-  sendOneTimeCode: () => Promise.resolve(),
-  sendMagicLink: () => Promise.resolve()
-}
 
 /* -------------------------------------------------------------------------- */
 /* The stand-in identity provider                                              */
@@ -132,30 +127,10 @@ beforeAll(
   () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        testD1 = yield* Effect.promise(() => provisionTestD1())
-        db = createDrizzleDb(testD1.d1)
+        provisioned = yield* Effect.promise(() => provisionAuthD1())
+        db = provisioned.db
         globalThis.fetch = stubbedFetch
-        authLayer = Auth.layer.pipe(
-          Layer.provide(
-            Layer.sync(AuthConfig)(() => ({
-              db,
-              secret: 'test-secret-at-least-32-characters-long',
-              baseURL: 'http://localhost:3071',
-              trustedOrigins: [],
-              emails: capturingEmailSender,
-              socialProviders: {},
-              accountHooks: {
-                onAccountLinked: () => Promise.resolve(),
-                onAccountUnlinked: () => Promise.resolve()
-              },
-              requireEmailVerification: false,
-              runBackground: (promise) => {
-                void promise.catch(() => undefined)
-              },
-              mcp: testMcpConfig()
-            }))
-          )
-        )
+        authLayer = buildAuthLayer(db)
       })
     ),
   60_000
@@ -164,30 +139,11 @@ beforeAll(
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- disposes the workerd process and the fetch stub
 afterAll(() => {
   globalThis.fetch = realFetch
-  return testD1.dispose()
+  return provisioned.dispose()
 })
 
 function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
   return Effect.runPromise(Effect.provide(effect, authLayer))
-}
-
-/** A real session cookie for the connection-registering owner. */
-function signUpSession(email: string) {
-  return Effect.gen(function* () {
-    const auth = yield* Auth.Tag
-    const { headers, response } = yield* Effect.promise(() =>
-      auth.instance.api.signUpEmail({
-        body: { email, name: email, password: 'correct-horse-battery-staple' },
-        returnHeaders: true
-      })
-    )
-    const setCookies = headers.getSetCookie()
-    if (setCookies.length === 0) {
-      return yield* Effect.die(`sign-up set no cookie for ${email}`)
-    }
-    const cookieHeader = setCookies.map((cookie) => cookie.split(';')[0]).join('; ')
-    return { headers: new Headers({ cookie: cookieHeader }), userId: response.user.id }
-  })
 }
 
 describe('workspace SSO over the sso plugin', () => {
@@ -269,13 +225,13 @@ describe('workspace SSO over the sso plugin', () => {
           db.select().from(user).where(eq(user.email, 'provisioned@roundtrip.test'))
         )
         expect(users).toHaveLength(1)
-        const provisioned = users[0]
+        const provisionedUser = users[0]
         // …linked to the IdP account…
         const accounts = yield* Effect.promise(() =>
           db.select().from(account).where(eq(account.providerId, PROVIDER_ID))
         )
         expect(accounts).toHaveLength(1)
-        expect(accounts[0]?.userId).toBe(provisioned?.id)
+        expect(accounts[0]?.userId).toBe(provisionedUser?.id)
         // …and added to the workspace with the connection's default role.
         const members: Array<typeof workspaceMembers.$inferSelect> =
           yield* Effect.promise(() =>
@@ -285,7 +241,7 @@ describe('workspace SSO over the sso plugin', () => {
               .where(eq(workspaceMembers.workspaceId, workspace.id))
           )
         const provisionedMember = members.find(
-          (member) => member.userId === provisioned?.id
+          (member) => member.userId === provisionedUser?.id
         )
         expect(provisionedMember?.role).toBe('admin')
 

@@ -35,7 +35,7 @@ import {
 } from '@b2b-saas-starter/ai'
 import { type ApiTokenScope } from '@b2b-saas-starter/authz/client'
 import { type RateLimiterInterface as GenericRateLimiterInterface } from '@b2b-saas-starter/rate-limit'
-import { Context, Option, Schema } from 'effect'
+import { Context, Schema } from 'effect'
 import {
   HttpApi,
   HttpApiEndpoint,
@@ -46,95 +46,17 @@ import {
   OpenApi
 } from 'effect/unstable/httpapi'
 
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class InternalError extends Schema.TaggedError<InternalError>()(
-  'InternalError',
-  { traceId: Schema.String },
-  { httpApiStatus: 500 }
-) {}
-
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
-  'Unauthorized',
-  { message: Schema.String },
-  { httpApiStatus: 401 }
-) {}
-
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class RateLimited extends Schema.TaggedError<RateLimited>()(
-  'RateLimited',
-  { bucket: Schema.String },
-  { httpApiStatus: 429 }
-) {}
-
-/**
- * The failures a *non-contract* surface can raise before it reaches its own
- * wire format — today only the MCP protocol route at `POST /mcp`, which speaks
- * JSON-RPC and therefore encodes its own responses. It composes the same
- * guards the contract's `BearerAuth` middleware does, so it can fail in exactly
- * these four ways.
- */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
-const GUARD_FAILURE_SCHEMAS = [
-  Unauthorized,
-  AuthorizationDenied,
+import {
+  InternalError,
   RateLimited,
-  CapabilityUnavailable
-] as const
+  Unauthorized,
+  WorkspaceExportNotDownloadable
+} from './errors.ts'
 
-export const GuardFailure = Schema.Union(GUARD_FAILURE_SCHEMAS)
-export type GuardFailure = typeof GuardFailure.Type
-
-const encodeGuardFailure = Schema.encodeSync(GuardFailure)
-
-/**
- * The annotations a guard failure must carry to be encodable: its tag (the
- * `identifier` every `Schema.TaggedError` sets) and the status
- * `HttpApiBuilder` gives it. Annotations are an open `unknown` bag, so they
- * are decoded here rather than read on faith.
- */
-const StatusAnnotations = Schema.Struct({
-  identifier: Schema.String,
-  httpApiStatus: Schema.Number
-})
-
-const decodeStatusAnnotations = Schema.decodeUnknownOption(StatusAnnotations)
-
-/**
- * Status by tag, read off the error schemas rather than restated: the
- * `httpApiStatus` annotation each class already carries is the one
- * `HttpApiBuilder` uses to encode the REST response, so there is no second
- * table for a non-contract surface to drift from. A class that somehow lost
- * its annotation gets no row, and `guardFailureResponse` answers 500 — the
- * honest status for "this failure has no declared encoding".
- */
-const GUARD_FAILURE_STATUS: ReadonlyMap<string, number> = new Map(
-  GUARD_FAILURE_SCHEMAS.flatMap((schema: Schema.Top) =>
-    Option.match(decodeStatusAnnotations(schema.ast.annotations), {
-      onNone: (): ReadonlyArray<[string, number]> => [],
-      onSome: (annotations) => [[annotations.identifier, annotations.httpApiStatus]]
-    })
-  )
-)
-
-/**
- * The HTTP encoding of a guard failure outside the contract's error channel:
- * the status from the schema's annotation, the body from the schema's own
- * encoding. Both halves come from the same declarations `HttpApiBuilder` reads,
- * so `POST /mcp` answers a rejected request byte-for-byte the way a REST route
- * would.
- */
-export type GuardFailureResponse = {
-  readonly status: number
-  readonly body: typeof GuardFailure.Encoded
-}
-
-export function guardFailureResponse(error: GuardFailure): GuardFailureResponse {
-  return {
-    status: GUARD_FAILURE_STATUS.get(error._tag) ?? 500,
-    body: encodeGuardFailure(error)
-  }
-}
+// The contract's error schemas and their HTTP encoding live in `./errors.ts`
+// (subpath `@b2b-saas-starter/api/errors`) — not re-exported here, so the
+// package root stays lean for the contract's consumers while the error
+// surface stays one import away.
 
 /**
  * The rate-limit buckets the contract's gated groups draw from, and the
@@ -225,18 +147,6 @@ export class BearerAuth extends HttpApiMiddleware.Service<
   error: [Unauthorized, RateLimited, CapabilityUnavailable]
 }) {}
 
-/**
- * The export named by a download-link request is not one this workspace can
- * hand out right now: unknown, pending, failed, or past its retention horizon.
- * One answer for every case, so a probing caller learns nothing about which.
- */
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class WorkspaceExportNotDownloadable extends Schema.TaggedError<WorkspaceExportNotDownloadable>()(
-  'WorkspaceExportNotDownloadable',
-  { exportId: Schema.String },
-  { httpApiStatus: 404 }
-) {}
-
 // HttpApi reads these tuple element types to build each endpoint's error union.
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const WORKSPACE_ERRORS = [
@@ -272,6 +182,13 @@ const DeliveryParams = Schema.Struct({
  * optional opaque `cursor` and an optional `limit`. `limit` defaults to 50
  * and is capped at 200 by the capability layer — the contract accepts any
  * number and lets the clamp, not a 400, absorb out-of-range values.
+ *
+ * Known behavioral divergence from the MCP surface, documented on both
+ * declarations: this Effect-v4 query codec treats an undecodable optional as
+ * absent, so `?limit=abc` decodes the field away and the read serves the
+ * default page — while the MCP tools' zod `PAGED_TOOL_INPUT`
+ * (apps/api/src/mcp.ts) rejects a `limit` that is not a JSON number with a
+ * tool-call error. Same vocabulary, one edge case apart.
  */
 export const ListPageQuery = Schema.Struct({
   cursor: Schema.optionalKey(Schema.String),

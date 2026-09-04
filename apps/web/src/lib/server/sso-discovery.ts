@@ -10,7 +10,7 @@ import { type OidcEndpoints } from '@b2b-saas-starter/capabilities/governance/wo
 
 /**
  * The live IdP checks behind the settings form's "Test" step and the OIDC
- * create flow (ADR 0055).
+ * create flow (ADR 0069).
  *
  * Both halves run here, in the app, rather than inside the capability: the
  * discovery client is a vendor API call like billing's Stripe client, and the

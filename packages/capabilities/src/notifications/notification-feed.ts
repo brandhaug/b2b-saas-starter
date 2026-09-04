@@ -150,7 +150,7 @@ export type NotificationFeedInterface = {
   ) => Effect.Effect<Notification, CapabilityUnavailable>
 
   /**
-   * Records one workspace-scoped notification (ADR 0055's failed-test owner
+   * Records one workspace-scoped notification (ADR 0069's failed-test owner
    * notification is the first producer). Upstream emitters call this after
    * the thing they are describing has happened — the audit log is the record
    * of the change itself, this is the message a member sees in their feed.

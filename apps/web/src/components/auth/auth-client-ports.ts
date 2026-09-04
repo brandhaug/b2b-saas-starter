@@ -44,7 +44,7 @@ export function signInWithAuthClient(
  * Domain-routed SSO sign-in: Better Auth's `/sign-in/sso` resolves the email's
  * domain to a stored connection and answers with the IdP redirect URL. The
  * page (not this adapter) decides *whether* to call it — the routing decision
- * is the starter's own rule (ADR 0055), asked through
+ * is the starter's own rule (ADR 0069), asked through
  * `resolveSsoRoutingServerFn` first, and the auth gate refuses the endpoint
  * when the resolution is a disabled connection.
  */

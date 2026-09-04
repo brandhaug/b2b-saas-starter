@@ -1,19 +1,25 @@
-import { createDrizzleDb, type DrizzleDatabase } from '@b2b-saas-starter/db/client'
+import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { passkey as passkeyTable, user } from '@b2b-saas-starter/db/schema'
-import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import {
   type AuthenticationResponseJSON,
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
   type RegistrationResponseJSON
 } from '@better-auth/passkey/client'
-import { Effect, Layer } from 'effect'
+import { Effect, type Layer } from 'effect'
 import { eq } from 'drizzle-orm'
-import { type Service } from 'effectful-better-auth'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
-import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './index.ts'
-import { testMcpConfig } from './test-mcp.ts'
-import { decodeUriSecret } from './test-totp.ts'
+import { Auth } from './index.ts'
+import {
+  buildAuthLayer,
+  enableTotp,
+  mergeCookies,
+  provisionAuthD1,
+  responseCookies,
+  signUpSession,
+  type AuthService,
+  type ProvisionedAuthD1
+} from './test-auth-layer.ts'
 
 /* oxlint-disable effect/noGlobals, effect/noAsyncFunction -- these tests run a
    mocked WebAuthn ceremony over real WebCrypto: the whole point is that ES256
@@ -33,58 +39,28 @@ import { decodeUriSecret } from './test-totp.ts'
 // enabled, because the plugin creates the session directly instead of going
 // through the credential-sign-in path the two-factor hook intercepts.
 
-type AuthService = Service<AuthOptions>
-
 const BASE_URL = 'http://localhost:3071'
 const RP_ID = 'localhost'
 
-let testD1: TestD1
 let db: DrizzleDatabase
+let provisioned: ProvisionedAuthD1
 let authLayer: Layer.Layer<AuthService>
-
-const capturingEmailSender: AuthEmailSender = {
-  sendResetPassword: () => Promise.resolve(),
-  sendVerificationEmail: () => Promise.resolve(),
-  sendOneTimeCode: () => Promise.resolve(),
-  sendMagicLink: () => Promise.resolve()
-}
 
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
   () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        testD1 = yield* Effect.promise(() => provisionTestD1())
-        db = createDrizzleDb(testD1.d1)
-        authLayer = Auth.layer.pipe(
-          Layer.provide(
-            Layer.sync(AuthConfig)(() => ({
-              db,
-              secret: 'test-secret-at-least-32-characters-long',
-              baseURL: BASE_URL,
-              trustedOrigins: [],
-              emails: capturingEmailSender,
-              // No provider configured: the Local Auth Path shape, unchanged.
-              socialProviders: {},
-              accountHooks: {
-                onAccountLinked: () => Promise.resolve(),
-                onAccountUnlinked: () => Promise.resolve()
-              },
-              requireEmailVerification: false,
-              runBackground: (promise) => {
-                void promise.catch(() => undefined)
-              },
-              mcp: testMcpConfig()
-            }))
-          )
-        )
+        provisioned = yield* Effect.promise(() => provisionAuthD1())
+        db = provisioned.db
+        authLayer = buildAuthLayer(db)
       })
     ),
   60_000
 )
 
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- disposes the workerd process
-afterAll(() => testD1.dispose())
+afterAll(() => provisioned.dispose())
 
 function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
   return Effect.runPromise(Effect.provide(effect, authLayer))
@@ -373,41 +349,6 @@ function makeAuthenticator() {
 /* Session + cookie plumbing                                                  */
 /* -------------------------------------------------------------------------- */
 
-function signUpSession(email: string) {
-  return Effect.gen(function* () {
-    const auth = yield* Auth.Tag
-    const { headers } = yield* Effect.promise(() =>
-      auth.instance.api.signUpEmail({
-        body: { email, name: email, password: 'correct-horse-battery-staple' },
-        returnHeaders: true
-      })
-    )
-    const cookieHeader = headers
-      .getSetCookie()
-      .map((cookie) => cookie.split(';')[0])
-      .join('; ')
-    if (cookieHeader.length === 0) {
-      return yield* Effect.die(`sign-up set no cookie for ${email}`)
-    }
-    return { cookieHeader }
-  })
-}
-
-/** Reads every `Set-Cookie` off a response as `name=value` pairs. */
-function responseCookies(headers: Headers): string {
-  return headers.getSetCookie().join('; ')
-}
-
-/** Merges two cookie strings, later pairs winning on name collisions. */
-function mergeCookies(left: string, right: string): string {
-  const merged = new Map(
-    [...left.split('; '), ...right.split('; ')]
-      .filter((pair) => pair.length > 0)
-      .map((pair) => [pair.split('=')[0]!, pair])
-  )
-  return [...merged.values()].join('; ')
-}
-
 /** Runs one full registration ceremony, returning the passkey row it wrote. */
 async function registerPasskey(
   cookieHeader: string,
@@ -564,39 +505,9 @@ describe('passkey plugin', () => {
         const { cookieHeader } = yield* signUpSession('passkey@twofactor.test')
         const authenticator = makeAuthenticator()
 
-        // Enable TOTP the same way the account panel does: enable → first
-        // verified code flips `twoFactorEnabled`.
-        const auth = yield* Auth.Tag
-        const enabled = yield* Effect.promise(() =>
-          auth.instance.api.enableTwoFactor({
-            body: { password: 'correct-horse-battery-staple' },
-            headers: new Headers({ cookie: cookieHeader }),
-            returnHeaders: true
-          })
-        )
-        if (enabled.response.method !== 'totp') {
-          return yield* Effect.die('expected TOTP enable response')
-        }
-        const secret = new URL(enabled.response.totpURI).searchParams.get('secret')
-        expect(secret).toBeTruthy()
-        const { code } = yield* auth.api.generateTOTP({
-          body: { secret: decodeUriSecret(secret ?? '') }
-        })
-        const verified = yield* Effect.promise(() =>
-          auth.instance.api.verifyTOTP({
-            body: { code },
-            headers: new Headers({
-              cookie: mergeCookies(cookieHeader, responseCookies(enabled.headers))
-            }),
-            returnHeaders: true
-          })
-        )
-        // The first verified code rotates the session (same as the two-factor
-        // suite): everything after this point carries the new cookie.
-        const freshCookieHeader = mergeCookies(
-          mergeCookies(cookieHeader, responseCookies(enabled.headers)),
-          responseCookies(verified.headers)
-        )
+        // Enable TOTP the way the account panel does — the shared ceremony's
+        // returned cookie carries the session through every rotation.
+        const { freshCookieHeader } = yield* enableTotp(cookieHeader)
 
         // The passkey ceremony opens a session DIRECTLY — no twoFactorRedirect
         // hop exists on this path (ADR 0056): the two-factor plugin's after

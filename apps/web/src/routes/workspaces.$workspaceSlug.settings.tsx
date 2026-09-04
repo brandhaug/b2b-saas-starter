@@ -125,7 +125,7 @@ export function WorkspaceSettingsPage({
           </p>
         )}
       </Panel>
-      {/* Single sign-on (ADR 0055): the segment is absent for an actor
+      {/* Single sign-on (ADR 0069): the segment is absent for an actor
           without sso:list, and the panel degrades each control per statement
           (sso:create/update/remove) against the payload's viewer. */}
       {ssoConnections === null ? null : (

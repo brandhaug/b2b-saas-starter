@@ -3,7 +3,7 @@
  * MCP client's authorization request, the page carries the provider's signed
  * OAuth query and `oauthProviderClient` attaches it to the auth call; the
  * provider then answers the sign-in with the authorization's next hop instead
- * of the session body (ADR 0054). This reads that hop off the opaque response.
+ * of the session body (ADR 0068). This reads that hop off the opaque response.
  */
 // oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- Better Auth's response `data` is untyped JSON at this boundary; these probes are the parse step (same as sign-in's `wantsTwoFactorRedirect`)
 export function oauthContinuationUrl(data: unknown): string | null {

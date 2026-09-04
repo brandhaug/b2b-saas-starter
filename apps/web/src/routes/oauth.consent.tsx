@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { PlugZapIcon } from 'lucide-react'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -20,7 +21,7 @@ import { callServerFn } from '@/lib/server-call'
 import { pickOptionalStrings } from '@/lib/utils'
 
 /**
- * The OAuth consent page (ADR 0055): an MCP client has asked to connect, the
+ * The OAuth consent page (ADR 0068): an MCP client has asked to connect, the
  * user is signed in, and two things are decided here — which one Workspace the
  * client gets, and whether the requested scopes are acceptable. The provider
  * sends every authorization here (it is both its post-login and consent hop),
@@ -161,10 +162,7 @@ export function OAuthConsentPage({
       error={error}
     >
       {request === null ? (
-        <p role="alert" className="text-sm text-destructive">
-          This page was opened without an authorization request. Start the connection
-          from your MCP client again.
-        </p>
+        <ActionFeedback error="This page was opened without an authorization request. Start the connection from your MCP client again." />
       ) : (
         <>
           <section className="grid gap-2" aria-labelledby="consent-workspace">

@@ -16,9 +16,10 @@ import {
 } from 'jose'
 import { type ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
+import { jsonBody } from './test-utils.ts'
 
 /**
- * `POST /mcp` with an OAuth access token (ADR 0055), end to end through the
+ * `POST /mcp` with an OAuth access token (ADR 0068), end to end through the
  * worker's web handler: the authorization server is played by a key pair
  * generated here, published through a stubbed `fetch` at the issuer's JWKS URL
  * — the same remote key set the worker uses in production, so the caching and
@@ -144,28 +145,6 @@ const ProtectedResourceBody = Schema.Struct({
   authorization_servers: Schema.Array(Schema.String),
   scopes_supported: Schema.Array(Schema.String)
 })
-
-function jsonBody<S extends Schema.Top>(
-  response: Response,
-  schema: S
-): Effect.Effect<S['Type'], never, S['DecodingServices']> {
-  return Effect.promise(() => response.text()).pipe(
-    Effect.flatMap((text) => {
-      // oxlint-disable-next-line effect/noTernary -- unwraps the protocol's SSE framing before decoding; there is no Effect codec for SSE frames
-      const raw = response.headers.get('content-type')?.includes('text/event-stream')
-        ? text
-            .split('\n')
-            .filter((line) => line.startsWith('data:'))
-            .map((line) => line.slice('data:'.length).trim())
-            .join('\n')
-        : text
-      // oxlint-disable-next-line effect/noGlobals -- decoding the wire format this test asserts on
-      return Effect.try(() => JSON.parse(raw))
-    }),
-    Effect.flatMap((raw) => Schema.decodeUnknownEffect(schema)(raw)),
-    Effect.orDie
-  )
-}
 
 describe('POST /mcp with an OAuth access token', () => {
   test('a token for workspace A reads workspace A', () =>

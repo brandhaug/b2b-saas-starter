@@ -1,9 +1,7 @@
-import { createDrizzleDb, type DrizzleDatabase } from '@b2b-saas-starter/db/client'
+import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { account, user } from '@b2b-saas-starter/db/schema'
-import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
+import { Effect, type Layer } from 'effect'
 import { and, eq } from 'drizzle-orm'
-import { Effect, Layer } from 'effect'
-import { type Service } from 'effectful-better-auth'
 import {
   afterAll,
   afterEach,
@@ -13,14 +11,13 @@ import {
   it,
   vi
 } from 'vite-plus/test'
+import { type AuthAccountChange, Auth } from './index.ts'
 import {
-  Auth,
-  AuthConfig,
-  type AuthAccountChange,
-  type AuthEmailSender,
-  type AuthOptions
-} from './index.ts'
-import { testMcpConfig } from './test-mcp.ts'
+  buildAuthLayer,
+  provisionAuthD1,
+  type AuthService,
+  type ProvisionedAuthD1
+} from './test-auth-layer.ts'
 
 // Social sign-in is only observable end to end: the provider factory, the
 // state round-trip, implicit account linking, and the linking hooks all
@@ -28,10 +25,8 @@ import { testMcpConfig } from './test-mcp.ts'
 // full OAuth round-trip with GitHub as the provider and its HTTP endpoints
 // mocked — the accept criterion is the round trip, not the redirect shape.
 
-type AuthService = Service<AuthOptions>
-
-let testD1: TestD1
 let db: DrizzleDatabase
+let provisioned: ProvisionedAuthD1
 let authLayer: Layer.Layer<AuthService>
 
 // The linking audit port, captured instead of performed: these tests assert
@@ -51,13 +46,6 @@ const capturingAccountHooks = {
     accountChanges.push({ kind: 'unlinked', account: change })
     return Promise.resolve()
   }
-}
-
-const capturingEmails: AuthEmailSender = {
-  sendResetPassword: () => Promise.resolve(),
-  sendVerificationEmail: () => Promise.resolve(),
-  sendOneTimeCode: () => Promise.resolve(),
-  sendMagicLink: () => Promise.resolve()
 }
 
 // The mocked GitHub identity for one test. Every test picks a fresh mailbox
@@ -141,33 +129,19 @@ beforeAll(
   () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        testD1 = yield* Effect.promise(() => provisionTestD1())
-        db = createDrizzleDb(testD1.d1)
-        authLayer = Auth.layer.pipe(
-          Layer.provide(
-            Layer.sync(AuthConfig)(() => ({
-              db,
-              secret: 'test-secret-at-least-32-characters-long',
-              baseURL: 'http://localhost:3071',
-              trustedOrigins: [],
-              emails: capturingEmails,
-              // GitHub active: both halves of the credential present, exactly
-              // what `activeSocialProviders` resolves from a configured env.
-              socialProviders: {
-                github: {
-                  clientId: 'mock-client-id',
-                  clientSecret: 'mock-client-secret'
-                }
-              },
-              accountHooks: capturingAccountHooks,
-              requireEmailVerification: false,
-              runBackground: (promise) => {
-                void promise.catch(() => undefined)
-              },
-              mcp: testMcpConfig()
-            }))
-          )
-        )
+        provisioned = yield* Effect.promise(() => provisionAuthD1())
+        db = provisioned.db
+        authLayer = buildAuthLayer(db, {
+          // GitHub active: both halves of the credential present, exactly
+          // what `activeSocialProviders` resolves from a configured env.
+          socialProviders: {
+            github: {
+              clientId: 'mock-client-id',
+              clientSecret: 'mock-client-secret'
+            }
+          },
+          accountHooks: capturingAccountHooks
+        })
       })
     ),
   60_000
@@ -178,8 +152,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-// oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
-afterAll(() => testD1.dispose())
+// oxlint-disable-next-line effect/noTestLifecycleHooks -- disposes the workerd process
+afterAll(() => provisioned.dispose())
 
 function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
   return Effect.runPromise(Effect.provide(effect, authLayer))

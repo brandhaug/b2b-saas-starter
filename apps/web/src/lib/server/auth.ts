@@ -83,8 +83,6 @@ export function toRouteSession(session: Session): RouteSession {
       email: session.user.email,
       // The plugin schema marks these optional; the gate only ever reads
       // them as scalars, so normalize to definite values here.
-      // The plugin schema marks some of these optional; normalize to
-      // definite values here.
       emailVerified: session.user.emailVerified,
       role: session.user.role ?? '',
       twoFactorEnabled: session.user.twoFactorEnabled ?? false

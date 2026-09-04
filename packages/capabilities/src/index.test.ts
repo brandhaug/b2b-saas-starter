@@ -68,11 +68,8 @@ import {
   auditEventLogContractCases
 } from './governance/audit-event-log.contract.ts'
 import { Billing } from './billing/billing.ts'
-import {
-  AuditEventLog,
-  LiveAuditEventLog,
-  SeedAuditEventLog
-} from './governance/audit-event-log.ts'
+import { AuditEventLog, SeedAuditEventLog } from './governance/audit-event-log.ts'
+import { LiveAuditEventLog } from './governance/audit-event-log.live.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
 import { platformUserAdminContractCases } from './governance/platform-user-admin.contract.ts'
 import {
@@ -650,10 +647,13 @@ describe('seed workspace invitations contract', () => {
   // Built here rather than reusing `seedWorkspaceLayer`, because the cases need
   // an already-expired invitation and the demo fixture should not carry one.
   // Membership and invitations share a roster for the same reason `layers.ts`
-  // gives them one: accepting adds a member.
+  // gives them one: accepting adds a member. The fixture audit log is merged
+  // in so the seeds' ambient `serviceOption` finds it and the audit contract
+  // case can read the events back.
   const invitationLayer = Layer.unwrap(
     Effect.gen(function* () {
       const roster = yield* makeSeedRoster(seedMembers)
+      const auditLog = SeedAuditEventLog([])
       return Layer.mergeAll(
         SeedWorkspaceInvitations({
           roster,
@@ -671,6 +671,7 @@ describe('seed workspace invitations contract', () => {
         SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
           Layer.provide(SeedSeatSyncPublisher)
         ),
+        auditLog,
         testWorkspaceContext(seedWorkspaceRecord)
       )
     })

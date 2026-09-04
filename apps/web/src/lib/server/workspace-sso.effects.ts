@@ -16,7 +16,7 @@ import { Effect, Option, Result, type Scope } from 'effect'
 import { causeMessage } from '../cause-message'
 
 import { runWorkspaceCapabilities } from '../capabilities'
-import { currentRequest } from '../request-context'
+import { requestOrigin } from './request-origin'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { webSsoBinding } from './sso-binding'
@@ -39,30 +39,6 @@ import {
  * testable without a session or an auth runtime; each `…Handler` adds the
  * session gate, the request origin and the plugin binding, nothing else.
  */
-
-/** The settings form's update, pre-mapped onto the capability's input. */
-type SsoConnectionUpdate = {
-  providerId: string
-  enabled?: boolean
-  requireSso?: boolean
-  defaultWorkspaceRole?: 'member' | 'admin'
-  oidcCredentials?: { clientId: string; clientSecret: string }
-}
-
-/**
- * Absolute origin of the in-flight request: the SAML SP entity id the
- * connection registers under. Empty when there is no request — the create
- * then falls back to the metadata's own entityID, because a SAML connection
- * registered without any stable identity would generate SP metadata that
- * matches nothing.
- */
-function requestOrigin(): string {
-  const request = currentRequest()
-  if (!request) {
-    return ''
-  }
-  return new URL(request.url).origin
-}
 
 function samlIssuer(
   input: Extract<CreateSsoConnectionInput, { readonly protocol: 'saml' }>,
@@ -184,23 +160,21 @@ export function updateSsoConnection(
   return Effect.gen(function* () {
     yield* requireWorkspacePermission({ sso: ['update'] })
     const sso = yield* SsoConnections
-    const update: SsoConnectionUpdate = { providerId: input.providerId }
-    if (input.enabled !== undefined) {
-      update.enabled = input.enabled
-    }
-    if (input.requireSso !== undefined) {
-      update.requireSso = input.requireSso
-    }
-    if (input.defaultWorkspaceRole !== undefined) {
-      update.defaultWorkspaceRole = input.defaultWorkspaceRole
-    }
-    if (input.clientId !== undefined && input.clientSecret !== undefined) {
-      update.oidcCredentials = {
-        clientId: input.clientId,
-        clientSecret: input.clientSecret
-      }
-    }
-    const updated = yield* sso.update(update)
+    // Rest keeps the optional fields exactly as the schema decoded them — a
+    // field the form did not send stays absent, and `undefined` means the
+    // same thing to the capability.
+    // oxlint-disable-next-line no-unused-vars -- rest exclusion: the slug routes the server fn, and the update payload must not carry it
+    const { workspaceSlug, clientId, clientSecret, ...update } = input
+    const updated = yield* sso.update({
+      ...update,
+      // Credential rotation is both-or-neither (the schema's filter proves
+      // the pair); the plugin merges a partial oidcConfig over the stored
+      // one, so a rotation replaces exactly the pair it names.
+      oidcCredentials:
+        clientId !== undefined && clientSecret !== undefined
+          ? { clientId, clientSecret }
+          : undefined
+    })
     if (Option.isNone(updated)) {
       return null
     }

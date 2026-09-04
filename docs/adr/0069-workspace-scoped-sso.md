@@ -1,4 +1,4 @@
-# ADR 0055: Workspace-scoped SSO with owner-configured connections
+# ADR 0069: Workspace-scoped SSO with owner-configured connections
 
 - Status: Accepted
 - Date: 2026-09-03

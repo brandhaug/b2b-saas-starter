@@ -20,7 +20,7 @@ import { fetchClientMetadataResource } from './server/client-metadata-fetch'
 
 /**
  * The MCP resource identifier when `MCP_RESOURCE_URL` is unset: the local API
- * dev server. A deployment sets the real URL (ADR 0054); the default exists so
+ * dev server. A deployment sets the real URL (ADR 0068); the default exists so
  * the consent flow works with nothing configured, like every other provider.
  */
 const LOCAL_MCP_RESOURCE = 'http://localhost:8787/mcp'
@@ -107,7 +107,7 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
   // self-service deletion on, with the workspace teardown riding the
   // capability layer.
   userDeleteHooks: defaultUserDeleteHooks(),
-  // The OAuth 2.1 server MCP clients connect through (ADR 0055): tokens are
+  // The OAuth 2.1 server MCP clients connect through (ADR 0068): tokens are
   // bound to the API worker's `/mcp`, and client metadata documents are
   // fetched through the Workers-safe transport.
   mcp: {
