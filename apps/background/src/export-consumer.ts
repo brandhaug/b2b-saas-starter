@@ -24,7 +24,7 @@ import { workspaceExportConsumerSettings } from '../../../infra/bindings.ts'
 import {
   type DeliveryOutcome,
   type Env,
-  type WebhookQueueEnvelope
+  type QueueEnvelope
 } from './webhook-consumer.ts'
 
 /**
@@ -51,9 +51,7 @@ export type WorkspaceExportDelivery = {
 )
 
 /** Decodes one queue envelope's untrusted body. The only decode per delivery. */
-export function readExportDelivery(
-  envelope: WebhookQueueEnvelope
-): WorkspaceExportDelivery {
+export function readExportDelivery(envelope: QueueEnvelope): WorkspaceExportDelivery {
   const decoded = decodeMessage(envelope.body)
   if (Result.isFailure(decoded)) {
     return { attempts: envelope.attempts, kind: 'malformed' }
@@ -201,7 +199,7 @@ function queueParentSpan(delivery: WorkspaceExportDelivery) {
  * row failed inside `processWorkspaceExportMessage`.
  */
 export function buildWorkspaceExport(
-  envelope: WebhookQueueEnvelope,
+  envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
   const delivery = readExportDelivery(envelope)

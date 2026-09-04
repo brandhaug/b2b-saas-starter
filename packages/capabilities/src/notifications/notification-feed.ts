@@ -51,7 +51,7 @@ export type NotifyUserInput = {
  */
 export type NotifyInput = {
   readonly workspaceId: string
-  readonly userId?: string | null
+  readonly userId: string | null
   readonly title: string
   readonly message: string
 }
@@ -198,7 +198,7 @@ export function SeedNotificationFeed(
                 message: input.message,
                 createdAt: DateTime.formatIso(createdAt),
                 read: false,
-                userId: input.userId ?? null,
+                userId: input.userId,
                 workspaceId: input.workspaceId
               },
               ...current
@@ -339,7 +339,7 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
               db.insert(notifications).values({
                 id,
                 workspaceId: input.workspaceId,
-                userId: input.userId ?? null,
+                userId: input.userId,
                 title: input.title,
                 message: input.message,
                 readAt: null,

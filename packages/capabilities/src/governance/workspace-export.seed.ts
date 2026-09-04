@@ -48,6 +48,13 @@ type SeedExportRow = {
   record: WorkspaceExport
   readonly workspaceId: string
   readonly workspaceSlug: string
+  /**
+   * The workspace's name at request time, for the completion notification —
+   * Live joins `workspaces` per row; the seed row carries its own copy so
+   * `complete` does not name the fixture workspace for a row another
+   * workspace's context created.
+   */
+  readonly workspaceName: string
   readonly requestedByUserId: string | null
   readonly downloadSecret: string
   archive: Uint8Array | null
@@ -128,6 +135,7 @@ export function SeedWorkspaceExports(options: {
         const base = {
           workspaceId: options.workspace.id,
           workspaceSlug: options.workspace.slug,
+          workspaceName: options.workspace.name,
           requestedByUserId: options.fixture.requestedByUserId,
           downloadSecret: options.fixture.downloadSecret
         }
@@ -196,6 +204,7 @@ export function SeedWorkspaceExports(options: {
             },
             workspaceId: ctx.workspace.id,
             workspaceSlug: ctx.workspace.slug,
+            workspaceName: ctx.workspace.name,
             requestedByUserId: ctx.actor?.userId ?? null,
             downloadSecret: yield* newCapabilityId('sec'),
             archive: null
@@ -212,7 +221,7 @@ export function SeedWorkspaceExports(options: {
           // No queue: the background half runs inline, against the requester's
           // own context, and the row lands `ready` before `request` returns.
           const archive = yield* buildArchive(id, requestedAt)
-          yield* completeRow(row, archive, requestedAt, audit, feed, ctx.workspace.name)
+          yield* completeRow(row, archive, requestedAt, audit, feed)
           return row.record
         }),
         issueDownloadLink: (input) =>
@@ -238,15 +247,7 @@ export function SeedWorkspaceExports(options: {
             if (!row) {
               return false
             }
-            const workspaceName = options.workspace.name
-            yield* completeRow(
-              row,
-              input.archive,
-              yield* DateTime.now,
-              audit,
-              feed,
-              workspaceName
-            )
+            yield* completeRow(row, input.archive, yield* DateTime.now, audit, feed)
             return true
           }),
         fail: (input) =>
@@ -308,8 +309,7 @@ function completeRow(
   archive: Uint8Array,
   completedAt: DateTime.Utc,
   audit: AuditEventLogInterface,
-  feed: NotificationFeedInterface,
-  workspaceName: string
+  feed: NotificationFeedInterface
 ): Effect.Effect<void, CapabilityUnavailable> {
   return Effect.gen(function* () {
     const expiresAt = workspaceExportExpiresAt(completedAt)
@@ -332,7 +332,7 @@ function completeRow(
     yield* feed.notify({
       workspaceId: row.workspaceId,
       userId: row.requestedByUserId,
-      ...readyNotification(workspaceName, expiresAt)
+      ...readyNotification(row.workspaceName, expiresAt)
     })
   })
 }
