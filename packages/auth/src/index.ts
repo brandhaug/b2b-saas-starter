@@ -1,8 +1,14 @@
 import { passkey } from '@better-auth/passkey'
 import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz/client'
 import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
-import { adminSystemRole } from '@b2b-saas-starter/db/enums'
+import {
+  adminSystemRole,
+  isSsoProvisionedRole,
+  ssoProvisionedRoles,
+  type SsoProvisionedRoleValue
+} from '@b2b-saas-starter/db/enums'
 import * as schema from '@b2b-saas-starter/db/schema'
+import { sso } from '@better-auth/sso'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { lastLoginMethod } from 'better-auth/plugins'
@@ -134,6 +140,32 @@ export type AuthConfigInterface = {
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
   '@b2b-saas-starter/auth/AuthConfig'
 ) {}
+
+/**
+ * The provisioning role for `organizationProvisioning.getRole`. The plugin
+ * types `additionalFields` as plain strings, so the stored value is narrowed
+ * through the stored vocabulary (`ssoProvisionedRoles` via
+ * `isSsoProvisionedRole`): anything else — including a bogus `owner` written
+ * by a raw API call — provisions as the first role, `member`. SSO never mints
+ * the role that can delete the workspace or change the connection.
+ */
+function provisionedRoleOf(data: {
+  readonly provider: {
+    // Carried so the parameter keeps a property in common with the plugin's
+    // `BaseSSOProvider` (its weak-type check); the role reads only the field
+    // below.
+    readonly providerId: string
+    readonly defaultWorkspaceRole?: string | null
+  }
+}): Promise<SsoProvisionedRoleValue> {
+  const stored = data.provider.defaultWorkspaceRole
+  if (isSsoProvisionedRole(stored)) {
+    // oxlint-disable-next-line effect/noNewPromise -- plugin callback runs outside Effect
+    return Promise.resolve(stored)
+  }
+  // oxlint-disable-next-line effect/noNewPromise -- plugin callback runs outside Effect
+  return Promise.resolve(ssoProvisionedRoles[0])
+}
 
 /**
  * The WebAuthn Relying Party id, derived from the app URL the caller already
@@ -372,6 +404,69 @@ export function makeAuthOptions(options: AuthConfigInterface) {
           invitation: {
             modelName: 'workspaceInvitations',
             fields: { organizationId: 'workspaceId' }
+          }
+        }
+      }),
+      // Workspace-scoped SSO (ADR 0055). The plugin owns the connection rows
+      // and the protocol flows; the starter owns the vocabulary and the
+      // routing rule. Configuration is per-workspace in the database — there
+      // is deliberately no env var, because an owner configuring a connection
+      // is the whole point (the Optional Provider here is owner-gated, not
+      // operator-gated).
+      sso({
+        // Connections start disabled and an owner enables one after a
+        // successful test. The plugin has no `enabled` option and serves any
+        // stored connection — `enabled` is the starter's routing vocabulary,
+        // so the app enforces it: the sign-in page asks only for enabled
+        // connections, and the auth gate refuses a `/sign-in/sso` that would
+        // resolve a disabled one (ADR 0055 §2). A first SSO sign-in creates
+        // the user when needed and joins them to the connection's workspace
+        // with the connection's own default Workspace Role — `member` unless
+        // the owner configured `admin`. `owner` is unreachable by design:
+        // `provisionedRoleOf` narrows through `ssoProvisionedRoles`.
+        organizationProvisioning: {
+          getRole: provisionedRoleOf
+        },
+        // Stated rather than left on the plugin's implicit default of 10, so a
+        // change is a visible diff. Counted per registering user; workspace
+        // connections are additionally capped by the owner/admin gate on the
+        // register endpoint itself.
+        providersLimit: 10,
+        schema: {
+          ssoProvider: {
+            // `modelName` is the drizzle schema export key, not the SQL table
+            // name — same rule as the organization mapping above.
+            modelName: 'workspaceSsoConnections',
+            // The plugin names its foreign key `organizationId`; the column
+            // spells it the starter's way, remapped once here.
+            fields: { organizationId: 'workspaceId' },
+            additionalFields: {
+              enabled: {
+                type: 'boolean',
+                required: false,
+                input: true,
+                defaultValue: false
+              },
+              requireSso: {
+                type: 'boolean',
+                required: false,
+                input: true,
+                defaultValue: false
+              },
+              defaultWorkspaceRole: {
+                type: 'string',
+                required: false,
+                input: true,
+                defaultValue: 'member'
+              },
+              createdAt: {
+                type: 'date',
+                required: false,
+                input: false,
+                // oxlint-disable-next-line effect/noGlobals -- plugin callback runs outside Effect; no Clock available
+                defaultValue: () => new Date()
+              }
+            }
           }
         }
       }),

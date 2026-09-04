@@ -40,7 +40,11 @@ export type { CapabilityServices }
  */
 export type CapabilityBindings = Pick<
   StarterEnv,
-  'memberBinding' | 'invitationBinding' | 'lifecycleBinding' | 'userAdminBinding'
+  | 'memberBinding'
+  | 'invitationBinding'
+  | 'lifecycleBinding'
+  | 'userAdminBinding'
+  | 'ssoBinding'
 >
 
 // Real Worker bindings (the same import `auth-runtime.ts` uses). In production the

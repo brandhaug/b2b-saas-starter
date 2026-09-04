@@ -14,11 +14,14 @@ import {
   signInPasskeyWithAuthClient,
   signInSocialWithAuthClient,
   signInWithAuthClient,
+  signInWithSsoAuthClient,
   type SignInWithEmail,
   type SignInWithPasskey,
   type SignInWithSocial,
+  type SignInWithSso,
   type SocialProviderId
 } from '@/components/auth/auth-client-ports'
+import { type SsoRoutingDecision } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { Button } from '@/components/ui/button'
 import { FormTextField } from '@/components/form-text-field'
 import {
@@ -30,14 +33,35 @@ import { conditionalMediationAvailable } from '@/lib/webauthn-support'
 import { authFailure } from '@/lib/auth-result'
 import { useServerAction } from '@/hooks/use-server-action'
 import { getSocialProviderIds } from '@/lib/server/social-providers'
+import { resolveSsoRoutingServerFn } from '@/lib/server/workspace-sso'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 
 export type {
   SignInWithEmail,
-  SignInWithPasskey
+  SignInWithPasskey,
+  SignInWithSso
 } from '@/components/auth/auth-client-ports'
 
 const PASSKEY_FAILED = 'Passkey sign-in failed'
+
+/**
+ * The domain-routing ask, as a port so a test drives the page without a
+ * server. Existence is the answer — a non-null resolution means "this
+ * domain routes to an IdP"; the decision's fields are the gate's concern,
+ * not the page's (the require-SSO rule is enforced server-side). Type-only
+ * import: the route ships statically, so nothing here may load the
+ * capability runtime.
+ */
+export type ResolveSsoRouting = (email: string) => Promise<SsoRoutingDecision | null>
+
+async function resolveSsoRouting(email: string) {
+  // A failed ask must not dead-end the form: the password path is the
+  // fallback, exactly as it was before SSO existed.
+  const decision = await resolveSsoRoutingServerFn({ data: { email } }).catch(
+    () => null
+  )
+  return decision
+}
 
 export const Route = createFileRoute('/sign-in')({
   validateSearch: redirectSearch,
@@ -74,6 +98,21 @@ function wantsTwoFactorRedirect(data: unknown): boolean {
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
 /**
+ * Whether a failed credential sign-in was refused by the require-SSO gate.
+ * Same probe discipline: the client's error is untyped JSON at this boundary.
+ */
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- Better Auth's client `error` is untyped JSON at this boundary; this probe is the parse step
+function wasRefusedForSso(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'sso_required'
+  )
+}
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
+
+/**
  * The route's thin wrapper: reads the search param the router validated and
  * hands it to the page. Keeping the two apart is what lets the page be rendered
  * from a test with plain props, no route tree and no mocked router.
@@ -89,7 +128,9 @@ export function SignInPage({
   socialProviders = NO_SOCIAL_PROVIDERS,
   signIn = signInWithAuthClient,
   signInPasskey = signInPasskeyWithAuthClient,
-  signInSocial = signInSocialWithAuthClient
+  signInSocial = signInSocialWithAuthClient,
+  signInWithSso = signInWithSsoAuthClient,
+  resolveRouting = resolveSsoRouting
 }: {
   readonly redirect?: string | undefined
   /** Active provider ids from the loader; empty renders no provider buttons. */
@@ -97,9 +138,12 @@ export function SignInPage({
   readonly signIn?: SignInWithEmail
   readonly signInPasskey?: SignInWithPasskey
   readonly signInSocial?: SignInWithSocial
+  readonly signInWithSso?: SignInWithSso
+  readonly resolveRouting?: ResolveSsoRouting
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [ssoNotice, setSsoNotice] = useState<string | null>(null)
 
   /**
    * One passkey sign-in, shared by the conditional-UI preload and the button:
@@ -146,11 +190,44 @@ export function SignInPage({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
+      setSsoNotice(null)
+      // Domain routing first (ADR 0055): an email whose domain belongs to an
+      // enabled connection goes to that IdP — the password path is never even
+      // attempted. `requireSso` domains are additionally refused server-side,
+      // so a direct POST cannot sidestep the rule.
+      const routing = await resolveRouting(value.email)
+      if (routing !== null) {
+        const sso = await signInWithSso({
+          email: value.email,
+          callbackURL: safeRedirect(redirect)
+        })
+        if (sso.error) {
+          setSubmitError(sso.error.message ?? 'Single sign-in failed')
+          return
+        }
+        if (sso.data?.url) {
+          window.location.assign(sso.data.url)
+          return
+        }
+        // Unreachable while the plugin answers a routing match with a URL,
+        // but an explicit failure beats silently attempting the password
+        // path the routing decision just refused.
+        setSubmitError('Single sign-in failed')
+        return
+      }
       const result = await signIn({
         email: value.email,
         password: value.password
       })
       if (result.error) {
+        // The server-side gate answers a require-SSO domain with this code;
+        // surface it as guidance rather than a bare failed sign-in.
+        if (wasRefusedForSso(result.error)) {
+          setSsoNotice(
+            'This workspace requires single sign-on for your email domain. Sign in with your identity provider.'
+          )
+          return
+        }
         setSubmitError(result.error.message ?? 'Sign-in failed')
         return
       }
@@ -187,6 +264,7 @@ export function SignInPage({
         />
       }
       error={submitError}
+      notice={ssoNotice}
       footer={
         <>
           {/* The passkey block sits at the point of action, after the form:

@@ -206,6 +206,23 @@ export function SeedNotificationFeed(
             })
             return stripStorage(row)
           }),
+        record: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const row: SeedRow = {
+              id: yield* newCapabilityId('not'),
+              workspaceId: ctx.workspace.id,
+              // The failed-test notice is a plain feed message: no kind-driven
+              // email fan-out, no preferences consultation.
+              kind: 'announcement',
+              title: input.title,
+              message: input.message,
+              createdAt: DateTime.formatIso(yield* DateTime.now),
+              read: false,
+              userId: input.userId
+            }
+            yield* Ref.update(rows, (all) => [...all, row])
+          }),
         notifyUser: (input: NotifyUserInput) =>
           Effect.gen(function* () {
             // The fixture is one workspace with one roster, so "every

@@ -134,7 +134,8 @@ function stubReads(failing = false) {
       notifyUser: () => unused,
       create: () => unused,
       loadForEmail: () => unused,
-      listDigestCandidates: () => unused
+      listDigestCandidates: () => unused,
+      record: () => unused
     })
   )
 }

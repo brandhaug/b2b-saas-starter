@@ -66,7 +66,7 @@ describe('impersonationGuardResponse', () => {
     )
     expect(response?.status).toBe(403)
     expect(await response?.json()).toEqual({
-      error: 'forbidden_while_impersonating',
+      code: 'forbidden_while_impersonating',
       action: 'change_password'
     })
   })

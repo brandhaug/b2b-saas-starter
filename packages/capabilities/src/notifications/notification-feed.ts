@@ -45,6 +45,14 @@ export type CreateNotificationInput = {
   readonly message: string
 }
 
+/** What a producer hands `record` — the feed-only workspace message. */
+export type RecordNotificationInput = {
+  readonly title: string
+  readonly message: string
+  /** The member the message is for. */
+  readonly userId: string
+}
+
 /**
  * A user-targeted notification about the account itself rather than one
  * workspace: an impersonation, a security change. The feed is workspace-scoped
@@ -140,6 +148,21 @@ export type NotificationFeedInterface = {
   readonly create: (
     input: CreateNotificationInput
   ) => Effect.Effect<Notification, CapabilityUnavailable>
+
+  /**
+   * Records one workspace-scoped notification (ADR 0055's failed-test owner
+   * notification is the first producer). Upstream emitters call this after
+   * the thing they are describing has happened — the audit log is the record
+   * of the change itself, this is the message a member sees in their feed.
+   * Id and `createdAt` are owned here; `userId` targets one member. Unlike
+   * `create`, no email fan-out runs: the message is feed-only. (The feed's
+   * read model also answers broadcast rows — a `null` userId, the seed
+   * fixture's shape — but no producer makes one; `record` targets a member,
+   * and a broadcast producer can be added the day one exists.)
+   */
+  readonly record: (
+    input: RecordNotificationInput
+  ) => Effect.Effect<void, CapabilityUnavailable, WorkspaceContext>
 
   /**
    * Identity-keyed write (no `WorkspaceContext`): one unread row per workspace

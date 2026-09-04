@@ -25,6 +25,7 @@
     "@b2b-saas-starter/rate-limit": "workspace:*",
     "@base-ui/react": "catalog:",
     "@better-auth/passkey": "catalog:",
+    "@better-auth/sso": "catalog:",
     "@fontsource-variable/fraunces": "catalog:",
     "@fontsource-variable/geist": "catalog:",
     "@fontsource-variable/geist-mono": "catalog:",

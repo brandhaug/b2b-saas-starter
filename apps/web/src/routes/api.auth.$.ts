@@ -19,7 +19,12 @@ import {
   type CredentialChange
 } from '@/lib/server/auth-audit/exchanges'
 import { recordAuthAudit } from '@/lib/server/auth-audit/record'
+import { recordSsoSignInAudit } from '@/lib/server/auth-audit/sso-sign-in'
 import { type AuthAuditContext } from '@/lib/server/auth-audit/shared'
+import {
+  enforceSsoRequired,
+  refuseDisabledConnection
+} from '@/lib/server/sso-sign-in-gate'
 import {
   impersonationForbiddenAction,
   impersonationGuardResponse
@@ -136,9 +141,10 @@ function verifySignUpTurnstile(
       return null
     }
     const status = verdict.outcome === 'unavailable' ? 503 : 400
-    const error =
+    const code =
       verdict.outcome === 'unavailable' ? 'captcha_unavailable' : 'captcha_rejected'
-    return new Response(JSON.stringify({ error }), {
+    // Better Auth's error-body convention (`{ code }`), like every pre-handler refusal here.
+    return new Response(JSON.stringify({ code }), {
       status,
       headers: { 'content-type': 'application/json; charset=utf-8' }
     })
@@ -170,7 +176,7 @@ async function handleAuth(request: Request): Promise<Response> {
         })
         if (!allowed) {
           yield* Effect.annotateLogsScoped({ outcome: 'rate_limited' })
-          return new Response(JSON.stringify({ error: 'rate_limited' }), {
+          return new Response(JSON.stringify({ code: 'rate_limited' }), {
             status: 429,
             headers: { 'content-type': 'application/json; charset=utf-8' }
           })
@@ -206,6 +212,22 @@ async function handleAuth(request: Request): Promise<Response> {
           })
           return guardResponse
         }
+        // The require-SSO gate (ADR 0055): a workspace that demands SSO for
+        // its domain refuses the credential path here, so the sign-in page's
+        // routing is backed by an enforcement point. Null = not applicable.
+        const ssoRequiredResponse = yield* enforceSsoRequired(request, exchange)
+        if (ssoRequiredResponse !== null) {
+          yield* Effect.annotateLogsScoped({ outcome: 'sso_required' })
+          return ssoRequiredResponse
+        }
+        // The same rule's SSO half: the plugin serves any stored connection,
+        // so a disabled one is refused before it can start an OIDC flow an
+        // owner believes is retired or still untested.
+        const disabledSsoResponse = yield* refuseDisabledConnection(request, exchange)
+        if (disabledSsoResponse !== null) {
+          yield* Effect.annotateLogsScoped({ outcome: 'sso_connection_disabled' })
+          return disabledSsoResponse
+        }
         // The effectful-better-auth mount: toWeb → auth.handler → fromWeb.
         // The Auth service comes from authRuntime's layer; only the request
         // is provided per call.
@@ -229,6 +251,9 @@ async function handleAuth(request: Request): Promise<Response> {
         if (authAudit !== 'skipped') {
           yield* Effect.annotateLogsScoped({ authAudit })
         }
+        // SSO sign-ins audit through their own path (ADR 0055): the callback
+        // redirects name no actor and the event is workspace-scoped.
+        yield* recordSsoSignInAudit(exchange, response)
         // Security notification for a credential change (best-effort, same
         // contract as the audit above): the account holder is emailed on
         // every successful second-factor or passkey change, so a hijacked

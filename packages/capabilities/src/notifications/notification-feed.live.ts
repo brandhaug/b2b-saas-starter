@@ -275,6 +275,25 @@ export function LiveNotificationFeed(
             })
             return toNotification(row)
           }),
+        record: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const createdAt = DateTime.formatIso(yield* DateTime.now)
+            // The failed-test notice is a plain feed message: no kind-driven
+            // email fan-out, no preferences consultation.
+            yield* unavailable(
+              db.insert(notifications).values({
+                id: yield* newCapabilityId('not'),
+                workspaceId: ctx.workspace.id,
+                userId: input.userId,
+                kind: 'announcement',
+                title: input.title,
+                message: input.message,
+                readAt: null,
+                createdAt
+              })
+            )
+          }),
         notifyUser: (input) =>
           Effect.gen(function* () {
             const memberships = yield* unavailable(

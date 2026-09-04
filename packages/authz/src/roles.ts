@@ -64,7 +64,12 @@ export const memberRole = accessControl.newRole({
   // Members see the onboarding checklist read-only; dismissing it is a
   // workspace-level decision for owners and admins.
   onboarding: [],
-  workspaceExport: []
+  // A full export carries every member's email and the audit trail —
+  // owner-only by policy.
+  workspaceExport: [],
+  // SSO connections decide how every human in the workspace authenticates —
+  // the same security-posture class as the audit log and the token list.
+  sso: []
 })
 
 export const workspaceRoleAccess = {
@@ -86,7 +91,11 @@ const readScopeStatements = {
   auditLog: ['read'],
   notification: ['read'],
   assistant: ['read'],
-  mcp: ['read']
+  mcp: ['read'],
+  // The sanitized connection list only (the capability strips secrets) — the
+  // mutations stay out of every token scope: a machine credential changing how
+  // humans authenticate is an escalation, like `apiToken:create`.
+  sso: ['list']
 } as const
 
 export const readScopeRole = accessControl.newRole(readScopeStatements)

@@ -46,6 +46,7 @@ function stubFeed(
     notifyUser: () => Effect.die('unused'),
     create: () => Effect.die('unused'),
     loadForEmail: () => Effect.succeed(found),
+    record: () => Effect.die('unused'),
     listDigestCandidates: () => Effect.die('unused')
   })
 }

@@ -40,6 +40,25 @@ export function signInWithAuthClient(
   return authClient.signIn.email(input)
 }
 
+/**
+ * Domain-routed SSO sign-in: Better Auth's `/sign-in/sso` resolves the email's
+ * domain to a stored connection and answers with the IdP redirect URL. The
+ * page (not this adapter) decides *whether* to call it — the routing decision
+ * is the starter's own rule (ADR 0055), asked through
+ * `resolveSsoRoutingServerFn` first, and the auth gate refuses the endpoint
+ * when the resolution is a disabled connection.
+ */
+export type SignInWithSso = AuthPort<
+  { readonly email: string; readonly callbackURL: string },
+  { readonly url: string; readonly redirect: boolean }
+>
+
+export function signInWithSsoAuthClient(
+  input: Parameters<SignInWithSso>[0]
+): ReturnType<SignInWithSso> {
+  return authClient.signIn.sso(input)
+}
+
 export type SignUpWithEmail = AuthPort<{
   readonly name: string
   readonly email: string

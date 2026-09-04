@@ -1,4 +1,5 @@
 import { passkeyClient } from '@better-auth/passkey/client'
+import { ssoClient } from '@better-auth/sso/client'
 import {
   adminClient,
   lastLoginMethodClient,
@@ -13,6 +14,7 @@ export const authClient = createAuthClient({
     adminClient(),
     twoFactorClient(),
     passkeyClient(),
+    ssoClient(),
     lastLoginMethodClient()
   ]
 })

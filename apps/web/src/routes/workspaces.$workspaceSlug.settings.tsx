@@ -4,6 +4,7 @@ import { pageTitle } from '@/components/page/page-title'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { RoutePending } from '@/components/route-pending'
+import { SsoPanel } from '@/components/sso-panel'
 import { WorkspaceShell, type SignOut } from '@/components/workspace-shell'
 import {
   WorkspaceGeneralSettings,
@@ -79,7 +80,7 @@ export function WorkspaceSettingsPage({
     readonly requestExport?: RequestWorkspaceExport
   }
 }) {
-  const { viewer, workspaceName, unreadCount, exports } = data
+  const { viewer, workspaceName, unreadCount, ssoConnections, exports } = data
   // Rename and delete are gated per action, not per page: an admin may rename
   // but never delete, a member sees neither. The server functions enforce the
   // same statements.
@@ -124,6 +125,25 @@ export function WorkspaceSettingsPage({
           </p>
         )}
       </Panel>
+      {/* Single sign-on (ADR 0055): the segment is absent for an actor
+          without sso:list, and the panel degrades each control per statement
+          (sso:create/update/remove) against the payload's viewer. */}
+      {ssoConnections === null ? null : (
+        <Panel title="Single sign-on">
+          <div className="grid gap-3">
+            <p className="text-sm text-muted-foreground">
+              Route one email domain to your identity provider. Sign-ins at that domain
+              go to the IdP once the connection is enabled; a first SSO sign-in creates
+              the member with the connection&apos;s default role.
+            </p>
+            <SsoPanel
+              workspaceSlug={workspaceSlug}
+              connections={ssoConnections}
+              viewer={viewer}
+            />
+          </div>
+        </Panel>
+      )}
       {/* Owner-only: the loader hands the segment to nobody else, so the whole
           panel is absent for admins and members rather than disabled. When the
           deployment has no export bucket, the panel explains that instead of
@@ -138,7 +158,7 @@ export function WorkspaceSettingsPage({
               : { requestExport: ports.requestExport })}
           />
         </Panel>
-      )}{' '}
+      )}
     </WorkspaceShell>
   )
 }

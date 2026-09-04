@@ -1,3 +1,7 @@
+import {
+  SsoConnections,
+  type SsoConnection
+} from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { Effect } from 'effect'
 
@@ -18,6 +22,11 @@ import {
  * carried pointer segments for all of them, which duplicated every other
  * page's data on a page that renders none of it.
  *
+ * The exception is Single sign-on (ADR 0055): the connection list is security
+ * posture (`sso:list`, withheld from members), and the settings page hosts the
+ * management surface — so its segment rides here, soft-gated like every
+ * second-permission segment. The DTO the capability returns is secret-free.
+ *
  * `viewer` carries the actor's workspace role to the client, where the same
  * pure `authorize()` decides whether a control renders. The server enforcing
  * the mutation permissions is the boundary; the client check is what stops a
@@ -28,6 +37,8 @@ export type WorkspaceSettingsPayload = {
   /** The workspace itself; every member may read its own name. */
   readonly workspaceName: string
   readonly unreadCount: number
+  /** `null` for an actor without `sso:list`: the read never ran. */
+  readonly ssoConnections: ReadonlyArray<SsoConnection> | null
   /**
    * Workspace data export (ADR 0055): owner-only, so `null` for every other
    * role — the card is absent, not disabled. Present, it carries whether this
@@ -49,6 +60,10 @@ const settingsPayload: WorkspacePageFrame<WorkspaceSettingsPayload> = workspaceP
       Effect.all(
         {
           unreadCount,
+          ssoConnections: whenPermitted(
+            { sso: ['list'] },
+            Effect.flatMap(SsoConnections, (sso) => sso.list)
+          ),
           exports: whenPermitted(
             { workspaceExport: ['request'] },
             workspaceExportsSegment

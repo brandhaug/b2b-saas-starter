@@ -163,6 +163,29 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
     })
   }
 
+  describe('record (ADR 0055)', () => {
+    it.effect('records a row for one member, who reads it back unread', () =>
+      inWorkspace(
+        'live-lab',
+        Effect.gen(function* () {
+          const feed = yield* NotificationFeed
+          const before = yield* feed.unreadCount
+          yield* feed.record({
+            title: 'Connection test failed',
+            message: 'The OIDC connection for routed.test failed its test.',
+            userId: 'usr_owner'
+          })
+          const unread = yield* feed.unreadCount
+          expect(unread).toBe(before + 1)
+          const listed = yield* feed.list
+          expect(listed[0]?.title).toBe('Connection test failed')
+          expect(listed[0]?.read).toBe(false)
+        }),
+        { userId: 'usr_owner' }
+      )
+    )
+  })
+
   it.effect('marks a user-targeted row read for its addressee', () => {
     const ids = freshIds()
     return Effect.flatMap(provisionActorWorkspace(ids), (slug) =>

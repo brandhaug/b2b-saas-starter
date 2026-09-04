@@ -57,6 +57,12 @@ import {
 } from './governance/workspace-export.live.ts'
 import { SeedWorkspaceExports } from './governance/workspace-export.seed.ts'
 import { type WorkspaceExports } from './governance/workspace-export.ts'
+import { LiveSsoConnections } from './governance/workspace-sso-connections.live.ts'
+import { SeedSsoConnections } from './governance/workspace-sso-connections.seed.ts'
+import {
+  type SsoConnections,
+  type WorkspaceSsoBinding
+} from './governance/workspace-sso-connections.ts'
 
 // billing
 import { type Billing } from './billing/billing.ts'
@@ -87,6 +93,7 @@ import {
   seedMembers,
   seedNotificationPreferences,
   seedNotifications,
+  seedSsoConnections,
   seedSystemUsers,
   seedTwoFactorUserIds,
   seedUserAdminMemberships,
@@ -103,6 +110,7 @@ export type CapabilityServices =
   | NotificationPreferences
   | PlatformUserAdmin
   | SeatSyncPublisher
+  | SsoConnections
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceExports
@@ -172,6 +180,7 @@ const SeedCore = Layer.mergeAll(
   SeedAuditLog,
   SeedNotifications,
   SeedSeatSyncPublisher,
+  SeedSsoConnections(seedSsoConnections),
   SeedWebhookEndpoints(seedWebhookEndpoints, seedDeliveries),
   SeedWebhookPublisher,
   SeedGovernance,
@@ -249,6 +258,13 @@ export type LiveCapabilitiesOptions = {
    * reports unavailable and the settings page explains why — provider-light.
    */
   readonly workspaceExports?: LiveWorkspaceExportsOptions | undefined
+  /**
+   * Adapter onto the `sso` plugin's register/update/delete endpoints (ADR
+   * 0055). Absent, connection reads and domain routing still work and the
+   * settings mutations fail `CapabilityUnavailable` — the same provider-light
+   * posture the other bindings take.
+   */
+  readonly ssoBinding?: WorkspaceSsoBinding | undefined
 }
 
 export function makeLiveCapabilitiesLayer(
@@ -274,6 +290,7 @@ export function makeLiveCapabilitiesLayer(
     LiveBilling(options.billing),
     preferences,
     feed,
+    LiveSsoConnections(options.ssoBinding),
     LiveWebhookEndpoints,
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),

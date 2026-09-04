@@ -228,7 +228,8 @@ function stubFeed(
         }
       }),
     loadForEmail: () => Effect.die('unused in delivery tests'),
-    listDigestCandidates: () => Effect.die('unused in delivery tests')
+    listDigestCandidates: () => Effect.die('unused in delivery tests'),
+    record: () => Effect.die('unused in delivery tests')
   })
 }
 

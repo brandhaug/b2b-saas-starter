@@ -1,0 +1,72 @@
+---
+title: Single sign-on
+description: Workspace-scoped SAML and OIDC connections, domain routing, and provisioning.
+category: governance
+order: 40
+tags: [sso, saml, oidc, authentication]
+---
+
+Single sign-on lets a Workspace owner route their team's sign-ins through their identity provider. Connections are configured per workspace in settings — there is no env var to set and no operator involvement. Two protocols are supported: OIDC (the issuer, a client id, and a client secret) and SAML (the IdP's metadata).
+
+An **SSO Connection** owns one email domain. When it is enabled, an email address at that domain is routed to the IdP at sign-in instead of the password form; a first successful SSO sign-in creates the user if needed and joins them to the workspace with the connection's default **Workspace Role** (`member` unless the owner configured `admin` — SSO never provisions an owner).
+
+## How domain routing works
+
+The rule is one sentence: an email whose domain matches an **enabled** connection goes to that IdP.
+
+1. On `/sign-in`, the page asks whether the submitted email's domain routes anywhere before touching the password path.
+2. If it does, Better Auth's `/sign-in/sso` endpoint starts the OIDC or SAML flow and the browser is redirected to the IdP.
+3. "Require SSO for this domain" — a per-connection toggle — additionally _refuses_ the password path for that domain at the auth boundary itself, so a direct API call cannot sidestep the routing.
+
+Connections start **disabled** when created. The intended flow is add → test → enable, so a half-configured or unreachable IdP never intercepts sign-ins. The seeded example connection in the demo workspace is disabled for exactly this reason: it shows in settings without routing anything.
+
+Only workspace owners and admins see the Single sign-on section (the `sso` permission set); a plain member's settings payload carries no connection list at all.
+
+## Audit and notifications
+
+Every connection change records an **Audit Event** (`workspace_sso.connection_created` / `_updated` / `_removed`), and every SSO sign-in records `auth.sso_sign_in` (or `_failed`) scoped to the connection's workspace. When a connection fails its test, the workspace's owners get a **Notification** — a broken connection is worth hearing about before anyone is locked out.
+
+Secrets are write-only: the connection list carries the client id's last four and nothing else, and no read path ever composes the secret or the SAML keys.
+
+## Connect Okta (OIDC)
+
+Okta is the cleaner walkthrough because Okta publishes a standard discovery document.
+
+1. In Okta, create an **OIDC application** (Applications → Create App Integration → OIDC - OpenID Connect → Web Application).
+2. Set the **Sign-in redirect URIs** to your app's SSO callback:
+   `https://<your-app>/api/auth/sso/callback/<provider-id>` — the provider id appears in the starter's settings form once you add the connection (or pick one yourself, like `acme-okta`).
+3. Note the **Client ID** and **Client secret** from Okta, and your Okta domain as the issuer (`https://<your-org>.okta.com`).
+4. In workspace settings → Single sign-on, add an **OIDC** connection: the email domain your Okta directory owns (e.g. `acme.com`), the issuer, the client id, the client secret, and the default role for provisioned members.
+5. Press **Test**. The starter resolves `<issuer>/.well-known/openid-configuration`, validates it, and stores the endpoints — a typo'd issuer or an unreachable IdP fails here, at the form, rather than as a broken connection.
+6. **Enable** the connection. Sign-ins at the domain now route to Okta; flip **Require SSO for this domain** when you want the password path refused outright.
+
+## Connect Microsoft Entra ID (SAML)
+
+1. In Entra ID, create an **Enterprise application** → **Create your own application** → _Integrate any other application_.
+2. Open **Single sign-on → SAML** and note the **App Federation Metadata URL** (or download the XML).
+3. Set the **Identifier (Entity ID)** and **Reply URL (ACS)** using the starter's SAML endpoints — `https://<your-app>/api/auth/sso/saml2/sp/metadata?providerId=<provider-id>` serves the generated SP metadata once the connection exists; Entra accepts the app origin as the entity ID.
+4. In workspace settings, add a **SAML** connection with your email domain and either the metadata URL (fetched once at create) or the pasted XML. The starter parses the metadata, extracts the SSO redirect binding, and registers the connection.
+5. **Test** (the stored metadata is re-parsed), then **Enable**.
+
+Entra commonly sends the email in `NameID` or an attribute; the connection's **default role** applies to the provisioned member either way. Users already in the workspace keep their existing role — provisioning only applies to first-time members.
+
+## Internal identity providers
+
+The plugin refuses IdP endpoints on non-public hosts unless their origin is allowlisted. If your IdP lives on a private network, add its origin to `BETTER_AUTH_TRUSTED_ORIGINS` — that is the one operator-side knob, and it exists only for the internal-IdP case; public IdPs (Okta, Entra, Auth0, Google Workspace) need nothing.
+
+## Scope and limits
+
+- No DNS TXT domain verification yet: domain ownership is established by the owner role that configures the connection. If two workspaces on one deployment claim the same domain, routing resolves deterministically and the overlap is visible in each workspace's connection list. DNS verification is the documented follow-up for shared deployments.
+- SAML single logout is off; signing out of the app ends the app session only.
+- API tokens are unaffected: SSO governs human sign-ins; **API Token** verification is a separate path entirely.
+
+## Where it lives
+
+| Piece                     | Where                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| Plugin + schema mapping   | `packages/auth/src/index.ts`                                                         |
+| Table                     | `workspace_sso_connections` in `packages/db/src/schema.ts`                           |
+| Capability + routing rule | `packages/capabilities/src/governance/workspace-sso-connections.ts`                  |
+| Settings surface + tests  | `apps/web/src/components/sso-panel.tsx`, `apps/web/src/lib/server/workspace-sso*.ts` |
+| Require-SSO gate          | `apps/web/src/lib/server/sso-sign-in-gate.ts`                                        |
+| Decision record           | ADR 0055 in `docs/adr/0055-workspace-scoped-sso.md`                                  |

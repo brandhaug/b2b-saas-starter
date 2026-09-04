@@ -101,6 +101,7 @@ describe('runNotificationDigest', () => {
       notifyUser: () => Effect.die('unused in digest tests'),
       create: () => Effect.die('unused in digest tests'),
       loadForEmail: () => Effect.die('unused in digest tests'),
+      record: () => Effect.die('unused in digest tests'),
       listDigestCandidates: (window) =>
         Effect.sync(() => {
           seen.push(window)

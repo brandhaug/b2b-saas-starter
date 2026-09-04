@@ -8,6 +8,7 @@ import {
   webhookDeliveries,
   webhookEndpoints,
   workspaceMembers,
+  workspaceSsoConnections,
   workspaceSubscriptions,
   workspaces
 } from '@b2b-saas-starter/db/schema'
@@ -19,7 +20,8 @@ import {
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   demoMemberIdentity,
-  demoUserIdentity
+  demoUserIdentity,
+  seedSsoConnections
 } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
@@ -379,6 +381,45 @@ function readAt(read: boolean): string | null {
   return null
 }
 
+/**
+ * The SSO connection rows come from the fixture through the same capability
+ * read the settings page uses. The example OIDC connection's config blob is
+ * JSON exactly as the plugin stores it; `enabled: false` keeps its domain
+ * from routing sign-ins (ADR 0055).
+ */
+function ssoConnectionRows(fixture: {
+  readonly workspace: { readonly id: string }
+}): ReadonlyArray<string> {
+  return seedSsoConnections.map((connection) =>
+    insert(workspaceSsoConnections, {
+      id: `row_${connection.id}`,
+      issuer: connection.issuer,
+      oidcConfig:
+        connection.protocol === 'oidc'
+          ? JSON.stringify({
+              // A full example client id for the stored blob. The DTO only
+              // ever carries the last four (the fixture's `7f2a`), so the
+              // fixture cannot supply this — the value is for the local D1
+              // row only.
+              clientId: 'seed-client-7f2a',
+              authorizationEndpoint: connection.oidc.authorizationEndpoint,
+              tokenEndpoint: connection.oidc.tokenEndpoint,
+              jwksEndpoint: connection.oidc.jwksEndpoint
+            })
+          : null,
+      samlConfig: null,
+      userId: demoUserIdentity.id,
+      providerId: connection.id,
+      workspaceId: fixture.workspace.id,
+      domain: connection.domain,
+      enabled: connection.enabled,
+      requireSso: connection.requireSso,
+      defaultWorkspaceRole: connection.defaultWorkspaceRole,
+      createdAt: new Date(connection.createdAt)
+    })
+  )
+}
+
 function notificationRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.notifications.map((notification) =>
     insert(notifications, {
@@ -442,6 +483,7 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...linkedProviderRows(),
     ...tokenRows(fixture, hashes.tokens),
     ...webhookRows(fixture),
+    ...ssoConnectionRows(fixture),
     ...subscriptionRows(fixture),
     ...webhookDeliveryRows(fixture),
     ...auditRows(fixture),
