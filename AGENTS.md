@@ -4,6 +4,10 @@ Cloudflare-first B2B SaaS starter. The public site showcases the repository itse
 
 See [CONTEXT.md](./CONTEXT.md) for canonical domain language, [ARCHITECTURE.md](./ARCHITECTURE.md) for the system map and security model, and [DESIGN.md](./DESIGN.md) for the visual identity — design tokens, typography, and component contracts. Decisions live in [docs/adr](./docs/adr).
 
+## Project posture
+
+Nothing here is in production use. Refactor freely, rename what reads wrong, and drop stored shapes rather than migrating them — no backwards compatibility, no deprecation path, no compatibility shims for old data.
+
 ## Intent Node Index
 
 | Area              | Intent Node                                                          |
@@ -63,8 +67,8 @@ in CI.
 2. Use `packages/capabilities` for business use cases; route handlers and UI components should not duplicate behavior.
 3. Keep local development provider-light. Optional providers must stay inactive when their env vars are unset instead of failing the app.
 4. Use Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, and Alchemy.
-5. Keep Contributor's visual patterns but do not import Contributor's developer-productivity domain language.
-6. Keep Hexwardens' architecture discipline but do not copy game, PWA, realtime, or Durable Object requirements without a starter use case.
+5. Borrow interaction and visual patterns from other products freely, but never import their domain language — every behavior here is expressed through this starter's own capabilities.
+6. Do not adopt architecture (games, PWA, realtime, Durable Objects) without a concrete starter use case — complexity needs a reason in this repo, not a precedent elsewhere.
 7. Put every declaration merge (`declare module`, same-name interface merges) in a `.d.ts` file. Match the augmentation to the file: `declare module 'x'` needs a top-level import so the file is a module, while `declare global` and `declare namespace` need the file to have none. Elsewhere `consistent-type-definitions` rewrites `interface` to `type`. Two lint rules enforce this now (`starter/no-interface-merge-outside-dts`, `starter/no-mismatched-augmentation-context`); see `apps/web/src/router-register.d.ts` for the module case and `apps/web/src/worker-env.d.ts` for the global one. `vp lint --fix` does not run in a hook any more, so run `pnpm run check:fix` deliberately and re-run `pnpm run check` after it.
 
 ## Commit & Release Conventions

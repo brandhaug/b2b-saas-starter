@@ -190,7 +190,7 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 > **Dev:** "Should we document deployment paths for Vercel, Node servers, and Postgres?"
 > **Domain expert:** "No. The **Starter** is **Cloudflare-First**, so the production path should stay coherent around Workers, D1, Alchemy, and Wrangler."
 >
-> **Dev:** "Can we keep Contributor's dashboard patterns?"
+> **Dev:** "Can we reuse dashboard interaction patterns from other products?"
 > **Domain expert:** "Yes, but only as interaction patterns. In this context they present workspace state, not developer productivity analytics."
 >
 > **Dev:** "Should OAuth be required for local development?"
@@ -240,7 +240,7 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 - "Integration" could mean a fake placeholder or a mandatory configured provider. Resolved: optional providers are **Optional Providers** that are real in structure and opt-in at runtime.
 - "Feature" is too generic for this repository's vocabulary. Resolved: reusable SaaS capabilities are named for what they are (workspaces, webhooks, notifications), not lumped as features.
 - "Cloudflare support" understates the platform decision. Resolved: the starter is **Cloudflare-First**, not platform-agnostic.
-- Contributor's analytics terms should not become this repo's domain language. Resolved: copy UX patterns, but express workspace data through its own capabilities.
+- Other products' vocabulary (developer-productivity analytics especially) must not become this repo's domain language. Resolved: copy UX patterns, but express workspace data through this repo's own capabilities.
 - "OAuth support" should not make local setup dependent on GitHub or any other provider. Resolved: email/password is the **Local Auth Path**.
 - "Billing included" means billing is an **Optional Provider**, not that Stripe setup is mandatory for local development.
 - Sentry and PostHog are included but should not become required setup steps. Resolved: both are **Optional Providers**.
