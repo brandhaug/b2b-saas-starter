@@ -104,7 +104,12 @@ describe('SignInPage', () => {
       <SignInPage
         signIn={signIn}
         signInWithSso={signInWithSso}
-        resolveRouting={async () => ({ requireSso: false })}
+        resolveRouting={async () => ({
+          providerId: 'sso_test',
+          protocol: 'oidc',
+          workspaceId: 'wrk_test',
+          requireSso: false
+        })}
       />,
       { path: '/sign-in', destinations: ['/workspaces'] }
     )
