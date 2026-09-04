@@ -1,6 +1,7 @@
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { Layer } from 'effect'
-import { type LiveBillingOptions } from './billing/billing.ts'
+import { type LiveBillingOptions } from './billing/billing.live.ts'
+import { type SeatSyncQueueBinding } from './billing/seat-sync.ts'
 import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
 import { type WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
 import { type WorkspaceLifecycleBinding } from './governance/workspace-lifecycle.ts'
@@ -35,6 +36,12 @@ export type StarterEnv = {
   readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding | undefined
   /** Export artifact bucket (ADR 0055). Absent, exports report unavailable. */
   readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding | undefined
+  /**
+   * The seat-sync queue the membership and invitation mutations enqueue onto;
+   * the background worker consumes it. Absent (local dev, no queue binding),
+   * those mutations publish nothing — seat sync heals on the next mutation.
+   */
+  readonly BILLING_QUEUE?: SeatSyncQueueBinding | undefined
   /**
    * Adapter onto the organization plugin's member endpoints, supplied by the
    * app because two of the three endpoints need the request's session headers
@@ -80,12 +87,17 @@ export type StarterEnv = {
 export function starterEnv(
   env: Pick<
     StarterEnv,
-    'DB' | 'WEBHOOK_QUEUE' | 'WORKSPACE_EXPORT_QUEUE' | 'WORKSPACE_EXPORT_BUCKET'
+    | 'DB'
+    | 'WEBHOOK_QUEUE'
+    | 'BILLING_QUEUE'
+    | 'WORKSPACE_EXPORT_QUEUE'
+    | 'WORKSPACE_EXPORT_BUCKET'
   >
 ): StarterEnv {
   return {
     DB: env.DB,
     WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
+    BILLING_QUEUE: env.BILLING_QUEUE,
     WORKSPACE_EXPORT_QUEUE: env.WORKSPACE_EXPORT_QUEUE,
     WORKSPACE_EXPORT_BUCKET: env.WORKSPACE_EXPORT_BUCKET
   }
@@ -98,6 +110,7 @@ export function starterEnv(
 function liveCapabilitiesOptions(env: StarterEnv) {
   return {
     webhookQueue: env.WEBHOOK_QUEUE,
+    seatSyncQueue: env.BILLING_QUEUE,
     memberBinding: env.memberBinding,
     invitationBinding: env.invitationBinding,
     lifecycleBinding: env.lifecycleBinding,

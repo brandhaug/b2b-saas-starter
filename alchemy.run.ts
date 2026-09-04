@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
 import {
   apiRateLimits,
+  billingConsumerSettings,
   isPreviewStage,
   stageResourceNames,
   webhookConsumerSettings,
@@ -229,6 +230,12 @@ export const Stack = Alchemy.Stack(
       name: names.webhookQueue
     })
 
+    // Seat sync: membership and invitation mutations enqueue; the background
+    // worker consumes and reconciles the Stripe subscription item quantity.
+    const billingQueue = yield* Cloudflare.Queues.Queue('billing-queue', {
+      name: names.billingQueue
+    })
+
     // Only provision the SendEmail binding when a verified sender is
     // configured — without it the email module stays inactive instead of
     // failing the deploy.
@@ -312,6 +319,7 @@ export const Stack = Alchemy.Stack(
       env: {
         DB: db,
         WEBHOOK_QUEUE: webhookQueue,
+        BILLING_QUEUE: billingQueue,
         ...emailBinding,
         ...workspaceExportBindings,
         ...providerEnv
@@ -335,6 +343,14 @@ export const Stack = Alchemy.Stack(
       settings: webhookConsumerSettings
     })
 
+    // Seat-sync consumer: the queue membership mutations enqueue onto, so the
+    // Stripe quantity update happens off the request path.
+    yield* Cloudflare.Queues.Consumer('billing-consumer', {
+      queueId: billingQueue.queueId,
+      scriptName: background.workerName,
+      settings: billingConsumerSettings
+    })
+
     // Dead-letter consumer: the background worker records terminal
     // `dead_lettered` delivery rows for messages that exhausted maxRetries.
     yield* Cloudflare.Queues.Consumer('webhook-dlq-consumer', {
@@ -348,6 +364,9 @@ export const Stack = Alchemy.Stack(
       rootDir: './apps/web',
       env: {
         DB: db,
+        // Producer only — the background worker consumes; membership and
+        // invitation mutations enqueue seat-sync messages.
+        BILLING_QUEUE: billingQueue,
         ...rateLimitBindings(webRateLimits),
         AI: ai,
         ...emailBinding,
@@ -366,6 +385,7 @@ export const Stack = Alchemy.Stack(
       stage,
       api,
       background,
+      billingQueue,
       db,
       transactionalEmail,
       web,

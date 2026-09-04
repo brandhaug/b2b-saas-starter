@@ -6,6 +6,7 @@ import {
   user,
   webhookEndpoints,
   workspaceMembers,
+  workspaceSubscriptions,
   workspaces
 } from '@b2b-saas-starter/db/schema'
 import {
@@ -312,6 +313,27 @@ function notificationRows(fixture: Fixture): ReadonlyArray<string> {
   )
 }
 
+/**
+ * The Seed Workspace's simulated provider subscription: a customer, a seat
+ * item, and the quantity its four members bill as on the per-seat Team plan.
+ * Fixture values only — the workspace's Stripe state lives in
+ * `workspace_subscriptions` and is written by provider events in production,
+ * but the demo should render seat usage and (with Stripe configured) the
+ * portal without anyone checking out first.
+ */
+function subscriptionRows(fixture: Fixture): ReadonlyArray<string> {
+  return [
+    insert(workspaceSubscriptions, {
+      workspaceId: fixture.workspace.id,
+      stripeCustomerId: 'cus_seed_starter_lab',
+      stripeSubscriptionId: 'sub_seed_starter_lab',
+      stripeSubscriptionItemId: 'si_seed_starter_lab',
+      seatQuantity: fixture.members.length,
+      updatedAt: now
+    })
+  ]
+}
+
 function buildStatements(fixture: Fixture, hashes: Hashes): string {
   return `${[
     'PRAGMA foreign_keys = ON;',
@@ -321,6 +343,7 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...credentialRows(hashes.demoPassword),
     ...tokenRows(fixture, hashes.tokens),
     ...webhookRows(fixture),
+    ...subscriptionRows(fixture),
     ...auditRows(fixture),
     ...notificationRows(fixture)
   ].join('\n')}\n`

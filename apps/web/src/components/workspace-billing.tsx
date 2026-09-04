@@ -1,24 +1,31 @@
-import { Check, Minus } from 'lucide-react'
+import { Check, Minus, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
 import { useServerAction } from '@/hooks/use-server-action'
-import { startCheckoutServerFn } from '@/lib/server/billing'
+import { startCheckoutServerFn, startPortalSessionServerFn } from '@/lib/server/billing'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Identifier } from '@/components/page/identifier'
 import { Panel } from '@/components/page/panel'
 import { Spinner } from '@/components/ui/spinner'
-
 const CHECKOUT_DISABLED =
   'Checkout is not available right now: billing is not configured for this deployment.'
 const CHECKOUT_FAILED = 'Something went wrong starting checkout.'
+const PORTAL_FAILED = 'Something went wrong opening the billing portal.'
+const PORTAL_UNAVAILABLE =
+  'The billing portal is not available for this workspace yet — it opens after the first subscription. Start an upgrade first, then manage invoices and payment methods there.'
 
 /** The server function the Upgrade button calls; a test supplies its own. */ export type StartCheckout =
   (input: {
     readonly data: { readonly workspaceSlug: string; readonly planId: string }
   }) => Promise<{ url: string }>
+
+/** The server function the Manage-billing button calls; a test supplies its own. */
+export type StartPortalSession = (input: {
+  readonly data: { readonly workspaceSlug: string }
+}) => Promise<{ url: string }>
 
 /**
  * The catalog record as the page renders it. It is the capability's own `Plan`
@@ -26,6 +33,25 @@ const CHECKOUT_FAILED = 'Something went wrong starting checkout.'
  * component branches on a plan id.
  */
 export type BillingPlan = Plan
+
+/**
+ * One sentence out of a rejected portal call. The capability-unavailable case
+ * (an unbilled workspace, or a deployment whose Stripe settings just went
+ * away) gets its own guidance; everything else passes through `causeMessage`.
+ */
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- `unknown` is the input: a rejected promise's value has no boundary schema, and probing it realm-safe needs one typeof
+function portalErrorText(thrown: unknown): string {
+  if (
+    typeof thrown === 'object' &&
+    thrown !== null &&
+    'name' in thrown &&
+    thrown.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
+  ) {
+    return PORTAL_UNAVAILABLE
+  }
+  return causeMessage(thrown, PORTAL_FAILED)
+}
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
 /**
  * One sentence out of a rejected checkout call. The capability-unavailable
@@ -59,7 +85,8 @@ export function BillingPlans({
   plans,
   stripeConfigured,
   canManageBilling,
-  startCheckout = startCheckoutServerFn
+  startCheckout = startCheckoutServerFn,
+  startPortalSession = startPortalSessionServerFn
 }: {
   readonly workspaceSlug: string
   readonly currentPlanId: string
@@ -68,6 +95,7 @@ export function BillingPlans({
   /** Whether the viewer may change the plan (`organization:update`). */
   readonly canManageBilling: boolean
   readonly startCheckout?: StartCheckout
+  readonly startPortalSession?: StartPortalSession
 }) {
   // The server function rejects when the capability fails; the hook folds that
   // rejection into a displayable message via `checkoutErrorText`. Checkout
@@ -82,11 +110,47 @@ export function BillingPlans({
     }
   )
 
+  // The portal is the same handoff shape: the server fn returns the hosted
+  // URL, the browser leaves. The button renders only when Stripe is
+  // configured — one definition, read off the capability's own `configured`.
+  const portal = useServerAction<undefined, { url: string }>(
+    () => startPortalSession({ data: { workspaceSlug } }),
+    {
+      failureMessage: PORTAL_FAILED,
+      describeFailure: portalErrorText,
+      invalidate: false,
+      onSuccess: (session) => window.location.assign(session.url)
+    }
+  )
+
   const currentPlan = plans.find((plan) => plan.id === currentPlanId)
 
   return (
     <>
-      <Panel title="Current plan">
+      <Panel
+        title="Current plan"
+        // The portal is the same handoff shape as checkout: the server fn
+        // returns the hosted URL, the browser leaves. It renders only when
+        // Stripe is configured — one definition, read off the capability's
+        // own `configured` — and the workspace's customer must exist.
+        actions={
+          stripeConfigured && canManageBilling ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={portal.pending}
+              onClick={() => portal.run(undefined)}
+            >
+              {portal.pending ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <ExternalLink data-icon="inline-start" />
+              )}
+              Manage billing
+            </Button>
+          ) : null
+        }
+      >
         <div className="flex flex-wrap items-center gap-3">
           <Badge>{currentPlan?.name ?? currentPlanId}</Badge>
           <p className="text-sm text-muted-foreground">
@@ -95,6 +159,7 @@ export function BillingPlans({
           </p>
         </div>
       </Panel>
+      <ActionFeedback error={portal.error} />
       {stripeConfigured ? null : (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Billing is an optional provider and Stripe is not configured on this
@@ -151,6 +216,13 @@ function PlanTile({
       <p className="text-2xl font-semibold">{plan.price}</p>
       <p className="text-sm text-muted-foreground">{plan.description}</p>
       <ul className="grid gap-1 text-sm text-muted-foreground">
+        <EntitlementRow
+          label="Seats"
+          limit={plan.pricing === 'per_seat' ? null : plan.limits.seats}
+          unlimitedLabel={
+            plan.pricing === 'per_seat' ? 'Billed per member' : 'Unlimited seats'
+          }
+        />
         <EntitlementRow label="API tokens" limit={plan.limits.apiTokens} />
         <EntitlementRow
           label="Webhook endpoints"
@@ -250,10 +322,22 @@ function StaticPlanHint({ plan }: { readonly plan: BillingPlan }) {
 /** The current plan's ceilings as one sentence, read off the plan itself. */
 function entitlementSentence(plan: BillingPlan): string {
   const parts = [
+    seatPhrase(plan),
     limitPhrase(plan.limits.apiTokens, 'API token'),
     limitPhrase(plan.limits.webhookEndpoints, 'webhook endpoint')
   ]
   return `${plan.name} allows ${parts.join(' and ')}.`
+}
+
+/** The seat half: included seats on a flat plan, per-member billing on per-seat. */
+function seatPhrase(plan: BillingPlan): string {
+  if (plan.pricing === 'per_seat') {
+    return 'one seat per member'
+  }
+  if (plan.limits.seats === null) {
+    return 'unlimited seats'
+  }
+  return `up to ${plan.limits.seats} seats`
 }
 
 function limitPhrase(limit: number | null, noun: string): string {
@@ -263,12 +347,21 @@ function limitPhrase(limit: number | null, noun: string): string {
   return limit === 1 ? `1 ${noun}` : `up to ${limit} ${noun}s`
 }
 
-function EntitlementRow({ label, limit }: { label: string; limit: number | null }) {
+function EntitlementRow({
+  label,
+  limit,
+  unlimitedLabel
+}: {
+  label: string
+  limit: number | null
+  /** What the unlimited row says; defaults to "Unlimited <label>". */
+  unlimitedLabel?: string
+}) {
   if (limit === null) {
     return (
       <li className="flex items-center gap-2">
         <Check className="size-4 text-primary" />
-        Unlimited {label.toLowerCase()}
+        {unlimitedLabel ?? `Unlimited ${label.toLowerCase()}`}
       </li>
     )
   }

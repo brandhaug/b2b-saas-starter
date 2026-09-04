@@ -1,7 +1,8 @@
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
-import { SeedBilling } from './billing/billing.ts'
+import { SeedBilling } from './billing/billing.seed.ts'
+import { SeedSeatSyncPublisher } from './billing/seat-sync.ts'
 import { SeedApiTokenRegistry } from './developer-platform/api-token-registry.seed.ts'
 import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
 import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
@@ -59,7 +60,9 @@ function fixtureLayer(fixture: Fixture) {
       return Layer.mergeAll(
         audit,
         testWorkspaceContext(seedWorkspaceRecord, actor),
-        SeedWorkspaceMembership(roster, seedWorkspaceRecord),
+        SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
+          Layer.provide(SeedSeatSyncPublisher)
+        ),
         SeedApiTokenRegistry(fixture.tokens ?? []).pipe(
           Layer.provide(audit),
           Layer.provide(SeedWebhookPublisher)

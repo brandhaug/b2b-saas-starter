@@ -9,6 +9,7 @@ import {
   seedWorkspaceRecord
 } from './seed-fixture.ts'
 import { SeedWorkspaceInvitations } from './governance/workspace-invitations.seed.ts'
+import { SeedSeatSyncPublisher } from './billing/seat-sync.ts'
 import {
   makeSeedRoster,
   SeedWorkspaceMembership
@@ -542,8 +543,10 @@ describe('seed workspace invitations contract', () => {
               expiresAt: CONTRACT_EXPIRED_AT
             }
           ]
-        }),
-        SeedWorkspaceMembership(roster, seedWorkspaceRecord),
+        }).pipe(Layer.provide(SeedSeatSyncPublisher)),
+        SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
+          Layer.provide(SeedSeatSyncPublisher)
+        ),
         testWorkspaceContext(seedWorkspaceRecord)
       )
     })

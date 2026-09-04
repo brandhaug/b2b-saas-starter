@@ -1,6 +1,8 @@
 import { writeFileSync } from 'node:fs'
 import {
   apiRateLimits,
+  billingConsumerSettings,
+  billingQueueName,
   webRateLimits,
   webhookConsumerSettings,
   webhookDeadLetterQueueName,
@@ -28,6 +30,7 @@ import {
 const D1_DATABASE_NAME = 'b2b-saas-starter'
 const AI_BINDING = 'AI'
 const WEBHOOK_QUEUE_BINDING = 'WEBHOOK_QUEUE'
+const BILLING_QUEUE_BINDING = 'BILLING_QUEUE'
 const WORKSPACE_EXPORT_QUEUE_BINDING = 'WORKSPACE_EXPORT_QUEUE'
 const WORKSPACE_EXPORT_BUCKET_BINDING = 'WORKSPACE_EXPORT_BUCKET'
 
@@ -45,6 +48,12 @@ const workspaceExportBucket = {
 const workspaceExportProducer = {
   binding: WORKSPACE_EXPORT_QUEUE_BINDING,
   queue: workspaceExportQueueName
+}
+
+/** Producer only: seat-sync messages the background worker consumes. */
+const billingQueueProducer = {
+  binding: BILLING_QUEUE_BINDING,
+  queue: billingQueueName
 }
 
 type WranglerRateLimit = {
@@ -157,8 +166,10 @@ export const wranglerConfigs: ReadonlyArray<{
     config: {
       ...workerDefaults('web', 'src/server.ts'),
       ai: { binding: AI_BINDING },
-      // Producer only: workspace settings enqueues export jobs.
-      queues: { producers: [workspaceExportProducer] },
+      // Producers only: membership and invitation mutations enqueue seat-sync
+      // messages the background worker consumes (`Billing.syncSeats`), and
+      // workspace settings enqueues export jobs.
+      queues: { producers: [billingQueueProducer, workspaceExportProducer] },
       r2_buckets: [workspaceExportBucket],
       vars: { WORKERS_AI_ENABLED: 'false' },
       unsafe: { bindings: rateLimits(webRateLimits) }
@@ -203,7 +214,10 @@ export const wranglerConfigs: ReadonlyArray<{
           // exhausted max_retries on the primary queue.
           consumer(webhookDeadLetterQueueName, webhookDlqConsumerSettings),
           // Builds workspace export archives and writes them to R2.
-          consumer(workspaceExportQueueName, workspaceExportConsumerSettings)
+          consumer(workspaceExportQueueName, workspaceExportConsumerSettings),
+          // Mirrors each workspace's member count onto its Stripe
+          // subscription item (seat sync); self-healing, so no DLQ.
+          consumer(billingQueueName, billingConsumerSettings)
         ]
       },
       r2_buckets: [workspaceExportBucket]
