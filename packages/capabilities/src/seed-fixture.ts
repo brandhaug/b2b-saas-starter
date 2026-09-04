@@ -1,4 +1,8 @@
 import { type ApiToken } from './developer-platform/api-token-registry.ts'
+import {
+  type McpClientConnection,
+  type McpClientSummary
+} from './developer-platform/mcp-client-connections.ts'
 import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
 import { type SeedNotification } from './notifications/notification-feed.ts'
 import { type SeedNotificationPreference } from './notifications/notification-preferences.ts'
@@ -121,6 +125,37 @@ export const seedApiTokens: ReadonlyArray<ApiToken> = [
   }
 ]
 
+/**
+ * The one MCP Client the fixture knows: a Client ID Metadata Document client
+ * (its `clientId` is the HTTPS URL of that document), the shape every
+ * interactive MCP client registers with (ADR 0055).
+ */
+const seedMcpClient: McpClientSummary = {
+  clientId: 'https://mcp-client.example.com/oauth/client-metadata.json',
+  name: 'Example MCP client',
+  uri: 'https://mcp-client.example.com'
+}
+
+export const seedMcpClients: ReadonlyArray<McpClientSummary> = [seedMcpClient]
+
+/**
+ * The demo owner's standing consent to that client for the seed workspace —
+ * what the account page's "Connected MCP clients" list shows in local dev.
+ */
+export const seedMcpClientConnections: ReadonlyArray<McpClientConnection> = [
+  {
+    id: 'con_example_mcp',
+    client: seedMcpClient,
+    workspace: {
+      id: seedWorkspaceRecord.id,
+      slug: seedWorkspaceRecord.slug,
+      name: seedWorkspaceRecord.name
+    },
+    scopes: ['openid', 'offline_access', 'mcp:read'],
+    grantedAt: '2026-05-15T10:00:00.000Z'
+  }
+]
+
 export const seedWebhookEndpoints: ReadonlyArray<SeedWebhookEndpointFixture> = [
   {
     id: 'wh_release',
@@ -239,6 +274,16 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     // audit page (issue #118) has something to show in Seed/dev.
     workspaceId: 'wrk_starter',
     createdAt: '2026-05-14T08:20:00.000Z'
+  },
+  {
+    id: 'aud_mcp_consent',
+    eventType: 'mcp_client.consent_granted',
+    targetType: 'mcp_client',
+    targetId: 'https://mcp-client.example.com/oauth/client-metadata.json',
+    actor: 'Demo Admin',
+    actorUserId: 'usr_demo',
+    workspaceId: 'wrk_starter',
+    createdAt: '2026-05-15T10:00:00.000Z'
   },
   {
     id: 'aud_export',

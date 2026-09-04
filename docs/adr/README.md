@@ -37,6 +37,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0032 — Workspace outbound webhooks](./0032-workspace-outbound-webhooks.md)
 - [0062 — Webhook operator tooling: replay and rotation grace](./0062-webhook-operator-tooling-replay-and-rotation-grace.md)
 - [0054 — Derived workspace onboarding checklist](./0054-derived-workspace-onboarding-checklist.md)
+- [0055 — OAuth 2.1 for interactive MCP clients, beside API Tokens](./0055-oauth-for-interactive-mcp-clients-beside-api-tokens.md)
 
 ## Background work and delivery
 

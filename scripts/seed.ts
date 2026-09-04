@@ -4,6 +4,8 @@ import {
   auditEvents,
   notificationPreferences,
   notifications,
+  oauthClient,
+  oauthConsent,
   user,
   webhookDeliveries,
   webhookEndpoints,
@@ -21,6 +23,8 @@ import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-e
 import {
   demoMemberIdentity,
   demoUserIdentity,
+  seedMcpClientConnections,
+  seedMcpClients,
   seedSsoConnections
 } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
@@ -374,6 +378,48 @@ function auditRows(fixture: Fixture): ReadonlyArray<string> {
   )
 }
 
+/**
+ * The fixture MCP Client and the demo owner's consent to it (ADR 0055). Both
+ * tables are the OAuth provider's: epoch-integer dates, camelCase columns. The
+ * consent's `referenceId` is the workspace the consent page picked.
+ */
+function mcpClientRows(): ReadonlyArray<string> {
+  return [
+    ...seedMcpClients.map((client) =>
+      insert(oauthClient, {
+        id: `oac_${client.clientId.replaceAll(/[^a-z0-9]/gi, '_').slice(-40)}`,
+        clientId: client.clientId,
+        name: client.name,
+        uri: client.uri,
+        clientDiscoveryId: 'cimd',
+        disabled: false,
+        scopes: ['openid', 'profile', 'email', 'offline_access', 'mcp:read'],
+        clientCredentialsScopes: [],
+        redirectUris: ['http://127.0.0.1:33418/oauth/callback'],
+        tokenEndpointAuthMethod: 'none',
+        grantTypes: ['authorization_code', 'refresh_token'],
+        responseTypes: ['code'],
+        requirePKCE: true,
+        dpopBoundAccessTokens: false,
+        createdAt: new Date(now),
+        updatedAt: new Date(now)
+      })
+    ),
+    ...seedMcpClientConnections.map((connection) =>
+      insert(oauthConsent, {
+        id: connection.id,
+        clientId: connection.client.clientId,
+        userId: demoUserIdentity.id,
+        referenceId: connection.workspace?.id ?? null,
+        resources: ['http://localhost:8787/mcp'],
+        scopes: connection.scopes,
+        createdAt: new Date(connection.grantedAt),
+        updatedAt: new Date(connection.grantedAt)
+      })
+    )
+  ]
+}
+
 function readAt(read: boolean): string | null {
   if (read) {
     return now
@@ -486,6 +532,7 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...ssoConnectionRows(fixture),
     ...subscriptionRows(fixture),
     ...webhookDeliveryRows(fixture),
+    ...mcpClientRows(),
     ...auditRows(fixture),
     ...notificationRows(fixture),
     ...notificationPreferenceRows(fixture)

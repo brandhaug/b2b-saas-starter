@@ -5,7 +5,8 @@
   "exports": {
     "./client": "./src/client.ts",
     "./errors": "./src/errors.ts",
-    "./guard": "./src/guard.ts"
+    "./guard": "./src/guard.ts",
+    "./mcp-access-token": "./src/mcp-access-token.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

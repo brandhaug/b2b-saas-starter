@@ -49,7 +49,9 @@
   ],
   "vars": {
     "WORKERS_AI_ENABLED": "false",
-    "CLOUDFLARE_EMAIL_FROM": "noreply@example.com"
+    "CLOUDFLARE_EMAIL_FROM": "noreply@example.com",
+    "MCP_OAUTH_ISSUER": "http://localhost:3071/api/auth",
+    "MCP_RESOURCE_URL": "http://localhost:8787/mcp"
   },
   "unsafe": {
     "bindings": [

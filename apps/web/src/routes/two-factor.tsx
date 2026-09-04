@@ -10,6 +10,7 @@ import {
   type VerifyTotpCode
 } from '@/components/auth/auth-client-ports'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
+import { oauthContinuationUrl } from '@/lib/oauth-continuation'
 import { FormTextField } from '@/components/form-text-field'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 
@@ -45,6 +46,13 @@ export function TwoFactorChallengePage({
       const result = await verifyTotp({ code: value.code })
       if (result.error) {
         setSubmitError(result.error.message ?? 'Verification failed')
+        return
+      }
+      // Same hop as sign-in: a challenge that completes an MCP client's
+      // authorization is answered with that flow's next URL.
+      const continuation = oauthContinuationUrl(result.data)
+      if (continuation !== null) {
+        window.location.assign(continuation)
         return
       }
       router.history.push(safeRedirect(redirect))

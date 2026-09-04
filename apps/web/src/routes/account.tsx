@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { NotificationPreferencesPanel } from '@/components/notification-preferences-panel'
 import { TwoFactorPanel } from '@/components/two-factor-panel'
+import { McpClientsPanel } from '@/components/mcp-clients-panel'
 import { PasskeysPanel } from '@/components/passkeys-panel'
 import { SessionsPanel } from '@/components/sessions-panel'
 import { LinkedAccountsPanel } from '@/components/linked-accounts-panel'
@@ -12,6 +13,10 @@ import { WorkspaceShell } from '@/components/workspace-shell'
 import { authClient } from '@/lib/auth-client'
 import { requireSession } from '@/lib/server/auth'
 import { loadNotificationPreferences } from '@/lib/server/notification-preferences'
+import {
+  loadMcpClientConnections,
+  revokeMcpClientServerFn
+} from '@/lib/server/mcp-clients'
 
 // Account settings live outside the /workspaces subtree on purpose: they are
 // user-level, not workspace-level, so the route keeps its own session gate
@@ -22,17 +27,25 @@ export const Route = createFileRoute('/account')({
     const session = await requireSession(location.href)
     return { session }
   },
-  // The one capability read on this page: the user's own notification
-  // preferences, keyed by their id — identity-keyed, no workspace involved.
+  // Two account-level reads — the user's own notification preferences and
+  // the MCP clients connected to this account (ADR 0055) — both
+  // identity-keyed, no workspace involved.
   loader: ({ context }) =>
-    loadNotificationPreferences({ userId: context.session.user.id }),
+    // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the two account reads parallel
+    Promise.all([
+      loadNotificationPreferences({ userId: context.session.user.id }),
+      loadMcpClientConnections({ userId: context.session.user.id })
+    ]).then(([preferencePayload, connections]) => ({
+      preferences: preferencePayload.preferences,
+      connections
+    })),
   component: AccountRoute,
   head: () => ({ meta: [{ title: pageTitle('Account') }] })
 })
 
 function AccountRoute() {
   const { session } = Route.useRouteContext()
-  const { preferences } = Route.useLoaderData()
+  const { preferences, connections } = Route.useLoaderData()
   // The current session token never rides the SSR payload (see `RouteSession`
   // in lib/server/auth.ts) — the panel reads it from the client session hook.
   const currentSession = authClient.useSession()
@@ -106,6 +119,13 @@ function AccountRoute() {
         description="How each kind of notification reaches you by email: not at all, one email per event, or the daily digest. Security kinds default to instant."
       >
         <NotificationPreferencesPanel preferences={preferences} />
+      </Panel>
+
+      <Panel
+        title="MCP clients"
+        description="AI clients you connected through OAuth. Each one reaches exactly one workspace, with what your role there allows."
+      >
+        <McpClientsPanel connections={connections} revoke={revokeMcpClientServerFn} />
       </Panel>
     </WorkspaceShell>
   )

@@ -24,12 +24,15 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
+import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known.oauth-authorization-server'
 import { Route as KnowledgeChangelogRouteImport } from './routes/_knowledge.changelog'
 import { Route as KnowledgeFaqRouteImport } from './routes/_knowledge.faq'
 import { Route as AccountNotificationsRouteImport } from './routes/account_.notifications'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
+import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
+import { Route as DotwellKnownOauthAuthorizationServerSplatRouteImport } from './routes/[.]well-known.oauth-authorization-server.$'
 import { Route as KnowledgeBlogIndexRouteImport } from './routes/_knowledge.blog.index'
 import { Route as KnowledgeBlogSlugRouteImport } from './routes/_knowledge.blog.$slug'
 import { Route as KnowledgeDocsIndexRouteImport } from './routes/_knowledge.docs.index'
@@ -118,6 +121,12 @@ const WorkspacesRoute = WorkspacesRouteImport.update({
   path: '/workspaces',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DotwellKnownOauthAuthorizationServerRoute =
+  DotwellKnownOauthAuthorizationServerRouteImport.update({
+    id: '/.well-known/oauth-authorization-server',
+    path: '/.well-known/oauth-authorization-server',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const KnowledgeChangelogRoute = KnowledgeChangelogRouteImport.update({
   id: '/changelog',
   path: '/changelog',
@@ -143,11 +152,22 @@ const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
   path: '/invitations/accept',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth/consent',
+  path: '/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkspacesIndexRoute = WorkspacesIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => WorkspacesRoute,
 } as any)
+const DotwellKnownOauthAuthorizationServerSplatRoute =
+  DotwellKnownOauthAuthorizationServerSplatRouteImport.update({
+    id: '/$',
+    path: '/$',
+    getParentRoute: () => DotwellKnownOauthAuthorizationServerRoute,
+  } as any)
 const KnowledgeBlogIndexRoute = KnowledgeBlogIndexRouteImport.update({
   id: '/blog/',
   path: '/blog/',
@@ -238,12 +258,15 @@ export interface FileRoutesByFullPath {
   '/two-factor': typeof TwoFactorRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/changelog': typeof KnowledgeChangelogRoute
   '/faq': typeof KnowledgeFaqRoute
   '/account/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
+  '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
   '/blog/$slug': typeof KnowledgeBlogSlugRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
@@ -272,12 +295,15 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/two-factor': typeof TwoFactorRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/changelog': typeof KnowledgeChangelogRoute
   '/faq': typeof KnowledgeFaqRoute
   '/account/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/help': typeof HelpIndexRoute
   '/workspaces': typeof WorkspacesIndexRoute
+  '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
   '/blog/$slug': typeof KnowledgeBlogSlugRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
@@ -309,12 +335,15 @@ export interface FileRoutesById {
   '/two-factor': typeof TwoFactorRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
+  '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/_knowledge/changelog': typeof KnowledgeChangelogRoute
   '/_knowledge/faq': typeof KnowledgeFaqRoute
   '/account_/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
+  '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
   '/_knowledge/blog/$slug': typeof KnowledgeBlogSlugRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
@@ -346,12 +375,15 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/verify-email'
     | '/workspaces'
+    | '/.well-known/oauth-authorization-server'
     | '/changelog'
     | '/faq'
     | '/account/notifications'
     | '/invitations/accept'
+    | '/oauth/consent'
     | '/help/'
     | '/workspaces/'
+    | '/.well-known/oauth-authorization-server/$'
     | '/blog/$slug'
     | '/api/auth/$'
     | '/workspaces/$workspaceSlug/api-tokens'
@@ -380,12 +412,15 @@ export interface FileRouteTypes {
     | '/terms'
     | '/two-factor'
     | '/verify-email'
+    | '/.well-known/oauth-authorization-server'
     | '/changelog'
     | '/faq'
     | '/account/notifications'
     | '/invitations/accept'
+    | '/oauth/consent'
     | '/help'
     | '/workspaces'
+    | '/.well-known/oauth-authorization-server/$'
     | '/blog/$slug'
     | '/api/auth/$'
     | '/workspaces/$workspaceSlug/api-tokens'
@@ -416,12 +451,15 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/verify-email'
     | '/workspaces'
+    | '/.well-known/oauth-authorization-server'
     | '/_knowledge/changelog'
     | '/_knowledge/faq'
     | '/account_/notifications'
     | '/invitations/accept'
+    | '/oauth/consent'
     | '/help/'
     | '/workspaces/'
+    | '/.well-known/oauth-authorization-server/$'
     | '/_knowledge/blog/$slug'
     | '/api/auth/$'
     | '/workspaces/$workspaceSlug/api-tokens'
@@ -453,8 +491,10 @@ export interface RootRouteChildren {
   TwoFactorRoute: typeof TwoFactorRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   WorkspacesRoute: typeof WorkspacesRouteWithChildren
+  DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   AccountNotificationsRoute: typeof AccountNotificationsRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
+  OauthConsentRoute: typeof OauthConsentRoute
   HelpIndexRoute: typeof HelpIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -566,6 +606,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/.well-known/oauth-authorization-server': {
+      id: '/.well-known/oauth-authorization-server'
+      path: '/.well-known/oauth-authorization-server'
+      fullPath: '/.well-known/oauth-authorization-server'
+      preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_knowledge/changelog': {
       id: '/_knowledge/changelog'
       path: '/changelog'
@@ -601,12 +648,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InvitationsAcceptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/oauth/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/workspaces/': {
       id: '/workspaces/'
       path: '/'
       fullPath: '/workspaces/'
       preLoaderRoute: typeof WorkspacesIndexRouteImport
       parentRoute: typeof WorkspacesRoute
+    }
+    '/.well-known/oauth-authorization-server/$': {
+      id: '/.well-known/oauth-authorization-server/$'
+      path: '/$'
+      fullPath: '/.well-known/oauth-authorization-server/$'
+      preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerSplatRouteImport
+      parentRoute: typeof DotwellKnownOauthAuthorizationServerRoute
     }
     '/_knowledge/blog/': {
       id: '/_knowledge/blog/'
@@ -752,6 +813,21 @@ const WorkspacesRouteWithChildren = WorkspacesRoute._addFileChildren(
   WorkspacesRouteChildren,
 )
 
+interface DotwellKnownOauthAuthorizationServerRouteChildren {
+  DotwellKnownOauthAuthorizationServerSplatRoute: typeof DotwellKnownOauthAuthorizationServerSplatRoute
+}
+
+const DotwellKnownOauthAuthorizationServerRouteChildren: DotwellKnownOauthAuthorizationServerRouteChildren =
+  {
+    DotwellKnownOauthAuthorizationServerSplatRoute:
+      DotwellKnownOauthAuthorizationServerSplatRoute,
+  }
+
+const DotwellKnownOauthAuthorizationServerRouteWithChildren =
+  DotwellKnownOauthAuthorizationServerRoute._addFileChildren(
+    DotwellKnownOauthAuthorizationServerRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   KnowledgeRoute: KnowledgeRouteWithChildren,
@@ -768,8 +844,11 @@ const rootRouteChildren: RootRouteChildren = {
   TwoFactorRoute: TwoFactorRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   WorkspacesRoute: WorkspacesRouteWithChildren,
+  DotwellKnownOauthAuthorizationServerRoute:
+    DotwellKnownOauthAuthorizationServerRouteWithChildren,
   AccountNotificationsRoute: AccountNotificationsRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
+  OauthConsentRoute: OauthConsentRoute,
   HelpIndexRoute: HelpIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }

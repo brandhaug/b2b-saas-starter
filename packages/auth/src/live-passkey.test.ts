@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm'
 import { type Service } from 'effectful-better-auth'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './index.ts'
+import { testMcpConfig } from './test-mcp.ts'
 import { decodeUriSecret } from './test-totp.ts'
 
 /* oxlint-disable effect/noGlobals, effect/noAsyncFunction -- these tests run a
@@ -70,7 +71,8 @@ beforeAll(
               requireEmailVerification: false,
               runBackground: (promise) => {
                 void promise.catch(() => undefined)
-              }
+              },
+              mcp: testMcpConfig()
             }))
           )
         )

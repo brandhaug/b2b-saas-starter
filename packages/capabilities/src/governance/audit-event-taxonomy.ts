@@ -6,10 +6,10 @@
  * Naming is `<namespace>.<past_tense_verb>`, snake_case, with a `_failed`
  * suffix for the failure half of a success/failure pair. Namespaces follow the
  * bounded contexts: `auth.` (account lifecycle over the auth catchall,
- * including SSO sign-in), `api_token.` / `webhook_endpoint.` (developer
- * platform), `workspace.` / `workspace_member.` / `workspace_invitation.` /
- * `workspace_sso.` (governance), `system_admin.` (Better Auth admin endpoints
- * — system-level, no workspace).
+ * including SSO sign-in), `api_token.` / `webhook_endpoint.` / `mcp_client.`
+ * (developer platform), `workspace.` / `workspace_member.` /
+ * `workspace_invitation.` / `workspace_sso.` (governance), `system_admin.`
+ * (Better Auth admin endpoints — system-level, no workspace).
  *
  * The unions are enforced at the WRITE boundary (`AuditEventLog.record` /
  * `prepareRecord` input). The read path stays lenient (`Schema.String` on the
@@ -31,6 +31,9 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'webhook.delivery_failed',
   'webhook.delivery_dead_lettered',
   'webhook.delivery_replayed',
+  // developer-platform — MCP Clients connected through OAuth (ADR 0055)
+  'mcp_client.consent_granted',
+  'mcp_client.consent_revoked',
   // governance — workspace lifecycle
   'workspace.created',
   'workspace.renamed',
@@ -124,6 +127,7 @@ export const AUDIT_TARGET_TYPES = literalTuple(
   'session',
   'api_token',
   'webhook_endpoint',
+  'mcp_client',
   'workspace',
   'workspace_member',
   'workspace_invitation',

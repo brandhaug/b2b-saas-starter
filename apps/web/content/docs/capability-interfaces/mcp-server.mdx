@@ -1,24 +1,45 @@
 ---
 title: MCP server
-description: The same capabilities exposed as MCP tools and resources for AI clients.
+description: The same capabilities exposed as MCP tools and resources for AI clients, with OAuth for people and API Tokens for scripts.
 category: capability-interfaces
 order: 20
-tags: [mcp, ai, tools]
+tags: [mcp, ai, tools, oauth]
 ---
 
-The MCP server is the second Capability Interface. It is intended to expose the same workspace, audit, notification, and webhook operations as REST — but shaped as MCP tools and resources.
+The MCP server is the second Capability Interface. It exposes the same workspace reads as REST, shaped as MCP tools and one resource, and it takes two credentials: an OAuth access token for an MCP Client a person operates (Claude, Cursor, and similar), or a workspace API Token for scripts and CI.
 
 ## Today's surface
 
-The API Worker exposes `GET /mcp`, which returns a static discovery document with one resource, `workspace://starter-lab/overview` (see the `mcp` group in `apps/api/src/handlers.ts`). Tool dispatch is intentionally not advertised until execution handlers are wired through the capability layer.
+The API Worker serves a real Model Context Protocol server at `POST /mcp` (Cloudflare Agents SDK, stateless, modern 2026-07-28 protocol only). Every tool is a read over a workspace, derived from the same operation table the REST routes use (`apps/api/src/operations.ts`): `get_workspace_overview`, `list_members`, `list_notifications`, `list_api_tokens`, `list_webhooks`, `list_audit_events`, plus the `workspace://overview` resource. `GET /mcp` is the discovery document, listing exactly those tools. Tools take no arguments: the workspace comes from the credential, never from the client.
 
-## Planned tools and resources
+## Connect from Claude
 
-Tool handlers will wrap the same Effect services that REST routes wrap — `NotificationFeed`, `WebhookEndpoints`, and friends from `@b2b-saas-starter/capabilities`. Their inputs and outputs will be derived from the same Effect Schemas the REST endpoints use, so the contract stays in one place.
+An MCP Client connects through OAuth 2.1. You sign in once, pick the workspace, and the client acts as you, with what your role there allows.
 
-## Authentication
+1. In Claude (or another MCP client that supports remote servers), add a custom connector with the server URL `https://<your-api-worker>/mcp`. Locally that is `http://localhost:8787/mcp`, with `pnpm -C apps/api dev` and `pnpm run dev` both running against a seeded local D1.
+2. The client fetches `/.well-known/oauth-protected-resource/mcp` from the API Worker, learns that the web app's `/api/auth` is the authorization server, and opens the browser at `/api/auth/oauth2/authorize`. If you are signed out you land on `/sign-in`; signing in resumes the authorization.
+3. On `/oauth/consent` you pick exactly one Workspace and see what the client asks for (`mcp:read` to use the server, `offline_access` to stay connected, and the identity scopes). Allow, and the browser returns to the client with the authorization code.
+4. The client exchanges the code for an access token bound to the API Worker's `/mcp` and to that workspace, and calls the tools with it. The token expires after an hour; the refresh token the client also received renews it without another sign-in.
+5. Disconnect from `/account`, under MCP clients: revoking deletes the consent, revokes the client's refresh and access tokens, and writes an `mcp_client.consent_revoked` Audit Event. Connecting wrote `mcp_client.consent_granted`.
 
-The `/mcp` route accepts the same workspace-scoped API Tokens as REST: `Authorization: Bearer …`, authenticated and then checked by `enforcePermission(request, { notification: ['read'] })` in `apps/api/src/handlers.ts`. Like every other endpoint it names a permission rather than a scope — the scope-to-permission mapping lives once, in `@b2b-saas-starter/authz`'s role table, so a `read` token satisfies discovery today. Per-tool checks will name their own permissions once tool dispatch lands. There is no separate MCP credential surface.
+The client identifies itself with a Client ID Metadata Document, the HTTPS URL MCP clients publish (draft-00, as MCP 2026-07-28 pins it). There is no registration step and no client secret to manage.
+
+## Connect from a script
+
+Scripts keep using API Tokens: `Authorization: Bearer bsk_live_…` on `POST /mcp`, exactly as on the REST routes. See [API tokens](/docs/capability-interfaces/api-tokens). A seeded local D1 accepts the documented seed token.
+
+## What the two credentials share, and where they differ
+
+Both open the same route, draw from the same `mcp` rate-limit bucket, and reach the same capability services. Each tool re-checks its own permission through the one `authorize()` path in `@b2b-saas-starter/authz`; the difference is who it authorizes as:
+
+- An API Token authorizes as its scopes (`read`, `write`, `admin`).
+- An OAuth token authorizes as the Member: the API Worker verifies the token's signature against the web worker's JWKS, its issuer (`MCP_OAUTH_ISSUER`), audience (`MCP_RESOURCE_URL`) and expiry, reads the workspace from the token's `starter_workspace_*` claims, and resolves your membership in that workspace on every call. A member who leaves the workspace is refused on the next call; a role change applies on the next call. A token for workspace A can read nothing about workspace B.
+
+REST routes stay token-only. OAuth is the interactive path, not a second REST credential.
+
+## Configuration
+
+Two env vars, both optional. `MCP_RESOURCE_URL` is the API Worker's `/mcp` URL; the web worker binds tokens to it (locally it defaults to `http://localhost:8787/mcp`). `MCP_OAUTH_ISSUER` is the web worker's `/api/auth` base URL; the API Worker trusts tokens from it. With either unset on the API Worker, `POST /mcp` accepts API Tokens only and serves no protected-resource metadata, so a client learns there is nothing to authorize against. The decision is recorded in [ADR 0055](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/adr/0055-oauth-for-interactive-mcp-clients-beside-api-tokens.md).
 
 ## Why one set of capabilities
 

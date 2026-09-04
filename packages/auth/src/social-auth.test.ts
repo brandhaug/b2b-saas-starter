@@ -20,6 +20,7 @@ import {
   type AuthEmailSender,
   type AuthOptions
 } from './index.ts'
+import { testMcpConfig } from './test-mcp.ts'
 
 // Social sign-in is only observable end to end: the provider factory, the
 // state round-trip, implicit account linking, and the linking hooks all
@@ -160,7 +161,8 @@ beforeAll(
               requireEmailVerification: false,
               runBackground: (promise) => {
                 void promise.catch(() => undefined)
-              }
+              },
+              mcp: testMcpConfig()
             }))
           )
         )

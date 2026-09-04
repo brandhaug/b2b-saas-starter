@@ -7,6 +7,7 @@ import { createSign, generateKeyPairSync } from 'node:crypto'
 import { type Service } from 'effectful-better-auth'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './index.ts'
+import { testMcpConfig } from './test-mcp.ts'
 
 // The `sso` plugin's OIDC flow is only observable end to end against a real
 // database AND a real IdP. This suite stands the IdP up as a `globalThis.fetch`
@@ -148,7 +149,8 @@ beforeAll(
               requireEmailVerification: false,
               runBackground: (promise) => {
                 void promise.catch(() => undefined)
-              }
+              },
+              mcp: testMcpConfig()
             }))
           )
         )

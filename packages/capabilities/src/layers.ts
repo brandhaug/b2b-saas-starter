@@ -5,6 +5,9 @@ import { Effect, Layer } from 'effect'
 import { LiveApiTokenRegistry } from './developer-platform/api-token-registry.live.ts'
 import { SeedApiTokenRegistry } from './developer-platform/api-token-registry.seed.ts'
 import { type ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
+import { LiveMcpClientConnections } from './developer-platform/mcp-client-connections.live.ts'
+import { SeedMcpClientConnections } from './developer-platform/mcp-client-connections.seed.ts'
+import { type McpClientConnections } from './developer-platform/mcp-client-connections.ts'
 import { LiveWebhookEndpoints } from './developer-platform/webhook-endpoints.live.ts'
 import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
 import { type WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
@@ -90,6 +93,8 @@ import {
   seedApiTokens,
   seedAuditEvents,
   seedDeliveries,
+  seedMcpClientConnections,
+  seedMcpClients,
   seedMembers,
   seedNotificationPreferences,
   seedNotifications,
@@ -106,6 +111,7 @@ export type CapabilityServices =
   | ApiTokenRegistry
   | AuditEventLog
   | Billing
+  | McpClientConnections
   | NotificationFeed
   | NotificationPreferences
   | PlatformUserAdmin
@@ -178,6 +184,10 @@ const SeedCore = Layer.mergeAll(
   // sees the same instances.
   SeedApiTokenRegistry(seedApiTokens),
   SeedAuditLog,
+  SeedMcpClientConnections({
+    clients: seedMcpClients,
+    connections: seedMcpClientConnections
+  }),
   SeedNotifications,
   SeedSeatSyncPublisher,
   SeedSsoConnections(seedSsoConnections),
@@ -288,6 +298,7 @@ export function makeLiveCapabilitiesLayer(
     LiveApiTokenRegistry,
     LiveAuditEventLog,
     LiveBilling(options.billing),
+    LiveMcpClientConnections,
     preferences,
     feed,
     LiveSsoConnections(options.ssoBinding),

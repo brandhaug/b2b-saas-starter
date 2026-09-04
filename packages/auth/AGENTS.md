@@ -7,7 +7,7 @@ The Better Auth instance and nothing else. This package owns the options object,
 Two runtime exports carry everything:
 
 - `Auth` — an `effectful-better-auth` service providing `{ api, instance }`. `api` is the effectful endpoint proxy (endpoints fail `BetterAuthApiError`); `instance` is the raw Better Auth object for `handler` / `asResponse` needs. The layer requires `AuthConfig`.
-- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, emails, socialProviders, accountHooks, requireEmailVerification, runBackground }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding. `emails` is the `AuthEmailSender` port and `accountHooks` the `AuthAccountHooks` port (below); `socialProviders` carries the resolved active providers (`activeSocialProviders` in `@b2b-saas-starter/env`, structural local type here so this package does not depend on env); `runBackground` **is required** and becomes Better Auth's `advanced.backgroundTasks.handler` verbatim — `ctx.waitUntil` on a Worker that exposes an execution context, and an explicit inline runner where the host does not. There is no fallback here on purpose: a swallow-everything default would make "the verification email vanished past the response" this package's silent decision instead of the app's stated one, and whatever the app supplies owns the rejection.
+- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, emails, socialProviders, accountHooks, requireEmailVerification, runBackground, mcp }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding. `emails` is the `AuthEmailSender` port and `accountHooks` the `AuthAccountHooks` port (below); `socialProviders` carries the resolved active providers (`activeSocialProviders` in `@b2b-saas-starter/env`, structural local type here so this package does not depend on env); `runBackground` **is required** and becomes Better Auth's `advanced.backgroundTasks.handler` verbatim — `ctx.waitUntil` on a Worker that exposes an execution context, and an explicit inline runner where the host does not. There is no fallback here on purpose: a swallow-everything default would make "the verification email vanished past the response" this package's silent decision instead of the app's stated one, and whatever the app supplies owns the rejection. `mcp` is the OAuth server's two deployment facts (see below).
 
 `Session` and `SessionUserRole` are the inferred session types. `SessionUserRole` exists as a **compile-time guard**: widening the plugin array drops every plugin-added field from `Session` while the endpoints keep working, a break no runtime test can see because the data is still there. Indexing the type is the assertion.
 
@@ -41,6 +41,9 @@ Order matters. `tanstackStartCookies()` must stay **last** so cookies set by oth
 | `admin({ adminRoles, impersonationSessionDuration, allowImpersonatingAdmins })` | System Admin axis — `user.role`, ban/unban, impersonation (ADR 0054), `listUsers` for `/admin`. `adminRoles` reads `adminSystemRole` from `@b2b-saas-starter/db/enums`, never a restated `'admin'` literal. Impersonation is one hour (the capability's `IMPERSONATION_SESSION_SECONDS` restates the number — siblings) and admins are never impersonable |
 | `organization({ ... })`                                                         | Workspace membership and invitations (ADR 0051)                                                                                                                                                                                                                                                                                                           |
 | `lastLoginMethod()`                                                             | the "last signed in with X" hint — cookie-backed (`storeInDatabase` off: no user column, no migration); imported from the `better-auth/plugins` barrel, which 1.7 exposes no dedicated subpath for                                                                                                                                                        |
+| `jwt({ disableSettingJwtHeader: true })`                                        | signing keys for the OAuth access tokens below; serves `/api/auth/jwks`. Header-setting stays off so session responses carry no JWT                                                                                                                                                                                                                       |
+| `mcp({ ... })`                                                                  | the OAuth 2.1 authorization server MCP Clients connect through (ADR 0055) — requires `jwt()` above it in the array                                                                                                                                                                                                                                        |
+| `cimd({ ... })`                                                                 | Client ID Metadata Documents, `metadataProfile: 'mcp-2026-07-28'`; the transport is `AuthConfig.mcp.fetchClientMetadataResource`, supplied by the app                                                                                                                                                                                                     |
 | `tanstackStartCookies()`                                                        | bridges the session cookie into TanStack Start; **last**                                                                                                                                                                                                                                                                                                  |
 
 Social providers are **absent until configured** (ADR 0057): `AuthConfig.socialProviders` carries only the providers the app resolved as active (both client halves present); with none configured it carries an empty object, which resolves to zero providers inside Better Auth — no provider exists at all, nothing exists-but-disabled, and the Local Auth Path's runtime shape is unchanged. A fork adds a provider by adding the env vars plus a resolver entry in `activeSocialProviders` (`@b2b-saas-starter/env`), never by wiring a provider that exists but is disabled.
@@ -67,7 +70,7 @@ The starter's domain word is **Workspace** and the plugin's is "organization". T
 
 ## The sso plugin's mapping
 
-Workspace SSO (ADR 0055) follows the organization mapping's rules with a second plugin:
+Workspace SSO (ADR 0055, per-workspace-sso) follows the organization mapping's rules with a second plugin:
 
 - `schema.ssoProvider.modelName = 'workspaceSsoConnections'`, `fields: { organizationId: 'workspaceId' }` — the connection's `organizationId` is the Better Auth organization that backs the Workspace, which is what `organizationProvisioning` provisions against.
 - The starter's columns (`enabled`, `requireSso`, `defaultWorkspaceRole`) are `additionalFields` with `input: true` (the app's settings surface sets them through the plugin's register/update bodies); `createdAt` is an `additionalField` with `input: false` and the usual `defaultValue: () => new Date()` for the same no-Clock reason as `workspaces.updatedAt`.
@@ -75,10 +78,33 @@ Workspace SSO (ADR 0055) follows the organization mapping's rules with a second 
 - The app registers OIDC connections fully hydrated (`skipDiscovery` + explicit endpoints): the plugin's own register-time discovery demands the IdP origin in `trustedOrigins`, which would make every new IdP an operator env change. See ADR 0055 §3.
 - `defaultSSO` stays unused (env-configured providers are the shape this exists to avoid) and `domainVerification` stays off — domain control comes from the owner role that configures the connection.
 
+## The MCP OAuth configuration
+
+`mcp()` is the OAuth provider, so its options carry starter decisions that have
+nowhere else to live — they sit in [`mcp-oauth.ts`](src/mcp-oauth.ts) and are
+tested by `mcp-oauth.test.ts` (pure) and the live suite's `mcp oauth
+authorization server` block (the full PKCE flow against D1):
+
+- `AuthConfig.mcp` — `{ resource, fetchClientMetadataResource }`. `resource` is
+  the API worker's `/mcp` URL every access token is audience-bound to
+  (`MCP_RESOURCE_URL`, defaulting locally to the API dev server); the transport
+  is the app's runtime concern (Workers cannot run the package's Node
+  transport). This package never reads env and never picks a transport.
+- `postLogin.shouldRedirect` / `consentReferenceId` — the workspace pick. The
+  consent page (`/oauth/consent`) is both the post-login and the consent hop;
+  it vouches for the picked workspace through `MCP_WORKSPACE_SELECTED_HEADER`,
+  and the pick rides the consent's `referenceId` into the token claims.
+- `customAccessTokenClaims` — `mcpWorkspaceAccessTokenClaims` stamps
+  `starter_workspace_id` / `_slug` / `_role` on every access token and every
+  refresh, reading the membership from D1 at issuance. The claim names and the
+  resource-server's reading of them live in
+  [`@b2b-saas-starter/authz/mcp-access-token`](../authz/AGENTS.md), so the two
+  workers cannot drift.
+
 ## Invariants
 
 1. **A new column on `workspaces`, `workspace_members`, or `workspace_invitations` needs an `additionalFields` entry here.** A column the plugin does not know about is stripped from every endpoint response — the write succeeds and the read comes back missing the field.
-2. **Nothing reads `session.activeOrganizationId`.** The plugin declares it unconditionally and writes it on create, accept, and set-active; no option turns it off, so the column exists and `live-d1.test.ts` asserts it does. The starter resolves the workspace from the request slug through `liveWorkspaceContext`, and the slug wins because it is what the address bar shows. Two sources of truth for "which workspace" is how a user ends up looking at one workspace's URL and another's data.
+2. **Nothing reads `session.activeOrganizationId` — except the MCP consent flow.** The plugin declares that field unconditionally and writes it on create, accept, and set-active; no option turns it off, so the column exists and `live-d1.test.ts` asserts it does. The starter resolves the workspace from the request slug through `liveWorkspaceContext`, and the slug wins because it is what the address bar shows. Two sources of truth for "which workspace" is how a user ends up looking at one workspace's URL and another's data. The one exception is the OAuth consent flow (ADR 0055): the provider's reference mechanism _is_ the session field, so the consent page writes it with `setActive` and `mcpWorkspaceReferenceId` reads it back — a hand-off channel inside one authorization, never an app data read.
 3. **Roles stay static and single.** The plugin's `parseRoles` joins multiple roles into one comma-separated string in `workspace_members.role`, which the column's `enum: workspaceRoles` type does not admit. Assigning two roles would write `"admin,member"`.
 4. **`new Date()` in the `additionalFields` callbacks is deliberate.** Better Auth calls them outside any Effect, so `Clock` cannot reach them; this file is the platform adapter the `effect/noGlobals` rule exempts. Without `onUpdate` the column keeps its insert value forever.
 

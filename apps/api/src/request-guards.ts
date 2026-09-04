@@ -4,6 +4,8 @@ import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { selectWorkspaceContextLayer } from '@b2b-saas-starter/capabilities/runtime'
+import { type ActorRef } from '@b2b-saas-starter/capabilities/workspace-context'
+import { type McpAccessTokenPrincipal } from '@b2b-saas-starter/authz/mcp-access-token'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { Effect, Layer, Redacted, Result, type Scope } from 'effect'
 import { HttpServerRequest } from 'effect/unstable/http'
@@ -17,6 +19,7 @@ import {
   type ApiPrincipalValue
 } from '@b2b-saas-starter/api'
 import { starterEnv, type ApiEnv } from './env.ts'
+import { looksLikeJwt, OAuthTokenVerifier } from './oauth-access-token.ts'
 import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
 
 /**
@@ -58,26 +61,10 @@ export function enforceRateLimit(
 }
 
 /**
- * The worker's authentication half: verify the bearer token against the
+ * The registry half of the token path: verify the bearer token against the
  * registry and hand back its principal facts (id, workspace, scopes). Whether
  * those scopes cover what was asked is a separate `requirePermission` call —
  * see `enforcePermission`.
- */
-export function authenticate(
-  request: HttpServerRequest.HttpServerRequest
-): Effect.Effect<
-  ApiPrincipalValue,
-  Unauthorized | CapabilityUnavailable,
-  ApiTokenRegistry | Scope.Scope
-> {
-  return verifyToken(bearerToken(request))
-}
-
-/**
- * The registry half of {@link authenticate}, over an already-extracted token:
- * the contract's `BearerAuth` middleware is handed a decoded credential by
- * `HttpApiSecurity.bearer`, the MCP protocol route reads the header itself, and
- * both land here so there is one verification path.
  */
 export function verifyToken(
   token: string | null
@@ -121,6 +108,72 @@ export function verifyToken(
     })
 
     return verified.success
+  })
+}
+
+/**
+ * Who is calling the MCP server: a workspace API Token (scripts, CI) or an
+ * OAuth access token minted for a signed-in Member by the web worker (Claude,
+ * Cursor, …) — ADR 0055. Both name exactly one workspace; only the OAuth caller
+ * names a user, which is what lets its calls resolve a real `Actor` and
+ * authorize as that Member rather than as a scope set.
+ */
+export type McpCaller =
+  | { readonly kind: 'token'; readonly token: ApiPrincipalValue }
+  | { readonly kind: 'oauth'; readonly token: McpAccessTokenPrincipal }
+
+/** The workspace an MCP caller is bound to, whichever credential it presented. */
+export function mcpCallerWorkspaceSlug(caller: McpCaller): string {
+  return caller.token.workspaceSlug
+}
+
+/** The actor a workspace layer should resolve for the caller: the Member behind an OAuth token, nobody behind an API Token. */
+export function mcpCallerActor(caller: McpCaller): ActorRef | undefined {
+  if (caller.kind !== 'oauth') {
+    return undefined
+  }
+  return { userId: caller.token.userId }
+}
+
+/**
+ * The MCP protocol route's authentication: one `Authorization: Bearer` header,
+ * two credential shapes. A JWT (three segments) goes to the OAuth verifier —
+ * signature against the issuer's JWKS, issuer, audience, expiry, then the
+ * starter's own claims; anything else is an API Token and takes exactly the
+ * path {@link verifyToken} always took. The REST groups do not call this: OAuth
+ * is for interactive clients, and the contract's `BearerAuth` stays token-only.
+ */
+export function authenticateMcpCaller(
+  request: HttpServerRequest.HttpServerRequest
+): Effect.Effect<
+  McpCaller,
+  Unauthorized | CapabilityUnavailable,
+  ApiTokenRegistry | OAuthTokenVerifier | Scope.Scope
+> {
+  return Effect.gen(function* () {
+    const bearer = bearerToken(request)
+    if (bearer !== null && looksLikeJwt(bearer)) {
+      const verifier = yield* OAuthTokenVerifier
+      const verified = yield* verifier.verify(bearer).pipe(
+        Effect.tapError((failure) =>
+          Effect.annotateLogsScoped({
+            outcome: 'unauthorized',
+            authReason: failure.message,
+            credential: 'oauth'
+          })
+        )
+      )
+      yield* Effect.annotateLogsScoped({
+        credential: 'oauth',
+        actorUserId: verified.userId,
+        workspaceId: verified.workspaceId,
+        tokenWorkspaceSlug: verified.workspaceSlug
+      })
+      return { kind: 'oauth', token: verified }
+    }
+    const token = yield* verifyToken(bearer)
+    yield* Effect.annotateLogsScoped({ credential: 'api_token' })
+    return { kind: 'token', token }
   })
 }
 
@@ -199,7 +252,7 @@ export function observed<A, E, R>(
  * `cf` object either, so the fallback rebuilds exactly the two things the
  * envelope still reads — the URL and the headers — against a synthetic origin.
  */
-function webRequest(request: HttpServerRequest.HttpServerRequest): Request {
+export function webRequest(request: HttpServerRequest.HttpServerRequest): Request {
   const web = HttpServerRequest.toWebResult(request)
   if (Result.isSuccess(web)) {
     return web.success
@@ -221,9 +274,12 @@ function webRequest(request: HttpServerRequest.HttpServerRequest): Request {
 export function provideWorkspace<A, E, R>(
   env: ApiEnv,
   slug: string,
-  body: Effect.Effect<A, E, R>
+  body: Effect.Effect<A, E, R>,
+  actor?: ActorRef
 ) {
-  return body.pipe(Effect.provide(selectWorkspaceContextLayer(starterEnv(env), slug)))
+  return body.pipe(
+    Effect.provide(selectWorkspaceContextLayer(starterEnv(env), slug, actor))
+  )
 }
 
 /**

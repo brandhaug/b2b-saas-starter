@@ -24,6 +24,11 @@ import { exportDownloadLayer } from './export-download.ts'
 import { bearerAuth } from './request-guards.ts'
 import { makeRateLimiterLayer } from './rate-limit.ts'
 import { mcpProtocolLayer } from './mcp.ts'
+import {
+  makeOAuthTokenVerifierLayer,
+  oauthResourceConfig,
+  protectedResourceMetadata
+} from './oauth-access-token.ts'
 
 // Web-standard platform with no filesystem. HttpApiBuilder requires HttpPlatform
 // + FileSystem + Path + Etag for file/multipart responses we never emit; the
@@ -46,20 +51,54 @@ const rootIndexLayer = HttpRouter.add('GET', '/', () =>
     HttpServerResponse.jsonUnsafe({
       name: 'b2b-saas-starter-api',
       description:
-        'Starter REST + MCP API. All routes except /health require an Authorization: Bearer API token.',
+        'Starter REST + MCP API. All routes except /health require an Authorization: Bearer API token; POST /mcp also accepts an OAuth access token.',
       health: '/health',
       openapi: '/openapi.json',
       docs: '/reference',
-      mcp: '/mcp'
+      mcp: '/mcp',
+      oauthProtectedResource: '/.well-known/oauth-protected-resource/mcp'
     })
   )
 )
+
+/**
+ * RFC 9728 Protected Resource Metadata for the MCP server, at the well-known
+ * root and at the resource-path-inserted alias MCP clients try first. Static
+ * like the root index, so it rides beside the contract too. With OAuth
+ * unconfigured (`MCP_OAUTH_ISSUER` / `MCP_RESOURCE_URL` unset) there is no
+ * authorization server to point at, and the documents are 404 — a client then
+ * knows `/mcp` takes API Tokens only.
+ */
+function protectedResourceLayer(env: ApiEnv) {
+  const config = oauthResourceConfig(env)
+  function respond(): Effect.Effect<HttpServerResponse.HttpServerResponse> {
+    if (config === undefined) {
+      return Effect.succeed(
+        HttpServerResponse.jsonUnsafe(
+          { error: 'oauth_not_configured' },
+          { status: 404 }
+        )
+      )
+    }
+    return Effect.succeed(
+      HttpServerResponse.jsonUnsafe(protectedResourceMetadata(config))
+    )
+  }
+  return Layer.mergeAll(
+    HttpRouter.add('GET', '/.well-known/oauth-protected-resource', respond),
+    HttpRouter.add('GET', '/.well-known/oauth-protected-resource/mcp', respond)
+  )
+}
 
 function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRouter> {
   const capabilities = Layer.mergeAll(
     selectCapabilitiesLayer(starterEnv(env)),
     selectAssistantLayer(env),
-    makeRateLimiterLayer(env)
+    makeRateLimiterLayer(env),
+    // The OAuth access-token verifier for `POST /mcp` (ADR 0055): one per
+    // isolate, so its cached JWKS outlives the request. Inactive when the
+    // issuer env is unset.
+    makeOAuthTokenVerifierLayer(env)
   )
 
   const groups = Layer.mergeAll(
@@ -91,6 +130,7 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     // is the signature in its query string, not a bearer token, so it rides
     // beside the contract like `/mcp`. See `export-download.ts`.
     exportDownloadLayer(env),
+    protectedResourceLayer(env),
     HttpApiScalar.layer(StarterApi, { path: '/reference' })
   ).pipe(
     HttpRouter.provideRequest(capabilities),
