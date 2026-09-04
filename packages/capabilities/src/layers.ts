@@ -20,6 +20,12 @@ import {
 
 // governance
 import {
+  type AccountLifecycle,
+  type AccountLifecycleBinding
+} from './governance/account-lifecycle.ts'
+import { SeedAccountLifecycle } from './governance/account-lifecycle.seed.ts'
+import { LiveAccountLifecycle } from './governance/account-lifecycle.live.ts'
+import {
   type AuditEventLog,
   LiveAuditEventLog,
   SeedAuditEventLog
@@ -108,6 +114,7 @@ import {
 } from './seed-fixture.ts'
 
 export type CapabilityServices =
+  | AccountLifecycle
   | ApiTokenRegistry
   | AuditEventLog
   | Billing
@@ -138,6 +145,13 @@ const SeedGovernance = Layer.unwrap(
   Effect.gen(function* () {
     const roster = yield* makeSeedRoster(seedMembers)
     return Layer.mergeAll(
+      // The account-lifecycle seed shares the roster so the ownership rule
+      // reads the same membership state the membership and invitation seeds
+      // write, and it writes its audit events into the shared fixture log
+      // provided on the merged layer below.
+      SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
+        Layer.provide(SeedAuditLog)
+      ),
       SeedWorkspaceInvitations({ roster, workspace: seedWorkspaceRecord }),
       SeedWorkspaceMembership(roster, seedWorkspaceRecord),
       SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord }),
@@ -264,6 +278,13 @@ export type LiveCapabilitiesOptions = {
    */
   readonly userAdminBinding?: PlatformUserAdminBinding | undefined
   /**
+   * Adapter onto the organization plugin's leave/delete endpoints and the
+   * core delete-user endpoint — all session-bound, so the app supplies it.
+   * Absent, the deletion plan still reads and every teardown step fails
+   * `CapabilityUnavailable`.
+   */
+  readonly accountLifecycleBinding?: AccountLifecycleBinding | undefined
+  /**
    * The export queue and R2 bucket (ADR 0055). Absent, `WorkspaceExports`
    * reports unavailable and the settings page explains why — provider-light.
    */
@@ -295,6 +316,7 @@ export function makeLiveCapabilitiesLayer(
     emailQueue: options.notificationEmailQueue
   }).pipe(Layer.provide(preferences))
   return Layer.mergeAll(
+    LiveAccountLifecycle(options.accountLifecycleBinding),
     LiveApiTokenRegistry,
     LiveAuditEventLog,
     LiveBilling(options.billing),

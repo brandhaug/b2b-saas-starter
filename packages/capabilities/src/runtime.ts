@@ -3,6 +3,7 @@ import { Layer } from 'effect'
 import { type LiveBillingOptions } from './billing/billing.live.ts'
 import { type SeatSyncQueueBinding } from './billing/seat-sync.ts'
 import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
+import { type AccountLifecycleBinding } from './governance/account-lifecycle.ts'
 import { type NotificationEmailQueueBinding } from './notifications/notification-email-queue.ts'
 import { type WorkspaceInvitationBinding } from './governance/workspace-invitations.ts'
 import { type WorkspaceLifecycleBinding } from './governance/workspace-lifecycle.ts'
@@ -75,11 +76,18 @@ export type StarterEnv = {
    */
   readonly userAdminBinding?: PlatformUserAdminBinding | undefined
   /**
+  /**
    * Adapter onto the `sso` plugin's register/update/delete endpoints (ADR
    * 0054). Absent, connection reads and domain routing still work and the
    * settings mutations fail `CapabilityUnavailable`.
    */
   readonly ssoBinding?: WorkspaceSsoBinding | undefined
+  /**
+   * Adapter onto the account lifecycle's three session-bound writes — leave a
+   * workspace, delete one, delete the account itself. Absent, the deletion
+   * plan still reads and every teardown step fails `CapabilityUnavailable`.
+   */
+  readonly accountLifecycleBinding?: AccountLifecycleBinding | undefined
   /**
    * Stripe checkout configuration, forwarded to the Live billing layer.
    * Absent (env unset), checkout fails `provider_not_configured` and the rest
@@ -128,6 +136,7 @@ function liveCapabilitiesOptions(env: StarterEnv) {
     invitationBinding: env.invitationBinding,
     lifecycleBinding: env.lifecycleBinding,
     userAdminBinding: env.userAdminBinding,
+    accountLifecycleBinding: env.accountLifecycleBinding,
     billing: env.billing,
     workspaceExports: {
       queue: env.WORKSPACE_EXPORT_QUEUE,

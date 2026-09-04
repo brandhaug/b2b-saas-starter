@@ -1,6 +1,7 @@
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
+import { type Member } from './governance/workspace-identity.ts'
 import { SeedLayer } from './layers.ts'
 import {
   demoMemberIdentity,
@@ -8,6 +9,7 @@ import {
   seedMcpClientConnections,
   seedMcpClients,
   seedMembers,
+  seedSystemUsers,
   seedWorkspaceRecord
 } from './seed-fixture.ts'
 import { SeedWorkspaceInvitations } from './governance/workspace-invitations.seed.ts'
@@ -73,6 +75,12 @@ import {
 } from './governance/audit-event-log.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
 import { platformUserAdminContractCases } from './governance/platform-user-admin.contract.ts'
+import {
+  accountLifecycleContractCases,
+  type AccountLifecycleContractIds
+} from './governance/account-lifecycle.contract.ts'
+import { AccountLifecycle } from './governance/account-lifecycle.ts'
+import { SeedAccountLifecycle } from './governance/account-lifecycle.seed.ts'
 import {
   CONTRACT_EXPIRED_AT,
   workspaceInvitationsContractCases
@@ -772,4 +780,139 @@ describe('bearer verification write throttling', () => {
       expect(fake.batches).toHaveLength(0)
     }).pipe(Effect.provide(layer))
   })
+})
+
+// The account-lifecycle contract runs against one purpose-built roster per
+// case — a sole owner, a plain admin, and a plain member share the fixture
+// workspace — because the shared SeedLayer roster (two owners) can express no
+// blocked case. A fresh roster and a fresh audit log per case keep the
+// refusal cases from seeing a prior case's teardown.
+describe('seed account lifecycle contract', () => {
+  const ids: AccountLifecycleContractIds = {
+    stuckOwner: 'usr_stuck_owner',
+    planner: 'usr_planner',
+    password: 'seed-delete-password',
+    wrongPassword: ''
+  }
+
+  function seedFixtureMember(id: string, role: 'owner' | 'admin' | 'member'): Member {
+    return { id, name: id, email: `${id}@seed.test`, role, systemRole: 'user' }
+  }
+
+  function stuckWorkspaceLayer(): Layer.Layer<AccountLifecycle | AuditEventLog> {
+    return Layer.unwrap(
+      Effect.gen(function* () {
+        const roster = yield* makeSeedRoster([
+          seedFixtureMember(ids.stuckOwner, 'owner'),
+          seedFixtureMember('usr_second_admin', 'admin'),
+          seedFixtureMember(ids.planner, 'member')
+        ])
+        // One fixture audit log shared by the capability and the case's
+        // assertions — separate instances would each hold a private store.
+        const audit = SeedAuditEventLog([], seedSystemUsers)
+        return Layer.merge(
+          audit,
+          SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
+            Layer.provide(audit)
+          )
+        )
+      })
+    )
+  }
+
+  const cases = accountLifecycleContractCases(ids, expect)
+  for (const contractCase of cases) {
+    it.effect(contractCase.name, () =>
+      contractCase.assert.pipe(Effect.provide(stuckWorkspaceLayer()))
+    )
+  }
+})
+
+// The mixed happy path needs a second workspace, which the one-workspace seed
+// fixture cannot express, so the leave-only and delete-only paths each get a
+// purpose-built roster here; the Live half runs in the matching live test.
+describe('seed account lifecycle deletion', () => {
+  function seedFixtureMember(id: string, role: 'owner' | 'admin' | 'member'): Member {
+    return { id, name: id, email: `${id}@seed.test`, role, systemRole: 'user' }
+  }
+
+  function lifecycleLayerFor(
+    members: Array<ReturnType<typeof seedFixtureMember>>
+  ): Layer.Layer<AccountLifecycle | AuditEventLog> {
+    return Layer.unwrap(
+      Effect.gen(function* () {
+        const roster = yield* makeSeedRoster(members)
+        // One fixture audit log shared by the capability and the case's
+        // assertions — separate instances would each hold a private store.
+        const audit = SeedAuditEventLog([], seedSystemUsers)
+        return Layer.merge(
+          audit,
+          SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
+            Layer.provide(audit)
+          )
+        )
+      })
+    )
+  }
+
+  it.effect('deletes the workspace of a user who is its only member', () =>
+    Effect.gen(function* () {
+      const lifecycle = yield* AccountLifecycle
+      const executed = yield* lifecycle.deleteAccount({
+        userId: 'usr_solo',
+        password: 'any non-empty credential'
+      })
+      expect(executed.canDelete).toBe(true)
+      expect(executed.steps[0]?.action).toBe('delete_workspace')
+
+      // The workspace is gone from the plan of anyone who asks next.
+      const after = yield* lifecycle.planDeletion('usr_solo')
+      expect(after.steps).toHaveLength(0)
+
+      const events = yield* Effect.flatMap(AuditEventLog, (audit) => audit.listGlobal)
+      const deleted = events.find((event) => event.eventType === 'account.deleted')
+      expect(deleted?.targetId).toBe('usr_solo')
+      expect(
+        events.some(
+          (event) =>
+            event.eventType === 'workspace.deleted' &&
+            event.targetId === seedWorkspaceRecord.id
+        )
+      ).toBe(true)
+    }).pipe(Effect.provide(lifecycleLayerFor([seedFixtureMember('usr_solo', 'owner')])))
+  )
+
+  it.effect('leaves a workspace that still has another owner', () =>
+    Effect.gen(function* () {
+      const lifecycle = yield* AccountLifecycle
+      const executed = yield* lifecycle.deleteAccount({
+        userId: 'usr_leaving_owner',
+        password: 'any non-empty credential'
+      })
+      expect(executed.steps[0]?.action).toBe('leave')
+
+      // The remaining owner still plans a workspace — it survived.
+      const survivorsPlan = yield* lifecycle.planDeletion('usr_staying_owner')
+      expect(survivorsPlan.steps).toHaveLength(1)
+
+      const events = yield* Effect.flatMap(AuditEventLog, (audit) => audit.listGlobal)
+      expect(
+        events.some(
+          (event) =>
+            event.eventType === 'workspace_member.removed' &&
+            event.targetId === 'usr_leaving_owner'
+        )
+      ).toBe(true)
+      expect(events.some((event) => event.eventType === 'workspace.deleted')).toBe(
+        false
+      )
+    }).pipe(
+      Effect.provide(
+        lifecycleLayerFor([
+          seedFixtureMember('usr_leaving_owner', 'owner'),
+          seedFixtureMember('usr_staying_owner', 'owner')
+        ])
+      )
+    )
+  )
 })
