@@ -337,3 +337,61 @@ export function PasskeyChangedEmail({ added }: PasskeyChangedEmailProps) {
 PasskeyChangedEmail.PreviewProps = {
   added: true
 } satisfies PasskeyChangedEmailProps
+
+type AccountDeletedEmailProps = {
+  /** Workspaces the account left because other owners remained. */
+  readonly workspacesLeft: number
+  /** Workspaces deleted with the account because the user was their only member. */
+  readonly workspacesDeleted: number
+}
+
+/**
+ * Confirmation that the account itself was deleted — the one email that can
+ * never warn about a hijack in progress, because it takes the password to
+ * trigger. No action link on purpose: the account no longer exists to sign
+ * into, and a deletion email with a "recover your account" button would be an
+ * account-takeover lure.
+ */
+export function AccountDeletedEmail({
+  workspacesLeft,
+  workspacesDeleted
+}: AccountDeletedEmailProps) {
+  // Plain branches keep the four wordings next to each other, per the rule
+  // TwoFactorChangedEmail follows.
+  let deletedSentence = 'No workspace was deleted with your account.'
+  if (workspacesDeleted === 1) {
+    deletedSentence = '1 workspace was deleted because you were the only member.'
+  } else if (workspacesDeleted > 1) {
+    deletedSentence = `${workspacesDeleted} workspaces were deleted because you were the only member.`
+  }
+  let leftSentence = ''
+  if (workspacesLeft === 1) {
+    leftSentence = ' You were removed from 1 workspace where other owners remain.'
+  } else if (workspacesLeft > 1) {
+    leftSentence = ` You were removed from ${workspacesLeft} workspaces where other owners remain.`
+  }
+  return (
+    <EmailLayout
+      preview="Your B2B SaaS Starter account was deleted"
+      heading="Your account was deleted"
+    >
+      <Text className="text-base text-gray-700 mt-4">
+        Your B2B SaaS Starter account has been permanently deleted, along with every
+        session signed in as you.
+      </Text>
+      <Text className="text-base text-gray-700 mt-4">
+        {deletedSentence}
+        {leftSentence}
+      </Text>
+      <Text className="text-sm text-gray-500 mt-4">
+        If you did not delete this account, reset the password of any account that
+        shares this password and contact support immediately.
+      </Text>
+    </EmailLayout>
+  )
+}
+
+AccountDeletedEmail.PreviewProps = {
+  workspacesLeft: 2,
+  workspacesDeleted: 1
+} satisfies AccountDeletedEmailProps
