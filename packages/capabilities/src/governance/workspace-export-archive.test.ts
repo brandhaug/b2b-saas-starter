@@ -81,6 +81,7 @@ const snapshot: WorkspaceExportSnapshot = {
   notifications: [
     {
       id: 'not_1',
+      kind: 'announcement',
       title: 'Hello',
       message: 'World',
       createdAt: '2026-08-19T00:00:00.000Z',

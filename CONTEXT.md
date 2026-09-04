@@ -107,6 +107,17 @@ _Avoid_: Login as, sudo mode, admin takeover
 **Workspace Export**:
 An owner-requested ZIP of a workspace's members, invitations, API Token metadata, Webhook Endpoints, Audit Events, Notifications, and settings, built in the background and downloaded through a signed, time-limited link.
 _Avoid_: Backup, data dump, GDPR export
+**Notification Kind**:
+What a Notification is about (`api_token.created`, `webhook.delivery_failed`, `announcement`, …); selects its email template and the user's channel for it.
+_Avoid_: Notification type, event type, category
+
+**Notification Preference**:
+A user's per-kind choice of email channel: off, instant, or digest. Belongs to the user, not to a workspace.
+_Avoid_: Subscription, opt-in, alert setting
+
+**Notification Digest**:
+The one daily email (08:00 UTC) grouping a user's unread Notifications of the last 24 hours whose kinds they take as digest.
+_Avoid_: Summary email, newsletter, batch
 
 **Page**:
 One bounded slice of a list read, returned as `items` plus an opaque `nextCursor` that is `null` on the last page.
@@ -151,6 +162,10 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 - A **Workspace Export** is the access half of a data subject request; account deletion is the erasure half
 - Every REST and MCP list read returns a **Page** and accepts a **Cursor**; REST and MCP page the same way because both are **Capability Interfaces** over one operation table
 - The **Typed SDK** authenticates with an **API Token** and walks **Pages** for the caller
+- A **Notification** has exactly one **Notification Kind**
+- A user has one **Notification Preference** per **Notification Kind**; security kinds default to instant, the rest to digest
+- A **Notification Digest** is sent to a user only when at least one unread **Notification** matches a digest **Notification Preference**
+- Changing a **Notification Preference** records an **Audit Event**
 
 ## Example Dialogue
 
@@ -204,6 +219,8 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 >
 > **Dev:** "Is a workspace export the same thing as a backup?"
 > **Domain expert:** "No. A **Workspace Export** is what an owner takes with them or hands to a data subject: the projections the app shows, never secrets, built once and kept for seven days. A backup is an operator's concern."
+> **Dev:** "Should every notification email go out the moment it is created?"
+> **Domain expert:** "No. Each user holds a **Notification Preference** per **Notification Kind**. Security kinds default to instant; the rest fold into the **Notification Digest** at 08:00 UTC, and any kind can be turned off."
 >
 > **Dev:** "Should the app start empty after local setup?"
 > **Domain expert:** "No. It should include a **Seed Workspace** so the reference app, tests, and screenshots have stable starter data."
@@ -228,3 +245,4 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 - "Webhook" is ambiguous. Resolved: use **Webhook Endpoint** for outbound workspace event delivery; provider callbacks are integration-specific routes.
 - "Demo data" should be deterministic and part of the reference app's local experience. Resolved: use a **Seed Workspace**.
 - "Export" could mean a database backup or a GDPR-specific artifact. Resolved: a **Workspace Export** is an owner-facing ZIP of the workspace's own projections; GDPR requests are served with it plus account deletion, not by a separate export.
+- "Unsubscribe" could mean a one-click token URL. Resolved: the link in every notification email lands on the signed-in preferences page; a **Notification Preference** changes only through a session.

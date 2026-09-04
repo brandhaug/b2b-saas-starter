@@ -79,11 +79,16 @@ describe('seed impersonation side effects', () => {
             })
           )
         )
+        // The feed is newest-first by `createdAt`, and the fixture already
+        // carries an older impersonation notice for `usr_dev`, so the notice
+        // this call wrote is the one naming the acting admin.
         const notice = asTarget.find(
-          (n) => n.title === 'A System Admin accessed your account'
+          (n) =>
+            n.title === 'A System Admin accessed your account' &&
+            n.message.includes(demoUserIdentity.name)
         )
+        expect(notice).toBeDefined()
         expect(notice?.read).toBe(false)
-        expect(notice?.message).toContain(demoUserIdentity.name)
 
         const asAdmin = yield* feed.list.pipe(
           Effect.provide(

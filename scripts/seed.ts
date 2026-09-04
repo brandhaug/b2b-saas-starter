@@ -2,6 +2,7 @@ import {
   account,
   apiTokens,
   auditEvents,
+  notificationPreferences,
   notifications,
   user,
   webhookEndpoints,
@@ -20,6 +21,7 @@ import {
   demoUserIdentity
 } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
 import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -119,6 +121,7 @@ const collectFixture = Effect.gen(function* () {
   const webhooks = yield* WebhookEndpoints
   const audit = yield* AuditEventLog
   const notificationFeed = yield* NotificationFeed
+  const notificationPrefs = yield* NotificationPreferences
   const userAdmin = yield* PlatformUserAdmin
   const ctx = yield* WorkspaceContext
   return {
@@ -131,7 +134,13 @@ const collectFixture = Effect.gen(function* () {
     tokens: yield* tokens.list,
     webhooks: yield* webhooks.list,
     auditEvents: yield* audit.listGlobal,
-    notifications: yield* notificationFeed.list
+    notifications: yield* notificationFeed.list,
+    // The demo owner's explicit email choices — only the non-default rows are
+    // stored, exactly as the Live adapter would after the user picked them.
+    notificationPreferences: yield* Effect.map(
+      notificationPrefs.list(demoUserIdentity.id),
+      (resolved) => resolved.filter((preference) => !preference.isDefault)
+    )
   }
 })
 
@@ -345,6 +354,7 @@ function notificationRows(fixture: Fixture): ReadonlyArray<string> {
       id: notification.id,
       workspaceId: fixture.workspace.id,
       userId: null,
+      kind: notification.kind,
       title: notification.title,
       message: notification.message,
       readAt: readAt(notification.read),
@@ -374,6 +384,23 @@ function subscriptionRows(fixture: Fixture): ReadonlyArray<string> {
   ]
 }
 
+/**
+ * One row per explicit choice of the demo owner. The id is derived from the
+ * (user, kind) pair the unique index covers, so `INSERT OR REPLACE` re-seeds
+ * in place instead of tripping the index.
+ */
+function notificationPreferenceRows(fixture: Fixture): ReadonlyArray<string> {
+  return fixture.notificationPreferences.map((preference) =>
+    insert(notificationPreferences, {
+      id: `npref_${demoUserIdentity.id}_${preference.kind.replaceAll('.', '_')}`,
+      userId: demoUserIdentity.id,
+      kind: preference.kind,
+      channel: preference.channel,
+      updatedAt: now
+    })
+  )
+}
+
 function buildStatements(fixture: Fixture, hashes: Hashes): string {
   return `${[
     'PRAGMA foreign_keys = ON;',
@@ -386,7 +413,8 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...webhookRows(fixture),
     ...subscriptionRows(fixture),
     ...auditRows(fixture),
-    ...notificationRows(fixture)
+    ...notificationRows(fixture),
+    ...notificationPreferenceRows(fixture)
   ].join('\n')}\n`
 }
 

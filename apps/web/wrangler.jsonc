@@ -31,6 +31,10 @@
       {
         "binding": "WORKSPACE_EXPORT_QUEUE",
         "queue": "b2b-saas-starter-workspace-exports"
+      },
+      {
+        "binding": "NOTIFICATION_EMAIL_QUEUE",
+        "queue": "b2b-saas-starter-notification-emails"
       }
     ]
   },

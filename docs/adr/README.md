@@ -41,6 +41,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 
 - [0033 — Cloudflare Queues for webhook delivery](./0033-cloudflare-queues-for-webhook-delivery.md)
 - [0055 — R2 for workspace export artifacts](./0055-r2-for-workspace-export-artifacts.md)
+- [0061 — Notification email over a queue, with a daily digest cron](./0061-notification-email-queue-and-daily-digest-cron.md)
 
 ## Observability, security, and configuration
 

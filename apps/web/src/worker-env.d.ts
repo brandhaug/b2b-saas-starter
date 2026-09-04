@@ -16,6 +16,10 @@ type WebWorkerEnv = {
   // Optional so the local workers shim (no D1) satisfies the same type;
   // consumers must handle the missing binding (Seed layer fallback).
   readonly DB?: D1Database
+  // Producer port for instant notification emails (consumed by the background
+  // worker). Optional: without it Notifications persist and no instant email
+  // is enqueued — the digest cron still covers them (CLAUDE.md rule 3).
+  readonly NOTIFICATION_EMAIL_QUEUE?: import('@b2b-saas-starter/capabilities/notifications/notification-email-queue').NotificationEmailQueueBinding
   readonly RATE_LIMITER_AUTH_READ?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
   readonly RATE_LIMITER_AUTH_WRITE?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
   readonly RATE_LIMITER_AUTH_SIGN_IN?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit

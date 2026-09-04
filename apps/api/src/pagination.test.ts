@@ -122,6 +122,7 @@ describe('REST list paging', () => {
           'not_export',
           'not_webhook',
           'not_token',
+          'not_token_call',
           'not_billing',
           'not_rotation',
           'not_invite'
@@ -179,7 +180,7 @@ describe('REST list paging', () => {
         )
         expect(response.status).toBe(200)
         const page = yield* jsonBody(response, PageBody)
-        expect(page.items).toHaveLength(7)
+        expect(page.items).toHaveLength(8)
         expect(page.nextCursor).toBe(null)
       })
     ))

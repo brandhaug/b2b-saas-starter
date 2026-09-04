@@ -452,6 +452,9 @@ importers:
       '@b2b-saas-starter/capabilities':
         specifier: workspace:*
         version: link:../../packages/capabilities
+      '@b2b-saas-starter/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@b2b-saas-starter/env':
         specifier: workspace:*
         version: link:../../packages/env
@@ -471,6 +474,12 @@ importers:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
         version: 5.20260828.1
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.0.0-rc.112(effect@4.0.0-rc.112)(vitest@4.1.11)
+      '@react-email/render':
+        specifier: 'catalog:'
+        version: 2.1.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -942,6 +951,9 @@ importers:
 
   packages/email:
     dependencies:
+      '@b2b-saas-starter/db':
+        specifier: workspace:*
+        version: link:../db
       '@b2b-saas-starter/env':
         specifier: workspace:*
         version: link:../env

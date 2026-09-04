@@ -25,7 +25,7 @@ function footerYear(): number {
   return new Date().getFullYear()
 }
 
-type EmailLayoutProps = {
+export type EmailLayoutProps = {
   readonly preview: string
   readonly heading: ReactNode
   readonly children: ReactNode
@@ -36,7 +36,7 @@ type EmailLayoutProps = {
  * heading, body copy, and the footer rule. A template supplies its preview
  * text, its heading and its copy; everything else is this layout.
  */
-function EmailLayout({ preview, heading, children }: EmailLayoutProps) {
+export function EmailLayout({ preview, heading, children }: EmailLayoutProps) {
   return (
     <Html lang="en">
       <Tailwind
@@ -70,7 +70,7 @@ function EmailLayout({ preview, heading, children }: EmailLayoutProps) {
   )
 }
 
-type ActionLinkProps = {
+export type ActionLinkProps = {
   readonly href: string
   readonly label: string
 }
@@ -79,7 +79,7 @@ type ActionLinkProps = {
  * The call to action and its fallback URL. Email clients that strip or fail to
  * render the button still leave the recipient a copyable link.
  */
-function ActionLink({ href, label }: ActionLinkProps) {
+export function ActionLink({ href, label }: ActionLinkProps) {
   return (
     <>
       <Section className="mt-6">
