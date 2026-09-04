@@ -167,7 +167,7 @@ export function AccountPage({
         description="Permanent, and confirmed with your password. Workspaces you are the only owner of must hand ownership to someone else first."
       >
         {/* Hidden, not merely disabled, for an impersonation session (ADR
-            0057): the catchall refuses the endpoint anyway, so a control
+            0059): the catchall refuses the endpoint anyway, so a control
             that always fails would only teach the admin to ignore errors. */}
         {session.impersonatedBy === null ? (
           <DeleteAccountPanel plan={deletionPlan} />

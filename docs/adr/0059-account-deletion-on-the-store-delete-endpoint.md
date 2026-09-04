@@ -1,4 +1,4 @@
-# 0057 — Account deletion on the store's delete endpoint with a capability-owned teardown
+# 0059 — Account deletion on the store's delete endpoint with a capability-owned teardown
 
 Date: 2026-09-04
 

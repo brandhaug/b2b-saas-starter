@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Browser, type Page } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
 
 // The active-session surface is the account page's security core: one user,
@@ -17,6 +17,29 @@ async function signIn(page: Page, email: string, redirect: string): Promise<void
   await page.waitForURL((url) => url.pathname === redirect)
 }
 
+/**
+ * A context that identifies as its own device. `clientKey` trusts only
+ * `cf-connecting-ip`, and the dev server (unlike the production edge) does not
+ * strip a client-supplied one — so each simulated device can pin a distinct
+ * value and land in its own rate-limit bucket. Without this, both sign-ins
+ * share the one unkeyed bucket with every other spec's sign-ins, and the
+ * credential bucket's 5-per-minute cap turns the whole suite into a race
+ * against the brute-force brake — which no spec here is testing.
+ */
+async function deviceContext(
+  browser: Browser,
+  ip: string,
+  options?: { readonly userAgent?: string }
+) {
+  const context = await browser.newContext({ userAgent: options?.userAgent })
+  await context.route('**/*', (route) =>
+    route.continue({
+      headers: { ...route.request().headers(), 'cf-connecting-ip': ip }
+    })
+  )
+  return context
+}
+
 test.beforeEach(() => {
   test.skip(
     !hasLocalD1State(),
@@ -25,12 +48,12 @@ test.beforeEach(() => {
 })
 
 test('revoking the other session signs that device out', async ({ browser }) => {
-  const thisDevice = await browser.newContext()
+  const thisDevice = await deviceContext(browser, '10.0.0.1')
   // The other device carries a distinctive user agent, so its row — and the
   // revoke control inside it — stays identifiable even when the seeded demo
   // account has other sessions (parallel specs sign it in too, so resetting
   // the account's sessions here would yank their sign-ins mid-test).
-  const otherDevice = await browser.newContext({
+  const otherDevice = await deviceContext(browser, '10.0.0.2', {
     userAgent: 'AccountSecurityE2E/1.0 (other device)'
   })
   const here = await thisDevice.newPage()
@@ -43,9 +66,7 @@ test('revoking the other session signs that device out', async ({ browser }) => 
   // reload re-runs it against the store that now holds both sessions.
   await here.reload()
 
-  await expect(
-    here.getByRole('heading', { name: 'Sessions', exact: true })
-  ).toBeVisible()
+  await expect(here.getByRole('heading', { name: 'Active sessions' })).toBeVisible()
   await here.getByText('· This device').waitFor()
 
   // The other device is the newest session with its distinctive label, and
