@@ -1,6 +1,7 @@
 import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { user, verification } from '@b2b-saas-starter/db/schema'
 import { Effect, type Layer } from 'effect'
+import { type BetterAuthApiError } from 'effectful-better-auth'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import { type AuthEmailSender, Auth } from './index.ts'
@@ -93,16 +94,14 @@ describe('account lifecycle email flows', () => {
         const auth = yield* Auth.Tag
         const before = sentEmails.length
 
-        const signUp = yield* Effect.promise(() =>
-          auth.instance.api.signUpEmail({
-            body: {
-              name: 'Newbie',
-              email,
-              password: 'correct-horse-battery-staple',
-              callbackURL: 'http://localhost:3071/verify-email'
-            }
-          })
-        )
+        const signUp = yield* auth.api.signUpEmail({
+          body: {
+            name: 'Newbie',
+            email,
+            password: 'correct-horse-battery-staple',
+            callbackURL: 'http://localhost:3071/verify-email'
+          }
+        })
         expect(signUp.user.emailVerified).toBe(false)
 
         const sent = sentEmails
@@ -156,23 +155,18 @@ describe('account lifecycle email flows', () => {
         const auth = yield* Auth.Tag
 
         // The sign-up auto sign-in creates the session the reset must revoke.
-        const { headers } = yield* Effect.promise(() =>
-          auth.instance.api.signUpEmail({
-            body: {
-              name: 'Resetter',
-              email,
-              password: 'correct-horse-battery-staple'
-            },
-            returnHeaders: true
-          })
-        )
+        const { headers } = yield* auth.full.signUpEmail({
+          body: {
+            name: 'Resetter',
+            email,
+            password: 'correct-horse-battery-staple'
+          }
+        })
         const before = sentEmails.length
 
-        const requested = yield* Effect.promise(() =>
-          auth.instance.api.requestPasswordReset({
-            body: { email, redirectTo: 'http://localhost:3071/reset-password' }
-          })
-        )
+        const requested = yield* auth.api.requestPasswordReset({
+          body: { email, redirectTo: 'http://localhost:3071/reset-password' }
+        })
         expect(requested.status).toBe(true)
 
         const resetEmail = sentEmails
@@ -192,11 +186,9 @@ describe('account lifecycle email flows', () => {
         expect(forwarded.pathname).toBe('/reset-password')
         expect(forwarded.searchParams.get('token')).toBe(token)
 
-        const reset = yield* Effect.promise(() =>
-          auth.instance.api.resetPassword({
-            body: { newPassword: 'fresh-horse-battery-staple', token }
-          })
-        )
+        const reset = yield* auth.api.resetPassword({
+          body: { newPassword: 'fresh-horse-battery-staple', token }
+        })
         expect(reset.status).toBe(true)
 
         // The pre-reset session cookie no longer opens a session
@@ -214,24 +206,21 @@ describe('account lifecycle email flows', () => {
         expect(staleBody).toBeNull()
 
         // The old password is gone; the new one signs in.
-        const oldAttempt: { readonly ok: boolean; readonly error?: unknown } =
-          yield* Effect.promise(() =>
-            auth.instance.api
-              .signInEmail({
-                body: { email, password: 'correct-horse-battery-staple' }
-              })
-              .then(
-                () => ({ ok: true }),
-                (error: unknown) => ({ ok: false, error })
-              )
+        const oldAttempt = yield* auth.api
+          .signInEmail({
+            body: { email, password: 'correct-horse-battery-staple' }
+          })
+          .pipe(
+            Effect.match({
+              onFailure: () => ({ ok: false }),
+              onSuccess: () => ({ ok: true })
+            })
           )
         expect(oldAttempt.ok).toBe(false)
 
-        const fresh = yield* Effect.promise(() =>
-          auth.instance.api.signInEmail({
-            body: { email, password: 'fresh-horse-battery-staple' }
-          })
-        )
+        const fresh = yield* auth.api.signInEmail({
+          body: { email, password: 'fresh-horse-battery-staple' }
+        })
         expect(fresh.user.email).toBe(email)
       })
     ))
@@ -242,14 +231,12 @@ describe('account lifecycle email flows', () => {
         const auth = yield* Auth.Tag
         const before = sentEmails.length
 
-        const requested = yield* Effect.promise(() =>
-          auth.instance.api.requestPasswordReset({
-            body: {
-              email: 'ghost@lifecycle.test',
-              redirectTo: 'http://localhost:3071/reset-password'
-            }
-          })
-        )
+        const requested = yield* auth.api.requestPasswordReset({
+          body: {
+            email: 'ghost@lifecycle.test',
+            redirectTo: 'http://localhost:3071/reset-password'
+          }
+        })
         expect(requested.status).toBe(true)
         expect(requested.message).toContain('If this email exists')
         expect(sentEmails.slice(before)).toHaveLength(0)
@@ -274,19 +261,16 @@ describe('email-otp plugin', () => {
    * rules ban `async` helpers, and a `.then` chain reads the same. Nothing
    * reads the fulfilled value, so the generic is never bound at a call site.
    */
-  function attempt<T>(
-    call: () => Promise<T>
-  ): Promise<{ readonly ok: true } | { readonly ok: false; readonly status: number }> {
-    return call().then(
-      () => ({ ok: true }),
-      (error: unknown) => {
-        // SAFETY: better-call's APIError declares `statusCode: number` on
-        // every rejection; the assertion only re-states that shape at this
-        // catch boundary.
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion, effect/noAs -- re-typing the rejected error better-call throws
-        return { ok: false, status: (error as { statusCode?: number }).statusCode ?? 0 }
-      }
-    )
+  /** The outcome of one sign-in attempt: success, or the plugin's status code. */
+  function attempt<A>(
+    call: Effect.Effect<A, BetterAuthApiError>
+  ): Effect.Effect<
+    { readonly ok: true } | { readonly ok: false; readonly status: number }
+  > {
+    return Effect.match(call, {
+      onFailure: (error) => ({ ok: false, status: error.statusCode }),
+      onSuccess: () => ({ ok: true })
+    })
   }
 
   it('sends a six-digit sign-in code and signs the holder in', () =>
@@ -306,12 +290,9 @@ describe('email-otp plugin', () => {
         expect(code).toMatch(/^\d{6}$/)
         expect(sentCodes.slice(before)[0]?.type).toBe('sign-in')
 
-        const { headers, response } = yield* Effect.promise(() =>
-          auth.instance.api.signInEmailOTP({
-            body: { email, otp: code },
-            returnHeaders: true
-          })
-        )
+        const { headers, response } = yield* auth.full.signInEmailOTP({
+          body: { email, otp: code }
+        })
         expect(response.user.email).toBe(email)
         expect(headers.getSetCookie().join(' ')).toContain('better-auth')
       })
@@ -335,31 +316,23 @@ describe('email-otp plugin', () => {
           wrongCode = '000001'
         }
         for (let attemptNo = 0; attemptNo < 3; attemptNo += 1) {
-          const wrong = yield* Effect.promise(() =>
-            attempt(() =>
-              auth.instance.api.signInEmailOTP({
-                body: { email, otp: wrongCode }
-              })
-            )
+          const wrong = yield* attempt(
+            auth.api.signInEmailOTP({ body: { email, otp: wrongCode } })
           )
           expect(wrong).toEqual({ ok: false, status: 400 })
         }
 
         // The fourth attempt carries the correct code and still dies —
         // TOO_MANY_ATTEMPTS (403), the plugin's lockout.
-        const locked = yield* Effect.promise(() =>
-          attempt(() =>
-            auth.instance.api.signInEmailOTP({ body: { email, otp: code } })
-          )
+        const locked = yield* attempt(
+          auth.api.signInEmailOTP({ body: { email, otp: code } })
         )
         expect(locked).toEqual({ ok: false, status: 403 })
 
         // And the lockout consumed the code: the row is gone, so even the
         // correct code now reads as invalid. A fresh send is the only way in.
-        const consumed = yield* Effect.promise(() =>
-          attempt(() =>
-            auth.instance.api.signInEmailOTP({ body: { email, otp: code } })
-          )
+        const consumed = yield* attempt(
+          auth.api.signInEmailOTP({ body: { email, otp: code } })
         )
         expect(consumed).toEqual({ ok: false, status: 400 })
       })
@@ -379,10 +352,8 @@ describe('email-otp plugin', () => {
         expect(sentCodes.slice(before)).toHaveLength(0)
 
         // With disableSignUp the unsent code verifies to nothing.
-        const verify = yield* Effect.promise(() =>
-          attempt(() =>
-            auth.instance.api.signInEmailOTP({ body: { email, otp: '123456' } })
-          )
+        const verify = yield* attempt(
+          auth.api.signInEmailOTP({ body: { email, otp: '123456' } })
         )
         expect(verify).toEqual({ ok: false, status: 400 })
       })
@@ -451,11 +422,9 @@ describe('email-otp plugin', () => {
         const staleBody = yield* Effect.promise(() => stale.json())
         expect(staleBody).toBeNull()
 
-        const fresh = yield* Effect.promise(() =>
-          auth.instance.api.signInEmail({
-            body: { email, password: 'fresh-otp-password-1' }
-          })
-        )
+        const fresh = yield* auth.api.signInEmail({
+          body: { email, password: 'fresh-otp-password-1' }
+        })
         expect(fresh.user.email).toBe(email)
       })
     ))

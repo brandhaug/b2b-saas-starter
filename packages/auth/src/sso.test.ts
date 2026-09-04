@@ -1,6 +1,7 @@
 import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { account, user, workspaceMembers } from '@b2b-saas-starter/db/schema'
 import { Effect, type Layer } from 'effect'
+import { cookieHeader, cookiePairs } from 'effectful-better-auth'
 import { eq } from 'drizzle-orm'
 import { createSign, generateKeyPairSync } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
@@ -184,15 +185,12 @@ describe('workspace SSO over the sso plugin', () => {
         // answers with the authorization redirect. The response also sets the
         // signed state cookie the callback re-checks, so it is threaded
         // through like a browser would.
-        const signIn = yield* Effect.promise(() =>
-          auth.instance.api.signInSSO({
-            body: {
-              email: 'provisioned@roundtrip.test',
-              callbackURL: 'http://localhost:3071/workspaces'
-            },
-            returnHeaders: true
-          })
-        )
+        const signIn = yield* auth.full.signInSSO({
+          body: {
+            email: 'provisioned@roundtrip.test',
+            callbackURL: 'http://localhost:3071/workspaces'
+          }
+        })
         expect(signIn.response.redirect).toBe(true)
         const authorizationUrl = new URL(signIn.response.url)
         expect(authorizationUrl.origin + authorizationUrl.pathname).toBe(
@@ -292,20 +290,14 @@ describe('workspace SSO over the sso plugin', () => {
         idTokenSubject = 'idp-user-2'
         idTokenEmail = 'fallback@fallback.test'
         idTokenName = 'Fallback Member'
-        const signIn = yield* Effect.promise(() =>
-          auth.instance.api.signInSSO({
-            body: {
-              email: 'fallback@fallback.test',
-              callbackURL: 'http://localhost:3071/workspaces'
-            },
-            returnHeaders: true
-          })
-        )
+        const signIn = yield* auth.full.signInSSO({
+          body: {
+            email: 'fallback@fallback.test',
+            callbackURL: 'http://localhost:3071/workspaces'
+          }
+        })
         const state = new URL(signIn.response.url).searchParams.get('state')
-        const stateCookie = signIn.headers
-          .getSetCookie()
-          .map((cookie) => cookie.split(';')[0])
-          .join('; ')
+        const stateCookie = cookieHeader(cookiePairs(signIn.headers))
         yield* Effect.promise(() =>
           auth.instance.api.callbackSSO({
             params: { providerId: 'rt_fallback' },

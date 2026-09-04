@@ -2,10 +2,17 @@ import {
   readPluginBindingFailure,
   type PluginBindingFailure
 } from '@b2b-saas-starter/capabilities/governance/plugin-binding-failure'
-import { describe, expect, it } from 'vite-plus/test'
-import { Option, Schema } from 'effect'
+import { describe, expect, it, vi } from 'vite-plus/test'
+import { Layer, ManagedRuntime, Option, Schema } from 'effect'
 
 import { webInvitationBinding } from './invitation-binding'
+
+// No request means no Better Auth call: `sessionCall` rejects before the
+// runtime resolves the `Auth` service. An empty runtime keeps the real one
+// (and the D1-less Better Auth instance it would boot) out of these tests.
+vi.mock('@/lib/auth-runtime', () => ({
+  authRuntime: ManagedRuntime.make(Layer.empty)
+}))
 
 /**
  * The adapter's one behaviour that does not need Better Auth: what it does with

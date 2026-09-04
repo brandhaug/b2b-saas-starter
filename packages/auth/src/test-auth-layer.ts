@@ -1,7 +1,13 @@
 import { createDrizzleDb, type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { Effect, Layer } from 'effect'
-import { type Service } from 'effectful-better-auth'
+import {
+  cookieHeader as cookieHeaderOf,
+  cookiePairs,
+  mergeCookiePairs,
+  signUpSession as signUpSessionWith,
+  type Service
+} from 'effectful-better-auth'
 import {
   Auth,
   AuthConfig,
@@ -98,59 +104,13 @@ export function buildAuthLayer(
 }
 
 /**
- * A real session cookie. Sign-up is the one flow every live suite needs a
- * signed-in user for; the superset return covers all the former per-suite
- * variants: `headers` for the endpoints that require request headers,
- * `cookieHeader`/`cookiePairs` for merging with later session rotations, and
- * `userId` for row-level assertions.
+ * A real session cookie: the library kit's sign-up over the app's `Auth`
+ * service and fixed test password. The result carries `headers` for the
+ * endpoints that require request headers, `cookieHeader`/`cookiePairs` for
+ * merging with later session rotations, and `userId` for row-level assertions.
  */
 export function signUpSession(email: string) {
-  return Effect.gen(function* () {
-    const auth = yield* Auth.Tag
-    const { headers, response } = yield* Effect.promise(() =>
-      auth.instance.api.signUpEmail({
-        body: { email, name: email, password: SIGN_UP_PASSWORD },
-        returnHeaders: true
-      })
-    )
-    // Sign-up can set more than one cookie (the framework bridge forwards
-    // each); keep every name=value pair, not just the first header.
-    const setCookies = headers.getSetCookie()
-    if (setCookies.length === 0) {
-      // oxlint-disable-next-line starter/no-effect-escape-hatch -- test invariant: a sign-up that sets no cookie is a broken fixture, and dying fails exactly this test without widening the shared helper's error channel
-      return yield* Effect.die(`sign-up set no cookie for ${email}`)
-    }
-    const cookieHeader = setCookies.map((cookie) => cookie.split(';')[0]).join('; ')
-    return {
-      headers: new Headers({ cookie: cookieHeader }),
-      /** The sign-up cookies as `name=value` pairs, for merging with later rotations. */
-      cookiePairs: cookieHeader.split('; ').filter(Boolean),
-      cookieHeader,
-      userId: response.user.id
-    }
-  })
-}
-
-/** Reads every `Set-Cookie` off a response as `name=value` pairs. */
-export function responseCookies(headers: Headers): string {
-  return headers.getSetCookie().join('; ')
-}
-
-/** Merges two cookie strings, later pairs winning on name collisions. */
-export function mergeCookies(left: string, right: string): string {
-  const merged = new Map<string, string>()
-  for (const pair of [...left.split('; '), ...right.split('; ')]) {
-    if (pair.length === 0) {
-      continue
-    }
-    const separator = pair.indexOf('=')
-    if (separator === -1) {
-      merged.set(pair, pair)
-      continue
-    }
-    merged.set(pair.slice(0, separator), pair)
-  }
-  return [...merged.values()].join('; ')
+  return signUpSessionWith(Auth.Tag, { email, password: SIGN_UP_PASSWORD })
 }
 
 /**
@@ -159,19 +119,16 @@ export function mergeCookies(left: string, right: string): string {
  * verified code. Enabling stores an unverified secret only — the FIRST
  * verified code is what flips `twoFactorEnabled`, and it rotates the session
  * token, so the returned cookie is the sign-up cookie merged through every
- * rotation the ceremony caused. The raw instance API (not the effectful
- * proxy) is used because `returnHeaders` is what carries those cookies.
+ * rotation the ceremony caused. The `full` surface is used because its
+ * response headers are what carry those cookies.
  */
 export function enableTotp(cookieHeader: string) {
   return Effect.gen(function* () {
     const auth = yield* Auth.Tag
-    const enabled = yield* Effect.promise(() =>
-      auth.instance.api.enableTwoFactor({
-        body: { password: SIGN_UP_PASSWORD },
-        headers: new Headers({ cookie: cookieHeader }),
-        returnHeaders: true
-      })
-    )
+    const enabled = yield* auth.full.enableTwoFactor({
+      body: { password: SIGN_UP_PASSWORD },
+      headers: new Headers({ cookie: cookieHeader })
+    })
     const response = enabled.response
     if (response.method !== 'totp') {
       // oxlint-disable-next-line starter/no-effect-escape-hatch -- test invariant: the wrong response shape means the ceremony helper is broken, not the code under test
@@ -187,18 +144,13 @@ export function enableTotp(cookieHeader: string) {
     const { code } = yield* auth.api.generateTOTP({
       body: { secret: decodeUriSecret(secret) }
     })
-    const verified = yield* Effect.promise(() =>
-      auth.instance.api.verifyTOTP({
-        body: { code },
-        headers: new Headers({
-          cookie: mergeCookies(cookieHeader, responseCookies(enabled.headers))
-        }),
-        returnHeaders: true
-      })
-    )
-    const freshCookieHeader = mergeCookies(
-      mergeCookies(cookieHeader, responseCookies(enabled.headers)),
-      responseCookies(verified.headers)
+    const afterEnable = mergeCookiePairs([cookieHeader], cookiePairs(enabled.headers))
+    const verified = yield* auth.full.verifyTOTP({
+      body: { code },
+      headers: new Headers({ cookie: cookieHeaderOf(afterEnable) })
+    })
+    const freshCookieHeader = cookieHeaderOf(
+      mergeCookiePairs(afterEnable, cookiePairs(verified.headers))
     )
     return { response, freshCookieHeader }
   })

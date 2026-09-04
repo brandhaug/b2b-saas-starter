@@ -1,6 +1,7 @@
 import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { account, user } from '@b2b-saas-starter/db/schema'
 import { Effect, type Layer } from 'effect'
+import { cookiePairs, cookieHeader } from 'effectful-better-auth'
 import { and, eq } from 'drizzle-orm'
 import {
   afterAll,
@@ -163,11 +164,9 @@ function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
 function seedVerifiedLocalUser(email: string) {
   return Effect.gen(function* () {
     const auth = yield* Auth.Tag
-    const { user: created } = yield* Effect.promise(() =>
-      auth.instance.api.signUpEmail({
-        body: { email, name: email, password: 'correct-horse-battery-staple' }
-      })
-    )
+    const { user: created } = yield* auth.api.signUpEmail({
+      body: { email, name: email, password: 'correct-horse-battery-staple' }
+    })
     // The production counterpart verified through the emailed link; the link
     // flow must not depend on that hop having run in the same process.
     yield* Effect.promise(() =>
@@ -189,15 +188,12 @@ function completeGithubRoundTrip() {
     const auth = yield* Auth.Tag
     stubGitHubFetch()
 
-    const initiation = yield* Effect.promise(() =>
-      auth.instance.api.signInSocial({
-        body: {
-          provider: 'github',
-          callbackURL: 'http://localhost:3071/workspaces'
-        },
-        returnHeaders: true
-      })
-    )
+    const initiation = yield* auth.full.signInSocial({
+      body: {
+        provider: 'github',
+        callbackURL: 'http://localhost:3071/workspaces'
+      }
+    })
     const authorizeUrlText = initiation.response.url
     expect(authorizeUrlText).toContain('https://github.com/login/oauth/authorize')
     // The expect pins the URL to GitHub's authorize endpoint; the fallback
@@ -209,10 +205,9 @@ function completeGithubRoundTrip() {
     // The signed `state` cookie the callback verifies against the database
     // row — the browser carries it from initiation to redirect. Better Auth
     // prefixes its cookie names (`better-auth.state`).
-    const stateCookie = initiation.headers
-      .getSetCookie()
-      .map((cookie) => cookie.split(';')[0] ?? '')
-      .find((pair) => pair.split('=')[0] === 'better-auth.state')
+    const stateCookie = cookiePairs(initiation.headers).find(
+      (pair) => pair.split('=')[0] === 'better-auth.state'
+    )
     expect(stateCookie).toBeDefined()
 
     return yield* Effect.promise(() =>
@@ -302,15 +297,13 @@ describe('social sign-in', () => {
         const auth = yield* Auth.Tag
         // An unverified local user: the exact account-takeover shape the
         // `requireLocalEmailVerified` default exists to refuse.
-        const { user: squatter } = yield* Effect.promise(() =>
-          auth.instance.api.signUpEmail({
-            body: {
-              email: 'squatter@social.test',
-              name: 'Squatter',
-              password: 'correct-horse-battery-staple'
-            }
-          })
-        )
+        const { user: squatter } = yield* auth.api.signUpEmail({
+          body: {
+            email: 'squatter@social.test',
+            name: 'Squatter',
+            password: 'correct-horse-battery-staple'
+          }
+        })
         const before = accountChanges.length
 
         const callback = yield* completeGithubRoundTrip()
@@ -350,20 +343,14 @@ describe('social sign-in', () => {
 
         // A credential session for the unlink call: sign in with the local
         // password (the same account's other method).
-        const signedIn = yield* Effect.promise(() =>
-          auth.instance.api.signInEmail({
-            body: {
-              email: 'unlink@social.test',
-              password: 'correct-horse-battery-staple'
-            },
-            returnHeaders: true
-          })
-        )
+        const signedIn = yield* auth.full.signInEmail({
+          body: {
+            email: 'unlink@social.test',
+            password: 'correct-horse-battery-staple'
+          }
+        })
         const headers = new Headers({
-          cookie: signedIn.headers
-            .getSetCookie()
-            .map((cookie) => cookie.split(';')[0])
-            .join('; ')
+          cookie: cookieHeader(cookiePairs(signedIn.headers))
         })
 
         const target = yield* Effect.promise(() =>
@@ -375,12 +362,10 @@ describe('social sign-in', () => {
         expect(target).toHaveLength(1)
 
         const before = accountChanges.length
-        const unlinked = yield* Effect.promise(() =>
-          auth.instance.api.unlinkAccount({
-            body: { accountId: target[0]!.id },
-            headers
-          })
-        )
+        const unlinked = yield* auth.api.unlinkAccount({
+          body: { accountId: target[0]!.id },
+          headers
+        })
         // The endpoint answers `{ status: true }` and requires a fresh
         // session (signed in above, inside the one-hour window).
         expect(unlinked.status).toBe(true)

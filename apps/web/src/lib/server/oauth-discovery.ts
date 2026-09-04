@@ -1,7 +1,5 @@
 import { Auth } from '@b2b-saas-starter/auth'
-import { Effect } from 'effect'
-import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
-import { toHttpEffect } from 'effectful-better-auth'
+import { handleWebRequest } from 'effectful-better-auth'
 import { authRuntime } from '@/lib/auth-runtime'
 import { withWebRequestScope } from '@/lib/observability'
 
@@ -18,13 +16,7 @@ export function serveOAuthDiscovery(request: Request): Promise<Response> {
   return authRuntime.runPromise(
     withWebRequestScope(
       { event: 'auth.discovery' },
-      toHttpEffect(Auth.Tag).pipe(
-        Effect.provideService(
-          HttpServerRequest.HttpServerRequest,
-          HttpServerRequest.fromWeb(request)
-        ),
-        Effect.map(HttpServerResponse.toWeb)
-      )
+      handleWebRequest(Auth.Tag, request)
     )
   )
 }
