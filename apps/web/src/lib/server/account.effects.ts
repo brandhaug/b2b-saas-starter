@@ -8,7 +8,7 @@ import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import {
   notificationPreferencesPayload,
-  type NotificationPreferencesPayload
+  type NotificationPreferenceRow
 } from './notification-preferences'
 
 /**
@@ -35,10 +35,10 @@ export type AccountPagePayload = {
  * effect (`Effect.all`, the same composition the workspace settings payload
  * uses for its segments).
  */
-export function loadAccountPageData(input: {
-  readonly userId: string
-}): Promise<
-  AccountPagePayload & { readonly preferences: NotificationPreferencesPayload }
+export function loadAccountPageData(input: { readonly userId: string }): Promise<
+  AccountPagePayload & {
+    readonly preferences: ReadonlyArray<NotificationPreferenceRow>
+  }
 > {
   return runCapabilities(
     Effect.map(
@@ -47,11 +47,17 @@ export function loadAccountPageData(input: {
           deletionPlan: Effect.flatMap(AccountLifecycle, (lifecycle) =>
             lifecycle.planDeletion(input.userId)
           ),
-          preferences: notificationPreferencesPayload(input)
+          preferenceRows: Effect.map(
+            notificationPreferencesPayload(input),
+            (payload) => payload.preferences
+          )
         },
         { concurrency: 'unbounded' }
       ),
-      ({ deletionPlan, preferences }) => ({ deletionPlan, preferences })
+      ({ deletionPlan, preferenceRows }) => ({
+        deletionPlan,
+        preferences: preferenceRows
+      })
     )
   )
 }

@@ -17,7 +17,7 @@ import { type McpClientConnection } from '@b2b-saas-starter/capabilities/develop
 import { requireSession, type RouteSession } from '@/lib/server/auth'
 import { loadAccountPageData } from '@/lib/server/account.effects'
 import { type AccountDeletionPlan } from '@/lib/server/account'
-import { type NotificationPreferencesPayload } from '@/lib/server/notification-preferences'
+import { type NotificationPreferenceRow } from '@/lib/server/notification-preferences'
 import {
   loadMcpClientConnections,
   revokeMcpClientServerFn
@@ -66,7 +66,7 @@ export function AccountPage({
 }: {
   readonly session: RouteSession
   readonly deletionPlan: AccountDeletionPlan
-  readonly preferences?: NotificationPreferencesPayload
+  readonly preferences?: ReadonlyArray<NotificationPreferenceRow>
   readonly connections?: ReadonlyArray<McpClientConnection>
   readonly currentSessionToken: string
   readonly sessionsPorts?: {
