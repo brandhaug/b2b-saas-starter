@@ -129,7 +129,8 @@ function stubReads(failing = false) {
       unreadCount: list(0),
       markRead: () => unused,
       notifyUser: () => unused,
-      notify: () => unused
+      notify: () => unused,
+      record: () => unused
     })
   )
 }

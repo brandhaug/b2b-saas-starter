@@ -7,6 +7,7 @@ import {
   NotificationFeed,
   SeedNotificationFeed
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { SeedSeatSyncPublisher } from '@b2b-saas-starter/capabilities/billing/seat-sync'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   SeedSsoConnections,
@@ -128,7 +129,7 @@ function recordingFeed(recorded: { current: Recorded }): Layer.Layer<Notificatio
         return inner.record(input)
       }
     }))
-  ).pipe(Layer.provide(SeedNotificationFeed([])))
+  ).pipe(Layer.provide(SeedNotificationFeed([])), Layer.provide(SeedSeatSyncPublisher))
 }
 
 function provide<A, E>(
@@ -163,7 +164,7 @@ function provide<A, E>(
             ? SeedNotificationFeed([])
             : recordingFeed(options.recorded),
           testWorkspaceContext(workspace, who)
-        )
+        ).pipe(Layer.provide(SeedSeatSyncPublisher))
       )
     )
   )
