@@ -24,9 +24,9 @@ const decodeDelete = Schema.decodeUnknownSync(DeleteAccountInput)
 export type { AccountDeletionPlan }
 
 /**
- * Runs the deletion. Resolves with the plan that was executed — the session
- * is gone by the time it resolves, so the panel's only remaining job is to
- * leave for `/sign-in`.
+ * Runs the deletion. Resolves with the deletion plan — the session is gone by
+ * the time it resolves, so the panel's only remaining job is to leave for
+ * `/sign-in`.
  */
 export const deleteAccountServerFn = createServerFn({ method: 'POST' })
   .validator((input) => decodeDelete(input))

@@ -49,8 +49,9 @@ export type AccountDeletionPlan = typeof AccountDeletionPlan.Type
  * store and hand them to `planAccountDeletion`, so the rule is written once.
  *
  * `memberId` is the membership row's own id — the plugin's `removeMember`
- * addresses a member by row id, so the leave step needs it and the wire shape
- * carries it.
+ * addresses a member by row id, so the leave binding needs it. It stays on
+ * this adapter-internal shape on purpose: the wire plan carries no internal
+ * row ids, so the adapters keep these memberships beside the plan.
  */
 export type MembershipForDeletion = {
   readonly workspace: Workspace
@@ -110,7 +111,6 @@ export type DeletionMetadata = {
 }
 
 /**
- * The counts the `account.deleted` event carries — never the workspace names.
  * Both adapters end at this one mapper, so the event's shape cannot drift
  * between the fixture and D1.
  */
@@ -181,7 +181,11 @@ export type AccountLifecycleInterface = {
    * Self-service account deletion with password re-authentication. Plans
    * first and fails `AccountDeletionBlocked` before asking for anything;
    * then hands the delete to the store, whose hooks run `prepareDeletion`
-   * and `recordDeleted`. Resolves with the plan that was executed.
+   * and `recordDeleted`. Seed executes the plan it returns. Live returns the
+   * plan it checked: the store's before-hook re-plans and runs its own copy
+   * (the one `recordDeleted` records), and that copy cannot cross the
+   * binding's `Promise<void>` — by the time this resolves the session is
+   * destroyed and the account is gone, so no caller can act on a stale one.
    */
   readonly deleteAccount: (
     input: DeleteAccountInput

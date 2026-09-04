@@ -782,11 +782,35 @@ describe('bearer verification write throttling', () => {
   })
 })
 
-// The account-lifecycle contract runs against one purpose-built roster per
-// case — a sole owner, a plain admin, and a plain member share the fixture
-// workspace — because the shared SeedLayer roster (two owners) can express no
-// blocked case. A fresh roster and a fresh audit log per case keep the
-// refusal cases from seeing a prior case's teardown.
+// The account-lifecycle tests run against purpose-built rosters — a sole
+// owner, a plain admin, and a plain member share the fixture workspace —
+// because the shared SeedLayer roster (two owners) can express no blocked
+// case. A fresh roster and a fresh audit log per case keep the refusal cases
+// from seeing a prior case's teardown.
+
+function seedFixtureMember(id: string, role: 'owner' | 'admin' | 'member'): Member {
+  return { id, name: id, email: `${id}@seed.test`, role, systemRole: 'user' }
+}
+
+function lifecycleLayerFor(
+  members: Array<ReturnType<typeof seedFixtureMember>>
+): Layer.Layer<AccountLifecycle | AuditEventLog> {
+  return Layer.unwrap(
+    Effect.gen(function* () {
+      const roster = yield* makeSeedRoster(members)
+      // One fixture audit log shared by the capability and the case's
+      // assertions — separate instances would each hold a private store.
+      const audit = SeedAuditEventLog([], seedSystemUsers)
+      return Layer.merge(
+        audit,
+        SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
+          Layer.provide(audit)
+        )
+      )
+    })
+  )
+}
+
 describe('seed account lifecycle contract', () => {
   const ids: AccountLifecycleContractIds = {
     stuckOwner: 'usr_stuck_owner',
@@ -795,35 +819,18 @@ describe('seed account lifecycle contract', () => {
     wrongPassword: ''
   }
 
-  function seedFixtureMember(id: string, role: 'owner' | 'admin' | 'member'): Member {
-    return { id, name: id, email: `${id}@seed.test`, role, systemRole: 'user' }
-  }
-
-  function stuckWorkspaceLayer(): Layer.Layer<AccountLifecycle | AuditEventLog> {
-    return Layer.unwrap(
-      Effect.gen(function* () {
-        const roster = yield* makeSeedRoster([
-          seedFixtureMember(ids.stuckOwner, 'owner'),
-          seedFixtureMember('usr_second_admin', 'admin'),
-          seedFixtureMember(ids.planner, 'member')
-        ])
-        // One fixture audit log shared by the capability and the case's
-        // assertions — separate instances would each hold a private store.
-        const audit = SeedAuditEventLog([], seedSystemUsers)
-        return Layer.merge(
-          audit,
-          SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
-            Layer.provide(audit)
-          )
-        )
-      })
-    )
-  }
-
   const cases = accountLifecycleContractCases(ids, expect)
   for (const contractCase of cases) {
     it.effect(contractCase.name, () =>
-      contractCase.assert.pipe(Effect.provide(stuckWorkspaceLayer()))
+      contractCase.assert.pipe(
+        Effect.provide(
+          lifecycleLayerFor([
+            seedFixtureMember(ids.stuckOwner, 'owner'),
+            seedFixtureMember('usr_second_admin', 'admin'),
+            seedFixtureMember(ids.planner, 'member')
+          ])
+        )
+      )
     )
   }
 })
@@ -832,29 +839,6 @@ describe('seed account lifecycle contract', () => {
 // fixture cannot express, so the leave-only and delete-only paths each get a
 // purpose-built roster here; the Live half runs in the matching live test.
 describe('seed account lifecycle deletion', () => {
-  function seedFixtureMember(id: string, role: 'owner' | 'admin' | 'member'): Member {
-    return { id, name: id, email: `${id}@seed.test`, role, systemRole: 'user' }
-  }
-
-  function lifecycleLayerFor(
-    members: Array<ReturnType<typeof seedFixtureMember>>
-  ): Layer.Layer<AccountLifecycle | AuditEventLog> {
-    return Layer.unwrap(
-      Effect.gen(function* () {
-        const roster = yield* makeSeedRoster(members)
-        // One fixture audit log shared by the capability and the case's
-        // assertions — separate instances would each hold a private store.
-        const audit = SeedAuditEventLog([], seedSystemUsers)
-        return Layer.merge(
-          audit,
-          SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
-            Layer.provide(audit)
-          )
-        )
-      })
-    )
-  }
-
   it.effect('deletes the workspace of a user who is its only member', () =>
     Effect.gen(function* () {
       const lifecycle = yield* AccountLifecycle
