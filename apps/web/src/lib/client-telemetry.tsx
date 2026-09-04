@@ -1,28 +1,25 @@
-import { createIsomorphicFn } from '@tanstack/react-start'
+import { createClientOnlyFn } from '@tanstack/react-start'
 import { useEffect } from 'react'
 
 import { type ClientTelemetryConfig } from './server/telemetry-config'
 
 /**
  * The browser SDK modules, loaded only where they can run. Both are pure
- * client-side — the SSR pass never executes them — so the `.server` halves
- * are an explicit none and the compiler strips the dynamic imports from the
- * server bundle; without this, the deploy build ships `@sentry/react` and
- * `posthog-js` to the Worker in chunks it can never execute.
+ * client-side — the SSR pass never executes them, and `createClientOnlyFn`
+ * swaps each loader for a stub in the server build so the dynamic imports
+ * never enter the server graph; without this, the deploy build ships
+ * `@sentry/react` and `posthog-js` to the Worker in chunks it can never
+ * execute (ADR 0063).
  */
-const loadSentry = createIsomorphicFn()
-  .server(() => undefined)
-  .client(async () => {
-    const Sentry = await import('@sentry/react')
-    return Sentry
-  })
+const loadSentry = createClientOnlyFn(async () => {
+  const Sentry = await import('@sentry/react')
+  return Sentry
+})
 
-const loadPosthog = createIsomorphicFn()
-  .server(() => undefined)
-  .client(async () => {
-    const posthogModule = await import('posthog-js')
-    return posthogModule.default
-  })
+const loadPosthog = createClientOnlyFn(async () => {
+  const posthogModule = await import('posthog-js')
+  return posthogModule.default
+})
 
 /**
  * Client-side half of the optional observability providers: initializes the
@@ -47,7 +44,7 @@ export function ClientTelemetry({
       if (config.sentryDsn) {
         const Sentry = await loadSentry()
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- the cleanup closure mutates `cancelled` after this runs
-        if (Sentry && !cancelled && Sentry.getClient() === undefined) {
+        if (!cancelled && Sentry.getClient() === undefined) {
           Sentry.init({
             dsn: config.sentryDsn,
             // 100% traces would sample every browser session — an order of
@@ -62,7 +59,7 @@ export function ClientTelemetry({
       if (config.posthogKey) {
         const posthog = await loadPosthog()
         // oxlint-disable-next-line eslint/no-underscore-dangle, typescript/no-unnecessary-condition -- PostHog's own readiness flag; the cleanup closure mutates `cancelled` after this runs
-        if (posthog && !cancelled && !posthog.__loaded) {
+        if (!cancelled && !posthog.__loaded) {
           posthog.init(config.posthogKey, {
             api_host: config.posthogHost ?? 'https://us.i.posthog.com',
             capture_pageview: 'history_change',
