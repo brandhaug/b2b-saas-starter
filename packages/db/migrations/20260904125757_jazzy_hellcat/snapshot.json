@@ -1,11 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "94ed2774-bba2-4ffc-8b35-9b772695e6f2",
-  "prevIds": [
-    "3de71fd7-5ae0-46a1-9122-39a330960017",
-    "d180182b-4228-4c3d-be94-222e2d105d31"
-  ],
+  "id": "8a3b0ad8-cae6-4dbe-8368-f370b6e92e1b",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
       "name": "account",
@@ -21,6 +18,10 @@
     },
     {
       "name": "jwks",
+      "entityType": "tables"
+    },
+    {
+      "name": "notification_preferences",
       "entityType": "tables"
     },
     {
@@ -56,6 +57,10 @@
       "entityType": "tables"
     },
     {
+      "name": "passkey",
+      "entityType": "tables"
+    },
+    {
       "name": "session",
       "entityType": "tables"
     },
@@ -80,11 +85,23 @@
       "entityType": "tables"
     },
     {
+      "name": "workspace_exports",
+      "entityType": "tables"
+    },
+    {
       "name": "workspace_invitations",
       "entityType": "tables"
     },
     {
       "name": "workspace_members",
+      "entityType": "tables"
+    },
+    {
+      "name": "workspace_sso_connections",
+      "entityType": "tables"
+    },
+    {
+      "name": "workspace_subscriptions",
       "entityType": "tables"
     },
     {
@@ -489,6 +506,56 @@
       "generated": null,
       "name": "id",
       "entityType": "columns",
+      "table": "notification_preferences"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "user_id",
+      "entityType": "columns",
+      "table": "notification_preferences"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "kind",
+      "entityType": "columns",
+      "table": "notification_preferences"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "channel",
+      "entityType": "columns",
+      "table": "notification_preferences"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "notification_preferences"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
       "table": "notifications"
     },
     {
@@ -508,6 +575,16 @@
       "default": null,
       "generated": null,
       "name": "user_id",
+      "entityType": "columns",
+      "table": "notifications"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'announcement'",
+      "generated": null,
+      "name": "kind",
       "entityType": "columns",
       "table": "notifications"
     },
@@ -1559,6 +1636,116 @@
       "generated": null,
       "name": "id",
       "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "publicKey",
+      "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "credentialID",
+      "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "counter",
+      "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "deviceType",
+      "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "backedUp",
+      "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "transports",
+      "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "aaguid",
+      "entityType": "columns",
+      "table": "passkey"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
       "table": "session"
     },
     {
@@ -2023,6 +2210,46 @@
     },
     {
       "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "payload",
+      "entityType": "columns",
+      "table": "webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "request_headers",
+      "entityType": "columns",
+      "table": "webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "response_body",
+      "entityType": "columns",
+      "table": "webhook_deliveries"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "replayed_from",
+      "entityType": "columns",
+      "table": "webhook_deliveries"
+    },
+    {
+      "type": "text",
       "notNull": false,
       "autoincrement": false,
       "default": null,
@@ -2072,6 +2299,26 @@
       "table": "webhook_endpoints"
     },
     {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "previous_signing_secret",
+      "entityType": "columns",
+      "table": "webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "previous_secret_expires_at",
+      "entityType": "columns",
+      "table": "webhook_endpoints"
+    },
+    {
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -2100,6 +2347,116 @@
       "name": "created_at",
       "entityType": "columns",
       "table": "webhook_endpoints"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "workspace_exports"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "workspace_id",
+      "entityType": "columns",
+      "table": "workspace_exports"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "requested_by_user_id",
+      "entityType": "columns",
+      "table": "workspace_exports"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'pending'",
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "workspace_exports"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "object_key",
+      "entityType": "columns",
+      "table": "workspace_exports"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "size_bytes",
+      "entityType": "columns",
+      "table": "workspace_exports"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "download_secret",
+      "entityType": "columns",
+      "table": "workspace_exports"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "failure_reason",
+      "entityType": "columns",
+      "table": "workspace_exports"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "workspace_exports"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "completed_at",
+      "entityType": "columns",
+      "table": "workspace_exports"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "workspace_exports"
     },
     {
       "type": "text",
@@ -2239,6 +2596,186 @@
       "generated": null,
       "name": "id",
       "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "issuer",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "oidcConfig",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "samlConfig",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "providerId",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "workspaceId",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "domain",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "false",
+      "generated": null,
+      "name": "enabled",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "false",
+      "generated": null,
+      "name": "requireSso",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "'member'",
+      "generated": null,
+      "name": "defaultWorkspaceRole",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "(unixepoch())",
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "workspace_id",
+      "entityType": "columns",
+      "table": "workspace_subscriptions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "stripe_customer_id",
+      "entityType": "columns",
+      "table": "workspace_subscriptions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "stripe_subscription_id",
+      "entityType": "columns",
+      "table": "workspace_subscriptions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "stripe_subscription_item_id",
+      "entityType": "columns",
+      "table": "workspace_subscriptions"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "seat_quantity",
+      "entityType": "columns",
+      "table": "workspace_subscriptions"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "workspace_subscriptions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
       "table": "workspaces"
     },
     {
@@ -2288,6 +2825,16 @@
       "default": "'starter'",
       "generated": null,
       "name": "planId",
+      "entityType": "columns",
+      "table": "workspaces"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "onboardingDismissedAt",
       "entityType": "columns",
       "table": "workspaces"
     },
@@ -2365,6 +2912,17 @@
       "name": "fk_audit_events_actor_user_id_user_id_fk",
       "entityType": "fks",
       "table": "audit_events"
+    },
+    {
+      "columns": ["user_id"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_notification_preferences_user_id_user_id_fk",
+      "entityType": "fks",
+      "table": "notification_preferences"
     },
     {
       "columns": ["workspace_id"],
@@ -2527,6 +3085,17 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
+      "name": "fk_passkey_userId_user_id_fk",
+      "entityType": "fks",
+      "table": "passkey"
+    },
+    {
+      "columns": ["userId"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
       "name": "fk_session_userId_user_id_fk",
       "entityType": "fks",
       "table": "session"
@@ -2563,6 +3132,28 @@
       "name": "fk_webhook_endpoints_workspace_id_workspaces_id_fk",
       "entityType": "fks",
       "table": "webhook_endpoints"
+    },
+    {
+      "columns": ["workspace_id"],
+      "tableTo": "workspaces",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_workspace_exports_workspace_id_workspaces_id_fk",
+      "entityType": "fks",
+      "table": "workspace_exports"
+    },
+    {
+      "columns": ["requested_by_user_id"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "nameExplicit": false,
+      "name": "fk_workspace_exports_requested_by_user_id_user_id_fk",
+      "entityType": "fks",
+      "table": "workspace_exports"
     },
     {
       "columns": ["workspaceId"],
@@ -2609,6 +3200,39 @@
       "table": "workspace_members"
     },
     {
+      "columns": ["userId"],
+      "tableTo": "user",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_workspace_sso_connections_userId_user_id_fk",
+      "entityType": "fks",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "columns": ["workspaceId"],
+      "tableTo": "workspaces",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_workspace_sso_connections_workspaceId_workspaces_id_fk",
+      "entityType": "fks",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "columns": ["workspace_id"],
+      "tableTo": "workspaces",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "CASCADE",
+      "nameExplicit": false,
+      "name": "fk_workspace_subscriptions_workspace_id_workspaces_id_fk",
+      "entityType": "fks",
+      "table": "workspace_subscriptions"
+    },
+    {
       "columns": ["id"],
       "nameExplicit": false,
       "name": "account_pk",
@@ -2634,6 +3258,13 @@
       "nameExplicit": false,
       "name": "jwks_pk",
       "table": "jwks",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "notification_preferences_pk",
+      "table": "notification_preferences",
       "entityType": "pks"
     },
     {
@@ -2695,6 +3326,13 @@
     {
       "columns": ["id"],
       "nameExplicit": false,
+      "name": "passkey_pk",
+      "table": "passkey",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
       "name": "session_pk",
       "table": "session",
       "entityType": "pks"
@@ -2737,6 +3375,13 @@
     {
       "columns": ["id"],
       "nameExplicit": false,
+      "name": "workspace_exports_pk",
+      "table": "workspace_exports",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
       "name": "workspace_invitations_pk",
       "table": "workspace_invitations",
       "entityType": "pks"
@@ -2746,6 +3391,20 @@
       "nameExplicit": false,
       "name": "workspace_members_pk",
       "table": "workspace_members",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
+      "name": "workspace_sso_connections_pk",
+      "table": "workspace_sso_connections",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["workspace_id"],
+      "nameExplicit": false,
+      "name": "workspace_subscriptions_pk",
+      "table": "workspace_subscriptions",
       "entityType": "pks"
     },
     {
@@ -2846,6 +3505,24 @@
       "name": "audit_events_actor_user_id_idx",
       "entityType": "indexes",
       "table": "audit_events"
+    },
+    {
+      "columns": [
+        {
+          "value": "user_id",
+          "isExpression": false
+        },
+        {
+          "value": "kind",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "origin": "manual",
+      "name": "notification_preferences_user_kind_idx",
+      "entityType": "indexes",
+      "table": "notification_preferences"
     },
     {
       "columns": [
@@ -3085,6 +3762,34 @@
       "isUnique": false,
       "where": null,
       "origin": "manual",
+      "name": "passkey_user_id_idx",
+      "entityType": "indexes",
+      "table": "passkey"
+    },
+    {
+      "columns": [
+        {
+          "value": "credentialID",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "passkey_credential_id_idx",
+      "entityType": "indexes",
+      "table": "passkey"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
       "name": "session_user_id_idx",
       "entityType": "indexes",
       "table": "session"
@@ -3162,6 +3867,34 @@
     {
       "columns": [
         {
+          "value": "workspace_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "workspace_exports_workspace_id_idx",
+      "entityType": "indexes",
+      "table": "workspace_exports"
+    },
+    {
+      "columns": [
+        {
+          "value": "requested_by_user_id",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "workspace_exports_requested_by_user_id_idx",
+      "entityType": "indexes",
+      "table": "workspace_exports"
+    },
+    {
+      "columns": [
+        {
           "value": "workspaceId",
           "isExpression": false
         }
@@ -3234,6 +3967,34 @@
       "table": "workspace_members"
     },
     {
+      "columns": [
+        {
+          "value": "workspaceId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "workspace_sso_connections_workspace_id_idx",
+      "entityType": "indexes",
+      "table": "workspace_sso_connections"
+    },
+    {
+      "columns": [
+        {
+          "value": "domain",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "workspace_sso_connections_domain_idx",
+      "entityType": "indexes",
+      "table": "workspace_sso_connections"
+    },
+    {
       "columns": ["token_hash"],
       "nameExplicit": false,
       "name": "api_tokens_token_hash_unique",
@@ -3288,6 +4049,13 @@
       "name": "user_username_unique",
       "entityType": "uniques",
       "table": "user"
+    },
+    {
+      "columns": ["providerId"],
+      "nameExplicit": false,
+      "name": "workspace_sso_connections_providerId_unique",
+      "entityType": "uniques",
+      "table": "workspace_sso_connections"
     },
     {
       "columns": ["slug"],

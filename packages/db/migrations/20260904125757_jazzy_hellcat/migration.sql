@@ -44,6 +44,16 @@ CREATE TABLE `audit_events` (
 	CONSTRAINT `fk_audit_events_actor_user_id_user_id_fk` FOREIGN KEY (`actor_user_id`) REFERENCES `user`(`id`)
 );
 --> statement-breakpoint
+CREATE TABLE `jwks` (
+	`id` text PRIMARY KEY,
+	`publicKey` text NOT NULL,
+	`privateKey` text NOT NULL,
+	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
+	`expiresAt` integer,
+	`alg` text,
+	`crv` text
+);
+--> statement-breakpoint
 CREATE TABLE `notification_preferences` (
 	`id` text PRIMARY KEY,
 	`user_id` text NOT NULL,
@@ -64,6 +74,139 @@ CREATE TABLE `notifications` (
 	`created_at` text NOT NULL,
 	CONSTRAINT `fk_notifications_workspace_id_workspaces_id_fk` FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE,
 	CONSTRAINT `fk_notifications_user_id_user_id_fk` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
+);
+--> statement-breakpoint
+CREATE TABLE `oauth_access_token` (
+	`id` text PRIMARY KEY,
+	`token` text NOT NULL UNIQUE,
+	`clientId` text NOT NULL,
+	`sessionId` text,
+	`userId` text,
+	`referenceId` text,
+	`authorizationCodeId` text,
+	`resources` text,
+	`requestedUserInfoClaims` text,
+	`refreshId` text,
+	`expiresAt` integer NOT NULL,
+	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
+	`revoked` integer,
+	`confirmation` text,
+	`scopes` text NOT NULL,
+	CONSTRAINT `fk_oauth_access_token_clientId_oauth_client_clientId_fk` FOREIGN KEY (`clientId`) REFERENCES `oauth_client`(`clientId`),
+	CONSTRAINT `fk_oauth_access_token_sessionId_session_id_fk` FOREIGN KEY (`sessionId`) REFERENCES `session`(`id`) ON DELETE SET NULL,
+	CONSTRAINT `fk_oauth_access_token_userId_user_id_fk` FOREIGN KEY (`userId`) REFERENCES `user`(`id`),
+	CONSTRAINT `fk_oauth_access_token_refreshId_oauth_refresh_token_id_fk` FOREIGN KEY (`refreshId`) REFERENCES `oauth_refresh_token`(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `oauth_client` (
+	`id` text PRIMARY KEY,
+	`clientId` text NOT NULL UNIQUE,
+	`clientSecret` text,
+	`clientDiscoveryId` text,
+	`disabled` integer DEFAULT false,
+	`skipConsent` integer,
+	`enableEndSession` integer,
+	`subjectType` text,
+	`scopes` text,
+	`clientCredentialsScopes` text DEFAULT '[]',
+	`userId` text,
+	`createdAt` integer,
+	`updatedAt` integer,
+	`name` text,
+	`uri` text,
+	`icon` text,
+	`contacts` text,
+	`tos` text,
+	`policy` text,
+	`softwareId` text,
+	`softwareVersion` text,
+	`softwareStatement` text,
+	`redirectUris` text NOT NULL,
+	`postLogoutRedirectUris` text,
+	`backchannelLogoutUri` text,
+	`backchannelLogoutSessionRequired` integer,
+	`tokenEndpointAuthMethod` text,
+	`applicationType` text,
+	`jwks` text,
+	`jwksUri` text,
+	`grantTypes` text,
+	`responseTypes` text,
+	`requirePKCE` integer,
+	`dpopBoundAccessTokens` integer DEFAULT false,
+	`referenceId` text,
+	`metadata` text,
+	CONSTRAINT `fk_oauth_client_userId_user_id_fk` FOREIGN KEY (`userId`) REFERENCES `user`(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `oauth_client_assertion` (
+	`id` text PRIMARY KEY,
+	`expiresAt` integer NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE `oauth_client_resource` (
+	`id` text PRIMARY KEY,
+	`clientId` text NOT NULL,
+	`resourceId` text NOT NULL,
+	`metadata` text,
+	`createdAt` integer,
+	CONSTRAINT `fk_oauth_client_resource_clientId_oauth_client_clientId_fk` FOREIGN KEY (`clientId`) REFERENCES `oauth_client`(`clientId`) ON DELETE CASCADE,
+	CONSTRAINT `fk_oauth_client_resource_resourceId_oauth_resource_identifier_fk` FOREIGN KEY (`resourceId`) REFERENCES `oauth_resource`(`identifier`) ON DELETE CASCADE
+);
+--> statement-breakpoint
+CREATE TABLE `oauth_consent` (
+	`id` text PRIMARY KEY,
+	`clientId` text NOT NULL,
+	`userId` text,
+	`referenceId` text,
+	`resources` text,
+	`requestedUserInfoClaims` text,
+	`scopes` text NOT NULL,
+	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
+	`updatedAt` integer DEFAULT (unixepoch()) NOT NULL,
+	CONSTRAINT `fk_oauth_consent_clientId_oauth_client_clientId_fk` FOREIGN KEY (`clientId`) REFERENCES `oauth_client`(`clientId`),
+	CONSTRAINT `fk_oauth_consent_userId_user_id_fk` FOREIGN KEY (`userId`) REFERENCES `user`(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `oauth_refresh_token` (
+	`id` text PRIMARY KEY,
+	`token` text NOT NULL UNIQUE,
+	`clientId` text NOT NULL,
+	`sessionId` text,
+	`userId` text NOT NULL,
+	`referenceId` text,
+	`authorizationCodeId` text,
+	`resources` text,
+	`requestedUserInfoClaims` text,
+	`expiresAt` integer NOT NULL,
+	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
+	`revoked` integer,
+	`rotatedAt` integer,
+	`rotationReplayResponse` text,
+	`rotationReplayExpiresAt` integer,
+	`authTime` integer,
+	`confirmation` text,
+	`scopes` text NOT NULL,
+	CONSTRAINT `fk_oauth_refresh_token_clientId_oauth_client_clientId_fk` FOREIGN KEY (`clientId`) REFERENCES `oauth_client`(`clientId`),
+	CONSTRAINT `fk_oauth_refresh_token_sessionId_session_id_fk` FOREIGN KEY (`sessionId`) REFERENCES `session`(`id`) ON DELETE SET NULL,
+	CONSTRAINT `fk_oauth_refresh_token_userId_user_id_fk` FOREIGN KEY (`userId`) REFERENCES `user`(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `oauth_resource` (
+	`id` text PRIMARY KEY,
+	`identifier` text NOT NULL UNIQUE,
+	`name` text NOT NULL,
+	`accessTokenTtl` integer,
+	`refreshTokenTtl` integer,
+	`signingAlgorithm` text,
+	`signingKeyId` text,
+	`allowedScopes` text,
+	`customClaims` text,
+	`dpopBoundAccessTokensRequired` integer DEFAULT false,
+	`disabled` integer DEFAULT false,
+	`createdAt` integer,
+	`updatedAt` integer,
+	`policyVersion` integer DEFAULT 1,
+	`metadata` text
 );
 --> statement-breakpoint
 CREATE TABLE `passkey` (
@@ -203,6 +346,23 @@ CREATE TABLE `workspace_members` (
 	CONSTRAINT `fk_workspace_members_userId_user_id_fk` FOREIGN KEY (`userId`) REFERENCES `user`(`id`) ON DELETE CASCADE
 );
 --> statement-breakpoint
+CREATE TABLE `workspace_sso_connections` (
+	`id` text PRIMARY KEY,
+	`issuer` text NOT NULL,
+	`oidcConfig` text,
+	`samlConfig` text,
+	`userId` text NOT NULL,
+	`providerId` text NOT NULL UNIQUE,
+	`workspaceId` text NOT NULL,
+	`domain` text NOT NULL,
+	`enabled` integer DEFAULT false NOT NULL,
+	`requireSso` integer DEFAULT false NOT NULL,
+	`defaultWorkspaceRole` text DEFAULT 'member' NOT NULL,
+	`createdAt` integer DEFAULT (unixepoch()) NOT NULL,
+	CONSTRAINT `fk_workspace_sso_connections_userId_user_id_fk` FOREIGN KEY (`userId`) REFERENCES `user`(`id`) ON DELETE CASCADE,
+	CONSTRAINT `fk_workspace_sso_connections_workspaceId_workspaces_id_fk` FOREIGN KEY (`workspaceId`) REFERENCES `workspaces`(`id`) ON DELETE CASCADE
+);
+--> statement-breakpoint
 CREATE TABLE `workspace_subscriptions` (
 	`workspace_id` text PRIMARY KEY,
 	`stripe_customer_id` text NOT NULL,
@@ -233,6 +393,21 @@ CREATE INDEX `audit_events_workspace_created_at_idx` ON `audit_events` (`workspa
 CREATE INDEX `audit_events_actor_user_id_idx` ON `audit_events` (`actor_user_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `notification_preferences_user_kind_idx` ON `notification_preferences` (`user_id`,`kind`);--> statement-breakpoint
 CREATE INDEX `notifications_workspace_id_idx` ON `notifications` (`workspace_id`);--> statement-breakpoint
+CREATE INDEX `oauth_access_token_client_id_idx` ON `oauth_access_token` (`clientId`);--> statement-breakpoint
+CREATE INDEX `oauth_access_token_session_id_idx` ON `oauth_access_token` (`sessionId`);--> statement-breakpoint
+CREATE INDEX `oauth_access_token_user_id_idx` ON `oauth_access_token` (`userId`);--> statement-breakpoint
+CREATE INDEX `oauth_access_token_authorization_code_id_idx` ON `oauth_access_token` (`authorizationCodeId`);--> statement-breakpoint
+CREATE INDEX `oauth_access_token_refresh_id_idx` ON `oauth_access_token` (`refreshId`);--> statement-breakpoint
+CREATE INDEX `oauth_client_user_id_idx` ON `oauth_client` (`userId`);--> statement-breakpoint
+CREATE INDEX `oauth_client_resource_client_id_idx` ON `oauth_client_resource` (`clientId`);--> statement-breakpoint
+CREATE INDEX `oauth_client_resource_resource_id_idx` ON `oauth_client_resource` (`resourceId`);--> statement-breakpoint
+CREATE UNIQUE INDEX `oauth_client_resource_client_resource_idx` ON `oauth_client_resource` (`clientId`,`resourceId`);--> statement-breakpoint
+CREATE INDEX `oauth_consent_client_id_idx` ON `oauth_consent` (`clientId`);--> statement-breakpoint
+CREATE INDEX `oauth_consent_user_id_idx` ON `oauth_consent` (`userId`);--> statement-breakpoint
+CREATE INDEX `oauth_refresh_token_client_id_idx` ON `oauth_refresh_token` (`clientId`);--> statement-breakpoint
+CREATE INDEX `oauth_refresh_token_session_id_idx` ON `oauth_refresh_token` (`sessionId`);--> statement-breakpoint
+CREATE INDEX `oauth_refresh_token_user_id_idx` ON `oauth_refresh_token` (`userId`);--> statement-breakpoint
+CREATE INDEX `oauth_refresh_token_authorization_code_id_idx` ON `oauth_refresh_token` (`authorizationCodeId`);--> statement-breakpoint
 CREATE INDEX `passkey_user_id_idx` ON `passkey` (`userId`);--> statement-breakpoint
 CREATE INDEX `passkey_credential_id_idx` ON `passkey` (`credentialID`);--> statement-breakpoint
 CREATE INDEX `session_user_id_idx` ON `session` (`userId`);--> statement-breakpoint
@@ -247,4 +422,6 @@ CREATE INDEX `workspace_invitations_workspace_id_idx` ON `workspace_invitations`
 CREATE INDEX `workspace_invitations_email_idx` ON `workspace_invitations` (`email`);--> statement-breakpoint
 CREATE INDEX `workspace_invitations_inviter_id_idx` ON `workspace_invitations` (`inviterId`);--> statement-breakpoint
 CREATE UNIQUE INDEX `workspace_members_workspace_id_user_id_idx` ON `workspace_members` (`workspaceId`,`userId`);--> statement-breakpoint
-CREATE INDEX `workspace_members_user_idx` ON `workspace_members` (`userId`);
+CREATE INDEX `workspace_members_user_idx` ON `workspace_members` (`userId`);--> statement-breakpoint
+CREATE INDEX `workspace_sso_connections_workspace_id_idx` ON `workspace_sso_connections` (`workspaceId`);--> statement-breakpoint
+CREATE INDEX `workspace_sso_connections_domain_idx` ON `workspace_sso_connections` (`domain`);

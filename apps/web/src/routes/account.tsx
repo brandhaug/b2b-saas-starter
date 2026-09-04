@@ -31,6 +31,7 @@ export const Route = createFileRoute('/account')({
   // the MCP clients connected to this account (ADR 0055) — both
   // identity-keyed, no workspace involved.
   loader: ({ context }) =>
+    // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the two account reads parallel
     Promise.all([
       loadNotificationPreferences({ userId: context.session.user.id }),
       loadMcpClientConnections({ userId: context.session.user.id })

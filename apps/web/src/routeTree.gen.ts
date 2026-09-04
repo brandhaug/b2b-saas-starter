@@ -24,12 +24,10 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
-import { Route as KnowledgeChangelogRouteImport } from './routes/_knowledge.changelog'
-import { Route as KnowledgeFaqRouteImport } from './routes/_knowledge.faq'
-import { Route as AccountNotificationsRouteImport } from './routes/account_.notifications'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known.oauth-authorization-server'
 import { Route as KnowledgeChangelogRouteImport } from './routes/_knowledge.changelog'
 import { Route as KnowledgeFaqRouteImport } from './routes/_knowledge.faq'
+import { Route as AccountNotificationsRouteImport } from './routes/account_.notifications'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
 import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
@@ -260,12 +258,10 @@ export interface FileRoutesByFullPath {
   '/two-factor': typeof TwoFactorRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
-  '/changelog': typeof KnowledgeChangelogRoute
-  '/faq': typeof KnowledgeFaqRoute
-  '/account/notifications': typeof AccountNotificationsRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/changelog': typeof KnowledgeChangelogRoute
   '/faq': typeof KnowledgeFaqRoute
+  '/account/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/help/': typeof HelpIndexRoute
@@ -299,12 +295,10 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/two-factor': typeof TwoFactorRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/changelog': typeof KnowledgeChangelogRoute
-  '/faq': typeof KnowledgeFaqRoute
-  '/account/notifications': typeof AccountNotificationsRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/changelog': typeof KnowledgeChangelogRoute
   '/faq': typeof KnowledgeFaqRoute
+  '/account/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/help': typeof HelpIndexRoute
@@ -341,12 +335,10 @@ export interface FileRoutesById {
   '/two-factor': typeof TwoFactorRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
-  '/_knowledge/changelog': typeof KnowledgeChangelogRoute
-  '/_knowledge/faq': typeof KnowledgeFaqRoute
-  '/account_/notifications': typeof AccountNotificationsRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/_knowledge/changelog': typeof KnowledgeChangelogRoute
   '/_knowledge/faq': typeof KnowledgeFaqRoute
+  '/account_/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/help/': typeof HelpIndexRoute
@@ -383,12 +375,10 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/verify-email'
     | '/workspaces'
-    | '/changelog'
-    | '/faq'
-    | '/account/notifications'
     | '/.well-known/oauth-authorization-server'
     | '/changelog'
     | '/faq'
+    | '/account/notifications'
     | '/invitations/accept'
     | '/oauth/consent'
     | '/help/'
@@ -422,12 +412,10 @@ export interface FileRouteTypes {
     | '/terms'
     | '/two-factor'
     | '/verify-email'
-    | '/changelog'
-    | '/faq'
-    | '/account/notifications'
     | '/.well-known/oauth-authorization-server'
     | '/changelog'
     | '/faq'
+    | '/account/notifications'
     | '/invitations/accept'
     | '/oauth/consent'
     | '/help'
@@ -463,12 +451,10 @@ export interface FileRouteTypes {
     | '/two-factor'
     | '/verify-email'
     | '/workspaces'
-    | '/_knowledge/changelog'
-    | '/_knowledge/faq'
-    | '/account_/notifications'
     | '/.well-known/oauth-authorization-server'
     | '/_knowledge/changelog'
     | '/_knowledge/faq'
+    | '/account_/notifications'
     | '/invitations/accept'
     | '/oauth/consent'
     | '/help/'
@@ -505,8 +491,8 @@ export interface RootRouteChildren {
   TwoFactorRoute: typeof TwoFactorRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   WorkspacesRoute: typeof WorkspacesRouteWithChildren
-  AccountNotificationsRoute: typeof AccountNotificationsRoute
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
+  AccountNotificationsRoute: typeof AccountNotificationsRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   OauthConsentRoute: typeof OauthConsentRoute
   HelpIndexRoute: typeof HelpIndexRoute
@@ -858,9 +844,9 @@ const rootRouteChildren: RootRouteChildren = {
   TwoFactorRoute: TwoFactorRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   WorkspacesRoute: WorkspacesRouteWithChildren,
-  AccountNotificationsRoute: AccountNotificationsRoute,
   DotwellKnownOauthAuthorizationServerRoute:
     DotwellKnownOauthAuthorizationServerRouteWithChildren,
+  AccountNotificationsRoute: AccountNotificationsRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
   OauthConsentRoute: OauthConsentRoute,
   HelpIndexRoute: HelpIndexRoute,
