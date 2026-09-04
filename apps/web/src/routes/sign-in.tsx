@@ -87,7 +87,7 @@ export function SignInPage({
    * failure lands as this block's own message, never as a password failure.
    */
   const passkeySignIn = useServerAction(
-    async (input?: { readonly autoFill?: boolean }) => {
+    async (input: { readonly autoFill?: boolean } | undefined) => {
       const result = await signInPasskey(input)
       if (result.error) {
         return authFailure(result.error.message ?? PASSKEY_FAILED)
@@ -177,7 +177,9 @@ export function SignInPage({
               variant="outline"
               disabled={passkeySignIn.pending}
               onClick={() => {
-                passkeySignIn.run()
+                // `undefined` = no autofill: the button opens the modal
+                // ceremony; the type makes the explicit argument honest.
+                passkeySignIn.run(undefined)
               }}
             >
               <FingerprintIcon className="size-4" />

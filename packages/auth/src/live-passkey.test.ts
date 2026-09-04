@@ -112,7 +112,7 @@ function derSignature(raw: Uint8Array): Uint8Array {
   return Uint8Array.from([0x30, body.length, ...body])
 }
 
-async function sha256(bytes: Uint8Array): Promise<Uint8Array> {
+async function sha256(bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
   const digest = await crypto.subtle.digest('SHA-256', bytes)
   return new Uint8Array(digest)
 }
