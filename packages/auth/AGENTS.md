@@ -7,7 +7,7 @@ The Better Auth instance and nothing else. This package owns the options object,
 Two runtime exports carry everything:
 
 - `Auth` — an `effectful-better-auth` service providing `{ api, instance }`. `api` is the effectful endpoint proxy (endpoints fail `BetterAuthApiError`); `instance` is the raw Better Auth object for `handler` / `asResponse` needs. The layer requires `AuthConfig`.
-- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, emails, socialProviders, accountHooks, requireEmailVerification, runBackground, mcp }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding. `emails` is the `AuthEmailSender` port and `accountHooks` the `AuthAccountHooks` port (below); `socialProviders` carries the resolved active providers (`activeSocialProviders` in `@b2b-saas-starter/env`, structural local type here so this package does not depend on env); `runBackground` **is required** and becomes Better Auth's `advanced.backgroundTasks.handler` verbatim — `ctx.waitUntil` on a Worker that exposes an execution context, and an explicit inline runner where the host does not. There is no fallback here on purpose: a swallow-everything default would make "the verification email vanished past the response" this package's silent decision instead of the app's stated one, and whatever the app supplies owns the rejection. `mcp` is the OAuth server's two deployment facts (see below).
+- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, emails, socialProviders, accountHooks, requireEmailVerification, runBackground, userDeleteHooks, mcp }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding. `emails` is the `AuthEmailSender` port and `accountHooks` the `AuthAccountHooks` port (below); `socialProviders` carries the resolved active providers (`activeSocialProviders` in `@b2b-saas-starter/env`, structural local type here so this package does not depend on env); `runBackground` **is required** and becomes Better Auth's `advanced.backgroundTasks.handler` verbatim — `ctx.waitUntil` on a Worker that exposes an execution context, and an explicit inline runner where the host does not. There is no fallback here on purpose: a swallow-everything default would make "the verification email vanished past the response" this package's silent decision instead of the app's stated one, and whatever the app supplies owns the rejection. `userDeleteHooks` (optional, `UserDeleteHooks`) is the account-deletion hook pair — see "Self-service account deletion" below. `mcp` is the OAuth server's two deployment facts (see below).
 
 `Session` and `SessionUserRole` are the inferred session types. `SessionUserRole` exists as a **compile-time guard**: widening the plugin array drops every plugin-added field from `Session` while the endpoints keep working, a break no runtime test can see because the data is still there. Indexing the type is the assertion.
 
@@ -21,6 +21,19 @@ Configuration decisions, stated in code:
 - `autoSignInAfterVerification: true` — the link clicker gets a session: proving mailbox control is the honest reward, not an escalation.
 - `revokeSessionsOnPasswordReset: true` — the sessions that preceded a reset are exactly what the reset exists to distrust.
 - `requireEmailVerification` is **env-gated**: on only when `ENVIRONMENT=production` (decided by `requireEmailVerification` in `@b2b-saas-starter/env`, carried on `AuthConfig` — this package never reads env). Local dev sends to the log, where nobody could read a gating email; the unverified state surfaces as an app banner instead.
+
+## Self-service account deletion
+
+Better Auth's `delete-user` endpoint is **disabled unless the app supplies
+`userDeleteHooks`** — the option is spread into `user.deleteUser` only when
+the hook pair exists. The endpoint without its hooks would delete the user
+row with sole-owner workspaces still attached, so this package refuses to
+make "enabled" a standalone choice. The endpoint's own sequencing is the
+whole design (ADR 0054): password verified FIRST, then `beforeDelete` (the
+capability's workspace teardown), then the user row, then `afterDelete` (the
+actorless `account.deleted` record + the deletion email). The hook bodies
+live in the app (`apps/web/src/lib/server/account-delete-hooks.ts`); they
+are plain callbacks to Better Auth, outside any Effect.
 
 ## Position in the dependency graph
 
