@@ -145,17 +145,10 @@ export function updateWebhookEndpoint(
   return Effect.gen(function* () {
     yield* requireWorkspacePermission({ webhook: ['update'] })
     const webhooks = yield* WebhookEndpoints
-    const patch: UpdateWebhookEndpointInput = { endpointId: input.endpointId }
-    if (input.url !== undefined) {
-      patch.url = input.url
-    }
-    if (input.events !== undefined) {
-      patch.events = [...input.events]
-    }
-    if (input.enabled !== undefined) {
-      patch.enabled = input.enabled
-    }
-    return yield* webhooks.update(patch)
+    // The patch is the input: the gate above is the only decision this effect
+    // adds, and the capability's own input contract types the patch's
+    // optionality — absent fields stay absent.
+    return yield* webhooks.update(input)
   })
 }
 
@@ -163,19 +156,10 @@ export const updateWebhookEndpointServerFn = createServerFn({ method: 'POST' })
   .validator((input) => decodeUpdateEndpoint(input))
   .handler(async ({ data }): Promise<WebhookEndpoint> => {
     const session = await requireRequestSession()
-    // Statements, not a conditional spread: an absent field stays absent. The
-    // capability's own input contract types the patch.
-    const input: UpdateWebhookEndpointInput = { endpointId: data.endpointId }
-    if (data.url !== undefined) {
-      input.url = data.url
-    }
-    if (data.events !== undefined) {
-      input.events = data.events
-    }
-    if (data.enabled !== undefined) {
-      input.enabled = data.enabled
-    }
-    return runWorkspaceCapabilities(data.workspaceSlug, updateWebhookEndpoint(input), {
+    // Rest-destructuring drops `workspaceSlug` and keeps every optional field
+    // exactly as the schema decoded it — absent fields stay absent.
+    const { workspaceSlug, ...input } = data
+    return runWorkspaceCapabilities(workspaceSlug, updateWebhookEndpoint(input), {
       userId: session.user.id
     })
   })

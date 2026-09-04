@@ -1,4 +1,6 @@
+import { guardFailureResponse, type RateLimited } from '@b2b-saas-starter/api/errors'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { Effect, Option, Result, Schema } from 'effect'
 import { HttpRouter, HttpServerResponse } from 'effect/unstable/http'
 
@@ -27,6 +29,20 @@ const DownloadQuery = Schema.Struct({
 const decodeQuery = Schema.decodeUnknownResult(DownloadQuery)
 
 const notFound = HttpServerResponse.empty({ status: 404 })
+
+/**
+ * A guard failure as a plain response on this non-contract route: status and
+ * body both come from the contract's own error annotations
+ * (`guardFailureResponse`), so the refusal reads exactly like the same
+ * failure on a REST route — the same thing `POST /mcp` does. Only the ZIP
+ * response and the 404s above are this route's own shape.
+ */
+function guardResponse(
+  error: RateLimited | CapabilityUnavailable
+): HttpServerResponse.HttpServerResponse {
+  const { status, body } = guardFailureResponse(error)
+  return HttpServerResponse.jsonUnsafe(body, { status })
+}
 
 export function exportDownloadLayer(env: ApiEnv) {
   return HttpRouter.add('GET', '/exports/:exportId/download', (request) =>
@@ -75,11 +91,9 @@ export function exportDownloadLayer(env: ApiEnv) {
       }).pipe(
         // A rate-limited or unavailable download is still a plain response on
         // this non-contract route; the wide event above carries the failure.
-        Effect.catchTag('RateLimited', () =>
-          Effect.succeed(HttpServerResponse.empty({ status: 429 }))
-        ),
-        Effect.catchTag('CapabilityUnavailable', () =>
-          Effect.succeed(HttpServerResponse.empty({ status: 503 }))
+        Effect.catchTag('RateLimited', (error) => Effect.succeed(guardResponse(error))),
+        Effect.catchTag('CapabilityUnavailable', (error) =>
+          Effect.succeed(guardResponse(error))
         )
       )
     )

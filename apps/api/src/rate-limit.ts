@@ -1,48 +1,40 @@
-import { makeRateLimiter, type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
 import { RateLimiter, type RateLimitBucket } from '@b2b-saas-starter/api'
+import {
+  apiFallbackLimits,
+  apiRateLimitBindingNames,
+  type ApiRateLimitBindingName
+} from '@b2b-saas-starter/infra'
+import { makeRateLimiter, type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
 import { Layer } from 'effect'
 
-// Thin config module over @b2b-saas-starter/rate-limit: this file owns the
-// api worker's fallback limits and env-binding map; the mechanism (Cloudflare
-// binding dispatch, module-scope in-memory fallback, degraded-mode telemetry,
+// Thin config module over @b2b-saas-starter/rate-limit: the binding names and
+// fallback limits come from `@b2b-saas-starter/infra` — the same records the
+// generated wrangler config and Alchemy's bindings are emitted from — so this
+// file owns only the mechanism wiring. The mechanism (Cloudflare binding
+// dispatch, module-scope in-memory fallback, degraded-mode telemetry,
 // clientKey) lives in the shared package, and the bucket union plus the
 // `RateLimiter` service live on the contract beside the `BearerAuth`
 // middleware that draws from them.
 
-export type RateLimitBindings = {
-  readonly RATE_LIMITER_REST?: CloudflareRateLimit
-  readonly RATE_LIMITER_REST_WRITE?: CloudflareRateLimit
-  readonly RATE_LIMITER_ASSISTANT?: CloudflareRateLimit
-  readonly RATE_LIMITER_MCP?: CloudflareRateLimit
-}
+// The env type is derived from the infra name record, not spelled: renaming a
+// binding in infra renames the key here and in the generated wrangler config
+// together, and a bucket added to infra surfaces here the moment its row is
+// written.
+export type RateLimitBindings = Readonly<
+  Partial<Record<ApiRateLimitBindingName, CloudflareRateLimit>>
+>
 
 export { RateLimiter, type RateLimitBucket }
 
-const FALLBACK_LIMITS = {
-  rest_read: 60,
-  rest_write: 20,
-  assistant: 20,
-  mcp: 30
-} satisfies Record<RateLimitBucket, number>
+// The numbers live beside the specs in infra; the annotation fails the build
+// if the contract ever names a bucket the infra table does not carry.
+const FALLBACK_LIMITS: Record<RateLimitBucket, number> = apiFallbackLimits
 
 function pickBinding(
   env: RateLimitBindings,
   bucket: RateLimitBucket
 ): CloudflareRateLimit | undefined {
-  switch (bucket) {
-    case 'rest_read': {
-      return env.RATE_LIMITER_REST
-    }
-    case 'rest_write': {
-      return env.RATE_LIMITER_REST_WRITE
-    }
-    case 'assistant': {
-      return env.RATE_LIMITER_ASSISTANT
-    }
-    case 'mcp': {
-      return env.RATE_LIMITER_MCP
-    }
-  }
+  return env[apiRateLimitBindingNames[bucket]]
 }
 
 export function makeRateLimiterLayer(env: RateLimitBindings): Layer.Layer<RateLimiter> {

@@ -16,7 +16,7 @@ import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/templates'
 import { Effect, Option, Result, type Scope } from 'effect'
 import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
-import { currentRequest } from '../request-context'
+import { requestOrigin } from './request-origin'
 import { emailDispatcherLayer } from './auth-emails'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
@@ -44,19 +44,6 @@ import { type InvitationPreview, type SentInvitation } from './invitations'
  * endpoint the organization plugin exposes needs the request's session and only
  * this app has one (issue #64 settled that the API worker cannot).
  */
-
-/**
- * Absolute origin of the in-flight request, so the emailed link is clickable.
- * Empty when there is no request, which keeps the URL relative rather than
- * pointing at a fabricated host.
- */
-function requestOrigin(): string {
-  const request = currentRequest()
-  if (!request) {
-    return ''
-  }
-  return new URL(request.url).origin
-}
 
 export function sendInvitation(input: {
   readonly email: string

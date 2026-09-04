@@ -23,7 +23,7 @@ import { withTriggerScope } from '@b2b-saas-starter/logger'
 import { DateTime, Duration, Effect, Layer, Result, Schedule, type Scope } from 'effect'
 
 import { appUrlFrom, preferencesUrl } from './notification-links.ts'
-import { type Env } from './webhook-consumer.ts'
+import { type Env } from './queue-consumer.ts'
 
 /** How far back one digest looks — one run per day, so one day of rows. */
 export const DIGEST_WINDOW = Duration.hours(24)

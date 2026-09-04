@@ -17,13 +17,17 @@ import {
   WorkspaceExports
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { parentSpanFromHeaders, withTriggerScope } from '@b2b-saas-starter/logger'
 import { DateTime, Effect, type Layer, Result, Schema, type Scope } from 'effect'
 
 import { workspaceExportConsumerSettings } from '../../../infra/bindings.ts'
-import { type Env } from './webhook-consumer.ts'
-import { type DeliveryOutcome, type QueueEnvelope } from './queue-consumer.ts'
-
+import {
+  consumerInvocation,
+  type DeliveryOutcome,
+  type Env,
+  queueDelivery,
+  type QueueDelivery,
+  type QueueEnvelope
+} from './queue-consumer.ts'
 /**
  * The workspace export consumer (ADR 0055). One message names one `pending`
  * export row; the consumer resolves the workspace the way a request would,
@@ -40,20 +44,18 @@ import { type DeliveryOutcome, type QueueEnvelope } from './queue-consumer.ts'
 
 const decodeMessage = Schema.decodeUnknownResult(WorkspaceExportQueueMessage)
 
-export type WorkspaceExportDelivery = {
-  readonly attempts: number
-} & (
-  | { readonly kind: 'message'; readonly message: WorkspaceExportQueueMessage }
-  | { readonly kind: 'malformed' }
-)
+/** Wire shape of export queue messages — the schema is shared with the producer. */
+export type WorkspaceExportMessage = typeof WorkspaceExportQueueMessage.Type
 
-/** Decodes one queue envelope's untrusted body. The only decode per delivery. */
-export function readExportDelivery(envelope: QueueEnvelope): WorkspaceExportDelivery {
-  const decoded = decodeMessage(envelope.body)
-  if (Result.isFailure(decoded)) {
-    return { attempts: envelope.attempts, kind: 'malformed' }
-  }
-  return { attempts: envelope.attempts, kind: 'message', message: decoded.success }
+/**
+ * The boundary decode: platform fields plus the message, or the terminal
+ * `malformed` outcome — the same `queueDelivery` vocabulary every consumer in
+ * this worker shares, so the envelope's id and attempt count ride along.
+ */
+export function readExportDelivery(
+  envelope: QueueEnvelope
+): QueueDelivery<WorkspaceExportMessage> {
+  return queueDelivery(envelope, decodeMessage(envelope.body))
 }
 
 /**
@@ -83,7 +85,7 @@ function isLastAttempt(attempts: number): boolean {
  * - the store is unreachable → retry, or mark failed on the last attempt.
  */
 export function processWorkspaceExportMessage(
-  delivery: WorkspaceExportDelivery,
+  delivery: QueueDelivery<WorkspaceExportMessage>,
   resolveWorkspace: ResolveWorkspace
 ): Effect.Effect<
   DeliveryOutcome,
@@ -182,13 +184,6 @@ export function processWorkspaceExportMessage(
   })
 }
 
-function queueParentSpan(delivery: WorkspaceExportDelivery) {
-  if (delivery.kind === 'message') {
-    return parentSpanFromHeaders({ traceparent: delivery.message.traceparent })
-  }
-  return parentSpanFromHeaders({})
-}
-
 /**
  * Consumer entry: the real capability layer, the request-shaped workspace
  * resolver, and the wide-event scope. A defect or an unhandled store failure
@@ -201,17 +196,12 @@ export function buildWorkspaceExport(
 ): Effect.Effect<DeliveryOutcome> {
   const delivery = readExportDelivery(envelope)
   const capabilitiesEnv = starterEnv(env)
-  return withTriggerScope(
-    {
-      service: 'background',
-      event: 'workspace_export',
-      parent: queueParentSpan(delivery),
-      spanKind: 'consumer',
-      env,
-      metadata: { attempts: delivery.attempts }
-    },
-    processWorkspaceExportMessage(delivery, (slug) =>
+  return consumerInvocation(env, {
+    event: 'workspace_export',
+    delivery,
+    onFailure: 'retry',
+    program: processWorkspaceExportMessage(delivery, (slug) =>
       selectWorkspaceContextLayer(capabilitiesEnv, slug)
     ).pipe(Effect.provide(selectCapabilitiesLayer(capabilitiesEnv)))
-  ).pipe(Effect.catchCause((_cause) => Effect.succeed<DeliveryOutcome>('retry')))
+  })
 }

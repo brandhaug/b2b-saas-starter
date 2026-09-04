@@ -1,10 +1,4 @@
-import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
-import {
-  backoffSeconds,
-  classifyResponseStatus,
-  planDeliveryAttempt,
-  type WebhookDeliveryAttemptInput
-} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import { type WebhookDeliveryAttemptInput } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
@@ -12,7 +6,7 @@ import {
   type CreateNotificationInput
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { describe, expect, it } from 'vite-plus/test'
-import { DateTime, Effect, Layer, type Scope } from 'effect'
+import { Effect, Layer, type Scope } from 'effect'
 import {
   HttpClient,
   HttpClientResponse,
@@ -27,74 +21,11 @@ import {
   type WebhookMessage
 } from './webhook-consumer.ts'
 
-describe('backoffSeconds', () => {
-  it('backs off linearly at 30s per attempt', () => {
-    expect(backoffSeconds(1)).toBe(30)
-    expect(backoffSeconds(2)).toBe(60)
-    expect(backoffSeconds(6)).toBe(180)
-  })
-
-  it('caps at 180s beyond six attempts', () => {
-    expect(backoffSeconds(7)).toBe(180)
-    expect(backoffSeconds(100)).toBe(180)
-  })
-})
-
-describe('classifyResponseStatus', () => {
-  it('acks 2xx as delivered', () => {
-    expect(classifyResponseStatus(200)).toBe('delivered')
-    expect(classifyResponseStatus(204)).toBe('delivered')
-  })
-
-  it('treats permanent 4xx as terminal (ack, no retry)', () => {
-    expect(classifyResponseStatus(400)).toBe('terminal')
-    expect(classifyResponseStatus(404)).toBe('terminal')
-    expect(classifyResponseStatus(410)).toBe('terminal')
-  })
-
-  it('retries 408 and 429', () => {
-    expect(classifyResponseStatus(408)).toBe('retry')
-    expect(classifyResponseStatus(429)).toBe('retry')
-  })
-
-  it('retries 5xx and no-response failures', () => {
-    expect(classifyResponseStatus(500)).toBe('retry')
-    expect(classifyResponseStatus(503)).toBe('retry')
-    expect(classifyResponseStatus(0)).toBe('retry')
-  })
-})
-
-describe('planDeliveryAttempt', () => {
-  const now = DateTime.makeUnsafe(Date.UTC(2026, 7, 25, 0, 0, 0))
-
-  it('delivers 2xx without a next attempt', () => {
-    expect(planDeliveryAttempt(200, 1, now)).toMatchObject({
-      status: 'delivered',
-      responseStatus: 200,
-      nextAttemptAt: null,
-      outcome: 'ack'
-    })
-  })
-
-  it('persists no-response failures as a null status and schedules the backoff', () => {
-    const plan = planDeliveryAttempt(0, 2, now)
-    expect(plan).toMatchObject({
-      status: 'failed',
-      responseStatus: null,
-      outcome: 'retry'
-    })
-    expect(plan.nextAttemptAt).toBe('2026-08-25T00:01:00.000Z')
-  })
-
-  it('acks terminal 4xx with no next attempt', () => {
-    expect(planDeliveryAttempt(404, 1, now)).toMatchObject({
-      status: 'failed_permanent',
-      responseStatus: 404,
-      nextAttemptAt: null,
-      outcome: 'ack'
-    })
-  })
-})
+// The delivery state machine (`backoffSeconds`, `classifyResponseStatus`,
+// `planDeliveryAttempt`) and the SSRF guard (`validateWebhookUrl`) are pure
+// exports of `@b2b-saas-starter/capabilities` — their cases live beside them
+// in `webhook-delivery-plan.test.ts` / `webhook-url.test.ts`, not here. What
+// this file owns is the worker's orchestration around them.
 
 describe('webhook signature', () => {
   it('matches the fixed HMAC-SHA256 vector over "<timestamp>.<body>"', () =>
@@ -535,47 +466,4 @@ describe('processDeadLetterMessage', () => {
         expect(recorded).toHaveLength(0)
       })
     ))
-})
-
-describe('validateWebhookUrl (dispatch-time SSRF guard)', () => {
-  it('accepts public https URLs', () => {
-    expect(validateWebhookUrl('https://example.com/hooks')).toEqual({ valid: true })
-    expect(validateWebhookUrl('https://hooks.example.com:8443/a?b=c')).toEqual({
-      valid: true
-    })
-  })
-
-  it('rejects non-https schemes', () => {
-    expect(validateWebhookUrl('http://example.com/hooks').valid).toBe(false)
-    expect(validateWebhookUrl('ftp://example.com').valid).toBe(false)
-    expect(validateWebhookUrl('not a url').valid).toBe(false)
-  })
-
-  it('rejects credentials in the URL', () => {
-    expect(validateWebhookUrl('https://user:pass@example.com/hooks').valid).toBe(false)
-  })
-
-  it('rejects private, loopback, and link-local IP literals', () => {
-    const urls = [
-      'https://10.0.0.1/hooks',
-      'https://172.16.0.1/hooks',
-      'https://192.168.1.5/hooks',
-      'https://127.0.0.1/hooks',
-      'https://169.254.169.254/latest/meta-data',
-      'https://0.0.0.0/hooks',
-      'https://[::1]/hooks',
-      'https://[fc00::1]/hooks',
-      'https://[fd12:3456::1]/hooks',
-      'https://[fe80::1]/hooks'
-    ]
-
-    // Asserting the accepted set (instead of per-URL with a message argument)
-    // still names every URL that wrongly passed the guard in the diff.
-    expect(urls.filter((url) => validateWebhookUrl(url).valid)).toEqual([])
-  })
-
-  it('rejects localhost and single-label hostnames', () => {
-    expect(validateWebhookUrl('https://localhost/hooks').valid).toBe(false)
-    expect(validateWebhookUrl('https://internal/hooks').valid).toBe(false)
-  })
 })

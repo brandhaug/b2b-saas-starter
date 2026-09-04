@@ -415,6 +415,9 @@ importers:
       '@b2b-saas-starter/env':
         specifier: workspace:*
         version: link:../../packages/env
+      '@b2b-saas-starter/infra':
+        specifier: workspace:*
+        version: link:../../infra
       '@b2b-saas-starter/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -543,6 +546,9 @@ importers:
       '@b2b-saas-starter/failure':
         specifier: workspace:*
         version: link:../../packages/failure
+      '@b2b-saas-starter/infra':
+        specifier: workspace:*
+        version: link:../../infra
       '@b2b-saas-starter/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -911,6 +917,9 @@ importers:
       '@b2b-saas-starter/db':
         specifier: workspace:*
         version: link:../db
+      '@b2b-saas-starter/env':
+        specifier: workspace:*
+        version: link:../env
       '@b2b-saas-starter/failure':
         specifier: workspace:*
         version: link:../failure

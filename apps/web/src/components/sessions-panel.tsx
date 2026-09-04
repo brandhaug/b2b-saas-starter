@@ -1,5 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
-import { useHydrated } from '@/lib/client-only-value'
 import { unwrapAuthResult, type AuthResult } from '@/lib/auth-result'
 import {
   listSessionsWithAuthClient,
@@ -11,7 +9,7 @@ import {
   type SessionRecord
 } from '@/components/auth/auth-client-ports'
 
-import { useServerAction } from '@/hooks/use-server-action'
+import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-rows'
 import { Button } from '@/components/ui/button'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Panel } from '@/components/page/panel'
@@ -87,11 +85,8 @@ function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowV
  * sign-out button.
  */
 /**
- * The sessions query is shared cache, not component state: TanStack Query
- * deduplicates concurrent reads and keeps the list across mounts, so the
- * panel renders from cache on revisits instead of re-fetching after every
- * hydration. `enabled` waits for hydration — the Better Auth client endpoint
- * is browser-only (relative fetch), so the server render must not fetch.
+ * The sessions query is shared cache, not component state — the shared
+ * `useAuthClientRows` owns the how (`hooks/use-auth-client-rows.ts`).
  */
 const SESSIONS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'sessions']
 const ACTION_FAILED = 'The change could not be made'
@@ -107,39 +102,20 @@ export function SessionsPanel({
   readonly revokeSession?: RevokeSession
   readonly revokeOtherSessions?: RevokeOtherSessions
 }) {
-  const hydrated = useHydrated()
-  const {
-    data: rows,
-    error: queryError,
-    isPending,
-    refetch
-  } = useQuery({
+  const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
     queryKey: SESSIONS_QUERY_KEY,
-    queryFn: async (): Promise<ReadonlyArray<SessionRowView>> => {
-      const result = await listSessions()
-      if (result.error) {
-        // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- TanStack Query surfaces failure states by rejecting the query function; there is no Effect channel here
-        throw new Error(result.error.message ?? 'Could not load sessions')
-      }
-      return toViewModels(result.data ?? [])
-    },
-    enabled: hydrated,
-    retry: false
+    list: listSessions,
+    toRows: toViewModels,
+    loadFailedMessage: 'Could not load sessions'
   })
-  const loadError = queryError?.message ?? null
   // The session list is this panel's own query, not a loader's, so the action
   // refetches it rather than invalidating the route.
-  const act = useServerAction(
-    (action: () => Promise<AuthResult<unknown>>) =>
+  const act = useAuthClientAction({
+    refetch,
+    call: (action: () => Promise<AuthResult<unknown>>) =>
       unwrapAuthResult(action, ACTION_FAILED),
-    {
-      failureMessage: ACTION_FAILED,
-      invalidate: false,
-      onSuccess: () => {
-        void refetch()
-      }
-    }
-  )
+    failureMessage: ACTION_FAILED
+  })
 
   const othersExist = rows?.some((row) => row.token !== currentSessionToken)
 

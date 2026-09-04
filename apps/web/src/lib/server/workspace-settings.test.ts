@@ -21,7 +21,7 @@ describe('loadWorkspaceSettings', () => {
     expect(payload.workspaceName).toBeTypeOf('string')
     expect(payload.unreadCount).toBeTypeOf('number')
     // The SSO segment carries the disabled seeded example connection, and no
-    // secret: the sanitized DTO is all there is (ADR 0055).
+    // secret: the sanitized DTO is all there is (ADR 0069).
     expect(payload.ssoConnections).toHaveLength(1)
     expect(payload.ssoConnections?.[0]).toMatchObject({
       id: 'sso_example_oidc',

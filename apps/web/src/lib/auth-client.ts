@@ -14,7 +14,7 @@ import { createAuthClient } from 'better-auth/react'
 export const authClient = createAuthClient({
   // `oauthProviderClient` attaches the page's signed OAuth query to sign-in
   // requests, which is how a sign-in that started from an MCP client's
-  // authorization request resumes that authorization (ADR 0054).
+  // authorization request resumes that authorization (ADR 0068).
   plugins: [
     usernameClient(),
     magicLinkClient(),

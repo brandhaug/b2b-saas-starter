@@ -10,8 +10,8 @@ import { Schema } from 'effect'
  * gate and the plugin binding live in `account.effects.ts` and are reached
  * only through dynamic `import()` inside the handler, exactly like the
  * invitation flow (`invitations.ts` / `invitations.effects.ts`). The plan read
- * needs no server fn: the route's loader calls `loadAccountPage` directly, the
- * same way the workspace routes call their loaders' server modules.
+ * needs no server fn: the route's loader calls `loadAccountPageData` directly,
+ * the same way the workspace routes call their loaders' server modules.
  */
 
 const DeleteAccountInput = Schema.Struct({

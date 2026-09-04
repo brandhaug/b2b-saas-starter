@@ -49,6 +49,16 @@ function takeFromFallback(
   limit: number,
   now: number
 ): boolean {
+  // Sweep expired entries on the way in. The store lives for the isolate's
+  // lifetime, and under a sustained binding error every distinct key (per-IP
+  // cardinality) inserts one row — without a sweep the map grows with that
+  // cardinality until the isolate dies. One synchronous pass per take keeps
+  // it bounded; no timers.
+  for (const [id, state] of fallbackStore) {
+    if (state.resetAt < now) {
+      fallbackStore.delete(id)
+    }
+  }
   const id = `${bucket}:${key}`
   const existing = fallbackStore.get(id)
   if (!existing || existing.resetAt < now) {

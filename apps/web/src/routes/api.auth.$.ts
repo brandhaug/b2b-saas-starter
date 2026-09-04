@@ -219,7 +219,7 @@ async function handleAuth(request: Request): Promise<Response> {
           })
           return guardResponse
         }
-        // The require-SSO gate (ADR 0055): a workspace that demands SSO for
+        // The require-SSO gate (ADR 0069): a workspace that demands SSO for
         // its domain refuses the credential path here, so the sign-in page's
         // routing is backed by an enforcement point. Null = not applicable.
         const ssoRequiredResponse = yield* enforceSsoRequired(request, exchange)
@@ -258,7 +258,7 @@ async function handleAuth(request: Request): Promise<Response> {
         if (authAudit !== 'skipped') {
           yield* Effect.annotateLogsScoped({ authAudit })
         }
-        // SSO sign-ins audit through their own path (ADR 0055): the callback
+        // SSO sign-ins audit through their own path (ADR 0069): the callback
         // redirects name no actor and the event is workspace-scoped.
         yield* recordSsoSignInAudit(exchange, response)
         // Security notification for a credential change (best-effort, same

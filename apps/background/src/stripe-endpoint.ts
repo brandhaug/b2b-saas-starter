@@ -15,7 +15,7 @@ import {
   selectCapabilitiesLayer,
   starterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
-import { runInvocation, type Env } from './webhook-consumer.ts'
+import { runInvocation, type Env } from './queue-consumer.ts'
 
 /**
  * The subset of a Stripe event body this worker understands. Everything else

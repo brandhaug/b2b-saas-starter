@@ -6,12 +6,14 @@ import {
   notificationDigestCron,
   notificationEmailConsumerSettings,
   notificationEmailQueueName,
+  queueBindingKeys,
   webRateLimits,
   webhookConsumerSettings,
   webhookDeadLetterQueueName,
   webhookDlqConsumerSettings,
   webhookQueueName,
   workerCompatibility,
+  workerEntryPoints,
   workspaceExportBucketName,
   workspaceExportConsumerSettings,
   workspaceExportQueueName,
@@ -32,9 +34,6 @@ import {
 
 const D1_DATABASE_NAME = 'b2b-saas-starter'
 const AI_BINDING = 'AI'
-const WEBHOOK_QUEUE_BINDING = 'WEBHOOK_QUEUE'
-const BILLING_QUEUE_BINDING = 'BILLING_QUEUE'
-const WORKSPACE_EXPORT_QUEUE_BINDING = 'WORKSPACE_EXPORT_QUEUE'
 const WORKSPACE_EXPORT_BUCKET_BINDING = 'WORKSPACE_EXPORT_BUCKET'
 
 /**
@@ -49,14 +48,13 @@ const workspaceExportBucket = {
 }
 
 const workspaceExportProducer = {
-  binding: WORKSPACE_EXPORT_QUEUE_BINDING,
+  binding: queueBindingKeys.workspaceExportQueue,
   queue: workspaceExportQueueName
 }
-const NOTIFICATION_EMAIL_QUEUE_BINDING = 'NOTIFICATION_EMAIL_QUEUE'
 
 /** Producer only: seat-sync messages the background worker consumes. */
 const billingQueueProducer = {
-  binding: BILLING_QUEUE_BINDING,
+  binding: queueBindingKeys.billingQueue,
   queue: billingQueueName
 }
 
@@ -169,7 +167,7 @@ export const wranglerConfigs: ReadonlyArray<{
   {
     path: 'apps/web/wrangler.jsonc',
     config: {
-      ...workerDefaults('web', 'src/server.ts'),
+      ...workerDefaults('web', workerEntryPoints.web),
       ai: { binding: AI_BINDING },
       // Producers only: membership and invitation mutations enqueue seat-sync
       // messages the background worker consumes (`Billing.syncSeats`),
@@ -180,7 +178,7 @@ export const wranglerConfigs: ReadonlyArray<{
           billingQueueProducer,
           workspaceExportProducer,
           {
-            binding: NOTIFICATION_EMAIL_QUEUE_BINDING,
+            binding: queueBindingKeys.notificationEmailQueue,
             queue: notificationEmailQueueName
           }
         ]
@@ -189,7 +187,7 @@ export const wranglerConfigs: ReadonlyArray<{
       vars: {
         WORKERS_AI_ENABLED: 'false',
         // The MCP resource the web worker's OAuth server binds tokens to: the
-        // local API dev server (ADR 0054). Production sets the real URL.
+        // local API dev server (ADR 0068). Production sets the real URL.
         MCP_RESOURCE_URL: 'http://localhost:8787/mcp'
       },
       unsafe: { bindings: rateLimits(webRateLimits) }
@@ -198,17 +196,17 @@ export const wranglerConfigs: ReadonlyArray<{
   {
     path: 'apps/api/wrangler.jsonc',
     config: {
-      ...workerDefaults('api', 'src/index.ts'),
+      ...workerDefaults('api', workerEntryPoints.api),
       // Smart placement is for the worker-only services; the web worker serves
       // the document and stays where the eyeball is.
       placement: { mode: 'smart' },
       ai: { binding: AI_BINDING },
       queues: {
         producers: [
-          { binding: WEBHOOK_QUEUE_BINDING, queue: webhookQueueName },
+          { binding: queueBindingKeys.webhookQueue, queue: webhookQueueName },
           workspaceExportProducer,
           {
-            binding: NOTIFICATION_EMAIL_QUEUE_BINDING,
+            binding: queueBindingKeys.notificationEmailQueue,
             queue: notificationEmailQueueName
           }
         ]
@@ -217,7 +215,7 @@ export const wranglerConfigs: ReadonlyArray<{
       vars: {
         WORKERS_AI_ENABLED: 'false',
         CLOUDFLARE_EMAIL_FROM: 'noreply@example.com',
-        // OAuth for `POST /mcp` (ADR 0054): trust tokens the local web dev
+        // OAuth for `POST /mcp` (ADR 0068): trust tokens the local web dev
         // server issues for this worker's `/mcp`. Unset both and `/mcp` takes
         // API Tokens only.
         MCP_OAUTH_ISSUER: 'http://localhost:3071/api/auth',
@@ -229,15 +227,15 @@ export const wranglerConfigs: ReadonlyArray<{
   {
     path: 'apps/background/wrangler.jsonc',
     config: {
-      ...workerDefaults('background', 'src/index.ts'),
+      ...workerDefaults('background', workerEntryPoints.background),
       placement: { mode: 'smart' },
       queues: {
         producers: [
-          { binding: WEBHOOK_QUEUE_BINDING, queue: webhookQueueName },
+          { binding: queueBindingKeys.webhookQueue, queue: webhookQueueName },
           // The worker creates Notifications too (webhook deliveries that gave
           // up), so it produces instant-email messages for its own consumer.
           {
-            binding: NOTIFICATION_EMAIL_QUEUE_BINDING,
+            binding: queueBindingKeys.notificationEmailQueue,
             queue: notificationEmailQueueName
           }
         ],

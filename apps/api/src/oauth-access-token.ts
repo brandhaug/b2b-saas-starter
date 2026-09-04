@@ -4,14 +4,14 @@ import {
   type McpAccessTokenPrincipal
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import { hasValue } from '@b2b-saas-starter/env/server'
-import { Unauthorized } from '@b2b-saas-starter/api'
+import { Unauthorized } from '@b2b-saas-starter/api/errors'
 import { Context, Effect, Layer, type Scope } from 'effect'
 import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from 'jose'
 
 import { type ApiEnv } from './env.ts'
 
 /**
- * The OAuth half of `/mcp` authentication (ADR 0055): a Bearer JWT minted by
+ * The OAuth half of `/mcp` authentication (ADR 0068): a Bearer JWT minted by
  * the web worker's `@better-auth/mcp` authorization server, verified here as
  * the resource server. API Tokens remain the other half — see
  * `request-guards.ts`, which routes a credential to one or the other by shape.

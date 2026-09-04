@@ -20,9 +20,6 @@ type WebWorkerEnv = {
   // worker). Optional: without it Notifications persist and no instant email
   // is enqueued — the digest cron still covers them (CLAUDE.md rule 3).
   readonly NOTIFICATION_EMAIL_QUEUE?: import('@b2b-saas-starter/capabilities/notifications/notification-email-queue').NotificationEmailQueueBinding
-  readonly RATE_LIMITER_AUTH_READ?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
-  readonly RATE_LIMITER_AUTH_WRITE?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
-  readonly RATE_LIMITER_AUTH_SIGN_IN?: import('@b2b-saas-starter/rate-limit').CloudflareRateLimit
   // Cloudflare Email send binding. Optional and unwired by default: without it
   // the invite email goes through the logging dispatcher, which is what keeps
   // the invitation flow working with no provider configured (CLAUDE.md rule 3).
@@ -42,7 +39,15 @@ type WebWorkerEnv = {
   readonly BILLING_QUEUE?: import(
     '@b2b-saas-starter/capabilities/billing/seat-sync'
   ).SeatSyncQueueBinding
-} & Readonly<import('@b2b-saas-starter/env/server').ServerEnv>
+} & RateLimitAuthBindings &
+  Readonly<import('@b2b-saas-starter/env/server').ServerEnv>
+
+// The auth rate-limit bindings derive from the infra table
+// (`webRateLimitBindingNames` in `@b2b-saas-starter/infra`): a mapped type
+// over the record's name union, so renaming or adding a bucket updates this
+// shape from the same row that generates the wrangler config. The inline
+// `import()` types keep this file a script — see the note above.
+type RateLimitAuthBindings = Readonly<Partial<Record<import('@b2b-saas-starter/infra').WebRateLimitBindingName, import('@b2b-saas-starter/rate-limit').CloudflareRateLimit>>>
 
 // `env` from `cloudflare:workers` is typed as `Cloudflare.Env`
 // (@cloudflare/workers-types uses `export = CloudflareWorkersModule`, so a

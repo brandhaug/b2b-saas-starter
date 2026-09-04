@@ -1,6 +1,6 @@
 /**
  * The transport `@better-auth/cimd` fetches Client ID Metadata Documents with
- * (ADR 0054), for the Workers runtime. The plugin asks for four guarantees —
+ * (ADR 0068), for the Workers runtime. The plugin asks for four guarantees —
  * resolve the host once, refuse special-use addresses, pin the resolved
  * address, never follow redirects — and a Worker can give two of them
  * directly: redirects are returned unfollowed (`redirect: 'manual'`), and a

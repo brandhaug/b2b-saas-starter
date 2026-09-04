@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   deleteWorkspaceServerFn,
   renameWorkspaceServerFn
 } from '@/lib/server/workspace-lifecycle'
 import { useServerAction } from '@/hooks/use-server-action'
 import { ConfirmButton } from '@/components/confirm-button'
+import { ActionFeedback } from '@/components/page/action-feedback'
+import { validateWorkspaceName } from '@/lib/workspace-name'
 
 const RENAME_FAILED = 'Failed to rename workspace'
 const DELETE_FAILED = 'Failed to delete workspace'
@@ -21,16 +22,6 @@ export type RenameWorkspace = (input: {
 export type DeleteWorkspace = (input: {
   readonly data: { readonly workspaceSlug: string }
 }) => Promise<void>
-
-function validateName(value: string): string | undefined {
-  if (value.trim().length === 0) {
-    return 'Workspace name is required'
-  }
-  if (value.length > 80) {
-    return 'Workspace name must be under 80 characters'
-  }
-  return
-}
 
 /**
  * Rename and delete for the settings route. Each section is rendered only when
@@ -114,7 +105,7 @@ function RenameForm({
     >
       <form.Field
         name="name"
-        validators={{ onChange: ({ value }) => validateName(value) }}
+        validators={{ onChange: ({ value }) => validateWorkspaceName(value) }}
       >
         {(field) => (
           <FormTextField
@@ -149,11 +140,7 @@ function RenameForm({
           <output>Workspace renamed to “{renamed}”.</output>
         </p>
       )}
-      {submit.error === null ? null : (
-        <Alert variant="destructive">
-          <AlertDescription>{submit.error}</AlertDescription>
-        </Alert>
-      )}
+      <ActionFeedback error={submit.error} />
     </form>
   )
 }
@@ -193,11 +180,7 @@ function DeleteSection({
         busy={confirmDelete.pending}
         onConfirm={() => confirmDelete.run()}
       />
-      {confirmDelete.error === null ? null : (
-        <Alert variant="destructive">
-          <AlertDescription>{confirmDelete.error}</AlertDescription>
-        </Alert>
-      )}
+      <ActionFeedback error={confirmDelete.error} />
     </div>
   )
 }

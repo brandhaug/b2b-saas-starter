@@ -7,16 +7,13 @@ import {
   requestPasswordResetCodeWithAuthClient,
   requestPasswordResetWithAuthClient,
   resetPasswordWithCodeWithAuthClient,
-  sixDigitCodeValidator,
   type RequestPasswordReset,
   type RequestPasswordResetCode,
   type ResetPasswordWithCode
 } from '@/components/auth/auth-client-ports'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
-import { OtpCodeInput } from '@/components/auth/otp-code-input'
+import { EmailCodeExchange } from '@/components/auth/email-code-exchange'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
-import { useResendCooldown } from '@/components/auth/use-resend-cooldown'
-import { ResendCodeButton } from '@/components/auth/resend-code-button'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
@@ -64,7 +61,6 @@ export function ForgotPasswordPage({
   const [stage, setStage] = useState<'form' | 'link-sent' | 'code'>('form')
   const [email, setEmail] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const cooldown = useResendCooldown()
 
   const form = useForm({
     defaultValues: { email: '' },
@@ -76,24 +72,6 @@ export function ForgotPasswordPage({
         return
       }
       setStage('link-sent')
-    }
-  })
-
-  const codeForm = useForm({
-    defaultValues: { code: '', password: '', confirm: '' },
-    onSubmit: async ({ value }) => {
-      setSubmitError(null)
-      const result = await resetWithCode({
-        email,
-        otp: value.code,
-        newPassword: value.password
-      })
-      if (result.error) {
-        setSubmitError(result.error.message ?? 'Reset failed')
-        return
-      }
-      // The reset revokes every session, so a fresh sign-in is the only step.
-      router.history.push('/sign-in')
     }
   })
 
@@ -112,112 +90,84 @@ export function ForgotPasswordPage({
       return
     }
     setEmail(address)
-    cooldown.start()
     setStage('code')
-  }
-
-  async function resendCode(): Promise<void> {
-    setSubmitError(null)
-    const result = await requestCode({ email })
-    if (result.error) {
-      setSubmitError(result.error.message ?? 'Could not resend the code')
-      return
-    }
-    cooldown.start()
   }
 
   if (stage === 'code') {
     return (
-      <AuthCardForm
+      <EmailCodeExchange
+        purpose="forget-password"
+        email={email}
         title="Enter your code"
-        description={CODE_SENT_MESSAGE}
-        form={codeForm}
-        submit={
-          <AuthSubmitButton
-            form={codeForm}
-            icon={<KeyRoundIcon className="size-4" />}
-            label="Reset password"
-            submittingLabel="Resetting…"
-          />
+        codeSentNotice={CODE_SENT_MESSAGE}
+        codeSubmitLabel="Reset password"
+        codeSubmittingLabel="Resetting…"
+        codeSubmitIcon={<KeyRoundIcon className="size-4" />}
+        verifyErrorFallback="Reset failed"
+        // The resend re-asks the code endpoint — it takes only the address,
+        // none of the shared send's purpose.
+        send={({ email: address }) => requestCode({ email: address })}
+        verify={({ email: address, otp, password }) =>
+          resetWithCode({ email: address, otp, newPassword: password })
         }
-        error={submitError}
-        footer={
-          <div className="flex items-center justify-between">
-            <ResendCodeButton
-              cooldownSeconds={cooldown.remaining}
-              onResend={resendCode}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-auto p-0 text-muted-foreground"
-              onClick={() => {
-                setSubmitError(null)
-                codeForm.reset()
-                setStage('form')
+        onVerified={() => {
+          // The reset revokes every session, so a fresh sign-in is the only step.
+          router.history.push('/sign-in')
+        }}
+        differentEmailLabel="Use the link instead"
+        onDifferentEmail={() => setStage('form')}
+        renderExtraFields={(codeForm) => (
+          <>
+            <codeForm.Field
+              name="password"
+              validators={{ onChange: passwordValidator }}
+            >
+              {(field) => (
+                <FormTextField
+                  name={field.name}
+                  label="New password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={field.state.value}
+                  errors={field.state.meta.errors}
+                  onBlur={field.handleBlur}
+                  onChange={field.handleChange}
+                  required
+                />
+              )}
+            </codeForm.Field>
+
+            <codeForm.Field
+              name="confirm"
+              validators={{
+                onChange: ({ value, fieldApi }) => {
+                  if (value.length === 0) {
+                    return 'Confirm your password'
+                  }
+                  if (value !== fieldApi.form.getFieldValue('password')) {
+                    return 'Passwords do not match'
+                  }
+                  return null
+                }
               }}
             >
-              Use the link instead
-            </Button>
-          </div>
-        }
-      >
-        <codeForm.Field name="code" validators={{ onChange: sixDigitCodeValidator }}>
-          {(field) => (
-            <OtpCodeInput
-              value={field.state.value}
-              onChange={field.handleChange}
-              // oxlint-disable-next-line jsx-a11y/no-autofocus -- the code step has exactly one field group plus the password fields, so focusing its first cell cannot surprise anyone mid-task
-              autoFocus
-            />
-          )}
-        </codeForm.Field>
-
-        <codeForm.Field name="password" validators={{ onChange: passwordValidator }}>
-          {(field) => (
-            <FormTextField
-              name={field.name}
-              label="New password"
-              type="password"
-              autoComplete="new-password"
-              value={field.state.value}
-              errors={field.state.meta.errors}
-              onBlur={field.handleBlur}
-              onChange={field.handleChange}
-              required
-            />
-          )}
-        </codeForm.Field>
-
-        <codeForm.Field
-          name="confirm"
-          validators={{
-            onChange: ({ value, fieldApi }) => {
-              if (value.length === 0) {
-                return 'Confirm your password'
-              }
-              if (value !== fieldApi.form.getFieldValue('password')) {
-                return 'Passwords do not match'
-              }
-              return null
-            }
-          }}
-        >
-          {(field) => (
-            <FormTextField
-              name={field.name}
-              label="Confirm password"
-              type="password"
-              autoComplete="new-password"
-              value={field.state.value}
-              errors={field.state.meta.errors}
-              onBlur={field.handleBlur}
-              onChange={field.handleChange}
-              required
-            />
-          )}
-        </codeForm.Field>
-      </AuthCardForm>
+              {(field) => (
+                <FormTextField
+                  name={field.name}
+                  label="Confirm password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={field.state.value}
+                  errors={field.state.meta.errors}
+                  onBlur={field.handleBlur}
+                  onChange={field.handleChange}
+                  required
+                />
+              )}
+            </codeForm.Field>
+          </>
+        )}
+      />
     )
   }
 

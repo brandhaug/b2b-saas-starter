@@ -35,9 +35,9 @@ type SsoSamlBody = {
 /** The update endpoint's body, as this adapter assembles it. */
 type SsoUpdateBody = {
   providerId: string
-  enabled?: boolean
-  requireSso?: boolean
-  defaultWorkspaceRole?: 'member' | 'admin'
+  enabled?: boolean | undefined
+  requireSso?: boolean | undefined
+  defaultWorkspaceRole?: 'member' | 'admin' | undefined
   oidcConfig?: { clientId: string; clientSecret: string }
 }
 
@@ -54,7 +54,7 @@ type SsoUpdateBody = {
  * endpoints) by the time they get here: the app's validation step resolved
  * them from the issuer, so the plugin never needs runtime discovery — whose
  * strict `trustedOrigins` check would otherwise make every IdP an operator
- * env change (ADR 0055).
+ * env change (ADR 0069).
  */
 export const webSsoBinding: WorkspaceSsoBinding = {
   create: async (input) => {
@@ -64,7 +64,7 @@ export const webSsoBinding: WorkspaceSsoBinding = {
       domain: input.domain,
       organizationId: input.workspaceId,
       // Connections are born disabled; the owner enables one after a
-      // successful test (ADR 0055).
+      // successful test (ADR 0069).
       enabled: false,
       defaultWorkspaceRole: input.defaultWorkspaceRole
     }
@@ -92,25 +92,21 @@ export const webSsoBinding: WorkspaceSsoBinding = {
     await sessionCall((api, headers) => api.registerSSOProvider({ body, headers }))
   },
   update: async (input) => {
-    const body: SsoUpdateBody = { providerId: input.providerId }
-    if (input.enabled !== undefined) {
-      body.enabled = input.enabled
-    }
-    if (input.requireSso !== undefined) {
-      body.requireSso = input.requireSso
-    }
-    if (input.defaultWorkspaceRole !== undefined) {
-      body.defaultWorkspaceRole = input.defaultWorkspaceRole
-    }
-    if (input.oidcCredentials !== undefined) {
-      // The plugin merges a partial oidcConfig over the stored one, so a
-      // credential rotation replaces exactly the pair it names.
-      body.oidcConfig = {
-        clientId: input.oidcCredentials.clientId,
-        clientSecret: input.oidcCredentials.clientSecret
+    // Rest keeps the optional fields exactly as the capability passed them;
+    // only the credentials move, renamed to the plugin's `oidcConfig`. The
+    // plugin merges a partial oidcConfig over the stored one, so a
+    // credential rotation replaces exactly the pair it names.
+    const { oidcCredentials, ...body } = input
+    const pluginBody: SsoUpdateBody = { ...body }
+    if (oidcCredentials !== undefined) {
+      pluginBody.oidcConfig = {
+        clientId: oidcCredentials.clientId,
+        clientSecret: oidcCredentials.clientSecret
       }
     }
-    await sessionCall((api, headers) => api.updateSSOProvider({ body, headers }))
+    await sessionCall((api, headers) =>
+      api.updateSSOProvider({ body: pluginBody, headers })
+    )
   },
   remove: async (input) => {
     await sessionCall((api, headers) =>

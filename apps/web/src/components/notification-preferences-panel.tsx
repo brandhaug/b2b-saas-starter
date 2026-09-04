@@ -1,6 +1,6 @@
 import { type NotificationChannel } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
 import { useState } from 'react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import { Badge } from '@/components/ui/badge'
 import { FieldLabel } from '@/components/ui/field'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -73,11 +73,7 @@ export function NotificationPreferencesPanel({
 
   return (
     <div className="grid gap-4">
-      {action.error === null ? null : (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{action.error}</AlertDescription>
-        </Alert>
-      )}
+      <ActionFeedback error={action.error} />
       <ul className="divide-y divide-border">
         {preferences.map((row) => {
           const value = overrides[row.kind] ?? row.channel

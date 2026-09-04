@@ -8,11 +8,13 @@ import {
   isPreviewStage,
   notificationDigestCron,
   notificationEmailConsumerSettings,
+  queueBindingKeys,
   stageResourceNames,
   webhookConsumerSettings,
   webhookDlqConsumerSettings,
   webRateLimits,
   workerCompatibility,
+  workerMainPath,
   workersDevUrl,
   WORKSPACE_EXPORT_RETENTION_DAYS,
   workspaceExportConsumerSettings,
@@ -303,13 +305,13 @@ export const Stack = Alchemy.Stack(
 
     const api = yield* Cloudflare.Worker('api', {
       name: names.worker('api'),
-      main: './apps/api/src/index.ts',
+      main: workerMainPath('api'),
       env: {
         DB: db,
         // Producer only — the background worker consumes; the API worker
         // enqueues webhook events after audit-worthy mutations.
-        WEBHOOK_QUEUE: webhookQueue,
-        NOTIFICATION_EMAIL_QUEUE: notificationEmailQueue,
+        [queueBindingKeys.webhookQueue]: webhookQueue,
+        [queueBindingKeys.notificationEmailQueue]: notificationEmailQueue,
         AI: ai,
         ...rateLimitBindings(apiRateLimits),
         ...emailBinding,
@@ -324,12 +326,14 @@ export const Stack = Alchemy.Stack(
 
     const background = yield* Cloudflare.Worker('background', {
       name: names.worker('background'),
-      main: './apps/background/src/index.ts',
+      main: workerMainPath('background'),
       env: {
         DB: db,
-        WEBHOOK_QUEUE: webhookQueue,
-        BILLING_QUEUE: billingQueue,
-        NOTIFICATION_EMAIL_QUEUE: notificationEmailQueue,
+        [queueBindingKeys.webhookQueue]: webhookQueue,
+        // No `BILLING_QUEUE` producer here: only the web worker enqueues
+        // seat-sync messages, and nothing in this worker reads the binding —
+        // the generated wrangler config agrees.
+        [queueBindingKeys.notificationEmailQueue]: notificationEmailQueue,
         // Notification emails link back to the web app.
         BETTER_AUTH_URL,
         ...emailBinding,
@@ -388,8 +392,8 @@ export const Stack = Alchemy.Stack(
         DB: db,
         // Producer only — the background worker consumes; membership and
         // invitation mutations enqueue seat-sync messages.
-        BILLING_QUEUE: billingQueue,
-        NOTIFICATION_EMAIL_QUEUE: notificationEmailQueue,
+        [queueBindingKeys.billingQueue]: billingQueue,
+        [queueBindingKeys.notificationEmailQueue]: notificationEmailQueue,
         ...rateLimitBindings(webRateLimits),
         AI: ai,
         ...emailBinding,

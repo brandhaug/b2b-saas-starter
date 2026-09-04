@@ -10,11 +10,16 @@ import {
   type SeatSyncReason
 } from '@b2b-saas-starter/capabilities/billing/seat-sync'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { parentSpanFromHeaders, withTriggerScope } from '@b2b-saas-starter/logger'
-import { Effect, Result, Schema, type Scope } from 'effect'
+import { Effect, Schema, type Scope } from 'effect'
 
-import { type DeliveryOutcome } from './queue-consumer.ts'
-import { type Env } from './webhook-consumer.ts'
+import {
+  consumerInvocation,
+  type DeliveryOutcome,
+  type Env,
+  queueDelivery,
+  type QueueDelivery,
+  type QueueEnvelope
+} from './queue-consumer.ts'
 
 /**
  * The seat-sync consumer: per-seat billing's half of the background worker.
@@ -33,19 +38,18 @@ import { type Env } from './webhook-consumer.ts'
  */
 const decodeSeatSyncMessage = Schema.decodeUnknownResult(SeatSyncQueueMessage)
 
-export type SeatSyncDelivery =
-  | { readonly kind: 'message'; readonly message: typeof SeatSyncQueueMessage.Type }
-  | { readonly kind: 'malformed' }
+/** Wire shape of the billing queue's messages — the schema is shared with the producer. */
+export type SeatSyncMessage = typeof SeatSyncQueueMessage.Type
 
-/** Decodes one queue envelope's untrusted body. The only decode per message. */
-export function readSeatSyncDelivery(envelope: {
-  readonly body: unknown
-}): SeatSyncDelivery {
-  const decoded = decodeSeatSyncMessage(envelope.body)
-  if (Result.isFailure(decoded)) {
-    return { kind: 'malformed' }
-  }
-  return { kind: 'message', message: decoded.success }
+/**
+ * The boundary decode: platform fields plus the message, or the terminal
+ * `malformed` outcome — the same `queueDelivery` vocabulary every consumer in
+ * this worker shares, so the envelope's id and attempt count ride along.
+ */
+export function readSeatSyncDelivery(
+  envelope: QueueEnvelope
+): QueueDelivery<SeatSyncMessage> {
+  return queueDelivery(envelope, decodeSeatSyncMessage(envelope.body))
 }
 
 /**
@@ -56,7 +60,7 @@ export function readSeatSyncDelivery(envelope: {
  * shape `processStripeEvent` presents to its wrapper.
  */
 function processSeatSyncCore(
-  delivery: SeatSyncDelivery
+  delivery: QueueDelivery<SeatSyncMessage>
 ): Effect.Effect<DeliveryOutcome, CapabilityUnavailable, Billing | Scope.Scope> {
   return Effect.as(
     Effect.gen(function* () {
@@ -94,7 +98,7 @@ function processSeatSyncCore(
  * above already carries the failure cause.
  */
 export function processSeatSyncMessage(
-  delivery: SeatSyncDelivery
+  delivery: QueueDelivery<SeatSyncMessage>
 ): Effect.Effect<DeliveryOutcome, never, Billing | Scope.Scope> {
   return processSeatSyncCore(delivery).pipe(
     Effect.catchCause(() => Effect.succeed<DeliveryOutcome>('retry'))
@@ -117,35 +121,23 @@ function seatSyncEnv(env: Env): StarterEnv {
 /**
  * Consumer entry: wraps `processSeatSyncMessage` with the real capabilities
  * layer and a wide event, continuing the trace the membership mutation
- * stamped onto the message. Failures already folded into `'retry'` above —
- * this wrapper only owns scope and layer provision.
+ * stamped onto the message. Failures already folded into `'retry'` inside
+ * `processSeatSyncMessage` — the entry owns scope and layer provision, and
+ * its `'retry'` fold is the same dead code it was for every consumer.
  */
 export function deliverSeatSync(
-  envelope: { readonly body: unknown },
+  envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
   const delivery = readSeatSyncDelivery(envelope)
-  // The same trace continuation the webhook consumers make: a decoded message
-  // joins the trace the membership mutation stamped, anything else starts its
-  // own — `parentSpanFromHeaders` treats an absent `traceparent` as no parent.
-  let traceparent: string | undefined
-  if (delivery.kind === 'message') {
-    traceparent = delivery.message.traceparent
-  }
-  const parent = parentSpanFromHeaders({ traceparent })
-  const program = processSeatSyncMessage(delivery).pipe(
-    // The layer needs the billing env only — the seat path reads D1 and,
-    // when configured, talks to Stripe directly (no HTTP client service).
-    Effect.provide(selectCapabilitiesLayer(seatSyncEnv(env)))
-  )
-  return withTriggerScope(
-    {
-      service: 'background',
-      event: 'seat_sync',
-      parent,
-      spanKind: 'consumer',
-      env
-    },
-    program
-  )
+  return consumerInvocation(env, {
+    event: 'seat_sync',
+    delivery,
+    onFailure: 'retry',
+    program: processSeatSyncMessage(delivery).pipe(
+      // The layer needs the billing env only — the seat path reads D1 and,
+      // when configured, talks to Stripe directly (no HTTP client service).
+      Effect.provide(selectCapabilitiesLayer(seatSyncEnv(env)))
+    )
+  })
 }

@@ -16,7 +16,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import { RoleChangeButtons } from '@/components/role-change-buttons'
 import {
   changeUserWorkspaceRoleServerFn,
@@ -151,11 +151,7 @@ export function AdminUserActions({
         )}
       </div>
 
-      {error === null ? null : (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      <ActionFeedback error={error} />
     </div>
   )
 }

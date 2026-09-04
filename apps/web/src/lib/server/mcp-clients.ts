@@ -9,7 +9,7 @@ import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 
 /**
- * The account page's "Connected MCP clients" segment (ADR 0055): the consents
+ * The account page's "Connected MCP clients" segment (ADR 0068): the consents
  * the signed-in user holds, and their revocation. Account-level reads, so
  * neither goes through a workspace layer — the consent names its workspace
  * itself. The row type comes from the capability module directly

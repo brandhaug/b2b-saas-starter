@@ -1,6 +1,6 @@
 /**
  * The signed OAuth query the provider redirects to the consent and sign-in
- * pages with (ADR 0055): the authorization request's own parameters plus
+ * pages with (ADR 0068): the authorization request's own parameters plus
  * `exp`, `ba_iat`, `ba_param` (the names it signed) and `sig`. Both helpers are
  * pure and ship to the browser, so no Effect here.
  */

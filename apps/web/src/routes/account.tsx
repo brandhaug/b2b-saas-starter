@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { type ComponentProps } from 'react'
+import { type ComponentProps, type ReactNode } from 'react'
 import { DeleteAccountPanel } from '@/components/delete-account-panel'
 import { NotificationPreferencesPanel } from '@/components/notification-preferences-panel'
 import { TwoFactorPanel } from '@/components/two-factor-panel'
@@ -37,7 +37,7 @@ export const Route = createFileRoute('/account')({
   },
   // The deletion plan and notification preferences compose into one server
   // call (see `loadAccountPageData`); the MCP clients connected to this
-  // account (ADR 0055) ride beside it — all identity-keyed, no workspace
+  // account (ADR 0068) ride beside it — all identity-keyed, no workspace
   // involved.
   loader: async ({ context }) => {
     const userId = context.session.user.id
@@ -54,7 +54,7 @@ export const Route = createFileRoute('/account')({
 
 /**
  * Exported for the route test, which drives it with the real loader payload
- * (`loadAccountPage` against the Seed layer) and stub ports — the panels'
+ * (`loadAccountPageData` against the Seed layer) and stub ports — the panels'
  * endpoints are browser-only, so the test supplies functions of the same
  * shape rather than re-creating Better Auth clients. The preferences panel
  * renders only when the loader supplied preferences, so a test asserting the
@@ -98,16 +98,12 @@ export function AccountPage({
         {/* Unlinking a provider while impersonating would change the user's
             sign-in surface from an admin session — same refusal stance as the
             two-factor panel below (ADR 0054). */}
-        {session.impersonatedBy === null ? (
+        <WhileNotImpersonating
+          impersonatedBy={session.impersonatedBy}
+          what="Sign-in methods"
+        >
           <LinkedAccountsPanel />
-        ) : (
-          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
-          <Alert role="status">
-            <AlertDescription>
-              Sign-in methods cannot be changed while impersonating this user.
-            </AlertDescription>
-          </Alert>
-        )}
+        </WhileNotImpersonating>
       </Panel>
 
       <Panel
@@ -117,16 +113,12 @@ export function AccountPage({
         {/* Hidden, not merely disabled, for an impersonation session (ADR
             0054): the catchall refuses the endpoints anyway, so a control
             that always fails would only teach the admin to ignore errors. */}
-        {session.impersonatedBy === null ? (
+        <WhileNotImpersonating
+          impersonatedBy={session.impersonatedBy}
+          what="Two-factor settings"
+        >
           <TwoFactorPanel twoFactorEnabled={session.user.twoFactorEnabled} />
-        ) : (
-          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
-          <Alert role="status">
-            <AlertDescription>
-              Two-factor settings cannot be changed while impersonating this user.
-            </AlertDescription>
-          </Alert>
-        )}
+        </WhileNotImpersonating>
       </Panel>
 
       <Panel
@@ -136,16 +128,9 @@ export function AccountPage({
         {/* Hidden, not merely disabled, for an impersonation session: the
             catchall refuses the endpoints anyway (ADR 0056), so a control
             that always fails would only teach the admin to ignore errors. */}
-        {session.impersonatedBy === null ? (
+        <WhileNotImpersonating impersonatedBy={session.impersonatedBy} what="Passkeys">
           <PasskeysPanel />
-        ) : (
-          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
-          <Alert role="status">
-            <AlertDescription>
-              Passkeys cannot be changed while impersonating this user.
-            </AlertDescription>
-          </Alert>
-        )}
+        </WhileNotImpersonating>
       </Panel>
 
       <SessionsPanel
@@ -169,16 +154,13 @@ export function AccountPage({
         {/* Hidden, not merely disabled, for an impersonation session (ADR
             0059): the catchall refuses the endpoint anyway, so a control
             that always fails would only teach the admin to ignore errors. */}
-        {session.impersonatedBy === null ? (
+        <WhileNotImpersonating
+          impersonatedBy={session.impersonatedBy}
+          what="The account"
+          action="deleted"
+        >
           <DeleteAccountPanel plan={deletionPlan} />
-        ) : (
-          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
-          <Alert role="status">
-            <AlertDescription>
-              The account cannot be deleted while impersonating this user.
-            </AlertDescription>
-          </Alert>
-        )}
+        </WhileNotImpersonating>
       </Panel>
 
       <Panel
@@ -188,6 +170,38 @@ export function AccountPage({
         <McpClientsPanel connections={connections} revoke={revokeMcpClientServerFn} />
       </Panel>
     </WorkspaceShell>
+  )
+}
+
+/**
+ * Renders the panel's control only on a first-party session. An impersonating
+ * admin gets a one-line reason instead (ADR 0054): the catchall refuses these
+ * endpoints anyway, so a control that always fails would only teach the admin
+ * to ignore errors.
+ */
+function WhileNotImpersonating({
+  impersonatedBy,
+  what,
+  action = 'changed',
+  children
+}: {
+  readonly impersonatedBy: string | null
+  /** The noun phrase the reason sentence is built around. */
+  readonly what: string
+  /** The sentence's verb — settings are "changed", the account is "deleted". */
+  readonly action?: string
+  readonly children: ReactNode
+}) {
+  if (impersonatedBy === null) {
+    return <>{children}</>
+  }
+  return (
+    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
+    <Alert role="status">
+      <AlertDescription>
+        {`${what} cannot be ${action} while impersonating this user.`}
+      </AlertDescription>
+    </Alert>
   )
 }
 
