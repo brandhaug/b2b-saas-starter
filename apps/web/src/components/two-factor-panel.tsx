@@ -159,7 +159,7 @@ function PanelFrame({
             tone === 'primary' ? 'size-4 text-primary' : 'size-4 text-muted-foreground'
           }
         />
-        <h3 className="text-sm font-medium">{heading}</h3>
+        <h3 className="text-sm font-semibold">{heading}</h3>
       </header>
       {children}
     </section>

@@ -166,7 +166,7 @@ export function OAuthConsentPage({
       ) : (
         <>
           <section className="grid gap-2" aria-labelledby="consent-workspace">
-            <h2 id="consent-workspace" className="text-sm font-medium">
+            <h2 id="consent-workspace" className="text-sm font-semibold">
               Workspace
             </h2>
             {payload.workspaces.length === 0 ? (
@@ -205,7 +205,7 @@ export function OAuthConsentPage({
           </section>
 
           <section className="grid gap-2" aria-labelledby="consent-scopes">
-            <h2 id="consent-scopes" className="text-sm font-medium">
+            <h2 id="consent-scopes" className="text-sm font-semibold">
               The client asks to
             </h2>
             <ul className="grid gap-1 text-sm">

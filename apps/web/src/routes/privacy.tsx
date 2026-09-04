@@ -27,7 +27,7 @@ function PrivacyPage() {
     <PublicLayout>
       <main id="main-content" className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
         <h1 className="font-display text-3xl font-semibold">Privacy</h1>
-        <div className="prose mt-6 max-w-none">
+        <div className="prose prose-lg mt-6 max-w-none">
           <p>
             This starter-focused page describes the reference app's data categories:
             users, sessions, workspaces, members, API tokens, audit events,

@@ -27,7 +27,7 @@ function TermsPage() {
     <PublicLayout>
       <main id="main-content" className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
         <h1 className="font-display text-3xl font-semibold">Terms</h1>
-        <div className="prose mt-6 max-w-none">
+        <div className="prose prose-lg mt-6 max-w-none">
           <p>
             These starter terms are implementation copy, not final legal terms. They
             show where teams describe acceptable use, accounts, billing, workspace data,

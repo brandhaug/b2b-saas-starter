@@ -117,7 +117,7 @@ function BlogPostPage() {
             <article
               ref={articleRef}
               /* Token-mapped prose colors — see docs.$category.$slug.tsx. */
-              className="prose max-w-none"
+              className="prose prose-lg max-w-none"
             >
               <Suspense
                 fallback={<p className="text-sm text-muted-foreground">Loading…</p>}

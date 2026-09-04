@@ -85,7 +85,7 @@ typography:
     fontFamily: Geist Variable
     fontSize: 0.875rem
     fontWeight: 500
-    lineHeight: 1.2
+    lineHeight: 1.0 (leading-none; wrapped FieldLabel copy uses leading-snug)
   mono:
     fontFamily: Geist Mono Variable
     fontSize: 0.75rem-0.875rem
@@ -153,7 +153,7 @@ components:
     border: '{colors.border}'
     height: 36px
   badge:
-    typography: '{typography.label}'
+    typography: 0.75rem / 500 (text-xs font-medium — pill density, deliberately not the label ramp)
     rounded: '{radius.interactive}'
     height: 22px
   status-badge:
