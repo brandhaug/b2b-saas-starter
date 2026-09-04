@@ -6,7 +6,7 @@ import {
   webhookEndpoints
 } from '@b2b-saas-starter/db/schema'
 import { DateTime, Effect, Layer } from 'effect'
-import { and, asc, count, eq, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, sql, type SQL } from 'drizzle-orm'
 
 import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
@@ -18,6 +18,7 @@ import { type CapabilityUnavailable } from '../errors.ts'
 import {
   activeSigningSecrets,
   deadLetterNotification,
+  DELIVERIES_PAGE_SIZE,
   deliverySuccessRate,
   isReplayableDeliveryStatus,
   planPendingDispatch,
@@ -52,6 +53,29 @@ function randomSecret(): string {
 }
 
 const unavailable = orUnavailable('webhook-endpoints')
+
+/**
+ * One aggregate row → the wire projection. The success rate is derived
+ * here so no read site re-derives (or drifts from) it.
+ */
+function projectionFromAggregate(
+  row: Pick<
+    typeof webhookEndpoints.$inferSelect,
+    'id' | 'url' | 'enabled' | 'events'
+  > & { total: number; delivered: number }
+): WebhookEndpoint {
+  return {
+    id: row.id,
+    url: row.url,
+    enabled: row.enabled,
+    events: row.events,
+    // `sql<number>` is an unchecked claim about what the driver hands
+    // back, not a guarantee, so the coercion stays as runtime defence
+    // for the SUM column.
+    // oxlint-disable-next-line typescript/no-unnecessary-type-conversion -- see above
+    successRate: deliverySuccessRate(row.total, Number(row.delivered))
+  }
+}
 
 /**
  * The workspace-scoped row filter every endpoint read/write shares. The
@@ -130,6 +154,30 @@ export const LiveWebhookEndpoints: Layer.Layer<
     }
 
     /**
+     * The endpoint+deliveries aggregate every endpoint read projects: one
+     * grouped query (endpoints left-joined to their deliveries with count +
+     * conditional-sum aggregates) instead of one delivery scan per endpoint.
+     * `endpointProjection`, `list`, and `listPage` differ only in the where
+     * clause and the paging around this builder.
+     */
+    function aggregateQuery() {
+      return db
+        .select({
+          id: webhookEndpoints.id,
+          url: webhookEndpoints.url,
+          enabled: webhookEndpoints.enabled,
+          events: webhookEndpoints.events,
+          total: count(webhookDeliveries.id),
+          delivered: sql<number>`coalesce(sum(case when ${webhookDeliveries.status} = 'delivered' then 1 else 0 end), 0)`
+        })
+        .from(webhookEndpoints)
+        .leftJoin(
+          webhookDeliveries,
+          eq(webhookDeliveries.endpointId, webhookEndpoints.id)
+        )
+    }
+
+    /**
      * The wire projection for one endpoint, success rate included — the same
      * aggregate shape `list` computes for every endpoint, over this one.
      */
@@ -138,20 +186,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
       workspaceId: string
     ): Effect.Effect<WebhookEndpoint | null, CapabilityUnavailable> {
       return unavailable(
-        db
-          .select({
-            id: webhookEndpoints.id,
-            url: webhookEndpoints.url,
-            enabled: webhookEndpoints.enabled,
-            events: webhookEndpoints.events,
-            total: count(webhookDeliveries.id),
-            delivered: sql<number>`coalesce(sum(case when ${webhookDeliveries.status} = 'delivered' then 1 else 0 end), 0)`
-          })
-          .from(webhookEndpoints)
-          .leftJoin(
-            webhookDeliveries,
-            eq(webhookDeliveries.endpointId, webhookEndpoints.id)
-          )
+        aggregateQuery()
           .where(scopedEndpointWhere(endpointId, workspaceId))
           .groupBy(webhookEndpoints.id)
       ).pipe(
@@ -160,17 +195,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           if (!row) {
             return null
           }
-          return {
-            id: row.id,
-            url: row.url,
-            enabled: row.enabled,
-            events: row.events,
-            // `sql<number>` is an unchecked claim about what the driver hands
-            // back, not a guarantee, so the coercion stays as runtime defence
-            // for the SUM column.
-            // oxlint-disable-next-line typescript/no-unnecessary-type-conversion -- see above
-            successRate: deliverySuccessRate(row.total, Number(row.delivered))
-          }
+          return projectionFromAggregate(row)
         })
       )
     }
@@ -358,37 +383,12 @@ export const LiveWebhookEndpoints: Layer.Layer<
     return {
       list: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
-        // Single grouped query: endpoints left-joined to their deliveries with
-        // count/conditional-sum aggregates, instead of one delivery scan per
-        // endpoint.
         const rows = yield* unavailable(
-          db
-            .select({
-              id: webhookEndpoints.id,
-              url: webhookEndpoints.url,
-              enabled: webhookEndpoints.enabled,
-              events: webhookEndpoints.events,
-              total: count(webhookDeliveries.id),
-              delivered: sql<number>`coalesce(sum(case when ${webhookDeliveries.status} = 'delivered' then 1 else 0 end), 0)`
-            })
-            .from(webhookEndpoints)
-            .leftJoin(
-              webhookDeliveries,
-              eq(webhookDeliveries.endpointId, webhookEndpoints.id)
-            )
+          aggregateQuery()
             .where(eq(webhookEndpoints.workspaceId, ctx.workspace.id))
             .groupBy(webhookEndpoints.id)
         )
-        return rows.map((row) => ({
-          id: row.id,
-          url: row.url,
-          enabled: row.enabled,
-          events: row.events,
-          // `sql<number>` is an unchecked claim about what the driver hands back, not a
-          // guarantee, so the coercion stays as runtime defence for the SUM column.
-          // oxlint-disable-next-line typescript/no-unnecessary-type-conversion -- see above
-          successRate: deliverySuccessRate(row.total, Number(row.delivered))
-        }))
+        return rows.map(projectionFromAggregate)
       }),
       listPage: (input) =>
         Effect.gen(function* () {
@@ -414,34 +414,14 @@ export const LiveWebhookEndpoints: Layer.Layer<
           // One row past the page cap, so `cutKeysetPage` can see whether the
           // cap actually cut rows off before offering a cursor.
           const rows = yield* unavailable(
-            db
-              .select({
-                id: webhookEndpoints.id,
-                url: webhookEndpoints.url,
-                enabled: webhookEndpoints.enabled,
-                events: webhookEndpoints.events,
-                total: count(webhookDeliveries.id),
-                delivered: sql<number>`coalesce(sum(case when ${webhookDeliveries.status} = 'delivered' then 1 else 0 end), 0)`
-              })
-              .from(webhookEndpoints)
-              .leftJoin(
-                webhookDeliveries,
-                eq(webhookDeliveries.endpointId, webhookEndpoints.id)
-              )
+            aggregateQuery()
               .where(and(...conditions))
               .groupBy(webhookEndpoints.id)
               .orderBy(asc(webhookEndpoints.id))
               .limit(limit + 1)
           )
           return cutKeysetPage(
-            rows.map((row) => ({
-              id: row.id,
-              url: row.url,
-              enabled: row.enabled,
-              events: row.events,
-              // oxlint-disable-next-line typescript/no-unnecessary-type-conversion -- the SUM column claim above is unchecked; see `list`
-              successRate: deliverySuccessRate(row.total, Number(row.delivered))
-            })),
+            rows.map(projectionFromAggregate),
             limit,
             (endpoint) => ({ key: endpoint.id, id: endpoint.id })
           )
@@ -529,8 +509,14 @@ export const LiveWebhookEndpoints: Layer.Layer<
                   eq(webhookEndpoints.workspaceId, ctx.workspace.id)
                 )
               )
-              .orderBy(sql`${webhookDeliveries.lastAttemptAt} desc`)
-              .limit(20)
+              // Newest first, with the row id as the tie-break so the order is
+              // total even when attempts share a timestamp — the same order
+              // the Seed adapter sorts by, asserted by the shared contract.
+              .orderBy(
+                sql`${webhookDeliveries.lastAttemptAt} desc`,
+                desc(webhookDeliveries.id)
+              )
+              .limit(DELIVERIES_PAGE_SIZE)
           )
         }),
       update: (input) =>

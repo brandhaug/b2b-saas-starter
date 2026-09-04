@@ -9,6 +9,7 @@ import { NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   activeSigningSecrets,
   deadLetterNotification,
+  DELIVERIES_PAGE_SIZE,
   deliverySuccessRate,
   isReplayableDeliveryStatus,
   planPendingDispatch,
@@ -76,8 +77,6 @@ type SeedDeliveryRow = {
   readonly requestHeaders: Record<string, string> | null
   readonly responseBody: string | null
   readonly replayedFrom: string | null
-  /** Insertion order — the tie-break when rows share a `lastAttemptAt`. */
-  readonly seq: number
 }
 
 /**
@@ -97,7 +96,6 @@ type SeedAttemptUpdate = {
 
 function toDeliveryRow(
   fixture: SeedWebhookDeliveryFixture,
-  seq: number,
   fallbackWorkspaceId: string
 ): SeedDeliveryRow {
   return {
@@ -113,8 +111,7 @@ function toDeliveryRow(
     payload: fixture.payload,
     requestHeaders: fixture.requestHeaders ?? null,
     responseBody: fixture.responseBody ?? null,
-    replayedFrom: fixture.replayedFrom ?? null,
-    seq
+    replayedFrom: fixture.replayedFrom ?? null
   }
 }
 
@@ -163,16 +160,9 @@ export function SeedWebhookEndpoints(
         previousSigningSecret: null,
         previousSecretExpiresAt: null
       }))
-      const deliveries: Array<SeedDeliveryRow> = seedDeliveries.map((fixture, index) =>
-        toDeliveryRow(fixture, index + 1, seedWorkspaceRecord.id)
+      const deliveries: Array<SeedDeliveryRow> = seedDeliveries.map((fixture) =>
+        toDeliveryRow(fixture, seedWorkspaceRecord.id)
       )
-      let deliverySeq = seedDeliveries.length
-
-      /** Next insertion sequence — the newest-first tie-break in listDeliveries. */
-      function nextSeq(): number {
-        deliverySeq += 1
-        return deliverySeq
-      }
 
       function endpointFor(endpointId: string, workspaceId: string) {
         return (
@@ -290,8 +280,7 @@ export function SeedWebhookEndpoints(
             payload: input.payload,
             requestHeaders: input.requestHeaders ?? null,
             responseBody: input.responseBody ?? null,
-            replayedFrom: input.replayedFrom ?? null,
-            seq: nextSeq()
+            replayedFrom: input.replayedFrom ?? null
           },
           attemptUpdate
         )
@@ -322,8 +311,7 @@ export function SeedWebhookEndpoints(
           payload: input.plan.payload,
           requestHeaders: null,
           responseBody: null,
-          replayedFrom: input.plan.replayedFrom,
-          seq: nextSeq()
+          replayedFrom: input.plan.replayedFrom
         })
         if (input.auditEventType !== undefined) {
           yield* audit.record({
@@ -426,8 +414,9 @@ export function SeedWebhookEndpoints(
             const matched = deliveries.filter(
               (row) => row.endpointId === input.endpointId && owned.has(row.endpointId)
             )
-            // `lastAttemptAt` DESC, insertion recency as the tie-break —
-            // mirrors Live's `orderBy(lastAttemptAt desc)` read.
+            // `lastAttemptAt` DESC, row id DESC as the tie-break — a total
+            // order, mirroring Live's orderBy so the shared contract can
+            // assert the sequence on both adapters.
             matched.sort((a, b) => {
               if (a.lastAttemptAt > b.lastAttemptAt) {
                 return -1
@@ -435,11 +424,17 @@ export function SeedWebhookEndpoints(
               if (a.lastAttemptAt < b.lastAttemptAt) {
                 return 1
               }
-              return b.seq - a.seq
+              if (a.id > b.id) {
+                return -1
+              }
+              if (a.id < b.id) {
+                return 1
+              }
+              return 0
             })
             return matched
-              .slice(0, 20)
-              .map(({ seq: _seq, workspaceId: _ws, ...row }) => row)
+              .slice(0, DELIVERIES_PAGE_SIZE)
+              .map(({ workspaceId: _ws, ...row }) => row)
           }),
         update: (input) =>
           Effect.gen(function* () {

@@ -163,7 +163,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
     })
   }
 
-  describe('record (ADR 0055)', () => {
+  describe('record (ADR 0069)', () => {
     it.effect('records a row for one member, who reads it back unread', () =>
       inWorkspace(
         'live-lab',

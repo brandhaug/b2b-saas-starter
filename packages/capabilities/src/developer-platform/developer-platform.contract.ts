@@ -190,14 +190,13 @@ export function developerPlatformContractCases(
         const deliveries = yield* webhooks.listDeliveries({
           endpointId: endpoint.id
         })
-        // Both rows list back. Newest-first *ordering* is not asserted here:
-        // the two rows can share a timestamp, and Live orders on
-        // `lastAttemptAt` alone, so a strict order is only honest when the
-        // timestamps differ.
-        expect(deliveries).toHaveLength(2)
-        expect(deliveries.map((row) => row.id).toSorted()).toEqual([
-          'whd_contract_first',
-          'whd_contract_second'
+        // Newest first is a total order both adapters keep: `lastAttemptAt`
+        // desc with the row id as the tie-break, so even two rows recorded in
+        // the same instant (TestClock freezes time on the seed side) sequence
+        // deterministically.
+        expect(deliveries.map((row) => row.id)).toEqual([
+          'whd_contract_second',
+          'whd_contract_first'
         ])
         // Retryable attempts stay out of the governance log on both adapters.
         const auditsAfter = (yield* log.listGlobal).filter((event) =>

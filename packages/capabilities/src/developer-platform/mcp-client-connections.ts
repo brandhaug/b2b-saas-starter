@@ -4,7 +4,7 @@ import { type CapabilityUnavailable } from '../errors.ts'
 import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
 
 /**
- * MCP Client connections (ADR 0055): the standing OAuth consents a user has
+ * MCP Client connections (ADR 0068): the standing OAuth consents a user has
  * granted to interactive MCP clients (Claude, Cursor, …), each bound to exactly
  * one Workspace. The consent rows themselves are written by Better Auth's OAuth
  * provider during the authorization flow; this capability owns everything the

@@ -1,7 +1,4 @@
-import { user } from '@b2b-saas-starter/db/schema'
-import { Database } from '@b2b-saas-starter/db/service'
-import { Context, Effect, Layer, Ref, Schema } from 'effect'
-import { eq } from 'drizzle-orm'
+import { Context, Effect, Schema } from 'effect'
 
 import {
   type CapabilityUnavailable,
@@ -9,18 +6,8 @@ import {
   UserAdminRejected
 } from '../errors.ts'
 import { literalTuple } from '../internal/literal-tuple.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
-import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { type NotificationKind } from '../notifications/notification-kinds.ts'
-import { makeBindingCaller } from './plugin-binding-failure.ts'
-import {
-  findWorkspaceMember,
-  requireMemberRowId,
-  SystemRole,
-  type Member,
-  type WorkspaceRole
-} from './workspace-identity.ts'
-import { AuditEventLog } from './audit-event-log.ts'
+import { SystemRole, type Member, type WorkspaceRole } from './workspace-identity.ts'
 
 /**
  * A user account at system level: what `/admin` lists and acts on. Deliberately
@@ -183,175 +170,18 @@ export type PlatformUserAdminBinding = {
   readonly stopImpersonating: () => Promise<void>
 }
 
-const { callBinding } = makeBindingCaller<PlatformUserAdminBinding, UserAdminRejected>({
-  capability: 'platform-user-admin',
-  noBindingReason: 'no_user_admin_binding',
-  Rejected: UserAdminRejected
-})
-
 /**
  * The notification the impersonated user receives, worded once for both
  * adapters. It fires when the session starts — the one moment guaranteed to
  * happen, since a session the admin never stops simply expires.
  */
-function impersonationNotice(adminName: string) {
+export function impersonationNotice(adminName: string) {
   const minutes = IMPERSONATION_SESSION_SECONDS / 60
   return {
     kind: 'account.impersonated',
     title: 'A System Admin accessed your account',
     message: `${adminName} started an impersonation session on your account. It ends when they stop it or after ${minutes} minutes, and it cannot change your password, two-factor settings, or email.`
   } satisfies { kind: NotificationKind; title: string; message: string }
-}
-
-function toAccount(row: typeof user.$inferSelect): SystemUserAccount {
-  return {
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    // `user.role` is the typed system-role column; null means the plugin never
-    // wrote one, which is a plain user.
-    systemRole: row.role ?? 'user',
-    banned: row.banned ?? false
-  }
-}
-
-export function LivePlatformUserAdmin(
-  binding?: PlatformUserAdminBinding
-): Layer.Layer<PlatformUserAdmin, never, Database | AuditEventLog | NotificationFeed> {
-  return Layer.effect(PlatformUserAdmin)(
-    Effect.gen(function* () {
-      const db = yield* Database
-      const audit = yield* AuditEventLog
-      const notifications = yield* NotificationFeed
-
-      const unavailable = orUnavailable('platform-user-admin')
-
-      /**
-       * Live refuses an unknown account itself rather than letting the plugin's
-       * UPDATE match zero rows silently — the audit row must not fire for a
-       * change that changed nothing.
-       */
-      const requireAccount = Effect.fnUntraced(function* (userId: string) {
-        const rows = yield* unavailable(
-          db.select().from(user).where(eq(user.id, userId)).limit(1)
-        )
-        const row = rows[0]
-        if (!row) {
-          return yield* Effect.fail(new UserAdminRejected({ reason: 'unknown_user' }))
-        }
-        return toAccount(row)
-      })
-
-      /**
-       * The plugin addresses a member by its surrogate row id; the capability
-       * speaks in user ids, like `WorkspaceMembership` does.
-       */
-      function resolveMemberId(workspaceId: string, userId: string) {
-        return requireMemberRowId(
-          db,
-          { workspaceId, userId },
-          () => new UserAdminRejected({ reason: 'not_a_member' })
-        )
-      }
-
-      return {
-        listUsers: unavailable(db.select().from(user)).pipe(
-          Effect.map((rows) => rows.map(toAccount))
-        ),
-        banUser: (input) =>
-          Effect.gen(function* () {
-            yield* requireAccount(input.userId)
-            yield* callBinding(binding, (bound) =>
-              bound.banUser({ userId: input.userId })
-            )
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              eventType: 'system_admin.user_banned',
-              targetType: 'user',
-              targetId: input.userId
-            })
-          }),
-        unbanUser: (input) =>
-          Effect.gen(function* () {
-            yield* requireAccount(input.userId)
-            yield* callBinding(binding, (bound) =>
-              bound.unbanUser({ userId: input.userId })
-            )
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              eventType: 'system_admin.user_unbanned',
-              targetType: 'user',
-              targetId: input.userId
-            })
-          }),
-        changeWorkspaceRole: (input) =>
-          Effect.gen(function* () {
-            const memberId = yield* resolveMemberId(input.workspaceId, input.userId)
-            yield* callBinding(binding, (bound) =>
-              bound.setMemberRole({
-                workspaceId: input.workspaceId,
-                memberId,
-                role: input.role
-              })
-            )
-            const member = yield* findWorkspaceMember(db, {
-              workspaceId: input.workspaceId,
-              userId: input.userId
-            })
-            if (!member) {
-              // The write succeeded but the read-back found nothing — treat it
-              // the way a rejected change reads, without claiming success.
-              return yield* Effect.fail(
-                new UserAdminRejected({ reason: 'not_a_member_after_write' })
-              )
-            }
-            yield* audit.record({
-              workspaceId: input.workspaceId,
-              actorUserId: input.actorUserId,
-              eventType: 'system_admin.user_role_changed',
-              targetType: 'workspace_member',
-              targetId: input.userId,
-              metadata: { role: input.role }
-            })
-            return member
-          }),
-        startImpersonation: (input) =>
-          Effect.gen(function* () {
-            const target = yield* requireAccount(input.userId)
-            yield* refuseImpersonationTarget(target, input.actorUserId)
-            const admin = yield* requireAccount(input.actorUserId)
-            yield* callBinding(binding, (bound) =>
-              bound.impersonateUser({ userId: input.userId })
-            )
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              eventType: 'system_admin.impersonation_started',
-              targetType: 'user',
-              targetId: input.userId,
-              metadata: { expiresInSeconds: IMPERSONATION_SESSION_SECONDS }
-            })
-            yield* notifications.notifyUser({
-              userId: input.userId,
-              ...impersonationNotice(admin.name)
-            })
-            return {
-              userId: input.userId,
-              expiresInSeconds: IMPERSONATION_SESSION_SECONDS
-            }
-          }),
-        stopImpersonation: (input) =>
-          Effect.gen(function* () {
-            yield* callBinding(binding, (bound) => bound.stopImpersonating())
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              eventType: 'system_admin.impersonation_stopped',
-              targetType: 'user',
-              targetId: input.userId
-            })
-          })
-      }
-    })
-  )
 }
 
 /**
@@ -361,7 +191,7 @@ export function LivePlatformUserAdmin(
  * default also refuses), and an admin does not impersonate themself — the
  * result would be a shorter-lived copy of the session they already hold.
  */
-function refuseImpersonationTarget(
+export function refuseImpersonationTarget(
   target: SystemUserAccount,
   actorUserId: string
 ): Effect.Effect<void, UserAdminRejected> {
@@ -372,134 +202,4 @@ function refuseImpersonationTarget(
     return Effect.fail(new UserAdminRejected({ reason: 'cannot_impersonate_admin' }))
   }
   return Effect.void
-}
-
-/**
- * In-memory accounts, never Better Auth. Built from the fixture members so the
- * seed path exercises the same identities the rest of the fixtures use.
- *
- * `memberships` seeds which (workspace, user) pairs exist, so
- * `changeWorkspaceRole` can refuse a non-member exactly like Live does — the
- * fixture has no `workspaceMembers` table to join.
- */
-export type SeedMembership = {
-  readonly workspaceId: string
-  readonly userId: string
-  readonly role: WorkspaceRole
-}
-
-export function SeedPlatformUserAdmin(
-  users: ReadonlyArray<SystemUserAccount>,
-  memberships: ReadonlyArray<SeedMembership> = []
-): Layer.Layer<PlatformUserAdmin, never, AuditEventLog | NotificationFeed> {
-  return Layer.effect(
-    PlatformUserAdmin,
-    Effect.gen(function* () {
-      const audit = yield* AuditEventLog
-      const notifications = yield* NotificationFeed
-      const roster = yield* Ref.make<ReadonlyArray<SystemUserAccount>>(users)
-      // The one impersonation the fixture can hold at a time, keyed by the
-      // impersonated user: Better Auth holds one admin cookie per browser.
-      const impersonating = yield* Ref.make<string | null>(null)
-      // Roles keyed `${workspaceId}:${userId}`, seeded from `memberships`.
-      const overrides = yield* Ref.make<ReadonlyMap<string, WorkspaceRole>>(
-        new Map(memberships.map((m) => [`${m.workspaceId}:${m.userId}`, m.role]))
-      )
-
-      function requireAccount(userId: string) {
-        return Ref.get(roster).pipe(
-          Effect.flatMap((current) => {
-            const account = current.find((candidate) => candidate.id === userId)
-            if (!account) {
-              return Effect.fail(new UserAdminRejected({ reason: 'unknown_user' }))
-            }
-            return Effect.succeed(account)
-          })
-        )
-      }
-
-      function setBanned(userId: string, banned: boolean) {
-        return Ref.update(roster, (current) =>
-          current.map((account) => {
-            if (account.id === userId) {
-              return { ...account, banned }
-            }
-            return account
-          })
-        )
-      }
-
-      return {
-        listUsers: Ref.get(roster),
-        banUser: (input) =>
-          Effect.gen(function* () {
-            yield* requireAccount(input.userId)
-            yield* setBanned(input.userId, true)
-          }),
-        unbanUser: (input) =>
-          Effect.gen(function* () {
-            yield* requireAccount(input.userId)
-            yield* setBanned(input.userId, false)
-          }),
-        changeWorkspaceRole: (input) =>
-          Effect.gen(function* () {
-            const account = yield* requireAccount(input.userId)
-            const key = `${input.workspaceId}:${input.userId}`
-            const current = yield* Ref.get(overrides)
-            if (!current.has(key)) {
-              return yield* Effect.fail(
-                new UserAdminRejected({ reason: 'not_a_member' })
-              )
-            }
-            yield* Ref.update(overrides, (map) => new Map(map).set(key, input.role))
-            return {
-              id: account.id,
-              name: account.name,
-              email: account.email,
-              role: input.role,
-              systemRole: account.systemRole
-            }
-          }),
-        startImpersonation: (input) =>
-          Effect.gen(function* () {
-            const target = yield* requireAccount(input.userId)
-            yield* refuseImpersonationTarget(target, input.actorUserId)
-            const admin = yield* requireAccount(input.actorUserId)
-            yield* Ref.set(impersonating, input.userId)
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              eventType: 'system_admin.impersonation_started',
-              targetType: 'user',
-              targetId: input.userId,
-              metadata: { expiresInSeconds: IMPERSONATION_SESSION_SECONDS }
-            })
-            yield* notifications.notifyUser({
-              userId: input.userId,
-              ...impersonationNotice(admin.name)
-            })
-            return {
-              userId: input.userId,
-              expiresInSeconds: IMPERSONATION_SESSION_SECONDS
-            }
-          }),
-        stopImpersonation: (input) =>
-          Effect.gen(function* () {
-            const current = yield* Ref.get(impersonating)
-            if (current !== input.userId) {
-              // Mirrors the plugin's 400 "not impersonating anyone".
-              return yield* Effect.fail(
-                new UserAdminRejected({ reason: 'not_impersonating' })
-              )
-            }
-            yield* Ref.set(impersonating, null)
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              eventType: 'system_admin.impersonation_stopped',
-              targetType: 'user',
-              targetId: input.userId
-            })
-          })
-      }
-    })
-  )
 }

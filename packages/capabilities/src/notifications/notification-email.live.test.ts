@@ -4,7 +4,7 @@ import { Effect, Layer } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
 
-import { LiveAuditEventLog } from '../governance/audit-event-log.ts'
+import { LiveAuditEventLog } from '../governance/audit-event-log.live.ts'
 import { LIVE_SUITE_TIMEOUT, TestDatabase } from '../testing/live-harness.ts'
 import { liveWorkspaceContext } from '../workspace-context.ts'
 import { type NotificationEmailQueueMessage } from './notification-email-queue.ts'

@@ -4,6 +4,7 @@ import {
   workspaceSubscriptions
 } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
+import { type ProviderEnvOf, hasValue } from '@b2b-saas-starter/env/server'
 import { DateTime, Effect, Layer } from 'effect'
 import { count, eq } from 'drizzle-orm'
 
@@ -84,17 +85,16 @@ function providerNotConfigured(): CapabilityUnavailable {
  * the background worker both project their env through it, so adding a priced
  * plan extends one place, not two.
  */
-export function billingOptionsFromEnv(env: {
-  readonly STRIPE_SECRET_KEY?: string | undefined
-  readonly STRIPE_PRICE_ID_TEAM?: string | undefined
-}): LiveBillingOptions | undefined {
+export function billingOptionsFromEnv(
+  env: ProviderEnvOf<'STRIPE_SECRET_KEY' | 'STRIPE_PRICE_ID_TEAM'>
+): LiveBillingOptions | undefined {
   const secretKey = env.STRIPE_SECRET_KEY
-  if (secretKey === undefined || secretKey.length === 0) {
+  if (!hasValue(secretKey)) {
     return undefined
   }
   const priceIds: Record<string, string> = {}
   const teamPriceId = env.STRIPE_PRICE_ID_TEAM
-  if (teamPriceId !== undefined && teamPriceId.length > 0) {
+  if (hasValue(teamPriceId)) {
     priceIds.team = teamPriceId
   }
   return { secretKey, priceIds }

@@ -7,6 +7,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { CapabilityUnavailable } from '../errors.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { withTraceparent } from '../internal/traceparent.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -22,8 +23,7 @@ import {
   type WorkspaceExport,
   type WorkspaceExportAvailability,
   type WorkspaceExportBucketBinding,
-  type WorkspaceExportQueueBinding,
-  type WorkspaceExportQueueMessage
+  type WorkspaceExportQueueBinding
 } from './workspace-export.ts'
 
 const CAPABILITY = 'workspace-exports'
@@ -84,16 +84,6 @@ function pendingWhere(exportId: string, workspaceId: string) {
     eq(workspaceExports.workspaceId, workspaceId),
     eq(workspaceExports.status, 'pending')
   )
-}
-
-function withTraceparent(
-  message: WorkspaceExportQueueMessage,
-  traceparent: string | undefined
-): WorkspaceExportQueueMessage {
-  if (traceparent === undefined) {
-    return message
-  }
-  return { ...message, traceparent }
 }
 
 export function LiveWorkspaceExports(

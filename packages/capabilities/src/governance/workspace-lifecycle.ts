@@ -1,6 +1,6 @@
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaces } from '@b2b-saas-starter/db/schema'
-import { Context, Effect, Layer, Ref, Schema } from 'effect'
+import { Context, Effect, Layer, Option, Ref, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 import { type CapabilityUnavailable, WorkspaceChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -99,6 +99,12 @@ const { callBinding } = makeBindingCaller<
  * seed `WorkspaceContext`, mirroring how the live adapter acts on the one the
  * live context resolves. The shared roster receives the creator as owner so
  * the membership fixtures stay consistent with the new workspace.
+ *
+ * Mutations record the same `workspace.*` audit events the Live adapter
+ * records, read ambiently via `Effect.serviceOption`: the Seed composition
+ * (`layers.ts`) shares one fixture log so records land where the contract
+ * cases read them, while a harness that provides no log simply gets no
+ * records.
  */
 export function SeedWorkspaceLifecycle(options: {
   readonly roster?: SeedRoster | undefined
@@ -143,6 +149,20 @@ export function SeedWorkspaceLifecycle(options: {
                 fabricateSeedMember(input.userId, 'owner')
               ])
             }
+            // Identity-keyed: no `WorkspaceContext` to read the attribution
+            // from, so the event names the created workspace and its creator
+            // directly — the exact shape the Live adapter records.
+            const audit = yield* Effect.serviceOption(AuditEventLog)
+            if (Option.isSome(audit)) {
+              yield* audit.value.record({
+                workspaceId: workspace.id,
+                actorUserId: input.userId,
+                eventType: 'workspace.created',
+                targetType: 'workspace',
+                targetId: workspace.id,
+                metadata: { name: workspace.name, slug: workspace.slug }
+              })
+            }
             return workspace
           }),
         rename: (input) =>
@@ -160,13 +180,38 @@ export function SeedWorkspaceLifecycle(options: {
               }
               return next
             })
+            const audit = yield* Effect.serviceOption(AuditEventLog)
+            if (Option.isSome(audit)) {
+              yield* recordInWorkspace(audit.value, {
+                eventType: 'workspace.renamed',
+                targetType: 'workspace',
+                targetId: ctx.workspace.id,
+                metadata: { name: input.name }
+              })
+            }
             return renamed
           }),
         remove: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
+          // Captured before the delete, as in Live: the audit event must
+          // still name what was removed.
+          const removed = ctx.workspace
           yield* Ref.update(created, (rows) =>
             rows.filter((each) => each.id !== ctx.workspace.id)
           )
+          // A system event on purpose, matching Live: the trail stays readable
+          // after the workspace it describes is gone.
+          const audit = yield* Effect.serviceOption(AuditEventLog)
+          if (Option.isSome(audit)) {
+            yield* audit.value.record({
+              workspaceId: null,
+              actorUserId: ctx.actor?.userId ?? null,
+              eventType: 'workspace.deleted',
+              targetType: 'workspace',
+              targetId: removed.id,
+              metadata: { name: removed.name, slug: removed.slug }
+            })
+          }
         })
       }
     })

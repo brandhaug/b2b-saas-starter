@@ -43,6 +43,13 @@ export class MembershipChangeRejected extends Schema.TaggedError<MembershipChang
  * because the two fail for different reasons and callers word their errors
  * accordingly.
  */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class WorkspaceChangeRejected extends Schema.TaggedError<WorkspaceChangeRejected>()(
+  'WorkspaceChangeRejected',
+  { reason: Schema.String },
+  { httpApiStatus: 409 }
+) {}
+
 /**
  * A platform-user change the system refuses: an unknown user id, a role the
  * plugin will not accept on that member. Same reading as
@@ -53,13 +60,6 @@ export class MembershipChangeRejected extends Schema.TaggedError<MembershipChang
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class UserAdminRejected extends Schema.TaggedError<UserAdminRejected>()(
   'UserAdminRejected',
-  { reason: Schema.String },
-  { httpApiStatus: 409 }
-) {}
-
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class WorkspaceChangeRejected extends Schema.TaggedError<WorkspaceChangeRejected>()(
-  'WorkspaceChangeRejected',
   { reason: Schema.String },
   { httpApiStatus: 409 }
 ) {}

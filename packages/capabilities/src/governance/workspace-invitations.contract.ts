@@ -3,6 +3,7 @@ import { type ContractExpect } from './contract-expect.ts'
 import { type CapabilityUnavailable, type MembershipChangeRejected } from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
+import { AuditEventLog } from './audit-event-log.ts'
 import { WorkspaceInvitations } from './workspace-invitations.ts'
 import { WorkspaceMembership } from './workspace-membership.ts'
 
@@ -70,7 +71,7 @@ export type InvitationContractCase = {
   readonly assert: Effect.Effect<
     void,
     CapabilityUnavailable | MembershipChangeRejected,
-    WorkspaceInvitations | WorkspaceMembership | WorkspaceContext
+    WorkspaceInvitations | WorkspaceMembership | WorkspaceContext | AuditEventLog
   >
 }
 
@@ -268,6 +269,55 @@ export function workspaceInvitationsContractCases(
 
         const members = yield* membership.listMembers
         expect(members.some((each) => each.id === ids.accepter.userId)).toBe(false)
+      })
+    },
+    {
+      // One audit case for the whole mutation family, mirroring the
+      // `api_token.revoked` case in the developer-platform contract: each
+      // delta is counted around this case's own mutations and scoped by the
+      // invitation id they produced.
+      name: 'invitation mutations record workspace_invitation audit events',
+      assert: Effect.gen(function* () {
+        const invitations = yield* WorkspaceInvitations
+        const membership = yield* WorkspaceMembership
+        const log = yield* AuditEventLog
+        function countOf(eventType: string) {
+          return Effect.map(log.list({ eventType }), (page) => page.events.length)
+        }
+
+        const sentBefore = yield* countOf('workspace_invitation.sent')
+        const created = yield* invitations.create({
+          email: ids.emailFor('audit'),
+          role: 'member'
+        })
+        const sentPage = yield* log.list({ eventType: 'workspace_invitation.sent' })
+        expect(sentPage.events.length).toBe(sentBefore + 1)
+        expect(
+          sentPage.events.some(
+            (event) =>
+              event.targetId === created.id &&
+              event.targetType === 'workspace_invitation'
+          )
+        ).toBe(true)
+
+        const canceledBefore = yield* countOf('workspace_invitation.canceled')
+        yield* invitations.cancel({ invitationId: created.id })
+        expect(yield* countOf('workspace_invitation.canceled')).toBe(canceledBefore + 1)
+
+        // Acceptance is audited too — against the invitation it settled.
+        const acceptedBefore = yield* countOf('workspace_invitation.accepted')
+        const accepted = yield* invitations.create({
+          email: ids.accepter.email,
+          role: 'member'
+        })
+        yield* invitations.accept({
+          invitationId: accepted.id,
+          userId: ids.accepter.userId,
+          email: ids.accepter.email
+        })
+        expect(yield* countOf('workspace_invitation.accepted')).toBe(acceptedBefore + 1)
+
+        yield* membership.removeMember({ userId: ids.accepter.userId })
       })
     }
   ]

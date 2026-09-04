@@ -8,7 +8,9 @@ import {
   truncateResponseBody,
   RESPONSE_BODY_MAX_LENGTH,
   isReplayableDeliveryStatus,
-  backoffSeconds
+  backoffSeconds,
+  classifyResponseStatus,
+  planDeliveryAttempt
 } from './webhook-delivery-plan.ts'
 
 const now = DateTime.makeUnsafe('2026-09-01T12:00:00.000Z')
@@ -134,8 +136,75 @@ describe('response body evidence', () => {
 })
 
 describe('backoff schedule (unchanged contract)', () => {
+  it('backs off linearly at 30s per attempt', () => {
+    expect(backoffSeconds(1)).toBe(30)
+    expect(backoffSeconds(2)).toBe(60)
+    expect(backoffSeconds(5)).toBe(150)
+  })
+
   it('still caps at 180s beyond six attempts', () => {
     expect(backoffSeconds(6)).toBe(180)
     expect(backoffSeconds(9)).toBe(180)
+  })
+})
+
+// Cases the background worker's test file carried before its
+// capability-logic describes were deleted from it — the policy lives here,
+// so its coverage lives here too.
+describe('classifyResponseStatus', () => {
+  it('acks 2xx as delivered', () => {
+    expect(classifyResponseStatus(200)).toBe('delivered')
+    expect(classifyResponseStatus(204)).toBe('delivered')
+  })
+
+  it('treats permanent 4xx as terminal (ack, no retry)', () => {
+    expect(classifyResponseStatus(400)).toBe('terminal')
+    expect(classifyResponseStatus(404)).toBe('terminal')
+  })
+
+  it('retries 408, 429, 5xx, and no-response (0)', () => {
+    expect(classifyResponseStatus(408)).toBe('retry')
+    expect(classifyResponseStatus(429)).toBe('retry')
+    expect(classifyResponseStatus(500)).toBe('retry')
+    expect(classifyResponseStatus(503)).toBe('retry')
+    expect(classifyResponseStatus(0)).toBe('retry')
+  })
+})
+
+describe('planDeliveryAttempt', () => {
+  it('acks a delivered attempt with no next attempt', () => {
+    expect(planDeliveryAttempt(200, 1, now)).toEqual({
+      status: 'delivered',
+      responseStatus: 200,
+      nextAttemptAt: null,
+      outcome: 'ack'
+    })
+  })
+
+  it('acks a permanent 4xx as failed_permanent', () => {
+    expect(planDeliveryAttempt(410, 1, now)).toEqual({
+      status: 'failed_permanent',
+      responseStatus: 410,
+      nextAttemptAt: null,
+      outcome: 'ack'
+    })
+  })
+
+  it('retries with linear backoff from the attempt count', () => {
+    expect(planDeliveryAttempt(500, 2, now)).toEqual({
+      status: 'failed',
+      responseStatus: 500,
+      nextAttemptAt: '2026-09-01T12:01:00.000Z',
+      outcome: 'retry'
+    })
+  })
+
+  it('records no status for a missing HTTP response', () => {
+    expect(planDeliveryAttempt(0, 1, now)).toEqual({
+      status: 'failed',
+      responseStatus: null,
+      nextAttemptAt: '2026-09-01T12:00:30.000Z',
+      outcome: 'retry'
+    })
   })
 })
