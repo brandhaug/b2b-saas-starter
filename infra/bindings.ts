@@ -61,7 +61,7 @@ export const billingConsumerSettings: QueueConsumerSettings = {
 export const notificationEmailQueueName = 'b2b-saas-starter-notification-emails'
 
 /**
- * The daily digest schedule (ADR 0057): 08:00 UTC, one `scheduled` invocation
+ * The daily digest schedule (ADR 0061): 08:00 UTC, one `scheduled` invocation
  * on the background worker that groups the previous 24 hours of unread
  * Notifications per recipient. Alchemy and wrangler both read this constant.
  */

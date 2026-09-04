@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Workspace-scoped notification stream plus the email fan-out that starts from it. Powers the bell icon and the notification panel in the workspace shell, and is the one place a Notification is created — producers (today: the background worker on a webhook delivery that gave up; `platform-user-admin` at impersonation start, ADR 0054; `workspace-export` when an export finishes or fails; the seed fixture) call `create` / `notifyUser`, and the instant-email queue and the daily digest both read from here. Decision record: ADR 0057.
+Workspace-scoped notification stream plus the email fan-out that starts from it. Powers the bell icon and the notification panel in the workspace shell, and is the one place a Notification is created — producers (today: the background worker on a webhook delivery that gave up; `platform-user-admin` at impersonation start, ADR 0054; `workspace-export` when an export finishes or fails; the seed fixture) call `create` / `notifyUser`, and the instant-email queue and the daily digest both read from here. Decision record: ADR 0061.
 
 Split into three modules (the standard seam): `notification-feed.ts` (contract, pure helpers), `notification-feed.seed.ts`, `notification-feed.live.ts`. `notification-fan-out.ts` holds the instant enqueue both adapters share, `notification-email-queue.ts` the queue message schema and binding port the background consumer imports, and `notification-feed.contract.ts` the mark-read cases both adapters run (`index.test.ts`, `notification-feed.live.test.ts`); the email and digest reads have their own live suite in `notification-email.live.test.ts`.
 
@@ -46,6 +46,6 @@ The role matrix has no `notification:write` action, and `markRead` deliberately 
 - Don't add a `notification:write` permission for feed writes. The decision above is recorded; revisit it only with a real second write behaviour (authoring, deleting).
 - Don't give `notifyUser` a `workspaceId` parameter. It is for account-level notices; a workspace-scoped producer should read `WorkspaceContext` in a method of its own.
 
-## Paging (ADR 0057)
+## Paging (ADR 0061)
 
 `listPage` serves the REST/MCP list surface: newest-first on `(createdAt DESC, id DESC)` through the shared `internal/keyset-cursor.ts` recipe, `limit` clamped into `[1, 200]`, `nextCursor` null on the last page. An undecodable cursor yields an empty page. `list` stays the whole-collection read the app's own pages render — don't route the API surfaces through it.

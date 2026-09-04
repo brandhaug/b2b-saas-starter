@@ -95,6 +95,7 @@ describe('runNotificationDigest', () => {
   ): Layer.Layer<NotificationFeed> {
     return Layer.succeed(NotificationFeed)({
       list: Effect.die('unused in digest tests'),
+      listPage: () => Effect.die('unused in digest tests'),
       unreadCount: Effect.die('unused in digest tests'),
       markRead: () => Effect.die('unused in digest tests'),
       notifyUser: () => Effect.die('unused in digest tests'),

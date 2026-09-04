@@ -57,6 +57,7 @@ describe('plain SDK client against the API worker (seed)', () => {
       'not_export',
       'not_webhook',
       'not_token',
+      'not_token_call',
       'not_billing',
       'not_rotation',
       'not_invite'

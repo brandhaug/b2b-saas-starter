@@ -40,6 +40,7 @@ function stubFeed(
 ): Layer.Layer<NotificationFeed> {
   return Layer.succeed(NotificationFeed)({
     list: Effect.die('unused'),
+    listPage: () => Effect.die('unused'),
     unreadCount: Effect.die('unused'),
     markRead: () => Effect.die('unused'),
     notifyUser: () => Effect.die('unused'),

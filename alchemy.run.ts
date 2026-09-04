@@ -237,7 +237,7 @@ export const Stack = Alchemy.Stack(
     const billingQueue = yield* Cloudflare.Queues.Queue('billing-queue', {
       name: names.billingQueue
     })
-    // Instant notification emails (ADR 0057). Produced by every worker that
+    // Instant notification emails (ADR 0061). Produced by every worker that
     // creates a Notification, consumed by the background worker.
     const notificationEmailQueue = yield* Cloudflare.Queues.Queue(
       'notification-email-queue',
@@ -338,7 +338,7 @@ export const Stack = Alchemy.Stack(
       },
       ...workerDefaults,
       placement: smartPlacement,
-      // The daily notification digest (ADR 0057) — same constant the
+      // The daily notification digest (ADR 0061) — same constant the
       // generated wrangler.jsonc carries under `triggers.crons`.
       crons: [notificationDigestCron]
     })

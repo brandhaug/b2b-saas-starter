@@ -1,9 +1,6 @@
 import { Context, type Effect, Schema } from 'effect'
 import { type CapabilityUnavailable } from '../errors.ts'
-import {
-  type ListPageInput,
-  type Page
-} from '../internal/keyset-cursor.ts'
+import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext, type Actor } from '../workspace-context.ts'
 import { type NotificationEmailQueueBinding } from './notification-email-queue.ts'
 import { NotificationKind } from './notification-kinds.ts'
@@ -110,7 +107,7 @@ export type NotificationFeedInterface = {
   >
 
   /**
-   * The paged read the REST and MCP list surfaces serve (ADR 0057):
+   * The paged read the REST and MCP list surfaces serve (ADR 0061):
    * newest-first on `(createdAt DESC, id DESC)`, one bounded `Page` at a
    * time. `list` stays for the whole-collection reads the app's own pages
    * render — feeds are small by construction there.

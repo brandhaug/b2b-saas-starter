@@ -262,7 +262,8 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     read: true
   },
   {
-    id: 'not_token',
+    id: 'not_token_call',
+    kind: 'announcement',
     title: 'API token created',
     message: 'MCP local client can now call the workspace API.',
     createdAt: '2026-05-14T08:20:00.000Z',
@@ -270,6 +271,7 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
   },
   {
     id: 'not_billing',
+    kind: 'billing.plan_changed',
     title: 'Plan changed to Team',
     message: 'The workspace now serves the Team plan limits.',
     createdAt: '2026-05-13T10:05:00.000Z',
@@ -277,6 +279,7 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
   },
   {
     id: 'not_rotation',
+    kind: 'announcement',
     title: 'Signing secret rotated',
     message: 'Rotate the verifier before the grace window closes.',
     createdAt: '2026-05-12T09:30:00.000Z',
@@ -284,6 +287,7 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
   },
   {
     id: 'not_invite',
+    kind: 'workspace_member.joined',
     title: 'Invitation accepted',
     message: 'Product Engineer joined Starter Lab as a member.',
     createdAt: '2026-05-11T14:45:00.000Z',

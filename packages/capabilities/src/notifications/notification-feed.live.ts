@@ -1,4 +1,5 @@
 import { currentTraceparent } from '@b2b-saas-starter/logger'
+import { Database } from '@b2b-saas-starter/db/service'
 import {
   notifications,
   user,
@@ -19,12 +20,7 @@ import {
   or,
   type SQL
 } from 'drizzle-orm'
-import {
-  clampPageLimit,
-  cutKeysetPage,
-  type ListPageInput,
-  type Page
-} from '../internal/keyset-cursor.ts'
+import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
 
 import { type CapabilityUnavailable } from '../errors.ts'

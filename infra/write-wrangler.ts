@@ -250,7 +250,7 @@ export const wranglerConfigs: ReadonlyArray<{
         ]
       },
       r2_buckets: [workspaceExportBucket],
-      // The daily notification digest (ADR 0057).
+      // The daily notification digest (ADR 0061).
       triggers: { crons: [notificationDigestCron] },
       // Links in notification emails point at the web app; local dev has no
       // alchemy to forward the deploy value.

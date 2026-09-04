@@ -1,5 +1,5 @@
 import { currentTraceparent } from '@b2b-saas-starter/logger'
-import { type ListPageInput, type Page, seedKeysetPage } from '../internal/keyset-cursor.ts'
+import { seedKeysetPage } from '../internal/keyset-cursor.ts'
 import { DateTime, Effect, Layer, Ref } from 'effect'
 
 import { type Member, type Workspace } from '../governance/workspace-identity.ts'
@@ -132,14 +132,17 @@ export function SeedNotificationFeed(
             // cuts the page over the same visible, stripped rows `list`
             // serves, so a page fetch behaves exactly like Live's ordered SQL
             // read.
+            const visible: Array<Notification> = []
+            for (const row of all) {
+              if (
+                inWorkspace(row, ctx.workspace.id) &&
+                visibleToActor(row.userId, ctx.actor)
+              ) {
+                visible.push(stripStorage(row))
+              }
+            }
             return seedKeysetPage(
-              all
-                .filter(
-                  (row) =>
-                    inWorkspace(row, ctx.workspace.id) &&
-                    visibleToActor(row.userId, ctx.actor)
-                )
-                .map(stripStorage),
+              visible,
               'desc',
               (row) => ({ key: row.createdAt, id: row.id }),
               input

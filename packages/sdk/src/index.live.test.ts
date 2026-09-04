@@ -30,6 +30,7 @@ const SDK_TOKEN = 'bsk_live_sdk_test_00000000'
 const FEED: ReadonlyArray<NotificationItem> = [
   {
     id: 'not_sdk_1',
+    kind: 'announcement',
     title: 'One',
     message: 'one',
     createdAt: '2026-07-01T09:00:00.000Z',
@@ -37,6 +38,7 @@ const FEED: ReadonlyArray<NotificationItem> = [
   },
   {
     id: 'not_sdk_2',
+    kind: 'announcement',
     title: 'Two',
     message: 'two',
     createdAt: '2026-07-02T09:00:00.000Z',
@@ -44,6 +46,7 @@ const FEED: ReadonlyArray<NotificationItem> = [
   },
   {
     id: 'not_sdk_3',
+    kind: 'announcement',
     title: 'Three',
     message: 'three',
     createdAt: '2026-07-03T09:00:00.000Z',
@@ -51,6 +54,7 @@ const FEED: ReadonlyArray<NotificationItem> = [
   },
   {
     id: 'not_sdk_4',
+    kind: 'announcement',
     title: 'Four',
     message: 'four',
     createdAt: '2026-07-04T09:00:00.000Z',
@@ -58,6 +62,7 @@ const FEED: ReadonlyArray<NotificationItem> = [
   },
   {
     id: 'not_sdk_5',
+    kind: 'announcement',
     title: 'Five',
     message: 'five',
     createdAt: '2026-07-05T09:00:00.000Z',
