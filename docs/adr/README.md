@@ -54,6 +54,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 
 - [0008 — Effect AI starter assistant](./0008-effect-ai-starter-assistant.md)
 - [0014 — Cloudflare Email Service](./0014-cloudflare-email-service.md)
+- [0057 — Social sign-in as an absent-until-configured provider](./0057-social-sign-in-as-absent-until-configured-provider.md)
 
 ## UI and frontend
 

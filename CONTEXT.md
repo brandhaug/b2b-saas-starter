@@ -36,6 +36,10 @@ _Avoid_: WebAuthn key, biometric login, security key login
 A capability with production wiring that remains inactive until its required external provider configuration exists.
 _Avoid_: Stub, fake provider, required service
 
+**Linked Provider**:
+An external sign-in identity attached to an existing account, such as a GitHub or Google login.
+_Avoid_: Connection, integration, social login account
+
 **Capability Interface**:
 An external interface that exposes starter capabilities without owning separate business behavior.
 _Avoid_: Separate API domain, duplicate service
@@ -110,6 +114,7 @@ _Avoid_: Backup, data dump, GDPR export
 - A **Reference Application** proves the reusable patterns promoted by the **Showcase Site**
 - A **Showcase Site** describes the **Starter**, not a fictional SaaS product
 - A **Reference Application** keeps optional providers env-gated: local development works with no provider configuration
+- A **Linked Provider** signs in to exactly one account, and an account keeps the **Local Auth Path** until its last sign-in method is removed
 - The **Starter** is **Cloudflare-First**
 - The **Reference Application** supports a **Local Auth Path**
 - A **Passkey** belongs to exactly one user account and satisfies the two-factor requirement at sign-in
