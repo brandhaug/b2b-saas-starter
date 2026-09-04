@@ -9,4 +9,13 @@ import { authClient } from '@/lib/auth-client'
 // whole run even though every test passed. Holding one listener for the file's
 // lifetime keeps the store mounted, so the cleanup only ever runs inside a
 // live environment (never) and the timer is never scheduled.
-authClient.$store.atoms.session.subscribe(() => {})
+// `noUncheckedIndexedAccess` makes the atom lookup possibly undefined; a
+// missing key means a Better Auth upgrade changed its client internals, so
+// fail loudly here rather than silently re-exposing the flake.
+const session = authClient.$store.atoms.session
+if (!session) {
+  throw new Error(
+    'better-auth no longer exposes $store.atoms.session; update src/test/setup.ts'
+  )
+}
+session.subscribe(() => {})
