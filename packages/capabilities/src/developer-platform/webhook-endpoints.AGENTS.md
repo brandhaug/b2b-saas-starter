@@ -2,52 +2,26 @@
 
 ## Purpose & Scope
 
-Workspace-scoped registry of outbound webhook destinations, a delivery-success ratio computed from recent deliveries, and the operator surface over both: update, delete, replay, test send, secret rotation with a grace window, and the delivery history. Powers the Webhooks tab in the workspace shell. `create` enforces the plan's endpoint ceiling (`assertWithinPlanLimitFor` from the billing capability — the rule and its counting query live there so callers cannot forget the gate) and fans out a best-effort `webhook_endpoint.created` event (projection only — never the signing secret) via [`webhook-publisher`](./webhook-publisher.AGENTS.md), which both Seed and Live layers are built with. The actual outbound dispatch lives in the background worker (enqueued via the same publisher).
+Outbound webhook destinations and the operator surface over them. Dispatch belongs to the background worker, through `WEBHOOK_QUEUE` and [`webhook-publisher`](./webhook-publisher.AGENTS.md).
 
-## Module layout
+## Entry Points & Contracts
 
-The capability is split along its section seams — no barrel file; consumers import the specific module:
+- `create` gates on the plan ceiling via `assertWithinPlanLimitFor` (billing owns it) and fans out a best-effort projection that omits the secret.
+- Audits `webhook_endpoint.created` / `.updated` / `.deleted` and `webhook.delivery_replayed`. `sendTestEvent` audits nothing; its row is the record.
+- `replayDelivery` writes a new `pending` row linked by `replayedFrom`, never touching the source (ADR 0062). `WebhookDispatchRejected` (409) is a non-failed source or disabled endpoint.
+- `rotateSecret` shifts the replaced secret into the grace columns, where it signs another 24h. Expired values are filtered lazily by `activeSigningSecrets`, so no sweep exists.
+- Background methods take the workspace id off the queue message; every lookup is `(endpointId, workspaceId)`. `getDispatchTarget` returns `signingSecrets` plural, for the grace window.
+- A `dead_lettered` attempt also records a broadcast `NotificationFeed` row, its copy owned by `deadLetterNotification`.
 
-- `webhook-endpoints.ts` — shared contract: schemas (`WebhookEndpoint`, `CreateWebhookEndpointPayload`, `UpdateWebhookEndpointPayload`), input types, the typed errors (`InvalidWebhookUrl` lives beside `webhook-url.ts`; `WebhookEndpointNotFound` 404, `WebhookDeliveryNotFound` 404, `WebhookDispatchRejected` 409 live here), `WebhookEndpointsInterface` + service class, `ensureValidWebhookUrl`, `WEBHOOK_TEST_EVENT_TYPE`.
-- `webhook-delivery-plan.ts` — pure delivery state machine: `WebhookDelivery` (wire DTO incl. evidence columns), `WebhookDeliveryStatus` (incl. `pending`), `isReplayableDeliveryStatus`, `planReplayedDelivery`, `backoffSeconds`, `classifyResponseStatus`, `planDeliveryAttempt`, `truncateResponseBody`, `planSecretRotation` + `activeSigningSecrets` (the rotation-grace rule), `deadLetterNotification`, `terminalDeliveryAuditEventType`, `WebhookDeliveryAttemptInput`, `SeedWebhookDeliveryFixture`, `deliverySuccessRate`. Dependency-free of storage.
-- `webhook-endpoints.seed.ts` — `SeedWebhookEndpoints(endpoints, deliveries?)` + `SeedWebhookEndpointFixture`.
-- `webhook-endpoints.live.ts` — `LiveWebhookEndpoints` (plus `toEndpointProjection`).
+## Patterns & Pitfalls
 
-## Public surface
-
-- `WebhookEndpoint` — `{ id, url, enabled, events, successRate }`. `successRate` is a 0–100 integer over all known deliveries for the endpoint.
-- `WebhookEndpoints.list` / `create({ url, events, description? })` — as before; `create` validates the URL (fails `InvalidWebhookUrl`, 400) and emits `webhook_endpoint.created` atomically with the insert.
-- `WebhookEndpoints.update({ endpointId, url?, events?, enabled? })` — writes only the provided fields; re-validates a provided URL. Disabling is `update { enabled: false }` and re-enabling is `update { enabled: true }` — one mutation path and one audit event for the enabled flag, so the permission matrix cannot contradict itself the way a separate `disable` did. Fails `WebhookEndpointNotFound` (404) on no match, `InvalidWebhookUrl` on a rejected URL. Audits `webhook_endpoint.updated` with the changed fields only.
-- `WebhookEndpoints.delete({ endpointId })` — removes the row; deliveries cascade with the FK. Fails `WebhookEndpointNotFound` on no match (no boolean: the caller maps not-found, it does not branch on `false`). Audits `webhook_endpoint.deleted` with the URL in metadata.
-- `WebhookEndpoints.replayDelivery({ deliveryId })` — re-enqueues a failed delivery verbatim: a **new** `pending` row with `attempts: 0` and a `replayedFrom` link (see [ADR 0062](../../../../docs/adr/0062-webhook-operator-tooling-replay-and-rotation-grace.md)); the source row is never modified. Audits `webhook.delivery_replayed`. Fails `WebhookDeliveryNotFound` on a foreign/unknown id, `WebhookDispatchRejected` when the source is not a failure or its endpoint is disabled — the payload is never the refusal reason, because every row records one (see `webhook_deliveries.payload` below).
-- `WebhookEndpoints.sendTestEvent({ endpointId })` — queues a synthetic `webhook.test_event` to one enabled endpoint, creating the same `pending` row a replay does (both go through `planPendingDispatch`; a replay adds `replayedFrom`). No audit event — the row is the record. Fails `WebhookEndpointNotFound` / `WebhookDispatchRejected` (disabled).
-- `WebhookEndpoints.rotateSecret({ endpointId })` — resolves `{ signingSecret }` with the replacement to show once. A rotation is a shift: the replaced secret moves into the grace columns and keeps signing for 24h (`planSecretRotation` / `activeSigningSecrets`); the audit metadata carries `previousSecretExpiresAt`. No match fails `WebhookEndpointNotFound` — one typed not-found across the whole operator surface, not `false` / `Option.none()` / 404 depending on the method.
-- `WebhookEndpoints.listDeliveries({ endpointId })` — up to 20 rows, newest first, workspace-scoped by join (a foreign endpoint id yields an empty list). Rows carry the evidence columns: `payload`, `requestHeaders`, `responseBody` (truncated), `replayedFrom`.
-- Both layers are built with `NotificationFeed` (cross-context import, explicit): a `dead_lettered` attempt records a broadcast workspace notification after the row + audit batch (`deadLetterNotification` owns the copy, so Seed and Live emit byte-identical messages).
-- `WebhookEndpoints.getDispatchTarget(endpointId, workspaceId)` / `recordDeliveryAttempt(input)` / `recordTerminalDeliveryAttempt(input)` — background-worker surface, no `WorkspaceContext`; the workspace ID travels in the queue message and is verified by `(endpointId, workspaceId)` lookups. `getDispatchTarget` returns `signingSecrets: ReadonlyArray<string>` (plural — active secrets per the rotation rule). `recordDeliveryAttempt` **upserts** on the row id (one row per queue message; replays' pending rows are resolved, not forked) and records the evidence columns; the upsert's `set` clause carries attempt state only — `payload`/`replayedFrom` are insert-only, and response evidence absent from the input is left as recorded (a terminal write must not wipe the last attempt's evidence). `recordTerminalDeliveryAttempt` takes the queue message's `deliveryId` and `payload`: the terminal outcome resolves the message's existing row instead of forking a second one, and the recorded payload is what makes `failed_permanent`/`dead_lettered` rows replayable. Terminal statuses batch the audit insert with the row as before, and `dead_lettered` additionally records the notification.
-- The **delivery state machine is owned here** (`webhook-delivery-plan.ts`), not by the worker: `backoffSeconds`, `classifyResponseStatus`, `planDeliveryAttempt(responseStatus, attempts, now)`, `planPendingDispatch` (a test-send/replay row before provenance), `planReplayedDelivery` (that plus `replayedFrom`), `planSecretRotation`, `activeSigningSecrets`, `truncateResponseBody`.
-- **Seed mirrors Live's post-conditions.** Seed keeps mutable endpoint + delivery stores; fixtures may add signing secrets, owning workspaces (`SeedWebhookEndpointFixture`), and delivery history (`SeedWebhookDeliveryFixture`, second argument, re-exported type lives on the plan module to avoid an import cycle through the adapters). The mutation contract in `developer-platform.contract.ts` runs the same case list against both adapters (`index.test.ts` for Seed, `webhook-endpoints.live.test.ts` for Live), including update, delete, replay, and test-send cases.
-- All methods fail with `CapabilityUnavailable` (503) when D1 or the queue is unreachable. An enqueue failure fails the replay/test visibly _after_ the row commits — the operator retries, and the pending row stands.
-
-## Storage
-
-- Tables: `webhookEndpoints` (config) and `webhookDeliveries` (per-message log).
-- **The signing secret is deliberately stored in plaintext at rest in D1** (`signing_secret` column), alongside the rotation grace columns (`previous_signing_secret`, `previous_secret_expires_at` — both null until the first rotation; a second rotation overwrites them, so at most two secrets are ever active). Outbound dispatch signs each payload with HMAC-SHA256 using the plaintext secrets. The DTO never exposes them; only `rotateSecret`'s return value and `getDispatchTarget` (background-worker path) carry them.
-- `webhookDeliveries` carries the evidence columns (`payload` JSON **NOT NULL** — every dispatch holds one, and terminal rows record what they never sent or exhausted, so any row can be replayed; `request_headers` JSON; `response_body` text truncated at 2048 chars with a marker; `replayed_from` plain reference).
-- `successRate` is computed in a single grouped query (count + conditional sum, left-joined), not per-endpoint delivery scans; `update` reuses the same aggregate for its read-back projection.
-
-## Status & follow-ups
-
-- Paginated `listDeliveries` (the cap is a fixed 20 today) and a per-delivery attempt-timeline table if per-attempt evidence beyond the latest is ever needed.
-- Surface `lastDeliveryAt` per endpoint in the list projection.
-- Expired grace columns are filtered lazily by `activeSigningSecrets`; a sweep that clears them is cosmetic, not required.
+- The delivery state machine lives in storage-free `webhook-delivery-plan.ts`, not the worker. `recordDeliveryAttempt` upserts on the row id, one row per queue message. Its `set` clause is attempt state only: `payload` and `replayedFrom` are insert-only, and evidence absent from the input stays as recorded, else a terminal write erases the previous attempt's.
+- `webhook_deliveries.payload` is NOT NULL so a terminal row stays replayable.
+- Signing secrets are plaintext in D1 by design (HMAC needs them back); only `rotateSecret` and `getDispatchTarget` return them.
 
 ## Anti-patterns
 
-- Don't dispatch webhooks from a request path. Outbound delivery goes through the Cloudflare Queue (`WEBHOOK_QUEUE`) and is owned by the background worker.
-- Don't expose webhook signing secrets through the `WebhookEndpoint` DTO. It intentionally omits the secret columns.
-- Don't compute `successRate` in the route. It's part of the capability contract so the math stays consistent everywhere.
-- Don't filter mutations on endpoint id alone. Every mutation's lookup/where clause must include `workspaceId` from `WorkspaceContext` — see the cross-workspace regression test in `src/index.test.ts`.
-- Don't mutate a delivery row in place to "replay" it — replays are new `pending` rows linked through `replayedFrom` (ADR 0062).
+- No dispatch from a request path, no in-place delivery mutation to replay, no `successRate` recomputed in a route.
+- Every mutation's where clause carries `workspaceId`, never the endpoint id alone (regression test in `src/index.test.ts`).
 
-## Paging (ADR 0057)
+> TODO(intent): keyset paging for deliveries, a per-attempt timeline, `lastDeliveryAt` on the list projection.

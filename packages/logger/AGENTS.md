@@ -2,57 +2,31 @@
 
 ## Purpose & Scope
 
-The one observability seam for all three workers: wide events, OpenTelemetry traces, RED metrics, and OTLP export. Every worker, and `packages/rate-limit` and `packages/capabilities`, import from here. Nothing else in the repo constructs a logger, a tracer, or a span for cross-cutting instrumentation — a format or transport change edits this file once. See ADR 0007 (wide events) and ADR 0050 (OTel export).
+The one observability seam for all three workers: wide events, OTel traces, RED metrics, OTLP export (ADR 0007, ADR 0050). Nothing else constructs a logger, tracer, or span. Vendor glue: `./providers`.
 
-## The scope
+## Usage Patterns
 
-`withRequestScope(options, body)` is the whole model. It opens one OTel span plus one `Scope`, seeds log annotations with the request's identity, runs `body`, and emits exactly one canonical line on exit.
+`withRequestScope` (one span, one `Scope`, one canonical line on exit) is always wrapped; handlers annotate inside it with `Effect.annotateLogsScoped`.
 
-Workers do not call it directly. Two envelopes wrap it:
-
-- `withHttpRequestScope({ service, event, request, env, metadata })` — HTTP handlers. Owns the whole recipe: `traceparent`/`b3` continuation, the `x-trace-id` correlation key, env + cf-colo enrichment, `pathname`/`method`.
-- `withTriggerScope({ service, event, env, parent?, spanKind?, metadata })` — cron ticks and queue messages, where there is no `Request`. `parent`/`spanKind` are the `TraceContinuation` pair both option types share.
-
-**An HTTP entry point wants `withHttpInvocation`, not `withHttpRequestScope`.** The scope and its per-invocation OTLP layer are one recipe, not two choices (invariant 4), so `withHttpInvocation({ service, event, request, env, metadata })` — `src/invocation.ts` — is the scope with `Effect.provide(makeOtlpLayer(service, env), { local: true })` already around it. `apps/web`'s request middleware and `apps/api`'s `observed` are both just that call plus their own body. What the caller still owns is which loggers are in context (a module-scope `ManagedRuntime` in `apps/web`, the router layer in `apps/api`).
-
-Queue and cron triggers stay on `withTriggerScope`: they have no `Request` to continue a trace from, and in `apps/background` one invocation carries a whole batch, so its exporters wrap N scopes rather than one — `runInvocation` there provides them once per batch.
-
-Inside the scope, handlers add business context with `Effect.annotateLogsScoped(fields)` (an alias of `Effect.annotateLogsScoped`). It requires a `Scope`, which is how the type system keeps annotations from outliving the event they belong to.
+- HTTP entry points call `withHttpInvocation`, not `withHttpRequestScope`: scope and OTLP layer are one recipe (invariant 3).
+- Queue and cron triggers call `withTriggerScope`; in `apps/background` one invocation carries a batch, so `runInvocation` provides exporters once around N scopes.
 
 ## Invariants
 
-1. **One event per request per service.** If you find yourself opening a second scope inside a first, you want a child span and `Effect.annotateLogsScoped`, not another event.
-2. **The event is emitted from `Effect.onExit`, never a scope finalizer.** Finalizers are LIFO, so a finalizer runs _after_ `annotateLogsScoped` restores the previous annotations — silently dropping every field handlers added. This has regressed before; the test `emits exactly one canonical line carrying handler annotations` guards it.
-3. **Two levels.** `info` on success, `error` on failure with the `Cause` attached. No debug, no warn.
-4. **The OTLP layer is per invocation; the loggers are per isolate.** `makeOtlpLayer` is provided with `Effect.provide(..., { local: true })` at each entry point. A Cloudflare Worker may not perform I/O on behalf of a request that already ended, and the exporters flush from a background fiber and a scope finalizer — an exporter that outlives its invocation stops exporting, silently. `WideEventLoggerLive` (console JSON + tracer logger) is isolate-safe because it does no I/O, so every worker holds it on a module-scope `ManagedRuntime` (or, in apps/api, on the router layer) and provides the OTLP layer _inside_ it. That nesting is load-bearing: `loggerMergeWithExisting` keeps the console JSON event only if the loggers are already in context when the OTLP layer builds.
-5. **Metric attributes stay low cardinality** — `service`, `event`, `status`, and nothing else. Workspace, token, and endpoint ids go on the wide event and on span attributes, where cardinality is free.
-
-## Public surface
-
-| Export                                         | Use                                                                         |
-| ---------------------------------------------- | --------------------------------------------------------------------------- |
-| `withHttpInvocation`                           | HTTP entry points: the request scope plus its per-invocation exporters      |
-| `withHttpRequestScope` / `withTriggerScope`    | Open the one scope per invocation                                           |
-| `withRequestScope`                             | The primitive both wrap; reach for it only for a genuinely new trigger kind |
-| `Effect.annotateLogsScoped`                    | Add business context to the current event                                   |
-| `currentTraceparent`                           | Stamp trace context onto a non-HTTP hop (queue messages)                    |
-| `currentTraceId`                               | The id to hand a caller or forward as `x-trace-id`                          |
-| `traceparentFor` / `parentSpanFromHeaders`     | Encode / decode W3C + B3 trace context                                      |
-| `readWideEventEnvironment`                     | Deployment identity from a worker env bag                                   |
-| `makeOtlpLayer`                                | Per-invocation OTLP export — see invariant 4                                |
-| `WideEventLoggerLive`                          | Console JSON + tracer logger, isolate-level                                 |
-| `addWideEventSink`                             | Register a per-scope sink (Sentry/PostHog glue uses this)                   |
-| `makeSentryOptions` / `wireWideEventProviders` | Vendor provider glue — `./src/providers.ts`; call the latter per invocation |
-| `TraceContinuation`                            | The `{ parent?, spanKind? }` pair a scope continues an upstream trace with  |
-| `TRACE_HEADER` / `readTraceHeader`             | The `x-trace-id` correlation key                                            |
+1. **One event per request per service.** A request-scoped fact is an annotation on it, never an `Effect.log` line or a second scope.
+2. **Emit from `Effect.onExit`, never a scope finalizer.** Finalizers are LIFO: one runs after `annotateLogsScoped` restores the previous annotations, silently dropping every handler field. Has regressed before.
+3. **The OTLP layer is per invocation; the loggers are per isolate.** An exporter outliving its invocation stops exporting silently, so `makeOtlpLayer` is provided `{ local: true }` per entry point, _inside_ the module-scope `ManagedRuntime` (apps/api: router layer) holding the I/O-free `WideEventLoggerLive`. `loggerMergeWithExisting` keeps the console JSON event only if they are in context when it builds.
+4. **Two levels, fixed.** `info` on success, `error` with the `Cause` on failure. No debug, no warn.
+5. **Metric attributes stay low cardinality** — `service`, `event`, `status`. Ids go on the wide event and spans.
 
 ## Anti-patterns
 
-- Don't call `Effect.log` for request-scoped facts. Annotate the wide event instead — a second line is a second thing to join.
-- Don't build `traceparent` by hand or read it off an inbound header when producing a message. `currentTraceparent` is the encoder, and the span to continue is the one open now.
-- Don't set `traceparent`/`b3` on outbound HTTP. Effect's `HttpClient` injects them.
-- Don't hoist `makeOtlpLayer` to module scope in a worker, and don't merge it beside `WideEventLoggerLive` (invariant 4). At an HTTP entry point don't hand-assemble the pair at all — `withHttpInvocation` is it.
-- Don't call vendor SDKs (Sentry, PostHog) ad hoc from handlers or capabilities — failed scopes already reach Sentry and every scope already becomes a PostHog event through `wireWideEventProviders` (`src/providers.ts`). Both stay inert until `SENTRY_DSN` / `POSTHOG_KEY` exist. Like the OTLP layer, the PostHog client is per invocation; never hoist one to module scope.
-- Don't import `src/providers.ts` from code that reaches the browser bundle — its SDK imports are lazy for exactly that reason.
-- Don't mint a correlation id by hand. `currentTraceId` is the only source; the id generator behind it is deliberately not exported.
-- Don't add a log level. Two is the contract.
+- Don't build `traceparent` by hand (`currentTraceparent` encodes it) or set it outbound; `HttpClient` injects it.
+- Don't hoist `makeOtlpLayer` or a PostHog client to module scope (invariant 3).
+- Don't call Sentry or PostHog ad hoc: `wireWideEventProviders` sends failed scopes to Sentry and every scope to PostHog, inert without their env vars.
+- Don't import `./providers` from code reaching the browser bundle.
+- Don't mint a correlation id by hand; `currentTraceId` is the only source.
+
+## Dependencies & Edges
+
+`env`, `failure`, `effect`, optional `@sentry/cloudflare` / `posthog-node`. Consumed by all three workers, `rate-limit`, and `capabilities`; it must stay free of domain-knowledge dependencies to remain importable anywhere.

@@ -269,7 +269,8 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         // must succeed, so an attacker who only has a stolen session cannot
         // enroll their own authenticator and lock the real owner out. The
         // account panel already runs enable → QR → first-code as its flow,
-        // and a database hook emails the user on every state change.
+        // and the web auth route (`apps/web/src/routes/api.auth.$.ts`) emails
+        // the user after every successful second-factor change.
         skipVerificationOnEnable: false,
         // Both pinned to the values Better Auth defaults to, so a default
         // change cannot silently lengthen the challenge window or the
@@ -397,7 +398,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // session JWT — the only JWTs this app mints are OAuth access tokens.
       jwt({ disableSettingJwtHeader: true }),
       // The OAuth 2.1 authorization server MCP clients connect through (ADR
-      // 0055). API Tokens stay the credential for scripts and CI; this is the
+      // 0068). API Tokens stay the credential for scripts and CI; this is the
       // interactive path, and it requires `jwt()` above.
       mcp({
         resource: options.mcp.resource,

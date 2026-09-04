@@ -1,79 +1,41 @@
 # apps/background
 
-Cloudflare Worker for queued and scheduled work.
+## Purpose & Scope
 
-## Owned today
+Cloudflare Worker for queued, scheduled and inbound-provider work: webhook fan-out and dead letters (ADR 0033), export archives (ADR 0055), seat sync (ADR 0060), notification emails and the digest (ADR 0061), the inbound Stripe webhook. Orchestration only; behavior lives in [`capabilities`](../../packages/capabilities/AGENTS.md).
 
-- **Webhook delivery** — Queue consumer for `b2b-saas-starter-webhooks`. Decodes each message body against the shared `WebhookQueueMessage` schema, signs payloads (see recipe below), and persists attempt history to `webhookDeliveries` via `WebhookEndpoints`.
-- **Webhook dead letters** — Queue consumer for `b2b-saas-starter-webhooks-dlq` (same worker; the `queue` handler branches on `batch.queue`). Records a terminal `dead_lettered` delivery row and a `webhook_dead_letter` wide event, then acks. If that terminal-row write itself fails (`CapabilityUnavailable`), the message is retried instead — bounded by `webhookDlqConsumerSettings.maxRetries` (currently 1) — so a D1 blip cannot permanently lose the `dead_lettered` evidence row; escaped defects still ack.
-- **Workspace exports** (ADR 0055) — Queue consumer for `b2b-saas-starter-workspace-exports`, in `src/export-consumer.ts`. Decodes the body against `WorkspaceExportQueueMessage`, resolves a trusted `WorkspaceContext` from the message's slug (`selectWorkspaceContextLayer`, no actor — the owner was checked at request time), snapshots the workspace through `collectWorkspaceExportSnapshot`, builds the ZIP with `buildWorkspaceExportArchive`, and hands the bytes to `WorkspaceExports.complete`, which writes the object to `WORKSPACE_EXPORT_BUCKET`, flips the row `ready`, audits, and notifies. Outcomes: malformed body → ack, nothing to attach to; unknown slug or a slug that resolves to a different `workspaceId` than the message names (deleted and re-created) → `WorkspaceExports.fail` + ack; store outage → retry, or `fail('unavailable: …')` + ack on the last attempt (`workspaceExportConsumerSettings.maxRetries`). No dead-letter queue: the row is the durable record of failure. `processWorkspaceExportMessage(delivery, resolveWorkspace)` is exported with its requirements open — tests inject stub `WorkspaceExports` + read services and `testWorkspaceContext` as the resolver. `WORKSPACE_EXPORT_RETENTION_DAYS` in `infra/bindings.ts` and the capability's constant are asserted equal in `export-consumer.test.ts`.
-- **Seat sync** — Queue consumer for `b2b-saas-starter-billing` (`src/seat-sync-consumer.ts`). Membership and invitation mutations enqueue `SeatSyncQueueMessage`s (schema shared with `SeatSyncPublisher` in the capabilities package) so they never await Stripe; this consumer hands each to `Billing.syncSeats`, which counts the workspace's members, calls Stripe's subscription-item quantity update, and batches the `billing.seats_changed` audit event with the stored-quantity write. Outcomes: honest no-ops (`no_subscription`, `no_seat_item`, `quantity_unchanged`, `provider_not_configured`) ack; a real Stripe failure folds into `retry` and rides the queue's backoff; a malformed body acks. No DLQ on purpose — sync is self-healing (next mutation re-syncs; the `customer.subscription.updated` webhook reconciles drift). Stripe env reaches the Live billing layer through `seatSyncEnv` (the worker reads `STRIPE_SECRET_KEY` / `STRIPE_PRICE_ID_TEAM` off its own env through the shared `billingOptionsFromEnv` mapping), not through `starterEnv`, which projects bindings only.
-- **Instant notification emails** — Queue consumer for `b2b-saas-starter-notification-emails` (`src/notification-email-consumer.ts`, ADR 0061). Decodes `NotificationEmailQueueMessage` (ids only), re-reads the Notification via `NotificationFeed.loadForEmail` and the recipient's channel via `NotificationPreferences.resolve`, and sends the kind's template from `@b2b-saas-starter/email/notification-emails` through `EmailDispatcher`. Skips (acks) a read/deleted Notification, a non-recipient, or a channel that is no longer `instant`; a render failure is terminal (ack with `skipReason: 'render_failed'` annotated on the wide event — a deterministic template bug must not burn the queue's retries), while a send failure retries. One `notification_email` wide event per message.
-- **Daily notification digest** — the `scheduled` handler (`src/notification-digest.ts`), on the `notificationDigestCron` trigger (`0 8 * * *`, `infra/bindings.ts`). `runNotificationDigest` reads `Clock` for now, cuts `[now − 24h, now)`, asks `NotificationFeed.listDigestCandidates`, resolves each recipient's preferences once, and sends one `NotificationDigestEmail` per recipient via the pure `buildDigests`. Tested with `@effect/vitest` + `TestClock.setTime` (`src/notification-digest.test.ts`). A failed send is counted on the `notification_digest` wide event, not retried within the run; sends are counted, never fatal, so a run that fails its reads sent nothing — `sendDailyDigest` retries the run twice with jitter before letting the invocation reject, so the platform records the failed cron run instead of the handler swallowing it.
-- **Notification producer** — a webhook delivery that ends `failed_permanent` or `dead_lettered` also creates a `webhook.delivery_failed` broadcast Notification through `NotificationFeed.create` (`notifyDeliveryGaveUp` in `src/webhook-consumer.ts`), best-effort: a feed outage annotates the wide event and never turns a settled delivery into a retry.
-- **App links** — `src/notification-links.ts`: the email links use `BETTER_AUTH_URL` (forwarded by alchemy, pinned to the dev server in the generated wrangler config), the unsubscribe link is `/account/notifications?kind=<kind>`, and `openUrlFor` maps each kind to the surface that owns it.
+## Entry Points & Contracts
 
-## Webhook delivery contract
+- `src/index.ts`: `fetch` (only `POST /webhooks/stripe`), `queue` branching on `batch.queue` against the names in `infra/bindings.ts`, `scheduled` for the digest cron. Each wires wide-event providers first.
+- `src/queue-consumer.ts` is the shared boundary; never hand-roll around it. `consumerInvocation` is the one consumer entry: trace continuation, `withTriggerScope` with the attempt count, capability layers, one named fold to `'retry' | 'ack'`.
 
-### Delivery statuses (`webhookDeliveries.status`)
+## Usage Patterns
 
-The column is free-text; keep this vocabulary consistent (also documented on `WebhookDeliveryStatus` in `packages/capabilities/src/developer-platform/webhook-delivery-plan.ts`):
+Per queue the outcome table is the contract; the non-obvious parts:
 
-| Status             | Meaning                                                                            | Queue action                                |
-| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------- |
-| `pending`          | An operator replay or test send created the row; the queue has not dispatched it   | becomes the consumer's first attempt        |
-| `delivered`        | 2xx response                                                                       | ack                                         |
-| `failed`           | Retryable failure: 5xx, 408, 429, network error, or 10s timeout                    | retry with `backoffSeconds(attempts)` delay |
-| `failed_permanent` | Terminal: non-retryable 4xx, or the endpoint URL failed the SSRF guard at dispatch | ack (no retry)                              |
-| `dead_lettered`    | Message exhausted `max_retries` and was consumed from the DLQ                      | ack                                         |
+- Webhooks retry a retryable failure (5xx, 408, 429, network, timeout) at `backoffSeconds(attempts)`; a 4xx or SSRF rejection is `failed_permanent`; undispatchable or malformed acks.
+- The DLQ consumer acks after writing the terminal `dead_lettered` row, but retries if that write fails, so a D1 blip cannot lose the evidence.
+- Exports resolve `WorkspaceContext` from the slug with no actor, ownership having been checked at request time; a slug naming another `workspaceId` fails the row. No DLQ, the row is the record. `WORKSPACE_EXPORT_RETENTION_DAYS` is declared twice, in `infra/bindings.ts` (R2 lifecycle rule) and the capability; `export-consumer.test.ts` fails if they diverge.
+- Seat sync has no DLQ, since the next mutation re-syncs. Its Stripe env is `starterEnv(env)` plus `billingOptionsFromEnv(env)`, because `starterEnv` projects bindings only.
+- Notification email messages carry ids only, so re-read notification and preferences. Digest sends are never fatal, and the run retries so a failed cron is recorded.
 
-`nextAttemptAt` is derived from the same `backoffSeconds(attempts)` (`min(attempts, 6) × 30s`) used for the actual `message.retry({ delaySeconds })`, so the persisted schedule matches reality. Terminal rows have `nextAttemptAt: null`.
+## Anti-patterns
 
-`recordDeliveryAttempt` **upserts** on the row id: every redelivery of the same queue message resolves the same row (Live uses `onConflictDoUpdate`; Seed replaces the row). One row per message, not per attempt. The `set` clause carries attempt state only — `payload` and `replayedFrom` are insert-only, so a redelivery cannot erase a replay's provenance. Each attempt records the operator evidence: the `payload`, the `requestHeaders` block as posted, and the receiver's `responseBody` truncated to 2 KiB by `truncateResponseBody` (a null body reads as `''`; no response at all records `null`).
+- Do not mint a trace id or set `traceparent`/`b3`: `currentTraceId` is the only source, and `HttpClient` injects the headers on the delivery POST.
+- Do not emit terminal delivery audit events here: the capability batches that row with the attempt so both commit together.
+- Do not duplicate the delivery state machine: `backoffSeconds`, `classifyResponseStatus`, `planDeliveryAttempt` and `validateWebhookUrl` are pure capability exports.
+- Do not give `webhook-signing.ts` dependencies; a test imports it directly against a fixed HMAC vector.
+- Do not edit the generated `wrangler.jsonc`, and build no OTLP exporter at isolate level (ADR 0050): `runInvocation` provides it per invocation, so exporters flush before the handler settles.
 
-Terminal statuses also emit an audit event: the worker passes the queue message's `workspaceId` in every attempt call, and the Live capability batches an `AuditEventLog` insert (`webhook.delivery_failed` for `failed_permanent`, `webhook.delivery_dead_lettered` for `dead_lettered`; `targetType: 'webhook_endpoint'`, `actorUserId: null`) with the attempt row so both commit or roll back together. Don't emit these from the worker directly — the mapping lives on `terminalDeliveryAuditEventType` in `packages/capabilities/src/developer-platform/webhook-delivery-plan.ts`. A `dead_lettered` outcome additionally records a broadcast workspace Notification inside the capability (`NotificationFeed.record` — the copy is `deadLetterNotification` on the plan module, so Seed and Live match).
+## Dependencies & Edges
 
-### Signatures and the rotation grace window
+- `apps/api` and `apps/web` produce onto the queues this worker consumes; it also produces onto `NOTIFICATION_EMAIL_QUEUE`. Absent optional bindings degrade to a no-op. Observability: [`logger`](../../packages/logger/AGENTS.md).
+- Queue names, consumer settings and the digest cron are single-sourced in `infra/bindings.ts` (change it, then `pnpm run infra:wrangler`); alchemy reads the same records.
 
-`getDispatchTarget` returns `signingSecrets`: every secret a dispatch may currently sign with — the current one, plus the rotated-out one while its 24h grace window is open (`activeSigningSecrets`, pure on the delivery plan). The consumer computes one HMAC per secret and emits `x-b2b-starter-signature: t=<unix>,sha256=<hex>,sha256=<hex>` — one entry per active secret, current first. A receiver still holding the previous secret keeps verifying during the window; `signatureHeaderValue` (`src/webhook-signing.ts`, exported for `src/index.test.ts` — keep it dependency-free) owns the header format.
+## Patterns & Pitfalls
 
-### Message delivery id
-
-`deliveryIdFor` prefers the optional `deliveryId` stamped on the queue message (a replay or test send created its `pending` row before enqueueing, and the consumer's attempts must resolve _that_ row) and otherwise derives `whd_<queue message id>` deterministically, so every redelivery of the same fan-out message signs and persists the same `deliveryId`.
-
-### SSRF guard
-
-`validateWebhookUrl` (shared from `@b2b-saas-starter/capabilities`, source in `packages/capabilities/src/developer-platform/webhook-url.ts`) runs at endpoint creation **and again at dispatch time**. Invalid URLs at dispatch record a terminal `failed_permanent` row and ack. DNS-rebinding protection is out of scope for the starter.
-
-### Signature recipe
-
-Each delivery POST carries:
-
-- Body: `{"deliveryId": "whd_…", "eventType": "…", "payload": …}` — `deliveryId` equals the persisted `webhookDeliveries.id`, so receivers can deduplicate redeliveries.
-- `x-b2b-starter-event`: the event type.
-- `x-b2b-starter-timestamp`: unix seconds at signing time.
-- `x-b2b-starter-signature`: `t=<unix>` followed by one `sha256=<hex>` per active signing secret (two entries only inside a rotation's 24h grace window), each `<hex>` an HMAC-SHA256 over the string `"<unix>.<rawBody>"` with one of the endpoint's active secrets.
-
-Verification recipe for receivers:
-
-1. Parse `t` and `sha256` from `x-b2b-starter-signature`.
-2. Reject if `|now − t|` exceeds your tolerance window (e.g. 5 minutes) — this is the replay guard.
-3. Compute HMAC-SHA256 over `` `${t}.${rawBody}` `` with your signing secret and constant-time-compare the hex digest against `sha256`.
-4. Deduplicate on `deliveryId` from the body.
-
-### Message boundary
-
-Queue payloads are `unknown` at runtime. `readQueueDelivery(envelope)` decodes the body against `WebhookQueueMessage` — the Effect Schema shared with the producer (`WebhookPublisher` in `@b2b-saas-starter/capabilities`) so both sides use one wire shape. The message carries `workspaceId` (stamped by the publisher from the producing request's `WorkspaceContext`), and `getDispatchTarget(endpointId, workspaceId)` verifies it before returning the signing secret — a cross-workspace mismatch resolves `null` and acks as `skipReason: 'not_dispatchable'`, same as a disabled or deleted endpoint. A malformed message is terminal: redelivery can never fix its shape, and there is no trusted `endpointId` to attach a delivery row to, so it is recorded on the wide event (`skipReason: 'malformed_message'`) and acked — never retried. `WebhookMessage` in `src/webhook-consumer.ts` is just a type alias for `typeof WebhookQueueMessage.Type`. The decode runs **once per delivery**: `deliverWebhook` / `recordDeadLetter` turn the platform's `QueueEnvelope` (`{ id, body, attempts }`, the structural subset of a Cloudflare queue `Message`, shared with the export consumer) into a `WebhookQueueDelivery` — the platform fields plus `kind: 'message'` with the decoded message, or the named terminal outcome `kind: 'malformed'` — and both the trace continuation (`queueParentSpan`) and the consumer read that one result. `processWebhookMessage` / `processDeadLetterMessage` take the decoded delivery, so neither re-decodes and neither signals malformed with an absent value.
-
-The delivery **state machine lives below the capability interface**: `backoffSeconds`, `classifyResponseStatus`, `planDeliveryAttempt(responseStatus, attempts, now)` are pure exports of `webhook-delivery-plan.ts` (the capability derives persisted status, `nextAttemptAt`, and the ack/retry outcome from them — the worker passes the same `backoffSeconds(attempts)` to `message.retry`), and never-dispatched/exhausted messages go through `recordTerminalDeliveryAttempt({ deliveryId, endpointId, workspaceId, eventType, attempts, status, payload })`, which resolves the queue message's own delivery id (`deliveryIdFor` — one row per message, even for the DLQ outcome), timestamps the row, records the payload (so a terminal row stays replayable), and batches the terminal audit event inside the capability. The worker keeps `computeWebhookSignature` / `signatureHeaderValue` (exported from `src/webhook-signing.ts`, re-exported by `src/index.ts` for `src/index.test.ts` — keep them dependency-free). The full delivery orchestration is also exported as `processWebhookMessage(delivery, traceId)`, and the DLQ core as `processDeadLetterMessage(delivery)`, with their `WebhookEndpoints` (+ `HttpClient` for delivery) requirements left open: tests inject stub layers to exercise delivered/retry/terminal/disabled/SSRF/malformed paths without a queue; the `queue` handler wraps them with the real layers and the wide-event scope (`deliverWebhook` / `recordDeadLetter`). Real-D1 coverage of the terminal-outcome audit rows lives with the capability, in `packages/capabilities/src/developer-platform/webhook-endpoints.live.test.ts`.
-
-## Conventions
-
-- Use Cloudflare Queues for retryable webhook work and D1 for delivery attempt history.
-- Handlers build the capabilities env through `starterEnv(env)` (`src/index.ts`). Alchemy forwards the optional provider env to this worker under its canonical names (e.g. `CLOUDFLARE_EMAIL_FROM`) — no remapping.
-- Wide-event envelopes come from `withTriggerScope` (`@b2b-saas-starter/logger`) — queue handlers pass `{ service, event, env, parent?, spanKind?, metadata }` and never hand-assemble `withRequestScope` options.
-- **Trace continuation across the queue.** The producer stamps the request's W3C `traceparent` onto `WebhookQueueMessage`; `queueParentSpan(delivery)` reads it off the delivery the consumer already decoded and resolves it via `parentSpanFromHeaders` (a malformed body carries no trusted `traceparent`, so it just starts its own trace) and both consumers pass it as `parent` with `spanKind: 'consumer'`. The `x-trace-id` forwarded on the delivery POST is `currentTraceId`, i.e. this scope's OTel trace id, so the header a receiver quotes back resolves in the trace backend. Don't mint a fresh id here — `currentTraceId` is the only source. The `traceparent`/`b3` headers on that POST are injected by Effect's `HttpClient` — don't set them by hand.
-- **Every invocation runs through `runInvocation(env, effect)`**, which provides `makeOtlpLayer('background', env)` per invocation (`Effect.provide(..., { local: true })`, never per isolate — see ADR 0050), the same split `apps/api` and `apps/web` use. `WideEventLoggerLive` is provided isolate-level from a module-scope `ManagedRuntime` in `src/index.ts`, not rebuilt per invocation.
-- **Shared worker infrastructure lives in `src/queue-consumer.ts`**: the worker-wide `Env` type, `runInvocation`, `consumeBatch` (the batch loop all four queues share), and the `consumerInvocation(env, { event, delivery, program, onFailure })` combinator every consumer entry wraps itself in — boundary decode → `withTriggerScope` with the trace continuation and attempts metadata → capability layers → one named fold to `'retry' | 'ack'`. A new consumer composes those pieces instead of hand-rolling its own wrapper; `webhook-consumer.ts` holds only webhook logic.
-- Local development may direct-dispatch when queues are unavailable — follow the rate-limit fallback pattern in `apps/api/src/rate-limit.ts` when adding new queue consumers.
-- Queue consumers and the cron trigger are wired in both `wrangler.jsonc` (local dev) and the root `alchemy.run.ts` (deploy). The `queue` handler's branches import `webhookDeadLetterQueueName` and `notificationEmailQueueName` from `infra/bindings.ts` rather than repeating the literal, so the branch cannot drift from the consumer it is bound to. Queue names and consumer settings are single-sourced in `infra/bindings.ts` — alchemy imports the constants directly and `infra/write-wrangler.ts` generates `wrangler.jsonc` from them. Change a setting there, then run `pnpm run infra:wrangler`; never edit the generated config by hand.
+- One decode per delivery: `queueDelivery` folds platform fields and the consumer's decode into one `QueueDelivery`, so malformed is a named `kind` rather than an absent value, and terminal (no trusted `endpointId` to attach a row to).
+- The fold sits outside `withTriggerScope`, so the wide event exits carrying the failure cause before it becomes a queue outcome. `onFailure: 'retry'` except the DLQ entry.
+- `recordDeliveryAttempt` upserts on `deliveryIdFor`: one row per message, not per attempt, `payload` and `replayedFrom` insert-only so a redelivery cannot erase a replay's provenance.
+- `signatureHeaderValue` owns the signature format: HMAC-SHA256 over `"<unix>.<rawBody>"`, one `sha256=` per active secret, current first, two only inside a rotation's grace window (ADR 0062).
+- The SSRF guard runs at endpoint creation _and again at dispatch_; DNS rebinding is out of scope.

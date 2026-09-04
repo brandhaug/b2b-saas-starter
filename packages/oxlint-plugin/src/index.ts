@@ -13,8 +13,7 @@ import noUnsupportedEffectApi from './rules/no-unsupported-effect-api.ts'
 import preferEffectPredicate from './rules/prefer-effect-predicate.ts'
 
 // Rule ids are alphabetical. The root `lint.config.ts` enables and scopes
-// every one of them; see packages/oxlint-plugin/AGENTS.md for what each
-// catches.
+// every one of them; each rule file's doc comment says what it catches.
 export default definePlugin({
   meta: { name: 'starter' },
   rules: {

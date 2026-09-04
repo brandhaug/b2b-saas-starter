@@ -2,90 +2,37 @@
 
 ## Purpose & Scope
 
-The permission vocabulary of the starter, and the one place a permission decision is made. Statements, static roles, the API-token scope mapping, and the `requirePermission` guard live here.
+The permission vocabulary and the one place a decision is made: statements, roles, token scope mapping, `requirePermission`, `AuthorizationDenied`.
 
-It sits **below** `@b2b-saas-starter/auth` and `@b2b-saas-starter/capabilities`, which are siblings. Neither can hold this, so both import it. This package must never import either of them — the dependency is one-way, and `import/no-cycle` is not the only thing keeping it that way: the guard is deliberately usable before any capability layer is built.
+It sits **below** the siblings `auth` and `capabilities`: both import it, never the reverse.
 
-Built on `createAccessControl` from `better-auth/plugins/access`, which is pure — no database, no auth instance, no plugin registration.
+## Entry Points & Contracts
 
-## The model
+No root export; four slices:
 
-Four concepts, in dependency order:
+- `./client` — the pure half (`authorize`, principals, roles, statements), free of `effect` and the logger so browser code can ask the same question.
+- `./guard` — `requirePermission`; annotates the wide event on denial, needs only `Scope`.
+- `./errors` — `AuthorizationDenied` (403, never 404) and `AUTHORIZATION_DENIED_REASONS`, the closed on-the-wire reason vocabulary; widen that record, never inline a string.
+- `./mcp-access-token` — the MCP OAuth claim vocabulary both workers share, plus `mcpAccessTokenPrincipal` (ADR 0068). Signature, issuer, audience and expiry are jose's, in `apps/api`.
 
-1. **Statements** (`statements.ts`) — one entry per resource, listing every action it understands. `starterStatements` = the organization plugin's own five resources (`organization`, `member`, `invitation`, `team`, `ac` — Better Auth's abbreviation of "access control", kept because the plugin checks that key by name) plus the starter's nine, all full-named (`apiToken`, `webhook`, `auditLog`, `notification`, `assistant`, `mcp`, `onboarding`, `workspaceExport`, `sso`).
-2. **Roles** (`roles.ts`) — `owner`, `admin`, `member`, plus the synthetic roles that API token scopes map onto.
-3. **Principal** (`principal.ts`) — who is asking, and the pure `authorize(principal, request)` decision.
-4. **Guard** (`guard.ts`) — `requirePermission(principal, request)`, the Effect that fails `AuthorizationDenied`.
-
-## Invariants
-
-1. **The plugin's default statements are not optional.** A custom role that drops `organization`, `member`, `invitation`, `team`, or `ac` breaks the organization plugin's own endpoints, not merely a starter permission. The test `retains the organization plugin defaults` guards this.
-2. **One `authorize()` path for sessions and tokens.** API token scopes (`read | write | admin`) are synthetic roles over the same statements, so there is no second permission implementation to keep in step. A token holding several scopes is granted when **any one** of them covers the request.
-3. **Role and scope names come from `@b2b-saas-starter/db`.** `workspaceRoleAccess` and `apiTokenScopeAccess` are `Record`s keyed by the stored enums, so adding a role or a scope to the schema without mapping it here is a type error.
-4. **The guard fails closed.** A null principal is a denial (`reason: 'no_principal'`), not a pass. Trusted server-side reads — the public showcase loader, the API worker's own health check — do not call the guard at all rather than calling it with nothing.
-5. **The principal is an argument, not a context service.** This package cannot see `WorkspaceContext` (it lives in `capabilities`, above), and inventing a second per-request service to mirror it would give the actor two homes. Callers resolve the actor once at the route boundary and pass it in — a session actor through `memberPrincipal`, a verified bearer token through `tokenPrincipal`.
-6. **`AuthorizationDenied` is declared here, once.** `capabilities` re-exports it so consumers keep one import path and the HTTP contract keeps one class identity. Never redeclare it.
-
-## The matrix
-
-| Role     | Gets                                                                     |
-| -------- | ------------------------------------------------------------------------ |
-| `owner`  | every statement, including `organization:delete` and `workspaceExport:*` |
-| `admin`  | every statement except `organization:delete` and `workspaceExport:*`     |
-| `member` | `ac:read`, `notification:read`, `assistant:read`, `mcp:read`             |
-
-`member` deliberately **cannot** read the audit log or list API tokens. Both leak the workspace's security posture. The empty arrays in `memberRole` say so out loud; do not "tidy" them away. `onboarding:dismiss` is also withheld: the onboarding checklist is read-only for a member and dismissing it is a workspace-level call (ADR 0054). `workspaceExport` (`request`, `download`) is **owner-only**: `adminRole` empties it explicitly, because a full export carries every member's email and the complete audit trail — the same material `organization:delete` guards (ADR 0055, export artifacts). Every `sso` action is withheld from `member` as well: SSO connections decide how every human in the workspace authenticates — security posture, like the audit log (ADR 0055, workspace SSO). Neither the `read` nor the `write` token scope reaches `workspaceExport`; only `admin` scope (the owner set) does.
-
-| Token scope | Gets                                                                                     |
-| ----------- | ---------------------------------------------------------------------------------------- |
-| `read`      | every `list` and `read` action (including `sso:list`, the sanitized connection list)     |
-| `write`     | `read` plus `webhook:create/update/delete/rotateSecret/replay/test`, `invitation:create` |
-| `admin`     | the `owner` set, shared by reference                                                     |
-
-`apiToken:create` is deliberately **not** in the `write` set. Minting is the one mutation that lets a token escalate itself: a `write` token allowed to create tokens could issue an `admin` one. It stays with the owner set, which `admin` scope reaches. The whole webhook operator surface (`create`, `update`, `delete`, `rotateSecret`, `replay`, `test`) is in the `write` set because none of it can escalate the token's authority. Disabling an endpoint is `webhook:update { enabled: false }` — there is no separate `disable` permission, so the matrix cannot drift from what `update` can already do. The `sso` mutations stay out of every token scope for the same escalation reason — a machine credential that could rewrite how humans authenticate could lock the owners out or route them at an attacker's IdP.
-
-The `read` scope is wider than the `member` role — it can read the audit log. That is intended: a token is minted by an owner or admin, so it carries the minter's trust, not the reader's.
-
-The full matrix is asserted permission by permission in `src/index.test.ts`, and a separate test proves the table covers every declared statement. Add a statement and that test fails until the matrix is extended.
-
-## Using the guard
-
-Neither app calls the guard raw. Each wraps it once, so a route names a permission and nothing else:
-
-- `enforcePermission(request, permission, expectedWorkspaceSlug?)` — `apps/api/src/handlers.ts`. Authenticates the bearer token via `ApiTokenRegistry.verifyBearerToken`, confines it to its own workspace, then calls the guard with `tokenPrincipal(verified.scopes)`.
-- `requireWorkspacePermission(permission)` — `apps/web/src/lib/server/authorize.ts`. Reads `WorkspaceContext.actor` and calls the guard with `memberPrincipal(actor.role)`, or `null` when the context resolved no actor.
-
-```ts
-Effect.gen(function* () {
-  // apps/api handler
-  yield* enforcePermission(request, { apiToken: ['create'] }, params.slug)
-
-  // apps/web server function, inside the effect handed to runWorkspaceCapabilities
-  yield* requireWorkspacePermission({ apiToken: ['create'] })
-})
-```
-
-The guard composes beside `enforceRateLimit` (`apps/api/src/handlers.ts`) and requires only a `Scope`, which it uses to annotate the request's wide event on denial (`outcome: 'forbidden'`, `authReason`, `permission`). The web app's request scope supplies that `Scope` through `runWorkspaceCapabilities`.
-
-## The client entry point
-
-`@b2b-saas-starter/authz/client` (`src/client.ts`) re-exports the pure half — `authorize`, the principals, the roles, the statements — and nothing that imports `effect` or the logger. It exists so browser code can ask the same question the guard asks: `apps/web/src/lib/permissions.ts` wraps it as `viewerCan(viewer, permission)` and the workspace UI hides or explains a control with it. Importing `./guard` from a component would pull Effect and the wide-event logger into the client bundle. There is no root entry point: the package exports only `./client`, `./errors`, `./guard` and `./mcp-access-token`.
-
-The UI check is presentation only. It stops a member being shown a form that would fail on submit; the enforcement is the server withholding the data (`whenPermitted`) and the guard refusing the mutation.
-
-## The MCP access-token contract
-
-`./mcp-access-token` (`src/mcp-access-token.ts`) is the claim vocabulary the two workers share for the MCP OAuth path (ADR 0055): the `starter_workspace_id` / `_slug` / `_role` claim names the authorization server stamps, the `mcp:read` scope the resource server requires, and `mcpAccessTokenPrincipal` — the pure mapping from a verified JWT payload to the principal (or the reason it is refused: malformed claims, missing `mcp:read`, a DPoP-bound `cnf`). Signature, issuer, audience and expiry are jose's job in `apps/api`; this module checks only what the starter itself stamped, and both sides import the names from here so a claim the issuer writes and a claim the verifier reads cannot drift.
+Neither app calls the guard raw: `apps/api/src/request-guards.ts` (which also confines a token to its own workspace) and `apps/web/src/lib/server/authorize.ts` wrap it once each. Enforcement is the server withholding data and the guard refusing the mutation; a UI check is presentation.
 
 ## Anti-patterns
 
-- Don't check a role name by hand (`if (actor.role === 'owner')`). Ask for the permission; the role table is the only place the mapping lives.
-- Don't add an authorization check inside a capability. Capabilities do not check authorization — the guard and the `WorkspaceContext` layer do. `ApiTokenRegistry.verifyBearerToken` authenticates a bearer token and stops there; it does not judge the scopes it reports. See [`../capabilities/AGENTS.md`](../capabilities/AGENTS.md).
-- Don't hand a route a scope where it means a permission. `enforcePermission(request, 'admin', slug)` cannot exist: the scope-to-permission mapping is the role table's job, and duplicating it at a call site is the second implementation invariant 2 forbids.
-- Don't grant a system admin (`user.role === 'admin'`) anything here. That is a separate axis and confers nothing inside a workspace.
-- Don't reach for `dynamicAccessControl` or `teams`. Both are switched off; static roles are enough for a starter.
+- Don't check a role name by hand (`actor.role === 'owner'`); ask for the permission.
+- Don't pass a scope where a permission is meant (`enforcePermission('admin', slug)`); rule 2 forbids a second implementation.
+- Don't grant a system admin anything here; that axis confers nothing in a workspace.
+- Don't reach for `dynamicAccessControl` or `teams`; both are off.
 
-## External references
+## Patterns & Pitfalls
 
-- Architecture security model: [`ARCHITECTURE.md`](../../ARCHITECTURE.md#authorization-model)
-- Better Auth access control: `better-auth/plugins/access`, `better-auth/plugins/organization/access`
+1. The organization plugin's default statements (`organization`, `member`, `invitation`, `team`, `ac`) are not optional; dropping one breaks its endpoints.
+2. One `authorize()` path serves sessions and tokens; scopes are synthetic roles over the same statements, and a multi-scope token passes when one covers it.
+3. Role and scope names come from `db/enums` via `satisfies Record<…>`, so a new stored role or scope is a type error until mapped.
+4. The guard fails closed; trusted reads (showcase loader, health check) skip it rather than pass a null principal.
+5. The principal is an argument, not a service: callers resolve the actor at the route boundary, as `WorkspaceContext` lives above.
+6. Withheld permissions are load-bearing, each reason in its `roles.ts` doc comment: `read` scope is wider than the `member` role, and `write` never gets `apiToken:create` or an `sso` mutation (self-escalation). `src/index.test.ts` fails until a new statement is mapped.
+
+## Dependencies & Edges
+
+`db` (enums only), `better-auth`, `effect`. Consumed by `auth`, `capabilities`, both apps. [`ARCHITECTURE.md`](../../ARCHITECTURE.md#authorization-model); ADRs 0055, 0066, 0068, 0069.

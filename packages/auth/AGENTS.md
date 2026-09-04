@@ -2,142 +2,46 @@
 
 ## Purpose & Scope
 
-The Better Auth instance and nothing else. This package owns the options object, the plugin list, and the plugin↔schema mapping. It holds no route handlers, no session gates, and no permission decisions.
+The Better Auth instance and nothing else: options, plugin list, plugin↔schema mapping. No route handlers, session gates, permission decisions, env reads.
 
-Two runtime exports carry everything:
+## Entry Points & Contracts
 
-- `Auth` — an `effectful-better-auth` service providing `{ api, instance }`. `api` is the effectful endpoint proxy (endpoints fail `BetterAuthApiError`); `instance` is the raw Better Auth object for `handler` / `asResponse` needs. The layer requires `AuthConfig`.
-- `AuthConfig` — `{ db, secret, baseURL, trustedOrigins, emails, socialProviders, accountHooks, requireEmailVerification, runBackground, userDeleteHooks, mcp }`. The app builds it from worker env (`apps/web/src/lib/auth-runtime.ts`); this package never reads `process.env` or a Cloudflare binding. `emails` is the `AuthEmailSender` port and `accountHooks` the `AuthAccountHooks` port (below); `socialProviders` carries the resolved active providers (`activeSocialProviders` in `@b2b-saas-starter/env`, structural local type here so this package does not depend on env); `runBackground` **is required** and becomes Better Auth's `advanced.backgroundTasks.handler` verbatim — `ctx.waitUntil` on a Worker that exposes an execution context, and an explicit inline runner where the host does not. There is no fallback here on purpose: a swallow-everything default would make "the verification email vanished past the response" this package's silent decision instead of the app's stated one, and whatever the app supplies owns the rejection. `userDeleteHooks` (optional, `UserDeleteHooks`) is the account-deletion hook pair — see "Self-service account deletion" below. `mcp` is the OAuth server's two deployment facts (see below).
+- `makeAuthOptions(config)` returns a **single non-union object type** on purpose, and `SessionUserRole` (indexed off `Session`) is the **compile-time guard**: widening the plugin array drops plugin-added fields from `Session` while endpoints keep working, a break no test catches.
+- `AuthConfig` is built by the app (`lib/auth-runtime.ts`). `runBackground` is required with no fallback: it becomes `advanced.backgroundTasks.handler` verbatim and the app owns the rejection. `socialProviders` arrives resolved and structurally typed, so this package never imports `env`.
+- Ports (`ports.ts`) carry **Better Auth's own callback signature**, narrowed to what the starter reads, so an app adapter assigns straight to the option: no rename wrapper, no `async` callback, no Effect.
 
-The ports and the `AuthConfig` service class live in [`src/ports.ts`](src/ports.ts) — the structural-port surface ADR 0051 describes — and `index.ts` re-exports all of it, so the public API enters through the package root only.
+## Usage Patterns
 
-`Session` and `SessionUserRole` are the inferred session types. `SessionUserRole` exists as a **compile-time guard**: widening the plugin array drops every plugin-added field from `Session` while the endpoints keep working, a break no runtime test can see because the data is still there. Indexing the type is the assertion.
+**Plugin order matters:** `jwt` precedes `mcp`, and `tanstackStartCookies` stays **last** so cookies from other plugins' hooks reach the framework store. Options sit in `index.ts`; what matters outside:
 
-## Account lifecycle emails
+- `admin` takes `adminRoles: [adminSystemRole]` from `db/enums`, never a literal `'admin'` (ADR 0054).
+- `organization` takes `ac`/`roles` from [`authz`](../authz/AGENTS.md), so its endpoints and `requirePermission` read one set of objects.
 
-Password reset, email verification, the email-otp plugin's one-time codes, and the magic link are configured here and sent through the `AuthEmailSender` port — `{ sendResetPassword, sendVerificationEmail, sendOneTimeCode, sendMagicLink }`, whose members carry **Better Auth's own callback signatures** (`({ user: { email }, url }) => Promise<void>` for the two links; `({ email, otp, type }) => Promise<void>` for the code; `({ email, url })` for the magic link — no `user`, because a link can be requested for an address that has no account yet), narrowed to the fields the starter reads. The names are Better Auth's option names. That is deliberate: the adapters are assigned straight to `sendResetPassword` / `sendVerificationEmail` / `emailOTP.sendVerificationOTP` / the plugin's `sendMagicLink`, so there is no rename wrapper and no `async` callback in this package to disable a lint rule for. Better Auth invokes its callbacks outside any Effect (no Clock, no services), and the siblings rule forbids importing `packages/email` from here, so the port carries both constraints. The app supplies the adapter (`apps/web/src/lib/server/auth-emails.ts`), built on the `EmailDispatcher` with its log-mode fallback — magic links therefore work in local dev with no email provider, landing in the console log.
+**Model mapping.** `modelName` is the **drizzle schema export key**, not the SQL table name (`organization → 'workspaces'`); `fields` renames `organizationId → workspaceId`, the only rename allowed. `additionalFields` never belong in `metadata`.
 
-Configuration decisions, stated in code:
+**sso** (ADR 0069). `provisionedRoleOf` maps anything outside `member | admin` to `member`, so **SSO never mints `owner`**. `enabled` is starter vocabulary the plugin knows nothing of, enforced by the app; connections register fully hydrated, so a new IdP needs no env change.
 
-- `sendOnSignUp: true` — the verification email rides sign-up; there is no UI reason to demand a second hop.
-- `autoSignInAfterVerification: true` — the link clicker gets a session: proving mailbox control is the honest reward, not an escalation.
-- `revokeSessionsOnPasswordReset: true` — the sessions that preceded a reset are exactly what the reset exists to distrust.
-- `requireEmailVerification` is **env-gated**: on only when `ENVIRONMENT=production` (decided by `requireEmailVerification` in `@b2b-saas-starter/env`, carried on `AuthConfig` — this package never reads env). Local dev sends to the log, where nobody could read a gating email; the unverified state surfaces as an app banner instead.
-- Magic-link `expiresIn` is ten minutes (`MAGIC_LINK_EXPIRES_IN_SECONDS`, exported so the email copy and the app's expiry state name the same number); `storeToken: 'hashed'` (the emailed token is the credential — a read of `verification` must not mint a session); `disableSignUp: false` (consuming a link creates the account `emailVerified: true`, so `requireEmailVerification` has nothing left to gate). Decision record: [ADR 0064](../../docs/adr/0064-magic-link-as-second-local-auth-path.md).
+**MCP OAuth** (ADR 0068). `AuthConfig.mcp` supplies the audience-bound `/mcp` URL and the outbound transport, both the app's, since Workers cannot run the Node transport. `/oauth/consent` is both post-login and consent hop, its workspace pick vouched for by `MCP_WORKSPACE_SELECTED_HEADER`; `customAccessTokenClaims` re-reads membership from D1 on every refresh.
 
-## Self-service account deletion
-
-Better Auth's `delete-user` endpoint is **disabled unless the app supplies
-`userDeleteHooks`** — the option is spread into `user.deleteUser` only when
-the hook pair exists. The endpoint without its hooks would delete the user
-row with sole-owner workspaces still attached, so this package refuses to
-make "enabled" a standalone choice. The endpoint's own sequencing is the
-whole design (ADR 0059): password verified FIRST, then `beforeDelete` (the
-capability's workspace teardown), then the user row, then `afterDelete` (the
-actorless `account.deleted` record + the deletion email). The hook bodies
-live in the app (`apps/web/src/lib/server/account-delete-hooks.ts`); they
-are plain callbacks to Better Auth, outside any Effect.
-
-## Position in the dependency graph
-
-`auth` and [`capabilities`](../capabilities/AGENTS.md) are **siblings**. Neither imports the other, and the rule holds in both directions: a capability that needs the plugin's write path declares a structural port and the app supplies the adapter (ADR 0051). Both import [`authz`](../authz/AGENTS.md), which sits below them.
-
-`db` is imported twice on purpose: `@b2b-saas-starter/db/client` for the **promise-based** drizzle client, which is the only thing Better Auth's `drizzleAdapter` accepts, and `@b2b-saas-starter/db/schema` for the model mapping. Mind the name collision — `db/client` exports a _type_ `Database` (the promise client this package uses) and `db/service` exports a _class_ `Database` (the Effect-native service every capability's Live layer depends on). This package wants the former.
-
-## Plugins
-
-Order matters. `tanstackStartCookies()` must stay **last** so cookies set by other plugins' hooks reach the framework cookie store.
-
-| Plugin                                                                          | Why                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `username()`                                                                    | username sign-in alongside the Local Auth Path                                                                                                                                                                                                                                                                                                            |
-| `magicLink({ ... })`                                                            | the second Local Auth Path: an emailed single-use link, ten-minute expiry, hashed at rest; works on the log dispatcher so dev needs no provider (ADR 0064)                                                                                                                                                                                                |
-| `twoFactor({ ... })`                                                            | TOTP only, verified before it counts as on; backup codes at enrollment. The plugin's `otp` method (email codes as a _second_ factor) stays out of scope — one-time codes for the account lifecycle are the separate `emailOTP` plugin below                                                                                                               |
-| `passkey({ ... })`                                                              | WebAuthn passkeys (ADR 0056): `rpID`/`origin` derive from `baseURL`, so localhost works with zero env; registration demands a session, sign-in opens one directly                                                                                                                                                                                         |
-| `emailOTP({ ... })`                                                             | six-digit email one-time codes as the alternative to the lifecycle links: sign-in, email verification, password reset. 6 digits / 10-minute expiry / 3 attempts, stated; codes hash at rest (`storeOTP: 'hashed'`) in the `verification` table; `disableSignUp: true` keeps registration behind `/sign-up` and the Turnstile gate                         |
-| `sso({ ... })`                                                                  | Workspace-scoped SSO connections — OIDC + SAML, provisioning, domain routing (ADR 0069)                                                                                                                                                                                                                                                                   |
-| `admin({ adminRoles, impersonationSessionDuration, allowImpersonatingAdmins })` | System Admin axis — `user.role`, ban/unban, impersonation (ADR 0054), `listUsers` for `/admin`. `adminRoles` reads `adminSystemRole` from `@b2b-saas-starter/db/enums`, never a restated `'admin'` literal. Impersonation is one hour (the capability's `IMPERSONATION_SESSION_SECONDS` restates the number — siblings) and admins are never impersonable |
-| `organization({ ... })`                                                         | Workspace membership and invitations (ADR 0051)                                                                                                                                                                                                                                                                                                           |
-| `lastLoginMethod()`                                                             | the "last signed in with X" hint — cookie-backed (`storeInDatabase` off: no user column, no migration); imported from the `better-auth/plugins` barrel, which 1.7 exposes no dedicated subpath for                                                                                                                                                        |
-| `jwt({ disableSettingJwtHeader: true })`                                        | signing keys for the OAuth access tokens below; serves `/api/auth/jwks`. Header-setting stays off so session responses carry no JWT                                                                                                                                                                                                                       |
-| `mcp({ ... })`                                                                  | the OAuth 2.1 authorization server MCP Clients connect through (ADR 0068) — requires `jwt()` above it in the array                                                                                                                                                                                                                                        |
-| `cimd({ ... })`                                                                 | Client ID Metadata Documents, `metadataProfile: 'mcp-2026-07-28'`; the transport is `AuthConfig.mcp.fetchClientMetadataResource`, supplied by the app                                                                                                                                                                                                     |
-| `tanstackStartCookies()`                                                        | bridges the session cookie into TanStack Start; **last**                                                                                                                                                                                                                                                                                                  |
-
-Social providers are **absent until configured** (ADR 0070): `AuthConfig.socialProviders` carries only the providers the app resolved as active (both client halves present); with none configured it carries an empty object, which resolves to zero providers inside Better Auth — no provider exists at all, nothing exists-but-disabled, and the Local Auth Path's runtime shape is unchanged. A fork adds a provider by adding the env vars plus a resolver entry in `activeSocialProviders` (`@b2b-saas-starter/env`), never by wiring a provider that exists but is disabled.
-
-`databaseHooks.account.create.after` / `delete.after` are wired to the `AuthAccountHooks` port (`onAccountLinked` / `onAccountUnlinked`), the same structural-port pattern as `AuthEmailSender`: Better Auth calls its hooks outside any Effect with the full account row, the port narrows it to `{ providerId, userId }`, and the app's adapter (`apps/web/src/lib/server/social-account-audit.ts`) records the `auth.account_linked` / `auth.account_unlinked` audit events — it filters `credential` rows, which already have their own lifecycle row.
-
-The array goes through `plugins(...)` from `effectful-better-auth`, and `makeAuthOptions` returns a single non-union object type. A bare array literal in a function body widens to a union array and silently drops plugin schema inference — `SessionUserRole` is what catches that.
-
-## Passkeys (ADR 0056)
-
-The plugin's `rpID` and `origin` are **derived, never configured separately**: `passkeyRpID(baseURL)` returns the URL's hostname and `passkeyOrigin(baseURL)` its origin — both module-private, each with a single call site in the options object, and covered through the composed options in `options.test.ts`. `localhost` is a valid WebAuthn rpID, so the Local Auth Path gains passkeys with zero configuration — passkeys are not an Optional Provider and get no env gate. A fork serving several origins widens `origin` to the plugin's array form.
-
-**A passkey sign-in satisfies the two-factor requirement.** The two-factor plugin's gate is an after-hook matching the credential sign-in endpoints only; the passkey plugin's verification endpoint creates its session directly, so a TOTP-enabled user signs in with a passkey and lands in the app with no code hop. The ceremony is two factors in one gesture (credential possession + authenticator user verification, requested as `preferred`). This is pinned in `src/live-passkey.test.ts`, which runs a full mocked WebAuthn ceremony (a software ES256 authenticator: minimal CBOR, `none`-format attestation, DER-wrapped signatures) against a real local D1 — the same harness the plugin's table mapping and management endpoints are tested through.
-
-## The organization plugin's mapping
-
-The starter's domain word is **Workspace** and the plugin's is "organization". The mapping lives here and nowhere else:
-
-- `schema.organization.modelName = 'workspaces'`, `member → 'workspaceMembers'`, `invitation → 'workspaceInvitations'`. `modelName` is the **drizzle schema export key**, not the SQL table name — the adapter resolves models with `schema[modelName]`.
-- `member` and `invitation` each carry `fields: { organizationId: 'workspaceId' }`. That is the only rename needed; every other plugin field name already matches a real column, because [`packages/db`](../db/AGENTS.md) gave those three tables the plugin's camelCase shape.
-- `additionalFields` on `organization`: `planId`, which is the starter's own and part of the public `Workspace` DTO, and `updatedAt`, which the plugin's organization model does not declare. Both are `input: false` — a plan change is billing's job, not a caller's. Neither belongs in `metadata`: the plugin strips unknown columns from endpoint responses, and it stringifies `metadata` itself.
-- `ac: accessControl` and `roles: workspaceRoleAccess` come from [`authz`](../authz/AGENTS.md). The plugin's own endpoints and `requirePermission` read the same objects, so they cannot disagree.
-- `teams: { enabled: false }`, stated rather than defaulted. `dynamicAccessControl` is absent for the same reason: both want tables the schema does not have.
-
-## The sso plugin's mapping
-
-Workspace SSO (ADR 0069, workspace-scoped-sso) follows the organization mapping's rules with a second plugin:
-
-- `schema.ssoProvider.modelName = 'workspaceSsoConnections'`, `fields: { organizationId: 'workspaceId' }` — the connection's `organizationId` is the Better Auth organization that backs the Workspace, which is what `organizationProvisioning` provisions against.
-- The starter's columns (`enabled`, `requireSso`, `defaultWorkspaceRole`) are `additionalFields` with `input: true` (the app's settings surface sets them through the plugin's register/update bodies); `createdAt` is an `additionalField` with `input: false` and the usual `defaultValue: () => new Date()` for the same no-Clock reason as `workspaces.updatedAt`.
-- `organizationProvisioning.getRole` reads `defaultWorkspaceRole` off the provider row through `provisionedRoleOf` — the plugin types additional fields as plain strings and its callback parameter as the field-less `BaseSSOProvider`, so the read is deliberately loose and `isSsoProvisionedRole` (`@b2b-saas-starter/db/enums`) decides. Anything outside `member | admin` — including a bogus value written by a raw API call — provisions as `member`. SSO never mints `owner`.
-- The app registers OIDC connections fully hydrated (`skipDiscovery` + explicit endpoints): the plugin's own register-time discovery demands the IdP origin in `trustedOrigins`, which would make every new IdP an operator env change. See ADR 0069 §3.
-- `defaultSSO` stays unused (env-configured providers are the shape this exists to avoid) and `domainVerification` stays off — domain control comes from the owner role that configures the connection.
-
-## The MCP OAuth configuration
-
-`mcp()` is the OAuth provider, so its options carry starter decisions that have
-nowhere else to live — they sit in [`mcp-oauth.ts`](src/mcp-oauth.ts) and are
-tested by `mcp-oauth.test.ts` (pure) and the live suite's `mcp oauth
-authorization server` block (the full PKCE flow against D1):
-
-- `AuthConfig.mcp` — `{ resource, fetchClientMetadataResource }`. `resource` is
-  the API worker's `/mcp` URL every access token is audience-bound to
-  (`MCP_RESOURCE_URL`, defaulting locally to the API dev server); the transport
-  is the app's runtime concern (Workers cannot run the package's Node
-  transport). This package never reads env and never picks a transport.
-- `postLogin.shouldRedirect` / `consentReferenceId` — the workspace pick. The
-  consent page (`/oauth/consent`) is both the post-login and the consent hop;
-  it vouches for the picked workspace through `MCP_WORKSPACE_SELECTED_HEADER`,
-  and the pick rides the consent's `referenceId` into the token claims.
-- `customAccessTokenClaims` — `mcpWorkspaceAccessTokenClaims` stamps
-  `starter_workspace_id` / `_slug` / `_role` on every access token and every
-  refresh, reading the membership from D1 at issuance. The claim names and the
-  resource-server's reading of them live in
-  [`@b2b-saas-starter/authz/mcp-access-token`](../authz/AGENTS.md), so the two
-  workers cannot drift.
-
-## Invariants
-
-1. **A new column on `workspaces`, `workspace_members`, or `workspace_invitations` needs an `additionalFields` entry here.** A column the plugin does not know about is stripped from every endpoint response — the write succeeds and the read comes back missing the field.
-2. **Nothing reads `session.activeOrganizationId` — except the MCP consent flow.** The plugin declares that field unconditionally and writes it on create, accept, and set-active; no option turns it off, so the column exists and `live-d1.test.ts` asserts it does. The starter resolves the workspace from the request slug through `liveWorkspaceContext`, and the slug wins because it is what the address bar shows. Two sources of truth for "which workspace" is how a user ends up looking at one workspace's URL and another's data. The one exception is the OAuth consent flow (ADR 0068): the provider's reference mechanism _is_ the session field, so the consent page writes it with `setActive` and `mcpWorkspaceReferenceId` reads it back — a hand-off channel inside one authorization, never an app data read.
-3. **Roles stay static and single.** The plugin's `parseRoles` joins multiple roles into one comma-separated string in `workspace_members.role`, which the column's `enum: workspaceRoles` type does not admit. Assigning two roles would write `"admin,member"`.
-4. **`new Date()` in the `additionalFields` callbacks is deliberate.** Better Auth calls them outside any Effect, so `Clock` cannot reach them; this file is the platform adapter the `effect/noGlobals` rule exempts. Without `onUpdate` the column keeps its insert value forever.
+**Account deletion.** `deleteUser` stays disabled unless the app supplies `userDeleteHooks`; without them it strands sole-owner workspaces and trips restricting FKs. The order is the design (ADR 0059): password, `beforeDelete`, user row, `afterDelete`.
 
 ## Anti-patterns
 
-- Don't import `@b2b-saas-starter/capabilities` from here, and don't import this package from there. Use a structural port (ADR 0051).
-- Don't put a permission check here. Statements, roles, and the guard live in [`authz`](../authz/AGENTS.md); enforcement happens at the route boundary.
-- Don't use the Effect-native `Database` service. `drizzleAdapter` needs promises — that is what `db/client` is for.
-- Don't reintroduce a `fields` block for anything but `organizationId`. If a field name needs renaming, the schema is drifting from the plugin's conventions instead.
-- Don't reorder `tanstackStartCookies()`.
-- Don't regenerate the schema with `@better-auth/cli generate` and commit the output. The schema is hand-written in `schema.ts` with the house helpers; the CLI's output is a diff reference only.
+- Don't import `capabilities` here or this package there; use a structural port (ADR 0051).
+- Don't wire a provider that exists-but-is-disabled; social sign-in is **absent until configured** (ADR 0070).
+- Don't regenerate `db/src/schema.ts` with `@better-auth/cli generate`; that schema is hand-written, CLI output only a diff reference.
 
-## External references
+## Patterns & Pitfalls
 
-- Decision records: [ADR 0051](../../docs/adr/0051-workspace-membership-on-better-auth-organization-plugin.md) (organization plugin), [ADR 0070](../../docs/adr/0070-social-sign-in-as-absent-until-configured-provider.md) (social sign-in), [ADR 0056](../../docs/adr/0056-passkeys-on-better-auth-passkey-plugin.md) (passkeys), [ADR 0064](../../docs/adr/0064-magic-link-as-second-local-auth-path.md) (magic link)
-- Architecture security model: [`ARCHITECTURE.md`](../../ARCHITECTURE.md#security)
-- Table shapes: [`@b2b-saas-starter/db`](../db/AGENTS.md)
-- Live coverage: `src/live-organization.test.ts` — the organization plugin's endpoints and the two-factor enable/verify ceremony against a real local D1. `src/live-email-flows.test.ts` — the lifecycle emails, the email-otp send/verify/lockout round trips, and the magic link, playing the mailbox through a capturing email sender. `src/live-mcp-oauth.test.ts` — the MCP authorization server's full PKCE round trip. `src/live-passkey.test.ts` — the passkey ceremony end to end, including the two-factor bypass proof. `src/social-auth.test.ts` — the OAuth round-trip with GitHub's endpoints mocked at the `fetch` boundary. `src/sso.test.ts` — the OIDC round-trip against a stubbed IdP. All of them share the scaffold in `src/test-auth-layer.ts` (D1 provisioning, the default `AuthConfig` layer, sign-up session cookies, cookie merging, the TOTP ceremony).
+1. **A new column on the three workspace tables needs an `additionalFields` entry here**, or the plugin strips it from every endpoint response: writes succeed, reads come back short.
+2. **Nothing reads `session.activeOrganizationId` except the MCP consent flow**, which writes it with `setActive` and reads it back within one authorization; workspaces resolve from the slug.
+3. **Roles stay static and single.** `parseRoles` joins multiple roles into one comma-separated `workspace_members.role`, which `enum: workspaceRoles` rejects.
+4. **A passkey sign-in satisfies the two-factor requirement**: the gate is an after-hook on the credential endpoints only, and the passkey endpoint creates its session directly. Deliberate.
+5. **`new Date()` in `additionalFields` callbacks is deliberate**: Better Auth calls them outside any Effect, so no `Clock` reaches them, and `effect/noGlobals` exempts this adapter.
+6. **Keep the array inside `plugins(...)`.** A bare array literal widens to a union and silently drops plugin schema inference; `SessionUserRole` then fails typecheck.
+
+## Dependencies & Edges
+
+`auth` and [`capabilities`](../capabilities/AGENTS.md) are **siblings**: neither imports the other, and both import [`authz`](../authz/AGENTS.md) below them. `db` comes in twice: `db/client` for the promise drizzle client `drizzleAdapter` requires, and `db/schema` for the mapping.
+
+ADRs 0051, 0054, 0056, 0059, 0064, 0067, 0068, 0069, 0070; [`ARCHITECTURE.md`](../../ARCHITECTURE.md#security); table shapes in [`db`](../db/AGENTS.md).

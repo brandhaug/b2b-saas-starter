@@ -1,38 +1,23 @@
-# workspace-lifecycle
+# Workspace Lifecycle
 
-## Purpose
+## Purpose & Scope
 
-Creates, renames, and hard-deletes workspaces. The write half goes through the
-organization plugin via the structural `WorkspaceLifecycleBinding` port — only
-`create` runs headerless (the plugin accepts a `userId` body field); rename and
-delete are `requireHeaders: true`, so the app supplies the adapter with session
-headers.
+Creates, renames, and hard-deletes workspaces through the `WorkspaceLifecycleBinding` port. Only `create` runs headerless, the plugin accepting a `userId` body field; rename and delete are `requireHeaders: true`, so the app must supply the adapter with session headers.
 
-## Surface
+## Entry Points & Contracts
 
-- `create({ name, slug, userId })` → `CreatedWorkspace`. Identity-keyed: no
-  `WorkspaceContext`, because the creator is a member of nothing yet. The
-  plugin makes them the first owner; the capability reads the row back by slug.
-- `rename({ name })` → `Workspace`. Per-workspace, reads the context.
-- `remove` — per-workspace, hard delete. Cascades clear members, invitations,
-  tokens, webhooks, deliveries; the audit event is recorded as a **system
-  event** (`workspaceId: null`) so it survives its own cascade, naming the
-  removed workspace in `targetId`.
+- `create({ name, slug, userId })` is identity-keyed, the creator being a member of nothing yet. The plugin makes them the first owner and the capability reads the row back by slug, returning the `Workspace` DTO plus `planId`.
+- `remove` is a hard delete; cascades clear members, invitations, tokens, webhooks, and deliveries.
+- Audits `workspace.created`, `workspace.renamed`, and `workspace.deleted`. The delete is recorded as a system event (`workspaceId: null`) naming the removed workspace in `targetId`, so it survives its own cascade.
+- A 4xx from the binding, a taken slug included, is `WorkspaceChangeRejected` (409); an unwired binding or any other failure is `CapabilityUnavailable` (`no_lifecycle_binding`).
 
-Audit events: `workspace.created`, `workspace.renamed`, `workspace.deleted`
-(ADR 0051 trade: recorded after the plugin write, not batched).
+## Patterns & Pitfalls
 
-Failures: refusals from the plugin (taken slug) surface as
-`WorkspaceChangeRejected`; no binding or store failure as
-`CapabilityUnavailable`.
-
-Seed adapter keeps created rows in a local `Ref` and refuses taken slugs
-including the fixture's; optionally adds the creator to the shared roster.
+- The Seed adapter keeps created rows in a local `Ref`, refuses taken slugs including the fixture's, and optionally adds the creator to the shared `SeedRoster` as owner.
+- Contract cases assert no id shapes or rosters, because Seed fabricates identities and mints ids from `Clock`.
 
 ## Anti-patterns
 
-- Don't take a slug parameter on rename/remove — read `WorkspaceContext`.
-- Don't record the delete's audit event against the deleted workspace id; it
-  cascades away.
-- Don't re-create lifecycle writes in Drizzle in the Live layer — the plugin
-  owns validation, hooks, and the owner-member bootstrap.
+- No slug parameter on rename or remove; read `WorkspaceContext`.
+- No audit event for the delete recorded against the deleted workspace id; it cascades away.
+- No lifecycle write re-created in Drizzle in the Live layer. The plugin owns validation, hooks, and the owner-member bootstrap.
