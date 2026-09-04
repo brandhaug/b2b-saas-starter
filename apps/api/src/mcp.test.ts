@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vite-plus/test'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
 import { mcpDiscoveryDocument } from './mcp.ts'
-import { readOperations } from './operations.ts'
+import { mirroredRestPath, readOperations } from './operations.ts'
 
 /**
  * There is no MCP tool table left to mirror: `GET /mcp` and the SDK server are
@@ -20,9 +20,10 @@ describe('mcp ↔ rest operation mirror', () => {
   })
 
   test('every advertised tool names the REST operation it mirrors', () => {
-    for (const [index, tool] of mcpDiscoveryDocument().tools.entries()) {
-      expect(tool.description).toContain(
-        `Mirrors GET /workspaces/{slug}/${readOperations()[index]?.path}.`
+    for (const [index, operation] of readOperations().entries()) {
+      const tool = mcpDiscoveryDocument().tools[index]
+      expect(tool?.description).toContain(
+        `Mirrors GET /${mirroredRestPath(operation.path)}.`
       )
     }
   })
@@ -41,13 +42,19 @@ describe('mcp ↔ rest operation mirror', () => {
       // Decoded, not asserted: the advertised input is JSON Schema the SDK
       // generated from zod.
       const { properties } = decodeAdvertisedInput(tool?.inputSchema)
-      if (operation.paged) {
-        // ADR 0057: list tools take the same optional cursor/limit the REST
-        // route accepts.
-        expect(properties.cursor).toBeDefined()
-        expect(properties.limit).toBeDefined()
+      if (operation.param === undefined) {
+        if (operation.paged) {
+          // ADR 0057: list tools take the same optional cursor/limit the REST
+          // route accepts.
+          expect(properties.cursor).toBeDefined()
+          expect(properties.limit).toBeDefined()
+        } else {
+          expect(properties).toEqual({})
+        }
       } else {
-        expect(properties).toEqual({})
+        // The one parameterized read takes exactly its declared path
+        // parameter, nothing else.
+        expect(Object.keys(properties)).toEqual(['endpointId'])
       }
     }
   })

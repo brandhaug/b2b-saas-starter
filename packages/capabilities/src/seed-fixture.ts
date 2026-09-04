@@ -2,7 +2,8 @@ import { type ApiToken } from './developer-platform/api-token-registry.ts'
 import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
 import { type SeedNotification } from './notifications/notification-feed.ts'
 import { type SeedNotificationPreference } from './notifications/notification-preferences.ts'
-import { type WebhookEndpoint } from './developer-platform/webhook-endpoints.ts'
+import { type SeedWebhookEndpointFixture } from './developer-platform/webhook-endpoints.seed.ts'
+import { type SeedWebhookDeliveryFixture } from './developer-platform/webhook-delivery-plan.ts'
 import { type Member, type Workspace } from './governance/workspace-identity.ts'
 import {
   type SeedMembership,
@@ -119,20 +120,69 @@ export const seedApiTokens: ReadonlyArray<ApiToken> = [
   }
 ]
 
-export const seedWebhookEndpoints: ReadonlyArray<WebhookEndpoint> = [
+export const seedWebhookEndpoints: ReadonlyArray<SeedWebhookEndpointFixture> = [
   {
     id: 'wh_release',
     url: 'https://example.com/webhooks/starter',
     enabled: true,
-    events: ['api_token.created'],
-    successRate: 98
+    events: ['api_token.created']
   },
   {
     id: 'wh_billing',
     url: 'https://billing.example.com/hooks/starter',
     enabled: false,
-    events: ['webhook_endpoint.created'],
-    successRate: 100
+    events: ['webhook_endpoint.created']
+  }
+]
+
+/**
+ * The request header block the background worker posts with every delivery —
+ * the same shape `apps/background` records onto the row. Fixture helper so the
+ * seeded history reads like the real thing.
+ */
+function seedDeliveryRequestHeaders(eventType: string) {
+  return {
+    'content-type': 'application/json',
+    'user-agent': 'b2b-saas-starter-webhooks/0.1',
+    'x-b2b-starter-event': eventType,
+    'x-b2b-starter-timestamp': '1779501690',
+    'x-b2b-starter-signature':
+      't=1779501690,sha256=1f4ab6d2b8bb43f1f59a2c8e70e5b52c1f39f0c46d2a8f34c47e6e2ef8c61e96'
+  }
+}
+
+/**
+ * The operator tooling's fixture history: one delivered attempt and one
+ * retryable failure (with its payload and response evidence recorded), so the
+ * deliveries drawer, the attempt timeline, and the replay button all have a
+ * real story to show in the Seed workspace — on the landing demo and in
+ * tests. The endpoint's projected success rate derives from these rows.
+ */
+export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
+  {
+    id: 'whd_seed_delivered_1',
+    endpointId: 'wh_release',
+    eventType: 'api_token.created',
+    status: 'delivered',
+    attempts: 1,
+    lastAttemptAt: '2026-05-16T07:02:00.000Z',
+    responseStatus: 200,
+    payload: { tokenId: 'tok_mcp', name: 'MCP local client' },
+    requestHeaders: seedDeliveryRequestHeaders('api_token.created'),
+    responseBody: ''
+  },
+  {
+    id: 'whd_seed_failed',
+    endpointId: 'wh_release',
+    eventType: 'api_token.created',
+    status: 'failed',
+    attempts: 2,
+    lastAttemptAt: '2026-05-16T08:41:30.000Z',
+    responseStatus: 500,
+    nextAttemptAt: '2026-05-16T08:42:00.000Z',
+    payload: { tokenId: 'tok_docs', name: 'Docs automation' },
+    requestHeaders: seedDeliveryRequestHeaders('api_token.created'),
+    responseBody: 'upstream connect error'
   }
 ]
 

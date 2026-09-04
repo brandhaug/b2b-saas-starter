@@ -83,6 +83,7 @@ import {
 import {
   seedApiTokens,
   seedAuditEvents,
+  seedDeliveries,
   seedMembers,
   seedNotificationPreferences,
   seedNotifications,
@@ -147,7 +148,8 @@ const SeedAuditLog = SeedAuditEventLog(seedAuditEvents, seedSystemUsers)
  * One fixture preference store + feed, shared for the same reason as
  * `SeedAuditLog`: the feed resolves channels against the same preference store
  * the `/account` page reads and writes, and the user-admin seed writes
- * `notifyUser` rows into the very feed instance the shell reads.
+ * `notifyUser` rows into the very feed instance the shell reads — the webhook
+ * capability's dead-letter path writes through the same instance.
  */
 const SeedPreferences = SeedNotificationPreferences(seedNotificationPreferences).pipe(
   Layer.provide(SeedAuditLog)
@@ -170,7 +172,7 @@ const SeedCore = Layer.mergeAll(
   SeedAuditLog,
   SeedNotifications,
   SeedSeatSyncPublisher,
-  SeedWebhookEndpoints(seedWebhookEndpoints),
+  SeedWebhookEndpoints(seedWebhookEndpoints, seedDeliveries),
   SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships),
@@ -284,9 +286,10 @@ export function makeLiveCapabilitiesLayer(
   ).pipe(
     Layer.provide(LiveAuditEventLog),
     // The user-admin capability notifies the impersonated user below its
-    // interface, and the export adapter notifies the requester below its —
+    // interface, the export adapter notifies the requester below its, and the
+    // webhook capability's dead-letter notification rides the same provide —
     // the same queue-wired `feed` value is a member above, so one instance
-    // serves both.
+    // serves all three.
     Layer.provide(feed),
     Layer.provide(publisher),
     Layer.provide(seatSyncPublisher)

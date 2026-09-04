@@ -1,15 +1,52 @@
-import { Context, Effect, Schema, type Option } from 'effect'
+import { Context, Effect, Schema } from 'effect'
 
 import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts'
 import { literalTuple } from '../internal/literal-tuple.ts'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import {
+  type Json,
   type ListWebhookDeliveriesInput,
   type WebhookDelivery,
   type WebhookDeliveryAttemptInput
 } from './webhook-delivery-plan.ts'
 import { validateWebhookUrl, InvalidWebhookUrl } from './webhook-url.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
+
+/**
+ * No endpoint matched in this workspace. Raised by the operator mutations
+ * (`update`, `delete`, `sendTestEvent`, `rotateSecret`) — one typed 404 for
+ * the whole surface.
+ */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class WebhookEndpointNotFound extends Schema.TaggedError<WebhookEndpointNotFound>()(
+  'WebhookEndpointNotFound',
+  { endpointId: Schema.String },
+  { httpApiStatus: 404 }
+) {}
+
+/**
+ * No delivery row matched in this workspace. Distinct from
+ * {@link WebhookEndpointNotFound} because a replay addresses a delivery, and a
+ * foreign delivery id must not read as a missing endpoint.
+ */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class WebhookDeliveryNotFound extends Schema.TaggedError<WebhookDeliveryNotFound>()(
+  'WebhookDeliveryNotFound',
+  { deliveryId: Schema.String },
+  { httpApiStatus: 404 }
+) {}
+
+/**
+ * A dispatch the workspace refuses: an endpoint that is disabled, a delivery
+ * that never failed. Same reading as `MembershipChangeRejected` — the request
+ * was answerable and the answer is no — naming the operator dispatch surface.
+ */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class WebhookDispatchRejected extends Schema.TaggedError<WebhookDispatchRejected>()(
+  'WebhookDispatchRejected',
+  { reason: Schema.String },
+  { httpApiStatus: 409 }
+) {}
 
 export const WebhookEndpoint = Schema.Struct({
   id: Schema.String,
@@ -63,8 +100,58 @@ export const CreateWebhookEndpointPayload = Schema.Struct({
 })
 export type CreateWebhookEndpointPayload = typeof CreateWebhookEndpointPayload.Type
 
-export type DisableWebhookEndpointInput = {
+export type UpdateWebhookEndpointInput = {
   readonly endpointId: string
+  /**
+   * Each field is optional and mutable-on-purpose: callers build the patch
+   * with statements (`if (x !== undefined) patch.url = x`), which the lint
+   * rules require over conditional spreads. Only the provided ones change;
+   * `undefined` and an absent key mean the same thing.
+   */
+  url?: string | undefined
+  events?: ReadonlyArray<string> | undefined
+  enabled?: boolean | undefined
+}
+
+/**
+ * Wire payload for endpoint updates — the REST contract and the web server
+ * functions share one schema, with every constraint declared here (an empty
+ * subscription list is refused, same as at creation).
+ */
+export const UpdateWebhookEndpointPayload = Schema.Struct({
+  url: Schema.optionalKey(Schema.String),
+  events: Schema.optionalKey(Schema.Array(Schema.String).check(Schema.isMinLength(1))),
+  enabled: Schema.optionalKey(Schema.Boolean)
+})
+export type UpdateWebhookEndpointPayload = typeof UpdateWebhookEndpointPayload.Type
+
+export type DeleteWebhookEndpointInput = {
+  readonly endpointId: string
+}
+
+export type ReplayWebhookDeliveryInput = {
+  readonly deliveryId: string
+}
+
+export type SendTestEventInput = {
+  readonly endpointId: string
+}
+
+/**
+ * The synthetic event type a test send dispatches. It is operator vocabulary,
+ * not a domain event: it never appears in `WEBHOOK_EVENT_TYPES`, subscriptions
+ * do not gate it (the send is already addressed to one endpoint), and receivers
+ * see it as the `eventType` of a normally signed delivery.
+ */
+export const WEBHOOK_TEST_EVENT_TYPE = 'webhook.test_event'
+
+export type DispatchedDelivery = {
+  /**
+   * The id of the `pending` delivery row the dispatch created. The queue
+   * consumer records its attempts against this id, so the row a replay or test
+   * created is the row that resolves.
+   */
+  readonly deliveryId: string
 }
 
 export type RotateWebhookSecretInput = {
@@ -109,20 +196,78 @@ export type WebhookEndpointsInterface = {
     WorkspaceContext
   >
 
-  /** Resolves `true` when an endpoint was disabled, `false` when nothing matched. */
-  readonly disable: (
-    input: DisableWebhookEndpointInput
-  ) => Effect.Effect<boolean, CapabilityUnavailable, WorkspaceContext>
   /**
-   * Resolves `Option.some({ signingSecret })` with the newly persisted secret,
-   * or `Option.none()` when no endpoint matched in this workspace (no secret
-   * is minted in that case).
+   * Updates the mutable endpoint fields — URL, event subscriptions, and the
+   * enabled flag: disabling is `update { enabled: false }`, re-enabling is
+   * `update { enabled: true }` — one mutation path, one audit event. Only
+   * provided fields change. Fails `WebhookEndpointNotFound` when no endpoint
+   * matched in this workspace, and `InvalidWebhookUrl` when a provided URL
+   * fails the SSRF/shape guard.
+   */
+  readonly update: (
+    input: UpdateWebhookEndpointInput
+  ) => Effect.Effect<
+    WebhookEndpoint,
+    CapabilityUnavailable | InvalidWebhookUrl | WebhookEndpointNotFound,
+    WorkspaceContext
+  >
+
+  /**
+   * Deletes the endpoint row; delivery rows cascade with it (the FK is
+   * `onDelete: 'cascade'`). Fails `WebhookEndpointNotFound` when nothing
+   * matched in this workspace.
+   */
+  readonly delete: (
+    input: DeleteWebhookEndpointInput
+  ) => Effect.Effect<
+    void,
+    CapabilityUnavailable | WebhookEndpointNotFound,
+    WorkspaceContext
+  >
+
+  /**
+   * Re-enqueues a failed delivery verbatim: a **new** `pending` row carrying
+   * the original payload, attempts reset to zero, and a `replayedFrom` link to
+   * the source row. Fails `WebhookDeliveryNotFound` when no delivery matched in
+   * this workspace, `WebhookDispatchRejected` when there is nothing honest to
+   * re-send (the delivery never failed, records no payload, or its endpoint is
+   * disabled or gone).
+   */
+  readonly replayDelivery: (
+    input: ReplayWebhookDeliveryInput
+  ) => Effect.Effect<
+    DispatchedDelivery,
+    CapabilityUnavailable | WebhookDeliveryNotFound | WebhookDispatchRejected,
+    WorkspaceContext
+  >
+
+  /**
+   * Dispatches one synthetic `webhook.test_event` to the endpoint so an
+   * operator can prove a receiver's configuration end to end. Creates the same
+   * `pending` row a replay does. Fails `WebhookEndpointNotFound` when no
+   * endpoint matched, `WebhookDispatchRejected` when it is disabled.
+   */
+  readonly sendTestEvent: (
+    input: SendTestEventInput
+  ) => Effect.Effect<
+    DispatchedDelivery,
+    CapabilityUnavailable | WebhookEndpointNotFound | WebhookDispatchRejected,
+    WorkspaceContext
+  >
+
+  /**
+   * Shifts the signing secret: the replacement is returned so the caller can
+   * show it once, and the secret it replaces keeps signing deliveries for the
+   * 24h grace window (`planSecretRotation` / `activeSigningSecrets` in the
+   * delivery plan), so a receiver can roll without dropping deliveries. No
+   * secret is minted when no endpoint matched — the call fails
+   * `WebhookEndpointNotFound` instead.
    */
   readonly rotateSecret: (
     input: RotateWebhookSecretInput
   ) => Effect.Effect<
-    Option.Option<{ readonly signingSecret: string }>,
-    CapabilityUnavailable,
+    { readonly signingSecret: string },
+    CapabilityUnavailable | WebhookEndpointNotFound,
     WorkspaceContext
   >
 
@@ -132,7 +277,9 @@ export type WebhookEndpointsInterface = {
    * `WebhookPublisher` from the producing request's context) and is verified
    * here: the lookup filters on `(endpointId, workspaceId)` and resolves
    * `null` on a cross-workspace mismatch, so a forged or misrouted message
-   * never yields another workspace's signing secret.
+   * never yields another workspace's signing secret. `signingSecrets` holds
+   * every secret a dispatch may currently sign with — the current one, plus
+   * the rotated-out one while its grace window is open.
    */
   readonly getDispatchTarget: (
     endpointId: string,
@@ -141,7 +288,7 @@ export type WebhookEndpointsInterface = {
     {
       readonly id: string
       readonly url: string
-      readonly signingSecret: string
+      readonly signingSecrets: ReadonlyArray<string>
     } | null,
     CapabilityUnavailable
   >
@@ -153,17 +300,21 @@ export type WebhookEndpointsInterface = {
   /**
    * Terminal delivery rows for outcomes that never dispatched (the SSRF guard
    * rejected the endpoint URL at dispatch time) or exhausted the queue (dead
-   * letter). The capability owns the whole row — delivery id minting, the
-   * timestamp, and the terminal audit event batched with it — so callers hand
-   * over only what the queue message carries and cannot assemble a half-shaped
-   * attempt input.
+   * letter). The capability owns the row — the timestamp, and the terminal
+   * audit event batched with it — so callers hand over only what the queue
+   * message carries and cannot assemble a half-shaped attempt input. The
+   * delivery id and payload travel in the queue message: the id resolves the
+   * message's existing attempt row (one row per message, same as the retry
+   * path), and the recorded payload is what makes a terminal row replayable.
    */
   readonly recordTerminalDeliveryAttempt: (input: {
+    readonly deliveryId: string
     readonly endpointId: string
     readonly workspaceId: string
     readonly eventType: string
     readonly attempts: number
     readonly status: 'failed_permanent' | 'dead_lettered'
+    readonly payload: Json
   }) => Effect.Effect<{ readonly deliveryId: string }, CapabilityUnavailable>
 }
 

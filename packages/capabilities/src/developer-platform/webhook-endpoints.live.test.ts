@@ -4,6 +4,7 @@ import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 import { and, count, eq } from 'drizzle-orm'
 
+import { NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   inWorkspace,
   LIVE_SUITE_TIMEOUT,
@@ -98,7 +99,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               status: 'failed_permanent',
               attempts: 1,
               responseStatus: 410,
-              nextAttemptAt: null
+              nextAttemptAt: null,
+              payload: { event: 'demo' }
             })
 
             const deliveries = yield* deliveryRow('whd_live_perm')
@@ -133,7 +135,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               status: 'dead_lettered',
               attempts: 5,
               responseStatus: null,
-              nextAttemptAt: null
+              nextAttemptAt: null,
+              payload: { event: 'demo' }
             })
 
             const rows = yield* auditRowsFor('webhook.delivery_dead_lettered')
@@ -159,7 +162,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             status: 'delivered',
             attempts: 1,
             responseStatus: 200,
-            nextAttemptAt: null
+            nextAttemptAt: null,
+            payload: { event: 'demo' }
           })
           const after = yield* auditEventCount
           expect(after).toBe(before)
@@ -167,6 +171,112 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const deliveries = yield* deliveryRow('whd_live_ok')
           expect(deliveries[0]?.status).toBe('delivered')
         })
+      )
+
+      it.effect(
+        'a dead-lettered attempt records a broadcast notification for the workspace',
+        () =>
+          inWorkspace(
+            'live-lab',
+            Effect.gen(function* () {
+              const webhooks = yield* WebhookEndpoints
+              const feed = yield* NotificationFeed
+              yield* webhooks.recordTerminalDeliveryAttempt({
+                deliveryId: 'whd_live_dlq',
+                endpointId: 'wh_live',
+                workspaceId: 'wrk_live',
+                eventType: 'demo.dead_letter',
+                attempts: 5,
+                status: 'dead_lettered',
+                payload: { event: 'demo.dead_letter' }
+              })
+              const notifications = yield* feed.list
+              const deadLetter = notifications.find(
+                (notification) =>
+                  notification.title === 'Webhook delivery dead-lettered' &&
+                  notification.message.startsWith('demo.dead_letter ')
+              )
+              expect(deadLetter).toBeDefined()
+              // The message names the endpoint URL so it is actionable...
+              expect(deadLetter?.message).toContain('https://example.com/hook')
+              // ...and it is a broadcast row (unread, no target user).
+              expect(deadLetter?.read).toBe(false)
+            })
+          )
+      )
+
+      it.effect('a redelivered queue message upserts the same delivery row', () =>
+        inWorkspace(
+          'live-lab',
+          Effect.gen(function* () {
+            const webhooks = yield* WebhookEndpoints
+            // First attempt of the message: retryable failure...
+            yield* webhooks.recordDeliveryAttempt({
+              id: 'whd_live_same_id',
+              endpointId: 'wh_live',
+              workspaceId: 'wrk_live',
+              eventType: 'demo.redelivery',
+              status: 'failed',
+              attempts: 1,
+              responseStatus: 500,
+              payload: { event: 'demo.redelivery' }
+            })
+            // ...the platform redelivers the same message id: the row must
+            // resolve, not fork (and not die on the primary key).
+            yield* webhooks.recordDeliveryAttempt({
+              id: 'whd_live_same_id',
+              endpointId: 'wh_live',
+              workspaceId: 'wrk_live',
+              eventType: 'demo.redelivery',
+              status: 'delivered',
+              attempts: 2,
+              responseStatus: 200,
+              payload: { event: 'demo.redelivery' }
+            })
+          })
+        )
+          .pipe(Effect.andThen(deliveryRow('whd_live_same_id')))
+          .pipe(
+            Effect.tap((rows) =>
+              Effect.sync(() => {
+                expect(rows).toHaveLength(1)
+                expect(rows[0]).toMatchObject({
+                  status: 'delivered',
+                  attempts: 2,
+                  responseStatus: 200
+                })
+              })
+            )
+          )
+      )
+
+      it.effect(
+        'rotation keeps the replaced secret signing through the grace window',
+        () =>
+          inWorkspace(
+            'live-lab',
+            Effect.gen(function* () {
+              const webhooks = yield* WebhookEndpoints
+              const first = yield* webhooks.rotateSecret({ endpointId: 'wh_live' })
+              const firstSecret = first.signingSecret
+
+              // While the grace window is open, a dispatch signs with the new
+              // secret AND the one it replaced.
+              const during = yield* webhooks.getDispatchTarget('wh_live', 'wrk_live')
+              expect(during?.signingSecrets).toHaveLength(2)
+              expect(during?.signingSecrets[0]).toBe(firstSecret)
+
+              // A second rotation shifts the window: the middle secret becomes
+              // the replaced one, and the original is dropped entirely.
+              const second = yield* webhooks.rotateSecret({ endpointId: 'wh_live' })
+              const secondSecret = second.signingSecret
+              const afterSecond = yield* webhooks.getDispatchTarget(
+                'wh_live',
+                'wrk_live'
+              )
+              expect(afterSecond?.signingSecrets).toEqual([secondSecret, firstSecret])
+            })
+          )
       )
     })
   }

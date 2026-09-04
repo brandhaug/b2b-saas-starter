@@ -18,11 +18,14 @@ import {
   type SeedWorkspaceOnboardingOptions
 } from './governance/workspace-onboarding.ts'
 import { type Member } from './governance/workspace-identity.ts'
+import { SeedNotificationFeed } from './notifications/notification-feed.seed.ts'
+import { SeedNotificationPreferences } from './notifications/notification-preferences.ts'
 import { SeedLayer } from './layers.ts'
 import {
   demoUserIdentity,
   seedApiTokens,
   seedMembers,
+  seedNotificationPreferences,
   seedWebhookEndpoints,
   seedWorkspaceRecord
 } from './seed-fixture.ts'
@@ -69,7 +72,20 @@ function fixtureLayer(fixture: Fixture) {
         ),
         SeedWebhookEndpoints(fixture.webhooks ?? []).pipe(
           Layer.provide(audit),
-          Layer.provide(SeedWebhookPublisher)
+          Layer.provide(SeedWebhookPublisher),
+          // The webhook capability records dead-letter notifications below its
+          // interface, so the Seed adapter needs the feed even when the
+          // projection under test never reads one. The feed resolves email
+          // channels against a preference store, provided here the same way.
+          Layer.provide(
+            SeedNotificationFeed([]).pipe(
+              Layer.provide(
+                SeedNotificationPreferences(seedNotificationPreferences).pipe(
+                  Layer.provide(audit)
+                )
+              )
+            )
+          )
         ),
         SeedBilling({ stripeConfigured: fixture.stripeConfigured ?? false }).pipe(
           Layer.provide(audit)
