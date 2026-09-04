@@ -1,6 +1,7 @@
 import { type AuthEmailSender } from '@b2b-saas-starter/auth'
 import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import {
+  AccountDeletedEmail,
   EmailVerificationEmail,
   OneTimeCodeEmail,
   PasskeyChangedEmail,
@@ -150,5 +151,25 @@ export function sendPasskeyChangedEmail(input: {
     to: input.email,
     subject,
     element: PasskeyChangedEmail({ added: input.added })
+  })
+}
+
+/**
+ * The account-deletion confirmation (`account-delete-hooks.ts` drives it):
+ * best-effort by the same contract — the account row is already gone when this
+ * runs, so there is nothing left to fail on its behalf.
+ */
+export function sendAccountDeletedEmail(input: {
+  readonly email: string
+  readonly workspacesLeft: number
+  readonly workspacesDeleted: number
+}): Promise<void> {
+  return dispatch({
+    to: input.email,
+    subject: 'Your account was deleted',
+    element: AccountDeletedEmail({
+      workspacesLeft: input.workspacesLeft,
+      workspacesDeleted: input.workspacesDeleted
+    })
   })
 }

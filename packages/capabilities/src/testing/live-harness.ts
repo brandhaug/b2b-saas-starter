@@ -18,6 +18,7 @@ import { Context, Effect, Layer, Option, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 
 import { auditEventContractDataset } from '../governance/audit-event-log.contract.ts'
+import { type AccountLifecycleBinding } from '../governance/account-lifecycle.ts'
 import { type PlatformUserAdminBinding } from '../governance/platform-user-admin.ts'
 import {
   CONTRACT_EXPIRED_AT,
@@ -289,6 +290,7 @@ export function inWorkspace<A, E>(
     readonly invitationBinding?: WorkspaceInvitationBinding
     readonly lifecycleBinding?: WorkspaceLifecycleBinding
     readonly userAdminBinding?: PlatformUserAdminBinding
+    readonly accountLifecycleBinding?: AccountLifecycleBinding
     /** Stub export queue + bucket (ADR 0055); absent, exports report unavailable. */
     readonly workspaceExports?: LiveWorkspaceExportsOptions
     readonly ssoBinding?: WorkspaceSsoBinding
@@ -303,7 +305,8 @@ export function inWorkspace<A, E>(
         lifecycleBinding: bindings?.lifecycleBinding,
         userAdminBinding: bindings?.userAdminBinding,
         workspaceExports: bindings?.workspaceExports,
-        ssoBinding: bindings?.ssoBinding
+        ssoBinding: bindings?.ssoBinding,
+        accountLifecycleBinding: bindings?.accountLifecycleBinding
       }),
       liveWorkspaceContext(slug, actor)
     )
@@ -531,6 +534,71 @@ export function fakeLifecycleBinding(db: EffectDatabase) {
       calls.push(input)
       return Effect.runPromise(
         Effect.asVoid(db.delete(workspaces).where(eq(workspaces.id, input.workspaceId)))
+      )
+    }
+  }
+  return { binding, calls }
+}
+
+/**
+ * A stand-in for the account lifecycle's three session-bound writes, on the
+ * same terms as the other fakes — the capability's half of the contract. The
+ * real `deleteUser` endpoint verifies the password, then runs the app's
+ * before/after delete hooks around the user-row delete; this fake takes those
+ * hooks as callbacks so a suite can replay the exact hook sequence.
+ */
+export function fakeAccountLifecycleBinding(
+  db: EffectDatabase,
+  options: {
+    /** The user the fake's session names — the endpoint acts on its own session's user. */
+    readonly userId: string
+    /** The only password the fake accepts; anything else rejects like the endpoint's `INVALID_PASSWORD`. */
+    readonly password: string
+    readonly beforeDelete?: (userId: string) => Promise<void>
+    readonly afterDelete?: (userId: string) => Promise<void>
+  }
+) {
+  const calls: Array<unknown> = []
+  const binding: AccountLifecycleBinding = {
+    leaveWorkspace: (input) => {
+      calls.push(input)
+      return Effect.runPromise(
+        Effect.asVoid(
+          db.delete(workspaceMembers).where(eq(workspaceMembers.id, input.memberId))
+        )
+      )
+    },
+    deleteWorkspace: (input) => {
+      calls.push(input)
+      return Effect.runPromise(
+        Effect.asVoid(db.delete(workspaces).where(eq(workspaces.id, input.workspaceId)))
+      )
+    },
+    deleteUser: (input) => {
+      calls.push(input)
+      return Effect.runPromise(
+        Effect.gen(function* () {
+          if (input.password !== options.password) {
+            // The port is promise-shaped and its rejections are what
+            // `callBinding` classifies, so the fake rejects the way the
+            // endpoint does: an `Error` carrying a 4xx status.
+            // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- mimics the plugin's own APIError rejection
+            throw Object.assign(new Error('invalid password'), { statusCode: 400 })
+          }
+          // Absent hooks are the store doing nothing around the row delete;
+          // present ones are read once into locals so the closures below see
+          // a defined hook.
+          const { beforeDelete, afterDelete } = options
+          if (beforeDelete !== undefined) {
+            const hook = beforeDelete
+            yield* Effect.promise(() => hook(options.userId))
+          }
+          yield* Effect.asVoid(db.delete(user).where(eq(user.id, options.userId)))
+          if (afterDelete !== undefined) {
+            const hook = afterDelete
+            yield* Effect.promise(() => hook(options.userId))
+          }
+        })
       )
     }
   }

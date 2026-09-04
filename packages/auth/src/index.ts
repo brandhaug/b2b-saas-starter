@@ -182,6 +182,7 @@ export type AuthConfigInterface = {
    */
   readonly runBackground: (promise: Promise<unknown>) => void
   /**
+  /**
    * The MCP OAuth authorization server's two deployment facts (ADR 0055):
    * `resource` is the API worker's `/mcp` URL that every access token is
    * audience-bound to (`MCP_RESOURCE_URL`), and `fetchClientMetadataResource`
@@ -194,6 +195,31 @@ export type AuthConfigInterface = {
     readonly resource: string
     readonly fetchClientMetadataResource: CimdOptions['fetchClientMetadataResource']
   }
+  /**
+   * The account-deletion hooks, as Better Auth's `user.deleteUser` option
+   * carries them. The endpoint's own sequencing is why they exist: it verifies
+   * the password FIRST, then runs `beforeDelete` (where the workspace
+   * teardown must happen, while every FK the delete touches is still
+   * satisfiable), then removes the user row, then runs `afterDelete`. Optional
+   * as a pair — and `deleteUser` stays DISABLED unless they are supplied, so
+   * the endpoint can never be enabled without its teardown half.
+   */
+  readonly userDeleteHooks?: UserDeleteHooks
+}
+
+/**
+ * The `user.deleteUser` hook pair, named so the app's hook factory
+ * (`account-delete-hooks.ts`) can build exactly this shape.
+ */
+export type UserDeleteHooks = {
+  readonly beforeDelete: (
+    user: { readonly id: string },
+    request: Request | undefined
+  ) => Promise<void>
+  readonly afterDelete: (
+    user: { readonly id: string; readonly email: string },
+    request: Request | undefined
+  ) => Promise<void>
 }
 
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
@@ -256,6 +282,27 @@ function passkeyOrigin(baseURL: string): string {
  * union array in a function body, dropping plugin schema inference (the
  * admin plugin's `user.role` would vanish from `Session`).
  */
+/**
+ * The `user` option this package builds from the hook pair. The endpoint is
+ * enabled only when the app supplied the hooks: without them, deleting a user
+ * would strand sole-owner workspaces and trip the restricting FKs from
+ * `audit_events` and `api_tokens` — a dangerous default this package refuses
+ * to pick. Written as a helper so each branch returns a whole, honest shape
+ * instead of a spread-with-undefined keys.
+ */
+function userDeleteOption(options: AuthConfigInterface) {
+  if (options.userDeleteHooks === undefined) {
+    return { deleteUser: { enabled: false } }
+  }
+  return {
+    deleteUser: {
+      enabled: true,
+      beforeDelete: options.userDeleteHooks.beforeDelete,
+      afterDelete: options.userDeleteHooks.afterDelete
+    }
+  }
+}
+
 export function makeAuthOptions(options: AuthConfigInterface) {
   return {
     secret: options.secret,
@@ -324,6 +371,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         handler: options.runBackground
       }
     },
+    user: userDeleteOption(options),
     session: {
       // Same values Better Auth defaults to, stated so a default change is a
       // visible diff rather than a silent session-lifetime shift.

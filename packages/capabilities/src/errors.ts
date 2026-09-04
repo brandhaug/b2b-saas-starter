@@ -93,3 +93,33 @@ export class ImpersonationForbidden extends Schema.TaggedError<ImpersonationForb
   { action: Schema.String },
   { httpApiStatus: 403 }
 ) {}
+
+/**
+ * Account deletion refused by the ownership rule: the user is the only owner of
+ * a workspace that still has other members. Nothing was changed. The caller
+ * transfers ownership (or removes the others) and retries — `workspaces` names
+ * where. Declared here rather than in the capability module so the web
+ * boundary maps it beside the other 409s.
+ */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class AccountDeletionBlocked extends Schema.TaggedError<AccountDeletionBlocked>()(
+  'AccountDeletionBlocked',
+  {
+    workspaces: Schema.Array(
+      Schema.Struct({ id: Schema.String, slug: Schema.String, name: Schema.String })
+    )
+  },
+  { httpApiStatus: 409 }
+) {}
+
+/**
+ * Account deletion the store refused on its merits — a wrong password, an
+ * account with no credential to re-authenticate against. Same reading as the
+ * other `*Rejected` errors: answerable, and the answer is no.
+ */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class AccountDeletionRejected extends Schema.TaggedError<AccountDeletionRejected>()(
+  'AccountDeletionRejected',
+  { reason: Schema.String },
+  { httpApiStatus: 409 }
+) {}

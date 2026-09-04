@@ -1,3 +1,9 @@
+// The account-deletion hooks below reach the Better Auth server instance
+// through `plugin-call` (the session headers), so their import graph closes a
+// cycle back into this module on paper. At runtime the edge is lazy and safe:
+// the hooks import resolves on first auth use, long after every module in the
+// cycle has finished evaluating, and the browser bundle never resolves it.
+// fallow-ignore-file circular-dependencies
 import { createDrizzleDb } from '@b2b-saas-starter/db/client'
 import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
 import {
@@ -7,6 +13,7 @@ import {
 import { env } from 'cloudflare:workers'
 import { Effect, Layer, ManagedRuntime, Schema } from 'effect'
 import { causeMessage } from './cause-message'
+import { defaultUserDeleteHooks } from './server/account-delete-hooks'
 import { makeAuthEmailSender } from './server/auth-emails'
 import { socialAccountAuditHooks } from './server/social-account-audit'
 import { fetchClientMetadataResource } from './server/client-metadata-fetch'
@@ -95,6 +102,11 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
       )
     )
   },
+  // The account-deletion hooks: without them the `/delete-user` endpoint
+  // stays disabled (see `packages/auth`), so this supply is what turns
+  // self-service deletion on, with the workspace teardown riding the
+  // capability layer.
+  userDeleteHooks: defaultUserDeleteHooks(),
   // The OAuth 2.1 server MCP clients connect through (ADR 0055): tokens are
   // bound to the API worker's `/mcp`, and client metadata documents are
   // fetched through the Workers-safe transport.

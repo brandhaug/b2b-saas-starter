@@ -9,7 +9,9 @@
  * including SSO sign-in), `api_token.` / `webhook_endpoint.` / `mcp_client.`
  * (developer platform), `workspace.` / `workspace_member.` /
  * `workspace_invitation.` / `workspace_sso.` (governance), `system_admin.`
- * (Better Auth admin endpoints — system-level, no workspace).
+ * (Better Auth admin endpoints — system-level, no workspace), `account.`
+ * (self-service account deletion — system-level, actorless because the actor
+ * row is gone by the time it records).
  *
  * The unions are enforced at the WRITE boundary (`AuditEventLog.record` /
  * `prepareRecord` input). The read path stays lenient (`Schema.String` on the
@@ -79,6 +81,8 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'auth.sign_out_failed',
   'auth.session_revoked',
   'auth.session_revocation_failed',
+  // self-service account deletion (system-level, recorded after the row is gone)
+  'account.deleted',
   // two-factor lifecycle over the auth catchall
   'auth.two_factor_enabled',
   'auth.two_factor_enabled_failed',

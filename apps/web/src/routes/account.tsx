@@ -1,4 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { type ComponentProps } from 'react'
+import { DeleteAccountPanel } from '@/components/delete-account-panel'
 import { NotificationPreferencesPanel } from '@/components/notification-preferences-panel'
 import { TwoFactorPanel } from '@/components/two-factor-panel'
 import { McpClientsPanel } from '@/components/mcp-clients-panel'
@@ -11,8 +13,11 @@ import { Panel } from '@/components/page/panel'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { authClient } from '@/lib/auth-client'
-import { requireSession } from '@/lib/server/auth'
-import { loadNotificationPreferences } from '@/lib/server/notification-preferences'
+import { type McpClientConnection } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
+import { requireSession, type RouteSession } from '@/lib/server/auth'
+import { loadAccountPageData } from '@/lib/server/account.effects'
+import { type AccountDeletionPlan } from '@/lib/server/account'
+import { type NotificationPreferenceRow } from '@/lib/server/notification-preferences'
 import {
   loadMcpClientConnections,
   revokeMcpClientServerFn
@@ -22,33 +27,64 @@ import {
 // user-level, not workspace-level, so the route keeps its own session gate
 // (same reasoning as /invitations/accept). There is no workspace to resolve —
 // and nothing to be a member of.
+/** Module-level so the `connections` default keeps a stable reference. */
+const NO_CONNECTIONS: ReadonlyArray<McpClientConnection> = []
+
 export const Route = createFileRoute('/account')({
   beforeLoad: async ({ location }) => {
     const session = await requireSession(location.href)
     return { session }
   },
-  // Two account-level reads — the user's own notification preferences and
-  // the MCP clients connected to this account (ADR 0055) — both
-  // identity-keyed, no workspace involved.
-  loader: ({ context }) =>
-    // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the two account reads parallel
-    Promise.all([
-      loadNotificationPreferences({ userId: context.session.user.id }),
-      loadMcpClientConnections({ userId: context.session.user.id })
-    ]).then(([preferencePayload, connections]) => ({
-      preferences: preferencePayload.preferences,
-      connections
-    })),
+  // The deletion plan and notification preferences compose into one server
+  // call (see `loadAccountPageData`); the MCP clients connected to this
+  // account (ADR 0055) ride beside it — all identity-keyed, no workspace
+  // involved.
+  loader: async ({ context }) => {
+    const userId = context.session.user.id
+    // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the account read and the MCP-client read parallel
+    const [account, connections] = await Promise.all([
+      loadAccountPageData({ userId }),
+      loadMcpClientConnections({ userId })
+    ])
+    return { ...account, connections }
+  },
   component: AccountRoute,
   head: () => ({ meta: [{ title: pageTitle('Account') }] })
 })
 
-function AccountRoute() {
-  const { session } = Route.useRouteContext()
-  const { preferences, connections } = Route.useLoaderData()
-  // The current session token never rides the SSR payload (see `RouteSession`
-  // in lib/server/auth.ts) — the panel reads it from the client session hook.
-  const currentSession = authClient.useSession()
+/**
+ * Exported for the route test, which drives it with the real loader payload
+ * (`loadAccountPage` against the Seed layer) and stub ports — the panels'
+ * endpoints are browser-only, so the test supplies functions of the same
+ * shape rather than re-creating Better Auth clients. The preferences panel
+ * renders only when the loader supplied preferences, so a test asserting the
+ * deletion flow need not stub the preference kinds.
+ */
+export function AccountPage({
+  session,
+  deletionPlan,
+  preferences,
+  connections = NO_CONNECTIONS,
+  currentSessionToken,
+  sessionsPorts
+}: {
+  readonly session: RouteSession
+  readonly deletionPlan: AccountDeletionPlan
+  readonly preferences?: ReadonlyArray<NotificationPreferenceRow>
+  readonly connections?: ReadonlyArray<McpClientConnection>
+  readonly currentSessionToken: string
+  readonly sessionsPorts?: {
+    readonly listSessions: NonNullable<
+      ComponentProps<typeof SessionsPanel>['listSessions']
+    >
+    readonly revokeSession: NonNullable<
+      ComponentProps<typeof SessionsPanel>['revokeSession']
+    >
+    readonly revokeOtherSessions: NonNullable<
+      ComponentProps<typeof SessionsPanel>['revokeOtherSessions']
+    >
+  }
+}) {
   return (
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
       <PageHeader
@@ -112,13 +148,37 @@ function AccountRoute() {
         )}
       </Panel>
 
-      <SessionsPanel currentSessionToken={currentSession.data?.session.token ?? ''} />
+      <SessionsPanel
+        currentSessionToken={currentSessionToken}
+        {...(sessionsPorts ?? {})}
+      />
+
+      {preferences === undefined ? null : (
+        <Panel
+          title="Email notifications"
+          description="How each kind of notification reaches you by email: not at all, one email per event, or the daily digest. Security kinds default to instant."
+        >
+          <NotificationPreferencesPanel preferences={preferences} />
+        </Panel>
+      )}
 
       <Panel
-        title="Email notifications"
-        description="How each kind of notification reaches you by email: not at all, one email per event, or the daily digest. Security kinds default to instant."
+        title="Delete account"
+        description="Permanent, and confirmed with your password. Workspaces you are the only owner of must hand ownership to someone else first."
       >
-        <NotificationPreferencesPanel preferences={preferences} />
+        {/* Hidden, not merely disabled, for an impersonation session (ADR
+            0059): the catchall refuses the endpoint anyway, so a control
+            that always fails would only teach the admin to ignore errors. */}
+        {session.impersonatedBy === null ? (
+          <DeleteAccountPanel plan={deletionPlan} />
+        ) : (
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
+          <Alert role="status">
+            <AlertDescription>
+              The account cannot be deleted while impersonating this user.
+            </AlertDescription>
+          </Alert>
+        )}
       </Panel>
 
       <Panel
@@ -128,5 +188,22 @@ function AccountRoute() {
         <McpClientsPanel connections={connections} revoke={revokeMcpClientServerFn} />
       </Panel>
     </WorkspaceShell>
+  )
+}
+
+function AccountRoute() {
+  const { session } = Route.useRouteContext()
+  const { deletionPlan, preferences, connections } = Route.useLoaderData()
+  // The current session token never rides the SSR payload (see `RouteSession`
+  // in lib/server/auth.ts) — the panel reads it from the client session hook.
+  const currentSession = authClient.useSession()
+  return (
+    <AccountPage
+      session={session}
+      deletionPlan={deletionPlan}
+      preferences={preferences}
+      connections={connections}
+      currentSessionToken={currentSession.data?.session.token ?? ''}
+    />
   )
 }

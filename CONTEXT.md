@@ -96,17 +96,13 @@ _Avoid_: Provider webhook, callback URL, integration
 A deterministic workspace included for local development, tests, and showcase screenshots.
 _Avoid_: Fake account, sample tenant
 
-**Onboarding Checklist**:
-The workspace dashboard's list of setup steps, each derived from live capability state on every read and never stored as a flag; owners and admins can dismiss it for the workspace.
-_Avoid_: Setup wizard, progress tracker, getting-started flags
-
-**Preview Stage**:
-An ephemeral, fully isolated deployment of the starter (`pr-<number>`) created for one pull request and destroyed when it closes; it carries the Seed Workspace and no optional providers.
-_Avoid_: Staging, preview environment, branch deploy
-
 **Impersonation Session**:
 A one-hour session a System Admin opens as another user through Better Auth's admin plugin, audited at start and stop, visible in the app shell, and barred from changing the account's credentials.
 _Avoid_: Login as, sudo mode, admin takeover
+
+**Account Deletion**:
+Self-service account removal with password re-authentication: workspaces the user solely owns block it until ownership is transferred, memberships with other owners are removed, and solely-membered workspaces are deleted with the account.
+_Avoid_: Account cancellation, GDPR wipe, user removal
 
 **Workspace Export**:
 An owner-requested ZIP of a workspace's members, invitations, API Token metadata, Webhook Endpoints, Audit Events, Notifications, and settings, built in the background and downloaded through a signed, time-limited link.
@@ -180,6 +176,7 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 - A user has one **Notification Preference** per **Notification Kind**; security kinds default to instant, the rest to digest
 - A **Notification Digest** is sent to a user only when at least one unread **Notification** matches a digest **Notification Preference**
 - Changing a **Notification Preference** records an **Audit Event**
+- An **Account Deletion** records an **Audit Event** for every **Workspace** it touches and emails the account holder
 
 ## Example Dialogue
 
