@@ -186,7 +186,7 @@ const DeliveryParams = Schema.Struct({
  * Known behavioral divergence from the MCP surface, documented on both
  * declarations: this Effect-v4 query codec treats an undecodable optional as
  * absent, so `?limit=abc` decodes the field away and the read serves the
- * default page — while the MCP tools' zod `PAGED_TOOL_INPUT`
+ * default page — while the MCP tools' Effect `PAGED_TOOL_INPUT`
  * (apps/api/src/mcp.ts) rejects a `limit` that is not a JSON number with a
  * tool-call error. Same vocabulary, one edge case apart.
  */
@@ -448,7 +448,7 @@ export type McpDiscovery = typeof McpDiscovery.Type
 
 export const McpApi = HttpApiGroup.make('mcp')
   .add(
-    HttpApiEndpoint.get('discover', '/mcp', {
+    HttpApiEndpoint.get('discover', '/mcp/discovery', {
       success: McpDiscovery,
       error: PROTECTED_ERRORS
     })
@@ -468,7 +468,7 @@ export const StarterApi = HttpApi.make('b2b-saas-starter')
       title: 'B2B SaaS Starter API',
       version: '0.1.0',
       description:
-        'Capability Interface surface for the starter. REST endpoints, MCP discovery (`GET /mcp`), and the assistant share the same capability layer. All routes except `/health` require an `Authorization: Bearer <token>` API token.',
+        'Capability Interface surface for the starter. REST endpoints, MCP discovery (`GET /mcp/discovery`), and the assistant share the same capability layer. All routes except `/health` require an `Authorization: Bearer <token>` API token.',
       servers: [{ url: '/', description: 'This worker' }]
     })
   )

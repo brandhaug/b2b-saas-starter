@@ -200,10 +200,10 @@ const MATRIX: ReadonlyArray<GatedOperation> = [
     })
   },
   {
-    operation: 'GET /mcp',
+    operation: 'GET /mcp/discovery',
     permission: 'mcp:read',
     expected: 200,
-    request: makeRequest('GET', '/mcp')
+    request: makeRequest('GET', '/mcp/discovery')
   }
 ]
 

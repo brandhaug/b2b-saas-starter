@@ -478,10 +478,10 @@ describe('contract-served routes', () => {
       })
     ))
 
-  test('GET /mcp returns the discovery document when authorized', () =>
+  test('GET /mcp/discovery returns the discovery document when authorized', () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const res = yield* send(get('/mcp', bearer))
+        const res = yield* send(get('/mcp/discovery', bearer))
         expect(res.status).toBe(200)
         expect((yield* jsonBody(res, McpDiscoveryBody)).name).toBe(
           'b2b-saas-starter-mcp'
@@ -520,7 +520,8 @@ describe('contract-served routes', () => {
             health: Schema.Literal('/health'),
             openapi: Schema.Literal('/openapi.json'),
             docs: Schema.Literal('/reference'),
-            mcp: Schema.Literal('/mcp')
+            mcp: Schema.Literal('/mcp'),
+            mcpDiscovery: Schema.Literal('/mcp/discovery')
           })
         )
         expect(body.docs).toBe('/reference')

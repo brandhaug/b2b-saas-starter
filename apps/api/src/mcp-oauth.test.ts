@@ -16,7 +16,7 @@ import {
 } from 'jose'
 import { type ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
-import { jsonBody } from './test-utils.ts'
+import { jsonBody, mcpClient } from './test-utils.ts'
 
 /**
  * `POST /mcp` with an OAuth access token (ADR 0068), end to end through the
@@ -103,30 +103,21 @@ function accessToken(
 
 const encodeJsonBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
-const MODERN_ENVELOPE = {
-  'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-  'io.modelcontextprotocol/clientCapabilities': {}
-}
-
-let nextId = 0
-
-function callTool(bearer: string, name: string): Request {
-  nextId += 1
-  return new Request('https://api.test/mcp', {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${bearer}`,
-      'content-type': 'application/json',
-      'mcp-method': 'tools/call',
-      'mcp-name': name
-    },
-    body: encodeJsonBody({
-      jsonrpc: '2.0',
-      id: nextId,
-      method: 'tools/call',
-      params: { name, arguments: {}, _meta: MODERN_ENVELOPE }
-    })
-  })
+/**
+ * One JSON-RPC tools/call over an initialized session. The handler is shared
+ * across the helper's requests because the transport's sessions live in the
+ * web handler's isolate — each test hands in the handler it built, and every
+ * call opens its own session on it.
+ */
+function callTool(
+  handler: (request: Request) => Promise<Response>,
+  bearer: string,
+  name: string
+): Promise<Response> {
+  const session = mcpClient(handler, bearer)
+  return session
+    .initialize()
+    .then(() => session.rpc('tools/call', { name, arguments: {} }))
 }
 
 function send(request: Request, testEnv: ApiEnv = env): Effect.Effect<Response> {
@@ -152,8 +143,11 @@ describe('POST /mcp with an OAuth access token', () => {
       Effect.gen(function* () {
         const { privateKey, jwks } = yield* Effect.promise(theAuthority)
         stubJwksFetch(jwks)
+        const handler = buildWebHandler(env).handler
         const token = yield* Effect.promise(() => accessToken(privateKey))
-        const res = yield* send(callTool(token, 'get_workspace_overview'))
+        const res = yield* Effect.promise(() =>
+          callTool(handler, `Bearer ${token}`, 'get_workspace_overview')
+        )
         expect(res.status).toBe(200)
         const body = yield* jsonBody(res, CallToolBody)
         expect(body.result.isError).toBeUndefined()
@@ -168,17 +162,44 @@ describe('POST /mcp with an OAuth access token', () => {
         stubJwksFetch(jwks)
         // Same user, same signature, but the consent named another workspace:
         // the workspace layer resolves the slug in the claims and nothing else.
+        const handler = buildWebHandler(env).handler
         const token = yield* Effect.promise(() =>
           accessToken(privateKey, {
             [MCP_WORKSPACE_ID_CLAIM]: 'wrk_other',
             [MCP_WORKSPACE_SLUG_CLAIM]: 'other-workspace'
           })
         )
-        const res = yield* send(callTool(token, 'get_workspace_overview'))
+        const res = yield* Effect.promise(() =>
+          callTool(handler, `Bearer ${token}`, 'get_workspace_overview')
+        )
         expect(res.status).toBe(200)
         const body = yield* jsonBody(res, CallToolBody)
         expect(body.result.isError).toBe(true)
         expect(body.result.content[0]?.text).toBe('workspace not found')
+
+        // The resource channel answers the same resolution failure with a
+        // JSON-RPC error instead of an `isError` result — pinned end to end
+        // because Effect's `registerResource` re-wraps the message through
+        // `catchCause`, so the surfaced text is worth asserting, not assuming.
+        const session = mcpClient(handler, `Bearer ${token}`)
+        const read = yield* Effect.promise(() =>
+          session
+            .initialize()
+            .then(() => session.rpc('resources/read', { uri: 'workspace://overview' }))
+        )
+        expect(read.status).toBe(200)
+        const readBody = yield* jsonBody(
+          read,
+          Schema.Struct({
+            jsonrpc: Schema.Literal('2.0'),
+            id: Schema.Unknown,
+            error: Schema.Struct({
+              code: Schema.Number,
+              message: Schema.String
+            })
+          })
+        )
+        expect(readBody.error.message).toContain('workspace not found')
       })
     ))
 
@@ -187,10 +208,13 @@ describe('POST /mcp with an OAuth access token', () => {
       Effect.gen(function* () {
         const { privateKey, jwks } = yield* Effect.promise(theAuthority)
         stubJwksFetch(jwks)
+        const handler = buildWebHandler(env).handler
         const token = yield* Effect.promise(() =>
           accessToken(privateKey, { sub: 'usr_outsider' })
         )
-        const res = yield* send(callTool(token, 'get_workspace_overview'))
+        const res = yield* Effect.promise(() =>
+          callTool(handler, `Bearer ${token}`, 'get_workspace_overview')
+        )
         const body = yield* jsonBody(res, CallToolBody)
         expect(body.result.isError).toBe(true)
         expect(body.result.content[0]?.text).toBe('workspace not found')
@@ -202,6 +226,7 @@ describe('POST /mcp with an OAuth access token', () => {
       Effect.gen(function* () {
         const { privateKey, jwks } = yield* Effect.promise(theAuthority)
         stubJwksFetch(jwks)
+        const handler = buildWebHandler(env).handler
         // `usr_dev` is a plain member of the seed workspace; a member cannot
         // read the audit log even if the token claims otherwise.
         const token = yield* Effect.promise(() =>
@@ -210,12 +235,16 @@ describe('POST /mcp with an OAuth access token', () => {
             [MCP_WORKSPACE_ROLE_CLAIM]: 'owner'
           })
         )
-        const res = yield* send(callTool(token, 'list_audit_events'))
+        const res = yield* Effect.promise(() =>
+          callTool(handler, `Bearer ${token}`, 'list_audit_events')
+        )
         const body = yield* jsonBody(res, CallToolBody)
         expect(body.result.isError).toBe(true)
         expect(body.result.content[0]?.text).toContain('denied:')
 
-        const allowed = yield* send(callTool(token, 'list_notifications'))
+        const allowed = yield* Effect.promise(() =>
+          callTool(handler, `Bearer ${token}`, 'list_notifications')
+        )
         expect((yield* jsonBody(allowed, CallToolBody)).result.isError).toBeUndefined()
       })
     ))
@@ -227,8 +256,12 @@ describe('POST /mcp with an OAuth access token', () => {
         const fetchJwks = stubJwksFetch(jwks)
         const handler = buildWebHandler(env).handler
         const token = yield* Effect.promise(() => accessToken(privateKey))
-        yield* Effect.promise(() => handler(callTool(token, 'list_members')))
-        yield* Effect.promise(() => handler(callTool(token, 'list_members')))
+        yield* Effect.promise(() =>
+          callTool(handler, `Bearer ${token}`, 'list_members')
+        )
+        yield* Effect.promise(() =>
+          callTool(handler, `Bearer ${token}`, 'list_members')
+        )
         expect(fetchJwks).toHaveBeenCalledTimes(1)
       })
     ))
@@ -238,8 +271,17 @@ describe('POST /mcp with an OAuth access token', () => {
       Effect.gen(function* () {
         const { privateKey, jwks } = yield* Effect.promise(theAuthority)
         const fetchJwks = stubJwksFetch(jwks)
+        const handler = buildWebHandler({}).handler
         const token = yield* Effect.promise(() => accessToken(privateKey))
-        const res = yield* send(callTool(token, 'get_workspace_overview'), {})
+        // Not `callTool`: the refusal lands on the initialize exchange itself.
+        const session = mcpClient(handler, `Bearer ${token}`)
+        const res = yield* Effect.promise(() =>
+          session.rpc('initialize', {
+            protocolVersion: '2025-11-25',
+            capabilities: {},
+            clientInfo: { name: 'test-client', version: '1.0.0' }
+          })
+        )
         expect(res.status).toBe(401)
         expect((yield* jsonBody(res, ErrorBody)).message).toBe('oauth_not_configured')
         expect(res.headers.get('www-authenticate')).toBeNull()
@@ -253,8 +295,11 @@ describe('POST /mcp with an OAuth access token', () => {
         const res = yield* send(
           new Request('https://api.test/mcp', {
             method: 'POST',
-            headers: { 'content-type': 'application/json', 'mcp-method': 'tools/list' },
-            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+            headers: {
+              'content-type': 'application/json',
+              accept: 'application/json, text/event-stream'
+            },
+            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'initialize' })
           })
         )
         expect(res.status).toBe(401)
@@ -287,7 +332,10 @@ describe('the two credentials stay separate', () => {
       Effect.gen(function* () {
         const { jwks } = yield* Effect.promise(theAuthority)
         const fetchJwks = stubJwksFetch(jwks)
-        const res = yield* send(callTool(SEED_API_TOKEN, 'get_workspace_overview'))
+        const handler = buildWebHandler(env).handler
+        const res = yield* Effect.promise(() =>
+          callTool(handler, `Bearer ${SEED_API_TOKEN}`, 'get_workspace_overview')
+        )
         expect(res.status).toBe(200)
         const body = yield* jsonBody(res, CallToolBody)
         expect(body.result.content[0]?.text).toContain('"slug": "starter-lab"')
