@@ -13,7 +13,7 @@ function post(pathname: string) {
 }
 
 describe('impersonationForbiddenAction', () => {
-  it('maps the password, two-factor, email and delete endpoints onto the capability vocabulary', () => {
+  it('maps the password, two-factor, passkey, email and delete endpoints onto the capability vocabulary', () => {
     expect(impersonationForbiddenAction(post('/api/auth/change-password'))).toBe(
       'change_password'
     )
@@ -26,6 +26,13 @@ describe('impersonationForbiddenAction', () => {
     expect(
       impersonationForbiddenAction(post('/api/auth/two-factor/generate-backup-codes'))
     ).toBe('change_two_factor')
+    // A passkey enrolled under impersonation would keep working after it ends.
+    expect(
+      impersonationForbiddenAction(post('/api/auth/passkey/verify-registration'))
+    ).toBe('change_passkey')
+    expect(impersonationForbiddenAction(post('/api/auth/passkey/delete-passkey'))).toBe(
+      'change_passkey'
+    )
     expect(impersonationForbiddenAction(post('/api/auth/change-email'))).toBe(
       'change_email'
     )
@@ -38,6 +45,10 @@ describe('impersonationForbiddenAction', () => {
     expect(impersonationForbiddenAction(post('/api/auth/sign-out'))).toBeNull()
     expect(
       impersonationForbiddenAction(post('/api/auth/two-factor/verify-totp'))
+    ).toBeNull()
+    // Renaming a passkey changes a label, not a credential.
+    expect(
+      impersonationForbiddenAction(post('/api/auth/passkey/update-passkey'))
     ).toBeNull()
     expect(
       impersonationForbiddenAction({

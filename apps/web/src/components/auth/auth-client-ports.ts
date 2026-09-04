@@ -170,6 +170,72 @@ export function sixDigitCodeValidator({
 }
 
 /* -------------------------------------------------------------------------- */
+/* Passkeys                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** One Better Auth passkey row, as the account panel reads it. */
+export type PasskeyRecord = {
+  readonly id: string
+  readonly name?: string | null | undefined
+  readonly createdAt: Date
+  readonly backedUp: boolean
+}
+
+export type ListPasskeys = AuthPort<void, ReadonlyArray<PasskeyRecord>>
+
+export function listPasskeysWithAuthClient(): ReturnType<ListPasskeys> {
+  return authClient.passkey.listUserPasskeys()
+}
+
+/**
+ * Registers a passkey for the signed-in user. The name is the label the
+ * management list shows; the WebAuthn ceremony runs between this call's two
+ * server round-trips (options, then verification).
+ */
+export type AddPasskey = AuthPort<{ readonly name?: string }>
+
+export function addPasskeyWithAuthClient(
+  input: Parameters<AddPasskey>[0]
+): ReturnType<AddPasskey> {
+  return authClient.passkey.addPasskey(input)
+}
+
+/** Renames a passkey — the label only, never the credential. */
+export type UpdatePasskeyName = AuthPort<{
+  readonly id: string
+  readonly name: string
+}>
+
+export function updatePasskeyWithAuthClient(
+  input: Parameters<UpdatePasskeyName>[0]
+): ReturnType<UpdatePasskeyName> {
+  return authClient.passkey.updatePasskey(input)
+}
+
+export type DeletePasskey = AuthPort<{ readonly id: string }>
+
+export function deletePasskeyWithAuthClient(
+  input: Parameters<DeletePasskey>[0]
+): ReturnType<DeletePasskey> {
+  return authClient.passkey.deletePasskey(input)
+}
+
+/**
+ * Passkey sign-in. `autoFill: true` arms conditional UI (the browser's
+ * passkey autofill); without it the call opens the modal ceremony when a
+ * button invokes it. A success resolves with the session Better Auth set.
+ */
+export type SignInWithPasskey = (input?: {
+  readonly autoFill?: boolean
+}) => Promise<AuthResult<{ readonly user: { readonly id: string } } | null>>
+
+export function signInPasskeyWithAuthClient(input?: {
+  readonly autoFill?: boolean
+}): ReturnType<SignInWithPasskey> {
+  return authClient.signIn.passkey(input)
+}
+
+/* -------------------------------------------------------------------------- */
 /* Sessions                                                                    */
 /* -------------------------------------------------------------------------- */
 

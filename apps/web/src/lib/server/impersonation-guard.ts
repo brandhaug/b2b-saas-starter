@@ -22,6 +22,11 @@ const FORBIDDEN_PATHS: ReadonlyArray<{
   { suffix: '/two-factor/enable', action: 'change_two_factor' },
   { suffix: '/two-factor/disable', action: 'change_two_factor' },
   { suffix: '/two-factor/generate-backup-codes', action: 'change_two_factor' },
+  // A passkey enrolled under impersonation would keep working after the
+  // impersonation ends (ADR 0056) — the same persistence concern as a
+  // password change (ADR 0054).
+  { suffix: '/passkey/verify-registration', action: 'change_passkey' },
+  { suffix: '/passkey/delete-passkey', action: 'change_passkey' },
   { suffix: '/change-email', action: 'change_email' },
   { suffix: '/delete-user', action: 'delete_account' }
 ]

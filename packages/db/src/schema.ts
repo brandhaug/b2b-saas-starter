@@ -214,6 +214,39 @@ export const twoFactor = sqliteTable(
   ]
 )
 
+// Owned by Better Auth's `passkey` plugin — the export key must stay the
+// plugin's model name (`passkey`) because the drizzle adapter resolves
+// `schema[modelName]`. One row per registered WebAuthn credential; the public
+// key is the verifier's input, never a secret. Plugin-owned shape: camelCase
+// columns, epoch-integer dates (ADR 0056).
+export const passkey = sqliteTable(
+  'passkey',
+  {
+    id: id(),
+    // User-chosen label for the management UI; the plugin leaves it absent
+    // when the ceremony carried no name.
+    name: text('name'),
+    publicKey: text('publicKey').notNull(),
+    userId: text('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    credentialID: text('credentialID').notNull(),
+    counter: integer('counter').notNull(),
+    deviceType: text('deviceType').notNull(),
+    backedUp: integer('backedUp', { mode: 'boolean' }).notNull(),
+    // Comma-separated WebAuthn transport list; the plugin splits and joins it
+    // itself, so plain `text`, like `two_factor.backupCodes`.
+    transports: text('transports'),
+    createdAt: authCreatedAt(),
+    // The authenticator model's identifier, best-effort label source.
+    aaguid: text('aaguid')
+  },
+  (table) => [
+    index('passkey_user_id_idx').on(table.userId),
+    index('passkey_credential_id_idx').on(table.credentialID)
+  ]
+)
+
 // The three tables below are owned by Better Auth's `organization` plugin.
 // The plugin's `organization`, `member`, and `invitation` models are remapped
 // onto the starter's `workspace` vocabulary with `modelName` (see

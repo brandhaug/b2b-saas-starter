@@ -1,3 +1,4 @@
+import { passkey } from '@better-auth/passkey'
 import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz/client'
 import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
@@ -71,6 +72,28 @@ export type AuthConfigInterface = {
 export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>()(
   '@b2b-saas-starter/auth/AuthConfig'
 ) {}
+
+/**
+ * The WebAuthn Relying Party id, derived from the app URL the caller already
+ * supplies (`BETTER_AUTH_URL`) rather than a second env var: `localhost` in
+ * local dev (a valid WebAuthn rpID — the flow works with zero configuration),
+ * the hostname in production. The rpID must equal the serving host or a
+ * registrable suffix of it, which the URL's hostname is by construction.
+ */
+function passkeyRpID(baseURL: string): string {
+  return new URL(baseURL).hostname
+}
+
+/**
+ * The origin WebAuthn ceremonies are verified against, from the same app URL.
+ * `new URL(...).origin` normalizes scheme, host, and port and drops any path
+ * or trailing slash — the exact shape the passkey plugin wants. A deployment
+ * that serves the app on additional origins widens this; the plugin accepts
+ * an array.
+ */
+function passkeyOrigin(baseURL: string): string {
+  return new URL(baseURL).origin
+}
 
 /**
  * Kept as a plain function returning a single (non-union) object type: the
@@ -166,6 +189,14 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         // trusted-device grace period.
         twoFactorCookieMaxAge: 600,
         trustDeviceMaxAge: 60 * 60 * 24 * 30
+      }),
+      // WebAuthn passkeys: registration demands a session, sign-in opens one
+      // directly. `rpID`/`origin` derive from the app URL on the config — no
+      // separate env var, and `localhost` works out of the box (ADR 0056).
+      passkey({
+        rpID: passkeyRpID(options.baseURL),
+        rpName: 'B2B SaaS Starter',
+        origin: passkeyOrigin(options.baseURL)
       }),
       // The privileged system role comes from the stored vocabulary
       // (`packages/db`'s `systemRoles`), so the plugin's gate and the column it

@@ -282,6 +282,73 @@ describe('authAuditInput', () => {
     expect(failed?.eventType).toBe('auth.sign_in_failed')
   })
 
+  it('audits the passkey management endpoints as an add/remove pair', () => {
+    const added = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/passkey/verify-registration',
+      status: 200,
+      actorUserId: 'usr_demo'
+    })
+    expect(added?.eventType).toBe('auth.passkey_added')
+    expect(added?.actorUserId).toBe('usr_demo')
+    expect(added?.targetType).toBe('user')
+
+    const addFailed = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/passkey/verify-registration',
+      status: 400,
+      // The pre-handler session read attributes failures too.
+      actorUserId: 'usr_demo'
+    })
+    expect(addFailed?.eventType).toBe('auth.passkey_added_failed')
+    expect(addFailed?.actorUserId).toBe('usr_demo')
+
+    const removed = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/passkey/delete-passkey',
+      status: 200,
+      actorUserId: 'usr_demo'
+    })
+    expect(removed?.eventType).toBe('auth.passkey_removed')
+
+    const removeFailed = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/passkey/delete-passkey',
+      status: 401,
+      actorUserId: 'usr_demo'
+    })
+    expect(removeFailed?.eventType).toBe('auth.passkey_removed_failed')
+  })
+
+  it('maps a passkey sign-in to the shared sign-in pair, method named', () => {
+    const input = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/passkey/verify-authentication',
+      status: 200,
+      actorUserId: 'usr_demo'
+    })
+    expect(input?.eventType).toBe('auth.sign_in')
+    expect(input?.targetType).toBe('session')
+    expect(input?.metadata).toEqual({ method: 'passkey', statusCode: 200 })
+
+    const failed = authAuditInput({
+      method: 'POST',
+      pathname: '/api/auth/passkey/verify-authentication',
+      status: 401,
+      actorUserId: null
+    })
+    expect(failed?.eventType).toBe('auth.sign_in_failed')
+
+    // The ceremony's options endpoints and the label-only rename are not
+    // audit-worthy rows.
+    expect(
+      isAudited({ method: 'GET', pathname: '/api/auth/passkey/list-user-passkeys' })
+    ).toBe(false)
+    expect(
+      isAudited({ method: 'POST', pathname: '/api/auth/passkey/update-passkey' })
+    ).toBe(false)
+  })
+
   it('maps a successful sign-out to an attributed event targeting the session', () => {
     const input = authAuditInput({
       method: 'POST',

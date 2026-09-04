@@ -157,6 +157,17 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     actorUserId: 'usr_martin',
     createdAt: '2026-05-15T13:12:00.000Z'
   },
+  // System-level like the two-factor changes it sits beside: a passkey add is
+  // account security, not workspace activity, so it carries no workspace.
+  {
+    id: 'aud_passkey',
+    eventType: 'auth.passkey_added',
+    targetType: 'user',
+    targetId: 'usr_demo',
+    actor: 'Demo Admin',
+    actorUserId: 'usr_demo',
+    createdAt: '2026-05-15T09:30:00.000Z'
+  },
   {
     id: 'aud_token',
     eventType: 'api_token.created',

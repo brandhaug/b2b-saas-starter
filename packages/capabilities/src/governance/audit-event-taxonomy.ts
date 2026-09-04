@@ -65,6 +65,11 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'auth.two_factor_disable_failed',
   'auth.two_factor_verified',
   'auth.two_factor_verification_failed',
+  // passkey lifecycle over the auth catchall (ADR 0056)
+  'auth.passkey_added',
+  'auth.passkey_added_failed',
+  'auth.passkey_removed',
+  'auth.passkey_removed_failed',
   // Better Auth admin endpoints (system-level)
   'system_admin.user_created',
   'system_admin.user_creation_failed',

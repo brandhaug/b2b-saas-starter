@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { TwoFactorPanel } from '@/components/two-factor-panel'
+import { PasskeysPanel } from '@/components/passkeys-panel'
 import { SessionsPanel } from '@/components/sessions-panel'
 import { PageHeader } from '@/components/page/page-header'
 import { pageTitle } from '@/components/page/page-title'
@@ -47,6 +48,25 @@ function AccountRoute() {
           <Alert role="status">
             <AlertDescription>
               Two-factor settings cannot be changed while impersonating this user.
+            </AlertDescription>
+          </Alert>
+        )}
+      </Panel>
+
+      <Panel
+        title="Passkeys"
+        description="Sign-in credentials bound to this account: a fingerprint, face, PIN, or security key. A passkey sign-in counts as two-factor, so no code is asked for."
+      >
+        {/* Hidden, not merely disabled, for an impersonation session: the
+            catchall refuses the endpoints anyway (ADR 0056), so a control
+            that always fails would only teach the admin to ignore errors. */}
+        {session.impersonatedBy === null ? (
+          <PasskeysPanel />
+        ) : (
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
+          <Alert role="status">
+            <AlertDescription>
+              Passkeys cannot be changed while impersonating this user.
             </AlertDescription>
           </Alert>
         )}

@@ -276,7 +276,11 @@ function auditRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.auditEvents.map((event) =>
     insert(auditEvents, {
       id: event.id,
-      workspaceId: fixture.workspace.id,
+      // A row is workspace-scoped only when it says so; omitted means
+      // system-level, exactly how the Seed adapter filters in memory —
+      // system events (admin mutations, account security) never leak into a
+      // workspace trail.
+      workspaceId: event.workspaceId ?? null,
       actorUserId: fixture.members.find((member) => member.name === event.actor)?.id,
       eventType: event.eventType,
       targetType: event.targetType,
