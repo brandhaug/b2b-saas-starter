@@ -37,8 +37,11 @@ const PERMISSIONS = [
   { label: 'apiToken:revoke', request: { apiToken: ['revoke'] } },
   { label: 'webhook:list', request: { webhook: ['list'] } },
   { label: 'webhook:create', request: { webhook: ['create'] } },
-  { label: 'webhook:disable', request: { webhook: ['disable'] } },
+  { label: 'webhook:update', request: { webhook: ['update'] } },
+  { label: 'webhook:delete', request: { webhook: ['delete'] } },
   { label: 'webhook:rotateSecret', request: { webhook: ['rotateSecret'] } },
+  { label: 'webhook:replay', request: { webhook: ['replay'] } },
+  { label: 'webhook:test', request: { webhook: ['test'] } },
   { label: 'auditLog:read', request: { auditLog: ['read'] } },
   { label: 'notification:read', request: { notification: ['read'] } },
   { label: 'assistant:read', request: { assistant: ['read'] } },
@@ -91,7 +94,16 @@ const GRANTS: ReadonlyArray<{
   {
     name: 'write scope',
     principal: tokenPrincipal(['write']),
-    granted: [...READ_ONLY, 'invitation:create', 'webhook:create']
+    granted: [
+      ...READ_ONLY,
+      'invitation:create',
+      'webhook:create',
+      'webhook:update',
+      'webhook:delete',
+      'webhook:rotateSecret',
+      'webhook:replay',
+      'webhook:test'
+    ]
   },
   { name: 'admin scope', principal: tokenPrincipal(['admin']), granted: EVERY_LABEL }
 ]

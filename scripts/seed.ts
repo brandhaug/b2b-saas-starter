@@ -5,6 +5,7 @@ import {
   notificationPreferences,
   notifications,
   user,
+  webhookDeliveries,
   webhookEndpoints,
   workspaceMembers,
   workspaceSsoConnections,
@@ -126,6 +127,7 @@ const collectFixture = Effect.gen(function* () {
   const notificationPrefs = yield* NotificationPreferences
   const userAdmin = yield* PlatformUserAdmin
   const ctx = yield* WorkspaceContext
+  const endpoints = yield* webhooks.list
   return {
     workspace: ctx.workspace,
     // Every account the Seed layer describes, members and non-members alike:
@@ -134,7 +136,10 @@ const collectFixture = Effect.gen(function* () {
     accounts: yield* userAdmin.listUsers,
     members: yield* membership.listMembers,
     tokens: yield* tokens.list,
-    webhooks: yield* webhooks.list,
+    webhooks: endpoints,
+    deliveries: yield* Effect.forEach(endpoints, (endpoint) =>
+      webhooks.listDeliveries({ endpointId: endpoint.id })
+    ),
     auditEvents: yield* audit.listGlobal,
     notifications: yield* notificationFeed.list,
     // The demo owner's explicit email choices — only the non-default rows are
@@ -324,6 +329,32 @@ function webhookRows(fixture: Fixture): ReadonlyArray<string> {
   )
 }
 
+/**
+ * The delivery history rows behind the operator tooling: the failed seed
+ * delivery and its evidence columns so the seeded D1 shows the same
+ * deliveries drawer — replay button included — as the in-memory Seed layer.
+ */
+function webhookDeliveryRows(fixture: Fixture): ReadonlyArray<string> {
+  return fixture.deliveries.flatMap((deliveries) =>
+    deliveries.map((delivery) =>
+      insert(webhookDeliveries, {
+        id: delivery.id,
+        endpointId: delivery.endpointId,
+        eventType: delivery.eventType,
+        status: delivery.status,
+        attempts: delivery.attempts,
+        lastAttemptAt: delivery.lastAttemptAt,
+        nextAttemptAt: delivery.nextAttemptAt,
+        responseStatus: delivery.responseStatus,
+        payload: delivery.payload,
+        requestHeaders: delivery.requestHeaders,
+        responseBody: delivery.responseBody,
+        replayedFrom: delivery.replayedFrom
+      })
+    )
+  )
+}
+
 function auditRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.auditEvents.map((event) =>
     insert(auditEvents, {
@@ -454,6 +485,7 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...webhookRows(fixture),
     ...ssoConnectionRows(fixture),
     ...subscriptionRows(fixture),
+    ...webhookDeliveryRows(fixture),
     ...auditRows(fixture),
     ...notificationRows(fixture),
     ...notificationPreferenceRows(fixture)

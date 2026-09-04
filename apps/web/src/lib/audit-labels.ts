@@ -11,10 +11,12 @@ const EVENT_LABELS = new Map<string, string>(
     'api_token.created': 'API token created',
     'api_token.revoked': 'API token revoked',
     'webhook_endpoint.created': 'Webhook endpoint created',
-    'webhook_endpoint.disabled': 'Webhook endpoint disabled',
+    'webhook_endpoint.updated': 'Webhook endpoint updated',
+    'webhook_endpoint.deleted': 'Webhook endpoint deleted',
     'webhook_endpoint.secret_rotated': 'Webhook secret rotated',
     'webhook.delivery_failed': 'Webhook delivery failed',
     'webhook.delivery_dead_lettered': 'Webhook delivery dead-lettered',
+    'webhook.delivery_replayed': 'Webhook delivery replayed',
     // governance — workspace lifecycle
     'workspace.created': 'Workspace created',
     'workspace.renamed': 'Workspace renamed',

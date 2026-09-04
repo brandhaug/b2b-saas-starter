@@ -1,44 +1,65 @@
 ---
 title: Outbound webhooks
-description: Workspace Webhook Endpoints, Cloudflare Queues, attempt history, and retries.
+description: Workspace Webhook Endpoints, Cloudflare Queues, attempt history, retries, replays, and secret rotation.
 category: operations
 order: 10
-tags: [webhooks, queues]
+tags: [webhooks, queues, replay, rotation]
 ---
 
-A Webhook Endpoint is a workspace-owned outbound event delivery target. The starter ships endpoint management, signed payloads, attempt history, and retry handling via Cloudflare Queues.
+A Webhook Endpoint is a workspace-owned outbound event delivery target. The starter ships endpoint management, signed payloads, attempt history, retries, replay, test sends, and secret rotation via Cloudflare Queues.
 
 ## Endpoint lifecycle
 
-- Created from the workspace settings UI
+- Created from the workspace webhooks UI, the REST API, or an API token
 - Each endpoint has a URL, a signing secret, and a list of event types it subscribes to
-- URLs are validated at creation (and re-checked at dispatch): https only, no embedded credentials, no `localhost` or single-label hostnames, and no private, loopback, or link-local IP literals. Invalid URLs fail creation with `InvalidWebhookUrl` (400). DNS-rebinding protection is out of scope for the starter.
-- Disabling an endpoint stops delivery without losing history
-- Deleting an endpoint preserves delivery records for an audit window
-- Lifecycle changes (create, disable, secret rotation) write Audit Events through `WebhookEndpoints` in `@b2b-saas-starter/capabilities`
+- URLs are validated at creation and on every update (and re-checked at dispatch): https only, no embedded credentials, no `localhost` or single-label hostnames, and no private, loopback, or link-local IP literals. Invalid URLs fail with `InvalidWebhookUrl` (400). DNS-rebinding protection is out of scope for the starter.
+- Disabling an endpoint stops delivery without losing history; updating it with `enabled: true` (PATCH) re-enables it
+- Updating (`PATCH`) changes the URL, the event subscriptions, or the enabled flag — only the fields you send
+- Deleting an endpoint removes it and its delivery history (the deliveries cascade); rotation, updates, deletions, and replays all write Audit Events through `WebhookEndpoints` in `@b2b-saas-starter/capabilities`
 
 ## Delivery
 
-When a domain event matching an endpoint's subscriptions occurs, a message is enqueued on the `b2b-saas-starter-webhooks` Cloudflare Queue. The background Worker consumes the queue, signs the payload, posts it with a 10-second timeout, and calls `WebhookEndpoints.recordDeliveryAttempt` to persist the attempt to `webhook_deliveries` with `status`, `attempts`, `lastAttemptAt`, `nextAttemptAt`, and `responseStatus`.
+When a domain event matching an endpoint's subscriptions occurs, a message is enqueued on the `b2b-saas-starter-webhooks` Cloudflare Queue. The background Worker consumes the queue, signs the payload, posts it with a 10-second timeout, and calls `WebhookEndpoints.recordDeliveryAttempt` to persist the attempt to `webhook_deliveries` with `status`, `attempts`, `lastAttemptAt`, `nextAttemptAt`, `responseStatus` — plus the operator evidence: the `payload` that was sent, the `requestHeaders` block, a truncated `responseBody` from the receiver, and the `replayedFrom` link on replays. Every redelivery of the same queue message resolves the same row, so the history is one row per message, not one row per attempt.
 
 Each request body is `{"deliveryId": "whd_…", "eventType": "…", "payload": …}` — `deliveryId` equals the persisted delivery row id, so you can deduplicate redeliveries — and carries these headers:
 
 - `x-b2b-starter-event` — the event type
 - `x-b2b-starter-timestamp` — unix seconds at signing time
-- `x-b2b-starter-signature` — `t=<unix>,sha256=<hex>` where `<hex>` is HMAC-SHA256 over the string `"<unix>.<rawBody>"` using the endpoint's signing secret
+- `x-b2b-starter-signature` — `t=<unix>` followed by one or more `sha256=<hex>` entries, each an HMAC-SHA256 over `"<unix>.<rawBody>"` with one of the endpoint's active signing secrets (see [Secret rotation](#secret-rotation))
+- `x-trace-id` — the trace id a receiver can quote back in support requests
 
 To verify a delivery:
 
-1. Parse `t` and `sha256` from `x-b2b-starter-signature`
+1. Parse `t` and every `sha256` entry from `x-b2b-starter-signature`
 2. Reject if `|now − t|` exceeds your tolerance window (e.g. 5 minutes) — the replay guard
-3. Compute HMAC-SHA256 over `` `${t}.${rawBody}` `` with your signing secret and constant-time-compare the hex digest against `sha256`
+3. For each secret your receiver holds, compute HMAC-SHA256 over `` `${t}.${rawBody}` `` and constant-time-compare the hex digest against **each** `sha256` entry — a match on any one verifies the delivery
 4. Deduplicate on `deliveryId`
 
 ## Retries and delivery statuses
 
-Delivery rows use one of four statuses: `delivered` (2xx), `failed` (retryable: 5xx, 408, 429, network error, or timeout), `failed_permanent` (non-retryable 4xx or an endpoint URL that fails the dispatch-time validation — acked, no retry), and `dead_lettered` (retries exhausted).
+Delivery rows use one of five statuses: `pending` (an operator replay or test send created the row and the queue has not dispatched it yet), `delivered` (2xx), `failed` (retryable: 5xx, 408, 429, network error, or timeout), `failed_permanent` (non-retryable 4xx or an endpoint URL that fails the dispatch-time validation — acked, no retry), and `dead_lettered` (retries exhausted).
 
-Retryable failures back off linearly: `min(attempts, 6) × 30s` (so 30, 60, 90 … up to 180s); the persisted `nextAttemptAt` is derived from the same formula. The QueueConsumer is configured with `maxRetries = 6`, `batchSize = 25`, `maxConcurrency = 4`, and `retryDelay = 30s` (see `alchemy.run.ts` and `apps/background/wrangler.jsonc`). On failure the worker calls `message.retry({ delaySeconds })` and lets Cloudflare schedule the next attempt. After `maxRetries`, Cloudflare moves the message to the dead-letter queue `b2b-saas-starter-webhooks-dlq`, where a consumer on the same Worker records a terminal `dead_lettered` delivery row. Audit Event and Notification emission on permanent failure are not yet wired.
+Retryable failures back off linearly: `min(attempts, 6) × 30s` (so 30, 60, 90 … up to 180s); the persisted `nextAttemptAt` is derived from the same formula. The QueueConsumer is configured with `maxRetries = 6`, `batchSize = 25`, `maxConcurrency = 4`, and `retryDelay = 30s` (see `alchemy.run.ts` and `apps/background/wrangler.jsonc`). On failure the worker calls `message.retry({ delaySeconds })` and lets Cloudflare schedule the next attempt. After `maxRetries`, Cloudflare moves the message to the dead-letter queue `b2b-saas-starter-webhooks-dlq`, where a consumer on the same Worker marks the message's delivery row terminal (`dead_lettered`) and records a workspace Notification so members see the endpoint stopped receiving.
+
+## Operator tooling
+
+The webhooks page and the REST surface share one operator toolkit:
+
+- **Deliveries drawer** — per endpoint, newest first, with each attempt's evidence (payload, request headers, response status, truncated response body). `GET /workspaces/:slug/webhooks/:endpointId/deliveries` is the REST read (a `read`-scope token may list it; it is also the `list_webhook_deliveries` MCP tool).
+- **Replay** — re-enqueues a _failed_ delivery (`failed`, `failed_permanent`, or `dead_lettered`) verbatim: a new `pending` row with attempts reset to 0, carrying the original payload and a `replayedFrom` link to the source row, which is never modified. The replay writes a `webhook.delivery_replayed` Audit Event. REST: `POST /workspaces/:slug/webhooks/deliveries/:deliveryId/replay`. Anything on a disabled endpoint refuses with 409 — every delivery row records its payload (terminal rows included), so there is always something honest to re-send.
+- **Test send** — queues a synthetic `webhook.test_event` delivery to one enabled endpoint so an operator can prove a receiver's configuration end to end. REST: `POST /workspaces/:slug/webhooks/:endpointId/test-event`.
+- **Rotate secret** — mints a new signing secret shown once. See below for the receiver contract. REST: `POST /workspaces/:slug/webhooks/:endpointId/rotate-secret`.
+
+## Secret rotation
+
+Rotating an endpoint's secret is a **shift, not a cutover**: the replaced secret moves into a 24-hour grace window and keeps signing deliveries alongside the new one.
+
+For receivers this means:
+
+1. **During the grace window**, `x-b2b-starter-signature` carries **two** `sha256` entries — the first computed with the new secret, the second with the old one. A receiver still holding the old secret keeps verifying deliveries while its operator installs the new one. Verify against every entry (step 3 above), not just the first.
+2. **Install the new secret as soon as you can** — within 24 hours. After the window closes, deliveries are signed with the new secret only, and a receiver still on the old secret starts failing verification.
+3. Rotating again inside the window drops the original secret entirely: only the last two secrets are ever active.
+4. The new secret is displayed **once** at rotation (web UI and REST response) — store it immediately.
 
 ## Provider webhooks vs Webhook Endpoints
 

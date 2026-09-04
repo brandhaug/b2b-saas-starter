@@ -4,9 +4,10 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
   WebhooksPanel,
-  type DisableWebhookEndpoint,
+  type UpdateWebhookEndpoint,
   type RotateWebhookSecret
 } from './webhooks-panel'
+import { type ReplayDelivery, type SendTestEvent } from './webhook-deliveries-drawer'
 import { renderWithRouter } from '@/test/router-harness'
 
 const delivery: WebhookDelivery = {
@@ -17,7 +18,20 @@ const delivery: WebhookDelivery = {
   attempts: 1,
   lastAttemptAt: '2026-05-16T09:00:00.000Z',
   nextAttemptAt: null,
-  responseStatus: 200
+  responseStatus: 200,
+  payload: { hello: 'world' },
+  requestHeaders: { 'x-b2b-starter-event': 'api_token.created' },
+  responseBody: '',
+  replayedFrom: null
+}
+
+const failedDelivery: WebhookDelivery = {
+  ...delivery,
+  id: 'dlv_2',
+  status: 'failed',
+  attempts: 3,
+  responseStatus: 500,
+  responseBody: 'upstream connect error'
 }
 
 const endpoint: WebhookEndpoint & {
@@ -31,8 +45,10 @@ const endpoint: WebhookEndpoint & {
   deliveries: [delivery]
 }
 
-const disableEndpoint = vi.fn<DisableWebhookEndpoint>()
+const updateEndpoint = vi.fn<UpdateWebhookEndpoint>()
 const rotateSecret = vi.fn<RotateWebhookSecret>()
+const replayDelivery = vi.fn<ReplayDelivery>()
+const sendTestEvent = vi.fn<SendTestEvent>()
 
 function renderPanel(input: {
   readonly role: 'owner' | 'member'
@@ -43,18 +59,22 @@ function renderPanel(input: {
       workspaceSlug="starter-lab"
       endpoints={input.endpoints ?? [endpoint]}
       viewer={{ role: input.role }}
-      disableEndpoint={disableEndpoint}
+      updateEndpoint={updateEndpoint}
       rotateSecret={rotateSecret}
+      replayDelivery={replayDelivery}
+      sendTestEvent={sendTestEvent}
     />
   )
 }
 
 describe('WebhooksPanel', () => {
   beforeEach(() => {
-    disableEndpoint.mockReset()
-    disableEndpoint.mockResolvedValue(true)
+    updateEndpoint.mockReset()
+    updateEndpoint.mockResolvedValue(endpoint)
     rotateSecret.mockReset()
     rotateSecret.mockResolvedValue('whsec_rotated')
+    replayDelivery.mockReset()
+    sendTestEvent.mockReset()
   })
 
   it('offers the create form and the row controls to a role that holds them', async () => {
@@ -93,12 +113,67 @@ describe('WebhooksPanel', () => {
   })
 
   it('surfaces a failure from either mutation in the one alert', async () => {
-    disableEndpoint.mockRejectedValue(new Error('Endpoint already disabled'))
+    updateEndpoint.mockRejectedValue(new Error('Endpoint already disabled'))
     await renderPanel({ role: 'owner' })
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm disable' }))
     await waitFor(() => {
       expect(screen.getByText('Endpoint already disabled')).toBeTruthy()
     })
+  })
+})
+
+describe('WebhookDeliveriesDrawer', () => {
+  const endpointWithFailure = {
+    ...endpoint,
+    deliveries: [delivery, failedDelivery]
+  }
+
+  it('opens per endpoint and shows the attempt timeline with evidence', async () => {
+    await renderPanel({ role: 'owner', endpoints: [endpointWithFailure] })
+    fireEvent.click(screen.getByRole('button', { name: /Delivery attempts \(2\)/ }))
+    await screen.findByRole('dialog')
+    // The timeline lists both attempts with the recorded response status...
+    expect(screen.getAllByText('failed').length).toBeGreaterThan(0)
+    expect(screen.getByText('HTTP 500')).toBeTruthy()
+    // ...and the recorded evidence for the failed row.
+    expect(screen.getByText('upstream connect error')).toBeTruthy()
+    expect(screen.getAllByText(/x-b2b-starter-event/).length).toBeGreaterThan(0)
+  })
+
+  it('offers Replay on failed rows and queues it through the port', async () => {
+    replayDelivery.mockResolvedValue({ deliveryId: 'dlv_replayed' })
+    await renderPanel({ role: 'owner', endpoints: [endpointWithFailure] })
+    fireEvent.click(screen.getByRole('button', { name: /Delivery attempts \(2\)/ }))
+    const replayButton = await screen.findByRole('button', { name: 'Replay' })
+    fireEvent.click(replayButton)
+    await waitFor(() => {
+      expect(replayDelivery).toHaveBeenCalledWith({
+        data: { workspaceSlug: 'starter-lab', deliveryId: 'dlv_2' }
+      })
+    })
+    // The delivered row never gets one.
+    expect(screen.getAllByRole('button', { name: 'Replay' })).toHaveLength(1)
+  })
+
+  it('queues a test event from the drawer', async () => {
+    sendTestEvent.mockResolvedValue({ deliveryId: 'dlv_test' })
+    await renderPanel({ role: 'owner', endpoints: [endpointWithFailure] })
+    fireEvent.click(screen.getByRole('button', { name: /Delivery attempts \(2\)/ }))
+    const testButton = await screen.findByRole('button', { name: 'Send test event' })
+    fireEvent.click(testButton)
+    await waitFor(() => {
+      expect(sendTestEvent).toHaveBeenCalledWith({
+        data: { workspaceSlug: 'starter-lab', endpointId: 'whe_1' }
+      })
+    })
+  })
+
+  it('hides the operator actions from a role that cannot replay or test', async () => {
+    await renderPanel({ role: 'member', endpoints: [endpointWithFailure] })
+    fireEvent.click(screen.getByRole('button', { name: /Delivery attempts \(2\)/ }))
+    await screen.findByRole('dialog')
+    expect(screen.queryByRole('button', { name: 'Replay' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Send test event' })).toBeNull()
   })
 })

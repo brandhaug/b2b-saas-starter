@@ -35,6 +35,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0026 — Workspace API tokens](./0026-workspace-api-tokens.md)
 - [0027 — Public content search first](./0027-public-content-search-first.md)
 - [0032 — Workspace outbound webhooks](./0032-workspace-outbound-webhooks.md)
+- [0062 — Webhook operator tooling: replay and rotation grace](./0062-webhook-operator-tooling-replay-and-rotation-grace.md)
 - [0054 — Derived workspace onboarding checklist](./0054-derived-workspace-onboarding-checklist.md)
 
 ## Background work and delivery

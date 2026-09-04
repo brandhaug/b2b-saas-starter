@@ -13,8 +13,13 @@ import {
 } from '@b2b-saas-starter/capabilities/errors'
 import {
   CreateWebhookEndpointPayload,
-  WebhookEndpoint
+  UpdateWebhookEndpointPayload,
+  WebhookEndpoint,
+  WebhookDispatchRejected,
+  WebhookEndpointNotFound,
+  WebhookDeliveryNotFound
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import { WorkspaceExport } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import {
@@ -253,6 +258,14 @@ const PROTECTED_ERRORS = [
 ] as const
 
 export const SlugParams = Schema.Struct({ slug: Schema.String })
+const EndpointParams = Schema.Struct({
+  slug: Schema.String,
+  endpointId: Schema.String
+})
+const DeliveryParams = Schema.Struct({
+  slug: Schema.String,
+  deliveryId: Schema.String
+})
 
 /**
  * The query vocabulary every paged list endpoint shares (ADR 0057): an
@@ -327,6 +340,17 @@ export const WorkspaceApi = HttpApiGroup.make('workspace')
     })
   )
   .add(
+    HttpApiEndpoint.get(
+      'webhook-deliveries',
+      '/workspaces/:slug/webhooks/:endpointId/deliveries',
+      {
+        params: EndpointParams,
+        success: Schema.Array(WebhookDelivery),
+        error: WORKSPACE_ERRORS
+      }
+    )
+  )
+  .add(
     HttpApiEndpoint.get('audit-events', '/workspaces/:slug/audit-events', {
       params: SlugParams,
       query: ListPageQuery,
@@ -339,6 +363,19 @@ export const WorkspaceApi = HttpApiGroup.make('workspace')
 
 const TokenIdParams = Schema.Struct({ slug: Schema.String, tokenId: Schema.String })
 const RevokedResponse = Schema.Struct({ status: Schema.Literal('revoked') })
+
+/** Contract response literals for the webhook operator surface. */
+const DeletedResponse = Schema.Struct({ status: Schema.Literal('deleted') })
+export type DeletedResponse = typeof DeletedResponse.Type
+const RotatedWebhookSecret = Schema.Struct({
+  signingSecret: Schema.String
+})
+export type RotatedWebhookSecret = typeof RotatedWebhookSecret.Type
+export const QueuedDeliveryResponse = Schema.Struct({
+  status: Schema.Literal('queued'),
+  deliveryId: Schema.String
+})
+export type QueuedDeliveryResponse = typeof QueuedDeliveryResponse.Type
 
 export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
   .add(
@@ -373,6 +410,54 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
       success: WebhookEndpoint.pipe(HttpApiSchema.status(201)),
       error: [InvalidWebhookUrl, PlanLimitExceeded, ...WORKSPACE_ERRORS]
     })
+  )
+  .add(
+    HttpApiEndpoint.patch('update', '/workspaces/:slug/webhooks/:endpointId', {
+      params: EndpointParams,
+      payload: UpdateWebhookEndpointPayload,
+      success: WebhookEndpoint,
+      error: [InvalidWebhookUrl, WebhookEndpointNotFound, ...WORKSPACE_ERRORS]
+    })
+  )
+  .add(
+    HttpApiEndpoint.delete('delete', '/workspaces/:slug/webhooks/:endpointId', {
+      params: EndpointParams,
+      success: DeletedResponse,
+      error: [WebhookEndpointNotFound, ...WORKSPACE_ERRORS]
+    })
+  )
+  .add(
+    HttpApiEndpoint.post(
+      'rotate-secret',
+      '/workspaces/:slug/webhooks/:endpointId/rotate-secret',
+      {
+        params: EndpointParams,
+        success: RotatedWebhookSecret,
+        error: [WebhookEndpointNotFound, ...WORKSPACE_ERRORS]
+      }
+    )
+  )
+  .add(
+    HttpApiEndpoint.post(
+      'test-event',
+      '/workspaces/:slug/webhooks/:endpointId/test-event',
+      {
+        params: EndpointParams,
+        success: QueuedDeliveryResponse.pipe(HttpApiSchema.status(201)),
+        error: [WebhookEndpointNotFound, WebhookDispatchRejected, ...WORKSPACE_ERRORS]
+      }
+    )
+  )
+  .add(
+    HttpApiEndpoint.post(
+      'replay-delivery',
+      '/workspaces/:slug/webhooks/deliveries/:deliveryId/replay',
+      {
+        params: DeliveryParams,
+        success: QueuedDeliveryResponse.pipe(HttpApiSchema.status(201)),
+        error: [WebhookDeliveryNotFound, WebhookDispatchRejected, ...WORKSPACE_ERRORS]
+      }
+    )
   )
   .middleware(BearerAuth)
 

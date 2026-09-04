@@ -1,5 +1,5 @@
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
-import { DateTime, Effect, Layer, Option } from 'effect'
+import { DateTime, Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { SeedLayer } from './layers.ts'
 import {
@@ -26,6 +26,7 @@ import {
 import { LiveWebhookEndpoints } from './developer-platform/webhook-endpoints.live.ts'
 import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
 import { WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
+import { failureTag } from './internal/failure-tag.ts'
 import {
   developerPlatformContractCases,
   planLimitContractCases
@@ -44,7 +45,11 @@ import {
   notificationFeedContractDataset
 } from './notifications/notification-feed.contract.ts'
 import { SeedNotificationFeed } from './notifications/notification-feed.seed.ts'
-import { SeedNotificationPreferences } from './notifications/notification-preferences.ts'
+import { LiveNotificationFeed } from './notifications/notification-feed.live.ts'
+import {
+  LiveNotificationPreferences,
+  SeedNotificationPreferences
+} from './notifications/notification-preferences.ts'
 import { testWorkspaceContext, type Actor } from './workspace-context.ts'
 import {
   SeedWorkspaceLifecycle,
@@ -85,10 +90,16 @@ const seedWorkspaceLayer = Layer.merge(
 describe('seed developer-platform contract', () => {
   const auditLog = SeedAuditEventLog([])
   const publisher = SeedWebhookPublisher
+  const notificationFeed = seedFeed([])
   const layer = Layer.mergeAll(
     Layer.merge(auditLog, testWorkspaceContext(seedWorkspaceRecord)),
     SeedApiTokenRegistry([]).pipe(Layer.provide(auditLog), Layer.provide(publisher)),
-    SeedWebhookEndpoints([]).pipe(Layer.provide(auditLog), Layer.provide(publisher))
+    SeedWebhookEndpoints([]).pipe(
+      Layer.provide(auditLog),
+      Layer.provide(publisher),
+      Layer.provide(notificationFeed)
+    ),
+    notificationFeed
   )
   for (const contractCase of developerPlatformContractCases(expect)) {
     it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
@@ -444,6 +455,13 @@ describe('webhook endpoint workspace scoping', () => {
     return Layer.merge(
       LiveWebhookEndpoints.pipe(
         Layer.provide(LiveAuditEventLog),
+        Layer.provide(
+          LiveNotificationFeed().pipe(
+            Layer.provide(
+              LiveNotificationPreferences.pipe(Layer.provide(LiveAuditEventLog))
+            )
+          )
+        ),
         Layer.provide(LiveWebhookPublisher()),
         Layer.provide(layerFromD1(fake.binding))
       ),
@@ -455,9 +473,12 @@ describe('webhook endpoint workspace scoping', () => {
     const fake = makeFakeD1()
     return Effect.gen(function* () {
       const webhooks = yield* WebhookEndpoints
-      const disabled = yield* webhooks.disable({ endpointId: 'wh_belongs_to_a' })
-      // No matching endpoint in this workspace — signalled to the caller…
-      expect(disabled).toBe(false)
+      // No matching endpoint in this workspace — the update fails the typed
+      // 404…
+      const outcome = yield* Effect.exit(
+        webhooks.update({ endpointId: 'wh_belongs_to_a', enabled: false })
+      )
+      expect(failureTag(outcome)).toBe('WebhookEndpointNotFound')
       // …the existence lookup must be scoped to the calling workspace…
       expect(fake.executed).toHaveLength(1)
       const lookup = fake.executed[0]
@@ -473,9 +494,11 @@ describe('webhook endpoint workspace scoping', () => {
     const fake = makeFakeD1()
     return Effect.gen(function* () {
       const webhooks = yield* WebhookEndpoints
-      const rotated = yield* webhooks.rotateSecret({ endpointId: 'wh_belongs_to_a' })
-      // No endpoint matched: no secret is returned and nothing was written.
-      expect(Option.isNone(rotated)).toBe(true)
+      // No endpoint matched: no secret is minted and nothing was written.
+      const outcome = yield* Effect.exit(
+        webhooks.rotateSecret({ endpointId: 'wh_belongs_to_a' })
+      )
+      expect(failureTag(outcome)).toBe('WebhookEndpointNotFound')
       expect(fake.batches).toHaveLength(0)
     }).pipe(Effect.provide(foreignEndpointLayer(fake)))
   })

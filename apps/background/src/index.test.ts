@@ -108,9 +108,27 @@ describe('webhook signature', () => {
         expect(signature).toBe(
           '869b9de1fa743616d6143977e0a770f55f7cfd874cba33d935c1bfb5b481f9b2'
         )
-        expect(signatureHeaderValue(timestamp, signature)).toBe(
+        expect(signatureHeaderValue(timestamp, [signature])).toBe(
           't=1700000000,sha256=869b9de1fa743616d6143977e0a770f55f7cfd874cba33d935c1bfb5b481f9b2'
         )
+      })
+    ))
+
+  it('lists one sha256 entry per active signing secret on the header', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const timestamp = 1_700_000_000
+        const body = '{"hello":"world"}'
+        const signatures = [
+          yield* computeWebhookSignature('whsec_new', timestamp, body),
+          yield* computeWebhookSignature('whsec_old', timestamp, body)
+        ]
+        // The rotation-grace shape: `t=` first, then one sha256 per secret, in
+        // signing order (current secret first).
+        const header = signatureHeaderValue(timestamp, signatures)
+        expect(header).toMatch(/^t=1700000000,sha256=[0-9a-f]{64},sha256=[0-9a-f]{64}$/)
+        expect(header).toContain(signatures[1])
+        expect(signatures[0]).not.toBe(signatures[1])
       })
     ))
 })
@@ -125,7 +143,14 @@ const message: WebhookMessage = {
 const target = {
   id: 'wh_1',
   url: 'https://example.com/hook',
-  signingSecret: 'whsec_test'
+  signingSecrets: ['whsec_test']
+}
+
+/** Same endpoint mid-rotation: the replaced secret still signs for 24h. */
+const rotatingTarget = {
+  id: 'wh_1',
+  url: 'https://example.com/hook',
+  signingSecrets: ['whsec_new', 'whsec_old']
 }
 
 // Mirrors the Live workspace check: the target only resolves when the
@@ -145,13 +170,15 @@ function stubEndpoints(
   dispatchTarget: typeof target | null,
   recorded: Array<WebhookDeliveryAttemptInput>
 ): Layer.Layer<WebhookEndpoints> {
-  let terminalSeq = 0
   return Layer.succeed(WebhookEndpoints)({
     list: Effect.die('unused in delivery tests'),
     listPage: () => Effect.die('unused in delivery tests'),
     create: () => Effect.die('unused in delivery tests'),
-    disable: () => Effect.die('unused in delivery tests'),
     rotateSecret: () => Effect.die('unused in delivery tests'),
+    update: () => Effect.die('unused in delivery tests'),
+    delete: () => Effect.die('unused in delivery tests'),
+    replayDelivery: () => Effect.die('unused in delivery tests'),
+    sendTestEvent: () => Effect.die('unused in delivery tests'),
     listDeliveries: () => Effect.die('unused in delivery tests'),
     getDispatchTarget: (endpointId, workspaceId) =>
       Effect.succeed(resolveTarget(dispatchTarget, endpointId, workspaceId)),
@@ -161,15 +188,15 @@ function stubEndpoints(
       }),
     recordTerminalDeliveryAttempt: (input) =>
       Effect.sync(() => {
-        terminalSeq += 1
-        const deliveryId = `whd_stub_terminal_${terminalSeq}`
+        // The queue message's id resolves the row; the recorded payload keeps
+        // the terminal row replayable, exactly like the Live adapter.
         recorded.push({
-          id: deliveryId,
+          id: input.deliveryId,
           ...input,
           responseStatus: null,
           nextAttemptAt: null
         })
-        return { deliveryId }
+        return { deliveryId: input.deliveryId }
       })
   })
 }
@@ -273,7 +300,12 @@ describe('processWebhookMessage', () => {
           eventType: 'api_token.created',
           status: 'delivered',
           responseStatus: 200,
-          nextAttemptAt: null
+          nextAttemptAt: null,
+          // Operator evidence: what was sent...
+          payload: { hello: 'world' },
+          requestHeaders: {
+            'x-b2b-starter-event': 'api_token.created'
+          }
         })
         const headers: Record<string, string | undefined> =
           captured.request?.headers ?? {}
@@ -282,6 +314,48 @@ describe('processWebhookMessage', () => {
           /^t=\d+,sha256=[0-9a-f]{64}$/
         )
         expect(headers['x-trace-id']).toBe('trace-test')
+        // The exact header block the consumer recorded is the one it posted.
+        expect(recorded[0]?.requestHeaders?.['x-b2b-starter-signature']).toBe(
+          headers['x-b2b-starter-signature']
+        )
+        // A null response body records the empty string, not a fabricated one.
+        expect(recorded[0]?.responseBody).toBe('')
+      })
+    ))
+
+  it('dual-signs while a rotated secret is inside its grace window', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { outcome, recorded, captured } = yield* run(rotatingTarget, 200)
+        expect(outcome).toBe('ack')
+        const headers: Record<string, string | undefined> =
+          captured.request?.headers ?? {}
+        const header = headers['x-b2b-starter-signature'] ?? ''
+        // Two entries: the current secret signs first, the replaced one second.
+        const entries = header.split(',').filter((part) => part.startsWith('sha256='))
+        expect(entries).toHaveLength(2)
+        // Recompute both signatures over the exact bytes the request carried.
+        const requestBody = captured.request?.body
+        expect(requestBody?._tag).toBe('Uint8Array')
+        let bodyText = ''
+        if (requestBody?._tag === 'Uint8Array') {
+          bodyText = new TextDecoder().decode(requestBody.body)
+        }
+        const timestamp = Number(header.match(/^t=(\d+)/)?.[1])
+        const expectedFirst = yield* computeWebhookSignature(
+          'whsec_new',
+          timestamp,
+          bodyText
+        )
+        const expectedSecond = yield* computeWebhookSignature(
+          'whsec_old',
+          timestamp,
+          bodyText
+        )
+        expect(entries[0]).toBe(`sha256=${expectedFirst}`)
+        expect(entries[1]).toBe(`sha256=${expectedSecond}`)
+        // The recorded evidence carries the same dual-signature header.
+        expect(recorded[0]?.requestHeaders?.['x-b2b-starter-signature']).toBe(header)
       })
     ))
 
@@ -308,6 +382,18 @@ describe('processWebhookMessage', () => {
         // The signed body carries the same id it persists (same variable in
         // processWebhookMessage), so receiver dedup on the body's deliveryId
         // collapses both attempts.
+      })
+    ))
+
+  it('prefers the deliveryId an operator dispatch stamped on the message', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        // A replay's pending row exists before the message is enqueued; the
+        // consumer must resolve that row, not mint a queue-derived one.
+        const replayedMessage = { ...message, deliveryId: 'whd_replayed_row' }
+        const { recorded } = yield* run(target, 200, 1, replayedMessage, 'qmsg_9')
+        expect(recorded[0]?.id).toBe('whd_replayed_row')
+        expect(recorded[0]?.status).toBe('delivered')
       })
     ))
 
