@@ -84,6 +84,11 @@ TanStack Start web app served by a Cloudflare Worker (`vite.config.ts` uses the 
 - The command palette generates its workspace entries from `WORKSPACE_NAV` (same `viewerCan` filter as the sidebar) and indexes doc + blog titles/descriptions through the cached meta promises when its lazy dialog opens. The sidebar nav carries a `group` per row; the palette keeps matching the section name via item keywords (`General` answers "settings").
 - Keep full workspace-data search out of the first search index; search public content + command actions first.
 
+## Build and deploy
+
+- **The deployed Worker bundle is the SSR environment's output verbatim, and the deploy build bundles node_modules.** `alchemy deploy` → `Cloudflare.Website.Vite` runs the Vite build itself (injecting the Cloudflare Vite plugin, which sets `resolve.noExternal` for the server environment because workerd cannot resolve bare specifiers) and uploads every emitted `dist/server` chunk. That output is minified (`build: { minify: true }` seeds every environment), but a plain `pnpm -C apps/web build` is not the deploy shape — its `dist/server` keeps node_modules external and understates the upload.
+- **Client-only dynamic imports must sit behind `createClientOnlyFn(loader)`** (ADR 0063). Anything reachable from the server graph gets bundled into `dist/server`, so a bare `await import('mermaid')` in a component once shipped mermaid + cytoscape + katex + posthog-js (~2.7 MB) to the Worker as never-executed lazy chunks and pushed the upload past the 10 MiB limit; the compiler swaps a `createClientOnlyFn` call — loader argument included — for a stub in the server build, so the import never enters the server graph, and the identity-typed loader keeps callers free of absence guards. Keep the call literal in the component's module: a shared `clientOnly()` wrapper would defeat the lexical transform and reintroduce the leak (see `mdx-mermaid.tsx`, `client-telemetry.tsx`). The size verdict is the deploy log's `Uploading worker (X MB)` line (was ~10.5 MB, now ~6.5 MB), and `scripts/assert-client-boundary.mjs` guards the mirror-image leak after every build.
+
 ## Testing
 
 - Vitest for unit tests co-located with components (`*.test.tsx`).

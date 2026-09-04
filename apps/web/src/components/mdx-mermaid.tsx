@@ -1,4 +1,19 @@
+import { createClientOnlyFn } from '@tanstack/react-start'
 import { useEffect, useId, useRef } from 'react'
+
+/**
+ * The mermaid renderer, loaded only where it can run. Mermaid (and its
+ * ~2.7 MB diagram/telemetry graph: cytoscape, katex, posthog-js) is pure
+ * client-side: the SSR pass renders the empty figure and never executes the
+ * library, and `createClientOnlyFn` swaps the loader for a stub in the
+ * server build so the dynamic import never enters the server graph —
+ * without this, the deploy build ships mermaid's lazy chunks to the Worker
+ * it can never run them in (ADR 0063).
+ */
+const loadMermaid = createClientOnlyFn(async () => {
+  const mermaidModule = await import('mermaid')
+  return mermaidModule.default
+})
 
 export function MdxMermaid({ chart }: { readonly chart: string }) {
   const id = useId().replaceAll(':', '_')
@@ -7,11 +22,12 @@ export function MdxMermaid({ chart }: { readonly chart: string }) {
   const processedChart = chart.replaceAll(String.raw`\n`, '<br/>')
 
   useEffect(() => {
-    const cancelled = { current: false }
+    // Explicit annotation: the cleanup closure mutates this after return, so
+    // control-flow analysis must not narrow it to `false`.
+    let cancelled: boolean = false
 
     async function renderChart() {
-      const mermaidModule = await import('mermaid')
-      const mermaid = mermaidModule.default
+      const mermaid = await loadMermaid()
 
       mermaid.initialize({
         startOnLoad: false,
@@ -22,7 +38,7 @@ export function MdxMermaid({ chart }: { readonly chart: string }) {
       })
 
       const { svg } = await mermaid.render(`mermaid_${id}`, processedChart.trim())
-      if (!cancelled.current && containerRef.current) {
+      if (!cancelled && containerRef.current) {
         containerRef.current.innerHTML = svg
       }
     }
@@ -30,7 +46,7 @@ export function MdxMermaid({ chart }: { readonly chart: string }) {
     void renderChart()
 
     return () => {
-      cancelled.current = true
+      cancelled = true
     }
   }, [processedChart, id])
 

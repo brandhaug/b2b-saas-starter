@@ -12,6 +12,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0049 — Persisted local D1 in dev and e2e](./0049-persisted-local-d1-in-dev-and-e2e.md)
 - [0053 — pnpm and Vite+ toolchain](./0053-pnpm-and-vite-plus-toolchain.md)
 - [0054 — Ephemeral per-pull-request preview stages](./0054-ephemeral-pr-preview-stages.md)
+- [0063 — Client-only vendor graphs stay out of the web Worker's server bundle](./0063-client-only-vendor-graphs-stay-out-of-the-web-worker-server-bundle.md)
 
 ## Application architecture
 

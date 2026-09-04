@@ -171,10 +171,15 @@ export default defineConfig(({ command, mode }) => {
   }
   return {
     // The ssr environment does not minify by default in rolldown-vite, and
-    // the deployed web worker bundle is its output verbatim: unminified, the
-    // bundled server tree exceeds the free Workers size limit (3 MiB).
-    // Setting minify at the top level seeds every environment's build, so
-    // the ssr output shrinks below the limit.
+    // the deployed web worker bundle is its output verbatim: `Website.Vite`
+    // uploads every `dist/server` chunk the deploy build emits, and that
+    // build bundles node_modules (the injected Cloudflare plugin resolves
+    // with `noExternal`, since workerd cannot resolve bare specifiers).
+    // Unminified, the bundled server tree blew the free Workers size limit;
+    // minified, it still carried client-only vendor graphs (mermaid,
+    // posthog-js, @sentry/react) emitted as never-executed lazy chunks.
+    // ADR 0063 strips those at the source and is the rule for any new
+    // browser-only dynamic import.
     build: { minify: true },
     server: { port: 3071, host: 'localhost' },
     preview: { port: 3071, host: 'localhost' },
@@ -239,6 +244,7 @@ export default defineConfig(({ command, mode }) => {
     test: {
       globals: true,
       environment: 'jsdom',
+      setupFiles: ['./src/test/setup.ts'],
       exclude: ['e2e/**', 'node_modules/**', 'dist/**', '.output/**']
     }
   }
