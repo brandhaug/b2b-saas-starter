@@ -123,6 +123,8 @@ function stubReads(failing = false) {
     Layer.succeed(NotificationFeed)({
       list: list([]),
       unreadCount: list(0),
+      markRead: () => unused,
+      notifyUser: () => unused,
       notify: () => unused
     })
   )

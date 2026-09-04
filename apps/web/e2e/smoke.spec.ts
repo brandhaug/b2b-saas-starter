@@ -27,7 +27,10 @@ test('the live demo renders the dashboard without a session', async ({ page }) =
   await page.goto('/demo')
   await expect(page.getByRole('heading', { name: 'Starter Lab' })).toBeVisible()
   // The demo persona is a member: notifications render, owner panels do not.
-  await expect(page.getByText('Notifications')).toBeVisible()
+  // By role, not `getByText` — the mark-all button's sr-only count says
+  // "(N unread notifications)" once a second broadcast is seeded, and the
+  // substring locator would resolve to both.
+  await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible()
   await expect(page.getByText('Needs attention')).toHaveCount(0)
   // Mark-as-read is the one member mutation, and the demo refuses it honestly.
   // The click can land before React hydrates — dev-server module transforms
