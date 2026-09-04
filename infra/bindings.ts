@@ -35,20 +35,25 @@ export const apiRateLimitBindingNames = {
   rest_write: 'RATE_LIMITER_REST_WRITE',
   assistant: 'RATE_LIMITER_ASSISTANT',
   mcp: 'RATE_LIMITER_MCP'
-} satisfies Record<ApiRateLimitBucket, string>
+} satisfies Record<ApiRateLimitBucket, ApiRateLimitBindingName>
 
 export const webRateLimitBindingNames = {
   auth_read: 'RATE_LIMITER_AUTH_READ',
   auth_write: 'RATE_LIMITER_AUTH_WRITE',
   auth_sign_in: 'RATE_LIMITER_AUTH_SIGN_IN'
-} satisfies Record<WebRateLimitBucket, string>
+} satisfies Record<WebRateLimitBucket, WebRateLimitBindingName>
 
 /** The binding names themselves, for env types keyed by binding. */
 export type ApiRateLimitBindingName =
-  (typeof apiRateLimitBindingNames)[ApiRateLimitBucket]
+  | 'RATE_LIMITER_REST'
+  | 'RATE_LIMITER_REST_WRITE'
+  | 'RATE_LIMITER_ASSISTANT'
+  | 'RATE_LIMITER_MCP'
 
 export type WebRateLimitBindingName =
-  (typeof webRateLimitBindingNames)[WebRateLimitBucket]
+  | 'RATE_LIMITER_AUTH_READ'
+  | 'RATE_LIMITER_AUTH_WRITE'
+  | 'RATE_LIMITER_AUTH_SIGN_IN'
 
 // Namespace, budget, and window per bucket — keyed by bucket like the names.
 const apiRateLimitTuning = {

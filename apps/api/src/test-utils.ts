@@ -11,10 +11,7 @@ import { Effect, Schema } from 'effect'
  * the `data:` frame comes off before decoding. Same decode-at-the-boundary
  * idea as `index.test.ts`.
  */
-export function jsonBody<S extends Schema.Top>(
-  response: Response,
-  schema: S
-): Effect.Effect<S['Type'], Schema.ParseError, S['DecodingServices']> {
+export function jsonBody<S extends Schema.Top>(response: Response, schema: S) {
   return Effect.promise(() => response.text()).pipe(
     Effect.flatMap((text) => {
       // oxlint-disable-next-line effect/noTernary -- tests unwrap the protocol's SSE framing before decoding; there is no Effect codec for SSE frames
