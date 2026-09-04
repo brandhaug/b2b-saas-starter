@@ -19,6 +19,7 @@ import { emailValidator } from '@/components/auth/auth-validators'
 import { OtpCodeInput } from '@/components/auth/otp-code-input'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { useResendCooldown } from '@/components/auth/use-resend-cooldown'
+import { ResendCodeButton } from '@/components/auth/resend-code-button'
 import { FormTextField } from '@/components/form-text-field'
 import { PublicLayout } from '@/components/public-layout'
 import { Button } from '@/components/ui/button'
@@ -244,19 +245,10 @@ function VerifyEmailCodeCard({
               )}
             </codeForm.Field>
             <div className="flex items-center justify-between">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={cooldown.remaining > 0}
-                onClick={() => {
-                  void resend()
-                }}
-              >
-                {cooldown.remaining > 0
-                  ? `Resend code (${cooldown.remaining}s)`
-                  : 'Resend code'}
-              </Button>
+              <ResendCodeButton
+                cooldownSeconds={cooldown.remaining}
+                onResend={resend}
+              />
               <Button
                 type="button"
                 variant="ghost"

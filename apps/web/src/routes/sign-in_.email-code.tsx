@@ -14,6 +14,7 @@ import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { OtpCodeInput } from '@/components/auth/otp-code-input'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { useResendCooldown } from '@/components/auth/use-resend-cooldown'
+import { ResendCodeButton } from '@/components/auth/resend-code-button'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
@@ -145,7 +146,7 @@ export function EmailCodeSignInPage({
         <div className="grid gap-3">
           <div className="flex items-center justify-between">
             <ResendCodeButton
-              cooldown={cooldown.remaining}
+              cooldownSeconds={cooldown.remaining}
               onResend={async () => {
                 setSubmitError(null)
                 const result = await sendCode({ email, purpose: 'sign-in' })
@@ -192,31 +193,5 @@ export function EmailCodeSignInPage({
         )}
       </codeForm.Field>
     </AuthCardForm>
-  )
-}
-
-/**
- * The resend control with its visible cooldown: disabled while counting down,
- * with the remaining seconds in the label so the wait is legible.
- */
-function ResendCodeButton({
-  cooldown,
-  onResend
-}: {
-  readonly cooldown: number
-  readonly onResend: () => Promise<void>
-}) {
-  return (
-    <Button
-      type="button"
-      variant="secondary"
-      size="sm"
-      disabled={cooldown > 0}
-      onClick={() => {
-        void onResend()
-      }}
-    >
-      {cooldown > 0 ? `Resend code (${cooldown}s)` : 'Resend code'}
-    </Button>
   )
 }

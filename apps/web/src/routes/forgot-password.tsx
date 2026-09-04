@@ -16,6 +16,7 @@ import { emailValidator, passwordValidator } from '@/components/auth/auth-valida
 import { OtpCodeInput } from '@/components/auth/otp-code-input'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { useResendCooldown } from '@/components/auth/use-resend-cooldown'
+import { ResendCodeButton } from '@/components/auth/resend-code-button'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
@@ -142,19 +143,10 @@ export function ForgotPasswordPage({
         error={submitError}
         footer={
           <div className="flex items-center justify-between">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={cooldown.remaining > 0}
-              onClick={() => {
-                void resendCode()
-              }}
-            >
-              {cooldown.remaining > 0
-                ? `Resend code (${cooldown.remaining}s)`
-                : 'Resend code'}
-            </Button>
+            <ResendCodeButton
+              cooldownSeconds={cooldown.remaining}
+              onResend={resendCode}
+            />
             <Button
               type="button"
               variant="ghost"
