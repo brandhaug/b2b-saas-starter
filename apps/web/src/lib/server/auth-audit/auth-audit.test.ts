@@ -474,6 +474,69 @@ describe('authAuditInput', () => {
   })
 })
 
+describe('email-otp exchanges', () => {
+  const signInOtp = { method: 'POST', pathname: '/api/auth/sign-in/email-otp' }
+  const verifyOtp = { method: 'POST', pathname: '/api/auth/email-otp/verify-email' }
+  const resetRequestOtp = {
+    method: 'POST',
+    pathname: '/api/auth/email-otp/request-password-reset'
+  }
+  const resetOtp = { method: 'POST', pathname: '/api/auth/email-otp/reset-password' }
+
+  it('audits an OTP sign-in under the shared sign-in event pair, method named', () => {
+    expect(isAudited(signInOtp)).toBe(true)
+    // The response names its user on success; on failure there may be no
+    // trustworthy actor (the challenge may carry no session yet).
+    expect(needsPreHandlerActor(signInOtp)).toBe(false)
+    expect(
+      authAuditInput({ ...signInOtp, status: 200, actorUserId: 'usr_demo' })
+    ).toEqual({
+      workspaceId: null,
+      actorUserId: 'usr_demo',
+      eventType: 'auth.sign_in',
+      targetType: 'session',
+      metadata: { method: 'email-otp', statusCode: 200 }
+    })
+    expect(
+      authAuditInput({ ...signInOtp, status: 400, actorUserId: null })?.eventType
+    ).toBe('auth.sign_in_failed')
+  })
+
+  it('audits verifying an email address with a code as the verification pair', () => {
+    expect(isAudited(verifyOtp)).toBe(true)
+    expect(needsPreHandlerActor(verifyOtp)).toBe(false)
+    expect(
+      authAuditInput({ ...verifyOtp, status: 200, actorUserId: 'usr_demo' })?.eventType
+    ).toBe('auth.email_verified')
+    expect(
+      authAuditInput({ ...verifyOtp, status: 403, actorUserId: null })?.eventType
+    ).toBe('auth.email_verification_failed')
+  })
+
+  it('lets the code-based reset exchanges fall to the link-flow rows', () => {
+    // Same events as the link flow: the suffixes overlap and the first match
+    // wins. One event per reset request, and the reset success/failure pair.
+    expect(
+      authAuditInput({ ...resetRequestOtp, status: 200, actorUserId: null })?.eventType
+    ).toBe('auth.password_reset_requested')
+    expect(
+      authAuditInput({ ...resetOtp, status: 200, actorUserId: null })?.eventType
+    ).toBe('auth.password_reset')
+    expect(
+      authAuditInput({ ...resetOtp, status: 400, actorUserId: null })?.eventType
+    ).toBe('auth.password_reset_failed')
+  })
+
+  it('does not audit the code send itself', () => {
+    expect(
+      isAudited({
+        method: 'POST',
+        pathname: '/api/auth/email-otp/send-verification-otp'
+      })
+    ).toBe(false)
+  })
+})
+
 describe('recordAuthAudit', () => {
   it('records a sign-out from the pre-handler actor without touching the body', async () => {
     // The response names nobody — the actor must come from the session read.

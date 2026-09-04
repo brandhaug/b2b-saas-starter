@@ -39,6 +39,10 @@ Seeding creates two credential accounts so the reference workspace is reachable 
 
 Sign in at `http://localhost:3071/sign-in`. Restart `pnpm run dev` after the first migrate + seed so the dev server attaches the persisted local D1 as the `DB` binding; without it the app runs provider-light on the in-memory seed layer. The [setup guide](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/setup.md) covers the details.
 
+### Signing in with an emailed code instead
+
+"Email me a code instead" on `/sign-in` sends a six-digit one-time code that works once, expires in ten minutes, and locks after three failed attempts. `/verify-email` (when a link fails) and `/forgot-password` offer the same code path as an alternative to the emailed link. With no email provider configured the code is not lost: the log dispatcher renders it into the dev console's `email.dispatched` line, so the whole flow is tryable locally. Sending and verifying codes are rate limited like credential sign-in (5 per minute per IP).
+
 ## What's wired by default
 
 The Seed Workspace populates one workspace with members in the three Workspace Roles, an audit history, notifications, and seeded API Tokens and Webhook Endpoints so the reference app renders working data, not placeholders.

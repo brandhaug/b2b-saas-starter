@@ -188,6 +188,83 @@ EmailVerificationEmail.PreviewProps = {
   url: 'http://localhost:3071/api/auth/verify-email?token=example&callbackURL=http%3A%2F%2Flocalhost%3A3071%2Fverify-email'
 } satisfies EmailVerificationEmailProps
 
+type OneTimeCodePurpose =
+  | 'sign-in'
+  | 'email-verification'
+  | 'forget-password'
+  | 'change-email'
+
+type OneTimeCodeCopy = {
+  readonly preview: string
+  readonly heading: string
+  readonly body: string
+}
+
+/**
+ * Per-purpose wording, stated as a lookup so the four flows sit side by side.
+ * The keys are Better Auth's own OTP type names.
+ */
+const ONE_TIME_CODE_COPY = {
+  'sign-in': {
+    preview: 'Your sign-in code',
+    heading: 'Sign in to B2B SaaS Starter',
+    body: 'Use the code below to finish signing in to your B2B SaaS Starter account.'
+  },
+  'email-verification': {
+    preview: 'Your verification code',
+    heading: 'Verify your email address',
+    body: 'Use the code below to confirm your email address.'
+  },
+  'forget-password': {
+    preview: 'Your password reset code',
+    heading: 'Reset your password',
+    body: 'Use the code below to choose a new password for your B2B SaaS Starter account.'
+  },
+  'change-email': {
+    preview: 'Your email change code',
+    heading: 'Confirm your new email address',
+    body: 'Use the code below to confirm your new email address.'
+  }
+} satisfies Record<OneTimeCodePurpose, OneTimeCodeCopy>
+
+type OneTimeCodeEmailProps = {
+  readonly code: string
+  readonly purpose: OneTimeCodePurpose
+}
+
+/**
+ * The one-time code, as an email — the code alternative to the emailed
+ * lifecycle links (sign-in, verification, password reset). `code` is the
+ * secret itself, so the template renders it and nothing else clickable: no
+ * action link on purpose, there is nothing to click through to.
+ */
+export function OneTimeCodeEmail({ code, purpose }: OneTimeCodeEmailProps) {
+  const copy = ONE_TIME_CODE_COPY[purpose]
+  return (
+    <EmailLayout preview={copy.preview} heading={copy.heading}>
+      <Text className="text-base text-gray-700 mt-4">{copy.body}</Text>
+      <Section className="mt-6">
+        <Text className="text-4xl font-bold tracking-[0.3em] text-gray-900 m-0 font-mono">
+          {code}
+        </Text>
+      </Section>
+      <Text className="text-sm text-gray-500 mt-6">
+        The code works once, expires in ten minutes, and stops working after three
+        failed attempts.
+      </Text>
+      <Text className="text-sm text-gray-500 mt-4">
+        If you did not request this code, you can ignore this email; your account is
+        unchanged.
+      </Text>
+    </EmailLayout>
+  )
+}
+
+OneTimeCodeEmail.PreviewProps = {
+  code: '123456',
+  purpose: 'sign-in'
+} satisfies OneTimeCodeEmailProps
+
 type TwoFactorChangedEmailProps = {
   readonly enabled: boolean
 }

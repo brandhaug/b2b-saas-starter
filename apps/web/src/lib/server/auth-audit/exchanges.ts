@@ -147,6 +147,31 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     target: 'user',
     successFromRedirect: true
   },
+  // Email one-time codes (the email-otp plugin). Two of the code endpoints
+  // need their own rows; the code-based reset request and reset deliberately
+  // reuse the link-flow rows below — `/email-otp/request-password-reset` and
+  // `/email-otp/reset-password` end with the link rows' suffixes, and record
+  // the same events. The send endpoint records nothing: the sign-in,
+  // verification, or reset it enables is the audited outcome.
+  {
+    method: 'POST',
+    suffix: '/sign-in/email-otp',
+    success: 'auth.sign_in',
+    failure: 'auth.sign_in_failed',
+    actor: 'response',
+    target: 'session',
+    signInMethod: 'email-otp'
+  },
+  {
+    method: 'POST',
+    suffix: '/email-otp/verify-email',
+    success: 'auth.email_verified',
+    failure: 'auth.email_verification_failed',
+    // The endpoint answers in JSON (never a redirect), so `response` is the
+    // only source and `successFromRedirect` stays off.
+    actor: 'response',
+    target: 'user'
+  },
   // Session end. These responses name nobody, so the actor is the pre-handler
   // session read; without one the event still records, unattributed.
   {

@@ -1,16 +1,25 @@
 import { useState } from 'react'
 import { pageTitle } from '@/components/page/page-title'
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
-import { MailQuestionIcon } from 'lucide-react'
-import { AuthCardForm } from '@/components/auth/auth-card-form'
-import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
-import { emailValidator } from '@/components/auth/auth-validators'
-import { FormTextField } from '@/components/form-text-field'
+import { KeyRoundIcon, MailQuestionIcon } from 'lucide-react'
 import {
+  requestPasswordResetCodeWithAuthClient,
   requestPasswordResetWithAuthClient,
-  type RequestPasswordReset
+  resetPasswordWithCodeWithAuthClient,
+  sixDigitCodeValidator,
+  type RequestPasswordReset,
+  type RequestPasswordResetCode,
+  type ResetPasswordWithCode
 } from '@/components/auth/auth-client-ports'
+import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
+import { OtpCodeInput } from '@/components/auth/otp-code-input'
+import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
+import { useResendCooldown } from '@/components/auth/use-resend-cooldown'
+import { ResendCodeButton } from '@/components/auth/resend-code-button'
+import { FormTextField } from '@/components/form-text-field'
+import { Button } from '@/components/ui/button'
+import { AuthCardForm } from '@/components/auth/auth-card-form'
 
 export type { RequestPasswordReset } from '@/components/auth/auth-client-ports'
 
@@ -29,13 +38,34 @@ function ForgotPasswordRoute() {
 const SENT_MESSAGE =
   'If this email exists in our system, check your inbox for a reset link. It expires in one hour.'
 
+// The code request endpoint holds the same non-disclosure contract, so the
+// code step echoes no address either.
+const CODE_SENT_MESSAGE =
+  'If this email exists in our system, check your inbox for a six-digit code. It expires in ten minutes.'
+
+/**
+ * The reset surface: the emailed link (primary) or a one-time code
+ * (alternative). The two paths share the email field; the code path finishes
+ * on this page with a new password, the link path hands off to the emailed
+ * URL. Neither path discloses whether the address is registered.
+ */
 export function ForgotPasswordPage({
-  requestReset = requestPasswordResetWithAuthClient
+  requestReset = requestPasswordResetWithAuthClient,
+  requestCode = requestPasswordResetCodeWithAuthClient,
+  resetWithCode = resetPasswordWithCodeWithAuthClient
 }: {
   readonly requestReset?: RequestPasswordReset
+  readonly requestCode?: RequestPasswordResetCode
+  readonly resetWithCode?: ResetPasswordWithCode
 }) {
-  const [sent, setSent] = useState(false)
+  const router = useRouter()
+  // `form` → the request form; `link-sent` → the link confirmation; `code` →
+  // code entry plus the new password.
+  const [stage, setStage] = useState<'form' | 'link-sent' | 'code'>('form')
+  const [email, setEmail] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const cooldown = useResendCooldown()
+
   const form = useForm({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) => {
@@ -45,26 +75,180 @@ export function ForgotPasswordPage({
         setSubmitError(result.error.message ?? 'Request failed')
         return
       }
-      setSent(true)
+      setStage('link-sent')
     }
   })
+
+  const codeForm = useForm({
+    defaultValues: { code: '', password: '', confirm: '' },
+    onSubmit: async ({ value }) => {
+      setSubmitError(null)
+      const result = await resetWithCode({
+        email,
+        otp: value.code,
+        newPassword: value.password
+      })
+      if (result.error) {
+        setSubmitError(result.error.message ?? 'Reset failed')
+        return
+      }
+      // The reset revokes every session, so a fresh sign-in is the only step.
+      router.history.push('/sign-in')
+    }
+  })
+
+  async function sendCode(): Promise<void> {
+    setSubmitError(null)
+    const address = form.getFieldValue('email')
+    // Only a valid address moves on; an invalid one runs the form's own
+    // validators so the field shows why.
+    if (emailValidator({ value: address }) !== undefined) {
+      await form.handleSubmit()
+      return
+    }
+    const result = await requestCode({ email: address })
+    if (result.error) {
+      setSubmitError(result.error.message ?? 'Could not send the code')
+      return
+    }
+    setEmail(address)
+    cooldown.start()
+    setStage('code')
+  }
+
+  async function resendCode(): Promise<void> {
+    setSubmitError(null)
+    const result = await requestCode({ email })
+    if (result.error) {
+      setSubmitError(result.error.message ?? 'Could not resend the code')
+      return
+    }
+    cooldown.start()
+  }
+
+  if (stage === 'code') {
+    return (
+      <AuthCardForm
+        title="Enter your code"
+        description={CODE_SENT_MESSAGE}
+        form={codeForm}
+        submit={
+          <AuthSubmitButton
+            form={codeForm}
+            icon={<KeyRoundIcon className="size-4" />}
+            label="Reset password"
+            submittingLabel="Resetting…"
+          />
+        }
+        error={submitError}
+        footer={
+          <div className="flex items-center justify-between">
+            <ResendCodeButton
+              cooldownSeconds={cooldown.remaining}
+              onResend={resendCode}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto p-0 text-muted-foreground"
+              onClick={() => {
+                setSubmitError(null)
+                codeForm.reset()
+                setStage('form')
+              }}
+            >
+              Use the link instead
+            </Button>
+          </div>
+        }
+      >
+        <codeForm.Field name="code" validators={{ onChange: sixDigitCodeValidator }}>
+          {(field) => (
+            <OtpCodeInput
+              value={field.state.value}
+              onChange={field.handleChange}
+              // oxlint-disable-next-line jsx-a11y/no-autofocus -- the code step has exactly one field group plus the password fields, so focusing its first cell cannot surprise anyone mid-task
+              autoFocus
+            />
+          )}
+        </codeForm.Field>
+
+        <codeForm.Field name="password" validators={{ onChange: passwordValidator }}>
+          {(field) => (
+            <FormTextField
+              name={field.name}
+              label="New password"
+              type="password"
+              autoComplete="new-password"
+              value={field.state.value}
+              errors={field.state.meta.errors}
+              onBlur={field.handleBlur}
+              onChange={field.handleChange}
+              required
+            />
+          )}
+        </codeForm.Field>
+
+        <codeForm.Field
+          name="confirm"
+          validators={{
+            onChange: ({ value, fieldApi }) => {
+              if (value.length === 0) {
+                return 'Confirm your password'
+              }
+              if (value !== fieldApi.form.getFieldValue('password')) {
+                return 'Passwords do not match'
+              }
+              return null
+            }
+          }}
+        >
+          {(field) => (
+            <FormTextField
+              name={field.name}
+              label="Confirm password"
+              type="password"
+              autoComplete="new-password"
+              value={field.state.value}
+              errors={field.state.meta.errors}
+              onBlur={field.handleBlur}
+              onChange={field.handleChange}
+              required
+            />
+          )}
+        </codeForm.Field>
+      </AuthCardForm>
+    )
+  }
 
   return (
     <AuthCardForm
       title="Reset your password"
-      description="Enter the email you sign in with and we will send a reset link."
-      // The sent state is a confirmation, not a form — no wrapper, no
+      description="Enter the email you sign in with and we will send a reset link — or a one-time code."
+      // The link-sent stage is a confirmation, not a form — no wrapper, no
       // hydration signal needed.
-      form={sent ? null : form}
+      form={stage === 'form' ? form : null}
       submit={
-        sent ? undefined : (
-          <AuthSubmitButton
-            form={form}
-            icon={<MailQuestionIcon className="size-4" />}
-            label="Send reset link"
-            submittingLabel="Sending…"
-          />
-        )
+        stage === 'form' ? (
+          <div className="grid gap-3">
+            <AuthSubmitButton
+              form={form}
+              icon={<MailQuestionIcon className="size-4" />}
+              label="Send reset link"
+              submittingLabel="Sending…"
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!form.state.canSubmit || form.state.isSubmitting}
+              onClick={() => {
+                void sendCode()
+              }}
+            >
+              Email me a code instead
+            </Button>
+          </div>
+        ) : undefined
       }
       error={submitError}
       footer={
@@ -76,7 +260,7 @@ export function ForgotPasswordPage({
         </p>
       }
     >
-      {sent ? (
+      {stage === 'link-sent' ? (
         <p role="alert" className="text-sm text-muted-foreground">
           {SENT_MESSAGE}
         </p>

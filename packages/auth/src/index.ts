@@ -14,6 +14,7 @@ import { sso } from '@better-auth/sso'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { lastLoginMethod } from 'better-auth/plugins'
+import { emailOTP } from 'better-auth/plugins/email-otp'
 import { jwt } from 'better-auth/plugins/jwt'
 import { organization } from 'better-auth/plugins/organization'
 import { twoFactor } from 'better-auth/plugins/two-factor'
@@ -43,17 +44,19 @@ export {
 
 /**
  * The account-lifecycle emails Better Auth sends (password reset, email
- * verification), as a structural port: Better Auth invokes its callbacks
- * outside any Effect, so they cannot depend on Effect services directly, and
- * this package must not import the sibling `email` package (ADR 0051's rule
- * runs in both directions). The app supplies the adapter
- * (`apps/web/src/lib/server/auth-emails.ts`), built on the `EmailDispatcher`
- * with its log-mode fallback — so an unconfigured starter still "sends" to the
- * log and the flows work end to end locally.
+ * verification, and the email-otp plugin's one-time codes), as a structural
+ * port: Better Auth invokes its callbacks outside any Effect, so they cannot
+ * depend on Effect services directly, and this package must not import the
+ * sibling `email` package (ADR 0051's rule runs in both directions). The app
+ * supplies the adapter (`apps/web/src/lib/server/auth-emails.ts`), built on
+ * the `EmailDispatcher` with its log-mode fallback — so an unconfigured
+ * starter still "sends" to the log and the flows work end to end locally.
  */
 export type AuthEmailSender = {
   readonly sendResetPassword: AuthEmailCallback
   readonly sendVerificationEmail: AuthEmailCallback
+  /** The email-otp plugin's `sendVerificationOTP` callback. */
+  readonly sendOneTimeCode: AuthOneTimeCodeCallback
 }
 
 /**
@@ -67,6 +70,31 @@ export type AuthEmailSender = {
 export type AuthEmailCallback = (data: {
   readonly user: { readonly email: string }
   readonly url: string
+}) => Promise<void>
+
+/**
+ * Better Auth's own OTP type names. The starter drives the first three from
+ * its UI (sign-in code, verification code, reset code); `change-email` is in
+ * the union because the plugin's request-email-change endpoint sends through
+ * the same callback, so the adapter must be total over what Better Auth can
+ * pass even though no starter surface sends that code yet.
+ */
+export type OneTimeCodePurpose =
+  | 'sign-in'
+  | 'email-verification'
+  | 'forget-password'
+  | 'change-email'
+
+/**
+ * Better Auth's `emailOTP.sendVerificationOTP` callback shape, narrowed to the
+ * three fields the starter reads. Same reasoning as `AuthEmailCallback`: the
+ * adapter is assigned straight to the plugin option, and Better Auth passes
+ * more (`ctx`) that a callback may ignore.
+ */
+export type AuthOneTimeCodeCallback = (data: {
+  readonly email: string
+  readonly otp: string
+  readonly type: OneTimeCodePurpose
 }) => Promise<void>
 
 /**
@@ -321,9 +349,11 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     },
     plugins: plugins(
       username(),
-      // TOTP only: `otp` (email one-time codes) is out of scope for the
-      // starter. The plugin generates backup codes on enable; the account
-      // panel surfaces them once, at enrollment, alongside the QR.
+      // TOTP only: the twoFactor plugin's `otp` method (email codes as a
+      // *second* factor) is out of scope for the starter — one-time codes in
+      // the account lifecycle are the separate emailOTP plugin below. The
+      // plugin generates backup codes on enable; the account panel surfaces
+      // them once, at enrollment, alongside the QR.
       twoFactor({
         issuer: 'B2B SaaS Starter',
         // Verification is required before 2FA counts as on: the first code
@@ -345,6 +375,21 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         rpID: passkeyRpID(options.baseURL),
         rpName: 'B2B SaaS Starter',
         origin: passkeyOrigin(options.baseURL)
+      }),
+      // Email one-time codes as the alternative to the emailed lifecycle
+      // links: sign-in, email verification, and password reset, all through
+      // the same `sendOneTimeCode` port the lifecycle links use. Six digits,
+      // ten minutes, three attempts — stated rather than defaulted (only the
+      // six is Better Auth's default). Codes hash at rest in the `verification`
+      // table, and sign-in codes open sessions for existing accounts only:
+      // registration goes through /sign-up, where the Turnstile gate lives.
+      emailOTP({
+        otpLength: 6,
+        expiresIn: 60 * 10,
+        allowedAttempts: 3,
+        storeOTP: 'hashed',
+        disableSignUp: true,
+        sendVerificationOTP: options.emails.sendOneTimeCode
       }),
       // The privileged system role comes from the stored vocabulary
       // (`packages/db`'s `systemRoles`), so the plugin's gate and the column it

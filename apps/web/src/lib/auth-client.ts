@@ -3,6 +3,7 @@ import { passkeyClient } from '@better-auth/passkey/client'
 import { ssoClient } from '@better-auth/sso/client'
 import {
   adminClient,
+  emailOTPClient,
   lastLoginMethodClient,
   twoFactorClient,
   usernameClient
@@ -17,6 +18,7 @@ export const authClient = createAuthClient({
     usernameClient(),
     adminClient(),
     twoFactorClient(),
+    emailOTPClient(),
     passkeyClient(),
     ssoClient(),
     lastLoginMethodClient(),

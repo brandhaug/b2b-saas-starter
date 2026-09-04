@@ -1,4 +1,5 @@
 import { Effect } from 'effect'
+import { render } from '@react-email/render'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import {
   EmailDispatcher,
@@ -7,7 +8,7 @@ import {
   type SendEmailBinding,
   type SendEmailBuilderArgs
 } from './index.ts'
-import { WorkspaceInvitationEmail } from './templates.tsx'
+import { OneTimeCodeEmail, WorkspaceInvitationEmail } from './templates.tsx'
 
 describe('EmailDispatcher', () => {
   it('logs delivery when no binding is configured', () =>
@@ -62,4 +63,45 @@ describe('EmailDispatcher', () => {
       }).pipe(Effect.provide(makeCloudflareEmailDispatcherLayer(binding)))
     )
   })
+})
+
+describe('OneTimeCodeEmail', () => {
+  // The purposes the starter's UI sends; `change-email` has no UI surface.
+  type SentPurpose = 'sign-in' | 'email-verification' | 'forget-password'
+  type PurposeCase = readonly [purpose: SentPurpose, heading: string]
+
+  it.each([
+    ['sign-in', 'Sign in to B2B SaaS Starter'],
+    ['email-verification', 'Verify your email address'],
+    ['forget-password', 'Reset your password']
+  ] satisfies ReadonlyArray<PurposeCase>)(
+    'renders the %s code and its purpose',
+    (purpose, heading) =>
+      Effect.gen(function* () {
+        const html = yield* Effect.promise(() =>
+          render(OneTimeCodeEmail({ code: '034135', purpose }))
+        )
+        const text = yield* Effect.promise(() =>
+          render(OneTimeCodeEmail({ code: '034135', purpose }), { plainText: true })
+        )
+        // The code itself is the payload: it must survive both renders intact.
+        expect(html).toContain('034135')
+        expect(text).toContain('034135')
+        expect(html).toContain(heading)
+        // react-email's plain-text pass uppercases headings.
+        expect(text.toLowerCase()).toContain(heading.toLowerCase())
+        // The stated limits are the plugin's own; the copy is where a drift
+        // between them and the email would be caught first.
+        expect(text).toContain('ten minutes')
+        expect(text).toContain('three failed attempts')
+      }).pipe(Effect.runPromise)
+  )
+
+  it('renders no action link — the code is the payload, not a click-through', () =>
+    Effect.gen(function* () {
+      const html = yield* Effect.promise(() =>
+        render(OneTimeCodeEmail({ code: '034135', purpose: 'sign-in' }))
+      )
+      expect(html).not.toContain('href=')
+    }).pipe(Effect.runPromise))
 })

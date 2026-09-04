@@ -2,6 +2,7 @@ import { type AuthEmailSender } from '@b2b-saas-starter/auth'
 import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import {
   EmailVerificationEmail,
+  OneTimeCodeEmail,
   PasskeyChangedEmail,
   PasswordResetEmail,
   TwoFactorChangedEmail
@@ -77,6 +78,17 @@ function dispatch(input: {
 }
 
 /**
+ * The subject lines for one-time codes, keyed by Better Auth's own OTP type.
+ * A record rather than branches so the four flows sit next to each other.
+ */
+const ONE_TIME_CODE_SUBJECTS = {
+  'sign-in': 'Your sign-in code',
+  'email-verification': 'Your email verification code',
+  'forget-password': 'Your password reset code',
+  'change-email': 'Confirm your new email address'
+} satisfies Record<Parameters<AuthEmailSender['sendOneTimeCode']>[0]['type'], string>
+
+/**
  * The `AuthEmailSender` the auth runtime provides. Subjects live here, beside
  * the other email senders, rather than in the auth package: the wording is the
  * app's voice, not the auth server's contract.
@@ -94,6 +106,12 @@ export function makeAuthEmailSender(): AuthEmailSender {
         to: user.email,
         subject: 'Verify your email address',
         element: EmailVerificationEmail({ url })
+      }),
+    sendOneTimeCode: ({ email, otp, type }) =>
+      dispatch({
+        to: email,
+        subject: ONE_TIME_CODE_SUBJECTS[type],
+        element: OneTimeCodeEmail({ code: otp, purpose: type })
       })
   }
 }

@@ -55,7 +55,8 @@ const capturingAccountHooks = {
 
 const capturingEmails: AuthEmailSender = {
   sendResetPassword: () => Promise.resolve(),
-  sendVerificationEmail: () => Promise.resolve()
+  sendVerificationEmail: () => Promise.resolve(),
+  sendOneTimeCode: () => Promise.resolve()
 }
 
 // The mocked GitHub identity for one test. Every test picks a fresh mailbox

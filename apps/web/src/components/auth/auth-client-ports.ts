@@ -333,6 +333,95 @@ export function signInPasskeyWithAuthClient(input?: {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Email one-time codes                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The code purposes the UI sends. (`change-email` exists in Better Auth's
+ * union but no starter surface sends it.)
+ */
+export type EmailCodePurpose = 'sign-in' | 'email-verification' | 'forget-password'
+
+/**
+ * Sends a six-digit one-time code. The endpoint answers `{ success: true }`
+ * whether or not the email exists (enumeration defense), and so does the UI.
+ */
+export type SendEmailCode = AuthPort<{
+  readonly email: string
+  readonly purpose: EmailCodePurpose
+}>
+
+export function sendEmailCodeWithAuthClient(
+  input: Parameters<SendEmailCode>[0]
+): ReturnType<SendEmailCode> {
+  return authClient.emailOtp.sendVerificationOtp({
+    email: input.email,
+    type: input.purpose
+  })
+}
+
+/**
+ * Exchanges a code for a session — the second hop of the sign-in code flow.
+ * `disableSignUp` is on server-side, so the email must already be registered.
+ */
+export type SignInWithEmailCode = AuthPort<{
+  readonly email: string
+  readonly otp: string
+}>
+
+export function signInWithEmailCodeWithAuthClient(
+  input: Parameters<SignInWithEmailCode>[0]
+): ReturnType<SignInWithEmailCode> {
+  return authClient.signIn.emailOtp({ email: input.email, otp: input.otp })
+}
+
+/**
+ * Verifies an email address with a code — the alternative to the emailed link.
+ * Like the link hop, a successful verify carries a session cookie
+ * (autoSignInAfterVerification).
+ */
+export type VerifyEmailWithCode = AuthPort<{
+  readonly email: string
+  readonly otp: string
+}>
+
+export function verifyEmailWithCodeWithAuthClient(
+  input: Parameters<VerifyEmailWithCode>[0]
+): ReturnType<VerifyEmailWithCode> {
+  return authClient.emailOtp.verifyEmail({ email: input.email, otp: input.otp })
+}
+
+/** Sends the password-reset code — the code sibling of `requestPasswordReset`. */
+export type RequestPasswordResetCode = AuthPort<{ readonly email: string }>
+
+export function requestPasswordResetCodeWithAuthClient(
+  input: Parameters<RequestPasswordResetCode>[0]
+): ReturnType<RequestPasswordResetCode> {
+  return authClient.emailOtp.requestPasswordReset({ email: input.email })
+}
+
+/**
+ * Completes a password reset with a code: verify + set in one endpoint, so
+ * the code and the new password travel together. Like the link reset, the
+ * server revokes every prior session.
+ */
+export type ResetPasswordWithCode = AuthPort<{
+  readonly email: string
+  readonly otp: string
+  readonly newPassword: string
+}>
+
+export function resetPasswordWithCodeWithAuthClient(
+  input: Parameters<ResetPasswordWithCode>[0]
+): ReturnType<ResetPasswordWithCode> {
+  return authClient.emailOtp.resetPassword({
+    email: input.email,
+    otp: input.otp,
+    password: input.newPassword
+  })
+}
+
+/* -------------------------------------------------------------------------- */
 /* Sessions                                                                    */
 /* -------------------------------------------------------------------------- */
 

@@ -1,17 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
-import { FingerprintIcon, KeyRoundIcon } from 'lucide-react'
+import { KeyRoundIcon } from 'lucide-react'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
+import { PasskeySignIn } from '@/components/auth/passkey-sign-in'
 import {
   LastSignInMethodHint,
   SocialSignInButtons
 } from '@/components/auth/social-sign-in'
 import {
-  signInPasskeyWithAuthClient,
   signInSocialWithAuthClient,
   signInWithAuthClient,
   signInWithSsoAuthClient,
@@ -22,7 +22,6 @@ import {
   type SocialProviderId
 } from '@/components/auth/auth-client-ports'
 import { type SsoRoutingDecision } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
-import { Button } from '@/components/ui/button'
 import { FormTextField } from '@/components/form-text-field'
 import { carriedOAuthSearch, oauthContinuationUrl } from '@/lib/oauth-continuation'
 import {
@@ -30,9 +29,6 @@ import {
   DEMO_MEMBER_CREDENTIALS,
   DEMO_WORKSPACE_SLUG
 } from '@/lib/demo-workspace'
-import { conditionalMediationAvailable } from '@/lib/webauthn-support'
-import { authFailure } from '@/lib/auth-result'
-import { useServerAction } from '@/hooks/use-server-action'
 import { getSocialProviderIds } from '@/lib/server/social-providers'
 import { resolveSsoRoutingServerFn } from '@/lib/server/workspace-sso'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
@@ -42,8 +38,6 @@ export type {
   SignInWithPasskey,
   SignInWithSso
 } from '@/components/auth/auth-client-ports'
-
-const PASSKEY_FAILED = 'Passkey sign-in failed'
 
 /**
  * The domain-routing ask, as a port so a test drives the page without a
@@ -128,7 +122,7 @@ export function SignInPage({
   redirect,
   socialProviders = NO_SOCIAL_PROVIDERS,
   signIn = signInWithAuthClient,
-  signInPasskey = signInPasskeyWithAuthClient,
+  signInPasskey,
   signInSocial = signInSocialWithAuthClient,
   signInWithSso = signInWithSsoAuthClient,
   resolveRouting = resolveSsoRouting
@@ -145,56 +139,6 @@ export function SignInPage({
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [ssoNotice, setSsoNotice] = useState<string | null>(null)
-
-  /**
-   * One passkey sign-in, shared by the conditional-UI preload and the button:
-   * a success carries the session (passkey sign-in needs no two-factor hop —
-   * the ceremony already proved two factors, ADR 0056); a cancellation or
-   * failure lands as this block's own message, never as a password failure.
-   */
-  const passkeySignIn = useServerAction(
-    async (input: { readonly autoFill?: boolean } | undefined) => {
-      const result = await signInPasskey(input)
-      if (result.error) {
-        return authFailure(result.error.message ?? PASSKEY_FAILED)
-      }
-      if (result.data !== null && result.data !== undefined) {
-        // A sign-in an MCP client started resumes the authorization first:
-        // `oauthProviderClient` attaches the signed OAuth query to this call
-        // too, so the provider answers with the next hop — the same
-        // continuation the password path takes below.
-        const continuation = oauthContinuationUrl(result.data)
-        if (continuation !== null) {
-          window.location.assign(continuation)
-          return
-        }
-        router.history.push(safeRedirect(redirect))
-      }
-    },
-    { failureMessage: PASSKEY_FAILED, invalidate: false }
-  )
-
-  // Conditional UI: where the browser supports passkey autofill, arm it on
-  // mount so the email field can offer the user's passkeys before they type
-  // a password (the `webauthn` autocomplete token on the field is the other
-  // half of the contract). Where it does not, the button below is the
-  // fallback and nothing is preloaded.
-  useEffect(() => {
-    // A property, not a bare `let`: the cleanup writes it from another
-    // function, and a closure-captured `let cancelled = false` reads as a
-    // literal `false` to the type-aware linter inside this IIFE.
-    const state = { cancelled: false }
-    void (async () => {
-      const available = await conditionalMediationAvailable()
-      if (available && !state.cancelled) {
-        passkeySignIn.run({ autoFill: true })
-      }
-    })()
-    return () => {
-      state.cancelled = true
-    }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- the preload runs once per mount; re-arming on every identity change would relaunch the ceremony while it is already pending
-  }, [])
 
   const form = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
@@ -295,32 +239,22 @@ export function SignInPage({
           {/* The passkey block sits at the point of action, after the form:
               same destination, different credential. Conditional-UI browsers
               also offer passkeys straight from the email field above. */}
-          <div className="grid gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={passkeySignIn.pending}
-              onClick={() => {
-                // `undefined` = no autofill: the button opens the modal
-                // ceremony; the type makes the explicit argument honest.
-                passkeySignIn.run(undefined)
-              }}
-            >
-              <FingerprintIcon className="size-4" />
-              Sign in with a passkey
-            </Button>
-            {passkeySignIn.error === null ? null : (
-              <p role="alert" className="text-xs text-destructive">
-                {passkeySignIn.error}
-              </p>
-            )}
-          </div>
+          <PasskeySignIn redirect={redirect} signInPasskey={signInPasskey} />
           {socialProviders.length > 0 ? (
             <p className="text-xs text-muted-foreground">
               The provider buttons sign you in through GitHub or Google; an account with
               a matching verified email is linked automatically.
             </p>
           ) : null}
+          <p className="text-right">
+            <Link
+              to="/sign-in/email-code"
+              search={redirect ? { redirect } : {}}
+              className="text-sm text-primary underline underline-offset-4"
+            >
+              Email me a code instead
+            </Link>
+          </p>
           <p className="text-right">
             <Link
               to="/forgot-password"

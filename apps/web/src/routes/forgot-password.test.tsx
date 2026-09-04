@@ -1,14 +1,25 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import { ForgotPasswordPage, type RequestPasswordReset } from './forgot-password'
+import {
+  type RequestPasswordReset,
+  type RequestPasswordResetCode,
+  type ResetPasswordWithCode
+} from '@/components/auth/auth-client-ports'
+import { ForgotPasswordPage } from './forgot-password'
 
 // The page's own `requestReset` port, handed in as a prop.
 const requestReset = vi.fn<RequestPasswordReset>()
+const requestCode = vi.fn<RequestPasswordResetCode>()
+const resetWithCode = vi.fn<ResetPasswordWithCode>()
 
 async function renderPage() {
   const rendered = await renderWithRouter(
-    <ForgotPasswordPage requestReset={requestReset} />,
+    <ForgotPasswordPage
+      requestReset={requestReset}
+      requestCode={requestCode}
+      resetWithCode={resetWithCode}
+    />,
     { path: '/forgot-password', destinations: ['/sign-in'] }
   )
   await screen.findByLabelText('Email')
@@ -19,6 +30,10 @@ describe('ForgotPasswordPage', () => {
   beforeEach(() => {
     requestReset.mockReset()
     requestReset.mockResolvedValue({ error: null })
+    requestCode.mockReset()
+    requestCode.mockResolvedValue({ error: null })
+    resetWithCode.mockReset()
+    resetWithCode.mockResolvedValue({ error: null })
   })
 
   it('shows validation errors and disables submit for invalid input', async () => {
@@ -81,5 +96,95 @@ describe('ForgotPasswordPage', () => {
       .getAllByRole('link', { name: 'Sign in' })
       .map((link) => link.getAttribute('href'))
     expect(hrefs).toContain('/sign-in')
+  })
+
+  it('sends a reset code from the typed email and moves to the code step', async () => {
+    await renderPage()
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'demo@starter.local' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
+    await waitFor(() =>
+      expect(requestCode).toHaveBeenCalledWith({ email: 'demo@starter.local' })
+    )
+    await screen.findByText('Enter your code')
+    // The non-disclosure rule holds on the code path too: the confirmation
+    // never echoes the address.
+    const step = screen.getByText(/six-digit code/i)
+    expect(step.textContent).not.toContain('demo@starter.local')
+  })
+
+  it('does not send a code for an invalid email and shows the field error', async () => {
+    await renderPage()
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'not-an-email' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
+    await screen.findByText('Enter a valid email')
+    expect(requestCode).not.toHaveBeenCalled()
+  })
+
+  it('resets the password with the code and lands on sign-in', async () => {
+    const { router } = await renderPage()
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'demo@starter.local' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
+    await screen.findByText('Enter your code')
+    fireEvent.change(screen.getByLabelText('Digit 1 of 6'), {
+      target: { value: '246813' }
+    })
+    fireEvent.change(screen.getByLabelText('New password'), {
+      target: { value: 'fresh-otp-password-1' }
+    })
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: 'fresh-otp-password-1' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+    await waitFor(() =>
+      expect(resetWithCode).toHaveBeenCalledWith({
+        email: 'demo@starter.local',
+        otp: '246813',
+        newPassword: 'fresh-otp-password-1'
+      })
+    )
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'))
+  })
+
+  it('surfaces code-reset errors and keeps the code form', async () => {
+    await renderPage()
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'demo@starter.local' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
+    await screen.findByText('Enter your code')
+    resetWithCode.mockResolvedValueOnce({
+      error: { message: 'Too many attempts' }
+    })
+    fireEvent.change(screen.getByLabelText('Digit 1 of 6'), {
+      target: { value: '000000' }
+    })
+    fireEvent.change(screen.getByLabelText('New password'), {
+      target: { value: 'fresh-otp-password-1' }
+    })
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: 'fresh-otp-password-1' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('Too many attempts')
+    expect(screen.getByLabelText('Digit 1 of 6')).toBeDefined()
+  })
+
+  it('returns to the link form from the code step', async () => {
+    await renderPage()
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'demo@starter.local' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
+    await screen.findByText('Enter your code')
+    fireEvent.click(screen.getByText('Use the link instead'))
+    expect(await screen.findByLabelText('Email')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Send reset link' })).toBeDefined()
   })
 })
