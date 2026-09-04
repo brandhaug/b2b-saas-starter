@@ -22,9 +22,10 @@ import { webRuntime } from '../observability'
  * directions); this module is the app's side of that seam.
  *
  * Provider-light by the same selector the invitation flow uses: with no
- * `EMAIL` binding configured this is the logging dispatcher, so password reset
- * and email verification work end to end locally without an email provider —
- * the link lands in the console log instead of an inbox.
+ * `EMAIL` binding configured this is the logging dispatcher, so password
+ * reset, email verification, the one-time codes, and the magic link all work
+ * end to end locally without an email provider — the link or code lands in
+ * the console log instead of an inbox.
  *
  * Unlike `sendInvitation`, a send failure here is not downgraded to a
  * `delivered: false` result: Better Auth's endpoints have no honest "sent but

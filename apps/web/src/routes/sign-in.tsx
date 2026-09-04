@@ -102,12 +102,6 @@ function wantsTwoFactorRedirect(data: unknown): boolean {
 }
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
-// One message for every outcome, by design: the send endpoint answers
-// identically whether or not the email exists (account enumeration defense),
-// and the screen must not know more than the endpoint does.
-const LINK_SENT_MESSAGE =
-  'If this email exists in our system, check your inbox for a sign-in link. It works once and expires in ten minutes.'
-
 /**
  * Whether a failed credential sign-in was refused by the require-SSO gate.
  * Same probe discipline: the client's error is untyped JSON at this boundary.
@@ -122,6 +116,12 @@ function wasRefusedForSso(error: unknown): boolean {
   )
 }
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
+
+// One message for every outcome, by design: the send endpoint answers
+// identically whether or not the email exists (account enumeration defense),
+// and the screen must not know more than the endpoint does.
+const LINK_SENT_MESSAGE =
+  'If this email exists in our system, check your inbox for a sign-in link. It works once and expires in ten minutes.'
 
 /**
  * The route's thin wrapper: reads the search param the router validated and
