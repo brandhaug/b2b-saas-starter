@@ -51,7 +51,8 @@
      packages emit: 'Geist Variable' and 'Geist Mono Variable'. The un-suffixed
      names match nothing and silently fall back to ui-sans-serif. */
   --font-sans: 'Geist Variable', ui-sans-serif, sans-serif, system-ui;
-  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --font-display:
+    'Newsreader Variable', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
   --radius: 0.5rem;
   --shadow-x: 0;
@@ -209,6 +210,13 @@
   [data-slot='dialog-content'] {
     overscroll-behavior: contain;
   }
+  /* Tabular figures are the mono default, not a per-call-site utility:
+     identifiers, timestamps and table digits align everywhere (DESIGN.md).
+     Zero specificity via :where so explicit `tabular-nums`/`normal` on an
+     element still wins. */
+  :where(code, kbd, pre, samp, .font-mono) {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
 /* rehype-pretty-code */
@@ -238,21 +246,21 @@
   scroll-margin-top: 5.5rem;
 }
 
-/* Display voice for the public surface: Fraunces held at a high optical size,
-   which is the axis position where its stroke contrast and flared serifs read
-   as display lettering rather than book text. `opsz` is pinned rather than
-   left to `font-optical-sizing: auto` so a 2xl subhead gets the same cut as
-   the 6xl hero. Naming only `opsz` here leaves `wght` under the control of
-   `font-weight`, per the variation-settings cascade.
+/* Display voice for the public surface: Newsreader held at its maximum
+   optical size, the axis position where its display cut's stroke contrast
+   reads as display lettering rather than news text. `opsz` is pinned rather
+   than left to `font-optical-sizing: auto` so a 2xl subhead gets the same
+   cut as the 6xl hero. Naming only `opsz` here leaves `wght` under the
+   control of `font-weight`, per the variation-settings cascade.
 
    The serif is opt-in per heading via this utility — page-level marketing
    headings apply it (`text-display` sizes it at 24px or larger). It must
    never land on card or panel titles, where a 14px serif reads as a caption. */
 @utility font-display {
   font-family: var(--font-display);
-  font-variation-settings: 'opsz' 120;
-  /* Zero tracking, unlike the grotesque headings: at opsz 120 Fraunces
-     already sets tight, and negative tracking collides the thin strokes. */
+  font-variation-settings: 'opsz' 72;
+  /* Zero tracking, unlike the grotesque headings: the display cut already
+     sets a tight fit, and negative tracking collides its thin strokes. */
   letter-spacing: 0;
 }
 

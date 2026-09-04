@@ -12,7 +12,7 @@ import { type Margin } from 'recharts'
 
 /** The only tick-text attributes these charts set. */
 type AxisTickStyle = {
-  readonly fontSize: number
+  readonly fontSize: string
   readonly fill: string
 }
 
@@ -26,7 +26,7 @@ export const CHART_MARGIN: Margin = { top: 8, right: 10, bottom: 4, left: 0 }
 export const COMPACT_CHART_MARGIN: Margin = { top: 8, right: 8, bottom: 0, left: -16 }
 
 export const AXIS_TICK: AxisTickStyle = {
-  fontSize: 11,
+  fontSize: '0.6875rem', // text-2xs — chart chrome rides the rem ramp, not px literals
   fill: 'var(--muted-foreground)'
 }
 
@@ -34,8 +34,8 @@ export const TOOLTIP_STYLE: CSSProperties = {
   borderRadius: 6,
   border: '1px solid var(--border)',
   background: 'var(--popover)',
-  fontSize: 12,
+  fontSize: '0.75rem', // text-xs
   color: 'var(--popover-foreground)'
 }
 
-export const LEGEND_STYLE: CSSProperties = { fontSize: 11 }
+export const LEGEND_STYLE: CSSProperties = { fontSize: '0.6875rem' }

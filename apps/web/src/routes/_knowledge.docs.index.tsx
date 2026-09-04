@@ -29,9 +29,7 @@ function DocsIndex() {
   return (
     <div>
       <header className="mb-8">
-        <h1 className="font-display mb-2 text-2xl font-semibold tracking-tight">
-          Documentation
-        </h1>
+        <h1 className="font-display mb-2 text-2xl font-semibold">Documentation</h1>
         <p className="text-sm text-muted-foreground">
           Concepts and recipes for the starter architecture, modules, capability
           interfaces, and operations.
@@ -51,7 +49,7 @@ function DocsIndex() {
             >
               <div className="flex items-center gap-2">
                 <BookOpenIcon className="size-4 text-muted-foreground" />
-                <h2 className="text-sm font-medium">{DOC_CATEGORIES[slug]}</h2>
+                <h2 className="text-sm font-semibold">{DOC_CATEGORIES[slug]}</h2>
               </div>
               <p className="text-xs text-muted-foreground">
                 {articles.length} {articles.length === 1 ? 'article' : 'articles'}

@@ -78,7 +78,7 @@ export function ListSection({
 }) {
   return (
     <div className="grid gap-2">
-      <h3 className="text-sm font-medium">{title}</h3>
+      <h3 className="text-sm font-semibold">{title}</h3>
       {children}
       {footer}
     </div>
@@ -108,7 +108,7 @@ export function CreateSection({
   }
   return (
     <div className="grid gap-3">
-      <h3 className="text-sm font-medium">{title}</h3>
+      <h3 className="text-sm font-semibold">{title}</h3>
       {children}
     </div>
   )

@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: B2B SaaS Starter
-description: Sharp-panel, single-scheme (Catppuccin Mocha) chrome on shadcn/ui — mauve action accent, Fraunces display voice on the public surface. Production-grade defaults, not branded marketing.
+description: Sharp-panel, single-scheme (Catppuccin Mocha) chrome on shadcn/ui — mauve action accent, editorial display voice (Newsreader) on the public surface. Production-grade defaults, not branded marketing.
 colors:
   background: '#1e1e2e'       # mocha base
   foreground: '#cdd6f4'       # mocha text
@@ -45,12 +45,12 @@ sidebar:
   sidebar-ring: '#b4befe'
 typography:
   display:
-    fontFamily: Fraunces Variable
-    fontVariation: 'opsz 120'
+    fontFamily: Newsreader Variable
+    fontVariation: 'opsz 72'
     fontSize: 3.75rem max (Tailwind text-6xl)
     fontWeight: 600
     lineHeight: 1.0-1.15
-    letterSpacing: 0 (Fraunces sets its own tight fit at opsz 120)
+    letterSpacing: 0 (the display cut sets its own tight fit; opsz pinned at 72)
     scope: public-surface page titles and landing section headings only, via the `font-display` utility — never the workspace shell, never card or panel titles, never below 24px
   h1:
     fontFamily: Geist Variable
@@ -60,7 +60,7 @@ typography:
     letterSpacing: -0.01em
   h2:
     fontFamily: Geist Variable
-    fontSize: 1rem-1.125rem (text-lg, CardTitle) or 1.5-2.25rem for landing sections in Fraunces
+    fontSize: 1rem-1.125rem (text-lg, CardTitle) or 1.5-2.25rem for landing sections in Newsreader
     fontWeight: 600
   h3:
     fontFamily: Geist Variable
@@ -85,7 +85,7 @@ typography:
     fontFamily: Geist Variable
     fontSize: 0.875rem
     fontWeight: 500
-    lineHeight: 1.2
+    lineHeight: 1.0 (leading-none; wrapped FieldLabel copy uses leading-snug)
   mono:
     fontFamily: Geist Mono Variable
     fontSize: 0.75rem-0.875rem
@@ -153,7 +153,7 @@ components:
     border: '{colors.border}'
     height: 36px
   badge:
-    typography: '{typography.label}'
+    typography: 0.75rem / 500 (text-xs font-medium — pill density, deliberately not the label ramp)
     rounded: '{radius.interactive}'
     height: 22px
   status-badge:
@@ -162,7 +162,7 @@ components:
 
 ## Overview
 
-The B2B SaaS Starter is a production-leaning chrome — quiet, legible, sharp — built on shadcn/ui + Tailwind v4 with a single saturated mauve accent. It is a workspace UI for serious operators, not a marketing surface. The public Showcase Site shares the same shadcn token contract, the same Catppuccin Mocha values, and the same primitives; it separates itself through type and rhythm rather than hue — page-level public headings render in Fraunces, a high-contrast display serif, and `.band-deep` sinks whole sections to Catppuccin crust. One system, one palette, two registers.
+The B2B SaaS Starter is a production-leaning chrome — quiet, legible, sharp — built on shadcn/ui + Tailwind v4 with a single saturated mauve accent. It is a workspace UI for serious operators, not a marketing surface. The public Showcase Site shares the same shadcn token contract, the same Catppuccin Mocha values, and the same primitives; it separates itself through type and rhythm rather than hue — page-level public headings render in Newsreader, an editorial display serif, and `.band-deep` sinks whole sections to Catppuccin crust. One system, one palette, two registers.
 
 **Emotional goals.** Calm, considered, inspectable. The interface should feel like a tool a team will use every day — closer to Linear or Vercel's dashboard than to a launch-day landing page. No exuberance, no novelty, no overlap with consumer-product aesthetics.
 
@@ -196,16 +196,16 @@ The sidebar has its own tokens (`--sidebar-*`) so navigation can separate from t
 
 ## Typography
 
-Two variable system-grade faces and one display face, all shipped self-hosted via `@fontsource-variable` (family names are `'Geist Variable'`, `'Geist Mono Variable'`, `'Fraunces Variable'` — the un-suffixed names match no `@font-face` and silently fall back).
+Two variable system-grade faces and one display face, all shipped self-hosted via `@fontsource-variable` (family names are `'Geist Variable'`, `'Geist Mono Variable'`, `'Newsreader Variable'` — the un-suffixed names match no `@font-face` and silently fall back).
 
 - **Geist Variable** — body and headings. Vercel's modern grotesque. Used for everything readable.
 - **Geist Mono Variable** — code blocks, API tokens, numeric IDs, terminal-flavored UI. Tabular figures (`'tnum'`) are on by default.
-- **Fraunces Variable** (`--font-display`) — the public surface's display voice, applied per-heading via the `font-display` utility (`@utility` in `index.css`) with `font-variation-settings: 'opsz' 120` pinned where its stroke contrast reads as display lettering. It runs on public page `h1`s and landing section `h2`s only — never inside the workspace shell, never on card or panel titles, never below 24px, where a serif at small sizes reads as a caption.
+- **Newsreader Variable** (`--font-display`) — the public surface's display voice, applied per-heading via the `font-display` utility (`@utility` in `index.css`) with `font-variation-settings: 'opsz' 72` pinned (its maximum optical size) where its display cut's stroke contrast reads as display lettering rather than text face. It runs on public page `h1`s and landing section `h2`s only — never inside the workspace shell, never on card or panel titles, never below 24px, where a serif at small sizes reads as a caption.
 
 **Hierarchy.** The Tailwind steps in use:
 
-- Landing hero: `text-5xl`/`text-6xl` Fraunces 600, zero tracking.
-- Page `h1`: workspace shell `text-xl`; public pages `text-2xl`–`text-3xl` (Fraunces on public pages only).
+- Landing hero: `text-5xl`/`text-6xl` Newsreader 600, zero tracking.
+- Page `h1`: workspace shell `text-xl`; public pages `text-2xl`–`text-3xl` (Newsreader on public pages only).
 - Panel/card titles (`CardTitle`): `text-lg` Geist 600 — a real heading, never 12–14px.
 - `h3`/labels: `text-sm`–`text-base`, Geist 500–600.
 - Body: `text-base` below `md` (inputs render 16px so iOS Safari never zooms on focus), `text-sm` from `md` up. `text-lg` for long-form docs prose.
@@ -271,7 +271,7 @@ Component tokens are defined in the YAML above and are the normative surface for
 
 - Don't introduce a second accent hue. Mauve is the accent; peach (`--signal`) is reserved for schematic marks, status dots, and `.band-deep` CTAs. Statuses use the `--status-*` trio, not new hues.
 - Don't add a light-mode branch, a `prefers-color-scheme` query, or a theme toggle. Catppuccin Mocha is the only scheme, and a second one would double every contrast check.
-- Don't swap in system fonts "for performance." Geist + Geist Mono (+ Fraunces on public display headings) are shipped self-hosted via `@fontsource-variable` and each carries a distinct job.
+- Don't swap in system fonts "for performance." Geist + Geist Mono (+ Newsreader on public display headings) are shipped self-hosted via `@fontsource-variable` and each carries a distinct job.
 - Don't round panels. The sharp/soft contrast between cards and controls is the brand.
 - Don't use `destructive` red for anything but genuinely destructive actions. It is a signal, not a color.
 - Don't reuse the chart palette for chrome — those hues exist to differentiate data series, not UI.

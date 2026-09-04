@@ -104,7 +104,7 @@ function DocArticlePage() {
           </nav>
 
           <header className="mb-8">
-            <h1 className="font-display mb-2 text-2xl font-semibold tracking-tight">
+            <h1 className="font-display mb-2 text-2xl font-semibold">
               {frontmatter.title}
             </h1>
             <p className="text-sm text-muted-foreground">{frontmatter.description}</p>
@@ -144,7 +144,7 @@ function DocArticlePage() {
               /* Colors come from the `.marketing .prose` token map in index.css;
                  `prose-neutral` would hardcode a gray palette that clashes with
                  Catppuccin and can fail AA in dark mode. */
-              className="prose max-w-3xl"
+              className="prose prose-lg max-w-3xl"
             >
               <Suspense
                 fallback={<p className="text-sm text-muted-foreground">Loading…</p>}

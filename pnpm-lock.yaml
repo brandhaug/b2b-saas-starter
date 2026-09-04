@@ -42,13 +42,13 @@ catalogs:
     '@effect/vitest':
       specifier: 4.0.0-rc.112
       version: 4.0.0-rc.112
-    '@fontsource-variable/fraunces':
-      specifier: 5.3.0
-      version: 5.3.0
     '@fontsource-variable/geist':
       specifier: 5.3.0
       version: 5.3.0
     '@fontsource-variable/geist-mono':
+      specifier: 5.3.0
+      version: 5.3.0
+    '@fontsource-variable/newsreader':
       specifier: 5.3.0
       version: 5.3.0
     '@mdx-js/rollup':
@@ -537,13 +537,13 @@ importers:
       '@better-auth/sso':
         specifier: 'catalog:'
         version: 1.7.2(8458273a9f23623f936fdf151f895d32)
-      '@fontsource-variable/fraunces':
-        specifier: 'catalog:'
-        version: 5.3.0
       '@fontsource-variable/geist':
         specifier: 'catalog:'
         version: 5.3.0
       '@fontsource-variable/geist-mono':
+        specifier: 'catalog:'
+        version: 5.3.0
+      '@fontsource-variable/newsreader':
         specifier: 'catalog:'
         version: 5.3.0
       '@mdx-js/rollup':
@@ -2443,14 +2443,14 @@ packages:
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
 
-  '@fontsource-variable/fraunces@5.3.0':
-    resolution: {integrity: sha512-9BYGySn4AHEJdgp9Z28tQ3X+laJMEOITXkQarZXeloWQZDq5oOvXJ3kDA8c7MGIfpogIaZfjrQBqmda8POOCKA==}
-
   '@fontsource-variable/geist-mono@5.3.0':
     resolution: {integrity: sha512-vBbuwDEo9AkrqADMXOrlAR3DFcJi4/JxeuU43FoiQERnNwsfXNnvxvReZG02cQKmyk4DZkZdBZX3oTDvy2zBAw==}
 
   '@fontsource-variable/geist@5.3.0':
     resolution: {integrity: sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA==}
+
+  '@fontsource-variable/newsreader@5.3.0':
+    resolution: {integrity: sha512-rrzYi43qMpbzwuFtf9OkWH8sxAPVPcQQQEwXpPtwaKYeJ8yVg5aLs5kawmo1f2Q1t1M38TLmEKCkGVDsYwgdFw==}
 
   '@hexagon/base64@1.1.28':
     resolution: {integrity: sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw==}
@@ -11212,11 +11212,11 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
-  '@fontsource-variable/fraunces@5.3.0': {}
-
   '@fontsource-variable/geist-mono@5.3.0': {}
 
   '@fontsource-variable/geist@5.3.0': {}
+
+  '@fontsource-variable/newsreader@5.3.0': {}
 
   '@hexagon/base64@1.1.28': {}
 

@@ -34,9 +34,9 @@ catalog:
   '@effect/platform-node': 4.0.0-rc.112
   '@effect/sql-d1': 4.0.0-rc.112
   '@effect/vitest': 4.0.0-rc.112
-  '@fontsource-variable/fraunces': 5.3.0
   '@fontsource-variable/geist': 5.3.0
   '@fontsource-variable/geist-mono': 5.3.0
+  '@fontsource-variable/newsreader': 5.3.0
   '@mdx-js/rollup': 3.1.1
   '@oxlint/plugins': 1.80.0
   '@playwright/test': 1.62.1

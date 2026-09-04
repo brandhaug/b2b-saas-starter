@@ -71,7 +71,7 @@ function BlogPostPage() {
           </Link>
 
           <header className="mb-8">
-            <h1 className="font-display mb-2 text-3xl font-semibold tracking-tight">
+            <h1 className="font-display mb-2 text-3xl font-semibold">
               {frontmatter.title}
             </h1>
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -117,7 +117,7 @@ function BlogPostPage() {
             <article
               ref={articleRef}
               /* Token-mapped prose colors — see docs.$category.$slug.tsx. */
-              className="prose max-w-none"
+              className="prose prose-lg max-w-none"
             >
               <Suspense
                 fallback={<p className="text-sm text-muted-foreground">Loading…</p>}
