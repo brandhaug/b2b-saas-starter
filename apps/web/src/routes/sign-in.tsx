@@ -1,31 +1,48 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
-import { KeyRoundIcon } from 'lucide-react'
+import { FingerprintIcon, KeyRoundIcon } from 'lucide-react'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
-import { FormTextField } from '@/components/form-text-field'
 import {
+  LastSignInMethodHint,
+  SocialSignInButtons
+} from '@/components/auth/social-sign-in'
+import {
+  signInPasskeyWithAuthClient,
+  signInSocialWithAuthClient,
   signInWithAuthClient,
   signInWithSsoAuthClient,
   type SignInWithEmail,
-  type SignInWithSso
+  type SignInWithPasskey,
+  type SignInWithSocial,
+  type SignInWithSso,
+  type SocialProviderId
 } from '@/components/auth/auth-client-ports'
+import { type SsoRoutingDecision } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
+import { Button } from '@/components/ui/button'
+import { FormTextField } from '@/components/form-text-field'
 import {
   DEMO_CREDENTIALS,
   DEMO_MEMBER_CREDENTIALS,
   DEMO_WORKSPACE_SLUG
 } from '@/lib/demo-workspace'
-import { type SsoRoutingDecision } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
+import { conditionalMediationAvailable } from '@/lib/webauthn-support'
+import { authFailure } from '@/lib/auth-result'
+import { useServerAction } from '@/hooks/use-server-action'
+import { getSocialProviderIds } from '@/lib/server/social-providers'
 import { resolveSsoRoutingServerFn } from '@/lib/server/workspace-sso'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 
 export type {
   SignInWithEmail,
+  SignInWithPasskey,
   SignInWithSso
 } from '@/components/auth/auth-client-ports'
+
+const PASSKEY_FAILED = 'Passkey sign-in failed'
 
 /**
  * The domain-routing ask, as a port so a test drives the page without a
@@ -48,6 +65,10 @@ async function resolveSsoRouting(email: string) {
 
 export const Route = createFileRoute('/sign-in')({
   validateSearch: redirectSearch,
+  // The active provider ids are read on the server only (env-gated: with no
+  // provider configured the loader answers an empty list and the page renders
+  // exactly what it did before social sign-in existed).
+  loader: async () => ({ socialProviders: await getSocialProviderIds() }),
   component: SignInRoute,
   head: () => ({ meta: [{ title: pageTitle('Sign in') }] })
 })
@@ -56,6 +77,9 @@ type SignInValues = {
   email: string
   password: string
 }
+
+/** Stable empty default: a fresh `[]` literal per render would defeat memoing. */
+const NO_SOCIAL_PROVIDERS: ReadonlyArray<SocialProviderId> = []
 
 /**
  * Whether the sign-in response asks for the two-factor hop. A plain field
@@ -95,23 +119,73 @@ function wasRefusedForSso(error: unknown): boolean {
  */
 function SignInRoute() {
   const { redirect } = Route.useSearch()
-  return <SignInPage redirect={redirect} />
+  const { socialProviders } = Route.useLoaderData()
+  return <SignInPage redirect={redirect} socialProviders={socialProviders} />
 }
 
 export function SignInPage({
   redirect,
+  socialProviders = NO_SOCIAL_PROVIDERS,
   signIn = signInWithAuthClient,
+  signInPasskey = signInPasskeyWithAuthClient,
+  signInSocial = signInSocialWithAuthClient,
   signInWithSso = signInWithSsoAuthClient,
   resolveRouting = resolveSsoRouting
 }: {
   readonly redirect?: string | undefined
+  /** Active provider ids from the loader; empty renders no provider buttons. */
+  readonly socialProviders?: ReadonlyArray<SocialProviderId>
   readonly signIn?: SignInWithEmail
+  readonly signInPasskey?: SignInWithPasskey
+  readonly signInSocial?: SignInWithSocial
   readonly signInWithSso?: SignInWithSso
   readonly resolveRouting?: ResolveSsoRouting
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [ssoNotice, setSsoNotice] = useState<string | null>(null)
+
+  /**
+   * One passkey sign-in, shared by the conditional-UI preload and the button:
+   * a success carries the session (passkey sign-in needs no two-factor hop —
+   * the ceremony already proved two factors, ADR 0056); a cancellation or
+   * failure lands as this block's own message, never as a password failure.
+   */
+  const passkeySignIn = useServerAction(
+    async (input: { readonly autoFill?: boolean } | undefined) => {
+      const result = await signInPasskey(input)
+      if (result.error) {
+        return authFailure(result.error.message ?? PASSKEY_FAILED)
+      }
+      if (result.data !== null && result.data !== undefined) {
+        router.history.push(safeRedirect(redirect))
+      }
+    },
+    { failureMessage: PASSKEY_FAILED, invalidate: false }
+  )
+
+  // Conditional UI: where the browser supports passkey autofill, arm it on
+  // mount so the email field can offer the user's passkeys before they type
+  // a password (the `webauthn` autocomplete token on the field is the other
+  // half of the contract). Where it does not, the button below is the
+  // fallback and nothing is preloaded.
+  useEffect(() => {
+    // A property, not a bare `let`: the cleanup writes it from another
+    // function, and a closure-captured `let cancelled = false` reads as a
+    // literal `false` to the type-aware linter inside this IIFE.
+    const state = { cancelled: false }
+    void (async () => {
+      const available = await conditionalMediationAvailable()
+      if (available && !state.cancelled) {
+        passkeySignIn.run({ autoFill: true })
+      }
+    })()
+    return () => {
+      state.cancelled = true
+    }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- the preload runs once per mount; re-arming on every identity change would relaunch the ceremony while it is already pending
+  }, [])
+
   const form = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
     onSubmit: async ({ value }) => {
@@ -193,6 +267,35 @@ export function SignInPage({
       notice={ssoNotice}
       footer={
         <>
+          {/* The passkey block sits at the point of action, after the form:
+              same destination, different credential. Conditional-UI browsers
+              also offer passkeys straight from the email field above. */}
+          <div className="grid gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={passkeySignIn.pending}
+              onClick={() => {
+                // `undefined` = no autofill: the button opens the modal
+                // ceremony; the type makes the explicit argument honest.
+                passkeySignIn.run(undefined)
+              }}
+            >
+              <FingerprintIcon className="size-4" />
+              Sign in with a passkey
+            </Button>
+            {passkeySignIn.error === null ? null : (
+              <p role="alert" className="text-xs text-destructive">
+                {passkeySignIn.error}
+              </p>
+            )}
+          </div>
+          {socialProviders.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              The provider buttons sign you in through GitHub or Google; an account with
+              a matching verified email is linked automatically.
+            </p>
+          ) : null}
           <p className="text-right">
             <Link
               to="/forgot-password"
@@ -247,6 +350,13 @@ export function SignInPage({
         </>
       }
     >
+      <LastSignInMethodHint />
+      <SocialSignInButtons
+        providers={socialProviders}
+        redirectTo={redirect}
+        signIn={signInSocial}
+      />
+
       <form.Field name="email" validators={{ onChange: emailValidator }}>
         {(field) => (
           <FormTextField
@@ -254,7 +364,9 @@ export function SignInPage({
             label="Email"
             type="email"
             placeholder="you@example.com"
-            autoComplete="email"
+            // `webauthn` must be the LAST autocomplete token for the
+            // browser's conditional UI to offer passkeys on this field.
+            autoComplete="email webauthn"
             value={field.state.value}
             errors={field.state.meta.errors}
             onBlur={field.handleBlur}

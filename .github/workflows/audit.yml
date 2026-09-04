@@ -1,0 +1,55 @@
+name: Audit
+
+# Dependency advisories are advisory, not a merge gate: branch protection
+# requires only `Conventional commit title` and `ci`, so this check can show
+# red without blocking a merge. It runs beside PRs, on master, and weekly —
+# an audit's real value is drift over time, not the moment of one PR.
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+  schedule:
+    # Mondays 09:00 UTC.
+    - cron: '0 9 * * 1'
+
+# The registry's bulk-advisories read is the only network dependency; the
+# default read token is enough.
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      # Fail only on high/critical advisories; lower severities still print.
+      # GHSA-jmr9-qjv8-65gv (extract-zip symlink path traversal) has no fixed
+      # release upstream (2.0.1 is both latest and vulnerable) — it's pulled
+      # in transitively via alchemy's Cloudflare runtime tooling (workerd/
+      # browser download step), which runs at deploy time only, not in
+      # shipped Worker code. Re-check when extract-zip cuts a patch.
+      # pnpm's per-advisory ignore lives in pnpm-workspace.yaml (auditConfig).
+      # The bulk-advisories endpoint flakes hard some days (error 23 timeouts
+      # on three consecutive runs on 2026-09-04, passing on a local retry) —
+      # the step retries with a pause instead of reporting an outage as an
+      # advisory; a real high advisory still fails after all attempts.
+      - name: Audit dependencies
+        run: |
+          attempts=3
+          for attempt in $(seq 1 "$attempts"); do
+            if pnpm audit --audit-level=high; then
+              exit 0
+            fi
+            if [ "$attempt" -lt "$attempts" ]; then
+              echo "::warning::audit failed (attempt $attempt/$attempts) — retrying in 60s"
+              sleep 60
+            fi
+          done
+          exit 1

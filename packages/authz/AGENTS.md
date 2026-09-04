@@ -12,7 +12,7 @@ Built on `createAccessControl` from `better-auth/plugins/access`, which is pure 
 
 Four concepts, in dependency order:
 
-1. **Statements** (`statements.ts`) — one entry per resource, listing every action it understands. `starterStatements` = the organization plugin's own five resources (`organization`, `member`, `invitation`, `team`, `ac` — Better Auth's abbreviation of "access control", kept because the plugin checks that key by name) plus the starter's eight, all full-named (`apiToken`, `webhook`, `auditLog`, `notification`, `assistant`, `mcp`, `onboarding`, `sso`).
+1. **Statements** (`statements.ts`) — one entry per resource, listing every action it understands. `starterStatements` = the organization plugin's own five resources (`organization`, `member`, `invitation`, `team`, `ac` — Better Auth's abbreviation of "access control", kept because the plugin checks that key by name) plus the starter's nine, all full-named (`apiToken`, `webhook`, `auditLog`, `notification`, `assistant`, `mcp`, `onboarding`, `workspaceExport`, `sso`).
 2. **Roles** (`roles.ts`) — `owner`, `admin`, `member`, plus the synthetic roles that API token scopes map onto.
 3. **Principal** (`principal.ts`) — who is asking, and the pure `authorize(principal, request)` decision.
 4. **Guard** (`guard.ts`) — `requirePermission(principal, request)`, the Effect that fails `AuthorizationDenied`.
@@ -28,13 +28,13 @@ Four concepts, in dependency order:
 
 ## The matrix
 
-| Role     | Gets                                                         |
-| -------- | ------------------------------------------------------------ |
-| `owner`  | every statement, including `organization:delete`             |
-| `admin`  | every statement except `organization:delete`                 |
-| `member` | `ac:read`, `notification:read`, `assistant:read`, `mcp:read` |
+| Role     | Gets                                                                     |
+| -------- | ------------------------------------------------------------------------ |
+| `owner`  | every statement, including `organization:delete` and `workspaceExport:*` |
+| `admin`  | every statement except `organization:delete` and `workspaceExport:*`     |
+| `member` | `ac:read`, `notification:read`, `assistant:read`, `mcp:read`             |
 
-`member` deliberately **cannot** read the audit log or list API tokens. Both leak the workspace's security posture. The empty arrays in `memberRole` say so out loud; do not "tidy" them away. `onboarding:dismiss` and every `sso` action are also withheld: dismissing the onboarding checklist is a workspace-level call, and SSO connections decide how every human in the workspace authenticates — both are security posture (ADR 0054, ADR 0055).
+`member` deliberately **cannot** read the audit log or list API tokens. Both leak the workspace's security posture. The empty arrays in `memberRole` say so out loud; do not "tidy" them away. `onboarding:dismiss` is also withheld: the onboarding checklist is read-only for a member and dismissing it is a workspace-level call (ADR 0054). `workspaceExport` (`request`, `download`) is **owner-only**: `adminRole` empties it explicitly, because a full export carries every member's email and the complete audit trail — the same material `organization:delete` guards (ADR 0055, export artifacts). Every `sso` action is withheld from `member` as well: SSO connections decide how every human in the workspace authenticates — security posture, like the audit log (ADR 0055, workspace SSO). Neither the `read` nor the `write` token scope reaches `workspaceExport`; only `admin` scope (the owner set) does.
 
 | Token scope | Gets                                                                                 |
 | ----------- | ------------------------------------------------------------------------------------ |

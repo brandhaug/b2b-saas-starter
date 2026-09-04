@@ -8,6 +8,10 @@ import { Effect } from 'effect'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { whenPermitted } from './authorize'
 import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
+import {
+  workspaceExportsSegment,
+  type WorkspaceExportsSegment
+} from './workspace-exports'
 
 /**
  * The workspace settings payload, assembled per actor.
@@ -35,6 +39,13 @@ export type WorkspaceSettingsPayload = {
   readonly unreadCount: number
   /** `null` for an actor without `sso:list`: the read never ran. */
   readonly ssoConnections: ReadonlyArray<SsoConnection> | null
+  /**
+   * Workspace data export (ADR 0055): owner-only, so `null` for every other
+   * role — the card is absent, not disabled. Present, it carries whether this
+   * deployment can produce exports at all, so the page explains an
+   * unconfigured bucket instead of offering a button that fails.
+   */
+  readonly exports: WorkspaceExportsSegment | null
 }
 
 /**
@@ -52,6 +63,10 @@ const settingsPayload: WorkspacePageFrame<WorkspaceSettingsPayload> = workspaceP
           ssoConnections: whenPermitted(
             { sso: ['list'] },
             Effect.flatMap(SsoConnections, (sso) => sso.list)
+          ),
+          exports: whenPermitted(
+            { workspaceExport: ['request'] },
+            workspaceExportsSegment
           )
         },
         { concurrency: 'unbounded' }

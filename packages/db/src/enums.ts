@@ -82,3 +82,12 @@ export const deliveryStatuses = [
   'dead_lettered'
 ] as const
 export type DeliveryStatus = (typeof deliveryStatuses)[number]
+
+/**
+ * The workspace export job lifecycle written by `WorkspaceExports`: `pending`
+ * from the request until the background worker picks it up, then `ready` with
+ * an object in the export bucket, or `failed` with a reason.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const workspaceExportStatuses = ['pending', 'ready', 'failed'] as const
+export type WorkspaceExportStatus = (typeof workspaceExportStatuses)[number]

@@ -11,6 +11,11 @@ import {
   WorkspaceRole as WorkspaceRoleSchema,
   type Member
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import {
+  planById,
+  seatUsage,
+  type SeatUsage
+} from '@b2b-saas-starter/capabilities/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import {
   type CapabilityUnavailable,
@@ -44,6 +49,12 @@ export type WorkspaceMembersPayload = {
   readonly unreadCount: number
   readonly members: ReadonlyArray<Member>
   readonly invitations: ReadonlyArray<Invitation> | null
+  /**
+   * How the roster sits against the plan's seat terms — the members page's
+   * upgrade prompt reads this. Computed from the resolved workspace's plan,
+   * so it follows `workspaces.planId` with no second read.
+   */
+  readonly seatUsage: SeatUsage
 }
 
 /**
@@ -53,17 +64,26 @@ export type WorkspaceMembersPayload = {
  */
 const membersPayload: WorkspacePageFrame<WorkspaceMembersPayload> = workspacePage(
   { notification: ['read'] },
-  () =>
-    Effect.all(
-      {
-        unreadCount,
-        members: Effect.flatMap(WorkspaceMembership, (roster) => roster.listMembers),
-        invitations: whenPermitted(
-          { invitation: ['create'] },
-          Effect.flatMap(WorkspaceInvitations, (invites) => invites.list)
-        )
-      },
-      { concurrency: 'unbounded' }
+  (ctx) =>
+    Effect.flatMap(
+      Effect.all(
+        {
+          unreadCount,
+          members: Effect.flatMap(WorkspaceMembership, (roster) => roster.listMembers),
+          invitations: whenPermitted(
+            { invitation: ['create'] },
+            Effect.flatMap(WorkspaceInvitations, (invites) => invites.list)
+          )
+        },
+        { concurrency: 'unbounded' }
+      ),
+      (segments) =>
+        Effect.succeed({
+          ...segments,
+          // The plan gate's seat half: a flat plan past its included seats
+          // prompts for an upgrade; a per-seat plan just bills the seats.
+          seatUsage: seatUsage(planById(ctx.workspace.planId), segments.members.length)
+        })
     )
 )
 

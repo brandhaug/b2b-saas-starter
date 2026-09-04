@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { type Service } from 'effectful-better-auth'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './index.ts'
+import { decodeUriSecret } from './test-totp.ts'
 
 // The organization plugin is only observable through a real database: its
 // `modelName` overrides, its `additionalFields`, and its role table all resolve
@@ -60,6 +61,12 @@ beforeAll(
               baseURL: 'http://localhost:3071',
               trustedOrigins: [],
               emails: capturingEmailSender,
+              // No provider configured: the Local Auth Path shape, unchanged.
+              socialProviders: {},
+              accountHooks: {
+                onAccountLinked: () => Promise.resolve(),
+                onAccountUnlinked: () => Promise.resolve()
+              },
               // Local-mode stance: the gate stays off in tests, matching dev.
               requireEmailVerification: false,
               // No execution context in a test: run the detached send inline
@@ -286,28 +293,6 @@ describe('organization plugin', () => {
 })
 
 describe('two-factor plugin', () => {
-  // The otpauth URI carries the secret base32-encoded (Better Auth's encoder);
-  // the server-side code generator wants the raw string back.
-  function decodeUriSecret(encoded: string): string {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-    let buffer = 0
-    let bits = 0
-    const bytes: Array<number> = []
-    for (const char of encoded) {
-      const value = alphabet.indexOf(char)
-      if (value === -1) {
-        throw new Error(`bad base32 char: ${char}`)
-      }
-      buffer = (buffer << 5) | value
-      bits += 5
-      if (bits >= 8) {
-        bits -= 8
-        bytes.push((buffer >> bits) & 255)
-      }
-    }
-    return new TextDecoder().decode(Uint8Array.from(bytes))
-  }
-
   it('enables TOTP, verifies it, and flips twoFactorEnabled on the user', () =>
     run(
       Effect.gen(function* () {

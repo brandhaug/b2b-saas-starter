@@ -32,6 +32,21 @@ The same schemas feed the OpenAPI document. A typed client can be generated from
 
 Public REST clients authenticate with a workspace-scoped API Token in the `Authorization: Bearer …` header. The worker calls `ApiTokenRegistry.verifyBearerToken(token)` and then checks the route's permission against the token's scopes — a missing header or an unknown token returns HTTP 401, a token without the permission returns HTTP 403. Browser sessions are not accepted on the public API surface; cookies are an internal contract for the web Worker only.
 
+## Pagination
+
+Every list endpoint — `members`, `notifications`, `api-tokens`, `webhooks`, `audit-events` — is a paged read (ADR 0057). It accepts two optional query parameters and answers a **Page**: `items` plus an opaque `nextCursor` that is `null` on the last page.
+
+```text
+GET /workspaces/acme/notifications?limit=2
+
+{
+  "items": [ … ],
+  "nextCursor": "MjAyNi0wNS0xNlQwODoxMDowMC4wMDBaIG5vdF9lbWFpbA"
+}
+```
+
+`limit` defaults to 50 and is clamped into `[1, 200]` — out-of-range values narrow or widen to the range instead of failing. The `cursor` is a keyset position (the sort key of the last item plus its id, base64-encoded): a page returns rows strictly past that position in the endpoint's order, so rows inserted between two fetches never shift, duplicate, or hide rows the caller has not yet seen. Timestamped lists (`notifications`, `api-tokens`, `audit-events`) read newest-first on `(createdAt, id)`; `members` and `webhooks` carry no timestamp on the wire and read forward on `id`. A cursor that cannot be decoded addresses no position and yields an empty page. MCP list tools take the same two inputs. The typed SDK walks pages for you — see [Typed SDK](/docs/capability-interfaces/sdk).
+
 ## Rate limiting
 
 Each route declares a Cloudflare RateLimit bucket — `rest_read`, `rest_write`, `assistant`, `mcp` — and the worker calls `binding.limit({ key: clientKey(request) })` before running the handler, falling back to an in-isolate brake when the bindings are absent.

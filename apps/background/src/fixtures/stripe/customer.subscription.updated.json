@@ -1,0 +1,28 @@
+{
+  "id": "evt_subscription_updated_seed",
+  "object": "event",
+  "api_version": "2025-10-29.clover",
+  "created": 1790000020,
+  "type": "customer.subscription.updated",
+  "data": {
+    "object": {
+      "id": "sub_seed_starter_lab",
+      "object": "subscription",
+      "customer": "cus_seed_starter_lab",
+      "metadata": {
+        "workspaceId": "wrk_starter",
+        "planId": "team"
+      },
+      "items": {
+        "object": "list",
+        "data": [
+          {
+            "id": "si_seed_starter_lab",
+            "object": "subscription_item",
+            "quantity": 6
+          }
+        ]
+      }
+    }
+  }
+}

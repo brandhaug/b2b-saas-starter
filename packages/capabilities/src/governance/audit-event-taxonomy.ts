@@ -34,6 +34,10 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'workspace.renamed',
   'workspace.deleted',
   'workspace.onboarding_dismissed',
+  // governance — workspace data export (ADR 0055)
+  'workspace.export_requested',
+  'workspace.export_completed',
+  'workspace.export_downloaded',
   // governance — membership
   'workspace_member.added',
   'workspace_member.removed',
@@ -51,7 +55,9 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'auth.sso_sign_in_failed',
   // billing
   'billing.checkout_started',
+  'billing.portal_opened',
   'billing.plan_changed',
+  'billing.seats_changed',
   // account lifecycle over the auth catchall
   'auth.sign_in',
   'auth.sign_in_failed',
@@ -73,6 +79,15 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'auth.two_factor_disable_failed',
   'auth.two_factor_verified',
   'auth.two_factor_verification_failed',
+  // passkey lifecycle over the auth catchall (ADR 0056)
+  'auth.passkey_added',
+  'auth.passkey_added_failed',
+  'auth.passkey_removed',
+  'auth.passkey_removed_failed',
+  // social account linking (from the auth instance's account hooks —
+  // successes only; a refused link is the callback's sign-in failure event)
+  'auth.account_linked',
+  'auth.account_unlinked',
   // Better Auth admin endpoints (system-level)
   'system_admin.user_created',
   'system_admin.user_creation_failed',
@@ -108,6 +123,7 @@ export const AUDIT_TARGET_TYPES = literalTuple(
   'workspace',
   'workspace_member',
   'workspace_invitation',
+  'workspace_export',
   'workspace_sso_connection'
 )
 

@@ -19,6 +19,13 @@ export const env = {
   CLOUDFLARE_EMAIL_FROM: process.env.CLOUDFLARE_EMAIL_FROM,
   TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY,
   TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+  // Social sign-in provider env: passed through so local dev matches what a
+  // deployed worker receives. Unset/absent keeps the provider out of the
+  // Better Auth config and its button off the auth screens.
+  GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
+  GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   // Assistant provider env: passed through so local dev matches what a
   // deployed worker receives. Unset/absent leaves the mock provider active.
   WORKERS_AI_ENABLED: process.env.WORKERS_AI_ENABLED,
@@ -33,5 +40,12 @@ export const env = {
   SERVICE_VERSION: process.env.SERVICE_VERSION,
   GIT_COMMIT_SHA: process.env.GIT_COMMIT_SHA,
   ENVIRONMENT: process.env.ENVIRONMENT,
+  // Workspace export (ADR 0055): where signed download links point. Unset,
+  // the web app assumes the API worker's local dev port.
+  API_PUBLIC_URL: process.env.API_PUBLIC_URL,
+  WORKSPACE_EXPORT_BUCKET: process.env.WORKSPACE_EXPORT_BUCKET,
+  // Seat-sync queue: unwired outside a real deployment — membership
+  // mutations publish nothing and the provider webhook reconciles instead.
+  BILLING_QUEUE: undefined,
   DB: undefined
 }

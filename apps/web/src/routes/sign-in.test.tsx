@@ -1,23 +1,33 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import { SignInPage, type SignInWithEmail, type SignInWithSso } from './sign-in'
+import { SignInPage, type SignInWithEmail, type SignInWithPasskey } from './sign-in'
+import {
+  type SignInWithSocial,
+  type SignInWithSso
+} from '@/components/auth/auth-client-ports'
 
 // The page's own `signIn` port, handed in as a prop. The router is real, so the
 // redirect assertions read the resulting location instead of asking whether a
 // `history.push` double was called.
 const signIn = vi.fn<SignInWithEmail>()
+const signInPasskey = vi.fn<SignInWithPasskey>()
 
-// The routing ask defaults to "no connection" (the catch fallback), so the
-// credential tests run the page exactly as a starter without SSO sees it.
-const resolveRouting = vi.fn(async () => null)
+// The social port, same treatment: a fake of the same shape, so the button
+// tests drive the real component without the Better Auth client.
+const signInSocial = vi.fn<SignInWithSocial>()
 
-async function renderPage(redirect?: string) {
+async function renderPage(
+  redirect?: string,
+  socialProviders: ReadonlyArray<'github' | 'google'> = []
+) {
   const rendered = await renderWithRouter(
     <SignInPage
       {...(redirect === undefined ? {} : { redirect })}
+      socialProviders={socialProviders}
       signIn={signIn}
-      resolveRouting={resolveRouting}
+      signInPasskey={signInPasskey}
+      signInSocial={signInSocial}
     />,
     { path: '/sign-in', destinations: ['/workspaces', '/workspaces/starter-lab'] }
   )
@@ -38,6 +48,12 @@ describe('SignInPage', () => {
   beforeEach(() => {
     signIn.mockReset()
     signIn.mockResolvedValue({ error: null })
+    signInPasskey.mockReset()
+    signInPasskey.mockResolvedValue({ data: null, error: null })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('shows validation errors and disables submit for invalid input', async () => {
@@ -91,6 +107,107 @@ describe('SignInPage', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('Invalid email or password')
     expect(router.state.location.pathname).toBe('/sign-in')
+  })
+
+  it('offers the passkey button alongside the credential form', async () => {
+    await renderPage()
+    const passkey = screen.getByRole('button', { name: 'Sign in with a passkey' })
+    expect(passkey).toBeDefined()
+    // The conditional-UI half of the contract: the email field carries the
+    // `webauthn` autocomplete token, last.
+    expect(screen.getByLabelText('Email').getAttribute('autocomplete')).toBe(
+      'email webauthn'
+    )
+  })
+
+  it('signs in through the passkey port and redirects on success', async () => {
+    const { router } = await renderPage('/workspaces/starter-lab')
+    signInPasskey.mockResolvedValue({
+      data: { user: { id: 'usr_demo' } },
+      error: null
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with a passkey' }))
+
+    // The button opens the modal ceremony: no autofill option at all.
+    await waitFor(() => expect(signInPasskey).toHaveBeenCalledWith(undefined))
+    // A passkey sign-in opens the session in the ceremony itself — there is
+    // no two-factor hop to route through.
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe('/workspaces/starter-lab')
+    )
+  })
+
+  it('surfaces a cancelled passkey ceremony without navigating', async () => {
+    const { router } = await renderPage()
+    signInPasskey.mockResolvedValue({ error: { message: 'Auth cancelled' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with a passkey' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('Auth cancelled')
+    expect(router.state.location.pathname).toBe('/sign-in')
+  })
+
+  it('preloads conditional UI where the browser supports passkey autofill', async () => {
+    vi.stubGlobal('PublicKeyCredential', {
+      isConditionalMediationAvailable: () => Promise.resolve(true)
+    })
+    await renderPage()
+
+    await waitFor(() => expect(signInPasskey).toHaveBeenCalledWith({ autoFill: true }))
+  })
+
+  it('does not preload conditional UI where the browser lacks support', async () => {
+    vi.stubGlobal('PublicKeyCredential', {
+      isConditionalMediationAvailable: () => Promise.resolve(false)
+    })
+    await renderPage()
+
+    const button = screen.getByRole('button', { name: 'Sign in with a passkey' })
+    expect(button).toBeDefined()
+    expect(signInPasskey).not.toHaveBeenCalled()
+  })
+
+  describe('social providers', () => {
+    beforeEach(() => {
+      signInSocial.mockReset()
+      signInSocial.mockResolvedValue({ error: null })
+    })
+
+    // The accept criterion: with no env vars set, the sign-in UI is unchanged.
+    it('renders no provider buttons and no divider when none are configured', async () => {
+      await renderPage()
+      expect(screen.queryByRole('button', { name: 'Continue with GitHub' })).toBeNull()
+      expect(screen.queryByText('or continue with email')).toBeNull()
+      // The email form is exactly the page that existed before social.
+      expect(screen.getByLabelText('Email')).toBeDefined()
+      expect(screen.getByLabelText('Password')).toBeDefined()
+    })
+
+    it('renders one button per active provider and starts the flow on click', async () => {
+      await renderPage(undefined, ['github', 'google'])
+      const github = screen.getByRole('button', { name: 'Continue with GitHub' })
+      expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeDefined()
+      expect(screen.getByText('or continue with email')).toBeDefined()
+
+      fireEvent.click(github)
+      await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(1))
+      expect(signInSocial).toHaveBeenCalledWith({
+        provider: 'github',
+        callbackURL: `${window.location.origin}/workspaces`
+      })
+    })
+
+    it('carries a same-origin redirect target into the provider callback', async () => {
+      await renderPage('/workspaces/starter-lab', ['github'])
+      fireEvent.click(screen.getByRole('button', { name: 'Continue with GitHub' }))
+      await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(1))
+      expect(signInSocial).toHaveBeenCalledWith({
+        provider: 'github',
+        callbackURL: `${window.location.origin}/workspaces/starter-lab`
+      })
+    })
   })
 
   it('routes a matched domain to its IdP instead of the password path', async () => {

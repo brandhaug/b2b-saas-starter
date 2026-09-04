@@ -1,6 +1,8 @@
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { signWorkspaceExportDownload } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { seedWorkspaceExportFixture } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { describe, expect, test, vi } from 'vite-plus/test'
-import { Effect, Schema } from 'effect'
+import { DateTime, Effect, Schema } from 'effect'
 import { type ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
 
@@ -29,6 +31,8 @@ const AssistantAnswerBody = Schema.Struct({
   assistantConfigured: Schema.Boolean
 })
 const McpDiscoveryBody = Schema.Struct({ name: Schema.String })
+const ExportBody = Schema.Struct({ id: Schema.String, status: Schema.String })
+const DownloadLinkBody = Schema.Struct({ url: Schema.String, expiresAt: Schema.String })
 
 // Request payloads leave through the same JSON codec the contract decodes.
 const encodeJsonBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
@@ -340,4 +344,104 @@ describe('request observability', () => {
       }).pipe(Effect.ensuring(Effect.sync(() => captureLine.mockRestore())))
     )
   })
+})
+
+describe('workspace exports (ADR 0055)', () => {
+  test('POST /workspaces/:slug/exports requests an export with the owner-set token', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(post('/workspaces/starter-lab/exports', {}, bearer))
+        expect(res.status).toBe(202)
+        const body = yield* jsonBody(res, ExportBody)
+        // The Seed adapter has no queue: the row lands ready inline.
+        expect(body.status).toBe('ready')
+      })
+    ))
+
+  test('POST …/exports/:exportId/download-link mints a link on this origin', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(
+          post(
+            `/workspaces/starter-lab/exports/${seedWorkspaceExportFixture.id}/download-link`,
+            {},
+            bearer
+          )
+        )
+        expect(res.status).toBe(200)
+        const body = yield* jsonBody(res, DownloadLinkBody)
+        expect(body.url).toMatch(
+          /^https:\/\/api\.test\/exports\/exp_seed_ready\/download\?expires=\d+&signature=[0-9a-f]{64}$/
+        )
+        // The minted link is honoured by the public route, on a fresh handler
+        // whose Seed adapter shares nothing but the fixture secret.
+        const download = yield* send(new Request(body.url))
+        expect(download.status).toBe(200)
+        expect(download.headers.get('content-type')).toContain('application/zip')
+        expect(download.headers.get('content-disposition')).toContain(
+          'starter-lab-export-exp_seed_ready.zip'
+        )
+        const bytes = new Uint8Array(
+          yield* Effect.promise(() => download.arrayBuffer())
+        )
+        expect([...bytes.subarray(0, 4)]).toEqual([0x50, 0x4b, 3, 4])
+      })
+    ))
+
+  test('download-link answers 404 for an export this workspace cannot hand out', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(
+          post('/workspaces/starter-lab/exports/exp_nope/download-link', {}, bearer)
+        )
+        expect(res.status).toBe(404)
+        expect((yield* jsonBody(res, ErrorBody))._tag).toBe(
+          'WorkspaceExportNotDownloadable'
+        )
+      })
+    ))
+
+  test('GET /exports/:id/download is public but refuses a bad or missing signature', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const now = yield* DateTime.now
+        const expires = Math.floor(DateTime.toEpochMillis(now) / 1000) + 600
+        const signature = yield* signWorkspaceExportDownload(
+          seedWorkspaceExportFixture.downloadSecret,
+          seedWorkspaceExportFixture.id,
+          expires
+        )
+        const valid = yield* send(
+          get(
+            `/exports/${seedWorkspaceExportFixture.id}/download?expires=${expires}&signature=${signature}`
+          )
+        )
+        expect(valid.status).toBe(200)
+
+        const tampered = yield* send(
+          get(
+            `/exports/${seedWorkspaceExportFixture.id}/download?expires=${expires + 1}&signature=${signature}`
+          )
+        )
+        expect(tampered.status).toBe(404)
+        const missing = yield* send(
+          get(`/exports/${seedWorkspaceExportFixture.id}/download`)
+        )
+        expect(missing.status).toBe(404)
+        const unknown = yield* send(
+          get(`/exports/exp_nope/download?expires=${expires}&signature=${signature}`)
+        )
+        expect(unknown.status).toBe(404)
+      })
+    ))
+
+  test('the signed download route is not advertised by the contract', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const res = yield* send(get('/openapi.json'))
+        const doc = yield* jsonBody(res, OpenApiBody)
+        expect(doc.paths['/exports/{exportId}/download']).toBeUndefined()
+        expect(doc.paths['/workspaces/{slug}/exports']).toBeDefined()
+      })
+    ))
 })

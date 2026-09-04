@@ -1,4 +1,5 @@
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
+import { type WorkspaceExport } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type Badge } from '@/components/ui/badge'
 
 export type BadgeVariant = NonNullable<React.ComponentProps<typeof Badge>['variant']>
@@ -32,4 +33,17 @@ export function webhookDeliveryStatusVariant(status: string): BadgeVariant {
     return 'warn'
   }
   return 'outline'
+}
+
+/** Export job status → badge variant: pending needs attention, ready is done, failed is destructive. */
+export function workspaceExportStatusVariant(
+  status: WorkspaceExport['status']
+): BadgeVariant {
+  if (status === 'pending') {
+    return 'warn'
+  }
+  if (status === 'ready') {
+    return 'ok'
+  }
+  return 'destructive'
 }

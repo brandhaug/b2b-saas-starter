@@ -2,6 +2,7 @@ import { DateTime, Effect, Layer, Option, Ref } from 'effect'
 
 import { MembershipChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
 import { fabricateSeedMember, type Workspace } from './workspace-identity.ts'
 import { type SeedRoster } from './workspace-membership.ts'
 import {
@@ -69,10 +70,11 @@ export function SeedWorkspaceInvitations(options: {
   /** The fixture workspace every seed invitation belongs to. */
   readonly workspace: Workspace
   readonly seed?: ReadonlyArray<Invitation>
-}): Layer.Layer<WorkspaceInvitations> {
+}): Layer.Layer<WorkspaceInvitations, never, SeatSyncPublisher> {
   return Layer.effect(WorkspaceInvitations)(
     Effect.gen(function* () {
       const store = yield* Ref.make<ReadonlyArray<Invitation>>(options.seed ?? [])
+      const seatSync = yield* SeatSyncPublisher
 
       return {
         list: Ref.get(store),
@@ -132,6 +134,12 @@ export function SeedWorkspaceInvitations(options: {
             // invitation's real address is known, so it rides along.
             const joined = fabricateSeedMember(input.userId, pending.role, input.email)
             yield* Ref.update(options.roster, (current) => [...current, joined])
+            // Acceptance adds a member, so it triggers the same seat sync the
+            // membership seed triggers — keyed off the fixture workspace.
+            yield* publishSeatSyncWith(seatSync, {
+              workspaceId: options.workspace.id,
+              reason: 'invitation_accepted'
+            })
             return {
               workspaceSlug: options.workspace.slug,
               workspaceName: options.workspace.name,

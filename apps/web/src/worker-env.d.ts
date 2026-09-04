@@ -27,6 +27,17 @@ type WebWorkerEnv = {
   // default: without it (or without WORKERS_AI_ENABLED=true) the assistant
   // stays on its mock provider and the UI shows the honest not-enabled copy.
   readonly AI?: import('@b2b-saas-starter/ai').WorkersAIBinding
+  // Workspace data export (ADR 0055). Optional and unwired by default: without
+  // both, `WorkspaceExports.availability` reports unavailable and the settings
+  // page explains instead of offering a button.
+  readonly WORKSPACE_EXPORT_QUEUE?: import('@b2b-saas-starter/capabilities/governance/workspace-export').WorkspaceExportQueueBinding
+  readonly WORKSPACE_EXPORT_BUCKET?: import('@b2b-saas-starter/capabilities/governance/workspace-export').WorkspaceExportBucketBinding
+  // Seat-sync queue producer. Optional and unwired by default: without it the
+  // membership mutations publish nothing and seat sync heals on the next
+  // mutation or provider webhook (CLAUDE.md rule 3).
+  readonly BILLING_QUEUE?: import(
+    '@b2b-saas-starter/capabilities/billing/seat-sync'
+  ).SeatSyncQueueBinding
 } & Readonly<import('@b2b-saas-starter/env/server').ServerEnv>
 
 // `env` from `cloudflare:workers` is typed as `Cloudflare.Env`

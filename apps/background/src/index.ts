@@ -7,8 +7,14 @@ import { Effect } from 'effect'
 // The queue names are single-sourced in `infra/bindings.ts`, which alchemy and
 // the wrangler generator read too — the consumer branch must key off the same
 // literal the consumer is bound to.
-import { webhookDeadLetterQueueName } from '../../../infra/bindings.ts'
+import {
+  billingQueueName,
+  webhookDeadLetterQueueName,
+  workspaceExportQueueName
+} from '../../../infra/bindings.ts'
+import { buildWorkspaceExport } from './export-consumer.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
+import { deliverSeatSync } from './seat-sync-consumer.ts'
 import {
   consumeBatch,
   deliverWebhook,
@@ -28,12 +34,21 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
   // Queue message bodies are untyped at runtime; `processWebhookMessage` and
   // `processDeadLetterMessage` decode the envelope at their boundary. Both
   // consumers share one batch loop (`consumeBatch`); dead letters always ack.
+  // The seat-sync branch routes on its own queue the same way, so its messages
+  // never reach the webhook delivery reader.
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     wireWideEventProviders(env)
     if (batch.queue === webhookDeadLetterQueueName) {
       return consumeBatch(env, batch, (message) =>
         Effect.as(recordDeadLetter(message, env), 'ack')
       )
+    }
+    // Workspace export jobs (ADR 0055): build the archive into R2.
+    if (batch.queue === workspaceExportQueueName) {
+      return consumeBatch(env, batch, (message) => buildWorkspaceExport(message, env))
+    }
+    if (batch.queue === billingQueueName) {
+      return consumeBatch(env, batch, (message) => deliverSeatSync(message, env))
     }
     return consumeBatch(env, batch, (message) => deliverWebhook(message, env))
   }

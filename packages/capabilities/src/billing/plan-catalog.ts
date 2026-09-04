@@ -16,6 +16,14 @@ import { WorkspaceContext } from '../workspace-context.ts'
  */
 
 /**
+ * How a plan bills its workspace. `flat` is one fixed subscription regardless
+ * of headcount, capped by its included seats; `per_seat` bills one seat price
+ * per Member, so the provider subscription item's quantity mirrors the
+ * workspace's member count (see `billing.ts`'s seat sync).
+ */
+export type PlanPricing = 'flat' | 'per_seat'
+
+/**
  * A plan in the catalog. A constant, not a service method: plans are part of
  * the starter's vocabulary (the public pricing page and the workspace billing
  * page render the same list), and no database table owns them. `planId` on a
@@ -26,6 +34,8 @@ export type Plan = {
   readonly name: string
   readonly price: string
   readonly description: string
+  /** How the plan bills: one flat subscription, or one seat price per Member. */
+  readonly pricing: PlanPricing
   /**
    * Per-resource entitlement ceilings. `null` means unlimited. The starter
    * plan carries real numbers so entitlement gating is demonstrable without a
@@ -34,6 +44,12 @@ export type Plan = {
   readonly limits: {
     readonly apiTokens: number | null
     readonly webhookEndpoints: number | null
+    /**
+     * Members included before a `flat` plan asks for an upgrade. `null` means
+     * unlimited. A `per_seat` plan carries `null` too — it bills every Member
+     * as one seat instead of capping them.
+     */
+    readonly seats: number | null
   }
   /**
    * The Stripe price env var the deploy must configure for this plan, or
@@ -57,7 +73,8 @@ export const STARTER_PLAN: Plan = {
   name: 'Starter',
   price: '$0',
   description: 'Local development and reference implementation review.',
-  limits: { apiTokens: 2, webhookEndpoints: 1 },
+  pricing: 'flat',
+  limits: { apiTokens: 2, webhookEndpoints: 1, seats: 3 },
   stripePriceEnv: null,
   purchase: 'downgrade'
 }
@@ -67,9 +84,10 @@ export const PLANS: ReadonlyArray<Plan> = [
   {
     id: 'team',
     name: 'Team',
-    price: '$49/mo',
+    price: '$12/seat/mo',
     description: 'The shape most B2B SaaS products adapt first.',
-    limits: { apiTokens: null, webhookEndpoints: null },
+    pricing: 'per_seat',
+    limits: { apiTokens: null, webhookEndpoints: null, seats: null },
     stripePriceEnv: 'STRIPE_PRICE_ID_TEAM',
     purchase: 'self_serve'
   },
@@ -78,7 +96,8 @@ export const PLANS: ReadonlyArray<Plan> = [
     name: 'Enterprise',
     price: 'Custom',
     description: 'SAML, procurement, custom compliance, and support patterns.',
-    limits: { apiTokens: null, webhookEndpoints: null },
+    pricing: 'flat',
+    limits: { apiTokens: null, webhookEndpoints: null, seats: null },
     stripePriceEnv: null,
     purchase: 'sales'
   }
@@ -87,6 +106,38 @@ export const PLANS: ReadonlyArray<Plan> = [
 /** Resolves a plan from the catalog; unknown ids fall back to Starter. */
 export function planById(planId: string): Plan {
   return PLANS.find((plan) => plan.id === planId) ?? STARTER_PLAN
+}
+
+/** How one workspace's member count sits against its plan's seat terms. */
+export type SeatUsage = {
+  /** The plan's billing shape, so the UI words its line accordingly. */
+  readonly pricing: PlanPricing
+  /** Included seats on a flat plan; `null` when unlimited or billed per seat. */
+  readonly included: number | null
+  /** The workspace's current member count. */
+  readonly used: number
+  /**
+   * True only on a flat plan with a finite seat ceiling the workspace has
+   * passed. Per-seat plans never flag — they bill the extra Member instead.
+   */
+  readonly overLimit: boolean
+}
+
+/**
+ * The seat half of the entitlement gate, as a read: the members page renders
+ * an upgrade prompt when `overLimit` is true. Deliberately not a hard refusal
+ * — a workspace may always add Members; a flat plan past its included seats
+ * is asked to upgrade, not blocked (unlike `assertWithinPlanLimit`, which
+ * refuses creates at the ceiling).
+ */
+export function seatUsage(plan: Plan, memberCount: number): SeatUsage {
+  const included = plan.limits.seats
+  return {
+    pricing: plan.pricing,
+    included,
+    used: memberCount,
+    overLimit: plan.pricing === 'flat' && included !== null && memberCount > included
+  }
 }
 
 /** Entitlement resources a plan can cap. */

@@ -1,10 +1,14 @@
 import { createDrizzleDb } from '@b2b-saas-starter/db/client'
 import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
-import { requireEmailVerification } from '@b2b-saas-starter/env/server'
+import {
+  activeSocialProviders,
+  requireEmailVerification
+} from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
 import { Effect, Layer, ManagedRuntime, Schema } from 'effect'
 import { causeMessage } from './cause-message'
 import { makeAuthEmailSender } from './server/auth-emails'
+import { socialAccountAuditHooks } from './server/social-account-audit'
 
 /**
  * Defect raised when something reaches for the D1 binding that the local
@@ -50,6 +54,15 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => ({
   // provider-light dispatcher selector as the invitation flow: log mode when
   // no `EMAIL` binding is configured, so the flows stay demoable locally.
   emails: makeAuthEmailSender(),
+  // Social sign-in providers, resolved by the shared env decision: a provider
+  // is present only when both its client id and secret are set, and an unset
+  // provider is absent from the Better Auth config entirely (never
+  // half-configured). The Local Auth Path is untouched either way.
+  socialProviders: activeSocialProviders(env),
+  // The account-linking audit adapter: social link/unlink records Audit
+  // Events through the governance capability (see
+  // server/social-account-audit.ts).
+  accountHooks: socialAccountAuditHooks,
   // Production requires verified mailboxes; local dev and previews stay open
   // because lifecycle emails land in the log there (provider-light rule).
   requireEmailVerification: requireEmailVerification(env.ENVIRONMENT),

@@ -13,8 +13,8 @@ import { STARTER_PLAN } from './plan-catalog.ts'
  * provider-free.
  */
 
-/** The part of Stripe's checkout-session reply this capability acts on. */
-const StripeCheckoutResponse = Schema.Struct({
+/** The part of Stripe's session-shaped reply this capability acts on. */
+const StripeSessionResponse = Schema.Struct({
   url: Schema.optionalKey(Schema.String),
   error: Schema.optionalKey(
     Schema.Struct({ message: Schema.optionalKey(Schema.String) })
@@ -22,11 +22,12 @@ const StripeCheckoutResponse = Schema.Struct({
 })
 
 // One compiled boundary decode: rebuilt once at module load, not per request.
-const decodeStripeCheckoutResponse = Schema.decodeUnknownResult(StripeCheckoutResponse)
+const decodeStripeSessionResponse = Schema.decodeUnknownResult(StripeSessionResponse)
 
 /** The form-encoded body Stripe's checkout-session endpoint expects. */
 function stripeCheckoutBody(input: {
   readonly priceId: string
+  readonly quantity: number
   readonly workspaceId: string
   readonly planId: string
   readonly successUrl: string
@@ -38,7 +39,7 @@ function stripeCheckoutBody(input: {
   params.set('success_url', input.successUrl)
   params.set('cancel_url', input.cancelUrl)
   params.set('line_items[0][price]', input.priceId)
-  params.set('line_items[0][quantity]', '1')
+  params.set('line_items[0][quantity]', String(input.quantity))
   params.set('metadata[workspaceId]', input.workspaceId)
   params.set('metadata[planId]', input.planId)
   params.set('subscription_data[metadata][workspaceId]', input.workspaceId)
@@ -93,6 +94,27 @@ function stripeJson(response: Response) {
 }
 
 /**
+ * A URL-bearing session reply (checkout and Billing Portal share the shape),
+ * decoded by the caller through the one boundary codec. Fails
+ * `CapabilityUnavailable` with the provider's own message when it carried one.
+ */
+function stripeSessionUrl(
+  decoded: ReturnType<typeof decodeStripeSessionResponse>,
+  response: Response
+) {
+  let message = `stripe responded ${response.status}`
+  if (Result.isSuccess(decoded) && decoded.success.error?.message !== undefined) {
+    message = decoded.success.error.message
+  }
+  if (Result.isFailure(decoded) || decoded.success.url === undefined) {
+    return Effect.fail(
+      new CapabilityUnavailable({ capability: 'billing', reason: message })
+    )
+  }
+  return Effect.succeed({ url: decoded.success.url })
+}
+
+/**
  * One form-encoded Stripe API call, via the Workers global `fetch` — the REST
  * API needs no SDK, and keeping the dependency out keeps the worker bundle
  * small and the failure surface explicit. The call carries an `AbortSignal`
@@ -103,6 +125,11 @@ function stripeJson(response: Response) {
 export const createStripeCheckoutSession = Effect.fnUntraced(function* (input: {
   readonly secretKey: string
   readonly priceId: string
+  /**
+   * The subscription item quantity checkout opens with: the workspace's
+   * member count on a per-seat plan, `1` on a flat one.
+   */
+  readonly quantity: number
   readonly workspaceId: string
   readonly planId: string
   readonly successUrl: string
@@ -117,18 +144,67 @@ export const createStripeCheckoutSession = Effect.fnUntraced(function* (input: {
     stripeCheckoutBody(input)
   )
   const json = yield* stripeJson(response)
-  const decoded = decodeStripeCheckoutResponse(json)
-  let message = `stripe responded ${response.status}`
-  if (Result.isSuccess(decoded) && decoded.success.error?.message !== undefined) {
-    message = decoded.success.error.message
-  }
-  if (Result.isFailure(decoded) || decoded.success.url === undefined) {
-    return yield* Effect.fail(
-      new CapabilityUnavailable({ capability: 'billing', reason: message })
-    )
-  }
-  return { url: decoded.success.url }
+  return yield* stripeSessionUrl(decodeStripeSessionResponse(json), response)
 })
+
+/**
+ * Creates a Stripe Billing Portal session for one customer: the hosted
+ * surface where invoices, payment method, and cancellation are managed — the
+ * starter deliberately owns none of those screens. Same transport, decode,
+ * and failure contract as checkout; the reply shape is identical (`{ url }`).
+ */
+export const createStripeBillingPortalSession = Effect.fnUntraced(function* (input: {
+  readonly secretKey: string
+  readonly customerId: string
+  readonly returnUrl: string
+}) {
+  const params = new URLSearchParams()
+  params.set('customer', input.customerId)
+  params.set('return_url', input.returnUrl)
+  const response = yield* stripePost(
+    'https://api.stripe.com/v1/billing_portal/sessions',
+    {
+      authorization: `Bearer ${input.secretKey}`,
+      'content-type': 'application/x-www-form-urlencoded'
+    },
+    params.toString()
+  )
+  const json = yield* stripeJson(response)
+  return yield* stripeSessionUrl(decodeStripeSessionResponse(json), response)
+})
+
+/**
+ * Sets one subscription item's quantity — the provider half of seat sync.
+ * The reply is the updated SubscriptionItem object whose fields nothing here
+ * reads, so only the status decides: non-2xx fails with the same typed
+ * `CapabilityUnavailable` every Stripe call in this module fails with.
+ */
+export const updateStripeSubscriptionItemQuantity = Effect.fnUntraced(
+  function* (input: {
+    readonly secretKey: string
+    readonly subscriptionItemId: string
+    readonly quantity: number
+  }) {
+    const params = new URLSearchParams()
+    params.set('quantity', String(input.quantity))
+    const response = yield* stripePost(
+      `https://api.stripe.com/v1/subscription_items/${encodeURIComponent(input.subscriptionItemId)}`,
+      {
+        authorization: `Bearer ${input.secretKey}`,
+        'content-type': 'application/x-www-form-urlencoded'
+      },
+      params.toString()
+    )
+    if (!response.ok) {
+      return yield* Effect.fail(
+        new CapabilityUnavailable({
+          capability: 'billing',
+          reason: `stripe responded ${response.status}`
+        })
+      )
+    }
+  }
+)
 
 // ---------------------------------------------------------------------------
 // Stripe event → plan policy
@@ -155,6 +231,100 @@ const STRIPE_EVENT_PLANS = new Map<string, StripeEventPlan>([
 /** Resolves the plan change an event type carries, or `null` when unhandled. */
 export function planForStripeEvent(eventType: string): StripeEventPlan | null {
   return STRIPE_EVENT_PLANS.get(eventType) ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Stripe event → subscription state policy
+// ---------------------------------------------------------------------------
+
+/**
+ * The provider-reported subscription state one handled Stripe event carries:
+ * the linkage a checkout establishes, the quantity a subscription event
+ * reports (the reconciliation source of truth for seat sync), or a deletion
+ * (the seat item goes; the customer survives for the portal's invoice
+ * history). Fields the event may omit are optional — `checkout.session
+ * .completed` carries no item, and a subscription event can arrive before the
+ * checkout's link was recorded.
+ */
+export type StripeSubscriptionLink =
+  | {
+      readonly kind: 'link'
+      readonly customerId?: string | undefined
+      readonly subscriptionId?: string | undefined
+    }
+  | {
+      readonly kind: 'quantity'
+      readonly customerId?: string | undefined
+      readonly subscriptionId?: string | undefined
+      readonly subscriptionItemId?: string | undefined
+      readonly quantity: number
+    }
+  | { readonly kind: 'deleted' }
+
+/**
+ * The subscription-state policy the background worker applies to inbound
+ * Stripe events, beside {@link planForStripeEvent}: which event types carry
+ * subscription linkage or a seat quantity, filled from the event object the
+ * worker already decoded. Owned here so the provider vocabulary and the
+ * seat-sync contract evolve together.
+ */
+const STRIPE_EVENT_SUBSCRIPTION_LINK_KINDS = new Set<string>([
+  'checkout.session.completed',
+  'customer.subscription.created',
+  'customer.subscription.updated',
+  'customer.subscription.deleted'
+])
+
+/** The subscription-event fields the policy reads, already decoded by the caller. */
+export type StripeSubscriptionEventObject = {
+  /** The subscription's own id on `customer.subscription.*` events. */
+  readonly id?: string | undefined
+  readonly customer?: string | undefined
+  /** The checkout session's subscription id on `checkout.session.completed`. */
+  readonly subscription?: string | undefined
+  /** Stripe's line-item list; the starter bills exactly one seat item. */
+  readonly items?:
+    | {
+        readonly data?: ReadonlyArray<
+          | { readonly id?: string | undefined; readonly quantity?: number | undefined }
+          | undefined
+        >
+      }
+    | undefined
+}
+
+/**
+ * Resolves the subscription state one event carries, or `null` when the event
+ * type is not subscription-relevant. A `quantity` event whose item carries no
+ * quantity degrades to `link` — ids are still worth recording, and a quantity
+ * write with nothing to write would be a lie.
+ */
+export function subscriptionLinkForStripeEvent(
+  eventType: string,
+  object: StripeSubscriptionEventObject
+): StripeSubscriptionLink | null {
+  if (eventType === 'customer.subscription.deleted') {
+    return { kind: 'deleted' }
+  }
+  if (!STRIPE_EVENT_SUBSCRIPTION_LINK_KINDS.has(eventType)) {
+    return null
+  }
+  const firstItem = object.items?.data?.[0]
+  const quantity = firstItem?.quantity
+  if (eventType !== 'checkout.session.completed' && quantity !== undefined) {
+    return {
+      kind: 'quantity',
+      customerId: object.customer,
+      subscriptionId: object.id,
+      subscriptionItemId: firstItem?.id,
+      quantity
+    }
+  }
+  return {
+    kind: 'link',
+    customerId: object.customer,
+    subscriptionId: object.subscription ?? object.id
+  }
 }
 
 // ---------------------------------------------------------------------------

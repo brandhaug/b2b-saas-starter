@@ -17,8 +17,10 @@ import {
   healthGroup,
   mcpGroup,
   webhookGroup,
+  workspaceExportGroup,
   workspaceGroup
 } from './handlers.ts'
+import { exportDownloadLayer } from './export-download.ts'
 import { bearerAuth } from './request-guards.ts'
 import { makeRateLimiterLayer } from './rate-limit.ts'
 import { mcpProtocolLayer } from './mcp.ts'
@@ -65,6 +67,7 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     workspaceGroup(env),
     apiTokenGroup(env),
     webhookGroup(env),
+    workspaceExportGroup(env),
     assistantGroup(env),
     mcpGroup(env)
   )
@@ -84,6 +87,10 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     mcpProtocolLayer(env),
     // The root directory — see the comment on `rootIndexLayer`.
     rootIndexLayer,
+    // The signed export download (ADR 0055): a public route whose credential
+    // is the signature in its query string, not a bearer token, so it rides
+    // beside the contract like `/mcp`. See `export-download.ts`.
+    exportDownloadLayer(env),
     HttpApiScalar.layer(StarterApi, { path: '/reference' })
   ).pipe(
     HttpRouter.provideRequest(capabilities),

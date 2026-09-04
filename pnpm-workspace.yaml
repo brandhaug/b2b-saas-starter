@@ -24,6 +24,7 @@ auditConfig:
 catalog:
   '@babel/core': 8.0.1
   '@base-ui/react': 1.7.0
+  '@better-auth/passkey': 1.7.2
   '@better-auth/sso': 1.7.2
   '@cloudflare/workers-types': 5.20260828.1
   '@effect/language-service': 0.87.2
@@ -125,7 +126,11 @@ overrides:
   sharp: 0.35.3
   shell-quote: 1.9.0
   socket.io-parser: 4.2.7
-  toml: 4.2.0
+  # GHSA-82x6-q7mm-w9cf / GHSA-v5mp-jgw5-2x6j (prototype pollution in toml
+  # <4). Pulled in transitively via remark-mdx-frontmatter's TOML frontmatter
+  # support; no checked-in content uses `+++` frontmatter, so the override
+  # only has to resolve and export `parse`.
+  toml: 5.0.0
   undici: 7.29.0
   ws: 8.21.0
   vite@*: 'catalog:'

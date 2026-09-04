@@ -1,6 +1,17 @@
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
+import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { type AuthConfigInterface, makeAuthOptions } from './index.ts'
+
+type AuthPlugin = ReturnType<typeof makeAuthOptions>['plugins'][number]
+
+/** A plugin's id, or the empty string for a plugin object without one. */
+function pluginId(plugin: AuthPlugin): string {
+  if ('id' in plugin) {
+    return plugin.id
+  }
+  return ''
+}
 
 // The email-verification gate is decided by the caller (from `ENVIRONMENT`)
 // and carried on `AuthConfig`; these tests pin that `makeAuthOptions` forwards
@@ -16,6 +27,14 @@ const baseConfig: AuthConfigInterface = {
   emails: {
     sendResetPassword: () => Promise.resolve(),
     sendVerificationEmail: () => Promise.resolve()
+  },
+  // The provider-light default: no provider resolved, so no social surface.
+  socialProviders: {},
+  // The linking audit port, captured rather than performed: these tests
+  // assert on the wiring, not on governance writes.
+  accountHooks: {
+    onAccountLinked: () => Promise.resolve(),
+    onAccountUnlinked: () => Promise.resolve()
   },
   requireEmailVerification: false,
   runBackground: (promise) => {
@@ -81,6 +100,50 @@ describe('makeAuthOptions', () => {
     })
   })
 
+  describe('social providers', () => {
+    it('resolves zero providers when none are active', () => {
+      // The provider-light default: no provider key exists at all, so
+      // Better Auth resolves no providers — the Local Auth Path's runtime
+      // shape, unchanged from before social sign-in existed.
+      expect(makeAuthOptions(baseConfig).socialProviders).toEqual({})
+    })
+
+    it('forwards an active provider as Better Auth socialProviders', () => {
+      const options = makeAuthOptions({
+        ...baseConfig,
+        socialProviders: {
+          github: { clientId: 'client-id', clientSecret: 'client-secret' }
+        }
+      })
+      expect(options.socialProviders).toEqual({
+        github: { clientId: 'client-id', clientSecret: 'client-secret' }
+      })
+    })
+  })
+
+  describe('account linking hooks', () => {
+    it("hands account rows to the caller's link and unlink hooks", () =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          // The port's promise shape matters: `Effect.promise` awaits what the
+          // hook returns, so the doubles resolve rather than answer undefined.
+          const onAccountLinked = vi.fn().mockResolvedValue(undefined)
+          const onAccountUnlinked = vi.fn().mockResolvedValue(undefined)
+          const hooks = makeAuthOptions({
+            ...baseConfig,
+            accountHooks: { onAccountLinked, onAccountUnlinked }
+          }).databaseHooks.account
+          const account = { providerId: 'github', userId: 'usr_demo' }
+
+          yield* Effect.promise(() => hooks.create.after(account))
+          yield* Effect.promise(() => hooks.delete.after(account))
+
+          expect(onAccountLinked).toHaveBeenCalledWith(account)
+          expect(onAccountUnlinked).toHaveBeenCalledWith(account)
+        })
+      ))
+  })
+
   describe('background tasks', () => {
     it("hands every detached promise to the caller's runner", () => {
       // `runBackground` is required on the config: this package picks no
@@ -122,6 +185,41 @@ describe('makeAuthOptions', () => {
       const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'two-factor')
       expect(options.twoFactorCookieMaxAge).toBe(600)
       expect(options.trustDeviceMaxAge).toBe(60 * 60 * 24 * 30)
+    })
+  })
+
+  describe('passkey knobs', () => {
+    it('derives rpID and origin from the app URL, not a second env var', () => {
+      const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'passkey')
+      // `localhost` is a valid WebAuthn rpID, so the Local Auth Path gains
+      // passkeys with zero configuration.
+      expect(options.rpID).toBe('localhost')
+      expect(options.origin).toBe('http://localhost:3071')
+    })
+
+    it('derives a production rpID that drops the subdomain port only', () => {
+      const config = { ...baseConfig, baseURL: 'https://app.example.com' }
+      const options = pluginOptions(makeAuthOptions(config).plugins, 'passkey')
+      expect(options.rpID).toBe('app.example.com')
+      expect(options.origin).toBe('https://app.example.com')
+    })
+
+    it('drops a path and trailing slash from the origin', () => {
+      const config = { ...baseConfig, baseURL: 'https://app.example.com/' }
+      const options = pluginOptions(makeAuthOptions(config).plugins, 'passkey')
+      expect(options.origin).toBe('https://app.example.com')
+    })
+  })
+
+  describe('last-login method', () => {
+    it('includes the core plugin, before the cookie bridge', () => {
+      // Cookie-backed only (no `storeInDatabase`, so no user column and no
+      // migration). Presence and position are the two things this file pins;
+      // the inference contract stays guarded by `SessionUserRole`.
+      const options = makeAuthOptions(baseConfig).plugins
+      const ids = options.map((plugin) => pluginId(plugin))
+      expect(ids).toContain('last-login-method')
+      expect(ids.at(-1)).toBe('tanstack-start-cookies')
     })
   })
 

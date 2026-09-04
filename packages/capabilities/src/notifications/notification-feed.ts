@@ -1,9 +1,17 @@
 import { Database } from '@b2b-saas-starter/db/service'
 import { notifications, workspaceMembers } from '@b2b-saas-starter/db/schema'
-import { and, count, desc, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull, or, type SQL } from 'drizzle-orm'
 import { Context, DateTime, Effect, Layer, Ref, Schema } from 'effect'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import {
+  clampPageLimit,
+  cutKeysetPage,
+  type ListPageInput,
+  type Page,
+  seedKeysetPage
+} from '../internal/keyset-cursor.ts'
+import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext, type Actor } from '../workspace-context.ts'
 
@@ -43,12 +51,35 @@ export type NotifyUserInput = {
   readonly message: string
 }
 
+/**
+ * A notification a background job writes. Keyed by `workspaceId` rather than
+ * `WorkspaceContext` because the writers (the export consumer today) run on
+ * the queue, where no request context exists — the same shape as
+ * `AuditEventLog.record`. `userId` targets one member; `null` broadcasts.
+ */
+export type NotifyInput = {
+  readonly workspaceId: string
+  readonly userId: string | null
+  readonly title: string
+  readonly message: string
+}
+
 export type NotificationFeedInterface = {
   readonly list: Effect.Effect<
     ReadonlyArray<Notification>,
     CapabilityUnavailable,
     WorkspaceContext
   >
+
+  /**
+   * The paged read the REST and MCP list surfaces serve (ADR 0057):
+   * newest-first on `(createdAt DESC, id DESC)`, one bounded `Page` at a
+   * time. `list` stays for the whole-collection reads the app's own pages
+   * render — feeds are small by construction there.
+   */
+  readonly listPage: (
+    input?: ListPageInput
+  ) => Effect.Effect<Page<Notification>, CapabilityUnavailable, WorkspaceContext>
 
   readonly unreadCount: Effect.Effect<number, CapabilityUnavailable, WorkspaceContext>
 
@@ -71,6 +102,9 @@ export type NotificationFeedInterface = {
   readonly notifyUser: (
     input: NotifyUserInput
   ) => Effect.Effect<void, CapabilityUnavailable>
+
+  /** Appends one unread notification. Id and timestamp are minted here. */
+  readonly notify: (input: NotifyInput) => Effect.Effect<void, CapabilityUnavailable>
 
   /**
    * Records one workspace-scoped notification (ADR 0055's failed-test owner
@@ -107,6 +141,38 @@ function visibleToActor(
   return userId === undefined || userId === null || userId === actor?.userId
 }
 
+type SeedRow = SeedNotification & { readonly workspaceId?: string }
+
+/**
+ * The rows one workspace's actor can see, stripped to the wire DTO — the
+ * fixture's store-only columns (`userId`, `workspaceId`) never leave the
+ * adapter, on the paged read exactly as on the whole-collection read.
+ */
+function visibleRows(
+  rows: ReadonlyArray<SeedRow>,
+  workspaceId: string,
+  actor: Actor | null
+): Array<Notification> {
+  const visible: Array<Notification> = []
+  for (const entry of rows) {
+    // Fixture rows carry no workspace and belong to the seed workspace;
+    // notified rows are scoped like Live's `workspaceId` column.
+    if (entry.workspaceId !== undefined && entry.workspaceId !== workspaceId) {
+      continue
+    }
+    if (visibleToActor(entry.userId, actor)) {
+      visible.push({
+        id: entry.id,
+        title: entry.title,
+        message: entry.message,
+        createdAt: entry.createdAt,
+        read: entry.read
+      })
+    }
+  }
+  return visible
+}
+
 /**
  * The in-memory feed. The rows live in a layer-scoped `Ref` so `markRead`
  * mutates them — the Seed layer is a real adapter, not a static answer sheet,
@@ -117,26 +183,39 @@ export function SeedNotificationFeed(
 ): Layer.Layer<NotificationFeed> {
   return Layer.effect(NotificationFeed)(
     Effect.sync(() => {
-      const rows = Ref.makeUnsafe<Array<SeedNotification>>([...seed])
+      // A private copy, like the Seed audit log: the writes append without
+      // mutating the caller's fixture array, and notified rows read back
+      // through `list`. Notified rows carry the `workspaceId` they were
+      // written for, scoped like Live's `workspaceId` column.
+      const rows = Ref.makeUnsafe<Array<SeedRow>>([...seed])
       return {
         list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
-          const current = yield* Ref.get(rows)
-          const visible: Array<Omit<SeedNotification, 'userId'>> = []
-          for (const entry of current) {
-            const { userId, ...notification } = entry
-            if (visibleToActor(userId, ctx.actor)) {
-              visible.push(notification)
-            }
-          }
-          return visible
+          return visibleRows(yield* Ref.get(rows), ctx.workspace.id, ctx.actor)
         }),
+        listPage: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            // The store's insert order is not the wire order: the shared
+            // keyset helper orders `(createdAt DESC, id DESC)` and cuts the
+            // page, so a page fetch behaves exactly like Live's ordered SQL
+            // read — over the same visible, stripped rows `list` serves.
+            return seedKeysetPage(
+              visibleRows(yield* Ref.get(rows), ctx.workspace.id, ctx.actor),
+              'desc',
+              (row) => ({ key: row.createdAt, id: row.id }),
+              input
+            )
+          }),
         unreadCount: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const current = yield* Ref.get(rows)
           return current.filter(
             (notification) =>
-              !notification.read && visibleToActor(notification.userId, ctx.actor)
+              !notification.read &&
+              (notification.workspaceId === undefined ||
+                notification.workspaceId === ctx.workspace.id) &&
+              visibleToActor(notification.userId, ctx.actor)
           ).length
         }),
         markRead: (ids) =>
@@ -175,6 +254,23 @@ export function SeedNotificationFeed(
                 createdAt: DateTime.formatIso(createdAt),
                 read: false,
                 userId: input.userId
+              },
+              ...current
+            ])
+          }),
+        notify: (input) =>
+          Effect.gen(function* () {
+            const id = yield* newCapabilityId('not')
+            const createdAt = yield* DateTime.now
+            yield* Ref.update(rows, (current) => [
+              {
+                id,
+                title: input.title,
+                message: input.message,
+                createdAt: DateTime.formatIso(createdAt),
+                read: false,
+                userId: input.userId,
+                workspaceId: input.workspaceId
               },
               ...current
             ])
@@ -239,6 +335,41 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
           )
           return rows.map(toNotification)
         }),
+        listPage: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const limit = clampPageLimit(input?.limit)
+            const conditions: Array<SQL | undefined> = [
+              visibilityFilter(ctx.workspace.id, ctx.actor)
+            ]
+            // The SQL half of the keyset recipe lives in `keyset-query.ts`,
+            // shared with every other paged Live read.
+            const resume = keysetResume(
+              'desc',
+              { key: notifications.createdAt, id: notifications.id },
+              input?.cursor
+            )
+            if (resume.kind === 'empty') {
+              return { items: [], nextCursor: null }
+            }
+            if (resume.kind === 'resume') {
+              conditions.push(resume.condition)
+            }
+            // One row past the page cap, so `cutKeysetPage` can see whether
+            // the cap actually cut rows off before offering a cursor.
+            const rows = yield* unavailable(
+              db
+                .select()
+                .from(notifications)
+                .where(and(...conditions))
+                .orderBy(desc(notifications.createdAt), desc(notifications.id))
+                .limit(limit + 1)
+            )
+            return cutKeysetPage(rows.map(toNotification), limit, (row) => ({
+              key: row.createdAt,
+              id: row.id
+            }))
+          }),
         unreadCount: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
@@ -317,6 +448,22 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
               })
             }
             yield* unavailable(db.insert(notifications).values(values))
+          }),
+        notify: (input) =>
+          Effect.gen(function* () {
+            const id = yield* newCapabilityId('not')
+            const createdAt = DateTime.formatIso(yield* DateTime.now)
+            yield* unavailable(
+              db.insert(notifications).values({
+                id,
+                workspaceId: input.workspaceId,
+                userId: input.userId,
+                title: input.title,
+                message: input.message,
+                readAt: null,
+                createdAt
+              })
+            )
           }),
         record: (input) =>
           Effect.gen(function* () {

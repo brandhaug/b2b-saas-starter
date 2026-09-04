@@ -23,6 +23,8 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0040 — Client server-state: loaders and server functions](./0040-effect-atom-for-server-state.md)
 - [0044 — Per-capability Effect services with Seed and Live adapters](./0044-per-capability-effect-services-with-seed-and-live-adapters.md)
 - [0048 — Defer API versioning](./0048-defer-api-versioning.md)
+- [0057 — Keyset cursor pagination for list endpoints](./0057-keyset-cursor-pagination-for-list-endpoints.md)
+- [0058 — Typed SDK derived from the HTTP API contract](./0058-typed-sdk-derived-from-the-http-api-contract.md)
 
 ## Product surfaces
 
@@ -38,6 +40,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 ## Background work and delivery
 
 - [0033 — Cloudflare Queues for webhook delivery](./0033-cloudflare-queues-for-webhook-delivery.md)
+- [0055 — R2 for workspace export artifacts](./0055-r2-for-workspace-export-artifacts.md)
 
 ## Observability, security, and configuration
 
@@ -47,11 +50,13 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0031 — Env-gated Turnstile](./0031-env-gated-turnstile.md)
 - [0051 — Workspace membership on Better Auth's organization plugin](./0051-workspace-membership-on-better-auth-organization-plugin.md)
 - [0054 — System Admin impersonation](./0054-system-admin-impersonation.md)
+- [0056 — Passkeys on Better Auth's passkey plugin](./0056-passkeys-on-better-auth-passkey-plugin.md)
 
 ## Optional providers
 
 - [0008 — Effect AI starter assistant](./0008-effect-ai-starter-assistant.md)
 - [0014 — Cloudflare Email Service](./0014-cloudflare-email-service.md)
+- [0057 — Social sign-in as an absent-until-configured provider](./0057-social-sign-in-as-absent-until-configured-provider.md)
 
 ## UI and frontend
 

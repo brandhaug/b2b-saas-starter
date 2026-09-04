@@ -4,6 +4,7 @@ import {
   type Invitation
 } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { SeedWorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations.seed'
+import { SeedSeatSyncPublisher } from '@b2b-saas-starter/capabilities/billing/seat-sync'
 import {
   testWorkspaceContext,
   type WorkspaceContext,
@@ -147,7 +148,9 @@ function run<A, E>(
     Effect.gen(function* () {
       const roster = yield* makeSeedRoster(harness.members ?? [ownerMember])
       const layer = Layer.mergeAll(
-        SeedWorkspaceInvitations({ roster, workspace, seed: harness.seed ?? [] }),
+        SeedWorkspaceInvitations({ roster, workspace, seed: harness.seed ?? [] }).pipe(
+          Layer.provide(SeedSeatSyncPublisher)
+        ),
         // `in` rather than `??`: a test that passes `actor: null` is asserting
         // what the guard does with no principal, not asking for the default.
         testWorkspaceContext(

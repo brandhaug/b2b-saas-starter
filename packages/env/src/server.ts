@@ -30,11 +30,20 @@ export const ServerEnvSchema = Schema.Struct({
   OPENAI_API_KEY: optional,
   OPENAI_BASE_URL: optional,
   OPENAI_MODEL_ID: optional,
+  GITHUB_CLIENT_ID: optional,
+  GITHUB_CLIENT_SECRET: optional,
+  GOOGLE_CLIENT_ID: optional,
+  GOOGLE_CLIENT_SECRET: optional,
   OTEL_EXPORTER_OTLP_ENDPOINT: optional,
   OTEL_EXPORTER_OTLP_HEADERS: optional,
   SERVICE_VERSION: optional,
   GIT_COMMIT_SHA: optional,
-  ENVIRONMENT: optional
+  ENVIRONMENT: optional,
+  // Workspace data export (ADR 0055): the R2 bucket name gates provisioning at
+  // deploy time; the API worker's public origin is where the web app points
+  // signed download links.
+  WORKSPACE_EXPORT_BUCKET: optional,
+  API_PUBLIC_URL: optional
 })
 
 export type ServerEnv = typeof ServerEnvSchema.Type
@@ -65,6 +74,8 @@ export const optionalModuleEnvSecretKeys = [
   'STRIPE_WEBHOOK_SECRET',
   'TURNSTILE_SECRET_KEY',
   'OPENAI_API_KEY',
+  'GITHUB_CLIENT_SECRET',
+  'GOOGLE_CLIENT_SECRET',
   'OTEL_EXPORTER_OTLP_HEADERS'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
@@ -79,10 +90,13 @@ export const optionalModuleEnvPlainKeys = [
   'WORKERS_AI_ENABLED',
   'OPENAI_BASE_URL',
   'OPENAI_MODEL_ID',
+  'GITHUB_CLIENT_ID',
+  'GOOGLE_CLIENT_ID',
   'OTEL_EXPORTER_OTLP_ENDPOINT',
   'SERVICE_VERSION',
   'GIT_COMMIT_SHA',
-  'ENVIRONMENT'
+  'ENVIRONMENT',
+  'API_PUBLIC_URL'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
 /**
@@ -162,6 +176,59 @@ export type RequiredEnvAudit = {
  */
 export function requireEmailVerification(environment: string | undefined): boolean {
   return environment === 'production'
+}
+
+/** The social sign-in providers the starter knows how to wire. */
+export { SOCIAL_PROVIDER_IDS, type SocialProviderId } from './social.ts'
+
+/** One configured social provider — present only when both halves are set. */
+export type SocialProviderCredentials = {
+  readonly clientId: string
+  readonly clientSecret: string
+}
+
+/**
+ * The mutable accumulator {@link activeSocialProviders} fills — the same
+ * keys as {@link ActiveSocialProviders}, assignable to it. A key is set only
+ * when the provider resolved as active; a missing key is the only absent
+ * state.
+ */
+type ActiveSocialProvidersBag = {
+  github?: SocialProviderCredentials
+  google?: SocialProviderCredentials
+}
+
+/**
+ * The providers that are active for one env bag. Keys are stated explicitly
+ * (never `Partial<Record<…>>`): which providers exist is a closed set this
+ * type owns, and a caller reading `providers.github` learns `undefined`
+ * means unconfigured — not "some provider key we don't know about".
+ */
+export type ActiveSocialProviders = Readonly<ActiveSocialProvidersBag>
+
+/**
+ * The pure decision of which social providers are active: a provider counts
+ * only when **both** its `*_CLIENT_ID` and `*_CLIENT_SECRET` have a value
+ * ({@link hasValue}), so an unset — or explicitly null — var means the
+ * provider is absent from the auth config entirely, never half-configured.
+ * The caller passes the resolved bag to `AuthConfig.socialProviders`
+ * (`packages/auth`), which never reads env itself.
+ */
+export function activeSocialProviders(source: RawEnvSource): ActiveSocialProviders {
+  const providers: ActiveSocialProvidersBag = {}
+  if (hasValue(source.GITHUB_CLIENT_ID) && hasValue(source.GITHUB_CLIENT_SECRET)) {
+    providers.github = {
+      clientId: source.GITHUB_CLIENT_ID,
+      clientSecret: source.GITHUB_CLIENT_SECRET
+    }
+  }
+  if (hasValue(source.GOOGLE_CLIENT_ID) && hasValue(source.GOOGLE_CLIENT_SECRET)) {
+    providers.google = {
+      clientId: source.GOOGLE_CLIENT_ID,
+      clientSecret: source.GOOGLE_CLIENT_SECRET
+    }
+  }
+  return providers
 }
 
 function requiredEnvMode(source: RawEnvSource): RequiredEnvAudit['mode'] {

@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm'
 import { MembershipChangeRejected } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
+import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
@@ -42,11 +43,16 @@ function toInvitation(row: typeof workspaceInvitations.$inferSelect): Invitation
 
 export function LiveWorkspaceInvitations(
   binding?: WorkspaceInvitationBinding
-): Layer.Layer<WorkspaceInvitations, never, Database | AuditEventLog> {
+): Layer.Layer<
+  WorkspaceInvitations,
+  never,
+  Database | AuditEventLog | SeatSyncPublisher
+> {
   return Layer.effect(WorkspaceInvitations)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
+      const seatSync = yield* SeatSyncPublisher
 
       const unavailable = orUnavailable('workspace-invitations')
 
@@ -203,6 +209,13 @@ export function LiveWorkspaceInvitations(
               targetType: 'workspace_invitation',
               targetId: input.invitationId,
               metadata: { email: pending.email, role: pending.role }
+            })
+            // Acceptance adds a member, so it triggers the same seat sync a
+            // direct add does — keyed off the invitation's own workspace,
+            // because the accepter still has no `WorkspaceContext` to read.
+            yield* publishSeatSyncWith(seatSync, {
+              workspaceId: row.workspace.id,
+              reason: 'invitation_accepted'
             })
             return {
               workspaceSlug: row.workspace.slug,

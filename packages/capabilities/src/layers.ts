@@ -51,6 +51,12 @@ import {
   type PlatformUserAdmin,
   type PlatformUserAdminBinding
 } from './governance/platform-user-admin.ts'
+import {
+  LiveWorkspaceExports,
+  type LiveWorkspaceExportsOptions
+} from './governance/workspace-export.live.ts'
+import { SeedWorkspaceExports } from './governance/workspace-export.seed.ts'
+import { type WorkspaceExports } from './governance/workspace-export.ts'
 import { LiveSsoConnections } from './governance/workspace-sso-connections.live.ts'
 import { SeedSsoConnections } from './governance/workspace-sso-connections.seed.ts'
 import {
@@ -59,12 +65,15 @@ import {
 } from './governance/workspace-sso-connections.ts'
 
 // billing
+import { type Billing } from './billing/billing.ts'
+import { LiveBilling, type LiveBillingOptions } from './billing/billing.live.ts'
+import { SeedBilling } from './billing/billing.seed.ts'
 import {
-  type Billing,
-  LiveBilling,
-  SeedBilling,
-  type LiveBillingOptions
-} from './billing/billing.ts'
+  LiveSeatSyncPublisher,
+  SeedSeatSyncPublisher,
+  type SeatSyncPublisher,
+  type SeatSyncQueueBinding
+} from './billing/seat-sync.ts'
 
 // notifications
 import {
@@ -83,6 +92,7 @@ import {
   seedTwoFactorUserIds,
   seedUserAdminMemberships,
   seedWebhookEndpoints,
+  seedWorkspaceExportFixture,
   seedWorkspaceRecord
 } from './seed-fixture.ts'
 
@@ -92,9 +102,11 @@ export type CapabilityServices =
   | Billing
   | NotificationFeed
   | PlatformUserAdmin
+  | SeatSyncPublisher
   | SsoConnections
   | WebhookEndpoints
   | WebhookPublisher
+  | WorkspaceExports
   | WorkspaceInvitations
   | WorkspaceLifecycle
   | WorkspaceMembership
@@ -103,10 +115,11 @@ export type CapabilityServices =
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
 /**
- * Membership and invitations share one fixture roster, because accepting an
- * invitation adds a member: built independently, the two adapters would
- * disagree about who is in the workspace. Live needs no equivalent — the
- * plugin owns both writes, and both read back from the same tables.
+ * Membership, invitations, and billing share one fixture roster, because
+ * accepting an invitation adds a member and `SeedBilling.syncSeats` counts it:
+ * built independently, the adapters would disagree about who is in the
+ * workspace. Live needs no equivalent — the plugin owns the member writes,
+ * and billing counts them from D1.
  */
 const SeedGovernance = Layer.unwrap(
   Effect.gen(function* () {
@@ -114,7 +127,13 @@ const SeedGovernance = Layer.unwrap(
     return Layer.mergeAll(
       SeedWorkspaceInvitations({ roster, workspace: seedWorkspaceRecord }),
       SeedWorkspaceMembership(roster, seedWorkspaceRecord),
-      SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord })
+      SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord }),
+      /**
+       * Billing rides the governance seed so its audit writes land in the
+       * same fixture log every other capability reads, and its seat counts
+       * read the same roster the membership adapters mutate.
+       */
+      SeedBilling({ roster }).pipe(Layer.provide(SeedAuditLog))
     )
   })
 )
@@ -127,27 +146,21 @@ const SeedGovernance = Layer.unwrap(
 const SeedAuditLog = SeedAuditEventLog(seedAuditEvents, seedSystemUsers)
 
 /**
- * Billing rides the governance seed so its audit writes land in the same
- * fixture log every other capability reads.
- */
-const SeedBillingLayer = SeedBilling().pipe(Layer.provide(SeedAuditLog))
-
-/**
  * One fixture notification feed, for the same reason as `SeedAuditLog`: the
  * user-admin seed writes `notifyUser` rows into it, and the feed the shell
  * reads has to be the very instance they landed in.
  */
 const SeedNotifications = SeedNotificationFeed(seedNotifications)
 
-export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
+const SeedCore = Layer.mergeAll(
   // The mutating developer-platform capabilities write audit events and fan
   // out webhooks below their interface; the shared fixture audit log and the
   // no-op Seed publisher are provided once on the merged layer so every member
   // sees the same instances.
   SeedApiTokenRegistry(seedApiTokens),
   SeedAuditLog,
-  SeedBillingLayer,
   SeedNotifications,
+  SeedSeatSyncPublisher,
   SeedSsoConnections(seedSsoConnections),
   SeedWebhookEndpoints(seedWebhookEndpoints),
   SeedWebhookPublisher,
@@ -157,11 +170,31 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
 ).pipe(
   Layer.provide(SeedAuditLog),
   Layer.provide(SeedNotifications),
-  Layer.provide(SeedWebhookPublisher)
+  Layer.provide(SeedWebhookPublisher),
+  Layer.provide(SeedSeatSyncPublisher)
 )
+
+/**
+ * The export adapter reads every other capability to build its archive, so it
+ * sits on top of the core seed rather than inside it. `SeedCore` is one layer
+ * value, provided here and merged below: Effect memoizes it, so the archive is
+ * built from the same instances the rest of the fixture serves.
+ */
+const SeedExports = SeedWorkspaceExports({
+  workspace: seedWorkspaceRecord,
+  fixture: seedWorkspaceExportFixture
+}).pipe(Layer.provide(SeedCore))
+
+export const SeedLayer: CapabilitiesLayer = Layer.merge(SeedCore, SeedExports)
 
 export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
+  /**
+   * The seat-sync queue the membership and invitation mutations enqueue onto.
+   * Absent, those mutations publish nothing — the same provider-light posture
+   * `webhookQueue` takes (CLAUDE.md rule 3).
+   */
+  readonly seatSyncQueue?: SeatSyncQueueBinding | undefined
   /**
    * Stripe checkout configuration (`STRIPE_SECRET_KEY` plus per-plan price
    * ids). Absent, checkout fails `provider_not_configured` and every other
@@ -196,8 +229,13 @@ export type LiveCapabilitiesOptions = {
    */
   readonly userAdminBinding?: PlatformUserAdminBinding | undefined
   /**
+   * The export queue and R2 bucket (ADR 0055). Absent, `WorkspaceExports`
+   * reports unavailable and the settings page explains why — provider-light.
+   */
+  readonly workspaceExports?: LiveWorkspaceExportsOptions | undefined
+  /**
    * Adapter onto the `sso` plugin's register/update/delete endpoints (ADR
-   * 0054). Absent, connection reads and domain routing still work and the
+   * 0055). Absent, connection reads and domain routing still work and the
    * settings mutations fail `CapabilityUnavailable` — the same provider-light
    * posture the other bindings take.
    */
@@ -209,8 +247,10 @@ export function makeLiveCapabilitiesLayer(
 ): Layer.Layer<CapabilityServices, never, Database | RawD1> {
   // One instance each: `LiveWebhookPublisher(options.webhookQueue)` called at
   // each use site would build distinct layers (Effect does not unify them), so
-  // both the fan-out consumers and the merged layer share this value.
+  // both the fan-out consumers and the merged layer share this value. The
+  // seat-sync publisher follows the same rule for the same reason.
   const publisher = LiveWebhookPublisher(options.webhookQueue)
+  const seatSyncPublisher = LiveSeatSyncPublisher(options.seatSyncQueue)
   return Layer.mergeAll(
     LiveApiTokenRegistry,
     LiveAuditEventLog,
@@ -223,13 +263,18 @@ export function makeLiveCapabilitiesLayer(
     LiveWorkspaceMembership(options.memberBinding),
     LiveWorkspaceLifecycle(options.lifecycleBinding),
     LivePlatformUserAdmin(options.userAdminBinding),
-    LiveWorkspaceOnboarding
+    LiveWorkspaceOnboarding,
+    LiveWorkspaceExports(options.workspaceExports),
+    seatSyncPublisher
   ).pipe(
     Layer.provide(LiveAuditEventLog),
     // The user-admin capability notifies the impersonated user below its
-    // interface, so the feed is provided to the merged layer like the audit log.
+    // interface, and the export adapter notifies the requester below its —
+    // the same `LiveNotificationFeed` value is a member above, so one
+    // instance serves both.
     Layer.provide(LiveNotificationFeed),
-    Layer.provide(publisher)
+    Layer.provide(publisher),
+    Layer.provide(seatSyncPublisher)
   )
 }
 

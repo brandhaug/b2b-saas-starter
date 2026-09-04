@@ -1,3 +1,4 @@
+import { type SOCIAL_PROVIDER_IDS } from '@b2b-saas-starter/env/social'
 import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
 
@@ -107,6 +108,83 @@ export function requestPasswordResetWithAuthClient(
   })
 }
 
+/* -------------------------------------------------------------------------- */
+/* Social sign-in                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The providers the auth screens can offer — the same closed set the server
+ * resolver owns (`SOCIAL_PROVIDER_IDS` in `@b2b-saas-starter/env/social`),
+ * derived rather than restated so the env gate and the UI cannot disagree
+ * about which providers exist.
+ */
+export type SocialProviderId = (typeof SOCIAL_PROVIDER_IDS)[number]
+
+/**
+ * Social sign-in initiation. Better Auth's client answers with the provider's
+ * authorize URL and follows it itself (its redirect plugin navigates on
+ * `{ url, redirect: true }`), so the component only supplies the provider and
+ * where to land afterwards. The method the visitor used is remembered by the
+ * `lastLoginMethod` plugin's cookie, surfaced on the next sign-in page visit.
+ */
+export type SignInWithSocial = AuthPort<{
+  readonly provider: SocialProviderId
+  /** Absolute URL — Better Auth validates it against trusted origins. */
+  readonly callbackURL: string
+}>
+
+export function signInSocialWithAuthClient(
+  input: Parameters<SignInWithSocial>[0]
+): ReturnType<SignInWithSocial> {
+  return authClient.signIn.social(input)
+}
+
+/**
+ * The last authentication method this browser used ('github', 'google',
+ * 'email', …), from the `lastLoginMethod` plugin's client-readable cookie.
+ * Synchronous and SSR-safe (null without a document); null means "no
+ * remembered method" — the hint simply does not render.
+ */
+export type ReadLastLoginMethod = () => string | null
+
+export function readLastLoginMethodWithAuthClient(): string | null {
+  return authClient.getLastUsedLoginMethod()
+}
+
+/* -------------------------------------------------------------------------- */
+/* Linked accounts                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One linked sign-in method, narrowed to the fields the account page reads.
+ * `id` is the account row's id — the value `unlinkAccount` takes — and
+ * `providerId` is the method ('credential' for email and password).
+ */
+export type LinkedAccountRecord = {
+  readonly id: string
+  readonly providerId: string
+  readonly createdAt: Date
+}
+
+export type ListLinkedAccounts = AuthPort<void, ReadonlyArray<LinkedAccountRecord>>
+
+export function listAccountsWithAuthClient(): ReturnType<ListLinkedAccounts> {
+  return authClient.listAccounts()
+}
+
+/**
+ * Unlinking one sign-in method. Better Auth refuses the last remaining
+ * account (`allowUnlinkingAll` stays off), so the UI disables the control
+ * when only one is left — the endpoint refusal is the backstop.
+ */
+export type UnlinkAccount = AuthPort<{ readonly accountId: string }>
+
+export function unlinkAccountWithAuthClient(
+  input: Parameters<UnlinkAccount>[0]
+): ReturnType<UnlinkAccount> {
+  return authClient.unlinkAccount(input)
+}
+
 export type ResetPassword = AuthPort<{
   readonly newPassword: string
   readonly token: string
@@ -186,6 +264,72 @@ export function sixDigitCodeValidator({
   value: string
 }): string | undefined {
   return /^\d{6}$/.test(value) ? undefined : 'Enter the 6-digit code'
+}
+
+/* -------------------------------------------------------------------------- */
+/* Passkeys                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** One Better Auth passkey row, as the account panel reads it. */
+export type PasskeyRecord = {
+  readonly id: string
+  readonly name?: string | null | undefined
+  readonly createdAt: Date
+  readonly backedUp: boolean
+}
+
+export type ListPasskeys = AuthPort<void, ReadonlyArray<PasskeyRecord>>
+
+export function listPasskeysWithAuthClient(): ReturnType<ListPasskeys> {
+  return authClient.passkey.listUserPasskeys()
+}
+
+/**
+ * Registers a passkey for the signed-in user. The name is the label the
+ * management list shows; the WebAuthn ceremony runs between this call's two
+ * server round-trips (options, then verification).
+ */
+export type AddPasskey = AuthPort<{ readonly name?: string }>
+
+export function addPasskeyWithAuthClient(
+  input: Parameters<AddPasskey>[0]
+): ReturnType<AddPasskey> {
+  return authClient.passkey.addPasskey(input)
+}
+
+/** Renames a passkey — the label only, never the credential. */
+export type UpdatePasskeyName = AuthPort<{
+  readonly id: string
+  readonly name: string
+}>
+
+export function updatePasskeyWithAuthClient(
+  input: Parameters<UpdatePasskeyName>[0]
+): ReturnType<UpdatePasskeyName> {
+  return authClient.passkey.updatePasskey(input)
+}
+
+export type DeletePasskey = AuthPort<{ readonly id: string }>
+
+export function deletePasskeyWithAuthClient(
+  input: Parameters<DeletePasskey>[0]
+): ReturnType<DeletePasskey> {
+  return authClient.passkey.deletePasskey(input)
+}
+
+/**
+ * Passkey sign-in. `autoFill: true` arms conditional UI (the browser's
+ * passkey autofill); without it the call opens the modal ceremony when a
+ * button invokes it. A success resolves with the session Better Auth set.
+ */
+export type SignInWithPasskey = (input?: {
+  readonly autoFill?: boolean
+}) => Promise<AuthResult<{ readonly user: { readonly id: string } } | null>>
+
+export function signInPasskeyWithAuthClient(input?: {
+  readonly autoFill?: boolean
+}): ReturnType<SignInWithPasskey> {
+  return authClient.signIn.passkey(input)
 }
 
 /* -------------------------------------------------------------------------- */

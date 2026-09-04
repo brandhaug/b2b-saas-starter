@@ -7,6 +7,7 @@ import {
   webhookEndpoints,
   workspaceMembers,
   workspaceSsoConnections,
+  workspaceSubscriptions,
   workspaces
 } from '@b2b-saas-starter/db/schema'
 import {
@@ -239,6 +240,46 @@ function credentialRows(demoPasswordHash: string): ReadonlyArray<string> {
   )
 }
 
+/**
+ * A linked social provider for the demo owner, so `/account` shows the
+ * linked-providers surface on the seeded reference app: one provider row next
+ * to the credential row, unlinkable because another sign-in method remains.
+ * The account id names no real GitHub subject — signing in *as* it is not
+ * possible, it is fixture state for the account page exactly like the seed
+ * webhook endpoints are fixture state for the settings page.
+ */
+const linkedProviderAccounts: ReadonlyArray<{
+  readonly accountRowId: string
+  readonly userId: string
+  readonly providerId: 'github' | 'google'
+  readonly accountId: string
+  readonly issuer: string
+}> = [
+  {
+    accountRowId: 'acc_demo_github',
+    userId: demoUserIdentity.id,
+    providerId: 'github',
+    accountId: '99000001',
+    // GitHub exposes no OIDC issuer; better-auth keys its accounts on this
+    // synthetic namespace (same value the live flow writes).
+    issuer: 'local:oauth:github'
+  }
+]
+
+function linkedProviderRows(): ReadonlyArray<string> {
+  return linkedProviderAccounts.map((linked) =>
+    insert(account, {
+      id: linked.accountRowId,
+      accountId: linked.accountId,
+      providerId: linked.providerId,
+      issuer: linked.issuer,
+      userId: linked.userId,
+      createdAt: 1_778_918_400,
+      updatedAt: 1_778_918_400
+    })
+  )
+}
+
 function tokenRows(
   fixture: Fixture,
   tokenHashes: ReadonlyArray<string>
@@ -278,7 +319,11 @@ function auditRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.auditEvents.map((event) =>
     insert(auditEvents, {
       id: event.id,
-      workspaceId: fixture.workspace.id,
+      // A row is workspace-scoped only when it says so; omitted means
+      // system-level, exactly how the Seed adapter filters in memory —
+      // system events (admin mutations, account security) never leak into a
+      // workspace trail.
+      workspaceId: event.workspaceId ?? null,
       actorUserId: fixture.members.find((member) => member.name === event.actor)?.id,
       eventType: event.eventType,
       targetType: event.targetType,
@@ -349,6 +394,27 @@ function notificationRows(fixture: Fixture): ReadonlyArray<string> {
   )
 }
 
+/**
+ * The Seed Workspace's simulated provider subscription: a customer, a seat
+ * item, and the quantity its four members bill as on the per-seat Team plan.
+ * Fixture values only — the workspace's Stripe state lives in
+ * `workspace_subscriptions` and is written by provider events in production,
+ * but the demo should render seat usage and (with Stripe configured) the
+ * portal without anyone checking out first.
+ */
+function subscriptionRows(fixture: Fixture): ReadonlyArray<string> {
+  return [
+    insert(workspaceSubscriptions, {
+      workspaceId: fixture.workspace.id,
+      stripeCustomerId: 'cus_seed_starter_lab',
+      stripeSubscriptionId: 'sub_seed_starter_lab',
+      stripeSubscriptionItemId: 'si_seed_starter_lab',
+      seatQuantity: fixture.members.length,
+      updatedAt: now
+    })
+  ]
+}
+
 function buildStatements(fixture: Fixture, hashes: Hashes): string {
   return `${[
     'PRAGMA foreign_keys = ON;',
@@ -356,9 +422,11 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...userRows(fixture),
     ...membershipRows(fixture),
     ...credentialRows(hashes.demoPassword),
+    ...linkedProviderRows(),
     ...tokenRows(fixture, hashes.tokens),
     ...webhookRows(fixture),
     ...ssoConnectionRows(fixture),
+    ...subscriptionRows(fixture),
     ...auditRows(fixture),
     ...notificationRows(fixture)
   ].join('\n')}\n`

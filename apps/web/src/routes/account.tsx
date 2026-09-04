@@ -1,6 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { TwoFactorPanel } from '@/components/two-factor-panel'
+import { PasskeysPanel } from '@/components/passkeys-panel'
 import { SessionsPanel } from '@/components/sessions-panel'
+import { LinkedAccountsPanel } from '@/components/linked-accounts-panel'
 import { PageHeader } from '@/components/page/page-header'
 import { pageTitle } from '@/components/page/page-title'
 import { Panel } from '@/components/page/panel'
@@ -34,6 +36,25 @@ function AccountRoute() {
         description="Sign-in security for your account, not any one workspace."
       />
       <Panel
+        title="Sign-in methods"
+        description="Every way this account can sign in. A provider can be unlinked once another method remains."
+      >
+        {/* Unlinking a provider while impersonating would change the user's
+            sign-in surface from an admin session — same refusal stance as the
+            two-factor panel below (ADR 0054). */}
+        {session.impersonatedBy === null ? (
+          <LinkedAccountsPanel />
+        ) : (
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
+          <Alert role="status">
+            <AlertDescription>
+              Sign-in methods cannot be changed while impersonating this user.
+            </AlertDescription>
+          </Alert>
+        )}
+      </Panel>
+
+      <Panel
         title="Two-factor authentication"
         description="Require a time-based one-time code from an authenticator app at every sign-in."
       >
@@ -47,6 +68,25 @@ function AccountRoute() {
           <Alert role="status">
             <AlertDescription>
               Two-factor settings cannot be changed while impersonating this user.
+            </AlertDescription>
+          </Alert>
+        )}
+      </Panel>
+
+      <Panel
+        title="Passkeys"
+        description="Sign-in credentials bound to this account: a fingerprint, face, PIN, or security key. A passkey sign-in counts as two-factor, so no code is asked for."
+      >
+        {/* Hidden, not merely disabled, for an impersonation session: the
+            catchall refuses the endpoints anyway (ADR 0056), so a control
+            that always fails would only teach the admin to ignore errors. */}
+        {session.impersonatedBy === null ? (
+          <PasskeysPanel />
+        ) : (
+          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
+          <Alert role="status">
+            <AlertDescription>
+              Passkeys cannot be changed while impersonating this user.
             </AlertDescription>
           </Alert>
         )}

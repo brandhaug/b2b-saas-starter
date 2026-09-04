@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
 import {
   apiRateLimits,
+  billingConsumerSettings,
   isPreviewStage,
   stageResourceNames,
   webhookConsumerSettings,
@@ -11,6 +12,8 @@ import {
   webRateLimits,
   workerCompatibility,
   workersDevUrl,
+  WORKSPACE_EXPORT_RETENTION_DAYS,
+  workspaceExportConsumerSettings,
   type RateLimitBindingSpec
 } from './infra/bindings.ts'
 import {
@@ -25,6 +28,17 @@ import {
  * deployment shape than a worker with no EMAIL binding at all.
  */
 type OptionalEmailBinding = { EMAIL?: Cloudflare.Email.SendEmail }
+
+/**
+ * The workspace export bindings (ADR 0055), spread into every worker on the
+ * same terms as EMAIL: both keys are absent — not `undefined` — when
+ * `WORKSPACE_EXPORT_BUCKET` was not set, and the capability then reports
+ * unavailable instead of failing a request.
+ */
+type OptionalWorkspaceExportBindings = {
+  WORKSPACE_EXPORT_QUEUE?: Cloudflare.Queues.Queue
+  WORKSPACE_EXPORT_BUCKET?: Cloudflare.R2.Bucket
+}
 
 // Rate limits are Worker-only bindings with no backing cloud resource, so
 // they are declared inline on the Worker's `env` rather than provisioned as
@@ -110,6 +124,10 @@ function resolveBetterAuthUrl(stage: string, webWorkerName: string): string {
 // read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalProviderEnv` below —
 // there is no second email var name.
 const CLOUDFLARE_EMAIL_FROM = readEnv('CLOUDFLARE_EMAIL_FROM')
+// Optional: when unset, no export bucket or queue is provisioned and the
+// `WorkspaceExports` capability reports unavailable (ADR 0055). The value is
+// the bucket name; `infra/bindings.ts` carries the local-dev default.
+const WORKSPACE_EXPORT_BUCKET = readEnv('WORKSPACE_EXPORT_BUCKET')
 
 // Optional provider env, forwarded to the web, API, and background workers so
 // a deployed worker receives its provider configuration. Unset values are
@@ -212,6 +230,12 @@ export const Stack = Alchemy.Stack(
       name: names.webhookQueue
     })
 
+    // Seat sync: membership and invitation mutations enqueue; the background
+    // worker consumes and reconciles the Stripe subscription item quantity.
+    const billingQueue = yield* Cloudflare.Queues.Queue('billing-queue', {
+      name: names.billingQueue
+    })
+
     // Only provision the SendEmail binding when a verified sender is
     // configured — without it the email module stays inactive instead of
     // failing the deploy.
@@ -236,6 +260,39 @@ export const Stack = Alchemy.Stack(
       emailBinding.EMAIL = transactionalEmail
     }
 
+    // Workspace export (ADR 0055): one queue for the jobs, one R2 bucket for
+    // the archives, both only when an operator named the bucket. The lifecycle
+    // rule deletes every artifact after the retention window — the same
+    // horizon `WorkspaceExports` stamps onto `expiresAt`.
+    const workspaceExportBindings: OptionalWorkspaceExportBindings = {}
+    let workspaceExportQueue: Cloudflare.Queues.Queue | undefined
+    if (WORKSPACE_EXPORT_BUCKET) {
+      const bucket = yield* Cloudflare.R2.Bucket('workspace-export-bucket', {
+        name: WORKSPACE_EXPORT_BUCKET || names.workspaceExportBucket,
+        // Every object is a disposable, re-creatable export — safe to empty on destroy.
+        forceDestroy: true,
+        lifecycleRules: [
+          {
+            id: 'expire-exports',
+            deleteObjectsTransition: {
+              condition: {
+                type: 'Age',
+                maxAge: WORKSPACE_EXPORT_RETENTION_DAYS * 24 * 60 * 60
+              }
+            },
+            abortMultipartUploadsTransition: {
+              condition: { type: 'Age', maxAge: 24 * 60 * 60 }
+            }
+          }
+        ]
+      })
+      workspaceExportQueue = yield* Cloudflare.Queues.Queue('workspace-export-queue', {
+        name: names.workspaceExportQueue
+      })
+      workspaceExportBindings.WORKSPACE_EXPORT_BUCKET = bucket
+      workspaceExportBindings.WORKSPACE_EXPORT_QUEUE = workspaceExportQueue
+    }
+
     const api = yield* Cloudflare.Worker('api', {
       name: names.worker('api'),
       main: './apps/api/src/index.ts',
@@ -247,6 +304,9 @@ export const Stack = Alchemy.Stack(
         AI: ai,
         ...rateLimitBindings(apiRateLimits),
         ...emailBinding,
+        // Reads the export bucket to serve signed downloads; the queue lets
+        // the REST surface request an export too.
+        ...workspaceExportBindings,
         ...providerEnv
       },
       ...workerDefaults,
@@ -259,18 +319,36 @@ export const Stack = Alchemy.Stack(
       env: {
         DB: db,
         WEBHOOK_QUEUE: webhookQueue,
+        BILLING_QUEUE: billingQueue,
         ...emailBinding,
+        ...workspaceExportBindings,
         ...providerEnv
       },
       ...workerDefaults,
       placement: smartPlacement
     })
 
+    if (workspaceExportQueue) {
+      yield* Cloudflare.Queues.Consumer('workspace-export-consumer', {
+        queueId: workspaceExportQueue.queueId,
+        scriptName: background.workerName,
+        settings: workspaceExportConsumerSettings
+      })
+    }
+
     yield* Cloudflare.Queues.Consumer('webhook-consumer', {
       queueId: webhookQueue.queueId,
       scriptName: background.workerName,
       deadLetterQueue: webhookDeadLetterQueue.queueName,
       settings: webhookConsumerSettings
+    })
+
+    // Seat-sync consumer: the queue membership mutations enqueue onto, so the
+    // Stripe quantity update happens off the request path.
+    yield* Cloudflare.Queues.Consumer('billing-consumer', {
+      queueId: billingQueue.queueId,
+      scriptName: background.workerName,
+      settings: billingConsumerSettings
     })
 
     // Dead-letter consumer: the background worker records terminal
@@ -286,9 +364,15 @@ export const Stack = Alchemy.Stack(
       rootDir: './apps/web',
       env: {
         DB: db,
+        // Producer only — the background worker consumes; membership and
+        // invitation mutations enqueue seat-sync messages.
+        BILLING_QUEUE: billingQueue,
         ...rateLimitBindings(webRateLimits),
         AI: ai,
         ...emailBinding,
+        // Workspace settings enqueues export jobs and reads the bucket binding
+        // only to answer "are exports available here".
+        ...workspaceExportBindings,
         ...providerEnv,
         BETTER_AUTH_SECRET,
         BETTER_AUTH_URL,
@@ -301,11 +385,13 @@ export const Stack = Alchemy.Stack(
       stage,
       api,
       background,
+      billingQueue,
       db,
       transactionalEmail,
       web,
       webhookQueue,
-      webhookDeadLetterQueue
+      webhookDeadLetterQueue,
+      workspaceExportQueue
     }
   })
 )

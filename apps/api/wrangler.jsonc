@@ -30,9 +30,19 @@
       {
         "binding": "WEBHOOK_QUEUE",
         "queue": "b2b-saas-starter-webhooks"
+      },
+      {
+        "binding": "WORKSPACE_EXPORT_QUEUE",
+        "queue": "b2b-saas-starter-workspace-exports"
       }
     ]
   },
+  "r2_buckets": [
+    {
+      "binding": "WORKSPACE_EXPORT_BUCKET",
+      "bucket_name": "b2b-saas-starter-workspace-exports"
+    }
+  ],
   "vars": {
     "WORKERS_AI_ENABLED": "false",
     "CLOUDFLARE_EMAIL_FROM": "noreply@example.com"

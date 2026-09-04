@@ -1,0 +1,70 @@
+---
+title: Typed SDK
+description: A typed client derived from the same HttpApi contract the API Worker serves — no codegen.
+category: capability-interfaces
+order: 40
+tags: [sdk, typescript, rest, pagination]
+---
+
+`@b2b-saas-starter/sdk` is the typed client for the REST Capability Interface. It is derived from the shared `StarterApi` definition in `packages/api` through Effect's `HttpApiClient`, so every path, query parameter, payload, success schema, and error schema the API Worker serves is the one the client encodes and decodes. There is no codegen step and no generated file (ADR 0058): a contract change fails the SDK's type-check, and the served `/openapi.json` stays a document for humans and third-party generators.
+
+The package lives in `packages/sdk` and is a workspace package today: it depends on the contract's schemas, which live beside the capabilities. Publishing it externally would mean extracting those schemas first (ADR 0048 keeps the public API unversioned until then).
+
+## Two layers over one client
+
+**The plain client** takes a base URL and an API Token and returns promise-returning methods. It defaults to the runtime's `fetch` and accepts an injected one, so tests can point it at the API Worker's web handler without a network:
+
+```ts
+import { createStarterClient } from '@b2b-saas-starter/sdk'
+
+const client = createStarterClient({
+  baseUrl: 'https://api.example.com',
+  apiToken: 'bsk_live_…'
+})
+
+// One bounded Page — items plus the opaque nextCursor (null on the last page).
+const page = await client.workspace.notifications('acme', { limit: 50 })
+
+// Or walk every Page to exhaustion — items arrive in the endpoint's
+// documented order, newest-first for timestamped lists.
+for await (const notification of client.workspace.notifications.iterate('acme')) {
+  console.log(notification.title)
+}
+```
+
+**The Effect-native factory** returns the `HttpApiClient` for callers already running Effect. Its methods are Effects failing with the contract's own tagged error classes:
+
+```ts
+import { makeStarterApiClient } from '@b2b-saas-starter/sdk'
+import { FetchHttpClient } from 'effect/unstable/http'
+import { Effect } from 'effect'
+
+const program = Effect.gen(function* () {
+  const client = yield* makeStarterApiClient({
+    baseUrl: 'https://api.example.com',
+    apiToken: 'bsk_live_…'
+  })
+  // Typed request, typed success, tagged errors — the worker's contract.
+  const page = yield* client.workspace.auditEvents({
+    params: { slug: 'acme' },
+    query: { limit: 100 }
+  })
+  return page.items
+})
+
+await program.pipe(Effect.provide(FetchHttpClient.layer), Effect.runPromise)
+```
+
+## Pagination
+
+Every list method pages the same way the REST route does (ADR 0057): an optional `limit` (default 50, clamped to at most 200) and an opaque `cursor` from the previous page's `nextCursor`. The cursor is a keyset position, so rows inserted between fetches never shift, duplicate, or hide rows you have not seen. `.iterate()` does the cursor bookkeeping for you and stops when the server answers `nextCursor: null`.
+
+## Errors
+
+Rejections carry the contract's tagged errors the worker serves: a missing or revoked token rejects with `Unauthorized` (HTTP 401), a token lacking the route's permission with `AuthorizationDenied` (403), an unknown workspace slug with `WorkspaceNotFound` (404), and a saturated rate-limit bucket with `RateLimited` (429). The Effect-native client surfaces the same classes in its error channel, where `Effect.catchTag` can match on them.
+
+## Related
+
+- [REST API](/docs/capability-interfaces/rest-api) — the wire contract, authentication, and rate-limit buckets.
+- [API tokens](/docs/capability-interfaces/api-tokens) — minting the credential the client sends.
+- [MCP server](/docs/capability-interfaces/mcp-server) — the same capability reads as MCP tools, paging identically.

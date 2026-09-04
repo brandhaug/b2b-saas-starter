@@ -44,6 +44,8 @@ const PERMISSIONS = [
   { label: 'assistant:read', request: { assistant: ['read'] } },
   { label: 'mcp:read', request: { mcp: ['read'] } },
   { label: 'onboarding:dismiss', request: { onboarding: ['dismiss'] } },
+  { label: 'workspaceExport:request', request: { workspaceExport: ['request'] } },
+  { label: 'workspaceExport:download', request: { workspaceExport: ['download'] } },
   { label: 'sso:list', request: { sso: ['list'] } },
   { label: 'sso:create', request: { sso: ['create'] } },
   { label: 'sso:update', request: { sso: ['update'] } },
@@ -73,8 +75,12 @@ const GRANTS: ReadonlyArray<{
   {
     name: 'admin role',
     principal: memberPrincipal('admin'),
-    // Everything the owner has except deleting the workspace.
-    granted: EVERY_LABEL.filter((label) => label !== 'organization:delete')
+    // Everything the owner has except deleting the workspace and exporting
+    // its data — both hand over the whole workspace.
+    granted: EVERY_LABEL.filter(
+      (label) =>
+        label !== 'organization:delete' && !label.startsWith('workspaceExport:')
+    )
   },
   {
     name: 'member role',

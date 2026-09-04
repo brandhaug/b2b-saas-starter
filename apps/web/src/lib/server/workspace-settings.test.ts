@@ -30,6 +30,14 @@ describe('loadWorkspaceSettings', () => {
       domain: 'acme-corp.example'
     })
     expect(JSON.stringify(payload.ssoConnections)).not.toContain('secret')
+    // The export segment: available on the Seed layer, with the fixture export
+    // ready and carrying a signed link into the API worker.
+    expect(payload.exports?.availability).toEqual({ available: true })
+    const fixture = payload.exports?.exports.find((row) => row.id === 'exp_seed_ready')
+    expect(fixture?.status).toBe('ready')
+    expect(fixture?.downloadUrl).toMatch(
+      /^http:\/\/localhost:8787\/exports\/exp_seed_ready\/download\?expires=\d+&signature=[0-9a-f]{64}$/
+    )
   })
 
   it('gives a member the same settings payload — the page reads only identity', async () => {
@@ -46,5 +54,17 @@ describe('loadWorkspaceSettings', () => {
     // SSO connections are security posture: the member's payload carries no
     // connection list at all, not an empty one.
     expect(payload.ssoConnections).toBeNull()
+    // The export segment is owner-only: denied by the matrix server-side, so
+    // it never reaches the serialized loader payload at all.
+    expect(payload.exports).toBeNull()
+  })
+
+  it('withholds the export segment from an admin — it is owner-only', async () => {
+    const payload = await loadWorkspaceSettings({
+      workspaceSlug: 'starter-lab',
+      userId: 'usr_ops'
+    })
+    expect(payload.viewer).toEqual({ role: 'admin' })
+    expect(payload.exports).toBeNull()
   })
 })

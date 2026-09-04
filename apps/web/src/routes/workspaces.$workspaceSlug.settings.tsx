@@ -11,6 +11,10 @@ import {
   type DeleteWorkspace,
   type RenameWorkspace
 } from '@/components/workspace-general-settings'
+import {
+  WorkspaceExportPanel,
+  type RequestWorkspaceExport
+} from '@/components/workspace-export-panel'
 import { viewerCan } from '@/lib/permissions'
 import {
   loadWorkspaceSettings,
@@ -73,9 +77,10 @@ export function WorkspaceSettingsPage({
     readonly signOut?: SignOut
     readonly renameWorkspace?: RenameWorkspace
     readonly deleteWorkspace?: DeleteWorkspace
+    readonly requestExport?: RequestWorkspaceExport
   }
 }) {
-  const { viewer, workspaceName, unreadCount, ssoConnections } = data
+  const { viewer, workspaceName, unreadCount, ssoConnections, exports } = data
   // Rename and delete are gated per action, not per page: an admin may rename
   // but never delete, a member sees neither. The server functions enforce the
   // same statements.
@@ -137,6 +142,21 @@ export function WorkspaceSettingsPage({
               viewer={viewer}
             />
           </div>
+        </Panel>
+      )}
+      {/* Owner-only: the loader hands the segment to nobody else, so the whole
+          panel is absent for admins and members rather than disabled. When the
+          deployment has no export bucket, the panel explains that instead of
+          offering a button that would fail. */}
+      {exports === null ? null : (
+        <Panel title="Data export">
+          <WorkspaceExportPanel
+            workspaceSlug={workspaceSlug}
+            segment={exports}
+            {...(ports?.requestExport === undefined
+              ? {}
+              : { requestExport: ports.requestExport })}
+          />
         </Panel>
       )}
     </WorkspaceShell>

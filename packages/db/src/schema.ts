@@ -3,6 +3,7 @@ import {
   invitationStatuses,
   ssoProvisionedRoles,
   systemRoles,
+  workspaceExportStatuses,
   workspaceRoles,
   type ApiTokenScopeValue
 } from './enums.ts'
@@ -23,11 +24,13 @@ export {
   invitationStatuses,
   ssoProvisionedRoles,
   systemRoles,
+  workspaceExportStatuses,
   workspaceRoles,
   type ApiTokenScopeValue,
   type DeliveryStatus,
   type SsoProvisionedRoleValue,
-  type SystemRoleValue
+  type SystemRoleValue,
+  type WorkspaceExportStatus
 } from './enums.ts'
 /**
  * What a `mode: 'json'` text column can hold: exactly what
@@ -214,6 +217,39 @@ export const twoFactor = sqliteTable(
   (table) => [
     index('two_factor_user_id_idx').on(table.userId),
     index('two_factor_secret_idx').on(table.secret)
+  ]
+)
+
+// Owned by Better Auth's `passkey` plugin — the export key must stay the
+// plugin's model name (`passkey`) because the drizzle adapter resolves
+// `schema[modelName]`. One row per registered WebAuthn credential; the public
+// key is the verifier's input, never a secret. Plugin-owned shape: camelCase
+// columns, epoch-integer dates (ADR 0056).
+export const passkey = sqliteTable(
+  'passkey',
+  {
+    id: id(),
+    // User-chosen label for the management UI; the plugin leaves it absent
+    // when the ceremony carried no name.
+    name: text('name'),
+    publicKey: text('publicKey').notNull(),
+    userId: text('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    credentialID: text('credentialID').notNull(),
+    counter: integer('counter').notNull(),
+    deviceType: text('deviceType').notNull(),
+    backedUp: integer('backedUp', { mode: 'boolean' }).notNull(),
+    // Comma-separated WebAuthn transport list; the plugin splits and joins it
+    // itself, so plain `text`, like `two_factor.backupCodes`.
+    transports: text('transports'),
+    createdAt: authCreatedAt(),
+    // The authenticator model's identifier, best-effort label source.
+    aaguid: text('aaguid')
+  },
+  (table) => [
+    index('passkey_user_id_idx').on(table.userId),
+    index('passkey_credential_id_idx').on(table.credentialID)
   ]
 )
 
@@ -441,3 +477,57 @@ export const auditEvents = sqliteTable(
     index('audit_events_actor_user_id_idx').on(table.actorUserId)
   ]
 )
+
+/**
+ * Workspace data export jobs (ADR 0055). One row per request: `pending` until
+ * the background worker builds the archive, then `ready` with the R2 object
+ * key, or `failed`. `downloadSecret` is the per-export HMAC key behind the
+ * signed download link — both workers share this table, so no cross-worker
+ * secret is needed. `expiresAt` mirrors the bucket's lifecycle rule.
+ */
+export const workspaceExports = sqliteTable(
+  'workspace_exports',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    // Set null rather than cascade: an export outlives the account that asked
+    // for it, and the row is what the audit trail's `targetId` points at.
+    requestedByUserId: text('requested_by_user_id').references(() => user.id, {
+      onDelete: 'set null'
+    }),
+    status: text('status', { enum: workspaceExportStatuses })
+      .default('pending')
+      .notNull(),
+    objectKey: text('object_key'),
+    sizeBytes: integer('size_bytes'),
+    downloadSecret: text('download_secret').notNull(),
+    failureReason: text('failure_reason'),
+    createdAt: isoCreatedAt(),
+    completedAt: text('completed_at'),
+    expiresAt: text('expires_at')
+  },
+  (table) => [
+    workspaceIdIndex('workspace_exports', table.workspaceId),
+    index('workspace_exports_requested_by_user_id_idx').on(table.requestedByUserId)
+  ]
+)
+
+/**
+ * The Stripe subscription state one workspace carries: the customer the
+ * Billing Portal is opened for, and the subscription item whose quantity
+ * mirrors the workspace's member count on a per-seat plan. One row per
+ * workspace, written only by the billing capability from provider events;
+ * a workspace without a row has never checked out.
+ */
+export const workspaceSubscriptions = sqliteTable('workspace_subscriptions', {
+  workspaceId: workspaceRef().primaryKey(),
+  stripeCustomerId: text('stripe_customer_id').notNull(),
+  // Null once the subscription is deleted: the customer survives (invoices
+  // stay reachable in the portal), the seat item does not.
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  stripeSubscriptionItemId: text('stripe_subscription_item_id'),
+  // The quantity Stripe last reported. `syncSeats` compares the member count
+  // against this before calling the provider.
+  seatQuantity: integer('seat_quantity').default(0).notNull(),
+  updatedAt: text('updated_at').notNull()
+})

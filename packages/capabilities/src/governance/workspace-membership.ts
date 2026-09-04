@@ -1,10 +1,19 @@
 import { Database } from '@b2b-saas-starter/db/service'
 import { user, workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
-import { eq } from 'drizzle-orm'
+import { and, asc, eq, type SQL } from 'drizzle-orm'
 import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
+import {
+  clampPageLimit,
+  cutKeysetPage,
+  seedKeysetPage,
+  type ListPageInput,
+  type Page
+} from '../internal/keyset-cursor.ts'
+import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
+import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
@@ -30,6 +39,16 @@ export type WorkspaceMembershipInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
+  /**
+   * The paged read the REST and MCP list surfaces serve (ADR 0057). The
+   * member wire shape carries no timestamp, so pages run forward on
+   * `id ASC` (user id) — the stable order a caller can resume. `listMembers`
+   * stays for the app's whole-roster reads.
+   */
+  readonly listMembersPage: (
+    input?: ListPageInput
+  ) => Effect.Effect<Page<Member>, CapabilityUnavailable, WorkspaceContext>
 
   /**
    * Every workspace the user is a member of, with their membership row.
@@ -116,55 +135,84 @@ function requireMember(
  * In-memory membership, never Better Auth. The roster is built per layer
  * construction (see `makeSeedRoster`), so a mutation is observable within the
  * request or test that made it and no state leaks into the next one.
+ *
+ * Requires the `SeatSyncPublisher` so membership mutations trigger the same
+ * seat sync the Live adapter triggers — best-effort, after the write, exactly
+ * like the webhook fan-out below the developer-platform capabilities.
  */
 export function SeedWorkspaceMembership(
   roster: SeedRoster,
   workspace: Workspace
-): Layer.Layer<WorkspaceMembership> {
-  // `Layer.succeed`, not `Layer.effect`: the roster is built by the caller now
-  // (so invitations can share it), leaving nothing effectful to do here.
-  return Layer.succeed(WorkspaceMembership)({
-    listMembers: Ref.get(roster),
-    listWorkspacesForUser: (userId) =>
-      Ref.get(roster).pipe(
-        Effect.map((current) => {
-          const member = current.find((candidate) => candidate.id === userId)
-          if (!member) {
-            return []
-          }
-          return [{ workspace, member }]
-        })
-      ),
-    addMember: (input) =>
-      Effect.gen(function* () {
-        // No `user` table to join, so the fixture fabricates the identity
-        // fields the way `SeedApiTokenRegistry.create` fabricates a token.
-        const added = fabricateSeedMember(input.userId, input.role)
-        yield* Ref.update(roster, (current) => [...current, added])
-        return added
-      }),
-    removeMember: (input) =>
-      Effect.gen(function* () {
-        yield* requireMember(roster, input.userId)
-        yield* Ref.update(roster, (current) =>
-          current.filter((candidate) => candidate.id !== input.userId)
-        )
-      }),
-    changeRole: (input) =>
-      Effect.gen(function* () {
-        const member = yield* requireMember(roster, input.userId)
-        const promoted: Member = { ...member, role: input.role }
-        yield* Ref.update(roster, (current) =>
-          current.map((candidate) => {
-            if (candidate.id === input.userId) {
-              return promoted
-            }
-            return candidate
+): Layer.Layer<WorkspaceMembership, never, SeatSyncPublisher> {
+  return Layer.effect(WorkspaceMembership)(
+    Effect.gen(function* () {
+      const seatSync = yield* SeatSyncPublisher
+
+      return {
+        listMembers: Ref.get(roster),
+        listMembersPage: (input) =>
+          Effect.map(
+            Ref.get(roster),
+            // Forward on `id ASC` (user id) — the member wire shape carries no
+            // timestamp, so the id is the one stable order a page can resume.
+            (members) =>
+              seedKeysetPage(
+                members,
+                'asc',
+                (member) => ({ key: member.id, id: member.id }),
+                input
+              )
+          ),
+        listWorkspacesForUser: (userId) =>
+          Ref.get(roster).pipe(
+            Effect.map((current) => {
+              const member = current.find((candidate) => candidate.id === userId)
+              if (!member) {
+                return []
+              }
+              return [{ workspace, member }]
+            })
+          ),
+        addMember: (input) =>
+          Effect.gen(function* () {
+            // No `user` table to join, so the fixture fabricates the identity
+            // fields the way `SeedApiTokenRegistry.create` fabricates a token.
+            const added = fabricateSeedMember(input.userId, input.role)
+            yield* Ref.update(roster, (current) => [...current, added])
+            yield* publishSeatSyncWith(seatSync, {
+              workspaceId: workspace.id,
+              reason: 'member_added'
+            })
+            return added
+          }),
+        removeMember: (input) =>
+          Effect.gen(function* () {
+            yield* requireMember(roster, input.userId)
+            yield* Ref.update(roster, (current) =>
+              current.filter((candidate) => candidate.id !== input.userId)
+            )
+            yield* publishSeatSyncWith(seatSync, {
+              workspaceId: workspace.id,
+              reason: 'member_removed'
+            })
+          }),
+        changeRole: (input) =>
+          Effect.gen(function* () {
+            const member = yield* requireMember(roster, input.userId)
+            const promoted: Member = { ...member, role: input.role }
+            yield* Ref.update(roster, (current) =>
+              current.map((candidate) => {
+                if (candidate.id === input.userId) {
+                  return promoted
+                }
+                return candidate
+              })
+            )
+            return promoted
           })
-        )
-        return promoted
-      })
-  })
+      }
+    })
+  )
 }
 
 /**
@@ -215,11 +263,16 @@ const { callBinding } = makeBindingCaller<
 
 export function LiveWorkspaceMembership(
   binding?: WorkspaceMemberBinding
-): Layer.Layer<WorkspaceMembership, never, Database | AuditEventLog> {
+): Layer.Layer<
+  WorkspaceMembership,
+  never,
+  Database | AuditEventLog | SeatSyncPublisher
+> {
   return Layer.effect(WorkspaceMembership)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
+      const seatSync = yield* SeatSyncPublisher
 
       const unavailable = orUnavailable('workspace-membership')
 
@@ -262,6 +315,41 @@ export function LiveWorkspaceMembership(
           )
           return rows.map(toMember)
         }),
+        listMembersPage: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const conditions: Array<SQL> = [
+              eq(workspaceMembers.workspaceId, ctx.workspace.id)
+            ]
+            // Forward on user `id ASC` — no timestamp on the wire shape, so a
+            // cursor is every member with a strictly greater id. The SQL
+            // resume comes from `keyset-query.ts`, like every paged read.
+            const resume = keysetResume(
+              'asc',
+              { key: workspaceMembers.userId, id: workspaceMembers.userId },
+              input?.cursor
+            )
+            if (resume.kind === 'empty') {
+              return { items: [], nextCursor: null }
+            }
+            if (resume.kind === 'resume') {
+              conditions.push(resume.condition)
+            }
+            const rows = yield* unavailable(
+              db
+                .select({ member: workspaceMembers, user })
+                .from(workspaceMembers)
+                .innerJoin(user, eq(user.id, workspaceMembers.userId))
+                .where(and(...conditions))
+                .orderBy(asc(workspaceMembers.userId))
+                .limit(clampPageLimit(input?.limit) + 1)
+            )
+            return cutKeysetPage(
+              rows.map(toMember),
+              clampPageLimit(input?.limit),
+              (member) => ({ key: member.id, id: member.id })
+            )
+          }),
         listWorkspacesForUser: (userId) =>
           unavailable(
             db
@@ -295,6 +383,12 @@ export function LiveWorkspaceMembership(
               targetId: input.userId,
               metadata: { role: input.role }
             })
+            // Seat sync rides a queue the background worker consumes, so this
+            // mutation never awaits Stripe — best-effort, after the audit.
+            yield* publishSeatSyncWith(seatSync, {
+              workspaceId: ctx.workspace.id,
+              reason: 'member_added'
+            })
             return member
           }),
         removeMember: (input) =>
@@ -308,6 +402,10 @@ export function LiveWorkspaceMembership(
               eventType: 'workspace_member.removed',
               targetType: 'workspace_member',
               targetId: input.userId
+            })
+            yield* publishSeatSyncWith(seatSync, {
+              workspaceId: ctx.workspace.id,
+              reason: 'member_removed'
             })
           }),
         changeRole: (input) =>

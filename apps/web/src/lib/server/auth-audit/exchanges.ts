@@ -49,11 +49,21 @@ export type ExchangeRow = {
   readonly signInMethod?: string
   /**
    * A success on this row also emails the account holder — a second factor
-   * must never change silently. The value is the enrollment state the change
-   * leaves behind (`two-factor-notification.ts`).
+   * or a sign-in credential must never change silently. The value names the
+   * change itself, so the one credential-change notifier
+   * (`credential-change-notification.ts`) can word the email without a
+   * per-credential decode helper.
    */
-  readonly notifyOnSuccess?: 'two-factor-enabled' | 'two-factor-disabled'
+  readonly notifyOnSuccess?: CredentialChange
 }
+
+/**
+ * The credential change a row's success performs, as the security notifier
+ * reads it: which credential moved, and the state the success leaves behind.
+ */
+export type CredentialChange =
+  | { readonly kind: 'two-factor'; readonly enabled: boolean }
+  | { readonly kind: 'passkey'; readonly added: boolean }
 
 export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   // Account lifecycle.
@@ -74,6 +84,32 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     actor: 'response',
     target: 'session',
     signInMethod: 'username'
+  },
+  // Social sign-in completes at the provider callback — the response is a
+  // redirect, so the Location header carries the outcome (an `error` param on
+  // failure) and the body names nobody. The actor is the pre-handler session
+  // read when one exists (the link flow); a fresh social sign-in has no
+  // session yet and records unattributed — the account-linking events carry
+  // the user attribution for that path instead (see `social-account-audit`).
+  {
+    method: 'GET',
+    suffix: '/callback/github',
+    success: 'auth.sign_in',
+    failure: 'auth.sign_in_failed',
+    actor: 'session',
+    target: 'session',
+    successFromRedirect: true,
+    signInMethod: 'github'
+  },
+  {
+    method: 'GET',
+    suffix: '/callback/google',
+    success: 'auth.sign_in',
+    failure: 'auth.sign_in_failed',
+    actor: 'session',
+    target: 'session',
+    successFromRedirect: true,
+    signInMethod: 'google'
   },
   {
     method: 'POST',
@@ -149,7 +185,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     failure: 'auth.two_factor_enabled_failed',
     actor: 'session',
     target: 'user',
-    notifyOnSuccess: 'two-factor-enabled'
+    notifyOnSuccess: { kind: 'two-factor', enabled: true }
   },
   {
     method: 'POST',
@@ -158,7 +194,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     failure: 'auth.two_factor_disable_failed',
     actor: 'session',
     target: 'user',
-    notifyOnSuccess: 'two-factor-disabled'
+    notifyOnSuccess: { kind: 'two-factor', enabled: false }
   },
   {
     method: 'POST',
@@ -167,6 +203,39 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     failure: 'auth.two_factor_verification_failed',
     actor: 'response',
     target: 'session'
+  },
+  // Passkey lifecycle (ADR 0056). Registration demands a fresh session and
+  // its response is the passkey row (never an actor), so both management rows
+  // take the pre-handler actor — a failed add or remove is exactly the event
+  // worth attributing. Sign-in is a session-opening exchange like the
+  // credential ones, and rides the shared `auth.sign_in` pair with its own
+  // method marker.
+  {
+    method: 'POST',
+    suffix: '/passkey/verify-registration',
+    success: 'auth.passkey_added',
+    failure: 'auth.passkey_added_failed',
+    actor: 'session',
+    target: 'user',
+    notifyOnSuccess: { kind: 'passkey', added: true }
+  },
+  {
+    method: 'POST',
+    suffix: '/passkey/delete-passkey',
+    success: 'auth.passkey_removed',
+    failure: 'auth.passkey_removed_failed',
+    actor: 'session',
+    target: 'user',
+    notifyOnSuccess: { kind: 'passkey', added: false }
+  },
+  {
+    method: 'POST',
+    suffix: '/passkey/verify-authentication',
+    success: 'auth.sign_in',
+    failure: 'auth.sign_in_failed',
+    actor: 'response',
+    target: 'session',
+    signInMethod: 'passkey'
   },
   // Better Auth admin mutations, from the `system_admin.` taxonomy namespace.
   // The response never names the acting admin, so the actor is always the
@@ -303,16 +372,4 @@ export function exchangeRow(exchange: AuthExchange): ExchangeRow | null {
  */
 export function needsPreHandlerActor(exchange: AuthExchange): boolean {
   return exchangeRow(exchange)?.actor === 'session'
-}
-
-/**
- * The two-factor change an exchange performs, or `null` when it changes no
- * second factor. `enabled` is the enrollment state the success leaves behind —
- * the security notification names the direction.
- */
-export function twoFactorChangeExchange(
-  exchange: AuthExchange
-): { readonly enabled: boolean } | null {
-  const notify = exchangeRow(exchange)?.notifyOnSuccess
-  return notify === undefined ? null : { enabled: notify === 'two-factor-enabled' }
 }
