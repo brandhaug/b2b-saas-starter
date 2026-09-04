@@ -30,6 +30,7 @@ import { Route as KnowledgeFaqRouteImport } from './routes/_knowledge.faq'
 import { Route as AccountNotificationsRouteImport } from './routes/account_.notifications'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
+import { Route as MagicLinkVerifyRouteImport } from './routes/magic-link.verify'
 import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as SignInEmailCodeRouteImport } from './routes/sign-in_.email-code'
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
@@ -153,6 +154,11 @@ const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
   path: '/invitations/accept',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MagicLinkVerifyRoute = MagicLinkVerifyRouteImport.update({
+  id: '/magic-link/verify',
+  path: '/magic-link/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OauthConsentRoute = OauthConsentRouteImport.update({
   id: '/oauth/consent',
   path: '/oauth/consent',
@@ -269,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/faq': typeof KnowledgeFaqRoute
   '/account/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/magic-link/verify': typeof MagicLinkVerifyRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/sign-in/email-code': typeof SignInEmailCodeRoute
   '/help/': typeof HelpIndexRoute
@@ -307,6 +314,7 @@ export interface FileRoutesByTo {
   '/faq': typeof KnowledgeFaqRoute
   '/account/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/magic-link/verify': typeof MagicLinkVerifyRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/sign-in/email-code': typeof SignInEmailCodeRoute
   '/help': typeof HelpIndexRoute
@@ -348,6 +356,7 @@ export interface FileRoutesById {
   '/_knowledge/faq': typeof KnowledgeFaqRoute
   '/account_/notifications': typeof AccountNotificationsRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/magic-link/verify': typeof MagicLinkVerifyRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/sign-in_/email-code': typeof SignInEmailCodeRoute
   '/help/': typeof HelpIndexRoute
@@ -389,6 +398,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/account/notifications'
     | '/invitations/accept'
+    | '/magic-link/verify'
     | '/oauth/consent'
     | '/sign-in/email-code'
     | '/help/'
@@ -427,6 +437,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/account/notifications'
     | '/invitations/accept'
+    | '/magic-link/verify'
     | '/oauth/consent'
     | '/sign-in/email-code'
     | '/help'
@@ -467,6 +478,7 @@ export interface FileRouteTypes {
     | '/_knowledge/faq'
     | '/account_/notifications'
     | '/invitations/accept'
+    | '/magic-link/verify'
     | '/oauth/consent'
     | '/sign-in_/email-code'
     | '/help/'
@@ -506,6 +518,7 @@ export interface RootRouteChildren {
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   AccountNotificationsRoute: typeof AccountNotificationsRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
+  MagicLinkVerifyRoute: typeof MagicLinkVerifyRoute
   OauthConsentRoute: typeof OauthConsentRoute
   SignInEmailCodeRoute: typeof SignInEmailCodeRoute
   HelpIndexRoute: typeof HelpIndexRoute
@@ -659,6 +672,13 @@ declare module '@tanstack/react-router' {
       path: '/invitations/accept'
       fullPath: '/invitations/accept'
       preLoaderRoute: typeof InvitationsAcceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/magic-link/verify': {
+      id: '/magic-link/verify'
+      path: '/magic-link/verify'
+      fullPath: '/magic-link/verify'
+      preLoaderRoute: typeof MagicLinkVerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth/consent': {
@@ -868,6 +888,7 @@ const rootRouteChildren: RootRouteChildren = {
     DotwellKnownOauthAuthorizationServerRouteWithChildren,
   AccountNotificationsRoute: AccountNotificationsRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
+  MagicLinkVerifyRoute: MagicLinkVerifyRoute,
   OauthConsentRoute: OauthConsentRoute,
   SignInEmailCodeRoute: SignInEmailCodeRoute,
   HelpIndexRoute: HelpIndexRoute,

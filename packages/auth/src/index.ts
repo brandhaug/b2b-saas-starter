@@ -122,6 +122,45 @@ export const MAGIC_LINK_EXPIRES_IN_SECONDS = 60 * 10
 
 /**
  * The social providers this package can wire, keyed the way Better Auth's
+ * `socialProviders` option is. A structural local type on purpose: the
+ * resolver (`activeSocialProviders`) lives in `@b2b-saas-starter/env`, which
+ * this package must not depend on — the app passes the resolved bag here,
+ * same as `requireEmailVerification`. A missing key is the only absent state:
+ * the resolver never emits `undefined` values, and an empty object resolves
+ * to zero providers inside Better Auth. The keys are stated explicitly —
+ * which providers exist is a closed set this type owns.
+ */
+export type SocialProviderCredentialsByName = {
+  readonly github?: SocialProviderCredentials
+  readonly google?: SocialProviderCredentials
+}
+
+/** One configured social provider. Both halves are required to be active. */
+export type SocialProviderCredentials = {
+  readonly clientId: string
+  readonly clientSecret: string
+}
+
+/**
+ * The slice of a Better Auth account row the linking audit needs. Kept
+ * narrower than Better Auth's own `Account` type so the app's adapter depends
+ * on the two fields it reads, not the token columns it must not.
+ */
+export type AuthAccountChange = {
+  readonly providerId: string
+  readonly userId: string
+}
+
+/**
+ * The account-linking port, carried on `AuthConfig` and assigned straight to
+ * Better Auth's `databaseHooks.account.create.after` / `delete.after` — no
+ * rename wrapper, same shape as the email port above. Fires for every account
+ * row; the app filters which provider ids are audit-worthy.
+ */
+export type AuthAccountHooks = {
+  readonly onAccountLinked: (account: AuthAccountChange) => Promise<void>
+  readonly onAccountUnlinked: (account: AuthAccountChange) => Promise<void>
+}
 
 export type AuthConfigInterface = {
   readonly db: DrizzleDatabase

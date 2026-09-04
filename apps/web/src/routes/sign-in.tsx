@@ -444,7 +444,7 @@ function footer({
   mode: 'password' | 'link'
   redirect?: string | undefined
   socialProviders: ReadonlyArray<SocialProviderId>
-  signInPasskey?: SignInWithPasskey
+  signInPasskey: SignInWithPasskey | undefined
 }) {
   return (
     <>
