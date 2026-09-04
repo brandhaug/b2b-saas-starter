@@ -81,7 +81,6 @@ export function WorkspaceSettingsPage({
   // same statements.
   const canRename = viewerCan(viewer, { organization: ['update'] })
   const canDelete = viewerCan(viewer, { organization: ['delete'] })
-  const canManageSso = viewerCan(viewer, { sso: ['update'] })
 
   return (
     <WorkspaceShell
@@ -122,8 +121,8 @@ export function WorkspaceSettingsPage({
         )}
       </Panel>
       {/* Single sign-on (ADR 0055): the segment is absent for an actor
-          without sso:list, and the management controls degrade to a reason
-          for an actor who can read but not manage. */}
+          without sso:list, and the panel degrades each control per statement
+          (sso:create/update/remove) against the payload's viewer. */}
       {ssoConnections === null ? null : (
         <Panel title="Single sign-on">
           <div className="grid gap-3">
@@ -135,7 +134,7 @@ export function WorkspaceSettingsPage({
             <SsoPanel
               workspaceSlug={workspaceSlug}
               connections={ssoConnections}
-              canManage={canManageSso}
+              viewer={viewer}
             />
           </div>
         </Panel>

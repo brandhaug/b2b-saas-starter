@@ -108,7 +108,13 @@ const UpdateInput = Schema.Struct({
   clientSecret: Schema.optional(Schema.NonEmptyString)
 }).check(
   Schema.makeFilter((input) => {
-    if (input.clientId === undefined || input.clientSecret !== undefined) {
+    // Credential rotation is both-or-neither: the plugin merges a partial
+    // oidcConfig over the stored one, so a lone half would silently do
+    // nothing (or worse, half-rotate). Same rule shape as the SAML create
+    // filter above.
+    const hasId = input.clientId !== undefined
+    const hasSecret = input.clientSecret !== undefined
+    if (hasId === hasSecret) {
       return
     }
     return {

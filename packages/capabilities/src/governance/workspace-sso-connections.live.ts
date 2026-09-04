@@ -10,12 +10,14 @@ import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
-  matchesEmailDomain,
+  pickSignInTarget,
+  requireProtocolMatch,
   SsoConnections,
-  type CreateSsoConnectionInput,
+  ssoAuditEvent,
+  toRoutingDecision,
   type SsoConnection,
   type SsoConnectionDetail,
-  type SsoRoutingDecision,
+  type SsoRoutingFields,
   type WorkspaceSsoBinding
 } from './workspace-sso-connections.ts'
 
@@ -29,12 +31,6 @@ const { callBinding } = makeBindingCaller<
 })
 
 type ConnectionRow = typeof workspaceSsoConnections.$inferSelect
-
-type BindingUpdateInput = Parameters<WorkspaceSsoBinding['update']>[0]
-/** The port's input fields are readonly; the builder below assembles one mutably. */
-type MutableBindingUpdateInput = {
-  -readonly [K in keyof BindingUpdateInput]: BindingUpdateInput[K]
-}
 
 /**
  * What a stored config blob may hold, whichever protocol. Parsing through a
@@ -70,6 +66,18 @@ function protocolOf(row: { readonly samlConfig: string | null }): 'oidc' | 'saml
     return 'oidc'
   }
   return 'saml'
+}
+
+/** The routing fields the shared sign-in resolution reads off a stored row. */
+function routingFields(row: ConnectionRow): SsoRoutingFields {
+  return {
+    id: row.providerId,
+    protocol: protocolOf(row),
+    domain: row.domain,
+    workspaceId: row.workspaceId,
+    enabled: row.enabled,
+    requireSso: row.requireSso
+  }
 }
 
 /**
@@ -144,59 +152,16 @@ function samlDetail(
  * The connection plus its testable protocol detail. A config blob that does
  * not parse (or lacks the endpoints) contributes a `null` segment rather than
  * failing the read — the test step reports the gap, the list still renders.
+ * The protocol is decided once and only its own blob is parsed.
  */
 function toDetail(row: ConnectionRow): SsoConnectionDetail {
-  let config = storedConfig(row.oidcConfig)
-  if (protocolOf(row) === 'saml') {
-    config = storedConfig(row.samlConfig)
+  const protocol = protocolOf(row)
+  if (protocol === 'saml') {
+    const config = storedConfig(row.samlConfig)
+    return { ...toConnection(row), oidc: null, saml: samlDetail(config) }
   }
-  if (protocolOf(row) === 'oidc') {
-    return { ...toConnection(row), oidc: oidcDetail(config), saml: null }
-  }
-  return { ...toConnection(row), oidc: null, saml: samlDetail(config) }
-}
-
-/** The binding's create body, assembled from the capability input. */
-function bindingCreateInput(
-  ctxWorkspaceId: string,
-  providerId: string,
-  input: CreateSsoConnectionInput
-): Parameters<WorkspaceSsoBinding['create']>[0] {
-  const base = {
-    workspaceId: ctxWorkspaceId,
-    providerId,
-    domain: input.domain,
-    issuer: input.issuer,
-    defaultWorkspaceRole: input.defaultWorkspaceRole
-  }
-  if (input.protocol === 'oidc') {
-    return {
-      ...base,
-      oidcConfig: {
-        clientId: input.clientId,
-        clientSecret: input.clientSecret,
-        endpoints: input.endpoints
-      }
-    }
-  }
-  return {
-    ...base,
-    samlConfig: {
-      metadataXml: input.metadataXml,
-      entryPoint: input.entryPoint
-    }
-  }
-}
-
-/** Deterministic pick order when several enabled connections match a domain. */
-function byProviderId(a: ConnectionRow, b: ConnectionRow): number {
-  if (a.providerId < b.providerId) {
-    return -1
-  }
-  if (a.providerId > b.providerId) {
-    return 1
-  }
-  return 0
+  const config = storedConfig(row.oidcConfig)
+  return { ...toConnection(row), oidc: oidcDetail(config), saml: null }
 }
 
 export function LiveSsoConnections(
@@ -261,7 +226,7 @@ export function LiveSsoConnections(
             const ctx = yield* WorkspaceContext
             const providerId = yield* newCapabilityId('sso')
             yield* callBinding(binding, (bound) =>
-              bound.create(bindingCreateInput(ctx.workspace.id, providerId, input))
+              bound.create({ ...input, workspaceId: ctx.workspace.id, providerId })
             )
             const row = yield* readInWorkspace(ctx.workspace.id, providerId)
             if (Option.isNone(row)) {
@@ -271,14 +236,8 @@ export function LiveSsoConnections(
             }
             const connection = toConnection(row.value)
             yield* recordInWorkspace(audit, {
-              eventType: 'workspace_sso.connection_created',
-              targetType: 'workspace_sso_connection',
-              targetId: connection.id,
-              metadata: {
-                protocol: connection.protocol,
-                domain: connection.domain,
-                defaultWorkspaceRole: connection.defaultWorkspaceRole
-              }
+              ...ssoAuditEvent('created', connection),
+              targetId: connection.id
             })
             return connection
           }),
@@ -289,44 +248,27 @@ export function LiveSsoConnections(
             if (Option.isNone(existing)) {
               return Option.none<SsoConnection>()
             }
-            // The rule both adapters enforce: OIDC credentials only update an
-            // OIDC connection. The live plugin refuses the same call with a 400.
-            if (
-              input.oidcCredentials !== undefined &&
-              protocolOf(existing.value) === 'saml'
-            ) {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: 'protocol_mismatch' })
-              )
-            }
-            const update: MutableBindingUpdateInput = {
-              providerId: input.providerId
-            }
-            if (input.enabled !== undefined) {
-              update.enabled = input.enabled
-            }
-            if (input.requireSso !== undefined) {
-              update.requireSso = input.requireSso
-            }
-            if (input.defaultWorkspaceRole !== undefined) {
-              update.defaultWorkspaceRole = input.defaultWorkspaceRole
-            }
-            if (input.oidcCredentials !== undefined) {
-              update.oidcCredentials = input.oidcCredentials
+            yield* requireProtocolMatch(toConnection(existing.value), input)
+            // The plugin merges a partial body over the stored row, so the
+            // port's optional fields are exactly the fields being changed.
+            const update = {
+              providerId: input.providerId,
+              ...(input.enabled !== undefined && { enabled: input.enabled }),
+              ...(input.requireSso !== undefined && { requireSso: input.requireSso }),
+              ...(input.defaultWorkspaceRole !== undefined && {
+                defaultWorkspaceRole: input.defaultWorkspaceRole
+              }),
+              ...(input.oidcCredentials !== undefined && {
+                oidcCredentials: input.oidcCredentials
+              })
             }
             yield* callBinding(binding, (bound) => bound.update(update))
             const row = yield* readInWorkspace(ctx.workspace.id, input.providerId)
             const connection = Option.map(row, toConnection)
             if (Option.isSome(connection)) {
               yield* recordInWorkspace(audit, {
-                eventType: 'workspace_sso.connection_updated',
-                targetType: 'workspace_sso_connection',
-                targetId: connection.value.id,
-                metadata: {
-                  enabled: connection.value.enabled,
-                  requireSso: connection.value.requireSso,
-                  defaultWorkspaceRole: connection.value.defaultWorkspaceRole
-                }
+                ...ssoAuditEvent('updated', connection.value),
+                targetId: connection.value.id
               })
             }
             return connection
@@ -341,10 +283,8 @@ export function LiveSsoConnections(
             const connection = toConnection(existing.value)
             yield* callBinding(binding, (bound) => bound.remove({ providerId }))
             yield* recordInWorkspace(audit, {
-              eventType: 'workspace_sso.connection_removed',
-              targetType: 'workspace_sso_connection',
-              targetId: connection.id,
-              metadata: { protocol: connection.protocol, domain: connection.domain }
+              ...ssoAuditEvent('removed', connection),
+              targetId: connection.id
             })
             return true
           }),
@@ -352,25 +292,29 @@ export function LiveSsoConnections(
           Effect.gen(function* () {
             // Only enabled connections route — a disabled row persists for the
             // settings UI without intercepting sign-ins (the seeded example
-            // connection depends on exactly this).
+            // connection depends on exactly this; the auth gate enforces the
+            // same rule for direct `/sign-in/sso` calls).
             const rows = yield* unavailable(
               db
                 .select()
                 .from(workspaceSsoConnections)
                 .where(eq(workspaceSsoConnections.enabled, true))
             )
-            const match = rows
-              .filter((row) => matchesEmailDomain(email, row.domain))
-              .toSorted(byProviderId)[0]
-            if (match === undefined) {
-              return Option.none<SsoRoutingDecision>()
-            }
-            return Option.some<SsoRoutingDecision>({
-              providerId: match.providerId,
-              protocol: protocolOf(match),
-              workspaceId: match.workspaceId,
-              requireSso: match.requireSso
-            })
+            return Option.map(
+              Option.fromNullishOr(
+                pickSignInTarget(rows.map(routingFields), { email })
+              ),
+              toRoutingDecision
+            )
+          }),
+        resolveSignInTarget: (input) =>
+          Effect.gen(function* () {
+            // Deliberately unfiltered by `enabled`: the gate needs to see a
+            // disabled resolution to refuse it.
+            const rows = yield* unavailable(db.select().from(workspaceSsoConnections))
+            return Option.fromNullishOr(
+              pickSignInTarget(rows.map(routingFields), input)
+            )
           }),
         resolveProvider: (providerId) =>
           Effect.gen(function* () {

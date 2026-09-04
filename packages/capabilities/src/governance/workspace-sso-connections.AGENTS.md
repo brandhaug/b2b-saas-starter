@@ -10,14 +10,17 @@ The `sso` plugin (`@better-auth/sso`) owns the protocol work and the rows; this 
 - `describe` — the connection plus its testable protocol detail (OIDC endpoints, SAML metadata XML + entry point), for the app's test step. Still secret-free.
 - `create` / `update` / `remove` — through the `WorkspaceSsoBinding` port. Every plugin endpoint it wraps is session-gated and org-admin-checked; the app's adapter (`apps/web/src/lib/server/sso-binding.ts`) supplies the session via `sessionCall`. Like membership and invitations, the audit event follows the write and cannot commit with it (ADR 0051's accepted divergence).
 - `resolveRouting(email)` — **identity-keyed** (no `WorkspaceContext`, like `WorkspaceInvitations.find`): the connection an email resolves to, if any. Only `enabled` connections route. A disabled row persists for the settings UI without intercepting sign-ins — the seeded example connection depends on exactly this.
+- `resolveSignInTarget({ email, domain, providerId })` — the raw resolution: it mirrors the plugin's `signInSSO` (provider id first, else the domain; exact column match before a comma-list match) and includes a **disabled** answer. `resolveRouting` is this filtered to enabled rows; the app's auth gate (`sso-sign-in-gate.ts`) reads it raw to refuse a disabled one, so "a disabled connection never intercepts sign-ins" holds at the boundary and not just on the page.
 - `resolveProvider(providerId)` — the auth-catchall audit's lookup: one connection's workspace + domain.
 
 ## Rules both adapters enforce
 
-- New connections are born `enabled: false` and `requireSso: false`. An owner tests, then enables. A half-configured IdP therefore never intercepts sign-ins.
+Written once in the contract module (`workspace-sso-connections.ts`), not restated per adapter: the shared resolution (`pickSignInTarget`), the protocol-mismatch refusal (`requireProtocolMatch`), the audit event shapes (`ssoAuditEvent`), and the routing DTO projection (`toRoutingDecision`).
+
+- New connections are born `enabled: false` and `requireSso: false`. An owner tests, then enables. A half-configured IdP therefore never intercepts sign-ins: the page routes only enabled connections, and the auth gate refuses a `/sign-in/sso` that resolves to a disabled one.
 - OIDC credentials only update an OIDC connection (`protocol_mismatch`); the live plugin refuses the same call with a 400, which `callBinding` classifies as `MembershipChangeRejected`.
-- Domain matching is exact and case-insensitive over a comma-separated domain list, mirroring the plugin's own `domainMatches` (`matchesEmailDomain` here).
-- Routing picks the lowest `providerId` when several enabled connections match — deterministic, and the plugin's own provisioning path makes the same choice.
+- Domain matching is exact and case-insensitive over a comma-separated domain list, mirroring the plugin's own `domainMatches` (`matchesDomain` / `matchesEmailDomain` here).
+- Resolution mirrors the plugin's: an exact domain column value beats a comma-list entry, and ties break on the lowest provider id — deterministic.
 
 ## Audit events
 
@@ -32,6 +35,7 @@ The `sso` plugin (`@better-auth/sso`) owns the protocol work and the rows; this 
 
 ## Tests
 
-- `workspace-sso-connections.test.ts` — the Seed adapter, the routing rule's pure halves, and the audit writes.
-- `workspace-sso-connections.live.test.ts` — the Live adapter against real D1: scoping, sanitization, binding calls with the resolved workspace, read-backs, audits, routing.
+- `workspace-sso-connections.contract.ts` — the mutation + resolution cases written once (`workspaceSsoConnectionsContractCases`), run against both adapters: the seed harness in `workspace-sso-connections.test.ts`, the live harness (D1 + `fakeSsoBinding`) in `workspace-sso-connections.live.test.ts`.
+- `workspace-sso-connections.test.ts` — the Seed adapter's fixture reads, the routing rule's pure halves, and the seed half of the contract.
+- `workspace-sso-connections.live.test.ts` — the Live adapter against real D1: scoping, sanitization, binding calls with the resolved workspace, read-backs, routing, and the live half of the contract.
 - `packages/auth/src/sso.test.ts` — the plugin's own provisioning and role assignment over a mocked OIDC round trip.

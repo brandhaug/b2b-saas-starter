@@ -1,31 +1,40 @@
 import { DateTime, Effect, Layer, Option } from 'effect'
 
-import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
-import { AuditEventLog, type AuditEventLogInterface } from './audit-event-log.ts'
+import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import {
-  matchesEmailDomain,
+  pickSignInTarget,
+  requireProtocolMatch,
   SsoConnections,
+  ssoAuditEvent,
+  toRoutingDecision,
   type CreateSsoConnectionInput,
   type SsoConnection,
-  type SsoConnectionDetail,
-  type SsoRoutingDecision
+  type SsoConnectionDetail
 } from './workspace-sso-connections.ts'
 
 /**
  * Seed rows carry the workspace id so `resolveRouting` — which has no
  * `WorkspaceContext` to read one from — can still answer. It is stripped from
- * the DTO, same as `SeedNotification.userId`. The optional protocol detail
- * mirrors what Live parses out of the stored config blobs; a fixture without
- * it describes its connection with `null` segments, which the test step
- * reports like a config gap.
+ * the DTO, same as `SeedNotification.userId`. The protocol detail is
+ * discriminated on the row's own protocol, mirroring
+ * `CreateSsoConnectionInput`: an OIDC row carries `oidc`, a SAML row carries
+ * `saml`, and a wrong-protocol fixture is a type error rather than a
+ * `describe` answer with a fabricated `null` segment.
  */
 export type SeedSsoConnection = SsoConnection & {
   readonly workspaceId: string
-  readonly oidc?: SsoConnectionDetail['oidc'] | undefined
-  readonly saml?: SsoConnectionDetail['saml'] | undefined
-}
+} & (
+    | {
+        readonly protocol: 'oidc'
+        readonly oidc: NonNullable<SsoConnectionDetail['oidc']>
+      }
+    | {
+        readonly protocol: 'saml'
+        readonly saml: NonNullable<SsoConnectionDetail['saml']>
+      }
+  )
 
 export function SeedSsoConnections(
   seed: ReadonlyArray<SeedSsoConnection>
@@ -69,13 +78,13 @@ export function SeedSsoConnections(
         create: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
-            const base: SeedSsoConnection = {
+            // New connections start disabled: an owner enables one after a
+            // successful test, so a half-configured IdP never intercepts.
+            const base: SsoConnection & { readonly workspaceId: string } = {
               id: yield* newCapabilityId('sso'),
               protocol: input.protocol,
               domain: input.domain,
               issuer: input.issuer,
-              // New connections start disabled: an owner enables one after a
-              // successful test, so a half-configured IdP never intercepts.
               enabled: false,
               requireSso: false,
               defaultWorkspaceRole: input.defaultWorkspaceRole,
@@ -83,12 +92,13 @@ export function SeedSsoConnections(
               createdAt: DateTime.formatIso(yield* DateTime.now),
               workspaceId: ctx.workspace.id
             }
+            // The same detail Live parses out of the stored config blobs, so
+            // a seed-layer `describe` answers the test step identically.
             let row: SeedSsoConnection
             if (input.protocol === 'oidc') {
               row = {
                 ...base,
-                // The same detail Live parses out of the stored config blobs,
-                // so a seed-layer `describe` answers the test step identically.
+                protocol: 'oidc',
                 oidc: {
                   authorizationEndpoint: input.endpoints.authorizationEndpoint,
                   tokenEndpoint: input.endpoints.tokenEndpoint,
@@ -99,6 +109,7 @@ export function SeedSsoConnections(
             } else {
               row = {
                 ...base,
+                protocol: 'saml',
                 saml: {
                   metadataXml: input.metadataXml,
                   entryPoint: input.entryPoint
@@ -106,28 +117,20 @@ export function SeedSsoConnections(
               }
             }
             rows.push(row)
-            yield* recordCreated(
-              audit,
-              ctx.workspace.id,
-              ctx.actor?.userId ?? null,
-              row
-            )
-            return toDto(row)
+            const dto = toDto(row)
+            yield* recordInWorkspace(audit, {
+              ...ssoAuditEvent('created', dto),
+              targetId: dto.id
+            })
+            return dto
           }),
         update: (input) =>
           Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
             const row = yield* findInWorkspace(input.providerId)
             if (row === undefined) {
               return Option.none<SsoConnection>()
             }
-            // The rule both adapters enforce: OIDC credentials only update an
-            // OIDC connection. The live plugin rejects the same call with a 400.
-            if (input.oidcCredentials !== undefined && row.protocol === 'saml') {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: 'protocol_mismatch' })
-              )
-            }
+            yield* requireProtocolMatch(row, input)
             let clientIdLastFour = row.clientIdLastFour
             if (input.oidcCredentials !== undefined) {
               clientIdLastFour = input.oidcCredentials.clientId.slice(-4)
@@ -141,50 +144,47 @@ export function SeedSsoConnections(
               clientIdLastFour
             }
             rows[rows.indexOf(row)] = updated
-            yield* recordUpdated(
-              audit,
-              ctx.workspace.id,
-              ctx.actor?.userId ?? null,
-              updated
-            )
-            return Option.some(toDto(updated))
+            const dto = toDto(updated)
+            yield* recordInWorkspace(audit, {
+              ...ssoAuditEvent('updated', dto),
+              targetId: dto.id
+            })
+            return Option.some(dto)
           }),
         remove: ({ providerId }) =>
           Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const index = rows.findIndex(
-              (row) => row.id === providerId && row.workspaceId === ctx.workspace.id
-            )
-            if (index === -1) {
+            const row = yield* findInWorkspace(providerId)
+            if (row === undefined) {
               return false
             }
-            const [removed] = rows.splice(index, 1)
-            if (removed === undefined) {
-              return false
-            }
-            yield* recordRemoved(
-              audit,
-              ctx.workspace.id,
-              ctx.actor?.userId ?? null,
-              removed
-            )
+            rows.splice(rows.indexOf(row), 1)
+            yield* recordInWorkspace(audit, {
+              ...ssoAuditEvent('removed', row),
+              targetId: row.id
+            })
             return true
           }),
         resolveRouting: (email) =>
           Effect.sync(() => {
-            const match = rows
-              .filter((row) => row.enabled && matchesEmailDomain(email, row.domain))
-              .toSorted(byProviderId)[0]
-            if (match === undefined) {
-              return Option.none<SsoRoutingDecision>()
-            }
-            return Option.some<SsoRoutingDecision>({
-              providerId: match.id,
-              protocol: match.protocol,
-              workspaceId: match.workspaceId,
-              requireSso: match.requireSso
-            })
+            // Only enabled connections route — a disabled row persists for the
+            // settings UI without intercepting sign-ins (the auth gate
+            // enforces the same rule for direct `/sign-in/sso` calls).
+            return Option.map(
+              Option.fromNullishOr(
+                pickSignInTarget(
+                  rows.filter((row) => row.enabled),
+                  { email }
+                )
+              ),
+              toRoutingDecision
+            )
           }),
+        resolveSignInTarget: (input) =>
+          Effect.sync(() =>
+            // Unfiltered by `enabled`: the gate needs to see a disabled
+            // resolution to refuse it.
+            Option.fromNullishOr(pickSignInTarget(rows, input))
+          ),
         resolveProvider: (providerId) =>
           Effect.sync(() => {
             const match = rows.find((row) => row.id === providerId)
@@ -222,73 +222,6 @@ function byNewestFirst(a: SsoConnection, b: SsoConnection): number {
   return 0
 }
 
-/** Deterministic pick order when several enabled connections match a domain. */
-function byProviderId(a: SeedSsoConnection, b: SeedSsoConnection): number {
-  if (a.id < b.id) {
-    return -1
-  }
-  if (a.id > b.id) {
-    return 1
-  }
-  return 0
-}
-
-function recordCreated(
-  audit: AuditEventLogInterface,
-  workspaceId: string,
-  actorUserId: string | null,
-  row: SeedSsoConnection
-): Effect.Effect<void, CapabilityUnavailable> {
-  return audit.record({
-    workspaceId,
-    actorUserId,
-    eventType: 'workspace_sso.connection_created',
-    targetType: 'workspace_sso_connection',
-    targetId: row.id,
-    metadata: {
-      protocol: row.protocol,
-      domain: row.domain,
-      defaultWorkspaceRole: row.defaultWorkspaceRole
-    }
-  })
-}
-
-function recordUpdated(
-  audit: AuditEventLogInterface,
-  workspaceId: string,
-  actorUserId: string | null,
-  row: SeedSsoConnection
-): Effect.Effect<void, CapabilityUnavailable> {
-  return audit.record({
-    workspaceId,
-    actorUserId,
-    eventType: 'workspace_sso.connection_updated',
-    targetType: 'workspace_sso_connection',
-    targetId: row.id,
-    metadata: {
-      enabled: row.enabled,
-      requireSso: row.requireSso,
-      defaultWorkspaceRole: row.defaultWorkspaceRole
-    }
-  })
-}
-
-function recordRemoved(
-  audit: AuditEventLogInterface,
-  workspaceId: string,
-  actorUserId: string | null,
-  row: SeedSsoConnection
-): Effect.Effect<void, CapabilityUnavailable> {
-  return audit.record({
-    workspaceId,
-    actorUserId,
-    eventType: 'workspace_sso.connection_removed',
-    targetType: 'workspace_sso_connection',
-    targetId: row.id,
-    metadata: { protocol: row.protocol, domain: row.domain }
-  })
-}
-
 function toDto(row: SeedSsoConnection): SsoConnection {
   return {
     id: row.id,
@@ -304,9 +237,8 @@ function toDto(row: SeedSsoConnection): SsoConnection {
 }
 
 function toDetail(row: SeedSsoConnection): SsoConnectionDetail {
-  return {
-    ...toDto(row),
-    oidc: row.oidc ?? null,
-    saml: row.saml ?? null
+  if (row.protocol === 'oidc') {
+    return { ...toDto(row), oidc: row.oidc, saml: null }
   }
+  return { ...toDto(row), oidc: null, saml: row.saml }
 }

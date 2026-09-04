@@ -3,9 +3,14 @@ import { describe, expect, it } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { SsoPanel, type SsoPanelPorts } from '@/components/sso-panel'
 import { type SsoConnection } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
+import { type SsoTestResult } from '@/lib/server/workspace-sso'
+import { type Viewer } from '@/lib/permissions'
 
 // The panel takes its server calls as ports, so a test drives it with plain
 // functions instead of replacing the module the production defaults import.
+
+const OWNER: Viewer = { role: 'owner' }
+const MEMBER: Viewer = { role: 'member' }
 
 const disabledExample: SsoConnection = {
   id: 'sso_example_oidc',
@@ -19,8 +24,21 @@ const disabledExample: SsoConnection = {
   createdAt: '2026-05-15T09:30:00.000Z'
 }
 
+/** A test's answer from the test port; the failed verdict is the common one. */
+const failedTest: SsoTestResult = {
+  outcome: 'failed',
+  code: 'discovery_unreachable',
+  message: 'no such issuer'
+}
+
 /** Records every call; each port answers a representative success. */
-function recordingPorts() {
+function recordingPorts({
+  testResult = failedTest,
+  createRejects = false
+}: {
+  readonly testResult?: SsoTestResult
+  readonly createRejects?: boolean
+} = {}) {
   const calls = {
     create: new Array<unknown>(),
     update: new Array<unknown>(),
@@ -30,6 +48,9 @@ function recordingPorts() {
   const ports: SsoPanelPorts = {
     create: (input) => {
       calls.create.push(input)
+      if (createRejects) {
+        return Promise.reject(new Error('The identity provider refused'))
+      }
       return Promise.resolve({
         ...disabledExample,
         id: 'sso_new',
@@ -48,11 +69,7 @@ function recordingPorts() {
     },
     test: (input) => {
       calls.test.push(input)
-      return Promise.resolve({
-        outcome: 'failed',
-        code: 'discovery_unreachable',
-        message: 'no such issuer'
-      })
+      return Promise.resolve(testResult)
     }
   }
   return { ports, calls }
@@ -60,15 +77,16 @@ function recordingPorts() {
 
 async function renderPanel(
   connections: ReadonlyArray<SsoConnection> = [disabledExample],
-  canManage = true
+  viewer: Viewer = OWNER,
+  portsOptions: Parameters<typeof recordingPorts>[0] = {}
 ) {
-  const { ports, calls } = recordingPorts()
+  const { ports, calls } = recordingPorts(portsOptions)
   const rendered = await renderWithRouter(
     <SsoPanel
       workspaceSlug="starter-lab"
       connections={connections}
       ports={ports}
-      canManage={canManage}
+      viewer={viewer}
     />,
     { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
   )
@@ -83,6 +101,8 @@ async function renderPanel(
 describe('SsoPanel', () => {
   it('shows the connection with its write-only credential echo', async () => {
     await renderPanel()
+    // The provider id renders too — owners copy it into their IdP config.
+    expect(screen.getByText('sso_example_oidc')).toBeTruthy()
     expect(screen.getByText('OIDC')).toBeTruthy()
     expect(screen.getByText(/client …7f2a/)).toBeTruthy()
     expect(screen.getByText(/joins as member/)).toBeTruthy()
@@ -97,6 +117,15 @@ describe('SsoPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Test' }))
     expect(await screen.findByText('Connection test failed.')).toBeTruthy()
     expect(await screen.findByText('no such issuer')).toBeTruthy()
+  })
+
+  it('reports a passed test without a failure message', async () => {
+    await renderPanel([disabledExample], OWNER, {
+      testResult: { outcome: 'passed' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
+    expect(await screen.findByText('Connection test passed.')).toBeTruthy()
+    expect(screen.queryByText('Connection test failed.')).toBeNull()
   })
 
   it('enable toggles call the update port with the flip', async () => {
@@ -118,10 +147,15 @@ describe('SsoPanel', () => {
   })
 
   it('replaces the controls with a reason when the viewer cannot manage', async () => {
-    const { calls } = await renderPanel([disabledExample], false)
+    const { calls } = await renderPanel([disabledExample], MEMBER)
     expect(screen.queryByRole('button', { name: 'Test' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add connection' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Remove acme-corp.example' })
+    ).toBeNull()
     expect(screen.queryByRole('switch')).toBeNull()
     screen.getByText(/Your role cannot change single sign-on/)
+    expect(calls.create).toHaveLength(0)
     expect(calls.update).toHaveLength(0)
   })
 
@@ -150,5 +184,69 @@ describe('SsoPanel', () => {
       clientSecret: 'sekrit',
       defaultWorkspaceRole: 'member'
     })
+  })
+
+  it('submits a SAML connection with the metadata URL winning over pasted XML', async () => {
+    const { calls } = await renderPanel([])
+    fireEvent.click(screen.getByText('SAML'))
+    fireEvent.change(await screen.findByLabelText('Email domain'), {
+      target: { value: 'northwind.test' }
+    })
+    fireEvent.change(screen.getByLabelText('Metadata URL'), {
+      target: { value: 'https://login.northwind.test/saml/metadata' }
+    })
+    fireEvent.change(screen.getByLabelText('Or paste the metadata XML'), {
+      target: { value: '<EntityDescriptor>…</EntityDescriptor>' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    await waitFor(() => expect(calls.create).toHaveLength(1))
+    // The URL wins whole: no metadataXml key rides along (the server schema
+    // demands exactly one source).
+    expect(calls.create[0]).toEqual({
+      workspaceSlug: 'starter-lab',
+      protocol: 'saml',
+      domain: 'northwind.test',
+      metadataUrl: 'https://login.northwind.test/saml/metadata',
+      defaultWorkspaceRole: 'member'
+    })
+  })
+
+  it('blocks SAML submission when neither metadata source is filled', async () => {
+    const { calls } = await renderPanel([])
+    fireEvent.click(screen.getByText('SAML'))
+    fireEvent.change(await screen.findByLabelText('Email domain'), {
+      target: { value: 'northwind.test' }
+    })
+    expect(
+      await screen.findByText('Add the metadata URL or paste the metadata XML')
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    // One macrotask so a wrongly-fired submit would have reached the port.
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
+    expect(calls.create).toHaveLength(0)
+  })
+
+  it('keeps the values when the create fails', async () => {
+    await renderPanel([], OWNER, { createRejects: true })
+    fireEvent.change(screen.getByLabelText('Email domain'), {
+      target: { value: 'northwind.test' }
+    })
+    fireEvent.change(screen.getByLabelText('Issuer'), {
+      target: { value: 'https://login.northwind.test' }
+    })
+    fireEvent.change(screen.getByLabelText('Client ID'), {
+      target: { value: 'client-wxyz' }
+    })
+    fireEvent.change(screen.getByLabelText('Client secret'), {
+      target: { value: 'sekrit' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
+    expect(await screen.findByText('The identity provider refused')).toBeTruthy()
+    expect(screen.getByLabelText('Email domain')).toHaveProperty(
+      'value',
+      'northwind.test'
+    )
   })
 })

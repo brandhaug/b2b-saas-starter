@@ -1,7 +1,6 @@
 import { Effect, Layer, Option } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
-import { MembershipChangeRejected } from '../errors.ts'
 import {
   seedMembers,
   seedSsoConnections,
@@ -12,20 +11,23 @@ import {
   type Actor,
   type WorkspaceContext
 } from '../workspace-context.ts'
-import { AuditEventLog, SeedAuditEventLog } from './audit-event-log.ts'
+import { type AuditEventLog, SeedAuditEventLog } from './audit-event-log.ts'
 import {
   emailDomain,
+  matchesDomain,
   matchesEmailDomain,
   SsoConnections
 } from './workspace-sso-connections.ts'
+import { workspaceSsoConnectionsContractCases } from './workspace-sso-connections.contract.ts'
 import { SeedSsoConnections } from './workspace-sso-connections.seed.ts'
 
 /**
  * The Seed adapter's half of the SSO connection contract, plus the pure
- * domain-routing rule. The plugin's own behaviour (protocol validation,
- * provisioning at sign-in) belongs to `packages/auth`; the Live adapter's half
- * (scoping, read-back, audit) runs against D1 in
- * `workspace-sso-connections.live.test.ts`.
+ * domain-routing rule and the fixture-planted reads the contract cases cannot
+ * express (they create their own rows). The plugin's own behaviour (protocol
+ * validation, provisioning at sign-in) belongs to `packages/auth`; the Live
+ * adapter's half (scoping, read-back, audit) runs against D1 in
+ * `workspace-sso-connections.live.test.ts`, which runs the same contract list.
  */
 
 const owner: Actor = { userId: 'usr_demo', role: 'owner', systemRole: 'admin' }
@@ -54,7 +56,15 @@ describe('domain routing rule (pure)', () => {
     expect(emailDomain('trailing@')).toBeNull()
   })
 
-  it('matches a comma-separated domain list, case-insensitively', () => {
+  it('matches a bare domain against a comma-separated list, case-insensitively', () => {
+    expect(matchesDomain('ACME.com', 'acme.com')).toBe(true)
+    expect(matchesDomain('other.com', 'acme.com, other.com')).toBe(true)
+    expect(matchesDomain('sub.acme.com', 'acme.com')).toBe(false)
+    expect(matchesDomain('acme.com.mallory.test', 'acme.com')).toBe(false)
+    expect(matchesDomain('', 'acme.com')).toBe(false)
+  })
+
+  it('matches an email’s domain against the same list', () => {
     expect(matchesEmailDomain('a@acme.com', 'ACME.com')).toBe(true)
     expect(matchesEmailDomain('a@sub.acme.com', 'acme.com, other.com')).toBe(false)
     expect(matchesEmailDomain('a@other.com', 'acme.com, other.com')).toBe(true)
@@ -62,7 +72,7 @@ describe('domain routing rule (pure)', () => {
   })
 })
 
-describe('SeedSsoConnections', () => {
+describe('SeedSsoConnections (fixture reads)', () => {
   it.effect('lists the workspace’s connections, secrets never leaving the row', () =>
     provide(
       Effect.gen(function* () {
@@ -96,134 +106,16 @@ describe('SeedSsoConnections', () => {
         })
       )
   )
+})
 
-  it.effect('creates a disabled connection and audits it', () =>
-    provide(
-      Effect.gen(function* () {
-        const sso = yield* SsoConnections
-        const created = yield* sso.create({
-          protocol: 'oidc',
-          domain: 'northwind.test',
-          issuer: 'https://login.northwind.test',
-          clientId: 'client-wxyz',
-          clientSecret: 'sekrit',
-          endpoints: {
-            authorizationEndpoint: 'https://login.northwind.test/authorize',
-            tokenEndpoint: 'https://login.northwind.test/token',
-            jwksEndpoint: 'https://login.northwind.test/jwks'
-          },
-          defaultWorkspaceRole: 'admin'
-        })
-        // New connections start disabled: an owner enables one after testing
-        // it, so a half-configured IdP never intercepts sign-ins.
-        expect(created.enabled).toBe(false)
-        expect(created.requireSso).toBe(false)
-        expect(created.defaultWorkspaceRole).toBe('admin')
-        expect(created.clientIdLastFour).toBe('wxyz')
-
-        const routing = yield* sso.resolveRouting('new@northwind.test')
-        expect(Option.isNone(routing)).toBe(true)
-
-        const audit = yield* AuditEventLog
-        const events = yield* audit.list({
-          eventType: 'workspace_sso.connection_created'
-        })
-        expect(events.events).toHaveLength(1)
-      })
-    )
-  )
-
-  it.effect('enabling a connection makes its domain route to it', () =>
-    provide(
-      Effect.gen(function* () {
-        const sso = yield* SsoConnections
-        const created = yield* sso.create({
-          protocol: 'oidc',
-          domain: 'northwind.test',
-          issuer: 'https://login.northwind.test',
-          clientId: 'client-wxyz',
-          clientSecret: 'sekrit',
-          endpoints: {
-            authorizationEndpoint: 'https://login.northwind.test/authorize',
-            tokenEndpoint: 'https://login.northwind.test/token',
-            jwksEndpoint: 'https://login.northwind.test/jwks'
-          },
-          defaultWorkspaceRole: 'member'
-        })
-        yield* sso.update({
-          providerId: created.id,
-          enabled: true,
-          requireSso: true
-        })
-        const routing = yield* sso.resolveRouting('New.Person@NORTHWIND.test')
-        expect(Option.isSome(routing)).toBe(true)
-        if (Option.isSome(routing)) {
-          expect(routing.value).toEqual({
-            providerId: created.id,
-            protocol: 'oidc',
-            workspaceId: seedWorkspaceRecord.id,
-            requireSso: true
-          })
-        }
-      })
-    )
-  )
-
-  it.effect('updating an unknown id yields None with no audit event', () =>
-    provide(
-      Effect.gen(function* () {
-        const sso = yield* SsoConnections
-        const updated = yield* sso.update({
-          providerId: 'sso_missing',
-          enabled: true
-        })
-        expect(Option.isNone(updated)).toBe(true)
-        const audit = yield* AuditEventLog
-        const events = yield* audit.list({
-          eventType: 'workspace_sso.connection_updated'
-        })
-        expect(events.events).toHaveLength(0)
-      })
-    )
-  )
-
-  it.effect('refuses OIDC credentials on a SAML connection', () =>
-    provide(
-      Effect.gen(function* () {
-        const sso = yield* SsoConnections
-        const created = yield* sso.create({
-          protocol: 'saml',
-          domain: 'northwind.test',
-          issuer: 'https://app.origin.test',
-          metadataXml: '<EntityDescriptor entityID="https://idp.northwind.test">',
-          entryPoint: 'https://idp.northwind.test/sso',
-          defaultWorkspaceRole: 'member'
-        })
-        const failure = yield* Effect.flip(
-          sso.update({
-            providerId: created.id,
-            oidcCredentials: { clientId: 'c', clientSecret: 's' }
-          })
-        )
-        expect(failure).toBeInstanceOf(MembershipChangeRejected)
-      })
-    )
-  )
-
-  it.effect('removes a connection and audits it', () =>
-    provide(
-      Effect.gen(function* () {
-        const sso = yield* SsoConnections
-        expect(yield* sso.remove({ providerId: 'sso_example_oidc' })).toBe(true)
-        expect(yield* sso.remove({ providerId: 'sso_example_oidc' })).toBe(false)
-        const connections = yield* sso.list
-        expect(connections).toHaveLength(0)
-        const audit = yield* AuditEventLog
-        const events = yield* audit.list({
-          eventType: 'workspace_sso.connection_removed'
-        })
-        expect(events.events).toHaveLength(1)
-      })
-    )
-  )
+// The Live half of this same list runs in `workspace-sso-connections.live.test.ts`.
+// Two adapters, one contract — capabilities invariant 4. Each case creates the
+// connections it asserts on, under its own slot's domain.
+describe('seed workspace sso connections contract', () => {
+  for (const contractCase of workspaceSsoConnectionsContractCases(
+    (slot) => `${slot}.contract.test`,
+    expect
+  )) {
+    it.effect(contractCase.name, () => provide(contractCase.assert))
+  }
 })

@@ -132,18 +132,31 @@ describe('SignInPage', () => {
   })
 
   it('explains instead of failing when the gate refuses the password path', async () => {
-    // The gate's error carries a `code` the client type does not declare —
-    // the page probes it at runtime, so the mock is typed wider than the
-    // client's error and stays assignable to it.
+    // What better-fetch puts on a non-OK response: the parsed body spread
+    // over `status`/`statusText`. The gate answers better-call's
+    // `{ code, message }` body; the page probes `error.code`.
     const refused = {
-      message: 'refused',
-      code: 'sso_required'
-    } satisfies { readonly message?: string; readonly code?: string }
+      code: 'sso_required',
+      message: 'This workspace requires single sign-on for your email domain.',
+      status: 403,
+      statusText: 'Forbidden'
+    } satisfies {
+      readonly code: string
+      readonly message: string
+      readonly status: number
+      readonly statusText: string
+    }
     signIn.mockResolvedValueOnce({ error: refused })
     await renderPage()
     fillValidCredentials()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('requires single sign-on')
+    // The guidance notice, not the destructive failed-sign-in alert: the
+    // notice carries the "sign in with your identity provider" suffix the
+    // error path never renders. (`Alert` is `role="alert"` in both variants,
+    // so the text is the discriminator.)
+    const notice = await screen.findByRole('alert')
+    expect(notice.textContent).toBe(
+      'This workspace requires single sign-on for your email domain. Sign in with your identity provider.'
+    )
   })
 })

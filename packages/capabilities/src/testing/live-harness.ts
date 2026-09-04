@@ -14,7 +14,7 @@ import {
   type RawD1
 } from '@b2b-saas-starter/db/service'
 import { provisionTestD1 } from '@b2b-saas-starter/db/testing'
-import { Context, Effect, Layer } from 'effect'
+import { Context, Effect, Layer, Option, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 
 import { auditEventContractDataset } from '../governance/audit-event-log.contract.ts'
@@ -545,61 +545,59 @@ export function pluginRejection(statusCode: number, message: string) {
 
 // oxlint-disable effect/noGlobals -- fixture blobs mirror the plugin's stored JSON shape so read-backs parse; not an application serialization seam
 
+type BindingCreateInput = Parameters<WorkspaceSsoBinding['create']>[0]
+
 /** The OIDC half of the register body's stored blob. */
-function oidcBlob(input: {
-  readonly oidcConfig?:
-    | {
-        readonly clientId: string
-        readonly clientSecret: string
-        readonly endpoints: {
-          readonly authorizationEndpoint: string
-          readonly tokenEndpoint: string
-          readonly jwksEndpoint: string
-        }
-      }
-    | undefined
-}): string | null {
-  if (input.oidcConfig === undefined) {
+function oidcBlob(input: BindingCreateInput): string | null {
+  if (input.protocol !== 'oidc') {
     return null
   }
   return JSON.stringify({
-    clientId: input.oidcConfig.clientId,
-    clientSecret: input.oidcConfig.clientSecret,
-    authorizationEndpoint: input.oidcConfig.endpoints.authorizationEndpoint,
-    tokenEndpoint: input.oidcConfig.endpoints.tokenEndpoint,
-    jwksEndpoint: input.oidcConfig.endpoints.jwksEndpoint
+    clientId: input.clientId,
+    clientSecret: input.clientSecret,
+    authorizationEndpoint: input.endpoints.authorizationEndpoint,
+    tokenEndpoint: input.endpoints.tokenEndpoint,
+    jwksEndpoint: input.endpoints.jwksEndpoint
   })
 }
 
 /** The SAML half of the register body's stored blob. */
-function samlBlob(input: {
-  readonly issuer: string
-  readonly samlConfig?:
-    | {
-        readonly metadataXml: string
-        readonly entryPoint: string
-      }
-    | undefined
-}): string | null {
-  if (input.samlConfig === undefined) {
+function samlBlob(input: BindingCreateInput): string | null {
+  if (input.protocol !== 'saml') {
     return null
   }
   return JSON.stringify({
     issuer: input.issuer,
-    entryPoint: input.samlConfig.entryPoint,
-    idpMetadata: { metadata: input.samlConfig.metadataXml }
+    entryPoint: input.entryPoint,
+    idpMetadata: { metadata: input.metadataXml }
   })
 }
 
 // oxlint-enable effect/noGlobals
 
-/** The named shape the update statement builds — no anonymous dictionaries. */
-type FakeSsoUpdateSet = {
-  enabled?: boolean
-  requireSso?: boolean
-  defaultWorkspaceRole?: 'member' | 'admin'
-  oidcConfig?: string
-}
+/**
+ * The stored `oidcConfig` blob the stand-in writes and merges on rotation —
+ * the same fields the plugin stores and the capability's `StoredConfig`
+ * parses.
+ */
+const StoredSsoBlob = Schema.Struct({
+  clientId: Schema.optional(Schema.String),
+  clientSecret: Schema.optional(Schema.String),
+  authorizationEndpoint: Schema.optional(Schema.String),
+  tokenEndpoint: Schema.optional(Schema.String),
+  jwksEndpoint: Schema.optional(Schema.String),
+  userInfoEndpoint: Schema.optional(Schema.String),
+  issuer: Schema.optional(Schema.String),
+  entryPoint: Schema.optional(Schema.String),
+  idpMetadata: Schema.optional(
+    Schema.Struct({ metadata: Schema.optional(Schema.String) })
+  )
+})
+type StoredSsoBlob = typeof StoredSsoBlob.Type
+
+const decodeStoredBlob = Schema.decodeUnknownOption(
+  Schema.fromJsonString(StoredSsoBlob)
+)
 
 /**
  * A stand-in for the `sso` plugin's register/update/delete endpoints, on the
@@ -635,29 +633,47 @@ export function fakeSsoBinding(db: EffectDatabase) {
     },
     update: (input) => {
       calls.push(input)
-      const set: FakeSsoUpdateSet = {}
-      if (input.enabled !== undefined) {
-        set.enabled = input.enabled
-      }
-      if (input.requireSso !== undefined) {
-        set.requireSso = input.requireSso
-      }
-      if (input.defaultWorkspaceRole !== undefined) {
-        set.defaultWorkspaceRole = input.defaultWorkspaceRole
-      }
-      if (input.oidcCredentials !== undefined) {
-        // oxlint-disable-next-line effect/noGlobals -- fixture blob, see above
-        set.oidcConfig = JSON.stringify({
-          clientId: input.oidcCredentials.clientId,
-          clientSecret: input.oidcCredentials.clientSecret
-        })
-      }
       return Effect.runPromise(
-        Effect.asVoid(
+        Effect.flatMap(
+          // The plugin merges a partial oidcConfig over the stored one (a
+          // credential rotation replaces exactly the pair it names), so the
+          // stand-in reads the current blob before writing — the same
+          // read-before-write `fakeInvitationBinding.accept` does.
           db
-            .update(workspaceSsoConnections)
-            .set(set)
-            .where(eq(workspaceSsoConnections.providerId, input.providerId))
+            .select()
+            .from(workspaceSsoConnections)
+            .where(eq(workspaceSsoConnections.providerId, input.providerId)),
+          (rows) => {
+            // A blob this stand-in (or the fixture) wrote, leniently decoded —
+            // anything unparsable degrades to an empty merge base, exactly
+            // like the plugin's own lenient parse.
+            const existing = Option.getOrElse(
+              decodeStoredBlob(rows[0]?.oidcConfig ?? '{}'),
+              () => ({})
+            )
+            return Effect.asVoid(
+              db
+                .update(workspaceSsoConnections)
+                .set({
+                  ...(input.enabled !== undefined && { enabled: input.enabled }),
+                  ...(input.requireSso !== undefined && {
+                    requireSso: input.requireSso
+                  }),
+                  ...(input.defaultWorkspaceRole !== undefined && {
+                    defaultWorkspaceRole: input.defaultWorkspaceRole
+                  }),
+                  ...(input.oidcCredentials !== undefined && {
+                    // oxlint-disable-next-line effect/noGlobals -- fixture blob, see StoredSsoBlob
+                    oidcConfig: JSON.stringify({
+                      ...existing,
+                      clientId: input.oidcCredentials.clientId,
+                      clientSecret: input.oidcCredentials.clientSecret
+                    })
+                  })
+                })
+                .where(eq(workspaceSsoConnections.providerId, input.providerId))
+            )
+          }
         )
       )
     },

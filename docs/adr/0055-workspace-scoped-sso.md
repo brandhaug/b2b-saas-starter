@@ -27,9 +27,9 @@ The plugin's `organizationId` is the Better Auth organization that backs the Wor
 
 > An email whose domain matches an **enabled** connection is routed to that connection's IdP at sign-in.
 
-- `SsoConnections.resolveRouting(email)` is identity-keyed (like `WorkspaceInvitations.find` — the asker is on the public sign-in page and is a member of nothing yet). Only `enabled` connections route; a disabled row persists for the settings UI without intercepting sign-ins, which is what makes the seeded example connection safe.
+- `SsoConnections.resolveRouting(email)` is identity-keyed (like `WorkspaceInvitations.find` — the asker is on the public sign-in page and is a member of nothing yet). Only `enabled` connections route, and the rule is enforced, not just honoured by the page: the plugin's `POST /sign-in/sso` would serve any stored connection, so the auth gate (`refuseDisabledConnection`, same module) refuses a request whose email, domain or provider id resolves to a **disabled** one. A disabled row persists for the settings UI without intercepting sign-ins — which is what makes the seeded example connection safe.
 - The `/sign-in` page asks `resolveSsoRoutingServerFn` first and redirects to the IdP through Better Auth's `/sign-in/sso` when it answers.
-- "Require SSO for this domain" is enforced server-side: `enforceSsoRequired` (in `apps/web/src/lib/server/sso-sign-in-gate.ts`) runs ahead of the auth handler on `POST /sign-in/email` and refuses the credential path with `sso_required` — the page-level routing is UX, the gate is the guarantee.
+- "Require SSO for this domain" is enforced server-side: `enforceSsoRequired` (in `apps/web/src/lib/server/sso-sign-in-gate.ts`) runs ahead of the auth handler on `POST /sign-in/email` and refuses the credential path with `sso_required` — the page-level routing is UX, the gate is the guarantee. Both gate refusals speak Better Auth's own error-body convention (`{ code, message }`), which is the shape the sign-in page probes.
 
 ### 3. OIDC registrations are fully hydrated at create
 

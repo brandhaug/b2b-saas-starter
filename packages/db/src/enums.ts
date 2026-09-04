@@ -55,6 +55,20 @@ export const ssoProvisionedRoles = ['member', 'admin'] as const
 export type SsoProvisionedRoleValue = (typeof ssoProvisionedRoles)[number]
 
 /**
+ * Whether a stored `defaultWorkspaceRole` is one the SSO connection may
+ * provision. Better Auth's `sso` plugin types additional fields as plain
+ * nullable strings, so `packages/auth`'s provisioning callback narrows
+ * through this rather than restating a literal — anything outside the
+ * vocabulary (including a bogus `owner` written by a raw API call)
+ * provisions as the first role, `member`. SSO never mints `owner`.
+ */
+export function isSsoProvisionedRole(
+  value: string | null | undefined
+): value is SsoProvisionedRoleValue {
+  return ssoProvisionedRoles.some((role) => role === value)
+}
+
+/**
  * The delivery state machine written by the background worker through
  * `WebhookEndpoints.recordDeliveryAttempt` / `recordTerminalDeliveryAttempt`:
  * `delivered` on a 2xx, `failed` while retries remain, `failed_permanent` on a

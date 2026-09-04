@@ -61,7 +61,7 @@ export function impersonationGuardResponse(
       }
       return new Response(
         JSON.stringify({
-          error: 'forbidden_while_impersonating',
+          code: 'forbidden_while_impersonating',
           action: verdict.failure.action
         }),
         { status: 403, headers: { 'content-type': 'application/json; charset=utf-8' } }

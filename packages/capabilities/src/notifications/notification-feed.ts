@@ -77,8 +77,10 @@ export type NotificationFeedInterface = {
    * notification is the first producer). Upstream emitters call this after
    * the thing they are describing has happened — the audit log is the record
    * of the change itself, this is the message a member sees in their feed.
-   * Id and `createdAt` are owned here; a `userId` targets one member, `null`
-   * broadcasts to the workspace.
+   * Id and `createdAt` are owned here; `userId` targets one member. (The
+   * feed's read model also answers broadcast rows — a `null` userId, the
+   * seed fixture's shape — but no producer makes one; `record` targets a
+   * member, and a broadcast producer can be added the day one exists.)
    */
   readonly record: (
     input: RecordNotificationInput
@@ -89,8 +91,8 @@ export type NotificationFeedInterface = {
 export type RecordNotificationInput = {
   readonly title: string
   readonly message: string
-  /** `null` broadcasts to everyone in the workspace (the seed rows' shape). */
-  readonly userId: string | null
+  /** The member the message is for. */
+  readonly userId: string
 }
 
 export class NotificationFeed extends Context.Service<
@@ -179,15 +181,13 @@ export function SeedNotificationFeed(
           }),
         record: (input) =>
           Effect.gen(function* () {
-            let row: SeedNotification = {
+            const row: SeedNotification = {
               id: yield* newCapabilityId('not'),
               title: input.title,
               message: input.message,
               createdAt: DateTime.formatIso(yield* DateTime.now),
-              read: false
-            }
-            if (input.userId !== null) {
-              row = { ...row, userId: input.userId }
+              read: false,
+              userId: input.userId
             }
             yield* Ref.update(rows, (current) => [row, ...current])
           })

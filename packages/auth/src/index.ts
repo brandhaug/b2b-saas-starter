@@ -1,6 +1,11 @@
 import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz/client'
 import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
-import { adminSystemRole } from '@b2b-saas-starter/db/enums'
+import {
+  adminSystemRole,
+  isSsoProvisionedRole,
+  ssoProvisionedRoles,
+  type SsoProvisionedRoleValue
+} from '@b2b-saas-starter/db/enums'
 import * as schema from '@b2b-saas-starter/db/schema'
 import { sso } from '@better-auth/sso'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
@@ -75,32 +80,28 @@ export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>
 
 /**
  * The provisioning role for `organizationProvisioning.getRole`. The plugin
- * types `additionalFields` as plain strings, so the stored value is compared
- * against the one provisioned role above `member`: anything else — including
- * a bogus `owner` written by a raw API call — provisions as `member`. SSO
- * never mints the role that can delete the workspace or change the
- * connection.
- */
-const SSO_ADMIN_ROLE = 'admin'
-
-/**
- * The plugin's callback contract is promise-returning and runs outside any
- * Effect (like the `additionalFields` date defaults below), so the wrapper
- * here is a plain promise — the Effect-boundary promise rules do not apply to
- * this file's plugin-callback seams.
+ * types `additionalFields` as plain strings, so the stored value is narrowed
+ * through the stored vocabulary (`ssoProvisionedRoles` via
+ * `isSsoProvisionedRole`): anything else — including a bogus `owner` written
+ * by a raw API call — provisions as the first role, `member`. SSO never mints
+ * the role that can delete the workspace or change the connection.
  */
 function provisionedRoleOf(data: {
   readonly provider: {
+    // Carried so the parameter keeps a property in common with the plugin's
+    // `BaseSSOProvider` (its weak-type check); the role reads only the field
+    // below.
     readonly providerId: string
     readonly defaultWorkspaceRole?: string | null
   }
-}): Promise<'member' | 'admin'> {
-  if (data.provider.defaultWorkspaceRole === SSO_ADMIN_ROLE) {
+}): Promise<SsoProvisionedRoleValue> {
+  const stored = data.provider.defaultWorkspaceRole
+  if (isSsoProvisionedRole(stored)) {
     // oxlint-disable-next-line effect/noNewPromise -- plugin callback runs outside Effect
-    return Promise.resolve('admin')
+    return Promise.resolve(stored)
   }
   // oxlint-disable-next-line effect/noNewPromise -- plugin callback runs outside Effect
-  return Promise.resolve('member')
+  return Promise.resolve(ssoProvisionedRoles[0])
 }
 
 /**
@@ -205,7 +206,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // row's `workspaceRoles` value decides.
       admin({
         adminRoles: [adminSystemRole],
-        // Impersonation (ADR 0055): one hour, stated rather than left on the
+        // Impersonation (ADR 0054): one hour, stated rather than left on the
         // plugin's default so a default change is a visible diff. The
         // capability's `IMPERSONATION_SESSION_SECONDS` quotes the same number;
         // this package cannot import it (siblings, ADR 0051), so change both.
@@ -298,13 +299,15 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // operator-gated).
       sso({
         // Connections start disabled and an owner enables one after a
-        // successful test, so a half-configured IdP never intercepts sign-ins.
-        // Enforced by the app's settings surface; the plugin has no option for
-        // it, which is why `enabled` is an additionalField below.
-        // A first SSO sign-in creates the user when needed and joins them to
-        // the connection's workspace with the connection's own default
-        // Workspace Role — `member` unless the owner configured `admin`.
-        // `owner` is unreachable by design: see `ssoProvisionedRoles`.
+        // successful test. The plugin has no `enabled` option and serves any
+        // stored connection — `enabled` is the starter's routing vocabulary,
+        // so the app enforces it: the sign-in page asks only for enabled
+        // connections, and the auth gate refuses a `/sign-in/sso` that would
+        // resolve a disabled one (ADR 0055 §2). A first SSO sign-in creates
+        // the user when needed and joins them to the connection's workspace
+        // with the connection's own default Workspace Role — `member` unless
+        // the owner configured `admin`. `owner` is unreachable by design:
+        // `provisionedRoleOf` narrows through `ssoProvisionedRoles`.
         organizationProvisioning: {
           getRole: provisionedRoleOf
         },

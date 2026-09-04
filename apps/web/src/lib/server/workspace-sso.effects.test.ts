@@ -122,7 +122,7 @@ function recordingFeed(recorded: { current: Recorded }): Layer.Layer<Notificatio
       record: (input: {
         readonly title: string
         readonly message: string
-        readonly userId: string | null
+        readonly userId: string
       }) => {
         recorded.current = [...recorded.current, input]
         return inner.record(input)

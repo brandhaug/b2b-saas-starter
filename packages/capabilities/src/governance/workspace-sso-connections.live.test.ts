@@ -10,6 +10,7 @@ import {
 } from '../testing/live-harness.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { SsoConnections } from './workspace-sso-connections.ts'
+import { workspaceSsoConnectionsContractCases } from './workspace-sso-connections.contract.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'live workspace sso connections',
@@ -209,6 +210,28 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     })
 
     describe('mutations', () => {
+      // The same list the seed harness runs in `workspace-sso-connections.test.ts`
+      // — two adapters, one contract (capabilities invariant 4). Each case gets
+      // a fresh stand-in binding; the cases create what they assert on.
+      describe('workspace sso connections contract (live)', () => {
+        for (const contractCase of workspaceSsoConnectionsContractCases(
+          (slot) => `${slot}.contract.test`,
+          expect
+        )) {
+          it.effect(contractCase.name, () =>
+            Effect.flatMap(Database, (db) => {
+              const { binding } = fakeSsoBinding(db)
+              return inWorkspace(
+                'live-lab',
+                contractCase.assert,
+                { userId: 'usr_owner' },
+                { ssoBinding: binding }
+              )
+            })
+          )
+        }
+      })
+
       it.effect('creates through the binding, reads it back, and audits it', () =>
         Effect.gen(function* () {
           const db = yield* Database
@@ -316,44 +339,6 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         })
       )
 
-      it.effect('refuses OIDC credentials on a SAML connection', () =>
-        Effect.gen(function* () {
-          const db = yield* Database
-          const { binding } = fakeSsoBinding(db)
-          // Seed a SAML row through the binding first.
-          const created = yield* inWorkspace(
-            'live-lab',
-            Effect.flatMap(SsoConnections, (sso) =>
-              sso.create({
-                protocol: 'saml',
-                domain: 'saml.test',
-                issuer: 'https://app.origin.test',
-                metadataXml:
-                  '<EntityDescriptor entityID="https://idp.saml.test"></EntityDescriptor>',
-                entryPoint: 'https://idp.saml.test/sso',
-                defaultWorkspaceRole: 'member'
-              })
-            ),
-            { userId: 'usr_owner' },
-            { ssoBinding: binding }
-          )
-          const failure = yield* Effect.flip(
-            inWorkspace(
-              'live-lab',
-              Effect.flatMap(SsoConnections, (sso) =>
-                sso.update({
-                  providerId: created.id,
-                  oidcCredentials: { clientId: 'c', clientSecret: 's' }
-                })
-              ),
-              { userId: 'usr_owner' },
-              { ssoBinding: binding }
-            )
-          )
-          expect(failure).toMatchObject({ _tag: 'MembershipChangeRejected' })
-        })
-      )
-
       it.effect('removes through the binding and stops routing the domain', () =>
         Effect.gen(function* () {
           const db = yield* Database
@@ -385,9 +370,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       )
 
       it.effect(
-        'update and remove of an unknown id change nothing and audit nothing',
-        () =>
-          Effect.gen(function* () {
+        'an unknown id reaches neither the plugin port nor an audit row',
+        () => {
+          return Effect.gen(function* () {
             const db = yield* Database
             const { binding, calls } = fakeSsoBinding(db)
             const outcome = yield* inWorkspace(
@@ -407,8 +392,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             )
             expect(Option.isNone(outcome.updated)).toBe(true)
             expect(outcome.removed).toBe(false)
+            // Live-specific: the unknown id never reaches the plugin port at all.
             expect(calls).toHaveLength(0)
           })
+        }
       )
     })
   }

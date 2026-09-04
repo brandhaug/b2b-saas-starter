@@ -18,6 +18,7 @@ import {
   DEMO_MEMBER_CREDENTIALS,
   DEMO_WORKSPACE_SLUG
 } from '@/lib/demo-workspace'
+import { type SsoRoutingDecision } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { resolveSsoRoutingServerFn } from '@/lib/server/workspace-sso'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 
@@ -26,10 +27,15 @@ export type {
   SignInWithSso
 } from '@/components/auth/auth-client-ports'
 
-/** The domain-routing ask, as a port so a test drives the page without a server. */
-export type ResolveSsoRouting = (email: string) => Promise<{
-  readonly requireSso: boolean
-} | null>
+/**
+ * The domain-routing ask, as a port so a test drives the page without a
+ * server. Existence is the answer — a non-null resolution means "this
+ * domain routes to an IdP"; the decision's fields are the gate's concern,
+ * not the page's (the require-SSO rule is enforced server-side). Type-only
+ * import: the route ships statically, so nothing here may load the
+ * capability runtime.
+ */
+export type ResolveSsoRouting = (email: string) => Promise<SsoRoutingDecision | null>
 
 async function resolveSsoRouting(email: string) {
   // A failed ask must not dead-end the form: the password path is the
@@ -129,6 +135,11 @@ export function SignInPage({
           window.location.assign(sso.data.url)
           return
         }
+        // Unreachable while the plugin answers a routing match with a URL,
+        // but an explicit failure beats silently attempting the password
+        // path the routing decision just refused.
+        setSubmitError('Single sign-in failed')
+        return
       }
       const result = await signIn({
         email: value.email,

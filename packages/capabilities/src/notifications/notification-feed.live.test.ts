@@ -164,7 +164,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
   }
 
   describe('record (ADR 0055)', () => {
-    it.effect('records a broadcast row the actor then reads back', () =>
+    it.effect('records a row for one member, who reads it back unread', () =>
       inWorkspace(
         'live-lab',
         Effect.gen(function* () {
@@ -173,29 +173,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           yield* feed.record({
             title: 'Connection test failed',
             message: 'The OIDC connection for routed.test failed its test.',
-            userId: null
+            userId: 'usr_owner'
           })
           const unread = yield* feed.unreadCount
           expect(unread).toBe(before + 1)
           const listed = yield* feed.list
           expect(listed[0]?.title).toBe('Connection test failed')
           expect(listed[0]?.read).toBe(false)
-        })
-      )
-    )
-
-    it.effect('records a targeted row for its member', () =>
-      inWorkspace(
-        'live-lab',
-        Effect.gen(function* () {
-          const feed = yield* NotificationFeed
-          yield* feed.record({
-            title: 'For the owner',
-            message: 'Only the targeted member sees this.',
-            userId: 'usr_owner'
-          })
-          const rows = yield* feed.list
-          expect(rows.map((row) => row.title)).toContain('For the owner')
         }),
         { userId: 'usr_owner' }
       )

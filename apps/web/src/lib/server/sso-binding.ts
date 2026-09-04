@@ -68,26 +68,25 @@ export const webSsoBinding: WorkspaceSsoBinding = {
       enabled: false,
       defaultWorkspaceRole: input.defaultWorkspaceRole
     }
-    if (input.oidcConfig !== undefined) {
+    if (input.protocol === 'oidc') {
       body.oidcConfig = {
-        clientId: input.oidcConfig.clientId,
-        clientSecret: input.oidcConfig.clientSecret,
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
         // PKCE on: the plugin defaults it on, and a stated `true` cannot
         // drift when the default changes.
         pkce: true,
         skipDiscovery: true,
-        authorizationEndpoint: input.oidcConfig.endpoints.authorizationEndpoint,
-        tokenEndpoint: input.oidcConfig.endpoints.tokenEndpoint,
-        jwksEndpoint: input.oidcConfig.endpoints.jwksEndpoint
+        authorizationEndpoint: input.endpoints.authorizationEndpoint,
+        tokenEndpoint: input.endpoints.tokenEndpoint,
+        jwksEndpoint: input.endpoints.jwksEndpoint
       }
-      if (input.oidcConfig.endpoints.userInfoEndpoint !== undefined) {
-        body.oidcConfig.userInfoEndpoint = input.oidcConfig.endpoints.userInfoEndpoint
+      if (input.endpoints.userInfoEndpoint !== undefined) {
+        body.oidcConfig.userInfoEndpoint = input.endpoints.userInfoEndpoint
       }
-    }
-    if (input.samlConfig !== undefined) {
+    } else {
       body.samlConfig = {
-        entryPoint: input.samlConfig.entryPoint,
-        idpMetadata: { metadata: input.samlConfig.metadataXml }
+        entryPoint: input.entryPoint,
+        idpMetadata: { metadata: input.metadataXml }
       }
     }
     await sessionCall((api, headers) => api.registerSSOProvider({ body, headers }))

@@ -20,7 +20,10 @@ import {
 import { recordAuthAudit } from '@/lib/server/auth-audit/record'
 import { recordSsoSignInAudit } from '@/lib/server/auth-audit/sso-sign-in'
 import { type AuthAuditContext } from '@/lib/server/auth-audit/shared'
-import { enforceSsoRequired } from '@/lib/server/sso-sign-in-gate'
+import {
+  enforceSsoRequired,
+  refuseDisabledConnection
+} from '@/lib/server/sso-sign-in-gate'
 import {
   impersonationForbiddenAction,
   impersonationGuardResponse
@@ -122,9 +125,10 @@ function verifySignUpTurnstile(
       return null
     }
     const status = verdict.outcome === 'unavailable' ? 503 : 400
-    const error =
+    const code =
       verdict.outcome === 'unavailable' ? 'captcha_unavailable' : 'captcha_rejected'
-    return new Response(JSON.stringify({ error }), {
+    // Better Auth's error-body convention (`{ code }`), like every pre-handler refusal here.
+    return new Response(JSON.stringify({ code }), {
       status,
       headers: { 'content-type': 'application/json; charset=utf-8' }
     })
@@ -156,7 +160,7 @@ async function handleAuth(request: Request): Promise<Response> {
         })
         if (!allowed) {
           yield* Effect.annotateLogsScoped({ outcome: 'rate_limited' })
-          return new Response(JSON.stringify({ error: 'rate_limited' }), {
+          return new Response(JSON.stringify({ code: 'rate_limited' }), {
             status: 429,
             headers: { 'content-type': 'application/json; charset=utf-8' }
           })
@@ -199,6 +203,14 @@ async function handleAuth(request: Request): Promise<Response> {
         if (ssoRequiredResponse !== null) {
           yield* Effect.annotateLogsScoped({ outcome: 'sso_required' })
           return ssoRequiredResponse
+        }
+        // The same rule's SSO half: the plugin serves any stored connection,
+        // so a disabled one is refused before it can start an OIDC flow an
+        // owner believes is retired or still untested.
+        const disabledSsoResponse = yield* refuseDisabledConnection(request, exchange)
+        if (disabledSsoResponse !== null) {
+          yield* Effect.annotateLogsScoped({ outcome: 'sso_connection_disabled' })
+          return disabledSsoResponse
         }
         // The effectful-better-auth mount: toWeb → auth.handler → fromWeb.
         // The Auth service comes from authRuntime's layer; only the request

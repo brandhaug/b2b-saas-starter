@@ -44,18 +44,17 @@ async function rejectionOf(call: () => Promise<void>): Promise<BindingRejection>
 const INPUT = {
   workspaceId: 'wrk_starter',
   providerId: 'sso_x',
+  protocol: 'oidc',
   domain: 'acme.com',
   issuer: 'https://login.acme.com',
-  defaultWorkspaceRole: 'member',
-  oidcConfig: {
-    clientId: 'client-abcd',
-    clientSecret: 'sekrit',
-    endpoints: {
-      authorizationEndpoint: 'https://login.acme.com/authorize',
-      tokenEndpoint: 'https://login.acme.com/token',
-      jwksEndpoint: 'https://login.acme.com/jwks'
-    }
-  }
+  clientId: 'client-abcd',
+  clientSecret: 'sekrit',
+  endpoints: {
+    authorizationEndpoint: 'https://login.acme.com/authorize',
+    tokenEndpoint: 'https://login.acme.com/token',
+    jwksEndpoint: 'https://login.acme.com/jwks'
+  },
+  defaultWorkspaceRole: 'member'
 } satisfies Parameters<typeof webSsoBinding.create>[0]
 
 describe('webSsoBinding with no in-flight request', () => {

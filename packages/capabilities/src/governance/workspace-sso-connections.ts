@@ -1,8 +1,10 @@
 import { ssoProvisionedRoles } from '@b2b-saas-starter/db/enums'
-import { Context, type Effect, type Option, Schema } from 'effect'
+import { type JsonObject } from '@b2b-saas-starter/db/schema'
+import { Context, Effect, type Option, Schema } from 'effect'
 
-import { type CapabilityUnavailable, type MembershipChangeRejected } from '../errors.ts'
+import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
+import { type AuditEventType, type AuditTargetType } from './audit-event-taxonomy.ts'
 
 /**
  * The workspace SSO connection contract: the wire schemas, the service tag, the
@@ -223,6 +225,22 @@ export type SsoConnectionsInterface = {
   ) => Effect.Effect<Option.Option<SsoRoutingDecision>, CapabilityUnavailable>
 
   /**
+   * What one sign-in key resolves to, mirroring the plugin's own resolution —
+   * `providerId` first, else the domain (the body's `domain` or the one after
+   * an email's `@`), exact column match before a comma-list match — and
+   * **including a disabled connection**, which the plugin's endpoint happily
+   * serves. `resolveRouting` is this filtered to enabled rows; the auth gate
+   * in `apps/web/src/lib/server/sso-sign-in-gate.ts` reads it raw and refuses
+   * a disabled answer, so "a disabled connection never intercepts sign-ins"
+   * holds at the boundary and not just on the page (ADR 0055 §2).
+   */
+  readonly resolveSignInTarget: (input: {
+    readonly email?: string | undefined
+    readonly domain?: string | undefined
+    readonly providerId?: string | undefined
+  }) => Effect.Effect<Option.Option<SsoSignInTarget>, CapabilityUnavailable>
+
+  /**
    * One connection's workspace and domain, keyed by provider id — the
    * auth-catchall audit's lookup after an SSO callback, which knows only the
    * provider the IdP redirected back to. Identity-keyed like
@@ -247,30 +265,17 @@ export class SsoConnections extends Context.Service<
  * session-gated (`requireHeaders`) and org-admin-checked inside the plugin.
  * The app supplies the adapter (`apps/web/src/lib/server/sso-binding.ts`);
  * `capabilities` never names Better Auth (ADR 0051's rule, applied to the
- * second plugin).
+ * second plugin). `create` carries the capability's own discriminated union
+ * untouched, so a field added to a create input cannot silently vanish
+ * between the adapters.
  */
 export type WorkspaceSsoBinding = {
-  readonly create: (input: {
-    readonly workspaceId: string
-    readonly providerId: string
-    readonly domain: string
-    readonly issuer: string
-    readonly defaultWorkspaceRole: SsoProvisionedRole
-    readonly oidcConfig?:
-      | {
-          readonly clientId: string
-          readonly clientSecret: string
-          readonly endpoints: OidcEndpoints
-        }
-      | undefined
-    readonly samlConfig?:
-      | {
-          readonly metadataXml: string
-          /** The IdP SSO URL — required by the plugin's body schema even when the metadata XML carries it. */
-          readonly entryPoint: string
-        }
-      | undefined
-  }) => Promise<void>
+  readonly create: (
+    input: CreateSsoConnectionInput & {
+      readonly workspaceId: string
+      readonly providerId: string
+    }
+  ) => Promise<void>
   readonly update: (input: {
     readonly providerId: string
     readonly enabled?: boolean | undefined
@@ -298,19 +303,201 @@ export function emailDomain(email: string): string | null {
   }
   return email.slice(at + 1).toLowerCase()
 }
+
 /**
- * Whether an email's domain is one of a connection's domains. The plugin
- * stores a comma-separated list so one IdP can serve several domains
+ * Whether a bare domain is one of a connection's domains. The plugin stores a
+ * comma-separated list so one IdP can serve several domains
  * (`company.com,subsidiary.com`); matching is exact and case-insensitive on
  * both sides, mirroring the plugin's own `domainMatches`.
  */
-export function matchesEmailDomain(email: string, connectionDomains: string): boolean {
-  const domain = emailDomain(email)
-  if (domain === null) {
+export function matchesDomain(domain: string, connectionDomains: string): boolean {
+  const needle = domain.trim().toLowerCase()
+  if (needle === '') {
     return false
   }
   return connectionDomains
     .split(',')
     .map((entry) => entry.trim().toLowerCase())
-    .includes(domain)
+    .includes(needle)
+}
+
+/** Whether an email's domain is one of a connection's domains. */
+export function matchesEmailDomain(email: string, connectionDomains: string): boolean {
+  const domain = emailDomain(email)
+  return domain !== null && matchesDomain(domain, connectionDomains)
+}
+
+/* -------------------------------------------------------------------------- */
+/* The rules both adapters enforce                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * OIDC credentials only ever update an OIDC connection. Written once so the
+ * adapters cannot drift — the live plugin rejects the same call with a 400,
+ * and refusing here keeps the Seed adapter identical instead of more lenient.
+ */
+export function requireProtocolMatch(
+  connection: Pick<SsoConnection, 'protocol'>,
+  input: UpdateSsoConnectionInput
+): Effect.Effect<void, MembershipChangeRejected> {
+  if (input.oidcCredentials !== undefined && connection.protocol === 'saml') {
+    return Effect.fail(new MembershipChangeRejected({ reason: 'protocol_mismatch' }))
+  }
+  return Effect.void
+}
+
+/**
+ * The lifecycle audit event for one connection — event type, target type and
+ * metadata decided once, so the two adapters (and the taxonomy) cannot drift.
+ * The adapters add `targetId` and record through `recordInWorkspace`.
+ */
+/** The audit write both adapters record for one lifecycle event, minus `targetId`. */
+export type SsoAuditEvent = {
+  readonly eventType: AuditEventType
+  readonly targetType: AuditTargetType
+  readonly metadata: JsonObject
+}
+
+export function ssoAuditEvent(
+  kind: 'created' | 'updated' | 'removed',
+  connection: SsoConnection
+): SsoAuditEvent {
+  switch (kind) {
+    case 'created': {
+      return {
+        eventType: 'workspace_sso.connection_created',
+        targetType: 'workspace_sso_connection',
+        metadata: {
+          protocol: connection.protocol,
+          domain: connection.domain,
+          defaultWorkspaceRole: connection.defaultWorkspaceRole
+        }
+      }
+    }
+    case 'updated': {
+      return {
+        eventType: 'workspace_sso.connection_updated',
+        targetType: 'workspace_sso_connection',
+        metadata: {
+          enabled: connection.enabled,
+          requireSso: connection.requireSso,
+          defaultWorkspaceRole: connection.defaultWorkspaceRole
+        }
+      }
+    }
+    case 'removed': {
+      return {
+        eventType: 'workspace_sso.connection_removed',
+        targetType: 'workspace_sso_connection',
+        metadata: { protocol: connection.protocol, domain: connection.domain }
+      }
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* The sign-in resolution the routing rule and the auth gate share            */
+/* -------------------------------------------------------------------------- */
+
+/** What one sign-in key resolves to — enabled or not. */
+export type SsoSignInTarget = {
+  readonly providerId: string
+  readonly protocol: SsoProtocol
+  readonly workspaceId: string
+  readonly domain: string
+  readonly enabled: boolean
+  readonly requireSso: boolean
+}
+
+/** The routing DTO `resolveRouting` answers: the sign-in target minus the fields only the auth gate reads. */
+export function toRoutingDecision(target: SsoSignInTarget): SsoRoutingDecision {
+  return {
+    providerId: target.providerId,
+    protocol: target.protocol,
+    workspaceId: target.workspaceId,
+    requireSso: target.requireSso
+  }
+}
+
+/**
+ * The fields the resolution reads off a stored connection. The live row and
+ * the seed fixture both project onto this, which is what lets the pick below
+ * be written once.
+ */
+export type SsoRoutingFields = {
+  readonly id: string
+  readonly protocol: SsoProtocol
+  readonly domain: string
+  readonly workspaceId: string
+  readonly enabled: boolean
+  readonly requireSso: boolean
+}
+
+/**
+ * The resolution order both adapters enforce, mirroring the plugin's
+ * `signInSSO`: a `providerId` addresses one connection outright; otherwise the
+ * domain (the body's `domain`, or an email's domain) matches — the exact
+ * column value before a comma-list entry, ties broken by lowest provider id.
+ * Answers `undefined` for a key that matches nothing, and never looks at
+ * `enabled`: the caller decides what a disabled answer means (the sign-in
+ * page routes around it; the auth gate refuses it).
+ */
+export function pickSignInTarget(
+  rows: ReadonlyArray<SsoRoutingFields>,
+  input: {
+    readonly email?: string | undefined
+    readonly domain?: string | undefined
+    readonly providerId?: string | undefined
+  }
+): SsoSignInTarget | undefined {
+  if (input.providerId !== undefined) {
+    const row = rows.find((candidate) => candidate.id === input.providerId)
+    if (row === undefined) {
+      return undefined
+    }
+    return toTarget(row)
+  }
+  let domain: string | null = null
+  if (input.domain === undefined) {
+    domain = emailDomain(input.email ?? '')
+  } else {
+    domain = input.domain
+  }
+  if (domain === null) {
+    return undefined
+  }
+  const matches = rows.filter((row) => matchesDomain(domain, row.domain))
+  const exact = matches.filter((row) => row.domain.trim().toLowerCase() === domain)
+  // The plugin resolves the exact column value before scanning the
+  // comma-list entries; lowest provider id breaks any remaining tie.
+  let pool = matches
+  if (exact.length > 0) {
+    pool = exact
+  }
+  const match = pool.toSorted(byIdOrder)[0]
+  if (match === undefined) {
+    return undefined
+  }
+  return toTarget(match)
+}
+
+function byIdOrder(a: SsoRoutingFields, b: SsoRoutingFields): number {
+  if (a.id < b.id) {
+    return -1
+  }
+  if (a.id > b.id) {
+    return 1
+  }
+  return 0
+}
+
+function toTarget(row: SsoRoutingFields): SsoSignInTarget {
+  return {
+    providerId: row.id,
+    protocol: row.protocol,
+    workspaceId: row.workspaceId,
+    domain: row.domain,
+    enabled: row.enabled,
+    requireSso: row.requireSso
+  }
 }

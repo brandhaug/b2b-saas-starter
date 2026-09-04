@@ -312,10 +312,14 @@ function ssoConnectionRows(fixture: {
       oidcConfig:
         connection.protocol === 'oidc'
           ? JSON.stringify({
-              clientId: `seed-client-${connection.clientIdLastFour ?? '0000'}`,
-              authorizationEndpoint: connection.oidc?.authorizationEndpoint,
-              tokenEndpoint: connection.oidc?.tokenEndpoint,
-              jwksEndpoint: connection.oidc?.jwksEndpoint
+              // A full example client id for the stored blob. The DTO only
+              // ever carries the last four (the fixture's `7f2a`), so the
+              // fixture cannot supply this — the value is for the local D1
+              // row only.
+              clientId: 'seed-client-7f2a',
+              authorizationEndpoint: connection.oidc.authorizationEndpoint,
+              tokenEndpoint: connection.oidc.tokenEndpoint,
+              jwksEndpoint: connection.oidc.jwksEndpoint
             })
           : null,
       samlConfig: null,
