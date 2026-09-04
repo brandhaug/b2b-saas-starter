@@ -70,6 +70,14 @@ beforeAll(
               requireEmailVerification: false,
               runBackground: (promise) => {
                 void promise.catch(() => undefined)
+              },
+              mcp: {
+                resource: 'http://localhost:8787/mcp',
+                // Discovery never runs in this suite — the ceremony is mocked —
+                // so the transport refuses if it is ever reached.
+                fetchClientMetadataResource: () => {
+                  throw new TypeError('client discovery is not exercised by this suite')
+                }
               }
             }))
           )

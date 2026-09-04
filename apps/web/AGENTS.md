@@ -67,7 +67,6 @@ TanStack Start web app served by a Cloudflare Worker (`vite.config.ts` uses the 
 - Social sign-in and linking — providers are env-gated and absent until configured (ADR 0057): `activeSocialProviders` (`@b2b-saas-starter/env`) resolves the worker env, `auth-runtime.ts` carries the result onto `AuthConfig.socialProviders`, and `lib/server/social-providers.ts` exposes the active ids to the auth screens as a server fn (ids only — secrets never cross). Link/unlink audit events come from the auth instance's account hooks (`lib/server/social-account-audit.ts`), best-effort like every audit write; the OAuth callback exchange rows (`/callback/{github,google}`) record the sign-in itself with the provider as the method. The docs page is `content/docs/integrations/social-sign-in.mdx`.
 - The MCP OAuth authorization server half (ADR 0055) — `auth-runtime.ts` supplies `AuthConfig.mcp`: the resource URL (`MCP_RESOURCE_URL`, defaulting to the local API dev server so nothing is required locally) and the Workers-safe CIMD transport (`lib/server/client-metadata-fetch.ts`: HTTPS only, refuses IP literals and non-public hosts, never follows redirects).
 
-
 ## Error handling
 
 - `runWorkspaceCapabilities`/`runCapabilities` map typed capability failures: `WorkspaceNotFound` → TanStack `notFound()` (404 page), `CapabilityUnavailable` → `CapabilityUnavailableError`, rendered by `router.tsx`'s `defaultErrorComponent` as a friendly degraded-state notice (CLAUDE.md rule 3), and `AuthorizationDenied` → `ForbiddenError`. Loaders don't catch anything themselves.
