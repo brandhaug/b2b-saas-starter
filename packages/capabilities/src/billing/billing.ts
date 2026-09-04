@@ -75,6 +75,71 @@ export type SeatSyncResult = {
 }
 
 /**
+ * The subscription state one provider event leaves on the stored
+ * `workspace_subscriptions` row: the customer the Billing Portal opens for,
+ * the subscription and seat item ids, and the seat quantity. Both adapters
+ * reduce `applySubscriptionEvent` input to it through
+ * {@link nextSubscriptionState}, so a deletion, a quantity report, and a
+ * late-arriving link cannot be interpreted differently by the fixture and D1.
+ */
+export type SubscriptionState = {
+  readonly customerId: string
+  readonly subscriptionId: string | null
+  readonly subscriptionItemId: string | null
+  readonly seatQuantity: number
+}
+
+/**
+ * The one reduction of a provider event onto {@link SubscriptionState} — the
+ * rule both adapters enforce, so it lives here and not in either adapter:
+ * an event carrying no customer for a workspace that has none stored records
+ * nothing (`null`); a deletion zeroes the quantity and clears the
+ * subscription ids (the customer survives for the portal's invoice history);
+ * anything else keeps the ids and quantity it was not given.
+ */
+export function nextSubscriptionState(
+  input: ApplySubscriptionEventInput,
+  existing: SubscriptionState | undefined
+): SubscriptionState | null {
+  const customerId = input.customerId ?? existing?.customerId
+  if (customerId === undefined) {
+    return null
+  }
+  if (input.deleted === true) {
+    return {
+      customerId,
+      subscriptionId: null,
+      subscriptionItemId: null,
+      seatQuantity: 0
+    }
+  }
+  return {
+    customerId,
+    subscriptionId: input.subscriptionId ?? existing?.subscriptionId ?? null,
+    subscriptionItemId:
+      input.subscriptionItemId ?? existing?.subscriptionItemId ?? null,
+    seatQuantity: input.quantity ?? existing?.seatQuantity ?? 0
+  }
+}
+
+/**
+ * Whether a provider event actually moved the seat count — the audit gate
+ * both adapters enforce beside {@link nextSubscriptionState}: a link refresh
+ * or a late-arriving item id is not a seat change, and neither is a quantity
+ * that already matches the stored one.
+ */
+export function seatQuantityMoved(
+  input: ApplySubscriptionEventInput,
+  next: SubscriptionState,
+  existing: SubscriptionState | undefined
+): boolean {
+  return (
+    (input.quantity !== undefined || input.deleted === true) &&
+    (existing?.seatQuantity ?? 0) !== next.seatQuantity
+  )
+}
+
+/**
  * A provider-reported subscription state change, already resolved to one
  * workspace by the background worker. Identity-keyed like
  * `applyProviderEvent` — inbound webhooks and queue messages carry no

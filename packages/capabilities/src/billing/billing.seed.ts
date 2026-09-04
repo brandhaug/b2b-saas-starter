@@ -7,9 +7,11 @@ import { type SeedRoster } from '../governance/workspace-membership.ts'
 import { planById, PLANS } from './plan-catalog.ts'
 import {
   Billing,
+  nextSubscriptionState,
   planChangeMetadata,
   seatChangeMetadata,
-  type ApplySubscriptionEventInput
+  seatQuantityMoved,
+  type SubscriptionState
 } from './billing.ts'
 /**
  * The in-memory billing adapter. `stripeConfigured` mirrors the env gate:
@@ -29,46 +31,13 @@ export type SeedSubscriptionFixture = {
   readonly seatQuantity: number
 }
 
-type SeedSubscription = {
-  readonly customerId: string
-  readonly subscriptionId: string | null
-  readonly subscriptionItemId: string | null
-  readonly seatQuantity: number
-}
-
-function toSeedSubscription(fixture: SeedSubscriptionFixture): SeedSubscription {
+function toSeedSubscription(fixture: SeedSubscriptionFixture): SubscriptionState {
   return {
     customerId: fixture.customerId,
     subscriptionId: fixture.subscriptionId ?? null,
     subscriptionItemId: fixture.subscriptionItemId ?? null,
     seatQuantity: fixture.seatQuantity
   }
-}
-
-/** The quantity an event leaves behind: 0 on deletion, else its own or the stored one. */
-function nextQuantity(
-  input: ApplySubscriptionEventInput,
-  existing: SeedSubscription | undefined
-): number {
-  if (input.deleted === true) {
-    return 0
-  }
-  return input.quantity ?? existing?.seatQuantity ?? 0
-}
-
-/**
- * Whether the event changes the stored quantity at all — the seed mirror of
- * the Live adapter's "audit only when the number moved" rule, so both
- * adapters record `billing.seats_changed` for exactly the same events.
- */
-function quantityChanged(
-  input: ApplySubscriptionEventInput,
-  existing: SeedSubscription | undefined
-): boolean {
-  return (
-    (input.quantity !== undefined || input.deleted === true) &&
-    (existing?.seatQuantity ?? 0) !== nextQuantity(input, existing)
-  )
 }
 
 export function SeedBilling(options?: {
@@ -91,7 +60,7 @@ export function SeedBilling(options?: {
       // `currentPlan` — same read-your-write shape as Live.
       const planOverrides = yield* Ref.make<ReadonlyMap<string, string>>(new Map())
       // The simulated `workspace_subscriptions` table.
-      const subscriptions = yield* Ref.make<ReadonlyMap<string, SeedSubscription>>(
+      const subscriptions = yield* Ref.make<ReadonlyMap<string, SubscriptionState>>(
         new Map(
           (options?.subscriptions ?? []).map((fixture) => [
             fixture.workspaceId,
@@ -195,41 +164,26 @@ export function SeedBilling(options?: {
         applySubscriptionEvent: (input) =>
           Effect.gen(function* () {
             const existing = (yield* Ref.get(subscriptions)).get(input.workspaceId)
-            const customerId = input.customerId ?? existing?.customerId
-            // Nothing to record: the event carries no customer and no row
-            // holds one — the Live adapter answers the same input `false`.
-            if (customerId === undefined) {
+            // The shared reduction (`billing.ts`) both adapters enforce:
+            // `null` means the event carries no customer and no row holds one
+            // — the Live adapter answers the same input `false`.
+            const next = nextSubscriptionState(input, existing)
+            if (next === null) {
               return false
             }
-            const deleted = input.deleted === true
-            let subscriptionId: string | null = null
-            let subscriptionItemId: string | null = null
-            if (!deleted) {
-              subscriptionId = input.subscriptionId ?? existing?.subscriptionId ?? null
-              subscriptionItemId =
-                input.subscriptionItemId ?? existing?.subscriptionItemId ?? null
-            }
             yield* Ref.update(subscriptions, (map) => {
-              const next = new Map(map)
-              next.set(input.workspaceId, {
-                customerId,
-                subscriptionId,
-                subscriptionItemId,
-                seatQuantity: nextQuantity(input, existing)
-              })
-              return next
+              const nextMap = new Map(map)
+              nextMap.set(input.workspaceId, next)
+              return nextMap
             })
-            if (quantityChanged(input, existing)) {
+            if (seatQuantityMoved(input, next, existing)) {
               yield* audit.record({
                 workspaceId: input.workspaceId,
                 actorUserId: null,
                 eventType: 'billing.seats_changed',
                 targetType: 'workspace',
                 targetId: input.workspaceId,
-                metadata: seatChangeMetadata(
-                  nextQuantity(input, existing),
-                  input.detail
-                )
+                metadata: seatChangeMetadata(next.seatQuantity, input.detail)
               })
             }
             return true

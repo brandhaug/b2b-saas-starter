@@ -1,4 +1,5 @@
 import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
+import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing.live'
 import {
   selectCapabilitiesLayer,
   starterEnv,
@@ -101,25 +102,14 @@ export function processSeatSyncMessage(
 
 /**
  * The env the seat path builds its capabilities layer from: the projected
- * bindings plus the Stripe bag, which this worker reads straight off its env
- * (`STRIPE_SECRET_KEY` plus the per-plan price ids). Absent, `syncSeats`
- * answers `provider_not_configured` instead of failing — the honest no-op.
+ * bindings plus the Stripe bag, mapped through the shared
+ * `billingOptionsFromEnv`. Absent, `syncSeats` answers
+ * `provider_not_configured` instead of failing — the honest no-op.
  */
 function seatSyncEnv(env: Env): StarterEnv {
-  const secretKey = env.STRIPE_SECRET_KEY
-  const priceIds: Record<string, string> = {}
-  if (env.STRIPE_PRICE_ID_TEAM !== undefined) {
-    priceIds.team = env.STRIPE_PRICE_ID_TEAM
-  }
-  let billing: StarterEnv['billing']
-  if (secretKey === undefined) {
-    billing = undefined
-  } else {
-    billing = { secretKey, priceIds }
-  }
   return {
     ...starterEnv(env),
-    billing
+    billing: billingOptionsFromEnv(env)
   }
 }
 
@@ -134,14 +124,14 @@ export function deliverSeatSync(
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
   const delivery = readSeatSyncDelivery(envelope)
+  // The same trace continuation the webhook consumers make: a decoded message
+  // joins the trace the membership mutation stamped, anything else starts its
+  // own — `parentSpanFromHeaders` treats an absent `traceparent` as no parent.
   let traceparent: string | undefined
   if (delivery.kind === 'message') {
     traceparent = delivery.message.traceparent
   }
-  let parent = parentSpanFromHeaders({})
-  if (traceparent !== undefined) {
-    parent = parentSpanFromHeaders({ traceparent })
-  }
+  const parent = parentSpanFromHeaders({ traceparent })
   const program = processSeatSyncMessage(delivery).pipe(
     // The layer needs the billing env only — the seat path reads D1 and,
     // when configured, talks to Stripe directly (no HTTP client service).

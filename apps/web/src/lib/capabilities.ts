@@ -4,6 +4,7 @@ import {
   PlanLimitExceeded,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
+import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing.live'
 import {
   selectCapabilitiesLayer,
   selectWorkspaceLayer,
@@ -42,37 +43,21 @@ export type CapabilityBindings = Pick<
   'memberBinding' | 'invitationBinding' | 'lifecycleBinding' | 'userAdminBinding'
 >
 
-/** Stripe checkout configuration from the Worker env; `undefined` when unset. */
-function stripeBillingConfig(): StarterEnv['billing'] | undefined {
-  const secretKey = cloudflareEnv.STRIPE_SECRET_KEY
-  if (secretKey === undefined) {
-    return undefined
-  }
-  const priceIds: Record<string, string> = {}
-  if (cloudflareEnv.STRIPE_PRICE_ID_TEAM !== undefined) {
-    priceIds.team = cloudflareEnv.STRIPE_PRICE_ID_TEAM
-  }
-  return { secretKey, priceIds }
-}
-
 // Real Worker bindings (the same import `auth-runtime.ts` uses). In production the
 // D1 binding exists and activates the Live layer; under the local dev shim
 // (`cloudflare-workers-shim.ts`) `DB` is undefined and the in-memory Seed
-// layer keeps the app working provider-light (CLAUDE.md rule 3). Unset Stripe
-// vars leave `billing` off and checkout degrades to `provider_not_configured`;
-// an unwired `BILLING_QUEUE` leaves seat sync to the provider webhooks.
-const stripeBilling = stripeBillingConfig()
-// The export bindings (ADR 0055) ride along the same way: absent under the
-// shim and in an unconfigured deploy, present when alchemy provisioned them.
-const workerBindings: StarterEnv = {
+// layer keeps the app working provider-light (CLAUDE.md rule 3). The Stripe
+// options come from the shared env mapping — unset vars leave `billing` off
+// and checkout degrades to `provider_not_configured`; an unwired
+// `BILLING_QUEUE` leaves seat sync to the provider webhooks. The export
+// bindings (ADR 0055) ride along the same way: absent under the shim and in
+// an unconfigured deploy, present when alchemy provisioned them.
+const starterEnv: StarterEnv = {
   DB: cloudflareEnv.DB,
   BILLING_QUEUE: cloudflareEnv.BILLING_QUEUE,
   WORKSPACE_EXPORT_QUEUE: cloudflareEnv.WORKSPACE_EXPORT_QUEUE,
-  WORKSPACE_EXPORT_BUCKET: cloudflareEnv.WORKSPACE_EXPORT_BUCKET
-}
-let starterEnv: StarterEnv = workerBindings
-if (stripeBilling !== undefined) {
-  starterEnv = { ...workerBindings, billing: stripeBilling }
+  WORKSPACE_EXPORT_BUCKET: cloudflareEnv.WORKSPACE_EXPORT_BUCKET,
+  billing: billingOptionsFromEnv(cloudflareEnv)
 }
 
 // The Effect → TanStack boundary. Loaders and server functions are Promise

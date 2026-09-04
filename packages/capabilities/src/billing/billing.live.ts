@@ -15,9 +15,12 @@ import { auditedMutations } from '../governance/audited-mutation.ts'
 import { planById, PLANS } from './plan-catalog.ts'
 import {
   Billing,
+  nextSubscriptionState,
   planChangeMetadata,
   seatChangeMetadata,
-  type ApplySubscriptionEventInput
+  seatQuantityMoved,
+  type ApplySubscriptionEventInput,
+  type SubscriptionState
 } from './billing.ts'
 import {
   createStripeBillingPortalSession,
@@ -71,6 +74,30 @@ function providerNotConfigured(): CapabilityUnavailable {
     capability: 'billing',
     reason: 'provider_not_configured'
   })
+}
+
+/**
+ * The provider env bag (`packages/env`) as {@link LiveBillingOptions}:
+ * `undefined` when the secret key is unset or blank — the same "not wired"
+ * posture every unset var takes — with the price-id env var each catalog plan
+ * names lifted into the map. The one env→options mapping: the web worker and
+ * the background worker both project their env through it, so adding a priced
+ * plan extends one place, not two.
+ */
+export function billingOptionsFromEnv(env: {
+  readonly STRIPE_SECRET_KEY?: string | undefined
+  readonly STRIPE_PRICE_ID_TEAM?: string | undefined
+}): LiveBillingOptions | undefined {
+  const secretKey = env.STRIPE_SECRET_KEY
+  if (secretKey === undefined || secretKey.length === 0) {
+    return undefined
+  }
+  const priceIds: Record<string, string> = {}
+  const teamPriceId = env.STRIPE_PRICE_ID_TEAM
+  if (teamPriceId !== undefined && teamPriceId.length > 0) {
+    priceIds.team = teamPriceId
+  }
+  return { secretKey, priceIds }
 }
 
 export function LiveBilling(
@@ -131,22 +158,19 @@ export function LiveBilling(
             if (secretKey === undefined || secretKey.length === 0) {
               return yield* Effect.fail(providerNotConfigured())
             }
-            const priceEnvName = planById(input.planId).stripePriceEnv
+            const plan = planById(input.planId)
             let priceId: string | undefined
-            if (priceEnvName === null) {
-              priceId = undefined
-            } else {
+            if (plan.stripePriceEnv !== null) {
               priceId = options.priceIds?.[input.planId]
             }
             if (priceId === undefined || priceId.length === 0) {
               return yield* Effect.fail(
                 new CapabilityUnavailable({
                   capability: 'billing',
-                  reason: `price_not_configured:${priceEnvName ?? input.planId}`
+                  reason: `price_not_configured:${plan.stripePriceEnv ?? input.planId}`
                 })
               )
             }
-            const plan = planById(input.planId)
             let quantity = 1
             if (plan.pricing === 'per_seat') {
               quantity = yield* countMembers(ctx.workspace.id)
@@ -246,35 +270,31 @@ export function LiveBilling(
             if (known.length === 0) {
               return false
             }
-            const existing = yield* readSubscription(input.workspaceId)
-            const customerId = input.customerId ?? existing?.stripeCustomerId
-            // Nothing to record: the event carries no customer and no row
-            // holds one — the Seed adapter answers the same input `false`.
-            if (customerId === undefined) {
+            const row = yield* readSubscription(input.workspaceId)
+            let existing: SubscriptionState | undefined
+            if (row !== undefined) {
+              existing = {
+                customerId: row.stripeCustomerId,
+                subscriptionId: row.stripeSubscriptionId,
+                subscriptionItemId: row.stripeSubscriptionItemId,
+                seatQuantity: row.seatQuantity
+              }
+            }
+            // The shared reduction (`billing.ts`) both adapters enforce:
+            // `null` means the event carries no customer and no row holds one.
+            const next = nextSubscriptionState(input, existing)
+            if (next === null) {
               return false
             }
-            const deleted = input.deleted === true
-            let quantity = input.quantity ?? existing?.seatQuantity ?? 0
-            if (deleted) {
-              quantity = 0
-            }
-            let subscriptionId: string | null = null
-            let subscriptionItemId: string | null = null
-            if (!deleted) {
-              subscriptionId =
-                input.subscriptionId ?? existing?.stripeSubscriptionId ?? null
-              subscriptionItemId =
-                input.subscriptionItemId ?? existing?.stripeSubscriptionItemId ?? null
-            }
             const values = {
-              stripeCustomerId: customerId,
-              stripeSubscriptionId: subscriptionId,
-              stripeSubscriptionItemId: subscriptionItemId,
-              seatQuantity: quantity,
+              stripeCustomerId: next.customerId,
+              stripeSubscriptionId: next.subscriptionId,
+              stripeSubscriptionItemId: next.subscriptionItemId,
+              seatQuantity: next.seatQuantity,
               updatedAt: DateTime.formatIso(yield* DateTime.now)
             }
             function write() {
-              if (existing === undefined) {
+              if (row === undefined) {
                 return db
                   .insert(workspaceSubscriptions)
                   .values({ workspaceId: input.workspaceId, ...values })
@@ -286,22 +306,19 @@ export function LiveBilling(
             }
             // The audit rides only a quantity that actually moved — a link
             // refresh or an item id arriving late is not a seat change.
-            const moved =
-              (input.quantity !== undefined || deleted) &&
-              (existing?.seatQuantity ?? 0) !== quantity
-            if (!moved) {
+            if (!seatQuantityMoved(input, next, existing)) {
               yield* unavailable(write())
               return true
             }
             return yield* auditedMutation({
-              matched: Effect.succeed(existing !== undefined),
+              matched: Effect.succeed(row !== undefined),
               auditEvent: {
                 workspaceId: input.workspaceId,
                 actorUserId: null,
                 eventType: 'billing.seats_changed',
                 targetType: 'workspace',
                 targetId: input.workspaceId,
-                metadata: seatChangeMetadata(quantity, input.detail)
+                metadata: seatChangeMetadata(next.seatQuantity, input.detail)
               },
               write
             })
