@@ -43,6 +43,19 @@ export type NotifyUserInput = {
   readonly message: string
 }
 
+/**
+ * A notification a background job writes. Keyed by `workspaceId` rather than
+ * `WorkspaceContext` because the writers (the export consumer today) run on
+ * the queue, where no request context exists — the same shape as
+ * `AuditEventLog.record`. `userId` targets one member; `null` broadcasts.
+ */
+export type NotifyInput = {
+  readonly workspaceId: string
+  readonly userId: string | null
+  readonly title: string
+  readonly message: string
+}
+
 export type NotificationFeedInterface = {
   readonly list: Effect.Effect<
     ReadonlyArray<Notification>,
@@ -71,6 +84,9 @@ export type NotificationFeedInterface = {
   readonly notifyUser: (
     input: NotifyUserInput
   ) => Effect.Effect<void, CapabilityUnavailable>
+
+  /** Appends one unread notification. Id and timestamp are minted here. */
+  readonly notify: (input: NotifyInput) => Effect.Effect<void, CapabilityUnavailable>
 }
 
 export class NotificationFeed extends Context.Service<
@@ -95,14 +111,25 @@ export function SeedNotificationFeed(
 ): Layer.Layer<NotificationFeed> {
   return Layer.effect(NotificationFeed)(
     Effect.sync(() => {
-      const rows = Ref.makeUnsafe<Array<SeedNotification>>([...seed])
+      // A private copy, like the Seed audit log: the writes append without
+      // mutating the caller's fixture array, and notified rows read back
+      // through `list`. Notified rows carry the `workspaceId` they were
+      // written for, scoped like Live's `workspaceId` column.
+      const rows = Ref.makeUnsafe<
+        Array<SeedNotification & { readonly workspaceId?: string }>
+      >([...seed])
       return {
         list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const current = yield* Ref.get(rows)
-          const visible: Array<Omit<SeedNotification, 'userId'>> = []
+          const visible: Array<Omit<SeedNotification, 'userId' | 'workspaceId'>> = []
           for (const entry of current) {
-            const { userId, ...notification } = entry
+            const { userId, workspaceId, ...notification } = entry
+            // Fixture rows carry no workspace and belong to the seed workspace;
+            // notified rows are scoped like Live's `workspaceId` column.
+            if (workspaceId !== undefined && workspaceId !== ctx.workspace.id) {
+              continue
+            }
             if (visibleToActor(userId, ctx.actor)) {
               visible.push(notification)
             }
@@ -114,7 +141,10 @@ export function SeedNotificationFeed(
           const current = yield* Ref.get(rows)
           return current.filter(
             (notification) =>
-              !notification.read && visibleToActor(notification.userId, ctx.actor)
+              !notification.read &&
+              (notification.workspaceId === undefined ||
+                notification.workspaceId === ctx.workspace.id) &&
+              visibleToActor(notification.userId, ctx.actor)
           ).length
         }),
         markRead: (ids) =>
@@ -153,6 +183,23 @@ export function SeedNotificationFeed(
                 createdAt: DateTime.formatIso(createdAt),
                 read: false,
                 userId: input.userId
+              },
+              ...current
+            ])
+          }),
+        notify: (input) =>
+          Effect.gen(function* () {
+            const id = yield* newCapabilityId('not')
+            const createdAt = yield* DateTime.now
+            yield* Ref.update(rows, (current) => [
+              {
+                id,
+                title: input.title,
+                message: input.message,
+                createdAt: DateTime.formatIso(createdAt),
+                read: false,
+                userId: input.userId,
+                workspaceId: input.workspaceId
               },
               ...current
             ])
@@ -283,6 +330,22 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
               })
             }
             yield* unavailable(db.insert(notifications).values(values))
+          }),
+        notify: (input) =>
+          Effect.gen(function* () {
+            const id = yield* newCapabilityId('not')
+            const createdAt = DateTime.formatIso(yield* DateTime.now)
+            yield* unavailable(
+              db.insert(notifications).values({
+                id,
+                workspaceId: input.workspaceId,
+                userId: input.userId,
+                title: input.title,
+                message: input.message,
+                readAt: null,
+                createdAt
+              })
+            )
           })
       }
     })

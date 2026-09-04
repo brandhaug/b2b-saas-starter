@@ -13,6 +13,10 @@ import {
   WebhookQueueMessage,
   type WebhookQueueBinding
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
+import {
+  type WorkspaceExportBucketBinding,
+  type WorkspaceExportQueueBinding
+} from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import {
@@ -43,6 +47,11 @@ export type Env = Partial<ServerEnv> & {
   // the binding to `starterEnv`, and every other worker declares it the same
   // way, so one structural shape describes the queue across all three.
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding
+  // Workspace export (ADR 0055): the job queue this worker consumes and the
+  // bucket it writes archives to. Both absent when `WORKSPACE_EXPORT_BUCKET`
+  // was unset at deploy time; the capability then reports unavailable.
+  readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding
+  readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding
 }
 
 /** Wire shape of queue messages — the schema is shared with the producer. */
@@ -58,10 +67,12 @@ const decodeWebhookQueueMessage = Schema.decodeUnknownResult(WebhookQueueMessage
 /**
  * Structural subset of a Cloudflare queue `Message`: the untrusted body plus
  * the attempt count and the message id. This is what the platform hands the
- * batch loop; `readQueueDelivery` turns it into the decoded delivery the
- * consumers work from. The id anchors the delivery id (see `deliveryIdFor`).
+ * batch loop; the consumers' `read*Delivery` turn it into the decoded delivery
+ * they work from. Shared by both queue consumers (webhooks, workspace
+ * exports); the webhook consumer additionally uses `id` to anchor its delivery
+ * row ids (see `deliveryIdFor`).
  */
-export type WebhookQueueEnvelope = {
+export type QueueEnvelope = {
   readonly id?: string | undefined
   readonly body: unknown
   readonly attempts: number
@@ -86,9 +97,7 @@ export type WebhookQueueDelivery = {
 )
 
 /** Decodes one queue envelope's untrusted body. The only decode per delivery. */
-export function readQueueDelivery(
-  envelope: WebhookQueueEnvelope
-): WebhookQueueDelivery {
+export function readQueueDelivery(envelope: QueueEnvelope): WebhookQueueDelivery {
   const decoded = decodeWebhookQueueMessage(envelope.body)
   const platform = { id: envelope.id, attempts: envelope.attempts }
   if (Result.isFailure(decoded)) {
@@ -311,7 +320,7 @@ export function processWebhookMessage(
 }
 
 function deliverWebhook(
-  envelope: WebhookQueueEnvelope,
+  envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient> {
   // The one boundary decode per delivery: the trace continuation and the
@@ -376,10 +385,7 @@ export function processDeadLetterMessage(
  * capabilities layer and a wide event so operators can see (and replay)
  * exhausted deliveries.
  */
-function recordDeadLetter(
-  envelope: WebhookQueueEnvelope,
-  env: Env
-): Effect.Effect<void> {
+function recordDeadLetter(envelope: QueueEnvelope, env: Env): Effect.Effect<void> {
   const delivery = readQueueDelivery(envelope)
   const program = processDeadLetterMessage(delivery).pipe(
     Effect.provide(selectCapabilitiesLayer(starterEnv(env)))

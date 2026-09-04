@@ -33,6 +33,10 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'workspace.renamed',
   'workspace.deleted',
   'workspace.onboarding_dismissed',
+  // governance — workspace data export (ADR 0055)
+  'workspace.export_requested',
+  'workspace.export_completed',
+  'workspace.export_downloaded',
   // governance — membership
   'workspace_member.added',
   'workspace_member.removed',
@@ -104,7 +108,8 @@ export const AUDIT_TARGET_TYPES = literalTuple(
   'webhook_endpoint',
   'workspace',
   'workspace_member',
-  'workspace_invitation'
+  'workspace_invitation',
+  'workspace_export'
 )
 
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number]

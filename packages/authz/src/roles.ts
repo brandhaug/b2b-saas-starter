@@ -36,10 +36,16 @@ export const ownerRole = accessControl.newRole({
   ...starterResources
 })
 
-/** Everything the owner has except deleting the workspace — `adminAc` already omits it. */
+/**
+ * Everything the owner has except deleting the workspace — `adminAc` already
+ * omits it — and except the workspace data export, which is owner-only: the
+ * archive carries every member's email and the complete audit trail, the same
+ * material `organization:delete` guards.
+ */
 export const adminRole = accessControl.newRole({
   ...adminAc.statements,
-  ...starterResources
+  ...starterResources,
+  workspaceExport: []
 })
 
 /**
@@ -57,7 +63,8 @@ export const memberRole = accessControl.newRole({
   mcp: ['read'],
   // Members see the onboarding checklist read-only; dismissing it is a
   // workspace-level decision for owners and admins.
-  onboarding: []
+  onboarding: [],
+  workspaceExport: []
 })
 
 export const workspaceRoleAccess = {

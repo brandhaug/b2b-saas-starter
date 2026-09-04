@@ -79,6 +79,21 @@ curl -s https://<api-host>/assistant/answer \
 
 The response's `provider` field reads `workers-ai` or `openai-compatible` and `assistantConfigured` is `true`.
 
+## Workspace export (R2 + Queue)
+
+Owners can export a workspace as a ZIP from workspace settings (ADR 0055). The archive is built by the background worker and stored in an R2 bucket for seven days; downloads go through a signed link on the API worker.
+
+| Variable                  | Value                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `WORKSPACE_EXPORT_BUCKET` | The R2 bucket name, e.g. `b2b-saas-starter-workspace-exports`                    |
+| `API_PUBLIC_URL`          | The deployed API worker's origin, so download links from the web app point at it |
+
+At deploy time, `alchemy.run.ts` provisions the bucket (with a seven-day lifecycle rule), the export queue, and their bindings on all three workers only when `WORKSPACE_EXPORT_BUCKET` is set. Locally, the generated `wrangler.jsonc` files always carry both bindings — miniflare simulates R2 and Queues — and the web dev server uses the in-memory Seed adapter, which builds the same archive without either.
+
+**Unconfigured:** the settings card explains that exports need a bucket and shows no button. Nothing else degrades.
+
+**Verify:** on a deployed stack, request an export as an owner, wait for the "Workspace export ready" notification, and follow the download link; the audit page shows `workspace.export_requested`, `.export_completed`, and `.export_downloaded`.
+
 ## Stripe billing
 
 Billing is implemented and provider-light: plan display on `/workspaces/$slug/billing` and entitlement gating (Starter caps API tokens at 2 and webhook endpoints at 1) work with every variable below unset. Setting them activates the checkout handoff and the inbound webhook route — see the Stripe doc in the Integration surfaces section for the full flow.

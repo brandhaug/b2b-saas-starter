@@ -25,6 +25,7 @@ import {
 import { type WorkspaceInvitationBinding } from '../governance/workspace-invitations.ts'
 import { type WorkspaceLifecycleBinding } from '../governance/workspace-lifecycle.ts'
 import { type WorkspaceMemberBinding } from '../governance/workspace-membership.ts'
+import { type LiveWorkspaceExportsOptions } from '../governance/workspace-export.live.ts'
 import { makeLiveCapabilitiesLayer, type CapabilityServices } from '../layers.ts'
 import { type StarterEnv } from '../runtime.ts'
 import { liveWorkspaceContext, type WorkspaceContext } from '../workspace-context.ts'
@@ -209,6 +210,8 @@ export function inWorkspace<A, E>(
     readonly invitationBinding?: WorkspaceInvitationBinding
     readonly lifecycleBinding?: WorkspaceLifecycleBinding
     readonly userAdminBinding?: PlatformUserAdminBinding
+    /** Stub export queue + bucket (ADR 0055); absent, exports report unavailable. */
+    readonly workspaceExports?: LiveWorkspaceExportsOptions
   }
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {
   return Effect.provide(
@@ -218,7 +221,8 @@ export function inWorkspace<A, E>(
         memberBinding: bindings?.memberBinding,
         invitationBinding: bindings?.invitationBinding,
         lifecycleBinding: bindings?.lifecycleBinding,
-        userAdminBinding: bindings?.userAdminBinding
+        userAdminBinding: bindings?.userAdminBinding,
+        workspaceExports: bindings?.workspaceExports
       }),
       liveWorkspaceContext(slug, actor)
     )

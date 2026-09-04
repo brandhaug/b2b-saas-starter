@@ -51,6 +51,12 @@ import {
   type PlatformUserAdmin,
   type PlatformUserAdminBinding
 } from './governance/platform-user-admin.ts'
+import {
+  LiveWorkspaceExports,
+  type LiveWorkspaceExportsOptions
+} from './governance/workspace-export.live.ts'
+import { SeedWorkspaceExports } from './governance/workspace-export.seed.ts'
+import { type WorkspaceExports } from './governance/workspace-export.ts'
 
 // billing
 import {
@@ -76,6 +82,7 @@ import {
   seedTwoFactorUserIds,
   seedUserAdminMemberships,
   seedWebhookEndpoints,
+  seedWorkspaceExportFixture,
   seedWorkspaceRecord
 } from './seed-fixture.ts'
 
@@ -87,6 +94,7 @@ export type CapabilityServices =
   | PlatformUserAdmin
   | WebhookEndpoints
   | WebhookPublisher
+  | WorkspaceExports
   | WorkspaceInvitations
   | WorkspaceLifecycle
   | WorkspaceMembership
@@ -131,7 +139,7 @@ const SeedBillingLayer = SeedBilling().pipe(Layer.provide(SeedAuditLog))
  */
 const SeedNotifications = SeedNotificationFeed(seedNotifications)
 
-export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
+const SeedCore = Layer.mergeAll(
   // The mutating developer-platform capabilities write audit events and fan
   // out webhooks below their interface; the shared fixture audit log and the
   // no-op Seed publisher are provided once on the merged layer so every member
@@ -150,6 +158,19 @@ export const SeedLayer: CapabilitiesLayer = Layer.mergeAll(
   Layer.provide(SeedNotifications),
   Layer.provide(SeedWebhookPublisher)
 )
+
+/**
+ * The export adapter reads every other capability to build its archive, so it
+ * sits on top of the core seed rather than inside it. `SeedCore` is one layer
+ * value, provided here and merged below: Effect memoizes it, so the archive is
+ * built from the same instances the rest of the fixture serves.
+ */
+const SeedExports = SeedWorkspaceExports({
+  workspace: seedWorkspaceRecord,
+  fixture: seedWorkspaceExportFixture
+}).pipe(Layer.provide(SeedCore))
+
+export const SeedLayer: CapabilitiesLayer = Layer.merge(SeedCore, SeedExports)
 
 export type LiveCapabilitiesOptions = {
   readonly webhookQueue?: WebhookQueueBinding | undefined
@@ -186,6 +207,11 @@ export type LiveCapabilitiesOptions = {
    * `CapabilityUnavailable`.
    */
   readonly userAdminBinding?: PlatformUserAdminBinding | undefined
+  /**
+   * The export queue and R2 bucket (ADR 0055). Absent, `WorkspaceExports`
+   * reports unavailable and the settings page explains why — provider-light.
+   */
+  readonly workspaceExports?: LiveWorkspaceExportsOptions | undefined
 }
 
 export function makeLiveCapabilitiesLayer(
@@ -206,11 +232,14 @@ export function makeLiveCapabilitiesLayer(
     LiveWorkspaceMembership(options.memberBinding),
     LiveWorkspaceLifecycle(options.lifecycleBinding),
     LivePlatformUserAdmin(options.userAdminBinding),
-    LiveWorkspaceOnboarding
+    LiveWorkspaceOnboarding,
+    LiveWorkspaceExports(options.workspaceExports)
   ).pipe(
     Layer.provide(LiveAuditEventLog),
     // The user-admin capability notifies the impersonated user below its
-    // interface, so the feed is provided to the merged layer like the audit log.
+    // interface, and the export adapter notifies the requester below its —
+    // the same `LiveNotificationFeed` value is a member above, so one
+    // instance serves both.
     Layer.provide(LiveNotificationFeed),
     Layer.provide(publisher)
   )

@@ -7,6 +7,10 @@ import { type WorkspaceLifecycleBinding } from './governance/workspace-lifecycle
 import { type WorkspaceMemberBinding } from './governance/workspace-membership.ts'
 import { type PlatformUserAdminBinding } from './governance/platform-user-admin.ts'
 import {
+  type WorkspaceExportBucketBinding,
+  type WorkspaceExportQueueBinding
+} from './governance/workspace-export.ts'
+import {
   makeLiveCapabilitiesLayer,
   makeLiveLayerFromD1,
   SeedLayer,
@@ -27,6 +31,10 @@ type D1Binding = Parameters<typeof layerFromD1>[0]
 export type StarterEnv = {
   readonly DB?: D1Binding | undefined
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding | undefined
+  /** Export job queue (ADR 0055). Absent with `WORKSPACE_EXPORT_BUCKET`, exports report unavailable. */
+  readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding | undefined
+  /** Export artifact bucket (ADR 0055). Absent, exports report unavailable. */
+  readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding | undefined
   /**
    * Adapter onto the organization plugin's member endpoints, supplied by the
    * app because two of the three endpoints need the request's session headers
@@ -69,10 +77,17 @@ export type StarterEnv = {
  * off). Canonical home is here beside `StarterEnv`; workers project their own
  * env type through it so the field set cannot drift between apps.
  */
-export function starterEnv(env: Pick<StarterEnv, 'DB' | 'WEBHOOK_QUEUE'>): StarterEnv {
+export function starterEnv(
+  env: Pick<
+    StarterEnv,
+    'DB' | 'WEBHOOK_QUEUE' | 'WORKSPACE_EXPORT_QUEUE' | 'WORKSPACE_EXPORT_BUCKET'
+  >
+): StarterEnv {
   return {
     DB: env.DB,
-    WEBHOOK_QUEUE: env.WEBHOOK_QUEUE
+    WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
+    WORKSPACE_EXPORT_QUEUE: env.WORKSPACE_EXPORT_QUEUE,
+    WORKSPACE_EXPORT_BUCKET: env.WORKSPACE_EXPORT_BUCKET
   }
 }
 
@@ -87,7 +102,11 @@ function liveCapabilitiesOptions(env: StarterEnv) {
     invitationBinding: env.invitationBinding,
     lifecycleBinding: env.lifecycleBinding,
     userAdminBinding: env.userAdminBinding,
-    billing: env.billing
+    billing: env.billing,
+    workspaceExports: {
+      queue: env.WORKSPACE_EXPORT_QUEUE,
+      bucket: env.WORKSPACE_EXPORT_BUCKET
+    }
   }
 }
 

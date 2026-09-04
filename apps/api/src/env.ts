@@ -1,5 +1,9 @@
 import { starterEnv } from '@b2b-saas-starter/capabilities/runtime'
 import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
+import {
+  type WorkspaceExportBucketBinding,
+  type WorkspaceExportQueueBinding
+} from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import { type WorkersAIBinding } from '@b2b-saas-starter/ai'
 
@@ -15,6 +19,10 @@ export type ApiEnv = RateLimitBindings &
     readonly DB?: D1Database
     readonly AI?: WorkersAIBinding
     readonly WEBHOOK_QUEUE?: WebhookQueueBinding
+    // Workspace export (ADR 0055): the queue to request one and the bucket to
+    // serve signed downloads from. Both absent when unconfigured.
+    readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding
+    readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding
   }
 
 // Capability env: the D1 binding selects Live vs Seed, and the webhook queue

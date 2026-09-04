@@ -33,5 +33,9 @@ export const env = {
   SERVICE_VERSION: process.env.SERVICE_VERSION,
   GIT_COMMIT_SHA: process.env.GIT_COMMIT_SHA,
   ENVIRONMENT: process.env.ENVIRONMENT,
+  // Workspace export (ADR 0055): where signed download links point. Unset,
+  // the web app assumes the API worker's local dev port.
+  API_PUBLIC_URL: process.env.API_PUBLIC_URL,
+  WORKSPACE_EXPORT_BUCKET: process.env.WORKSPACE_EXPORT_BUCKET,
   DB: undefined
 }

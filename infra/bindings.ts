@@ -99,6 +99,8 @@ export type StageResourceNames = {
   readonly database: string
   readonly webhookQueue: string
   readonly webhookDeadLetterQueue: string
+  readonly workspaceExportQueue: string
+  readonly workspaceExportBucket: string
   readonly worker: (app: WorkerApp) => string
 }
 
@@ -114,6 +116,8 @@ export function stageResourceNames(stage: string): StageResourceNames {
       database: 'b2b-saas-starter',
       webhookQueue: webhookQueueName,
       webhookDeadLetterQueue: webhookDeadLetterQueueName,
+      workspaceExportQueue: workspaceExportQueueName,
+      workspaceExportBucket: workspaceExportBucketName,
       worker: (app) => `b2b-saas-starter-${app}`
     }
   }
@@ -123,6 +127,8 @@ export function stageResourceNames(stage: string): StageResourceNames {
     database: prefix,
     webhookQueue: `${prefix}-webhooks`,
     webhookDeadLetterQueue: `${prefix}-webhooks-dlq`,
+    workspaceExportQueue: `${prefix}-workspace-exports`,
+    workspaceExportBucket: `${prefix}-workspace-exports`,
     worker: (app) => `${prefix}-${app}`
   }
 }
@@ -135,4 +141,32 @@ export function stageResourceNames(stage: string): StageResourceNames {
  */
 export function workersDevUrl(workerName: string, subdomain: string): string {
   return `https://${workerName}.${subdomain}.workers.dev`
+}
+
+// Workspace data export (ADR 0055). One queue carries export jobs from the
+// requesting worker to the background worker, and one R2 bucket holds the
+// finished ZIP artifacts. Both are provisioned only when
+// `WORKSPACE_EXPORT_BUCKET` is set at deploy time; the generated wrangler
+// configs always carry them because miniflare simulates both locally.
+export const workspaceExportQueueName = 'b2b-saas-starter-workspace-exports'
+export const workspaceExportBucketName = 'b2b-saas-starter-workspace-exports'
+
+/**
+ * How long an export artifact lives. The R2 lifecycle rule deletes the object
+ * after this many days, and `WorkspaceExports` stamps the same horizon onto the
+ * export row's `expiresAt` so the UI and the bucket agree on when a download
+ * link stops working.
+ */
+export const WORKSPACE_EXPORT_RETENTION_DAYS = 7
+
+// One export per invocation: an export reads every table of a workspace and
+// builds the archive in memory, so concurrency buys nothing and a batch of
+// twenty-five would only multiply the memory footprint. Three attempts, a
+// minute apart; the consumer marks the export failed on the last one.
+export const workspaceExportConsumerSettings: QueueConsumerSettings = {
+  batchSize: 1,
+  maxConcurrency: 1,
+  maxRetries: 3,
+  maxWaitTimeMs: 1000,
+  retryDelay: 60
 }

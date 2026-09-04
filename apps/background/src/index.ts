@@ -7,7 +7,11 @@ import { Effect } from 'effect'
 // The queue names are single-sourced in `infra/bindings.ts`, which alchemy and
 // the wrangler generator read too — the consumer branch must key off the same
 // literal the consumer is bound to.
-import { webhookDeadLetterQueueName } from '../../../infra/bindings.ts'
+import {
+  webhookDeadLetterQueueName,
+  workspaceExportQueueName
+} from '../../../infra/bindings.ts'
+import { buildWorkspaceExport } from './export-consumer.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
 import {
   consumeBatch,
@@ -34,6 +38,10 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
       return consumeBatch(env, batch, (message) =>
         Effect.as(recordDeadLetter(message, env), 'ack')
       )
+    }
+    // Workspace export jobs (ADR 0055): build the archive into R2.
+    if (batch.queue === workspaceExportQueueName) {
+      return consumeBatch(env, batch, (message) => buildWorkspaceExport(message, env))
     }
     return consumeBatch(env, batch, (message) => deliverWebhook(message, env))
   }

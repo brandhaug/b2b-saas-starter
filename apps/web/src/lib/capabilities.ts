@@ -61,9 +61,16 @@ function stripeBillingConfig(): StarterEnv['billing'] | undefined {
 // layer keeps the app working provider-light (CLAUDE.md rule 3). Unset Stripe
 // vars leave `billing` off and checkout degrades to `provider_not_configured`.
 const stripeBilling = stripeBillingConfig()
-let starterEnv: StarterEnv = { DB: cloudflareEnv.DB }
+// The export bindings (ADR 0055) ride along the same way: absent under the
+// shim and in an unconfigured deploy, present when alchemy provisioned them.
+const workerBindings: StarterEnv = {
+  DB: cloudflareEnv.DB,
+  WORKSPACE_EXPORT_QUEUE: cloudflareEnv.WORKSPACE_EXPORT_QUEUE,
+  WORKSPACE_EXPORT_BUCKET: cloudflareEnv.WORKSPACE_EXPORT_BUCKET
+}
+let starterEnv: StarterEnv = workerBindings
 if (stripeBilling !== undefined) {
-  starterEnv = { DB: cloudflareEnv.DB, billing: stripeBilling }
+  starterEnv = { ...workerBindings, billing: stripeBilling }
 }
 
 // The Effect → TanStack boundary. Loaders and server functions are Promise

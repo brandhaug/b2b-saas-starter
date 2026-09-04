@@ -1,10 +1,11 @@
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { StarterApi } from '@b2b-saas-starter/api'
+import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { StarterApi, WorkspaceExportNotDownloadable } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
-import { Effect } from 'effect'
-import { type HttpServerRequest } from 'effect/unstable/http'
+import { Effect, Option, Result } from 'effect'
+import { HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 
 import { type ApiEnv } from './env.ts'
@@ -204,6 +205,70 @@ export function webhookGroup(env: ApiEnv) {
     )
   )
 }
+
+/**
+ * Workspace data export over the REST surface (ADR 0055). `request` enqueues
+ * the job; `download-link` mints the signed URL, re-checking the permission on
+ * the way — the link then points at the public signed route on this worker,
+ * so it is prefixed with this request's own origin.
+ */
+export function workspaceExportGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'workspace-exports', (handlers) =>
+    handlers
+      .handle('request', ({ params, request }) =>
+        write(
+          env,
+          'workspace-exports.request',
+          { workspaceExport: ['request'] },
+          params.slug,
+          request,
+          Effect.gen(function* () {
+            const exports = yield* WorkspaceExports
+            const created = yield* exports.request
+            yield* Effect.annotateLogsScoped({ exportId: created.id })
+            return created
+          })
+        )
+      )
+      .handle('download-link', ({ params, request }) =>
+        write(
+          env,
+          'workspace-exports.download-link',
+          { workspaceExport: ['download'] },
+          params.slug,
+          request,
+          Effect.gen(function* () {
+            const exports = yield* WorkspaceExports
+            const link = yield* exports.issueDownloadLink({ exportId: params.exportId })
+            if (Option.isNone(link)) {
+              return yield* new WorkspaceExportNotDownloadable({
+                exportId: params.exportId
+              })
+            }
+            const origin = yield* requestOrigin
+            yield* Effect.annotateLogsScoped({ exportId: params.exportId })
+            return {
+              url: `${origin}${link.value.path}`,
+              expiresAt: link.value.expiresAt
+            }
+          })
+        )
+      )
+  )
+}
+
+/**
+ * This request's own origin — where the signed download route lives. Read off
+ * the worker's `Request` (the same `toWebResult` conversion `observed` uses);
+ * a request with no derivable URL falls back to its `host` header.
+ */
+const requestOrigin = Effect.map(HttpServerRequest.HttpServerRequest, (request) => {
+  const web = HttpServerRequest.toWebResult(request)
+  if (Result.isSuccess(web)) {
+    return new URL(web.success.url).origin
+  }
+  return `https://${request.headers.host ?? 'localhost'}`
+})
 
 export function assistantGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'assistant', (handlers) =>

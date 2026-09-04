@@ -34,7 +34,12 @@ export const ServerEnvSchema = Schema.Struct({
   OTEL_EXPORTER_OTLP_HEADERS: optional,
   SERVICE_VERSION: optional,
   GIT_COMMIT_SHA: optional,
-  ENVIRONMENT: optional
+  ENVIRONMENT: optional,
+  // Workspace data export (ADR 0055): the R2 bucket name gates provisioning at
+  // deploy time; the API worker's public origin is where the web app points
+  // signed download links.
+  WORKSPACE_EXPORT_BUCKET: optional,
+  API_PUBLIC_URL: optional
 })
 
 export type ServerEnv = typeof ServerEnvSchema.Type
@@ -82,7 +87,8 @@ export const optionalModuleEnvPlainKeys = [
   'OTEL_EXPORTER_OTLP_ENDPOINT',
   'SERVICE_VERSION',
   'GIT_COMMIT_SHA',
-  'ENVIRONMENT'
+  'ENVIRONMENT',
+  'API_PUBLIC_URL'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
 /**

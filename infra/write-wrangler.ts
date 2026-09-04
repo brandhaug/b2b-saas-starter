@@ -7,6 +7,9 @@ import {
   webhookDlqConsumerSettings,
   webhookQueueName,
   workerCompatibility,
+  workspaceExportBucketName,
+  workspaceExportConsumerSettings,
+  workspaceExportQueueName,
   type QueueConsumerSettings,
   type RateLimitBindingSpec
 } from './bindings.ts'
@@ -25,6 +28,24 @@ import {
 const D1_DATABASE_NAME = 'b2b-saas-starter'
 const AI_BINDING = 'AI'
 const WEBHOOK_QUEUE_BINDING = 'WEBHOOK_QUEUE'
+const WORKSPACE_EXPORT_QUEUE_BINDING = 'WORKSPACE_EXPORT_QUEUE'
+const WORKSPACE_EXPORT_BUCKET_BINDING = 'WORKSPACE_EXPORT_BUCKET'
+
+/**
+ * The export bucket, on every worker: the web worker reads it to decide whether
+ * exports are available, the API worker streams downloads from it, and the
+ * background worker writes the archives. Miniflare simulates R2 locally, so the
+ * binding is unconditional here; alchemy gates it on `WORKSPACE_EXPORT_BUCKET`.
+ */
+const workspaceExportBucket = {
+  binding: WORKSPACE_EXPORT_BUCKET_BINDING,
+  bucket_name: workspaceExportBucketName
+}
+
+const workspaceExportProducer = {
+  binding: WORKSPACE_EXPORT_QUEUE_BINDING,
+  queue: workspaceExportQueueName
+}
 
 type WranglerRateLimit = {
   readonly name: string
@@ -68,6 +89,10 @@ type WranglerConfig = WorkerDefaults & {
     }>
     readonly consumers?: ReadonlyArray<WranglerConsumer>
   }
+  readonly r2_buckets?: ReadonlyArray<{
+    readonly binding: string
+    readonly bucket_name: string
+  }>
   readonly vars?: Record<string, string>
   readonly unsafe?: { readonly bindings: ReadonlyArray<WranglerRateLimit> }
 }
@@ -132,6 +157,9 @@ export const wranglerConfigs: ReadonlyArray<{
     config: {
       ...workerDefaults('web', 'src/server.ts'),
       ai: { binding: AI_BINDING },
+      // Producer only: workspace settings enqueues export jobs.
+      queues: { producers: [workspaceExportProducer] },
+      r2_buckets: [workspaceExportBucket],
       vars: { WORKERS_AI_ENABLED: 'false' },
       unsafe: { bindings: rateLimits(webRateLimits) }
     }
@@ -145,8 +173,12 @@ export const wranglerConfigs: ReadonlyArray<{
       placement: { mode: 'smart' },
       ai: { binding: AI_BINDING },
       queues: {
-        producers: [{ binding: WEBHOOK_QUEUE_BINDING, queue: webhookQueueName }]
+        producers: [
+          { binding: WEBHOOK_QUEUE_BINDING, queue: webhookQueueName },
+          workspaceExportProducer
+        ]
       },
+      r2_buckets: [workspaceExportBucket],
       vars: {
         WORKERS_AI_ENABLED: 'false',
         CLOUDFLARE_EMAIL_FROM: 'noreply@example.com'
@@ -169,9 +201,12 @@ export const wranglerConfigs: ReadonlyArray<{
           ),
           // Records terminal `dead_lettered` delivery rows for messages that
           // exhausted max_retries on the primary queue.
-          consumer(webhookDeadLetterQueueName, webhookDlqConsumerSettings)
+          consumer(webhookDeadLetterQueueName, webhookDlqConsumerSettings),
+          // Builds workspace export archives and writes them to R2.
+          consumer(workspaceExportQueueName, workspaceExportConsumerSettings)
         ]
-      }
+      },
+      r2_buckets: [workspaceExportBucket]
     }
   }
 ]
