@@ -38,7 +38,23 @@ jobs:
       # browser download step), which runs at deploy time only, not in
       # shipped Worker code. Re-check when extract-zip cuts a patch.
       # pnpm's per-advisory ignore lives in pnpm-workspace.yaml (auditConfig).
-      - run: pnpm audit --audit-level=high
+      # The bulk-advisories endpoint flakes hard some days (error 23 timeouts
+      # on three consecutive runs on 2026-09-04, passing on a local retry) —
+      # an outage there must not kill the run on a clean tree. Retry with a
+      # pause, like the e2e step below.
+      - name: Audit dependencies
+        run: |
+          attempts=3
+          for attempt in $(seq 1 "$attempts"); do
+            if pnpm audit --audit-level=high; then
+              exit 0
+            fi
+            if [ "$attempt" -lt "$attempts" ]; then
+              echo "::warning::audit failed (attempt $attempt/$attempts) — retrying in 60s"
+              sleep 60
+            fi
+          done
+          exit 1
       - run: pnpm run build
 
   e2e:
