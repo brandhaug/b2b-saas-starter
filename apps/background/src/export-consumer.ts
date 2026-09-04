@@ -21,11 +21,8 @@ import { parentSpanFromHeaders, withTriggerScope } from '@b2b-saas-starter/logge
 import { DateTime, Effect, type Layer, Result, Schema, type Scope } from 'effect'
 
 import { workspaceExportConsumerSettings } from '../../../infra/bindings.ts'
-import {
-  type DeliveryOutcome,
-  type Env,
-  type QueueEnvelope
-} from './webhook-consumer.ts'
+import { type Env } from './webhook-consumer.ts'
+import { type DeliveryOutcome, type QueueEnvelope } from './queue-consumer.ts'
 
 /**
  * The workspace export consumer (ADR 0055). One message names one `pending`

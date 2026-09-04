@@ -62,19 +62,15 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
   // The daily notification digest (ADR 0055): one cron trigger, declared in
   // `infra/bindings.ts` as `notificationDigestCron`. The run reads its window
   // from `Clock`, so the handler only forwards the platform's scheduled time
-  // for the wide event.
+  // for the wide event. Sends are counted inside the run, so a rejection
+  // means nothing went out; `sendDailyDigest` retries the reads before the
+  // failure reaches this boundary, and a final failure rejects so the failed
+  // cron invocation is recorded.
   scheduled(controller: ScheduledController, env: Env): Promise<void> {
     wireWideEventProviders(env)
     return runInvocation(
       env,
-      // The scope already logged a failing run; a rejected `scheduled` promise
-      // would only make Cloudflare re-run a digest that partly went out.
-      Effect.asVoid(
-        Effect.catchCause(
-          sendDailyDigest(env, controller.scheduledTime),
-          (_cause) => Effect.void
-        )
-      )
+      Effect.asVoid(sendDailyDigest(env, controller.scheduledTime))
     )
   }
 })

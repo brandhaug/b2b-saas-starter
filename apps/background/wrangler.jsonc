@@ -7,9 +7,7 @@
   "name": "b2b-saas-starter-background",
   "main": "src/index.ts",
   "compatibility_date": "2026-05-16",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
@@ -84,9 +82,7 @@
     }
   ],
   "triggers": {
-    "crons": [
-      "0 8 * * *"
-    ]
+    "crons": ["0 8 * * *"]
   },
   "vars": {
     "BETTER_AUTH_URL": "http://localhost:3071"

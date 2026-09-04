@@ -6,11 +6,14 @@ import { ActionLink, EmailLayout } from './templates.tsx'
  * What every notification email is rendered from. The Notification's own
  * `title` and `message` are the body; the kind picks the template, which adds
  * the preview line, heading, and the sentence that says why this email exists.
- * `preferencesUrl` is the unsubscribe link: it lands on the signed-in
- * `/account/notifications` page with the kind preselected, so one click turns
- * that kind off without touching the rest.
+ * `kindLabel` is the kind's shared copy (`NOTIFICATION_KIND_DESCRIPTIONS`), so
+ * the subject, the email heading, and the preview line all use the same words
+ * the preferences UI uses. `preferencesUrl` is the unsubscribe link: it lands
+ * on the signed-in `/account/notifications` page with the kind preselected,
+ * so one click turns that kind off without touching the rest.
  */
 export type NotificationEmailProps = {
+  readonly kindLabel: string
   readonly title: string
   readonly message: string
   /** Null for a Notification with no workspace (account-level). */
@@ -21,8 +24,6 @@ export type NotificationEmailProps = {
 }
 
 type NotificationBodyProps = NotificationEmailProps & {
-  readonly preview: string
-  readonly heading: ReactNode
   /** One sentence naming the event class, before the Notification's own copy. */
   readonly lead: ReactNode
   readonly action: string
@@ -56,8 +57,7 @@ function WorkspaceLine({ workspaceName }: { readonly workspaceName: string | nul
 }
 
 function NotificationBody({
-  preview,
-  heading,
+  kindLabel,
   lead,
   action,
   title,
@@ -67,7 +67,7 @@ function NotificationBody({
   preferencesUrl
 }: NotificationBodyProps) {
   return (
-    <EmailLayout preview={preview} heading={heading}>
+    <EmailLayout preview={kindLabel} heading={kindLabel}>
       <Text className="text-base text-gray-700 mt-4">{lead}</Text>
       <Section className="bg-gray-50 rounded-md px-4 py-3 mt-4">
         <Text className="text-base font-medium text-gray-900 m-0">{title}</Text>
@@ -84,8 +84,6 @@ export function ApiTokenCreatedEmail(props: NotificationEmailProps) {
   return (
     <NotificationBody
       {...props}
-      preview="A new API token was created"
-      heading="API token created"
       lead="Somebody minted a new API token in a workspace you belong to. If nobody on your team did this, revoke it now."
       action="Review API tokens"
     />
@@ -96,8 +94,6 @@ export function ApiTokenRevokedEmail(props: NotificationEmailProps) {
   return (
     <NotificationBody
       {...props}
-      preview="An API token was revoked"
-      heading="API token revoked"
       lead="An API token in a workspace you belong to no longer works. Integrations that used it will start failing."
       action="Review API tokens"
     />
@@ -108,8 +104,6 @@ export function MemberRoleChangedEmail(props: NotificationEmailProps) {
   return (
     <NotificationBody
       {...props}
-      preview="Your workspace role changed"
-      heading="Your workspace role changed"
       lead="An owner or admin changed what you can do in this workspace."
       action="Open the workspace"
     />
@@ -120,8 +114,6 @@ export function TwoFactorChangedNotificationEmail(props: NotificationEmailProps)
   return (
     <NotificationBody
       {...props}
-      preview="Two-factor authentication changed"
-      heading="Two-factor authentication changed"
       lead="Two-factor authentication was turned on or off for your account. If that was not you, reset your password now."
       action="Review account security"
     />
@@ -132,8 +124,6 @@ export function WebhookDeliveryFailedEmail(props: NotificationEmailProps) {
   return (
     <NotificationBody
       {...props}
-      preview="A webhook delivery failed"
-      heading="Webhook delivery failed"
       lead="A webhook endpoint rejected a delivery or gave up after retries. The delivery history has the response codes."
       action="Open webhook endpoints"
     />
@@ -144,8 +134,6 @@ export function MemberJoinedEmail(props: NotificationEmailProps) {
   return (
     <NotificationBody
       {...props}
-      preview="A new member joined"
-      heading="A new member joined"
       lead="Somebody accepted an invitation to a workspace you belong to."
       action="See members"
     />
@@ -156,8 +144,6 @@ export function PlanChangedEmail(props: NotificationEmailProps) {
   return (
     <NotificationBody
       {...props}
-      preview="Your workspace plan changed"
-      heading="Plan changed"
       lead="A workspace you belong to is on a different plan. Limits and entitlements follow the new plan from now on."
       action="Open billing"
     />
@@ -168,8 +154,6 @@ export function AccountImpersonatedEmail(props: NotificationEmailProps) {
   return (
     <NotificationBody
       {...props}
-      preview="A System Admin accessed your account"
-      heading="A System Admin accessed your account"
       lead="A System Admin opened an impersonation session on your account for support. It is recorded in the audit trail and cannot change your password, two-factor settings, or email."
       action="Review account security"
     />
@@ -180,8 +164,6 @@ export function AnnouncementEmail(props: NotificationEmailProps) {
   return (
     <NotificationBody
       {...props}
-      preview={props.title}
-      heading="Announcement"
       lead="A notice for everyone in the workspace."
       action="Open the workspace"
     />
@@ -189,6 +171,7 @@ export function AnnouncementEmail(props: NotificationEmailProps) {
 }
 
 const previewNotification = {
+  kindLabel: 'API token created',
   title: 'API token created',
   message: 'Ops Lead minted "MCP local client" with read and write scopes.',
   workspaceName: 'Starter Lab',
@@ -205,6 +188,7 @@ MemberJoinedEmail.PreviewProps = previewNotification
 PlanChangedEmail.PreviewProps = previewNotification
 AccountImpersonatedEmail.PreviewProps = {
   ...previewNotification,
+  kindLabel: 'Account impersonated',
   title: 'A System Admin accessed your account',
   message:
     'Martin Brandhaug started an impersonation session on your account. It ends when they stop it or after 60 minutes.',
@@ -217,11 +201,16 @@ AnnouncementEmail.PreviewProps = previewNotification
 
 /** One line of the digest: what happened, where, and the app link for it. */
 export type DigestItem = {
+  /** The Notification's id; unique within one digest, so it keys the row. */
+  readonly id: string
   readonly kindLabel: string
   readonly title: string
   readonly message: string
   readonly workspaceName: string | null
-  /** ISO timestamp; rendered as-is so the template reads no clock. */
+  /**
+   * Display-ready timestamp (e.g. `2026-05-16 07:30 UTC`), formatted by the
+   * sender from the time it already holds — the template reads no clock.
+   */
   readonly createdAt: string
 }
 
@@ -279,10 +268,7 @@ export function NotificationDigestEmail({
       </Text>
       <Section className="mt-4">
         {items.map((item) => (
-          <DigestRow
-            key={`${item.createdAt} ${item.kindLabel} ${item.title}`}
-            item={item}
-          />
+          <DigestRow key={item.id} item={item} />
         ))}
       </Section>
       <ActionLink href={openUrl} label="Open your workspaces" />
@@ -295,19 +281,21 @@ NotificationDigestEmail.PreviewProps = {
   recipientName: 'Demo Admin',
   items: [
     {
+      id: 'not_preview_1',
       kindLabel: 'Webhook delivery failed',
       title: 'Webhook delivery gave up',
       message:
         'https://example.com/webhooks/starter rejected api_token.created after six attempts.',
       workspaceName: 'Starter Lab',
-      createdAt: '2026-05-16T07:30:00.000Z'
+      createdAt: '2026-05-16 07:30 UTC'
     },
     {
+      id: 'not_preview_2',
       kindLabel: 'Announcements',
       title: 'Cloudflare Email needs configuration',
       message: 'Set CLOUDFLARE_EMAIL_FROM before enabling real email delivery.',
       workspaceName: 'Starter Lab',
-      createdAt: '2026-05-16T08:10:00.000Z'
+      createdAt: '2026-05-16 08:10 UTC'
     }
   ],
   openUrl: 'http://localhost:3071/workspaces',

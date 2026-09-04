@@ -16,12 +16,13 @@ A Notification is a user-facing message in the workspace feed. Each one has a ki
 | `api_token.revoked`             | `instant` | An API token was revoked                          |
 | `workspace_member.role_changed` | `instant` | An owner or admin changed your role               |
 | `two_factor.changed`            | `instant` | Two-factor authentication was turned on or off    |
+| `account.impersonated`          | `instant` | A System Admin signed in to your account          |
 | `webhook.delivery_failed`       | `digest`  | A webhook endpoint rejected a delivery or gave up |
 | `workspace_member.joined`       | `digest`  | Somebody accepted an invitation to your workspace |
 | `billing.plan_changed`          | `digest`  | A workspace moved to another plan                 |
 | `announcement`                  | `digest`  | Workspace-wide notices                            |
 
-The four security kinds default to instant because each one changes who can act on the account or the workspace. Defaults live in code, so the `notification_preferences` table holds only the choices a user made; a new kind needs no backfill.
+The five security kinds default to instant because each one changes who can act on the account or the workspace. Defaults live in code, so the `notification_preferences` table holds only the choices a user made; a new kind needs no backfill.
 
 ## Preferences
 

@@ -37,7 +37,6 @@ import {
 } from './notification-fan-out.ts'
 import {
   NotificationFeed,
-  type DigestCandidate,
   type DigestWindow,
   type Notification,
   type NotificationEmailContext,
@@ -305,6 +304,12 @@ export function LiveNotificationFeed(
                 createdAt
               })
             }
+            // `memberships.length === 0` returned above, so the insert is
+            // never empty — but say it in code, not in a non-null assertion.
+            const [firstRow] = rows
+            if (firstRow === undefined) {
+              return
+            }
             yield* unavailable(db.insert(notifications).values(rows))
             // One event, one email: the extra rows are feed copies across the
             // user's other workspaces, not additional messages. Channel
@@ -316,7 +321,7 @@ export function LiveNotificationFeed(
             }
             const traceparent = yield* currentTraceparent
             yield* enqueueInstantEmails(options.emailQueue, preferences, {
-              notificationId: rows[0].id,
+              notificationId: firstRow.id,
               kind: input.kind,
               recipients,
               traceparent
@@ -353,36 +358,46 @@ export function LiveNotificationFeed(
         listDigestCandidates: (window) =>
           Effect.gen(function* () {
             // Two shapes of row, two joins: a targeted row reaches its user,
-            // a broadcast row reaches every member of its workspace.
-            const targeted = yield* unavailable(
-              db
-                .select({ notification: notifications, user, workspace: workspaces })
-                .from(notifications)
-                .innerJoin(user, eq(user.id, notifications.userId))
-                .leftJoin(workspaces, eq(workspaces.id, notifications.workspaceId))
-                .where(and(digestFilter(window), isNotNull(notifications.userId)))
-            )
-            const broadcast = yield* unavailable(
-              db
-                .select({ notification: notifications, user, workspace: workspaces })
-                .from(notifications)
-                .innerJoin(workspaces, eq(workspaces.id, notifications.workspaceId))
-                .innerJoin(
-                  workspaceMembers,
-                  eq(workspaceMembers.workspaceId, notifications.workspaceId)
+            // a broadcast row reaches every member of its workspace. The
+            // joins are independent — run them together.
+            const [targeted, broadcast] = yield* Effect.all(
+              [
+                unavailable(
+                  db
+                    .select({
+                      notification: notifications,
+                      user,
+                      workspace: workspaces
+                    })
+                    .from(notifications)
+                    .innerJoin(user, eq(user.id, notifications.userId))
+                    .leftJoin(workspaces, eq(workspaces.id, notifications.workspaceId))
+                    .where(and(digestFilter(window), isNotNull(notifications.userId)))
+                ),
+                unavailable(
+                  db
+                    .select({
+                      notification: notifications,
+                      user,
+                      workspace: workspaces
+                    })
+                    .from(notifications)
+                    .innerJoin(workspaces, eq(workspaces.id, notifications.workspaceId))
+                    .innerJoin(
+                      workspaceMembers,
+                      eq(workspaceMembers.workspaceId, notifications.workspaceId)
+                    )
+                    .innerJoin(user, eq(user.id, workspaceMembers.userId))
+                    .where(and(digestFilter(window), isNull(notifications.userId)))
                 )
-                .innerJoin(user, eq(user.id, workspaceMembers.userId))
-                .where(and(digestFilter(window), isNull(notifications.userId)))
+              ],
+              { discard: false }
             )
-            const candidates: Array<DigestCandidate> = []
-            for (const row of [...targeted, ...broadcast]) {
-              candidates.push({
-                notification: toNotification(row.notification),
-                recipient: toRecipient(row.user),
-                workspace: toWorkspaceRef(row.workspace)
-              })
-            }
-            return candidates
+            return [...targeted, ...broadcast].map((row) => ({
+              notification: toNotification(row.notification),
+              recipient: toRecipient(row.user),
+              workspace: toWorkspaceRef(row.workspace)
+            }))
           })
       }
     })

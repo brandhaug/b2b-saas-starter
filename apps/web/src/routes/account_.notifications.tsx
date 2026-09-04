@@ -2,7 +2,9 @@ import { type NotificationKind } from '@b2b-saas-starter/capabilities/notificati
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { NotificationPreferencesPanel } from '@/components/notification-preferences-panel'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/page/page-header'
+import { Panel } from '@/components/page/panel'
+import { pageTitle } from '@/components/page/page-title'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { requireSession } from '@/lib/server/auth'
 import {
@@ -27,7 +29,7 @@ export const Route = createFileRoute('/account_/notifications')({
   loader: ({ context }) =>
     loadNotificationPreferences({ userId: context.session.user.id }),
   component: AccountNotificationsRoute,
-  head: () => ({ meta: [{ title: 'Notification preferences | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle('Notification preferences') }] })
 })
 
 function AccountNotificationsRoute() {
@@ -40,41 +42,36 @@ function AccountNotificationsRoute() {
   }
   const highlighted = preferences.find((row) => row.kind === highlightKind)
   return (
-    <WorkspaceShell
-      viewer={null}
-      systemRole={session.user.role}
-      title="Notification preferences"
-      description="Choose how each kind of notification reaches you by email."
-      workspaceSlug={null}
-    >
-      <div className="mx-auto grid max-w-2xl gap-6">
-        {highlighted === undefined ? null : (
-          <Alert>
-            <AlertDescription>
-              You followed the link from a &ldquo;{highlighted.label}&rdquo; email. Pick
-              &ldquo;Off&rdquo; below to stop those emails, or choose the daily digest.
-            </AlertDescription>
-          </Alert>
-        )}
-        <Card>
-          <CardHeader>
-            <CardTitle as="h2">Email notifications</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Signed in as {session.user.email}. Changes apply immediately.{' '}
-              <Link to="/account" className="underline">
-                Back to account
-              </Link>
-              .
-            </p>
-          </CardHeader>
-          <CardContent>
-            <NotificationPreferencesPanel
-              preferences={preferences}
-              highlightKind={highlightKind}
-            />
-          </CardContent>
-        </Card>
-      </div>
+    <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
+      <PageHeader
+        title="Notification preferences"
+        description="Choose how each kind of notification reaches you by email."
+      />
+      {highlighted === undefined ? null : (
+        <Alert>
+          <AlertDescription>
+            You followed the link from a &ldquo;{highlighted.label}&rdquo; email. Pick
+            &ldquo;Off&rdquo; below to stop those emails, or choose the daily digest.
+          </AlertDescription>
+        </Alert>
+      )}
+      <Panel
+        title="Email notifications"
+        footer={
+          <p className="text-sm text-muted-foreground">
+            Signed in as {session.user.email}. Changes apply immediately.{' '}
+            <Link to="/account" className="underline">
+              Back to account
+            </Link>
+            .
+          </p>
+        }
+      >
+        <NotificationPreferencesPanel
+          preferences={preferences}
+          highlightKind={highlightKind}
+        />
+      </Panel>
     </WorkspaceShell>
   )
 }

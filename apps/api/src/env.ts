@@ -4,6 +4,7 @@ import {
   type WorkspaceExportBucketBinding,
   type WorkspaceExportQueueBinding
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { type NotificationEmailQueueBinding } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import { type WorkersAIBinding } from '@b2b-saas-starter/ai'
 
@@ -23,6 +24,7 @@ export type ApiEnv = RateLimitBindings &
     // serve signed downloads from. Both absent when unconfigured.
     readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding
     readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding
+    readonly NOTIFICATION_EMAIL_QUEUE?: NotificationEmailQueueBinding
   }
 
 // Capability env: the D1 binding selects Live vs Seed, and the webhook queue

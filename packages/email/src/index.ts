@@ -8,7 +8,11 @@ export const EmailDeliveryMode = Schema.Literals(['cloudflare-email', 'log'])
 export type EmailDeliveryMode = typeof EmailDeliveryMode.Type
 
 export type EmailMessage = {
-  readonly from: string
+  /**
+   * Optional: the dispatcher fills its `defaultFrom` (CLOUDFLARE_EMAIL_FROM)
+   * in when absent, so callers never repeat that env var's job.
+   */
+  readonly from?: string | undefined
   readonly to: string
   readonly subject: string
   readonly element: ReactElement

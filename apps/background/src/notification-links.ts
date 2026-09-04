@@ -40,6 +40,7 @@ const WORKSPACE_PATH_BY_KIND = {
   'webhook.delivery_failed': '/webhooks',
   'billing.plan_changed': '/billing',
   'two_factor.changed': null,
+  'account.impersonated': null,
   announcement: ''
 } satisfies Readonly<Record<NotificationKind, string | null>>
 

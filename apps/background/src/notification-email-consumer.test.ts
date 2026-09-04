@@ -41,6 +41,8 @@ function stubFeed(
   return Layer.succeed(NotificationFeed)({
     list: Effect.die('unused'),
     unreadCount: Effect.die('unused'),
+    markRead: () => Effect.die('unused'),
+    notifyUser: () => Effect.die('unused'),
     create: () => Effect.die('unused'),
     loadForEmail: () => Effect.succeed(found),
     listDigestCandidates: () => Effect.die('unused')

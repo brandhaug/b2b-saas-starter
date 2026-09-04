@@ -9,7 +9,7 @@ Per-user, per-kind email channel for Notifications: `off | instant | digest`. Id
 - `NotificationPreference` — `{ kind, channel, isDefault }`. `isDefault` is true when no row exists and the kind's default applies.
 - `NotificationPreferences.list(userId)` — one entry per kind in `NOTIFICATION_KINDS`, defaults filled in. The UI renders this matrix without knowing the default policy.
 - `NotificationPreferences.resolve(userId, kind)` — the channel that applies. The feed calls this per recipient when it fans out.
-- `NotificationPreferences.set({ userId, kind, channel })` — upserts the row and records `notification_preference.changed` (`targetType: 'user'`, `actorUserId: userId`, metadata `{ kind, channel, defaultChannel }`). Choosing the kind's default still stores a row: the user said so.
+- `NotificationPreferences.set({ userId, kind, channel })` — upserts the row and records `notification_preference.changed` (`targetType: 'user'`, `actorUserId: userId`, metadata `{ kind, channel, defaultChannel }`) in the same D1 batch (`governance/audited-mutation.ts`, like every D1-writing audit-emitting capability). Choosing the kind's default still stores a row: the user said so.
 - Pure helpers in `notification-kinds.ts`: `defaultChannelFor(kind)` (security kinds → `instant`, else `digest`), `resolveChannel(kind, stored)`, `isSecurityNotificationKind`, and `NOTIFICATION_KIND_DESCRIPTIONS` (the human copy the UI and the email subjects share). `resolvePreferences(stored)` in this module builds the full matrix and is used by both adapters.
 
 ## Storage

@@ -47,7 +47,9 @@ export function NotificationPreferencesPanel({
   readonly setPreference?: SetNotificationPreference
 }) {
   // Optimistic view: the loader owns the truth after `router.invalidate()`,
-  // this only keeps the clicked radio checked while the call is in flight.
+  // this only keeps the clicked radio checked while the call is in flight —
+  // and on a failed save the override is dropped so the row falls back to
+  // loader truth instead of showing a channel the server refused.
   const [overrides, setOverrides] = useState<
     Readonly<Partial<Record<NotificationPreferenceRow['kind'], NotificationChannel>>>
   >({})
@@ -58,6 +60,16 @@ export function NotificationPreferencesPanel({
     }) => setPreference({ data: input }),
     { failureMessage: SAVE_FAILED }
   )
+
+  function select(row: NotificationPreferenceRow, channel: NotificationChannel) {
+    setOverrides((current) => ({ ...current, [row.kind]: channel }))
+    void (async () => {
+      const outcome = await action.runAsync({ kind: row.kind, channel })
+      if (!outcome.ok) {
+        setOverrides(({ [row.kind]: _failed, ...fallback }) => fallback)
+      }
+    })()
+  }
 
   return (
     <div className="grid gap-4">
@@ -96,10 +108,7 @@ export function NotificationPreferencesPanel({
                 name={`channel-${row.kind}`}
                 value={value}
                 disabled={action.pending}
-                onValueChange={(next) => {
-                  setOverrides((current) => ({ ...current, [row.kind]: next }))
-                  action.run({ kind: row.kind, channel: next })
-                }}
+                onValueChange={(next) => select(row, next)}
                 className="flex flex-wrap gap-3"
               >
                 {CHANNELS.map((channel) => (

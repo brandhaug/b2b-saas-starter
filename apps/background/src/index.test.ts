@@ -185,6 +185,8 @@ function stubFeed(
   return Layer.succeed(NotificationFeed)({
     list: Effect.die('unused in delivery tests'),
     unreadCount: Effect.die('unused in delivery tests'),
+    markRead: () => Effect.die('unused in delivery tests'),
+    notifyUser: () => Effect.die('unused in delivery tests'),
     create: (input) =>
       Effect.sync(() => {
         created.push(input)

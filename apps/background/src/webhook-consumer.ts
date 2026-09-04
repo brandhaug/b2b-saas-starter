@@ -25,7 +25,6 @@ import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import {
   currentTraceId,
   makeOtlpLayer,
-  parentSpanFromHeaders,
   TRACE_HEADER,
   WideEventLoggerLive,
   withTriggerScope
@@ -41,6 +40,13 @@ import {
   type Scope
 } from 'effect'
 import { FetchHttpClient, HttpBody, HttpClient } from 'effect/unstable/http'
+import {
+  queueDelivery,
+  queueParentSpan as sharedQueueParentSpan,
+  type DeliveryOutcome,
+  type QueueDelivery,
+  type QueueEnvelope
+} from './queue-consumer.ts'
 import { computeWebhookSignature, signatureHeaderValue } from './webhook-signing.ts'
 
 // Bindings plus optional env. The same shape `ApiEnv` describes for apps/api.
@@ -67,56 +73,18 @@ export type Env = Partial<ServerEnv> & {
 /** Wire shape of queue messages — the schema is shared with the producer. */
 export type WebhookMessage = typeof WebhookQueueMessage.Type
 
-/**
- * The one compiled codec for the queue boundary. `readQueueDelivery` is its
- * only caller: both consumers and the trace continuation read that single
- * decode rather than re-running it over the same untrusted body.
- */
 const decodeWebhookQueueMessage = Schema.decodeUnknownResult(WebhookQueueMessage)
 
 /**
- * Structural subset of a Cloudflare queue `Message`: the untrusted body plus
- * the attempt count and the message id. This is what the platform hands the
- * batch loop; the consumers' `read*Delivery` turn it into the decoded delivery
- * they work from. Shared by both queue consumers (webhooks, workspace
- * exports); the webhook consumer additionally uses `id` to anchor its delivery
- * row ids (see `deliveryIdFor`).
+ * The webhook queue's boundary decode: platform fields plus the message, or
+ * the terminal `malformed` outcome. One line because everything it used to
+ * hand-copy is the shared queue-consumer vocabulary.
  */
-export type QueueEnvelope = {
-  readonly id?: string | undefined
-  readonly body: unknown
-  readonly attempts: number
+export function readQueueDelivery(
+  envelope: QueueEnvelope
+): QueueDelivery<WebhookMessage> {
+  return queueDelivery(envelope, decodeWebhookQueueMessage(envelope.body))
 }
-
-/**
- * One queue message after the boundary decode, which runs exactly once per
- * delivery: the platform's own fields plus either the decoded message or the
- * named terminal outcome `malformed`.
- *
- * `malformed` is terminal by construction — redelivery can never fix a body's
- * shape, and there is no trusted `endpointId` to attach a delivery row to — so
- * both consumers record it on the wide event and ack. The trace continuation
- * reads the same decode, so an undecodable body simply starts its own trace.
- */
-export type WebhookQueueDelivery = {
-  readonly id?: string | undefined
-  readonly attempts: number
-} & (
-  | { readonly kind: 'message'; readonly message: WebhookMessage }
-  | { readonly kind: 'malformed' }
-)
-
-/** Decodes one queue envelope's untrusted body. The only decode per delivery. */
-export function readQueueDelivery(envelope: QueueEnvelope): WebhookQueueDelivery {
-  const decoded = decodeWebhookQueueMessage(envelope.body)
-  const platform = { id: envelope.id, attempts: envelope.attempts }
-  if (Result.isFailure(decoded)) {
-    return { ...platform, kind: 'malformed' }
-  }
-  return { ...platform, kind: 'message', message: decoded.success }
-}
-
-export type DeliveryOutcome = 'ack' | 'retry'
 
 /**
  * The delivery row id for one queue message. Derived deterministically from
@@ -126,7 +94,7 @@ export type DeliveryOutcome = 'ack' | 'retry'
  * random fallback only covers envelopes without an id (never produced by a
  * real queue), keeping the minting path testable in isolation.
  */
-function deliveryIdFor(delivery: WebhookQueueDelivery): Effect.Effect<string> {
+function deliveryIdFor(delivery: QueueDelivery<WebhookMessage>): Effect.Effect<string> {
   if (delivery.id !== undefined && delivery.id.length > 0) {
     return Effect.succeed(`whd_${delivery.id}`)
   }
@@ -193,7 +161,7 @@ function notifyDeliveryGaveUp(
   }).pipe(
     // The cause goes on the log record whole; the wide event keeps the flag.
     Effect.catchCause((cause) =>
-      Effect.logWarning('notification_create_failed', cause).pipe(
+      Effect.logError('notification_create_failed', cause).pipe(
         Effect.annotateLogs({ notificationCreate: 'failed' })
       )
     )
@@ -235,19 +203,6 @@ export function runInvocation<A, E>(
 }
 
 /**
- * The upstream trace to continue, if the producer stamped one on the message.
- * Reads the delivery the consumer already decoded; a malformed body carries no
- * trusted `traceparent`, so it simply starts its own trace.
- */
-function queueParentSpan(delivery: WebhookQueueDelivery) {
-  if (delivery.kind === 'message') {
-    return parentSpanFromHeaders({ traceparent: delivery.message.traceparent })
-  }
-  // No trusted `traceparent` on an undecodable body: no parent, own trace.
-  return parentSpanFromHeaders({})
-}
-
-/**
  * Delivers one webhook message: resolve the dispatch target, re-check the
  * SSRF guard, sign, POST, persist the attempt row, and decide ack/retry.
  * Capability and HTTP requirements stay open so tests inject stub
@@ -255,7 +210,7 @@ function queueParentSpan(delivery: WebhookQueueDelivery) {
  * the real layers and the wide-event scope (`deliverWebhook`).
  */
 export function processWebhookMessage(
-  delivery: WebhookQueueDelivery,
+  delivery: QueueDelivery<WebhookMessage>,
   traceId: string
 ): Effect.Effect<
   DeliveryOutcome,
@@ -382,7 +337,7 @@ function deliverWebhook(
     {
       service: 'background',
       event: 'webhook_delivery',
-      parent: queueParentSpan(delivery),
+      parent: sharedQueueParentSpan(delivery),
       spanKind: 'consumer',
       env,
       metadata: { attempts: delivery.attempts }
@@ -407,7 +362,7 @@ function deliverWebhook(
  * and the wide-event scope.
  */
 export function processDeadLetterMessage(
-  delivery: WebhookQueueDelivery
+  delivery: QueueDelivery<WebhookMessage>
 ): Effect.Effect<
   void,
   CapabilityUnavailable,
@@ -450,7 +405,7 @@ function recordDeadLetter(envelope: QueueEnvelope, env: Env): Effect.Effect<void
       service: 'background',
       event: 'webhook_dead_letter',
       env,
-      parent: queueParentSpan(delivery),
+      parent: sharedQueueParentSpan(delivery),
       spanKind: 'consumer',
       metadata: { attempts: delivery.attempts }
     },

@@ -96,6 +96,8 @@ describe('runNotificationDigest', () => {
     return Layer.succeed(NotificationFeed)({
       list: Effect.die('unused in digest tests'),
       unreadCount: Effect.die('unused in digest tests'),
+      markRead: () => Effect.die('unused in digest tests'),
+      notifyUser: () => Effect.die('unused in digest tests'),
       create: () => Effect.die('unused in digest tests'),
       loadForEmail: () => Effect.die('unused in digest tests'),
       listDigestCandidates: (window) =>

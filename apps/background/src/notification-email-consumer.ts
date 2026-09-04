@@ -14,15 +14,18 @@ import {
   type EmailSendError
 } from '@b2b-saas-starter/email'
 import { notificationEmailFor } from '@b2b-saas-starter/email/notification-emails'
-import { parentSpanFromHeaders, withTriggerScope } from '@b2b-saas-starter/logger'
-import { Effect, Layer, Result, Schema, type Scope } from 'effect'
+import { withTriggerScope } from '@b2b-saas-starter/logger'
+import { Effect, Layer, Schema, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
 import {
+  queueDelivery,
+  queueParentSpan,
   type DeliveryOutcome,
-  type Env,
-  type WebhookQueueEnvelope
-} from './webhook-consumer.ts'
+  type QueueDelivery,
+  type QueueEnvelope
+} from './queue-consumer.ts'
+import { type Env } from './webhook-consumer.ts'
 
 const ack: DeliveryOutcome = 'ack'
 
@@ -31,28 +34,11 @@ export type NotificationEmailMessage = typeof NotificationEmailQueueMessage.Type
 
 const decodeMessage = Schema.decodeUnknownResult(NotificationEmailQueueMessage)
 
-/**
- * One queue message after the boundary decode, on the same footing as
- * `WebhookQueueDelivery`: a malformed body is terminal (redelivery cannot fix
- * its shape) and is acked with the reason on the wide event.
- */
-export type NotificationEmailDelivery = {
-  readonly id?: string | undefined
-  readonly attempts: number
-} & (
-  | { readonly kind: 'message'; readonly message: NotificationEmailMessage }
-  | { readonly kind: 'malformed' }
-)
-
+/** The boundary decode: platform fields plus the message, or terminal `malformed`. */
 export function readNotificationEmailDelivery(
-  envelope: WebhookQueueEnvelope
-): NotificationEmailDelivery {
-  const decoded = decodeMessage(envelope.body)
-  const platform = { id: envelope.id, attempts: envelope.attempts }
-  if (Result.isFailure(decoded)) {
-    return { ...platform, kind: 'malformed' }
-  }
-  return { ...platform, kind: 'message', message: decoded.success }
+  envelope: QueueEnvelope
+): QueueDelivery<NotificationEmailMessage> {
+  return queueDelivery(envelope, decodeMessage(envelope.body))
 }
 
 /**
@@ -66,7 +52,7 @@ export function readNotificationEmailDelivery(
  * wraps this with the real layers and the wide-event scope.
  */
 export function processNotificationEmailMessage(
-  delivery: NotificationEmailDelivery,
+  delivery: QueueDelivery<NotificationEmailMessage>,
   appUrl: string
 ): Effect.Effect<
   DeliveryOutcome,
@@ -104,13 +90,13 @@ export function processNotificationEmailMessage(
       return ack
     }
     const dispatcher = yield* EmailDispatcher
+    const kindLabel = describeNotificationKind(kind).label
     const workspaceName = context.workspace?.name ?? null
     yield* dispatcher.send({
-      // The dispatcher's `defaultFrom` (CLOUDFLARE_EMAIL_FROM) fills this in.
-      from: '',
       to: context.recipient.email,
-      subject: `[B2B SaaS Starter] ${describeNotificationKind(kind).label}: ${context.notification.title}`,
+      subject: `[B2B SaaS Starter] ${kindLabel}: ${context.notification.title}`,
       element: notificationEmailFor(kind, {
+        kindLabel,
         title: context.notification.title,
         message: context.notification.message,
         workspaceName,
@@ -123,20 +109,13 @@ export function processNotificationEmailMessage(
   })
 }
 
-function queueParentSpan(delivery: NotificationEmailDelivery) {
-  if (delivery.kind === 'message') {
-    return parentSpanFromHeaders({ traceparent: delivery.message.traceparent })
-  }
-  return parentSpanFromHeaders({})
-}
-
 /**
  * Queue consumer entry: the boundary decode, the real capability and email
  * layers, and a `notification_email` wide event per message. A failure is
  * logged on the event and retried by the queue.
  */
 export function sendNotificationEmail(
-  envelope: WebhookQueueEnvelope,
+  envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
   const delivery = readNotificationEmailDelivery(envelope)

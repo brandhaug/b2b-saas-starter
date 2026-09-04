@@ -20,7 +20,7 @@ import {
   type DigestItem
 } from '@b2b-saas-starter/email/notification-emails'
 import { withTriggerScope } from '@b2b-saas-starter/logger'
-import { DateTime, Duration, Effect, Layer, Result, type Scope } from 'effect'
+import { DateTime, Duration, Effect, Layer, Result, Schedule, type Scope } from 'effect'
 
 import { appUrlFrom, preferencesUrl } from './notification-links.ts'
 import { type Env } from './webhook-consumer.ts'
@@ -38,6 +38,15 @@ export type ChannelResolver = (
   userId: string,
   kind: NotificationKind
 ) => NotificationChannel
+
+/**
+ * Formats a Notification's ISO timestamp for the digest email: the template
+ * reads no clock, so the sender turns the ISO string it already holds into a
+ * display line. UTC by construction — `DateTime.formatIso` writes UTC.
+ */
+export function formatDigestTimestamp(createdAt: string): string {
+  return `${createdAt.slice(0, 16).replace('T', ' ')} UTC`
+}
 
 /**
  * Groups the window's candidate pairs into one digest per recipient, keeping
@@ -66,11 +75,12 @@ export function buildDigests(
       byRecipient.set(recipient.userId, entry)
     }
     entry.items.push({
+      id: candidate.notification.id,
       kindLabel: describeNotificationKind(kind).label,
       title: candidate.notification.title,
       message: candidate.notification.message,
       workspaceName: candidate.workspace?.name ?? null,
-      createdAt: candidate.notification.createdAt
+      createdAt: formatDigestTimestamp(candidate.notification.createdAt)
     })
   }
   return [...byRecipient.values()]
@@ -118,17 +128,21 @@ export function runNotificationDigest(
     const recipientIds = [
       ...new Set(candidates.map((candidate) => candidate.recipient.userId))
     ]
-    const channels = new Map<string, NotificationChannel>()
+    const channels = new Map<
+      string,
+      ReadonlyMap<NotificationKind, NotificationChannel>
+    >()
     for (const userId of recipientIds) {
       const resolved = yield* preferences.list(userId)
-      for (const entry of resolved) {
-        channels.set(`${userId} ${entry.kind}`, entry.channel)
-      }
+      channels.set(
+        userId,
+        new Map(resolved.map((entry) => [entry.kind, entry.channel]))
+      )
     }
     const digests = buildDigests(candidates, (userId, kind) => {
       // `list` returns every kind, so a miss can only mean the store dropped
       // the recipient between the two reads; treat it as "not in the digest".
-      return channels.get(`${userId} ${kind}`) ?? 'off'
+      return channels.get(userId)?.get(kind) ?? 'off'
     })
 
     let sent = 0
@@ -136,7 +150,6 @@ export function runNotificationDigest(
     for (const digest of digests) {
       const outcome = yield* Effect.result(
         dispatcher.send({
-          from: '',
           to: digest.recipient.email,
           subject: `[B2B SaaS Starter] Your daily digest: ${String(digest.items.length)} unread`,
           element: NotificationDigestEmail({
@@ -151,7 +164,7 @@ export function runNotificationDigest(
         sent += 1
       } else {
         failed += 1
-        yield* Effect.logWarning('notification_digest.send_failed', {
+        yield* Effect.logError('notification_digest.send_failed', {
           to: digest.recipient.email,
           reason: outcome.failure.message
         })
@@ -173,8 +186,10 @@ export function runNotificationDigest(
 
 /**
  * The `scheduled` entry: real layers plus a `notification_digest` wide event.
- * The cron fires once a day (ADR 0055), so a failed run surfaces on the event
- * and the platform's own retry of the scheduled invocation is left alone.
+ * Sends are counted, never fatal, so a run that fails sent nothing — a bounded
+ * retry of the whole run is safe (the reads are its only failure channel).
+ * Two jittered retries ride out a transient store blip; after that the run
+ * rejects and the failed cron invocation is recorded by the platform.
  */
 export function sendDailyDigest(
   env: Env,
@@ -192,6 +207,11 @@ export function sendDailyDigest(
         Layer.merge(
           selectCapabilitiesLayer(starterEnv(env)),
           selectEmailDispatcherLayer(env)
+        )
+      ),
+      Effect.retry(
+        Schedule.upTo({ times: 2 })(
+          Schedule.jittered(Schedule.exponential('5 seconds'))
         )
       )
     )

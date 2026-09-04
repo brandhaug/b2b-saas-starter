@@ -10,6 +10,7 @@ import {
 } from './notification-emails.ts'
 
 const props = {
+  kindLabel: 'Webhook delivery failed',
   title: 'Webhook delivery gave up',
   message: 'https://example.com/hook rejected api_token.created after six attempts.',
   workspaceName: 'Starter Lab',
@@ -41,6 +42,8 @@ describe('notification email templates', () => {
       Effect.runPromise(
         Effect.gen(function* () {
           const { html, text } = yield* rendered(notificationEmailFor(kind, props))
+          // The heading is the kind's shared label, not bespoke template copy.
+          expect(html).toContain(`>${props.kindLabel}</`)
           expect(html).toContain('Webhook delivery gave up')
           expect(html).toContain('Starter Lab')
           expect(html).toContain(props.openUrl)
