@@ -99,9 +99,10 @@ export function makeAuthEmailSender(): AuthEmailSender {
 }
 
 /**
- * The two-factor security notification (`two-factor-notification.ts` drives
- * it): best-effort by contract, so a dispatcher rejection never fails the
- * enable/disable exchange it observes — the caller swallows it.
+ * The two-factor wording of the credential-change notification (driven by
+ * `credential-change-notification.ts`): best-effort by contract, so a
+ * dispatcher rejection never fails the enable/disable exchange it observes —
+ * the caller swallows it.
  */
 export function sendTwoFactorChangedEmail(input: {
   readonly email: string
@@ -115,8 +116,8 @@ export function sendTwoFactorChangedEmail(input: {
 }
 
 /**
- * The passkey security notification (`passkey-notification.ts` drives it),
- * on the same best-effort contract as the two-factor one.
+ * The passkey wording of the credential-change notification, on the same
+ * best-effort contract as the two-factor one.
  */
 export function sendPasskeyChangedEmail(input: {
   readonly email: string

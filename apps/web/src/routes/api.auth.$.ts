@@ -15,7 +15,8 @@ import {
 import { runCapabilities } from '@/lib/capabilities'
 import {
   needsPreHandlerActor,
-  type AuthExchange
+  type AuthExchange,
+  type CredentialChange
 } from '@/lib/server/auth-audit/exchanges'
 import { recordAuthAudit } from '@/lib/server/auth-audit/record'
 import { type AuthAuditContext } from '@/lib/server/auth-audit/shared'
@@ -28,24 +29,24 @@ import {
   sendTwoFactorChangedEmail,
   sendPasskeyChangedEmail
 } from '@/lib/server/auth-emails'
-import { notifyTwoFactorChangedEffect } from '@/lib/server/two-factor-notification'
-import { notifyPasskeyChangedEffect } from '@/lib/server/passkey-notification'
+import { notifyCredentialChangedEffect } from '@/lib/server/credential-change-notification'
 import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
 
-/** The notification sender, bound to the provider-light email dispatcher. */
-function sendNotification(input: {
+/**
+ * The credential-change sender, bound to the provider-light email dispatcher:
+ * the change the row names picks the email's wording.
+ */
+function sendCredentialChangeEmail(input: {
   readonly email: string
-  readonly enabled: boolean
+  readonly change: CredentialChange
 }) {
-  return sendTwoFactorChangedEmail({ email: input.email, enabled: input.enabled })
-}
-
-/** The passkey notification sender, on the same dispatcher. */
-function sendPasskeyNotification(input: {
-  readonly email: string
-  readonly added: boolean
-}) {
-  return sendPasskeyChangedEmail({ email: input.email, added: input.added })
+  if (input.change.kind === 'two-factor') {
+    return sendTwoFactorChangedEmail({
+      email: input.email,
+      enabled: input.change.enabled
+    })
+  }
+  return sendPasskeyChangedEmail({ email: input.email, added: input.change.added })
 }
 
 /**
@@ -225,23 +226,15 @@ async function handleAuth(request: Request): Promise<Response> {
         if (authAudit !== 'skipped') {
           yield* Effect.annotateLogsScoped({ authAudit })
         }
-        // Security notification for a two-factor state change (best-effort,
-        // same contract as the audit above): the account holder is emailed on
-        // every successful enable/disable, so a hijacked session cannot
-        // silently take over or strip the second factor.
-        yield* notifyTwoFactorChangedEffect(
+        // Security notification for a credential change (best-effort, same
+        // contract as the audit above): the account holder is emailed on
+        // every successful second-factor or passkey change, so a hijacked
+        // session cannot silently take over the account or enroll or strip a
+        // sign-in credential.
+        yield* notifyCredentialChangedEffect(
           exchange,
           response,
-          sendNotification,
-          context
-        )
-        // Same contract for passkey add/remove (ADR 0056): the account holder
-        // is emailed on every successful credential change, so a hijacked
-        // session cannot silently enroll or strip a passkey.
-        yield* notifyPasskeyChangedEffect(
-          exchange,
-          response,
-          sendPasskeyNotification,
+          sendCredentialChangeEmail,
           context
         )
         yield* Effect.annotateLogsScoped({ outcome: 'ok', statusCode: response.status })

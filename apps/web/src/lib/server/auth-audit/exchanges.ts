@@ -49,16 +49,21 @@ export type ExchangeRow = {
   readonly signInMethod?: string
   /**
    * A success on this row also emails the account holder — a second factor
-   * or a sign-in credential must never change silently. The value is the
-   * state the change leaves behind (`two-factor-notification.ts` /
-   * `passkey-notification.ts`).
+   * or a sign-in credential must never change silently. The value names the
+   * change itself, so the one credential-change notifier
+   * (`credential-change-notification.ts`) can word the email without a
+   * per-credential decode helper.
    */
-  readonly notifyOnSuccess?:
-    | 'two-factor-enabled'
-    | 'two-factor-disabled'
-    | 'passkey-added'
-    | 'passkey-removed'
+  readonly notifyOnSuccess?: CredentialChange
 }
+
+/**
+ * The credential change a row's success performs, as the security notifier
+ * reads it: which credential moved, and the state the success leaves behind.
+ */
+export type CredentialChange =
+  | { readonly kind: 'two-factor'; readonly enabled: boolean }
+  | { readonly kind: 'passkey'; readonly added: boolean }
 
 export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   // Account lifecycle.
@@ -154,7 +159,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     failure: 'auth.two_factor_enabled_failed',
     actor: 'session',
     target: 'user',
-    notifyOnSuccess: 'two-factor-enabled'
+    notifyOnSuccess: { kind: 'two-factor', enabled: true }
   },
   {
     method: 'POST',
@@ -163,7 +168,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     failure: 'auth.two_factor_disable_failed',
     actor: 'session',
     target: 'user',
-    notifyOnSuccess: 'two-factor-disabled'
+    notifyOnSuccess: { kind: 'two-factor', enabled: false }
   },
   {
     method: 'POST',
@@ -186,7 +191,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     failure: 'auth.passkey_added_failed',
     actor: 'session',
     target: 'user',
-    notifyOnSuccess: 'passkey-added'
+    notifyOnSuccess: { kind: 'passkey', added: true }
   },
   {
     method: 'POST',
@@ -195,7 +200,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     failure: 'auth.passkey_removed_failed',
     actor: 'session',
     target: 'user',
-    notifyOnSuccess: 'passkey-removed'
+    notifyOnSuccess: { kind: 'passkey', added: false }
   },
   {
     method: 'POST',
@@ -341,32 +346,4 @@ export function exchangeRow(exchange: AuthExchange): ExchangeRow | null {
  */
 export function needsPreHandlerActor(exchange: AuthExchange): boolean {
   return exchangeRow(exchange)?.actor === 'session'
-}
-
-/**
- * The two-factor change an exchange performs, or `null` when it changes no
- * second factor. `enabled` is the enrollment state the success leaves behind —
- * the security notification names the direction.
- */
-export function twoFactorChangeExchange(
-  exchange: AuthExchange
-): { readonly enabled: boolean } | null {
-  const notify = exchangeRow(exchange)?.notifyOnSuccess
-  return notify === 'two-factor-enabled' || notify === 'two-factor-disabled'
-    ? { enabled: notify === 'two-factor-enabled' }
-    : null
-}
-
-/**
- * The passkey change an exchange performs, or `null` when it changes no
- * passkey. `added` is the state the success leaves behind — the security
- * notification names the direction.
- */
-export function passkeyChangeExchange(
-  exchange: AuthExchange
-): { readonly added: boolean } | null {
-  const notify = exchangeRow(exchange)?.notifyOnSuccess
-  return notify === 'passkey-added' || notify === 'passkey-removed'
-    ? { added: notify === 'passkey-added' }
-    : null
 }

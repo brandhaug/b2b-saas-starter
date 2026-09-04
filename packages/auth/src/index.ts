@@ -80,7 +80,7 @@ export class AuthConfig extends Context.Service<AuthConfig, AuthConfigInterface>
  * the hostname in production. The rpID must equal the serving host or a
  * registrable suffix of it, which the URL's hostname is by construction.
  */
-export function passkeyRpID(baseURL: string): string {
+function passkeyRpID(baseURL: string): string {
   return new URL(baseURL).hostname
 }
 
@@ -91,7 +91,7 @@ export function passkeyRpID(baseURL: string): string {
  * that serves the app on additional origins widens this; the plugin accepts
  * an array.
  */
-export function passkeyOrigin(baseURL: string): string {
+function passkeyOrigin(baseURL: string): string {
   return new URL(baseURL).origin
 }
 

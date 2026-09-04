@@ -178,9 +178,7 @@ export type PasskeyRecord = {
   readonly id: string
   readonly name?: string | null | undefined
   readonly createdAt: Date
-  readonly deviceType: string
   readonly backedUp: boolean
-  readonly aaguid?: string | null | undefined
 }
 
 export type ListPasskeys = AuthPort<void, ReadonlyArray<PasskeyRecord>>

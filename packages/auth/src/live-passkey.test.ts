@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm'
 import { type Service } from 'effectful-better-auth'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './index.ts'
+import { decodeUriSecret } from './test-totp.ts'
 
 /* oxlint-disable effect/noGlobals, effect/noAsyncFunction -- these tests run a
    mocked WebAuthn ceremony over real WebCrypto: the whole point is that ES256
@@ -609,24 +610,3 @@ describe('passkey plugin', () => {
       })
     ))
 })
-
-/** Base32 decode, shared with the two-factor suite's TOTP helper. */
-function decodeUriSecret(encoded: string): string {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
-  let buffer = 0
-  let bits = 0
-  const bytes: Array<number> = []
-  for (const char of encoded) {
-    const value = alphabet.indexOf(char)
-    if (value === -1) {
-      throw new Error(`bad base32 char: ${char}`)
-    }
-    buffer = (buffer << 5) | value
-    bits += 5
-    if (bits >= 8) {
-      bits -= 8
-      bytes.push((buffer >> bits) & 255)
-    }
-  }
-  return new TextDecoder().decode(Uint8Array.from(bytes))
-}

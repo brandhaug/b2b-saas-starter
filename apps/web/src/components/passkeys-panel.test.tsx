@@ -20,7 +20,6 @@ type PasskeyRowInput = {
   readonly name?: string | null | undefined
   readonly createdAt?: Date
   readonly backedUp?: boolean
-  readonly deviceType?: string
 }
 
 function passkey(overrides: PasskeyRowInput & { id: string }): PasskeyRecord {
@@ -28,9 +27,7 @@ function passkey(overrides: PasskeyRowInput & { id: string }): PasskeyRecord {
     id: overrides.id,
     name: overrides.name ?? null,
     createdAt: overrides.createdAt ?? new Date('2026-08-01T10:00:00Z'),
-    deviceType: overrides.deviceType ?? 'multiDevice',
-    backedUp: overrides.backedUp ?? true,
-    aaguid: null
+    backedUp: overrides.backedUp ?? true
   }
 }
 

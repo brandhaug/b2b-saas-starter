@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { FingerprintIcon } from 'lucide-react'
 import { useState } from 'react'
 import {
   addPasskeyWithAuthClient,
@@ -25,8 +24,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import { useServerAction } from '@/hooks/use-server-action'
-import { authFailure } from '@/lib/auth-result'
+import { unwrapAuthResult } from '@/lib/auth-result'
 import { useHydrated } from '@/lib/client-only-value'
 import { formatUtc } from '@/lib/format-date'
 
@@ -75,8 +75,10 @@ function toViewModels(passkeys: ReadonlyArray<PasskeyRecord>): Array<PasskeyRowV
  * Passkey management for the signed-in user: register (with a user-chosen
  * name), rename, and remove. Registering runs a WebAuthn ceremony the browser
  * mediates — the panel's own state covers only the label and the list around
- * it. Like `SessionsPanel`, the list is this panel's own query (not a
- * loader's), so actions refetch it instead of invalidating the route.
+ * it. Body of the route's `Panel` (which owns the title), with the same shape
+ * as `SessionsPanel`: the list is this panel's own query (not a loader's), so
+ * actions refetch it instead of invalidating the route, and every failure
+ * reads through `ActionFeedback`.
  */
 export function PasskeysPanel({
   listPasskeys = listPasskeysWithAuthClient,
@@ -110,14 +112,12 @@ export function PasskeysPanel({
   })
   const loadError = queryError?.message ?? null
   // The passkey list is this panel's own query, so the action refetches it
-  // rather than invalidating the route (same contract as SessionsPanel).
+  // rather than invalidating the route (same contract as SessionsPanel). The
+  // Better Auth call unwraps through the shared `unwrapAuthResult`, like every
+  // other panel.
   const remove = useServerAction(
-    async (input: { readonly id: string }) => {
-      const result = await deletePasskey(input)
-      if (result.error) {
-        return authFailure(result.error.message ?? ACTION_FAILED)
-      }
-    },
+    (input: { readonly id: string }) =>
+      unwrapAuthResult(() => deletePasskey(input), ACTION_FAILED),
     {
       failureMessage: ACTION_FAILED,
       invalidate: false,
@@ -128,31 +128,16 @@ export function PasskeysPanel({
   )
 
   return (
-    <section className="grid gap-4" aria-label="Passkeys">
-      <header className="flex items-center gap-2">
-        <FingerprintIcon className="size-4 text-muted-foreground" />
-        <h3 className="text-sm font-medium">Passkeys</h3>
-      </header>
-
-      {loadError ? (
-        <p role="alert" className="text-xs text-destructive">
-          {loadError}
-        </p>
-      ) : null}
-      {remove.error === null ? null : (
-        <p role="alert" className="text-xs text-destructive">
-          {remove.error}
-        </p>
-      )}
+    <>
+      <ActionFeedback error={loadError} />
+      <ActionFeedback error={remove.error} />
 
       {hydrated && isPending ? (
         <ul className="grid gap-2" aria-busy="true">
-          {[0].map((index) => (
-            <li key={index} className="rounded-sm border border-border px-3 py-2">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="mt-1 h-3 w-56" />
-            </li>
-          ))}
+          <li className="rounded-sm border border-border px-3 py-2">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="mt-1 h-3 w-56" />
+          </li>
         </ul>
       ) : null}
 
@@ -221,7 +206,7 @@ export function PasskeysPanel({
           void refetch()
         }}
       />
-    </section>
+    </>
   )
 }
 
@@ -240,12 +225,12 @@ function AddPasskeyForm({
 }) {
   const [name, setName] = useState('')
   const add = useServerAction(
-    async () => {
+    () => {
       const trimmed = name.trim()
-      const result = await addPasskey(trimmed.length > 0 ? { name: trimmed } : {})
-      if (result.error) {
-        return authFailure(result.error.message ?? ADD_FAILED)
-      }
+      return unwrapAuthResult(
+        () => addPasskey(trimmed.length > 0 ? { name: trimmed } : {}),
+        ADD_FAILED
+      )
     },
     {
       failureMessage: ADD_FAILED,
@@ -282,17 +267,8 @@ function AddPasskeyForm({
         Your browser will ask you to create the credential with a fingerprint, face,
         PIN, or security key.
       </p>
-      <SubmitError message={add.error} />
+      <ActionFeedback error={add.error} />
     </form>
-  )
-}
-
-/** A failed action's message, in the panel's error voice. */
-function SubmitError({ message }: { readonly message: string | null }) {
-  return message === null ? null : (
-    <p role="alert" className="text-xs text-destructive">
-      {message}
-    </p>
   )
 }
 
@@ -314,12 +290,11 @@ function RenamePasskey({
   const [armed, setArmed] = useState(false)
   const [name, setName] = useState(row.label)
   const rename = useServerAction(
-    async () => {
-      const result = await updatePasskey({ id: row.id, name: name.trim() })
-      if (result.error) {
-        return authFailure(result.error.message ?? ACTION_FAILED)
-      }
-    },
+    () =>
+      unwrapAuthResult(
+        () => updatePasskey({ id: row.id, name: name.trim() }),
+        ACTION_FAILED
+      ),
     {
       failureMessage: ACTION_FAILED,
       invalidate: false,
@@ -376,7 +351,7 @@ function RenamePasskey({
       >
         Cancel
       </Button>
-      <SubmitError message={rename.error} />
+      <ActionFeedback error={rename.error} />
     </form>
   )
 }
