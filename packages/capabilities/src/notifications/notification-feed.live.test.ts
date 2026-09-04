@@ -204,4 +204,88 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
       )
     )
   })
+
+  // The paging insert-stability case (ADR 0057): a brand-new newest row lands
+  // between two page fetches, and the resumed page's keyset window stays
+  // frozen exactly where the first page ended. The Seed half of this
+  // guarantee runs in the developer-platform and audit contracts; the
+  // notification feed is read-only, so its Live half owns it here.
+  it.effect('an insert between page fetches does not shift the unseen window', () => {
+    const suffix = `${runPrefix}paging`
+    const pageIdA = `not_live_page_a_${suffix}`
+    const pageIdB = `not_live_page_b_${suffix}`
+    const insertedId = `not_live_page_inserted_${suffix}`
+    function listPage(input?: {
+      readonly limit?: number
+      readonly cursor?: string | undefined
+    }) {
+      return inWorkspace(
+        'live-lab',
+        Effect.flatMap(NotificationFeed, (feed) => feed.listPage(input))
+      )
+    }
+
+    return Effect.gen(function* () {
+      const db = yield* Database
+      yield* db
+        .insert(notifications)
+        .values([
+          {
+            id: pageIdA,
+            workspaceId: 'wrk_live',
+            title: 'Paging one',
+            message: 'older',
+            readAt: null,
+            createdAt: '2026-07-01T09:00:00.000Z'
+          },
+          {
+            id: pageIdB,
+            workspaceId: 'wrk_live',
+            title: 'Paging two',
+            message: 'newer',
+            readAt: null,
+            createdAt: '2026-07-02T09:00:00.000Z'
+          }
+        ])
+        .onConflictDoNothing()
+
+      const first = yield* listPage({ limit: 1 })
+      expect(first.items.map((notification) => notification.id)).toEqual([pageIdB])
+      expect(first.nextCursor).not.toBe(null)
+
+      // A newer row lands between the two fetches — outside the frozen
+      // keyset window of the resumed page.
+      yield* db.insert(notifications).values({
+        id: insertedId,
+        workspaceId: 'wrk_live',
+        title: 'Inserted between pages',
+        message: 'newest',
+        readAt: null,
+        createdAt: '2026-07-03T09:00:00.000Z'
+      })
+
+      const second = yield* listPage({
+        limit: 10,
+        cursor: first.nextCursor ?? undefined
+      })
+      expect(second.items.map((notification) => notification.id)).toEqual([pageIdA])
+      expect(second.nextCursor).toBe(null)
+
+      // A fresh walk serves the inserted row first, then the untouched
+      // original order — nothing the first page emitted moved.
+      const fresh = yield* listPage()
+      const freshOriginals: Array<string> = []
+      for (const notification of fresh.items) {
+        if (notification.id === pageIdA || notification.id === pageIdB) {
+          freshOriginals.push(notification.id)
+        }
+      }
+      expect(freshOriginals).toEqual([pageIdB, pageIdA])
+      expect(fresh.items[0]?.id).toBe(insertedId)
+
+      yield* db
+        .delete(notifications)
+        .where(inArray(notifications.id, [pageIdA, pageIdB, insertedId]))
+    })
+  })
 })

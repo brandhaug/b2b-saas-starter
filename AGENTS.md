@@ -16,6 +16,7 @@ See [CONTEXT.md](./CONTEXT.md) for canonical domain language, [ARCHITECTURE.md](
 | Authentication    | [packages/auth/AGENTS.md](packages/auth/AGENTS.md)                   |
 | Authorization     | [packages/authz/AGENTS.md](packages/authz/AGENTS.md)                 |
 | Observability     | [packages/logger/AGENTS.md](packages/logger/AGENTS.md)               |
+| Typed SDK         | [packages/sdk/AGENTS.md](packages/sdk/AGENTS.md)                     |
 | Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md) |
 
 Capabilities are grouped into bounded-context folders under `packages/capabilities/src/`: `developer-platform/`, `governance/`, `notifications/`. Each capability has a leaf intent node beside its source file — see the package node for the map and the "Where to put a new capability" rules.

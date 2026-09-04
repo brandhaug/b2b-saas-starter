@@ -144,6 +144,7 @@ function stubEndpoints(
   let terminalSeq = 0
   return Layer.succeed(WebhookEndpoints)({
     list: Effect.die('unused in delivery tests'),
+    listPage: () => Effect.die('unused in delivery tests'),
     create: () => Effect.die('unused in delivery tests'),
     disable: () => Effect.die('unused in delivery tests'),
     rotateSecret: () => Effect.die('unused in delivery tests'),

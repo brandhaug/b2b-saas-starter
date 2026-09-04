@@ -3,6 +3,7 @@ import { DateTime, Effect, Layer } from 'effect'
 import { assertWithinPlanLimit } from '../billing/plan-catalog.ts'
 import { AuthorizationDenied } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { seedKeysetPage } from '../internal/keyset-cursor.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { seedWorkspaceRecord } from '../seed-fixture.ts'
@@ -76,6 +77,16 @@ export function SeedApiTokenRegistry(
               return 0
             })
         }),
+        listPage: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            return seedKeysetPage(
+              activeIn(ctx.workspace.id).map((entry) => entry.token),
+              'desc',
+              (token) => ({ key: token.createdAt, id: token.id }),
+              input
+            )
+          }),
         create: Effect.fnUntraced(function* (input) {
           const ctx = yield* WorkspaceContext
           // Same entitlement gate as Live, over the same live count semantics.

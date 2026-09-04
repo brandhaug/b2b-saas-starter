@@ -60,3 +60,7 @@ Membership writes and their audit rows can diverge. D1 rejects an explicit `BEGI
 - Don't import `@b2b-saas-starter/auth` to reach the plugin. `auth` and `capabilities` are siblings; the binding exists so neither depends on the other.
 - Don't resolve workspaces by `id` from outside the package. Routes select a workspace by slug through `WorkspaceContext`; the internal id is an implementation detail of the joins.
 - Don't widen `WorkspaceRole` or `SystemRole` ad-hoc. A new role requires a migration on `workspaceMembers.role` / `user.role` plus a coordinated update to Better Auth's `admin()` plugin config.
+
+## Paging (ADR 0057)
+
+`listMembersPage` serves the REST/MCP list surface: forward on user `id ASC` — the member wire shape carries no timestamp, so the id is the one stable order a page can resume — through the shared `internal/keyset-cursor.ts` recipe, `limit` clamped into `[1, 200]`. `listMembers` stays the app's whole-roster read.

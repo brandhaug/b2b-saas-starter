@@ -125,6 +125,13 @@ export const seedWebhookEndpoints: ReadonlyArray<WebhookEndpoint> = [
     enabled: true,
     events: ['api_token.created'],
     successRate: 98
+  },
+  {
+    id: 'wh_billing',
+    url: 'https://billing.example.com/hooks/starter',
+    enabled: false,
+    events: ['webhook_endpoint.created'],
+    successRate: 100
   }
 ]
 
@@ -238,6 +245,34 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     title: 'Webhook endpoint created',
     message: 'Outbound webhook deliveries will start on the next event.',
     createdAt: '2026-05-16T06:00:00.000Z',
+    read: true
+  },
+  {
+    id: 'not_token',
+    title: 'API token created',
+    message: 'MCP local client can now call the workspace API.',
+    createdAt: '2026-05-14T08:20:00.000Z',
+    read: true
+  },
+  {
+    id: 'not_billing',
+    title: 'Plan changed to Team',
+    message: 'The workspace now serves the Team plan limits.',
+    createdAt: '2026-05-13T10:05:00.000Z',
+    read: true
+  },
+  {
+    id: 'not_rotation',
+    title: 'Signing secret rotated',
+    message: 'Rotate the verifier before the grace window closes.',
+    createdAt: '2026-05-12T09:30:00.000Z',
+    read: false
+  },
+  {
+    id: 'not_invite',
+    title: 'Invitation accepted',
+    message: 'Product Engineer joined Starter Lab as a member.',
+    createdAt: '2026-05-11T14:45:00.000Z',
     read: true
   }
 ]

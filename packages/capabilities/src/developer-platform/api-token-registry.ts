@@ -7,6 +7,7 @@ import {
   type PlanLimitExceeded
 } from '../errors.ts'
 import { hashSha256 } from '../internal/crypto.ts'
+import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 
 /**
@@ -81,6 +82,15 @@ export type ApiTokenRegistryInterface = {
     CapabilityUnavailable,
     WorkspaceContext
   >
+
+  /**
+   * The paged read the REST and MCP list surfaces serve (ADR 0057):
+   * newest-first on `(createdAt DESC, id DESC)`. `list` stays for the
+   * settings page's whole-collection read.
+   */
+  readonly listPage: (
+    input?: ListPageInput
+  ) => Effect.Effect<Page<ApiToken>, CapabilityUnavailable, WorkspaceContext>
 
   readonly create: (
     input: CreateApiTokenInput

@@ -1,7 +1,8 @@
 import { Effect } from 'effect'
-import { type ContractExpect } from './contract-expect.ts'
+import { type ContractExpectMatchers } from './contract-expect.ts'
 import { type CapabilityUnavailable, type MembershipChangeRejected } from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
+import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 import { WorkspaceMembership } from './workspace-membership.ts'
 
@@ -43,10 +44,13 @@ export type MembershipContractCase = {
  * the matcher surface is usually asserting something only one adapter can
  * promise.
  */
+export type MembershipContractExpect = <A>(
+  actual: A
+) => Pick<ContractExpectMatchers<A>, 'toBe' | 'toEqual'>
 
 export function workspaceMembershipContractCases(
   ids: MembershipContractIds,
-  expect: ContractExpect
+  expect: MembershipContractExpect
 ): ReadonlyArray<MembershipContractCase> {
   return [
     {
@@ -125,6 +129,26 @@ export function workspaceMembershipContractCases(
 
         expect(after.length).toBe(before.length)
         expect(after.some((each) => each.id === ids.member)).toBe(true)
+      })
+    },
+    {
+      // Read-only over the roster, so it stays order-independent however the
+      // harness reuses the fixture across cases.
+      name: 'member pages walk the roster forward on id with no duplicates',
+      assert: Effect.gen(function* () {
+        const membership = yield* WorkspaceMembership
+        const whole = (yield* membership.listMembers).map((member) => member.id)
+        const walk = yield* walkKeysetPages(
+          (input) => membership.listMembersPage(input),
+          { limit: 1 }
+        )
+        // Forward on `id ASC` — no timestamp on the wire shape — and every
+        // member of the roster exactly once, matching the whole-collection
+        // read the settings page renders.
+        const walked = walk.items.map((member) => member.id)
+        expect(walk.exhausted).toBe(true)
+        expect(walked).toEqual(walked.toSorted())
+        expect(walked.toSorted()).toEqual(whole.toSorted())
       })
     }
   ]

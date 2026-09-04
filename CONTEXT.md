@@ -108,6 +108,18 @@ _Avoid_: Login as, sudo mode, admin takeover
 An owner-requested ZIP of a workspace's members, invitations, API Token metadata, Webhook Endpoints, Audit Events, Notifications, and settings, built in the background and downloaded through a signed, time-limited link.
 _Avoid_: Backup, data dump, GDPR export
 
+**Page**:
+One bounded slice of a list read, returned as `items` plus an opaque `nextCursor` that is `null` on the last page.
+_Avoid_: Offset, page number, batch
+
+**Cursor**:
+An opaque keyset position (sort key plus id) a client hands back to continue a list read from where the previous Page ended.
+_Avoid_: Offset, skip, page token
+
+**Typed SDK**:
+The `@b2b-saas-starter/sdk` client derived from the REST contract, so a caller gets the same paths, schemas, and errors the API Worker serves.
+_Avoid_: Generated client, OpenAPI codegen, wrapper library
+
 ## Relationships
 
 - A **Starter** includes exactly one **Reference Application**
@@ -137,6 +149,8 @@ _Avoid_: Backup, data dump, GDPR export
 - An **Impersonation Session** is opened by a **System Admin**, records two **Audit Events**, and creates a **Notification** for the impersonated user
 - A **Workspace Export** belongs to exactly one **Workspace**, is requested by an owner, and creates **Audit Events** and a **Notification**
 - A **Workspace Export** is the access half of a data subject request; account deletion is the erasure half
+- Every REST and MCP list read returns a **Page** and accepts a **Cursor**; REST and MCP page the same way because both are **Capability Interfaces** over one operation table
+- The **Typed SDK** authenticates with an **API Token** and walks **Pages** for the caller
 
 ## Example Dialogue
 

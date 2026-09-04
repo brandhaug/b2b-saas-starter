@@ -86,6 +86,7 @@ function stubReads(failing = false) {
   return Layer.mergeAll(
     Layer.succeed(WorkspaceMembership)({
       listMembers: list([]),
+      listMembersPage: () => unused,
       listWorkspacesForUser: () => unused,
       addMember: () => unused,
       removeMember: () => unused,
@@ -100,12 +101,14 @@ function stubReads(failing = false) {
     }),
     Layer.succeed(ApiTokenRegistry)({
       list: list([]),
+      listPage: () => unused,
       create: () => unused,
       revoke: () => unused,
       verifyBearerToken: () => unused
     }),
     Layer.succeed(WebhookEndpoints)({
       list: list([]),
+      listPage: () => unused,
       create: () => unused,
       listDeliveries: () => unused,
       disable: () => unused,
@@ -122,6 +125,7 @@ function stubReads(failing = false) {
     }),
     Layer.succeed(NotificationFeed)({
       list: list([]),
+      listPage: () => unused,
       unreadCount: list(0),
       markRead: () => unused,
       notifyUser: () => unused,

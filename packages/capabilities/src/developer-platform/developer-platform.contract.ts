@@ -7,6 +7,7 @@ import { WorkspaceContext } from '../workspace-context.ts'
 import { ApiTokenRegistry } from './api-token-registry.ts'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
+import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 
 /**
  * The developer-platform mutation contract, written once and run against both
@@ -221,6 +222,68 @@ export function developerPlatformContractCases(
         // row itself is listable through the same interface.
         const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
         expect(rows.some((row) => row.id === deliveryId)).toBe(true)
+      })
+    },
+    {
+      // Runs last in the list on purpose: it creates rows, and the walk
+      // assertions are order-independent but the later coverage suites are not.
+      name: 'token pages walk exactly once and an insert never disturbs the emitted prefix',
+      assert: Effect.gen(function* () {
+        const tokens = yield* ApiTokenRegistry
+        function walk() {
+          return walkKeysetPages((input) => tokens.listPage(input), { limit: 1 })
+        }
+        // The walk runs to exhaustion — a truncated walk would fail the
+        // coverage assertions below against the whole-collection read.
+        const firstWalk = yield* walk()
+        expect(firstWalk.exhausted).toBe(true)
+        const first = firstWalk.items.map((token) => token.id)
+        // Every active token exactly once — the walk agrees with the
+        // whole-collection read as a set (row order may differ when rows
+        // share a createdAt instant; the tie is broken by id, not position).
+        expect(first.toSorted()).toEqual(
+          (yield* tokens.list).map((token) => token.id).toSorted()
+        )
+
+        const created = yield* tokens.create({
+          name: 'paging-stability',
+          scopes: ['read']
+        })
+        const second = (yield* walk()).items.map((token) => token.id)
+        // The inserted token appears exactly once, every previously emitted
+        // row keeps its position relative to the others, and nothing the
+        // first walk already served was dropped or duplicated.
+        const firstSet = new Set(first)
+        expect(second.filter((id) => id === created.id)).toEqual([created.id])
+        expect(second.filter((id) => !firstSet.has(id))).toEqual([created.id])
+        expect(second.filter((id) => firstSet.has(id))).toEqual(first)
+      })
+    },
+    {
+      name: 'webhook pages walk forward on id and an insert never duplicates a row',
+      assert: Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        function walk() {
+          return walkKeysetPages((input) => webhooks.listPage(input), { limit: 1 })
+        }
+        const first = (yield* walk()).items.map((endpoint) => endpoint.id)
+        // Forward order on `id ASC` — the wire shape carries no timestamp,
+        // so the id is the one stable order a page can resume.
+        expect(first).toEqual(first.toSorted())
+
+        const { endpoint } = yield* webhooks.create({
+          url: 'https://example.com/paging-hook',
+          events: ['demo.event']
+        })
+        const second = (yield* walk()).items.map((row) => row.id)
+        // No duplicates, nothing lost: every pre-insert row survives the
+        // second walk exactly once, and the new endpoint lands somewhere
+        // valid in the id order — before or after the cursor alike.
+        const firstSet = new Set(first)
+        expect(second.filter((id) => id === endpoint.id)).toEqual([endpoint.id])
+        expect(second.filter((id) => !firstSet.has(id))).toEqual([endpoint.id])
+        expect(second.filter((id) => firstSet.has(id))).toEqual(first)
+        expect(second).toEqual(second.toSorted())
       })
     }
   ]

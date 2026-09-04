@@ -38,3 +38,7 @@ The role matrix has no `notification:write` action, and `markRead` deliberately 
 - Don't fan out to email/Slack from inside the capability. Outbound dispatch belongs in the background worker; this capability owns persistence only.
 - Don't add a `notification:write` permission for feed writes. The decision above is recorded; revisit it only with a real second write behaviour (authoring, deleting).
 - Don't give `notifyUser` a `workspaceId` parameter. It is for account-level notices; a workspace-scoped producer should read `WorkspaceContext` in a method of its own.
+
+## Paging (ADR 0057)
+
+`listPage` serves the REST/MCP list surface: newest-first on `(createdAt DESC, id DESC)` through the shared `internal/keyset-cursor.ts` recipe, `limit` clamped into `[1, 200]`, `nextCursor` null on the last page. An undecodable cursor yields an empty page. `list` stays the whole-collection read the app's own pages render — don't route the API surfaces through it.

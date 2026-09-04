@@ -1,0 +1,29 @@
+{
+  "name": "@b2b-saas-starter/sdk",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run"
+  },
+  "dependencies": {
+    "@b2b-saas-starter/api": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@b2b-saas-starter/capabilities": "workspace:*",
+    "@b2b-saas-starter/config": "workspace:*",
+    "@b2b-saas-starter/db": "workspace:*",
+    "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
+    "api": "workspace:*",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}

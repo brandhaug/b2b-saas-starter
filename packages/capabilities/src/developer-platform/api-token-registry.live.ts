@@ -1,12 +1,14 @@
 import { apiTokens, workspaces } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, type SQL } from 'drizzle-orm'
 
 import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
 import { AuthorizationDenied } from '../errors.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
+import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -87,6 +89,41 @@ export const LiveApiTokenRegistry: Layer.Layer<
         )
         return rows.map(toTokenProjection)
       }),
+      listPage: (input) =>
+        Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          const limit = clampPageLimit(input?.limit)
+          const conditions: Array<SQL | undefined> = [
+            activeTokenWhere(undefined, ctx.workspace.id)
+          ]
+          // The SQL half of the keyset recipe lives in `keyset-query.ts`,
+          // shared with every other paged Live read.
+          const resume = keysetResume(
+            'desc',
+            { key: apiTokens.createdAt, id: apiTokens.id },
+            input?.cursor
+          )
+          if (resume.kind === 'empty') {
+            return { items: [], nextCursor: null }
+          }
+          if (resume.kind === 'resume') {
+            conditions.push(resume.condition)
+          }
+          // One row past the page cap, so `cutKeysetPage` can see whether
+          // the cap actually cut rows off before offering a cursor.
+          const rows = yield* unavailable(
+            db
+              .select()
+              .from(apiTokens)
+              .where(and(...conditions))
+              .orderBy(desc(apiTokens.createdAt), desc(apiTokens.id))
+              .limit(limit + 1)
+          )
+          return cutKeysetPage(rows.map(toTokenProjection), limit, (token) => ({
+            key: token.createdAt,
+            id: token.id
+          }))
+        }),
       create: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext

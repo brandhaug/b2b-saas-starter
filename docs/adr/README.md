@@ -23,6 +23,8 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0040 — Client server-state: loaders and server functions](./0040-effect-atom-for-server-state.md)
 - [0044 — Per-capability Effect services with Seed and Live adapters](./0044-per-capability-effect-services-with-seed-and-live-adapters.md)
 - [0048 — Defer API versioning](./0048-defer-api-versioning.md)
+- [0057 — Keyset cursor pagination for list endpoints](./0057-keyset-cursor-pagination-for-list-endpoints.md)
+- [0058 — Typed SDK derived from the HTTP API contract](./0058-typed-sdk-derived-from-the-http-api-contract.md)
 
 ## Product surfaces
 
