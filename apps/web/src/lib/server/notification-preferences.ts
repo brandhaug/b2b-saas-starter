@@ -10,6 +10,7 @@ import {
   type NotificationPreference
 } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { createServerFn } from '@tanstack/react-start'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { Effect, Schema } from 'effect'
 
 import { runCapabilities } from '../capabilities'
@@ -42,17 +43,30 @@ export function toPreferenceRow(
   }
 }
 
+/**
+ * The `/account` preferences segment, as an effect so the route's composed
+ * loader can run it beside its other identity-keyed read.
+ */
+export function notificationPreferencesPayload(input: {
+  readonly userId: string
+}): Effect.Effect<
+  NotificationPreferencesPayload,
+  CapabilityUnavailable,
+  NotificationPreferences
+> {
+  return Effect.map(
+    Effect.flatMap(NotificationPreferences, (preferences) =>
+      preferences.list(input.userId)
+    ),
+    (resolved) => ({ preferences: resolved.map(toPreferenceRow) })
+  )
+}
+
 /** The `/account` loader's segment: the signed-in user's full preference matrix. */
 export function loadNotificationPreferences(input: {
   readonly userId: string
 }): Promise<NotificationPreferencesPayload> {
-  return runCapabilities(
-    Effect.gen(function* () {
-      const preferences = yield* NotificationPreferences
-      const resolved = yield* preferences.list(input.userId)
-      return { preferences: resolved.map(toPreferenceRow) }
-    })
-  )
+  return runCapabilities(notificationPreferencesPayload(input))
 }
 
 // All input constraints live in the schema — no imperative re-validation.

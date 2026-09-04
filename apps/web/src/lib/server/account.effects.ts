@@ -6,6 +6,10 @@ import {
 
 import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
+import {
+  notificationPreferencesPayload,
+  type NotificationPreferencesPayload
+} from './notification-preferences'
 
 /**
  * The `/account` page's server behaviour — the read half is a plain module
@@ -22,6 +26,34 @@ import { requireRequestSession } from './auth'
 /** The page payload: what deleting the account would do to each workspace. */
 export type AccountPagePayload = {
   readonly deletionPlan: AccountDeletionPlan
+}
+
+/**
+ * The `/account` route's loader read, composed here so the route's loader is
+ * one call: the deletion plan and the user's notification preferences — two
+ * identity-keyed reads with no workspace involved, run as one capability
+ * effect (`Effect.all`, the same composition the workspace settings payload
+ * uses for its segments).
+ */
+export function loadAccountPageData(input: {
+  readonly userId: string
+}): Promise<
+  AccountPagePayload & { readonly preferences: NotificationPreferencesPayload }
+> {
+  return runCapabilities(
+    Effect.map(
+      Effect.all(
+        {
+          deletionPlan: Effect.flatMap(AccountLifecycle, (lifecycle) =>
+            lifecycle.planDeletion(input.userId)
+          ),
+          preferences: notificationPreferencesPayload(input)
+        },
+        { concurrency: 'unbounded' }
+      ),
+      ({ deletionPlan, preferences }) => ({ deletionPlan, preferences })
+    )
+  )
 }
 
 /**

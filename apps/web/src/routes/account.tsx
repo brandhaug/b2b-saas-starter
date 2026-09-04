@@ -15,12 +15,9 @@ import { WorkspaceShell } from '@/components/workspace-shell'
 import { authClient } from '@/lib/auth-client'
 import { type McpClientConnection } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { requireSession, type RouteSession } from '@/lib/server/auth'
-import { loadAccountPage } from '@/lib/server/account.effects'
+import { loadAccountPageData } from '@/lib/server/account.effects'
 import { type AccountDeletionPlan } from '@/lib/server/account'
-import {
-  loadNotificationPreferences,
-  type NotificationPreferencesPayload
-} from '@/lib/server/notification-preferences'
+import { type NotificationPreferencesPayload } from '@/lib/server/notification-preferences'
 import {
   loadMcpClientConnections,
   revokeMcpClientServerFn
@@ -35,18 +32,17 @@ export const Route = createFileRoute('/account')({
     const session = await requireSession(location.href)
     return { session }
   },
-  // Three identity-keyed reads: the user's own notification preferences, the
-  // MCP clients connected to this account (ADR 0055), and what deleting the
-  // account would do to each workspace (the account-lifecycle capability) —
-  // no workspace involved; the panels render, the capabilities compute.
+  // The deletion plan and notification preferences compose into one server
+  // call (see `loadAccountPageData`); the MCP clients connected to this
+  // account (ADR 0055) ride beside it — all identity-keyed, no workspace
+  // involved.
   loader: async ({ context }) => {
     const userId = context.session.user.id
-    const [preferences, connections, account] = await Promise.all([
-      loadNotificationPreferences({ userId }),
-      loadMcpClientConnections({ userId }),
-      loadAccountPage({ userId })
+    const [account, connections] = await Promise.all([
+      loadAccountPageData({ userId }),
+      loadMcpClientConnections({ userId })
     ])
-    return { preferences, connections, deletionPlan: account.deletionPlan }
+    return { ...account, connections }
   },
   component: AccountRoute,
   head: () => ({ meta: [{ title: pageTitle('Account') }] })
