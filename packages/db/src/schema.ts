@@ -401,8 +401,10 @@ export const webhookDeliveries = sqliteTable(
     // replayed verbatim, the request headers and a truncated response body
     // from the latest attempt, and the delivery this one was replayed from.
     // `replayed_from` is a plain reference, not a foreign key: the original
-    // row may be pruned while its replay is still worth listing.
-    payload: text('payload', { mode: 'json' }).$type<JsonValue>(),
+    // row may be pruned while its replay is still worth listing. The payload
+    // is NOT NULL — every dispatch holds one, and terminal rows record what
+    // they never sent or exhausted.
+    payload: text('payload', { mode: 'json' }).$type<JsonValue>().notNull(),
     requestHeaders: text('request_headers', { mode: 'json' }).$type<
       Record<string, string>
     >(),

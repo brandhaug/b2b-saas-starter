@@ -63,7 +63,11 @@ const snapshot: WorkspaceExportSnapshot = {
           attempts: 1,
           lastAttemptAt: '2026-08-21T00:00:00.000Z',
           nextAttemptAt: null,
-          responseStatus: 200
+          responseStatus: 200,
+          payload: { tokenId: 'tok_1' },
+          requestHeaders: null,
+          responseBody: null,
+          replayedFrom: null
         }
       ]
     }

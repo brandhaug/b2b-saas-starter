@@ -36,13 +36,13 @@ Four concepts, in dependency order:
 
 `member` deliberately **cannot** read the audit log or list API tokens. Both leak the workspace's security posture. The empty arrays in `memberRole` say so out loud; do not "tidy" them away. `onboarding:dismiss` is also withheld: the onboarding checklist is read-only for a member and dismissing it is a workspace-level call (ADR 0054). `workspaceExport` (`request`, `download`) is **owner-only**: `adminRole` empties it explicitly, because a full export carries every member's email and the complete audit trail — the same material `organization:delete` guards (ADR 0055). Neither the `read` nor the `write` token scope reaches it; only `admin` scope (the owner set) does.
 
-| Token scope | Gets                                                                        |
-| ----------- | --------------------------------------------------------------------------- |
-| `read`      | every `list` and `read` action                                              |
-| `write`     | `read` plus `webhook:create/update/delete/replay/test`, `invitation:create` |
-| `admin`     | the `owner` set, shared by reference                                        |
+| Token scope | Gets                                                                                     |
+| ----------- | ---------------------------------------------------------------------------------------- |
+| `read`      | every `list` and `read` action                                                           |
+| `write`     | `read` plus `webhook:create/update/delete/rotateSecret/replay/test`, `invitation:create` |
+| `admin`     | the `owner` set, shared by reference                                                     |
 
-`apiToken:create` is deliberately **not** in the `write` set. Minting is the one mutation that lets a token escalate itself: a `write` token allowed to create tokens could issue an `admin` one. It stays with the owner set, which `admin` scope reaches. The webhook operator actions (`create`, `update`, `delete`, `replay`, `test`) are in the `write` set because none of them can escalate the token's authority; `disable` and `rotateSecret` remain owner/admin for the same reason `apiToken:create` is — a machine client that can silence or re-key a receiver mid-incident should carry the minter's full trust.
+`apiToken:create` is deliberately **not** in the `write` set. Minting is the one mutation that lets a token escalate itself: a `write` token allowed to create tokens could issue an `admin` one. It stays with the owner set, which `admin` scope reaches. The whole webhook operator surface (`create`, `update`, `delete`, `rotateSecret`, `replay`, `test`) is in the `write` set because none of it can escalate the token's authority. Disabling an endpoint is `webhook:update { enabled: false }` — there is no separate `disable` permission, so the matrix cannot drift from what `update` can already do.
 
 The `read` scope is wider than the `member` role — it can read the audit log. That is intended: a token is minted by an owner or admin, so it carries the minter's trust, not the reader's.
 

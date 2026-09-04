@@ -1,6 +1,6 @@
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { Fragment, useState } from 'react'
+import { Fragment } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,10 +13,21 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { Spinner } from '@/components/ui/spinner'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
 import { formatUtcOr } from '@/lib/format-date'
 import { viewerCan, type Viewer } from '@/lib/permissions'
+import {
+  replayWebhookDeliveryServerFn,
+  sendTestEventServerFn
+} from '@/lib/server/webhooks'
+import { useServerAction } from '@/hooks/use-server-action'
 
+/**
+ * Mutating a delivery, as a port. Defaulted to the production server
+ * functions so every caller but a test passes nothing — the same convention
+ * the webhooks panel's ports follow.
+ */
 export type ReplayDelivery = (input: {
   readonly data: {
     readonly workspaceSlug: string
@@ -30,6 +41,9 @@ export type SendTestEvent = (input: {
     readonly endpointId: string
   }
 }) => Promise<{ readonly deliveryId: string }>
+
+const REPLAY_FAILED = 'Failed to queue the replay'
+const TEST_FAILED = 'Failed to queue the test event'
 
 function EvidenceRow({
   label,
@@ -47,22 +61,16 @@ function EvidenceRow({
 }
 
 function DeliveryEvidence({ delivery }: { readonly delivery: WebhookDelivery }) {
-  if (
-    delivery.requestHeaders === null &&
-    delivery.responseBody === null &&
-    delivery.payload === null
-  ) {
+  if (delivery.requestHeaders === null && delivery.responseBody === null) {
     return null
   }
   return (
     <dl className="grid gap-2">
-      {delivery.payload === null ? null : (
-        <EvidenceRow label="Payload">
-          <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-3xs break-all whitespace-pre-wrap">
-            {JSON.stringify(delivery.payload, null, 2)}
-          </pre>
-        </EvidenceRow>
-      )}
+      <EvidenceRow label="Payload">
+        <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-3xs break-all whitespace-pre-wrap">
+          {JSON.stringify(delivery.payload, null, 2)}
+        </pre>
+      </EvidenceRow>
       {delivery.requestHeaders === null ? null : (
         <EvidenceRow label="Request headers">
           <ul className="grid gap-0.5 font-mono text-3xs">
@@ -90,7 +98,9 @@ function DeliveryEvidence({ delivery }: { readonly delivery: WebhookDelivery }) 
  * first, with the recorded evidence (payload, request headers, truncated
  * response body) and the operator actions — replay on failed rows, a test
  * send for the whole endpoint. The server fns re-check the permission; the
- * buttons here only hide what the role cannot do.
+ * buttons here only hide what the role cannot do. Each action is a
+ * `useServerAction`: busy flag, failure copy, and the loader refresh that
+ * resolves the replayed row into the list.
  */
 export function WebhookDeliveriesDrawer({
   workspaceSlug,
@@ -98,8 +108,8 @@ export function WebhookDeliveriesDrawer({
   open,
   onOpenChange,
   viewer,
-  replayDelivery,
-  sendTestEvent
+  replayDelivery = replayWebhookDeliveryServerFn,
+  sendTestEvent = sendTestEventServerFn
 }: {
   readonly workspaceSlug: string
   readonly endpoint: WebhookEndpoint & {
@@ -111,52 +121,17 @@ export function WebhookDeliveriesDrawer({
   readonly replayDelivery?: ReplayDelivery
   readonly sendTestEvent?: SendTestEvent
 }) {
-  // Which delivery row a replay was just queued for, so the row can show the
-  // queued state until the loader refresh resolves the pending row in.
-  const [queuedDeliveryId, setQueuedDeliveryId] = useState<string | null>(null)
-  const [queuedTest, setQueuedTest] = useState(false)
-  const [failure, setFailure] = useState<string | null>(null)
-
   const canReplay = viewerCan(viewer, { webhook: ['replay'] })
   const canTest = viewerCan(viewer, { webhook: ['test'] })
 
-  async function replay(deliveryId: string) {
-    if (replayDelivery === undefined) {
-      return
-    }
-    setFailure(null)
-    setQueuedDeliveryId(deliveryId)
-    // `callServerFn`-shaped ports reject on failure; a rejected promise folds
-    // into the drawer's failure message via the two-way `.then` below.
-    const outcome = await replayDelivery({
-      data: { workspaceSlug, deliveryId }
-    }).then(
-      () => null,
-      () => 'Failed to queue the replay'
-    )
-    setQueuedDeliveryId(null)
-    if (outcome !== null) {
-      setFailure(outcome)
-    }
-  }
-
-  async function sendTest() {
-    if (sendTestEvent === undefined) {
-      return
-    }
-    setFailure(null)
-    setQueuedTest(true)
-    const outcome = await sendTestEvent({
-      data: { workspaceSlug, endpointId: endpoint.id }
-    }).then(
-      () => null,
-      () => 'Failed to queue the test event'
-    )
-    setQueuedTest(false)
-    if (outcome !== null) {
-      setFailure(outcome)
-    }
-  }
+  const replay = useServerAction(
+    (deliveryId: string) => replayDelivery({ data: { workspaceSlug, deliveryId } }),
+    { failureMessage: REPLAY_FAILED }
+  )
+  const sendTest = useServerAction(
+    () => sendTestEvent({ data: { workspaceSlug, endpointId: endpoint.id } }),
+    { failureMessage: TEST_FAILED }
+  )
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -170,19 +145,18 @@ export function WebhookDeliveriesDrawer({
           <SheetDescription className="break-all">{endpoint.url}</SheetDescription>
         </SheetHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4">
-          {failure === null ? null : (
-            <p className="text-xs text-destructive">{failure}</p>
-          )}
+          <ActionFeedback error={replay.error} />
+          <ActionFeedback error={sendTest.error} />
           {canTest && endpoint.enabled ? (
             <>
               <div>
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={queuedTest}
-                  onClick={() => void sendTest()}
+                  disabled={sendTest.pending}
+                  onClick={() => sendTest.run(undefined)}
                 >
-                  {queuedTest ? <Spinner data-icon="inline-start" /> : null}
+                  {sendTest.pending ? <Spinner data-icon="inline-start" /> : null}
                   Send test event
                 </Button>
                 <p className="mt-1 text-3xs text-muted-foreground">
@@ -204,8 +178,7 @@ export function WebhookDeliveriesDrawer({
                   canReplay &&
                   endpoint.enabled &&
                   delivery.status !== 'delivered' &&
-                  delivery.status !== 'pending' &&
-                  delivery.payload !== null
+                  delivery.status !== 'pending'
                 return (
                   <Fragment key={delivery.id}>
                     {index > 0 ? <Separator /> : null}
@@ -240,10 +213,10 @@ export function WebhookDeliveriesDrawer({
                           <Button
                             variant="ghost"
                             size="xs"
-                            disabled={queuedDeliveryId === delivery.id}
-                            onClick={() => void replay(delivery.id)}
+                            disabled={replay.pendingInput === delivery.id}
+                            onClick={() => replay.run(delivery.id)}
                           >
-                            {queuedDeliveryId === delivery.id ? (
+                            {replay.pendingInput === delivery.id ? (
                               <Spinner data-icon="inline-start" />
                             ) : null}
                             Replay

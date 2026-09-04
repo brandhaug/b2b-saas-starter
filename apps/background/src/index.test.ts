@@ -170,12 +170,10 @@ function stubEndpoints(
   dispatchTarget: typeof target | null,
   recorded: Array<WebhookDeliveryAttemptInput>
 ): Layer.Layer<WebhookEndpoints> {
-  let terminalSeq = 0
   return Layer.succeed(WebhookEndpoints)({
     list: Effect.die('unused in delivery tests'),
     listPage: () => Effect.die('unused in delivery tests'),
     create: () => Effect.die('unused in delivery tests'),
-    disable: () => Effect.die('unused in delivery tests'),
     rotateSecret: () => Effect.die('unused in delivery tests'),
     update: () => Effect.die('unused in delivery tests'),
     delete: () => Effect.die('unused in delivery tests'),
@@ -190,15 +188,15 @@ function stubEndpoints(
       }),
     recordTerminalDeliveryAttempt: (input) =>
       Effect.sync(() => {
-        terminalSeq += 1
-        const deliveryId = `whd_stub_terminal_${terminalSeq}`
+        // The queue message's id resolves the row; the recorded payload keeps
+        // the terminal row replayable, exactly like the Live adapter.
         recorded.push({
-          id: deliveryId,
+          id: input.deliveryId,
           ...input,
           responseStatus: null,
           nextAttemptAt: null
         })
-        return { deliveryId }
+        return { deliveryId: input.deliveryId }
       })
   })
 }

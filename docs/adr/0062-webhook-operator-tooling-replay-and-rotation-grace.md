@@ -8,7 +8,7 @@ Replaying a failed delivery could mutate the original row (reset attempts, flip 
 
 ## One row per message, upserted per attempt
 
-The queue consumer derives (or, for replays and test sends, is handed) one delivery row id and calls `recordDeliveryAttempt` with it. Live persists with `onConflictDoUpdate` so every redelivery of the same message resolves the same row instead of dying on the primary key — and the `pending` row an operator action created is the row the consumer's first attempt updates. The `set` clause carries attempt state only (`status`, `attempts`, timestamps, `responseStatus`, `requestHeaders`, `responseBody`); `payload` and `replayedFrom` are insert-only, so a redelivery cannot erase a replay's provenance.
+The queue consumer derives (or, for replays and test sends, is handed) one delivery row id and calls `recordDeliveryAttempt` with it. Live persists with `onConflictDoUpdate` so every redelivery of the same message resolves the same row instead of dying on the primary key — and the `pending` row an operator action created is the row the consumer's first attempt updates. The `set` clause carries attempt state only (`status`, `attempts`, timestamps, `responseStatus`, `requestHeaders`, `responseBody`); `payload` and `replayedFrom` are insert-only, so a redelivery cannot erase a replay's provenance. Terminal outcomes go through the same identity: `recordTerminalDeliveryAttempt` takes the queue message's derived id and payload, so a `dead_lettered` row is the message's attempt row gone terminal — not a second row forked off it — and a never-dispatched (SSRF-refused) row still carries what it would have sent. Response evidence absent from a terminal write stays as recorded; only the retry schedule clears.
 
 ## Rotation shifts the secret; the sender dual-signs
 
@@ -16,7 +16,11 @@ Storing only the current secret makes rotation a cutover: between "rotate" and "
 
 ## Evidence columns ride the delivery row
 
-Replay needs the exact payload; diagnosis needs what was sent and what came back. The delivery row therefore carries `payload`, `requestHeaders` (the header block the worker posted), and a truncated `responseBody` (2 KiB with a visible marker). These are operator evidence, not an archive — truncation is declared in the state machine (`truncateResponseBody`), and success bodies are stored too, because "what did the receiver actually say" is not a failure-only question.
+Replay needs the exact payload; diagnosis needs what was sent and what came back. The delivery row therefore carries `payload`, `requestHeaders` (the header block the worker posted), and a truncated `responseBody` (2 KiB with a visible marker). These are operator evidence, not an archive — truncation is declared in the state machine (`truncateResponseBody`), and success bodies are stored too, because "what did the receiver actually say" is not a failure-only question. `payload` is `NOT NULL`: every dispatch holds one, and terminal rows record what they never sent or exhausted, so any failed row is replayable and the null-payload refusal case can never arise.
+
+## One not-found, one enabled-flag path
+
+The operator mutations answer "no such endpoint" one way — the typed `WebhookEndpointNotFound` (404) — instead of a mix of `false` returns, `Option.none()`, and a typed error. Disabling is `update { enabled: false }`; there is no separate `disable` method or `webhook:disable` permission, because a permission matrix that withheld "silence the receiver" from `write`-scope tokens while granting them `update { enabled: false }` and `delete` would contradict its own rationale. The operator surface (`create`, `update`, `delete`, `rotateSecret`, `replay`, `test`) is one trust level.
 
 ## Consequences
 
@@ -24,4 +28,4 @@ Replay needs the exact payload; diagnosis needs what was sent and what came back
 - The queue message gains an optional `deliveryId` (the row to resolve) — optional, so ordinary fan-out keeps its deterministic `whd_<message id>` identity.
 - Replay and test send enqueue through `WebhookPublisher.enqueue`, a pre-addressed single-message send beside the existing subscription fan-out; without a queue binding both stay provider-light (the `pending` row stands, nothing dispatches).
 - A dead-lettered delivery now also records a broadcast workspace Notification (the capability calls `NotificationFeed.record`, which gains the identity-keyed `record` the background path needs); failed-permanent outcomes stay audit-only.
-- New webhook permissions (`update`, `delete`, `replay`, `test`) join the statement set; `write`-scope tokens hold them because none can escalate the token's own authority, unlike `apiToken:create`.
+- New webhook permissions (`update`, `delete`, `rotateSecret`, `replay`, `test`) join the statement set; `write`-scope tokens hold them because none can escalate the token's own authority, unlike `apiToken:create`. There is no `disable` permission — see above.

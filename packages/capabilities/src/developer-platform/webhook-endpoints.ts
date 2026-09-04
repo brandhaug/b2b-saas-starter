@@ -1,9 +1,10 @@
-import { Context, Effect, Schema, type Option } from 'effect'
+import { Context, Effect, Schema } from 'effect'
 
 import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts'
 import { literalTuple } from '../internal/literal-tuple.ts'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import {
+  type Json,
   type ListWebhookDeliveriesInput,
   type WebhookDelivery,
   type WebhookDeliveryAttemptInput
@@ -13,8 +14,8 @@ import { type WorkspaceContext } from '../workspace-context.ts'
 
 /**
  * No endpoint matched in this workspace. Raised by the operator mutations
- * (`update`, `sendTestEvent`); the boolean-returning `disable`/`delete` and
- * the Option-returning `rotateSecret` predate it and keep their shapes.
+ * (`update`, `delete`, `sendTestEvent`, `rotateSecret`) — one typed 404 for
+ * the whole surface.
  */
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class WebhookEndpointNotFound extends Schema.TaggedError<WebhookEndpointNotFound>()(
@@ -37,9 +38,8 @@ export class WebhookDeliveryNotFound extends Schema.TaggedError<WebhookDeliveryN
 
 /**
  * A dispatch the workspace refuses: an endpoint that is disabled, a delivery
- * that never failed, a row with no recorded payload to re-send. Same reading
- * as `MembershipChangeRejected` — the request was answerable and the answer is
- * no — naming the operator dispatch surface.
+ * that never failed. Same reading as `MembershipChangeRejected` — the request
+ * was answerable and the answer is no — naming the operator dispatch surface.
  */
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class WebhookDispatchRejected extends Schema.TaggedError<WebhookDispatchRejected>()(
@@ -154,10 +154,6 @@ export type DispatchedDelivery = {
   readonly deliveryId: string
 }
 
-export type DisableWebhookEndpointInput = {
-  readonly endpointId: string
-}
-
 export type RotateWebhookSecretInput = {
   readonly endpointId: string
 }
@@ -200,17 +196,13 @@ export type WebhookEndpointsInterface = {
     WorkspaceContext
   >
 
-  /** Resolves `true` when an endpoint was disabled, `false` when nothing matched. */
-  readonly disable: (
-    input: DisableWebhookEndpointInput
-  ) => Effect.Effect<boolean, CapabilityUnavailable, WorkspaceContext>
-
   /**
-   * Updates the mutable endpoint fields — URL, event subscriptions, enabled
-   * flag (a disabled endpoint can be re-enabled here; `disable` stays the
-   * one-way control it always was). Only provided fields change. Fails
-   * `WebhookEndpointNotFound` when no endpoint matched in this workspace, and
-   * `InvalidWebhookUrl` when a provided URL fails the SSRF/shape guard.
+   * Updates the mutable endpoint fields — URL, event subscriptions, and the
+   * enabled flag: disabling is `update { enabled: false }`, re-enabling is
+   * `update { enabled: true }` — one mutation path, one audit event. Only
+   * provided fields change. Fails `WebhookEndpointNotFound` when no endpoint
+   * matched in this workspace, and `InvalidWebhookUrl` when a provided URL
+   * fails the SSRF/shape guard.
    */
   readonly update: (
     input: UpdateWebhookEndpointInput
@@ -222,12 +214,16 @@ export type WebhookEndpointsInterface = {
 
   /**
    * Deletes the endpoint row; delivery rows cascade with it (the FK is
-   * `onDelete: 'cascade'`). Resolves `true` when a row was deleted, `false`
-   * when nothing matched — the same reading as `disable`.
+   * `onDelete: 'cascade'`). Fails `WebhookEndpointNotFound` when nothing
+   * matched in this workspace.
    */
   readonly delete: (
     input: DeleteWebhookEndpointInput
-  ) => Effect.Effect<boolean, CapabilityUnavailable, WorkspaceContext>
+  ) => Effect.Effect<
+    void,
+    CapabilityUnavailable | WebhookEndpointNotFound,
+    WorkspaceContext
+  >
 
   /**
    * Re-enqueues a failed delivery verbatim: a **new** `pending` row carrying
@@ -260,17 +256,18 @@ export type WebhookEndpointsInterface = {
   >
 
   /**
-   * Resolves `Option.some({ signingSecret })` with the newly persisted secret,
-   * or `Option.none()` when no endpoint matched in this workspace (no secret
-   * is minted in that case). The secret it replaces keeps signing deliveries
-   * for the 24h grace window (`planSecretRotation` / `activeSigningSecrets` in
-   * the delivery plan), so a receiver can roll without dropping deliveries.
+   * Shifts the signing secret: the replacement is returned so the caller can
+   * show it once, and the secret it replaces keeps signing deliveries for the
+   * 24h grace window (`planSecretRotation` / `activeSigningSecrets` in the
+   * delivery plan), so a receiver can roll without dropping deliveries. No
+   * secret is minted when no endpoint matched — the call fails
+   * `WebhookEndpointNotFound` instead.
    */
   readonly rotateSecret: (
     input: RotateWebhookSecretInput
   ) => Effect.Effect<
-    Option.Option<{ readonly signingSecret: string }>,
-    CapabilityUnavailable,
+    { readonly signingSecret: string },
+    CapabilityUnavailable | WebhookEndpointNotFound,
     WorkspaceContext
   >
 
@@ -303,17 +300,21 @@ export type WebhookEndpointsInterface = {
   /**
    * Terminal delivery rows for outcomes that never dispatched (the SSRF guard
    * rejected the endpoint URL at dispatch time) or exhausted the queue (dead
-   * letter). The capability owns the whole row — delivery id minting, the
-   * timestamp, and the terminal audit event batched with it — so callers hand
-   * over only what the queue message carries and cannot assemble a half-shaped
-   * attempt input.
+   * letter). The capability owns the row — the timestamp, and the terminal
+   * audit event batched with it — so callers hand over only what the queue
+   * message carries and cannot assemble a half-shaped attempt input. The
+   * delivery id and payload travel in the queue message: the id resolves the
+   * message's existing attempt row (one row per message, same as the retry
+   * path), and the recorded payload is what makes a terminal row replayable.
    */
   readonly recordTerminalDeliveryAttempt: (input: {
+    readonly deliveryId: string
     readonly endpointId: string
     readonly workspaceId: string
     readonly eventType: string
     readonly attempts: number
     readonly status: 'failed_permanent' | 'dead_lettered'
+    readonly payload: Json
   }) => Effect.Effect<{ readonly deliveryId: string }, CapabilityUnavailable>
 }
 

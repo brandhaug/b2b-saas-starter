@@ -24,7 +24,6 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'api_token.created',
   'api_token.revoked',
   'webhook_endpoint.created',
-  'webhook_endpoint.disabled',
   'webhook_endpoint.updated',
   'webhook_endpoint.deleted',
   'webhook_endpoint.secret_rotated',

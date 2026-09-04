@@ -1,6 +1,6 @@
 import { auditEvents, webhookDeliveries } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
-import { Effect, Option } from 'effect'
+import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 import { and, count, eq } from 'drizzle-orm'
 
@@ -99,7 +99,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               status: 'failed_permanent',
               attempts: 1,
               responseStatus: 410,
-              nextAttemptAt: null
+              nextAttemptAt: null,
+              payload: { event: 'demo' }
             })
 
             const deliveries = yield* deliveryRow('whd_live_perm')
@@ -134,7 +135,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               status: 'dead_lettered',
               attempts: 5,
               responseStatus: null,
-              nextAttemptAt: null
+              nextAttemptAt: null,
+              payload: { event: 'demo' }
             })
 
             const rows = yield* auditRowsFor('webhook.delivery_dead_lettered')
@@ -160,7 +162,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             status: 'delivered',
             attempts: 1,
             responseStatus: 200,
-            nextAttemptAt: null
+            nextAttemptAt: null,
+            payload: { event: 'demo' }
           })
           const after = yield* auditEventCount
           expect(after).toBe(before)
@@ -179,11 +182,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const webhooks = yield* WebhookEndpoints
               const feed = yield* NotificationFeed
               yield* webhooks.recordTerminalDeliveryAttempt({
+                deliveryId: 'whd_live_dlq',
                 endpointId: 'wh_live',
                 workspaceId: 'wrk_live',
                 eventType: 'demo.dead_letter',
                 attempts: 5,
-                status: 'dead_lettered'
+                status: 'dead_lettered',
+                payload: { event: 'demo.dead_letter' }
               })
               const notifications = yield* feed.list
               const deadLetter = notifications.find(
@@ -213,7 +218,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               eventType: 'demo.redelivery',
               status: 'failed',
               attempts: 1,
-              responseStatus: 500
+              responseStatus: 500,
+              payload: { event: 'demo.redelivery' }
             })
             // ...the platform redelivers the same message id: the row must
             // resolve, not fork (and not die on the primary key).
@@ -224,7 +230,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               eventType: 'demo.redelivery',
               status: 'delivered',
               attempts: 2,
-              responseStatus: 200
+              responseStatus: 200,
+              payload: { event: 'demo.redelivery' }
             })
           })
         )
@@ -251,7 +258,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
               const first = yield* webhooks.rotateSecret({ endpointId: 'wh_live' })
-              const firstSecret = Option.getOrThrow(first).signingSecret
+              const firstSecret = first.signingSecret
 
               // While the grace window is open, a dispatch signs with the new
               // secret AND the one it replaced.
@@ -262,7 +269,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               // A second rotation shifts the window: the middle secret becomes
               // the replaced one, and the original is dropped entirely.
               const second = yield* webhooks.rotateSecret({ endpointId: 'wh_live' })
-              const secondSecret = Option.getOrThrow(second).signingSecret
+              const secondSecret = second.signingSecret
               const afterSecond = yield* webhooks.getDispatchTarget(
                 'wh_live',
                 'wrk_live'

@@ -27,10 +27,10 @@ import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
 import { formatUtcOr } from '@/lib/format-date'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import {
-  disableWebhookEndpointServerFn,
   replayWebhookDeliveryServerFn,
   rotateWebhookSecretServerFn,
-  sendTestEventServerFn
+  sendTestEventServerFn,
+  updateWebhookEndpointServerFn
 } from '@/lib/server/webhooks'
 import {
   WebhookDeliveriesDrawer,
@@ -48,19 +48,20 @@ const ROTATE_FAILED = 'Failed to rotate secret'
  * of replacing the module they live in. The defaults are the production server
  * functions, so every caller but a test passes nothing.
  */
-export type DisableWebhookEndpoint = (input: {
+export type UpdateWebhookEndpoint = (input: {
   readonly data: {
     readonly workspaceSlug: string
     readonly endpointId: string
+    readonly enabled: boolean
   }
-}) => Promise<boolean>
+}) => Promise<WebhookEndpoint>
 
 export type RotateWebhookSecret = (input: {
   readonly data: {
     readonly workspaceSlug: string
     readonly endpointId: string
   }
-}) => Promise<string | null>
+}) => Promise<string>
 
 function Deliveries({
   deliveries,
@@ -114,7 +115,7 @@ export function WebhooksPanel({
   workspaceSlug,
   endpoints,
   viewer,
-  disableEndpoint = disableWebhookEndpointServerFn,
+  updateEndpoint = updateWebhookEndpointServerFn,
   rotateSecret = rotateWebhookSecretServerFn,
   createEndpoint,
   replayDelivery = replayWebhookDeliveryServerFn,
@@ -127,7 +128,7 @@ export function WebhooksPanel({
     }
   >
   readonly viewer: Viewer
-  readonly disableEndpoint?: DisableWebhookEndpoint
+  readonly updateEndpoint?: UpdateWebhookEndpoint
   readonly rotateSecret?: RotateWebhookSecret
   readonly createEndpoint?: CreateWebhookEndpoint
   readonly replayDelivery?: ReplayDelivery
@@ -146,13 +147,16 @@ export function WebhooksPanel({
   const [drawerEndpointId, setDrawerEndpointId] = useState<string | null>(null)
 
   const canCreate = viewerCan(viewer, { webhook: ['create'] })
-  const canDisable = viewerCan(viewer, { webhook: ['disable'] })
+  const canDisable = viewerCan(viewer, { webhook: ['update'] })
   const canRotate = viewerCan(viewer, { webhook: ['rotateSecret'] })
 
   // The loader owns the list, so the hook re-runs it on success rather than
   // mirroring the change into local state.
   const disable = useServerAction(
-    (endpointId: string) => disableEndpoint({ data: { workspaceSlug, endpointId } }),
+    (endpointId: string) =>
+      updateEndpoint({
+        data: { workspaceSlug, endpointId, enabled: false }
+      }),
     { failureMessage: DISABLE_FAILED }
   )
 
@@ -160,10 +164,8 @@ export function WebhooksPanel({
     (endpointId: string) => rotateSecret({ data: { workspaceSlug, endpointId } }),
     {
       failureMessage: ROTATE_FAILED,
-      // `null` means no endpoint matched in this workspace — nothing was
-      // rotated and there is no secret to show.
       onSuccess: (secret, endpointId) => {
-        setRotatedSecret(secret === null ? null : { endpointId, secret })
+        setRotatedSecret({ endpointId, secret })
       }
     }
   )

@@ -11,7 +11,6 @@ const EVENT_LABELS = new Map<string, string>(
     'api_token.created': 'API token created',
     'api_token.revoked': 'API token revoked',
     'webhook_endpoint.created': 'Webhook endpoint created',
-    'webhook_endpoint.disabled': 'Webhook endpoint disabled',
     'webhook_endpoint.updated': 'Webhook endpoint updated',
     'webhook_endpoint.deleted': 'Webhook endpoint deleted',
     'webhook_endpoint.secret_rotated': 'Webhook secret rotated',

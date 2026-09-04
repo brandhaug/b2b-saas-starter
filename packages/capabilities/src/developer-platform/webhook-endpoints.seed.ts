@@ -1,4 +1,4 @@
-import { DateTime, Effect, Layer, Option } from 'effect'
+import { DateTime, Effect, Layer } from 'effect'
 
 import { assertWithinPlanLimit } from '../billing/plan-catalog.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -11,10 +11,12 @@ import {
   deadLetterNotification,
   deliverySuccessRate,
   isReplayableDeliveryStatus,
+  planPendingDispatch,
   planReplayedDelivery,
   planSecretRotation,
   terminalDeliveryAuditEventType,
   type Json,
+  type PendingDispatchPlan,
   type SeedWebhookDeliveryFixture,
   type WebhookDeliveryStatus
 } from './webhook-delivery-plan.ts'
@@ -43,7 +45,6 @@ export type SeedWebhookEndpointFixture = {
   readonly url: string
   readonly enabled: boolean
   readonly events: ReadonlyArray<string>
-  readonly successRate: number
   readonly signingSecret?: string
   readonly workspaceId?: string
 }
@@ -71,12 +72,27 @@ type SeedDeliveryRow = {
   readonly lastAttemptAt: string
   readonly nextAttemptAt: string | null
   readonly responseStatus: number | null
-  readonly payload: Json | null
+  readonly payload: Json
   readonly requestHeaders: Record<string, string> | null
   readonly responseBody: string | null
   readonly replayedFrom: string | null
   /** Insertion order — the tie-break when rows share a `lastAttemptAt`. */
   readonly seq: number
+}
+
+/**
+ * The attempt state an update carries onto an existing row, mirroring Live's
+ * `onConflictDoUpdate` set clause. Mutable fields — the object is built with
+ * statements and merged over the stored row.
+ */
+type SeedAttemptUpdate = {
+  status: WebhookDeliveryStatus
+  attempts: number
+  lastAttemptAt: string
+  responseStatus?: number | null
+  nextAttemptAt?: string | null
+  requestHeaders?: Record<string, string> | null
+  responseBody?: string | null
 }
 
 function toDeliveryRow(
@@ -94,7 +110,7 @@ function toDeliveryRow(
     lastAttemptAt: fixture.lastAttemptAt,
     nextAttemptAt: fixture.nextAttemptAt ?? null,
     responseStatus: fixture.responseStatus ?? null,
-    payload: fixture.payload ?? null,
+    payload: fixture.payload,
     requestHeaders: fixture.requestHeaders ?? null,
     responseBody: fixture.responseBody ?? null,
     replayedFrom: fixture.replayedFrom ?? null,
@@ -174,14 +190,20 @@ export function SeedWebhookEndpoints(
       }
 
       /** Shared persistence for both attempt surfaces, terminal audits included. */
-      const persistAttempt = Effect.fnUntraced(function* (row: SeedDeliveryRow) {
+      const persistAttempt = Effect.fnUntraced(function* (
+        row: SeedDeliveryRow,
+        attemptUpdate: SeedAttemptUpdate
+      ) {
         // Upsert on the row id, mirroring Live's `onConflictDoUpdate`: every
-        // redelivery of the same message resolves the same row.
+        // redelivery of the same message resolves the same row. The update
+        // carries attempt state alone — a field absent from `attemptUpdate`
+        // (a terminal write's response evidence, say) stays as recorded.
         const existing = deliveries.findIndex((candidate) => candidate.id === row.id)
-        if (existing === -1) {
+        const existingRow = deliveries[existing]
+        if (existing === -1 || existingRow === undefined) {
           deliveries.push(row)
         } else {
-          deliveries[existing] = row
+          deliveries[existing] = { ...existingRow, ...attemptUpdate }
         }
         const auditEventType = terminalDeliveryAuditEventType.get(row.status)
         if (auditEventType !== undefined) {
@@ -228,64 +250,79 @@ export function SeedWebhookEndpoints(
         readonly attempts: number
         readonly responseStatus?: number | null
         readonly nextAttemptAt?: string | null
-        readonly payload?: Json
+        readonly payload: Json
         readonly requestHeaders?: Record<string, string> | null
         readonly responseBody?: string | null
         readonly replayedFrom?: string | null
       }) {
         const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
-        yield* persistAttempt({
-          id: deliveryId,
-          endpointId: input.endpointId,
-          workspaceId: input.workspaceId,
-          eventType: input.eventType,
+        const lastAttemptAt = DateTime.formatIso(yield* DateTime.now)
+        // Built as statements, not a conditional spread: a missing field is
+        // *absent* from the update, not laundered into a null.
+        const attemptUpdate: SeedAttemptUpdate = {
           status: input.status,
           attempts: input.attempts,
-          lastAttemptAt: DateTime.formatIso(yield* DateTime.now),
-          nextAttemptAt: input.nextAttemptAt ?? null,
-          responseStatus: input.responseStatus ?? null,
-          payload: input.payload ?? null,
-          requestHeaders: input.requestHeaders ?? null,
-          responseBody: input.responseBody ?? null,
-          replayedFrom: input.replayedFrom ?? null,
-          seq: nextSeq()
-        })
+          lastAttemptAt
+        }
+        if (input.responseStatus !== undefined) {
+          attemptUpdate.responseStatus = input.responseStatus ?? null
+        }
+        if (input.nextAttemptAt !== undefined) {
+          attemptUpdate.nextAttemptAt = input.nextAttemptAt ?? null
+        }
+        if (input.requestHeaders !== undefined) {
+          attemptUpdate.requestHeaders = input.requestHeaders ?? null
+        }
+        if (input.responseBody !== undefined) {
+          attemptUpdate.responseBody = input.responseBody ?? null
+        }
+        yield* persistAttempt(
+          {
+            id: deliveryId,
+            endpointId: input.endpointId,
+            workspaceId: input.workspaceId,
+            eventType: input.eventType,
+            status: input.status,
+            attempts: input.attempts,
+            lastAttemptAt,
+            nextAttemptAt: input.nextAttemptAt ?? null,
+            responseStatus: input.responseStatus ?? null,
+            payload: input.payload,
+            requestHeaders: input.requestHeaders ?? null,
+            responseBody: input.responseBody ?? null,
+            replayedFrom: input.replayedFrom ?? null,
+            seq: nextSeq()
+          },
+          attemptUpdate
+        )
         return deliveryId
       })
 
       /**
        * The `pending` row an operator dispatch (replay, test send) starts
-       * from, with its audit event when there is one.
+       * from, with its audit event when there is one. The row shape is the
+       * caller's plan, mirroring Live's `recordOperatorDispatch`.
        */
       const recordOperatorDispatch = Effect.fnUntraced(function* (input: {
         readonly deliveryId: string
-        readonly endpointId: string
         readonly workspaceId: string
-        readonly eventType: string
-        readonly payload: Json
-        readonly replayedFrom?: string | undefined
+        readonly plan: PendingDispatchPlan
         readonly auditEventType?: 'webhook.delivery_replayed' | undefined
       }) {
-        const plan = planReplayedDelivery({
-          id: input.replayedFrom ?? input.deliveryId,
-          endpointId: input.endpointId,
-          eventType: input.eventType,
-          payload: input.payload
-        })
         deliveries.push({
           id: input.deliveryId,
-          endpointId: plan.endpointId,
+          endpointId: input.plan.endpointId,
           workspaceId: input.workspaceId,
-          eventType: plan.eventType,
-          status: plan.status,
-          attempts: plan.attempts,
+          eventType: input.plan.eventType,
+          status: input.plan.status,
+          attempts: input.plan.attempts,
           lastAttemptAt: DateTime.formatIso(yield* DateTime.now),
-          nextAttemptAt: plan.nextAttemptAt,
-          responseStatus: plan.responseStatus,
-          payload: plan.payload,
+          nextAttemptAt: input.plan.nextAttemptAt,
+          responseStatus: input.plan.responseStatus,
+          payload: input.plan.payload,
           requestHeaders: null,
           responseBody: null,
-          replayedFrom: input.replayedFrom ?? null,
+          replayedFrom: input.plan.replayedFrom,
           seq: nextSeq()
         })
         if (input.auditEventType !== undefined) {
@@ -294,11 +331,11 @@ export function SeedWebhookEndpoints(
             actorUserId: (yield* WorkspaceContext).actor?.userId ?? null,
             eventType: input.auditEventType,
             targetType: 'webhook_endpoint',
-            targetId: input.endpointId,
+            targetId: input.plan.endpointId,
             metadata: {
               deliveryId: input.deliveryId,
-              replayedFrom: input.replayedFrom ?? null,
-              eventType: input.eventType
+              replayedFrom: input.plan.replayedFrom,
+              eventType: input.plan.eventType
             }
           })
         }
@@ -324,7 +361,7 @@ export function SeedWebhookEndpoints(
               if (endpoint.workspaceId !== ctx.workspace.id) {
                 continue
               }
-              projections.push(toProjection(endpoint))
+              projections.push(toProjection(endpoint, deliveries))
             }
             // Forward on `id ASC` — no timestamp on the wire shape, so the
             // stable order a page can resume is the id itself.
@@ -404,24 +441,6 @@ export function SeedWebhookEndpoints(
               .slice(0, 20)
               .map(({ seq: _seq, workspaceId: _ws, ...row }) => row)
           }),
-        disable: (input) =>
-          Effect.gen(function* () {
-            const endpoint = yield* inWorkspace(input.endpointId)
-            if (!endpoint || !endpoint.enabled) {
-              return false
-            }
-            endpoint.enabled = false
-            const ctx = yield* WorkspaceContext
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              eventType: 'webhook_endpoint.disabled',
-              targetType: 'webhook_endpoint',
-              targetId: endpoint.id,
-              metadata: {}
-            })
-            return true
-          }),
         update: (input) =>
           Effect.gen(function* () {
             if (input.url !== undefined) {
@@ -468,7 +487,9 @@ export function SeedWebhookEndpoints(
             const ctx = yield* WorkspaceContext
             const endpoint = yield* inWorkspace(input.endpointId)
             if (!endpoint) {
-              return false
+              return yield* Effect.fail(
+                new WebhookEndpointNotFound({ endpointId: input.endpointId })
+              )
             }
             // Deliveries cascade with the endpoint row, same as the FK.
             endpoints.splice(endpoints.indexOf(endpoint), 1)
@@ -485,7 +506,6 @@ export function SeedWebhookEndpoints(
               targetId: endpoint.id,
               metadata: { url: endpoint.url }
             })
-            return true
           }),
         replayDelivery: (input) =>
           Effect.gen(function* () {
@@ -511,13 +531,6 @@ export function SeedWebhookEndpoints(
                 })
               )
             }
-            if (source.payload === null) {
-              return yield* Effect.fail(
-                new WebhookDispatchRejected({
-                  reason: 'delivery records no payload to re-send'
-                })
-              )
-            }
             const endpoint = endpointFor(source.endpointId, ctx.workspace.id)
             if (!endpoint || !endpoint.enabled) {
               return yield* Effect.fail(
@@ -527,11 +540,13 @@ export function SeedWebhookEndpoints(
             const deliveryId = yield* newCapabilityId('whd')
             yield* recordOperatorDispatch({
               deliveryId,
-              endpointId: source.endpointId,
               workspaceId: ctx.workspace.id,
-              eventType: source.eventType,
-              payload: source.payload,
-              replayedFrom: source.id,
+              plan: planReplayedDelivery({
+                id: source.id,
+                endpointId: source.endpointId,
+                eventType: source.eventType,
+                payload: source.payload
+              }),
               auditEventType: 'webhook.delivery_replayed'
             })
             yield* publisher.enqueue({
@@ -565,10 +580,12 @@ export function SeedWebhookEndpoints(
             // No audit event, mirroring Live: the pending row is the record.
             yield* recordOperatorDispatch({
               deliveryId,
-              endpointId: endpoint.id,
               workspaceId: ctx.workspace.id,
-              eventType: WEBHOOK_TEST_EVENT_TYPE,
-              payload
+              plan: planPendingDispatch({
+                endpointId: endpoint.id,
+                eventType: WEBHOOK_TEST_EVENT_TYPE,
+                payload
+              })
             })
             yield* publisher.enqueue({
               endpointId: endpoint.id,
@@ -584,7 +601,9 @@ export function SeedWebhookEndpoints(
             const ctx = yield* WorkspaceContext
             const endpoint = yield* inWorkspace(input.endpointId)
             if (!endpoint) {
-              return Option.none()
+              return yield* Effect.fail(
+                new WebhookEndpointNotFound({ endpointId: input.endpointId })
+              )
             }
             // Same shift as Live: the replaced secret moves into the grace
             // columns and keeps signing until the window closes.
@@ -601,7 +620,7 @@ export function SeedWebhookEndpoints(
               targetId: endpoint.id,
               metadata: { previousSecretExpiresAt: expires.previousSecretExpiresAt }
             })
-            return Option.some({ signingSecret: endpoint.signingSecret })
+            return { signingSecret: endpoint.signingSecret }
           }),
         getDispatchTarget: (endpointId, workspaceId) =>
           Effect.gen(function* () {
@@ -616,11 +635,16 @@ export function SeedWebhookEndpoints(
             }
           }),
         recordDeliveryAttempt: (input) => recordAttempt(input).pipe(Effect.asVoid),
-        recordTerminalDeliveryAttempt: Effect.fnUntraced(function* (input) {
-          // The capability mints the row id, like Live does on this surface.
-          const deliveryId = yield* recordAttempt(input)
-          return { deliveryId }
-        })
+        recordTerminalDeliveryAttempt: (input) =>
+          // Same row identity and evidence as Live: the id from the queue
+          // message, the payload recorded so the row stays replayable. The
+          // retry schedule clears; response evidence already on the row stays.
+          Effect.map(
+            recordAttempt({ ...input, nextAttemptAt: null }),
+            (deliveryId) => ({
+              deliveryId
+            })
+          )
       }
     })
   )

@@ -2,7 +2,6 @@ import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import {
   type UpdateWebhookEndpointInput,
-  WebhookEndpointNotFound,
   WebhookEndpoints
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
@@ -10,7 +9,6 @@ import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keys
 import {
   StarterApi,
   WorkspaceExportNotDownloadable,
-  type DeletedResponse,
   type QueuedDeliveryResponse
 } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
@@ -21,7 +19,7 @@ import { HttpApiBuilder } from 'effect/unstable/httpapi'
 import { type ApiEnv } from './env.ts'
 import { enforcePermission, observed, provideWorkspace } from './request-guards.ts'
 import { mcpDiscoveryDocument } from './mcp.ts'
-import { READ_OPERATIONS, type WorkspaceReadOperation } from './operations.ts'
+import { READ_OPERATIONS } from './operations.ts'
 
 /**
  * Contract response literals. Each is declared with the literal type the
@@ -30,17 +28,9 @@ import { READ_OPERATIONS, type WorkspaceReadOperation } from './operations.ts'
  */
 const HEALTH_OK = { status: 'ok' } satisfies { readonly status: 'ok' }
 const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
-
-/**
- * The webhook DELETE alias answers identically to the capability's `false`: a
- * no-match delete reads as a missing endpoint, not as an idempotent success.
- */
-function deletedOr404(deleted: boolean, endpointId: string) {
-  if (!deleted) {
-    return Effect.fail(new WebhookEndpointNotFound({ endpointId }))
-  }
-  return Effect.succeed({ status: 'deleted' } satisfies DeletedResponse)
-}
+const WEBHOOK_DELETED = {
+  status: 'deleted'
+} satisfies { readonly status: 'deleted' }
 
 /**
  * Write sibling of the local `read` helper in `workspaceGroup`. Bearer auth and
@@ -107,25 +97,38 @@ export function workspaceGroup(env: ApiEnv) {
      * between. (Taking the key and indexing `READ_OPERATIONS` inside the body
      * cannot work: within the generic body the index resolves to the union of
      * all six rows, and TypeScript rejects the union against any one
-     * endpoint's schema.)
-     *
-     * The decoded `query` rides along: list rows page on it (ADR 0057), and
-     * the overview row ignores it — one shape for every row of the table.
+     * endpoint's schema.) The row's own `read` signature dictates whether
+     * `params` must carry `endpointId` — a parameterized row requires it.
      */
-    function workspaceRead<A, E, R>(
+    function workspaceRead<Args extends { readonly endpointId?: string }, A, E, R>(
       op: {
-        readonly path: WorkspaceReadOperation['path']
+        readonly event: string
         readonly permission: PermissionRequest
         readonly read: (
           page: ListPageInput | undefined,
-          param: { readonly endpointId?: string | undefined }
+          args: Args
         ) => Effect.Effect<A, E, R>
       },
-      params: { readonly slug: string; readonly endpointId?: string },
+      params: Args & { readonly slug: string },
       query: ListPageInput | undefined,
       request: HttpServerRequest.HttpServerRequest
     ) {
-      return read(op.path, op.permission, params.slug, request, op.read(query, params))
+      // The decoded `query` rides along: paged list rows page on it (ADR
+      // 0057), the overview row ignores it — one shape for every row of the
+      // table. The one parameterized read names which endpoint it served, the
+      // same way the write handlers annotate ids below.
+      return read(
+        op.event,
+        op.permission,
+        params.slug,
+        request,
+        Effect.gen(function* () {
+          if (params.endpointId !== undefined) {
+            yield* Effect.annotateLogsScoped({ endpointId: params.endpointId })
+          }
+          return yield* op.read(query, params)
+        })
+      )
     }
 
     // Every read composes gate + capability from the shared operation
@@ -271,8 +274,10 @@ export function webhookGroup(env: ApiEnv) {
           request,
           Effect.gen(function* () {
             const webhooks = yield* WebhookEndpoints
-            const deleted = yield* webhooks.delete({ endpointId: params.endpointId })
-            return yield* deletedOr404(deleted, params.endpointId)
+            // A no-match delete fails the capability's typed 404 — the same
+            // `WebhookEndpointNotFound` the contract declares.
+            yield* webhooks.delete({ endpointId: params.endpointId })
+            return WEBHOOK_DELETED
           })
         )
       )
@@ -290,13 +295,8 @@ export function webhookGroup(env: ApiEnv) {
             const rotated = yield* webhooks.rotateSecret({
               endpointId: params.endpointId
             })
-            if (Option.isNone(rotated)) {
-              return yield* Effect.fail(
-                new WebhookEndpointNotFound({ endpointId: params.endpointId })
-              )
-            }
             yield* Effect.annotateLogsScoped({ webhookEndpointId: params.endpointId })
-            return { signingSecret: rotated.value.signingSecret }
+            return { signingSecret: rotated.signingSecret }
           })
         )
       )
@@ -340,6 +340,48 @@ export function webhookGroup(env: ApiEnv) {
           })
         )
       )
+  )
+}
+
+export function assistantGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'assistant', (handlers) =>
+    handlers.handle('answer', ({ payload, request }) =>
+      observed(
+        env,
+        request,
+        'assistant.answer',
+        {},
+        Effect.gen(function* () {
+          yield* enforcePermission({ assistant: ['read'] })
+          const service = yield* AssistantService
+          const reply = yield* service.ask(payload)
+          return {
+            answer: reply.answer,
+            provider: reply.provider,
+            modelId: reply.modelId,
+            usedTools: reply.usedTools,
+            assistantConfigured: isAssistantConfigured(env)
+          }
+        })
+      )
+    )
+  )
+}
+
+export function mcpGroup(env: ApiEnv) {
+  return HttpApiBuilder.group(StarterApi, 'mcp', (handlers) =>
+    handlers.handle('discover', ({ request }) =>
+      observed(
+        env,
+        request,
+        'mcp.discover',
+        {},
+        Effect.gen(function* () {
+          yield* enforcePermission({ mcp: ['read'] })
+          return mcpDiscoveryDocument()
+        })
+      )
+    )
   )
 }
 
@@ -406,45 +448,3 @@ const requestOrigin = Effect.map(HttpServerRequest.HttpServerRequest, (request) 
   }
   return `https://${request.headers.host ?? 'localhost'}`
 })
-
-export function assistantGroup(env: ApiEnv) {
-  return HttpApiBuilder.group(StarterApi, 'assistant', (handlers) =>
-    handlers.handle('answer', ({ payload, request }) =>
-      observed(
-        env,
-        request,
-        'assistant.answer',
-        {},
-        Effect.gen(function* () {
-          yield* enforcePermission({ assistant: ['read'] })
-          const service = yield* AssistantService
-          const reply = yield* service.ask(payload)
-          return {
-            answer: reply.answer,
-            provider: reply.provider,
-            modelId: reply.modelId,
-            usedTools: reply.usedTools,
-            assistantConfigured: isAssistantConfigured(env)
-          }
-        })
-      )
-    )
-  )
-}
-
-export function mcpGroup(env: ApiEnv) {
-  return HttpApiBuilder.group(StarterApi, 'mcp', (handlers) =>
-    handlers.handle('discover', ({ request }) =>
-      observed(
-        env,
-        request,
-        'mcp.discover',
-        {},
-        Effect.gen(function* () {
-          yield* enforcePermission({ mcp: ['read'] })
-          return mcpDiscoveryDocument()
-        })
-      )
-    )
-  )
-}

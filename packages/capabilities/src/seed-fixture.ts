@@ -2,7 +2,7 @@ import { type ApiToken } from './developer-platform/api-token-registry.ts'
 import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
 import { type SeedNotification } from './notifications/notification-feed.ts'
 import { type SeedNotificationPreference } from './notifications/notification-preferences.ts'
-import { type WebhookEndpoint } from './developer-platform/webhook-endpoints.ts'
+import { type SeedWebhookEndpointFixture } from './developer-platform/webhook-endpoints.seed.ts'
 import { type SeedWebhookDeliveryFixture } from './developer-platform/webhook-delivery-plan.ts'
 import { type Member, type Workspace } from './governance/workspace-identity.ts'
 import {
@@ -120,22 +120,18 @@ export const seedApiTokens: ReadonlyArray<ApiToken> = [
   }
 ]
 
-export const seedWebhookEndpoints: ReadonlyArray<WebhookEndpoint> = [
+export const seedWebhookEndpoints: ReadonlyArray<SeedWebhookEndpointFixture> = [
   {
     id: 'wh_release',
     url: 'https://example.com/webhooks/starter',
     enabled: true,
-    events: ['api_token.created'],
-    // 2 of 3 seeded deliveries delivered — the third is the failed row the
-    // deliveries drawer replays.
-    successRate: 67
+    events: ['api_token.created']
   },
   {
     id: 'wh_billing',
     url: 'https://billing.example.com/hooks/starter',
     enabled: false,
-    events: ['webhook_endpoint.created'],
-    successRate: 100
+    events: ['webhook_endpoint.created']
   }
 ]
 
@@ -156,10 +152,11 @@ function seedDeliveryRequestHeaders(eventType: string) {
 }
 
 /**
- * The operator tooling's fixture history: two delivered attempts and one
- * retryable failure (with its payload and response evidence recorded) so the
+ * The operator tooling's fixture history: one delivered attempt and one
+ * retryable failure (with its payload and response evidence recorded), so the
  * deliveries drawer, the attempt timeline, and the replay button all have a
- * real story to show in the Seed workspace — on the landing demo and in tests.
+ * real story to show in the Seed workspace — on the landing demo and in
+ * tests. The endpoint's projected success rate derives from these rows.
  */
 export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
   {

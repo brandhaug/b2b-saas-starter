@@ -61,31 +61,21 @@ export const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
 const OVERVIEW_RESOURCE_URI = 'workspace://overview'
 
 /**
-/**
- * Every tool's arguments mirror its REST counterpart's inputs: the five list
- * tools take the same optional `cursor`/`limit` the REST route accepts
- * (ADR 0057), the one parameterized read (deliveries for one endpoint) takes
- * exactly that path parameter, and the overview resource takes none.
- * Out-of-range limits are clamped by the capability layer, exactly as REST
- * clamps them — the wire schemas stay permissive so MCP and REST cannot
- * disagree about what a valid request is. The zod schemas are what the MCP
- * SDK registers with, and the JSON Schema `GET /mcp` advertises is generated
- * from them — minus the `$schema` dialect header, which a tool descriptor's
- * `inputSchema` has no use for — so an operation's input is declared once.
+ * Every tool reads like its REST mirror: paged list tools take the same
+ * optional `cursor`/`limit` the REST route accepts (ADR 0057), the one
+ * parameterized read (deliveries for one endpoint) takes exactly that path
+ * parameter, and the overview resource takes no input. The zod schema is what
+ * the MCP SDK registers with, and the JSON Schema `GET /mcp` advertises is
+ * generated from it — minus the `$schema` dialect header, which a tool
+ * descriptor's `inputSchema` has no use for — so an operation's input is
+ * declared once.
  */
-/** What every tool's parsed arguments look like: paging input, a path parameter, or none. */
-type ToolInput = {
-  readonly cursor?: string | undefined
-  readonly limit?: number | undefined
-  readonly endpointId?: string | undefined
-}
-
-const NO_TOOL_INPUT: z.ZodType<ToolInput> = z.object({})
-const PAGED_TOOL_INPUT: z.ZodType<ToolInput> = z.object({
+const NO_TOOL_INPUT = z.object({})
+const PAGED_TOOL_INPUT = z.object({
   cursor: z.string().optional(),
   limit: z.number().optional()
 })
-const ENDPOINT_ID_TOOL_INPUT: z.ZodType<ToolInput> = z.object({
+const ENDPOINT_ID_TOOL_INPUT = z.object({
   endpointId: z.string().describe('The webhook endpoint id whose deliveries to list.')
 })
 
@@ -94,7 +84,7 @@ const ENDPOINT_ID_TOOL_INPUT: z.ZodType<ToolInput> = z.object({
  * `$schema` dialect header dropped, which a tool descriptor's `inputSchema`
  * has no use for.
  */
-function advertisedInputSchema(schema: z.ZodType<ToolInput>) {
+function advertisedInputSchema(schema: z.ZodObject) {
   const jsonSchema = z.toJSONSchema(schema)
   // oxlint-disable-next-line eslint/no-unused-vars -- destructured to drop the dialect header
   const { $schema: _dialect, ...rest } = jsonSchema
@@ -102,32 +92,41 @@ function advertisedInputSchema(schema: z.ZodType<ToolInput>) {
 }
 
 const NO_TOOL_INPUT_SCHEMA = advertisedInputSchema(NO_TOOL_INPUT)
-const PAGED_TOOL_INPUT_SCHEMA = advertisedInputSchema(PAGED_TOOL_INPUT)
 const ENDPOINT_ID_INPUT_SCHEMA = advertisedInputSchema(ENDPOINT_ID_TOOL_INPUT)
 
-/** The advertised JSON Schema for an operation, derived from its row flags. */
-function toolInputSchema(operation: WorkspaceReadOperation) {
-  if (operation.paged) {
-    return PAGED_TOOL_INPUT_SCHEMA
-  }
+/**
+ * The two tool input shapes, keyed by the row's discrimination: the registered
+ * zod schema (what the SDK validates against) and the advertised JSON Schema
+ * (`GET /mcp`) stay in one entry, so they cannot drift apart.
+ */
+const TOOL_INPUTS = {
+  collection: { zod: NO_TOOL_INPUT, schema: NO_TOOL_INPUT_SCHEMA },
+  paged: { zod: PAGED_TOOL_INPUT, schema: advertisedInputSchema(PAGED_TOOL_INPUT) },
+  endpointId: { zod: ENDPOINT_ID_TOOL_INPUT, schema: ENDPOINT_ID_INPUT_SCHEMA }
+}
+
+/** The input entry an operation registers with, derived from its row shape. */
+function toolInput(operation: WorkspaceReadOperation) {
   if (operation.param !== undefined) {
-    return ENDPOINT_ID_INPUT_SCHEMA
+    return TOOL_INPUTS.endpointId
   }
-  return NO_TOOL_INPUT_SCHEMA
+  if (operation.paged) {
+    return TOOL_INPUTS.paged
+  }
+  return TOOL_INPUTS.collection
 }
 
 /**
  * One tool descriptor, projected from one row of the shared operation table
  * (operations.ts) rather than hand-mirrored: same name, same permission, same
- * capability read as the REST endpoint it names — and, for lists, the same
- * paging input. Every tool is a read over a surviving capability — MCP
- * exposes what REST exposes, nothing resurrected.
+ * capability read as the REST endpoint it names. Every tool is a read over a
+ * surviving capability — MCP exposes what REST exposes, nothing resurrected.
  */
 function toolDescriptor(operation: WorkspaceReadOperation): McpToolDescriptor {
   return {
     name: operation.toolName,
     description: `${operation.toolDescription} Mirrors GET /${mirroredRestPath(operation.path)}.`,
-    inputSchema: toolInputSchema(operation)
+    inputSchema: toolInput(operation).schema
   }
 }
 
@@ -245,31 +244,28 @@ export function buildMcpServer(
 
   for (const operation of readOperations()) {
     const descriptor = toolDescriptor(operation)
-    let registeredInput: z.ZodType<ToolInput>
-    if (operation.paged) {
-      registeredInput = PAGED_TOOL_INPUT
-    } else if (operation.param !== undefined) {
-      registeredInput = ENDPOINT_ID_TOOL_INPUT
-    } else {
-      registeredInput = NO_TOOL_INPUT
-    }
     server.registerTool(
       descriptor.name,
       {
         title: descriptor.name,
         description: descriptor.description,
-        inputSchema: registeredInput
+        inputSchema: toolInput(operation).zod
       },
-      (args: ToolInput) => {
+      (args) => {
         // One guard + one capability read, bridged onto the request-scoped
         // workspace layer. `requirePermission` needs a Scope, which only exists
         // inside the Effect runtime, hence the scoped wrapper here rather than
-        // in the capability itself. The paging input and the one path parameter
-        // ride to the same read the REST route serves, so the two surfaces
-        // cannot page or scope differently.
+        // in the capability itself.
         const guarded = Effect.gen(function* () {
           yield* requirePermission(tokenPrincipal(scopes), operation.permission)
-          return yield* operation.read(args, { endpointId: args.endpointId })
+          // The SDK validated `args` against the registered schema before
+          // invoking, so the parse is total. Paged collection reads carry the
+          // same paging input REST serves; the one parameterized read gets
+          // exactly its path argument.
+          if (operation.param === undefined) {
+            return yield* operation.read(PAGED_TOOL_INPUT.parse(args))
+          }
+          return yield* operation.read(undefined, ENDPOINT_ID_TOOL_INPUT.parse(args))
         }).pipe(Effect.scoped)
 
         // `Effect.result` moves the typed error channel into the value before

@@ -42,13 +42,19 @@ describe('mcp ↔ rest operation mirror', () => {
       // Decoded, not asserted: the advertised input is JSON Schema the SDK
       // generated from zod.
       const { properties } = decodeAdvertisedInput(tool?.inputSchema)
-      if (operation.paged) {
-        // ADR 0057: list tools take the same optional cursor/limit the REST
-        // route accepts.
-        expect(properties.cursor).toBeDefined()
-        expect(properties.limit).toBeDefined()
+      if (operation.param === undefined) {
+        if (operation.paged) {
+          // ADR 0057: list tools take the same optional cursor/limit the REST
+          // route accepts.
+          expect(properties.cursor).toBeDefined()
+          expect(properties.limit).toBeDefined()
+        } else {
+          expect(properties).toEqual({})
+        }
       } else {
-        expect(properties).toEqual({})
+        // The one parameterized read takes exactly its declared path
+        // parameter, nothing else.
+        expect(Object.keys(properties)).toEqual(['endpointId'])
       }
     }
   })

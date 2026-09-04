@@ -75,27 +75,31 @@ export type ReadOperationParam = {
   readonly sample: string
 }
 
-export type WorkspaceReadOperation = {
-  /**
-   * URL path segment under `/workspaces/{slug}/`, also the OpenAPI template
-   * piece — and, because the contract names each read endpoint after its path,
-   * the `workspace` group's endpoint identifier and this table's own key. A
-   * `:param` piece in the template marks a parameterized read.
-   */
-  readonly path: ReadOperationEndpoint | 'webhooks/:endpointId/deliveries'
+/**
+ * The two row shapes, discriminated by `param`: a whole-collection read takes
+ * no input at all, and a parameterized read takes exactly its declared path
+ * parameter — required, because a missing value is a caller bug, not an empty
+ * string to query with. Both REST (`handlers.ts`) and MCP (`mcp.ts`) narrow on
+ * `param`, so neither can pass the wrong shape to a row's read.
+ *
+ * `path` is the URL segment under `/workspaces/{slug}/`, also the OpenAPI
+ * template piece — and, because the contract names each read endpoint after
+ * its path, the `workspace` group's endpoint identifier and the table's own
+ * key. A `:param` piece in the template marks a parameterized read.
+ */
+export type CollectionReadOperation = {
+  readonly path: ReadOperationEndpoint
+  /** The wide-event name under `workspace.` — a key, never a URL template. */
+  readonly event: string
   readonly permission: PermissionRequest
+  readonly param?: undefined
   /**
-   * The capability read, taking the request's paging input and the one path
-   * parameter a read can carry. List rows page (`ListPageInput`: cursor +
-   * clamped limit, ADR 0057); the overview row ignores both — REST and MCP
-   * pass the same values, so neither surface can read differently.
+   * The capability read, taking the request's paging input. List rows page
+   * (`ListPageInput`: cursor + clamped limit, ADR 0057); the overview row
+   * ignores it — REST and MCP pass the same value, so neither surface can
+   * page differently.
    */
-  readonly read: (
-    page: ListPageInput | undefined,
-    param: { readonly endpointId?: string | undefined }
-  ) => CapabilityRead
-  /** Present only for parameterized reads (see `webhook-deliveries`). */
-  readonly param?: ReadOperationParam
+  readonly read: (page: ListPageInput | undefined) => CapabilityRead
   /** Whether the row is a paged list (drives the MCP tool's input schema). */
   readonly paged: boolean
   /** The MCP tool that projects this same operation. */
@@ -103,6 +107,29 @@ export type WorkspaceReadOperation = {
   /** Tool description body; the mirrored REST operation is appended on the wire. */
   readonly toolDescription: string
 }
+
+export type ParameterizedReadOperation = {
+  readonly path: 'webhooks/:endpointId/deliveries'
+  readonly event: string
+  readonly permission: PermissionRequest
+  readonly param: ReadOperationParam
+  /**
+   * The page input rides along for a uniform call shape; the deliveries read
+   * is capped by the capability (the 20 newest), not paged, and ignores it.
+   * The endpoint id is required — a missing value is a caller bug, not an
+   * empty string to query with.
+   */
+  readonly read: (
+    page: ListPageInput | undefined,
+    args: { readonly endpointId: string }
+  ) => CapabilityRead
+  readonly toolName: string
+  readonly toolDescription: string
+}
+
+export type WorkspaceReadOperation =
+  | CollectionReadOperation
+  | ParameterizedReadOperation
 
 /**
  * The OpenAPI-style path of the mirrored REST route — `:endpointId` becomes
@@ -115,11 +142,14 @@ export function mirroredRestPath(path: WorkspaceReadOperation['path']): string {
 
 /**
  * Keyed by the contract's `workspace` group endpoint name, so a handler's
- * lookup is checked against the table's actual keys at compile time.
+ * lookup is checked against the table's actual keys at compile time. The
+ * parameterized row types its own argument as required — the type is the
+ * invariant the handler and the MCP callback both rely on.
  */
 export const READ_OPERATIONS = {
   overview: {
     path: 'overview',
+    event: 'overview',
     permission: { notification: ['read'] },
     read: () => workspaceOverview,
     paged: false,
@@ -132,6 +162,7 @@ export const READ_OPERATIONS = {
   // mutations only — it has no `read` action.
   members: {
     path: 'members',
+    event: 'members',
     permission: { ac: ['read'] },
     read: (page) =>
       Effect.flatMap(WorkspaceMembership, (membership) =>
@@ -143,6 +174,7 @@ export const READ_OPERATIONS = {
   },
   notifications: {
     path: 'notifications',
+    event: 'notifications',
     permission: { notification: ['read'] },
     read: (page) => Effect.flatMap(NotificationFeed, (feed) => feed.listPage(page)),
     paged: true,
@@ -153,6 +185,7 @@ export const READ_OPERATIONS = {
   // a token is minted by an owner or admin (see `readScopeStatements`).
   'api-tokens': {
     path: 'api-tokens',
+    event: 'api-tokens',
     permission: { apiToken: ['list'] },
     read: (page) => Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.listPage(page)),
     paged: true,
@@ -161,6 +194,7 @@ export const READ_OPERATIONS = {
   },
   webhooks: {
     path: 'webhooks',
+    event: 'webhooks',
     permission: { webhook: ['list'] },
     read: (page) =>
       Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.listPage(page)),
@@ -170,22 +204,20 @@ export const READ_OPERATIONS = {
   },
   'webhook-deliveries': {
     path: 'webhooks/:endpointId/deliveries',
+    event: 'webhook-deliveries',
     permission: { webhook: ['list'] },
     param: { name: 'endpointId', sample: 'wh_release' },
-    // The deliveries read is capped by the capability (the 20 newest), not
-    // paged — its pagination is recorded as a follow-up in the capability's
-    // leaf node, so there is no cursor to resume.
-    read: (_page, param) =>
+    read: (_page, args) =>
       Effect.flatMap(WebhookEndpoints, (webhooks) =>
-        webhooks.listDeliveries({ endpointId: param.endpointId ?? '' })
+        webhooks.listDeliveries({ endpointId: args.endpointId })
       ),
-    paged: false,
     toolName: 'list_webhook_deliveries',
     toolDescription:
       'List recent deliveries for one webhook endpoint, newest first, with response status and recorded evidence.'
   },
   'audit-events': {
     path: 'audit-events',
+    event: 'audit-events',
     permission: { auditLog: ['read'] },
     read: (page) =>
       // The audit read names its page `events` on the capability side; the

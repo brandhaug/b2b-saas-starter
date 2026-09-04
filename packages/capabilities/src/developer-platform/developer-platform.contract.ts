@@ -136,7 +136,7 @@ export function developerPlatformContractCases(
       })
     },
     {
-      name: 'a disabled endpoint stops resolving dispatch targets',
+      name: 'an endpoint disabled through update stops resolving dispatch targets',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
         const ctx = yield* WorkspaceContext
@@ -145,7 +145,7 @@ export function developerPlatformContractCases(
           events: ['demo.event']
         })
 
-        expect(yield* webhooks.disable({ endpointId: endpoint.id })).toBe(true)
+        yield* webhooks.update({ endpointId: endpoint.id, enabled: false })
         expect(yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)).toBe(
           null
         )
@@ -172,7 +172,8 @@ export function developerPlatformContractCases(
           status: 'delivered',
           attempts: 1,
           responseStatus: 200,
-          nextAttemptAt: null
+          nextAttemptAt: null,
+          payload: { tokenId: 'tok_first' }
         })
         yield* webhooks.recordDeliveryAttempt({
           id: 'whd_contract_second',
@@ -182,7 +183,8 @@ export function developerPlatformContractCases(
           status: 'failed',
           attempts: 2,
           responseStatus: 500,
-          nextAttemptAt: null
+          nextAttemptAt: null,
+          payload: { tokenId: 'tok_second' }
         })
 
         const deliveries = yield* webhooks.listDeliveries({
@@ -216,11 +218,13 @@ export function developerPlatformContractCases(
         const ctx = yield* WorkspaceContext
 
         const { deliveryId } = yield* webhooks.recordTerminalDeliveryAttempt({
+          deliveryId: 'whd_contract_dlq',
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
           eventType: 'demo.event',
           attempts: 5,
-          status: 'dead_lettered'
+          status: 'dead_lettered',
+          payload: { tokenId: 'tok_dlq' }
         })
 
         const events = yield* log.list({
@@ -289,10 +293,11 @@ export function developerPlatformContractCases(
           eventType: 'demo.event',
           status: 'delivered',
           attempts: 1,
-          responseStatus: 200
+          responseStatus: 200,
+          payload: { tokenId: 'tok_delete' }
         })
 
-        expect(yield* webhooks.delete({ endpointId: endpoint.id })).toBe(true)
+        yield* webhooks.delete({ endpointId: endpoint.id })
         expect((yield* webhooks.list).some((each) => each.id === endpoint.id)).toBe(
           false
         )
@@ -303,8 +308,9 @@ export function developerPlatformContractCases(
         expect(yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)).toBe(
           null
         )
-        // Deleting a second time matches nothing.
-        expect(yield* webhooks.delete({ endpointId: endpoint.id })).toBe(false)
+        // Deleting a second time matches nothing — the same 404 as update.
+        const deleted = yield* Effect.exit(webhooks.delete({ endpointId: endpoint.id }))
+        expect(failureTag(deleted)).toBe('WebhookEndpointNotFound')
       })
     },
     {
@@ -369,29 +375,6 @@ export function developerPlatformContractCases(
       })
     },
     {
-      name: 'a failed delivery without recorded payload refuses to replay',
-      assert: Effect.gen(function* () {
-        const webhooks = yield* WebhookEndpoints
-        const { endpoint } = yield* webhooks.create({
-          url: 'https://example.com/no-payload-hook',
-          events: ['demo.event']
-        })
-        yield* webhooks.recordDeliveryAttempt({
-          id: 'whd_contract_nopayload',
-          endpointId: endpoint.id,
-          workspaceId: 'irrelevant-to-list-scoping',
-          eventType: 'demo.event',
-          status: 'failed',
-          attempts: 1,
-          responseStatus: 500
-        })
-        const outcome = yield* Effect.exit(
-          webhooks.replayDelivery({ deliveryId: 'whd_contract_nopayload' })
-        )
-        expect(failureTag(outcome)).toBe('WebhookDispatchRejected')
-      })
-    },
-    {
       name: 'sendTestEvent queues a pending webhook.test_event to one endpoint',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
@@ -415,13 +398,14 @@ export function developerPlatformContractCases(
           webhooks.sendTestEvent({ endpointId: 'wh_missing' })
         )
         expect(failureTag(missing)).toBe('WebhookEndpointNotFound')
-        yield* webhooks.disable({ endpointId: endpoint.id })
+        yield* webhooks.update({ endpointId: endpoint.id, enabled: false })
         const disabled = yield* Effect.exit(
           webhooks.sendTestEvent({ endpointId: endpoint.id })
         )
         expect(failureTag(disabled)).toBe('WebhookDispatchRejected')
       })
     },
+    {
       // Runs last in the list on purpose: it creates rows, and the walk
       // assertions are order-independent but the later coverage suites are not.
       name: 'token pages walk exactly once and an insert never disturbs the emitted prefix',

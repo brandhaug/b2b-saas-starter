@@ -19,9 +19,10 @@ export const WebhookDelivery = Schema.Struct({
    * Operator evidence, recorded per latest attempt: the payload that was (or
    * will be, while `pending`) sent, the request header block the worker
    * posted, a truncated response body, and — on a replay — the delivery row
-   * this one was replayed from.
+   * this one was replayed from. The payload is never absent: every dispatch
+   * holds one, and terminal rows record what they never sent or exhausted.
    */
-  payload: Schema.NullOr(Schema.Json),
+  payload: Schema.Json,
   requestHeaders: Schema.NullOr(Schema.Record(Schema.String, Schema.String)),
   responseBody: Schema.NullOr(Schema.String),
   replayedFrom: Schema.NullOr(Schema.String)
@@ -68,7 +69,7 @@ export type SeedWebhookDeliveryFixture = {
   readonly lastAttemptAt: string
   readonly responseStatus?: number | null
   readonly nextAttemptAt?: string | null
-  readonly payload?: Json
+  readonly payload: Json
   readonly requestHeaders?: Record<string, string> | null
   readonly responseBody?: string | null
   readonly replayedFrom?: string | null
@@ -278,7 +279,7 @@ export type WebhookDeliveryAttemptInput = {
   readonly responseStatus?: number | null
   readonly nextAttemptAt?: string | null
   /** Operator evidence columns, recorded from the latest attempt. */
-  readonly payload?: Json
+  readonly payload: Json
   readonly requestHeaders?: Record<string, string> | null
   readonly responseBody?: string | null
   readonly replayedFrom?: string | null
@@ -293,15 +294,14 @@ export type ReplayableWebhookDelivery = {
 }
 
 /**
- * The replay half of the delivery state machine, pure: a replay is a **new**
- * delivery row that carries the original's payload verbatim, resets attempts
- * to zero, starts `pending` (the queue has not dispatched it yet), and links
- * back to its source through `replayedFrom` — so the audit trail reads
- * "replayed X" against the new row id, never a mutation of history. Time plays
- * no part in the plan itself; the adapter stamps the row (its id and
- * timestamp) as it persists it, alongside the workspace it already resolved.
+ * The `pending` row an operator dispatch (replay, test send) starts from,
+ * pure: attempts reset to zero, no response yet, and — on a replay — a
+ * `replayedFrom` link to the source row. Test sends carry `null` provenance.
+ * Time plays no part in the plan itself; the adapter stamps the row (its id
+ * and timestamp) as it persists it, alongside the workspace it already
+ * resolved.
  */
-export type ReplayedDeliveryPlan = {
+export type PendingDispatchPlan = {
   readonly endpointId: string
   readonly eventType: string
   readonly status: 'pending'
@@ -309,22 +309,36 @@ export type ReplayedDeliveryPlan = {
   readonly nextAttemptAt: null
   readonly responseStatus: null
   readonly payload: Json
+  readonly replayedFrom: string | null
+}
+
+export function planPendingDispatch(input: {
+  readonly endpointId: string
+  readonly eventType: string
+  readonly payload: Json
+  readonly replayedFrom?: string | undefined
+}): PendingDispatchPlan {
+  return {
+    endpointId: input.endpointId,
+    eventType: input.eventType,
+    status: 'pending',
+    attempts: 0,
+    nextAttemptAt: null,
+    responseStatus: null,
+    payload: input.payload,
+    replayedFrom: input.replayedFrom ?? null
+  }
+}
+
+/** A replay plan is a pending dispatch with provenance. */
+export type ReplayedDeliveryPlan = PendingDispatchPlan & {
   readonly replayedFrom: string
 }
 
 export function planReplayedDelivery(
   source: ReplayableWebhookDelivery
 ): ReplayedDeliveryPlan {
-  return {
-    endpointId: source.endpointId,
-    eventType: source.eventType,
-    status: 'pending',
-    attempts: 0,
-    nextAttemptAt: null,
-    responseStatus: null,
-    payload: source.payload,
-    replayedFrom: source.id
-  }
+  return { ...planPendingDispatch(source), replayedFrom: source.id }
 }
 
 /**

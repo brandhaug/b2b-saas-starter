@@ -4,7 +4,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
   WebhooksPanel,
-  type DisableWebhookEndpoint,
+  type UpdateWebhookEndpoint,
   type RotateWebhookSecret
 } from './webhooks-panel'
 import { type ReplayDelivery, type SendTestEvent } from './webhook-deliveries-drawer'
@@ -45,7 +45,7 @@ const endpoint: WebhookEndpoint & {
   deliveries: [delivery]
 }
 
-const disableEndpoint = vi.fn<DisableWebhookEndpoint>()
+const updateEndpoint = vi.fn<UpdateWebhookEndpoint>()
 const rotateSecret = vi.fn<RotateWebhookSecret>()
 const replayDelivery = vi.fn<ReplayDelivery>()
 const sendTestEvent = vi.fn<SendTestEvent>()
@@ -59,7 +59,7 @@ function renderPanel(input: {
       workspaceSlug="starter-lab"
       endpoints={input.endpoints ?? [endpoint]}
       viewer={{ role: input.role }}
-      disableEndpoint={disableEndpoint}
+      updateEndpoint={updateEndpoint}
       rotateSecret={rotateSecret}
       replayDelivery={replayDelivery}
       sendTestEvent={sendTestEvent}
@@ -69,8 +69,8 @@ function renderPanel(input: {
 
 describe('WebhooksPanel', () => {
   beforeEach(() => {
-    disableEndpoint.mockReset()
-    disableEndpoint.mockResolvedValue(true)
+    updateEndpoint.mockReset()
+    updateEndpoint.mockResolvedValue(endpoint)
     rotateSecret.mockReset()
     rotateSecret.mockResolvedValue('whsec_rotated')
     replayDelivery.mockReset()
@@ -113,7 +113,7 @@ describe('WebhooksPanel', () => {
   })
 
   it('surfaces a failure from either mutation in the one alert', async () => {
-    disableEndpoint.mockRejectedValue(new Error('Endpoint already disabled'))
+    updateEndpoint.mockRejectedValue(new Error('Endpoint already disabled'))
     await renderPanel({ role: 'owner' })
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm disable' }))

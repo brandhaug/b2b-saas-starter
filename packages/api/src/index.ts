@@ -258,11 +258,11 @@ const PROTECTED_ERRORS = [
 ] as const
 
 export const SlugParams = Schema.Struct({ slug: Schema.String })
-export const EndpointParams = Schema.Struct({
+const EndpointParams = Schema.Struct({
   slug: Schema.String,
   endpointId: Schema.String
 })
-export const DeliveryParams = Schema.Struct({
+const DeliveryParams = Schema.Struct({
   slug: Schema.String,
   deliveryId: Schema.String
 })
@@ -365,9 +365,9 @@ const TokenIdParams = Schema.Struct({ slug: Schema.String, tokenId: Schema.Strin
 const RevokedResponse = Schema.Struct({ status: Schema.Literal('revoked') })
 
 /** Contract response literals for the webhook operator surface. */
-export const DeletedResponse = Schema.Struct({ status: Schema.Literal('deleted') })
+const DeletedResponse = Schema.Struct({ status: Schema.Literal('deleted') })
 export type DeletedResponse = typeof DeletedResponse.Type
-export const RotatedWebhookSecret = Schema.Struct({
+const RotatedWebhookSecret = Schema.Struct({
   signingSecret: Schema.String
 })
 export type RotatedWebhookSecret = typeof RotatedWebhookSecret.Type

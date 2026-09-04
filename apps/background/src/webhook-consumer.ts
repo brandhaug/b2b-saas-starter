@@ -88,7 +88,6 @@ export function readQueueDelivery(
 }
 
 /**
-/**
  * The delivery row id for one queue message. Prefers the `deliveryId` an
  * operator dispatch (replay, test send) stamped on the message — that row
  * already exists as `pending` and the consumer's attempts resolve *it* — and
@@ -103,11 +102,6 @@ function deliveryIdFor(delivery: QueueDelivery<WebhookMessage>): Effect.Effect<s
   if (delivery.kind === 'message' && delivery.message.deliveryId !== undefined) {
     return Effect.succeed(delivery.message.deliveryId)
   }
-  if (delivery.id !== undefined && delivery.id.length > 0) {
-    return Effect.succeed(`whd_${delivery.id}`)
-  }
-  return newDeliveryId
-}
   if (delivery.id !== undefined && delivery.id.length > 0) {
     return Effect.succeed(`whd_${delivery.id}`)
   }
@@ -241,6 +235,10 @@ export function processWebhookMessage(
     const attempts = delivery.attempts
     yield* annotateMessageFields(message)
     const webhooks = yield* WebhookEndpoints
+    // The delivery id the queue message owns — derived before anything can go
+    // terminal, so a never-dispatched row still resolves this message's
+    // identity (one row per message, even when it dies pre-dispatch).
+    const deliveryId = yield* deliveryIdFor(delivery)
     // The workspace ID from the message is verified inside the capability:
     // a cross-workspace mismatch resolves null, same as a disabled or deleted
     // endpoint, so no signing secret leaves the workspace that enqueued it.
@@ -262,14 +260,16 @@ export function processWebhookMessage(
     // starter (see validateWebhookUrl).
     const urlCheck = validateWebhookUrl(target.url)
     if (!urlCheck.valid) {
-      // Never-dispatched terminal row: the capability owns the id, timestamp,
-      // and the batched audit event.
+      // Never-dispatched terminal row: resolves this message's delivery id and
+      // records the payload, so the row stays replayable once the URL is fixed.
       yield* webhooks.recordTerminalDeliveryAttempt({
+        deliveryId,
         endpointId: target.id,
         workspaceId: message.workspaceId,
         eventType: message.eventType,
         attempts,
-        status: 'failed_permanent'
+        status: 'failed_permanent',
+        payload: message.payload
       })
       yield* Effect.annotateLogsScoped({
         outcome: 'failed_permanent',
@@ -278,7 +278,6 @@ export function processWebhookMessage(
       yield* notifyDeliveryGaveUp(message, target.url, 'failed_permanent')
       return 'ack' satisfies DeliveryOutcome
     }
-    const deliveryId = yield* deliveryIdFor(delivery)
     const now = yield* DateTime.now
     const timestamp = Math.floor(DateTime.toEpochMillis(now) / 1000)
     const body = encodeDeliveryBody({
@@ -409,12 +408,18 @@ export function processDeadLetterMessage(
     const message = delivery.message
     yield* annotateMessageFields(message)
     const webhooks = yield* WebhookEndpoints
+    // The same row id the message's attempts resolved on the primary queue —
+    // the exhausted row goes terminal in place instead of forking a second
+    // row, and its recorded payload keeps it replayable.
+    const deliveryId = yield* deliveryIdFor(delivery)
     yield* webhooks.recordTerminalDeliveryAttempt({
+      deliveryId,
       endpointId: message.endpointId,
       workspaceId: message.workspaceId,
       eventType: message.eventType,
       attempts: delivery.attempts,
-      status: 'dead_lettered'
+      status: 'dead_lettered',
+      payload: message.payload
     })
     yield* Effect.annotateLogsScoped({ outcome: 'dead_lettered' })
     yield* notifyDeliveryGaveUp(message, null, 'dead_lettered')

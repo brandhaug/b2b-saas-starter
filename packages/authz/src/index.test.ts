@@ -39,7 +39,6 @@ const PERMISSIONS = [
   { label: 'webhook:create', request: { webhook: ['create'] } },
   { label: 'webhook:update', request: { webhook: ['update'] } },
   { label: 'webhook:delete', request: { webhook: ['delete'] } },
-  { label: 'webhook:disable', request: { webhook: ['disable'] } },
   { label: 'webhook:rotateSecret', request: { webhook: ['rotateSecret'] } },
   { label: 'webhook:replay', request: { webhook: ['replay'] } },
   { label: 'webhook:test', request: { webhook: ['test'] } },
@@ -96,6 +95,7 @@ const GRANTS: ReadonlyArray<{
       'webhook:create',
       'webhook:update',
       'webhook:delete',
+      'webhook:rotateSecret',
       'webhook:replay',
       'webhook:test'
     ]

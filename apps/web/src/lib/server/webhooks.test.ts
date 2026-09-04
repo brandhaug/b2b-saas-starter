@@ -1,11 +1,12 @@
-import { SeedWebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints.seed'
 import {
-  WebhookEndpoints,
-  type WebhookEndpoint
-} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+  SeedWebhookEndpoints,
+  type SeedWebhookEndpointFixture
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints.seed'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { SeedWebhookPublisher } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import { SeedNotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { SeedNotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed.seed'
+import { SeedNotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import {
   testWorkspaceContext,
   type Actor
@@ -18,19 +19,18 @@ import { describe, expect, it } from 'vite-plus/test'
 import { Effect, Layer } from 'effect'
 
 import {
-  disableWebhookEndpoint,
   loadWorkspaceWebhooks,
   replayWebhookDelivery,
   rotateWebhookSecret,
-  sendTestEvent
+  sendTestEvent,
+  updateWebhookEndpoint
 } from './webhooks'
 
 /**
- * The webhook management surface below its session gate. `disableWebhookEndpoint`
- * and `rotateWebhookSecret` are exported as effects taking only the mutation
- * input, so what is testable without a request or an auth runtime is exactly
- * the behaviour: the `webhook:disable` / `webhook:rotateSecret` gates (both
- * declared-but-unenforced until this page) and the hand-off to the capability.
+ * The webhook management surface below its session gate. The mutation effects
+ * are exported taking only the mutation input, so what is testable without a
+ * request or an auth runtime is exactly the behaviour: the permission gates
+ * and the hand-off to the capability (typed 404 included).
  *
  * Real clock on purpose: plain `it` + `Effect.runPromise`, not
  * `@effect/vitest`'s TestClock epoch.
@@ -56,13 +56,12 @@ const OWNER = actor('owner')
 const ADMIN = actor('admin')
 const MEMBER = actor('member')
 
-const seedEndpoints: ReadonlyArray<WebhookEndpoint> = [
+const seedEndpoints: ReadonlyArray<SeedWebhookEndpointFixture> = [
   {
     id: 'wh_1',
     url: 'https://example.com/hooks/starter',
     enabled: true,
-    events: ['api_token.created'],
-    successRate: 100
+    events: ['api_token.created']
   }
 ]
 
@@ -75,7 +74,13 @@ function endpointLayer() {
   return SeedWebhookEndpoints(seedEndpoints).pipe(
     Layer.provide(SeedAuditEventLog([])),
     Layer.provide(SeedWebhookPublisher),
-    Layer.provide(SeedNotificationFeed([]))
+    Layer.provide(
+      SeedNotificationFeed([]).pipe(
+        Layer.provide(
+          SeedNotificationPreferences([]).pipe(Layer.provide(SeedAuditEventLog([])))
+        )
+      )
+    )
   )
 }
 
@@ -89,30 +94,45 @@ function outcome<A, E extends { readonly _tag: string; readonly reason?: string 
   })
 }
 
-describe('disableWebhookEndpoint', () => {
-  it('lets an actor with webhook:disable disable', async () => {
+describe('updateWebhookEndpoint', () => {
+  it('lets an actor with webhook:update disable', async () => {
     const layer = Layer.mergeAll(
       endpointLayer(),
       testWorkspaceContext(workspace, ADMIN)
     )
     const result = await Effect.runPromise(
       Effect.scoped(
-        outcome(disableWebhookEndpoint({ endpointId: 'wh_1' })).pipe(
+        outcome(updateWebhookEndpoint({ endpointId: 'wh_1', enabled: false })).pipe(
           Effect.provide(layer)
         )
       )
     )
-    expect(result).toEqual({ tag: 'ok', value: true })
+    expect(result).toMatchObject({ tag: 'ok', value: { enabled: false } })
   })
 
-  it('denies a plain member — webhook:disable is withheld from member', async () => {
+  it('fails the typed 404 for an unknown endpoint', async () => {
+    const layer = Layer.mergeAll(
+      endpointLayer(),
+      testWorkspaceContext(workspace, ADMIN)
+    )
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        outcome(
+          updateWebhookEndpoint({ endpointId: 'wh_missing', enabled: false })
+        ).pipe(Effect.provide(layer))
+      )
+    )
+    expect(result).toEqual({ tag: 'WebhookEndpointNotFound' })
+  })
+
+  it('denies a plain member — webhook:update is withheld from member', async () => {
     const layer = Layer.mergeAll(
       endpointLayer(),
       testWorkspaceContext(workspace, MEMBER)
     )
     const result = await Effect.runPromise(
       Effect.scoped(
-        outcome(disableWebhookEndpoint({ endpointId: 'wh_1' })).pipe(
+        outcome(updateWebhookEndpoint({ endpointId: 'wh_1', enabled: false })).pipe(
           Effect.provide(layer)
         )
       )
@@ -127,7 +147,7 @@ describe('disableWebhookEndpoint', () => {
     const layer = Layer.mergeAll(endpointLayer(), testWorkspaceContext(workspace, null))
     const result = await Effect.runPromise(
       Effect.scoped(
-        outcome(disableWebhookEndpoint({ endpointId: 'wh_1' })).pipe(
+        outcome(updateWebhookEndpoint({ endpointId: 'wh_1', enabled: false })).pipe(
           Effect.provide(layer)
         )
       )
@@ -166,19 +186,21 @@ describe('rotateWebhookSecret', () => {
     })
   })
 
-  it('resolves no secret for an unknown endpoint — none is minted', async () => {
+  it('fails the typed 404 for an unknown endpoint — none is minted', async () => {
     const layer = Layer.mergeAll(
       endpointLayer(),
       testWorkspaceContext(workspace, OWNER)
     )
     const result = await Effect.runPromise(
       Effect.scoped(
-        rotateWebhookSecret({
-          endpointId: 'wh_missing'
-        }).pipe(Effect.provide(layer))
+        outcome(
+          rotateWebhookSecret({
+            endpointId: 'wh_missing'
+          })
+        ).pipe(Effect.provide(layer))
       )
     )
-    expect(result).toBeNull()
+    expect(result).toEqual({ tag: 'WebhookEndpointNotFound' })
   })
 })
 
@@ -189,7 +211,13 @@ describe('replayWebhookDelivery', () => {
       SeedWebhookEndpoints(seedEndpoints).pipe(
         Layer.provide(auditLog),
         Layer.provide(SeedWebhookPublisher),
-        Layer.provide(SeedNotificationFeed([]))
+        Layer.provide(
+          SeedNotificationFeed([]).pipe(
+            Layer.provide(
+              SeedNotificationPreferences([]).pipe(Layer.provide(SeedAuditEventLog([])))
+            )
+          )
+        )
       ),
       testWorkspaceContext(workspace, OWNER)
     )
@@ -285,7 +313,7 @@ describe('sendTestEvent', () => {
           Effect.gen(function* () {
             // Disable first through the same surface the UI uses, then ask for
             // the test send — one layer build, so the mutation is visible.
-            yield* disableWebhookEndpoint({ endpointId: 'wh_1' })
+            yield* updateWebhookEndpoint({ endpointId: 'wh_1', enabled: false })
             return yield* sendTestEvent({ endpointId: 'wh_1' })
           })
         ).pipe(Effect.provide(layer))

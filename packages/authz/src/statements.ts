@@ -19,16 +19,7 @@ import { defaultStatements } from 'better-auth/plugins/organization/access'
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const starterResources = {
   apiToken: ['list', 'create', 'revoke'],
-  webhook: [
-    'list',
-    'create',
-    'update',
-    'delete',
-    'disable',
-    'rotateSecret',
-    'replay',
-    'test'
-  ],
+  webhook: ['list', 'create', 'update', 'delete', 'rotateSecret', 'replay', 'test'],
   auditLog: ['read'],
   notification: ['read'],
   assistant: ['read'],

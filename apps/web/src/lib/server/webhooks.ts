@@ -1,5 +1,6 @@
 import {
   type CreatedWebhookEndpoint,
+  type UpdateWebhookEndpointInput,
   type WebhookDispatchRejected,
   type WebhookEndpointNotFound,
   type WebhookDeliveryNotFound,
@@ -9,10 +10,11 @@ import {
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Option, Schema, type Scope } from 'effect'
+import { Effect, Schema, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
@@ -110,63 +112,98 @@ const EndpointMutationSchema = Schema.Struct({
 
 const decodeEndpointMutation = Schema.decodeUnknownSync(EndpointMutationSchema)
 
+// All input constraints live in the schema — no imperative re-validation.
+const UpdateEndpointInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  endpointId: Schema.NonEmptyString,
+  url: Schema.optionalKey(Schema.NonEmptyString),
+  events: Schema.optionalKey(Schema.NonEmptyArray(Schema.NonEmptyString)),
+  enabled: Schema.optionalKey(Schema.Boolean)
+})
+
+const decodeUpdateEndpoint = Schema.decodeUnknownSync(UpdateEndpointInput)
+
 /**
- * The effect below the session gate: proves the actor may disable
- * (`webhook:disable`, declared → enforced here), then hands the mutation to
- * the capability. Exported so tests drive it against fixture layers without a
- * request or an auth runtime. Disabling an unknown id is not an error — the
- * capability resolves `false` and skips the audit row.
+ * The effect below the session gate: proves the actor may update
+ * (`webhook:update`), then hands the patch to the capability. Disabling is
+ * `update { enabled: false }` — there is no separate disable mutation to keep
+ * in step. Exported so tests drive it against fixture layers without a
+ * request or an auth runtime; an unknown endpoint fails the capability's
+ * typed `WebhookEndpointNotFound`, which `callServerFn` folds into the
+ * calling form's failure message.
  */
-export function disableWebhookEndpoint(input: {
-  readonly endpointId: string
-}): Effect.Effect<
-  boolean,
-  AuthorizationDenied | CapabilityUnavailable,
+export function updateWebhookEndpoint(
+  input: UpdateWebhookEndpointInput
+): Effect.Effect<
+  WebhookEndpoint,
+  | AuthorizationDenied
+  | CapabilityUnavailable
+  | InvalidWebhookUrl
+  | WebhookEndpointNotFound,
   Scope.Scope | WorkspaceContext | WebhookEndpoints
 > {
   return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ webhook: ['disable'] })
+    yield* requireWorkspacePermission({ webhook: ['update'] })
     const webhooks = yield* WebhookEndpoints
-    return yield* webhooks.disable(input)
+    const patch: UpdateWebhookEndpointInput = { endpointId: input.endpointId }
+    if (input.url !== undefined) {
+      patch.url = input.url
+    }
+    if (input.events !== undefined) {
+      patch.events = [...input.events]
+    }
+    if (input.enabled !== undefined) {
+      patch.enabled = input.enabled
+    }
+    return yield* webhooks.update(patch)
   })
 }
 
-export const disableWebhookEndpointServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeEndpointMutation(input))
-  .handler(async ({ data }): Promise<boolean> => {
+export const updateWebhookEndpointServerFn = createServerFn({ method: 'POST' })
+  .validator((input) => decodeUpdateEndpoint(input))
+  .handler(async ({ data }): Promise<WebhookEndpoint> => {
     const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      disableWebhookEndpoint({
-        endpointId: data.endpointId
-      }),
-      { userId: session.user.id }
-    )
+    // Statements, not a conditional spread: an absent field stays absent. The
+    // capability's own input contract types the patch.
+    const input: UpdateWebhookEndpointInput = { endpointId: data.endpointId }
+    if (data.url !== undefined) {
+      input.url = data.url
+    }
+    if (data.events !== undefined) {
+      input.events = data.events
+    }
+    if (data.enabled !== undefined) {
+      input.enabled = data.enabled
+    }
+    return runWorkspaceCapabilities(data.workspaceSlug, updateWebhookEndpoint(input), {
+      userId: session.user.id
+    })
   })
 
 /**
- * Resolves the new signing secret to show once, or `null` when no endpoint
- * matched in this workspace (no secret is minted in that case). Exported for
- * tests, same seam as `disableWebhookEndpoint`.
+ * Resolves the new signing secret to show once. An unknown endpoint fails the
+ * capability's typed `WebhookEndpointNotFound` — folded into the panel's
+ * failure message like every other rejection. Exported for tests, same seam
+ * as `updateWebhookEndpoint`.
  */
 export function rotateWebhookSecret(input: {
   readonly endpointId: string
 }): Effect.Effect<
-  string | null,
-  AuthorizationDenied | CapabilityUnavailable,
+  string,
+  AuthorizationDenied | CapabilityUnavailable | WebhookEndpointNotFound,
   Scope.Scope | WorkspaceContext | WebhookEndpoints
 > {
   return Effect.gen(function* () {
     yield* requireWorkspacePermission({ webhook: ['rotateSecret'] })
     const webhooks = yield* WebhookEndpoints
     const rotated = yield* webhooks.rotateSecret(input)
-    return Option.isSome(rotated) ? rotated.value.signingSecret : null
+    return rotated.signingSecret
   })
 }
 
 export const rotateWebhookSecretServerFn = createServerFn({ method: 'POST' })
   .validator((input) => decodeEndpointMutation(input))
-  .handler(async ({ data }): Promise<string | null> => {
+  .handler(async ({ data }): Promise<string> => {
     const session = await requireRequestSession()
     return runWorkspaceCapabilities(
       data.workspaceSlug,
