@@ -45,6 +45,11 @@ jobs:
       - name: Resolve preview URLs
         id: urls
         run: ./.github/scripts/preview-urls.sh
+      # Same squash-rename guard as the production deploy in ci.yml: a
+      # long-lived PR's stage database records pre-squash migration names.
+      # On a fresh stage database this is a no-op.
+      - name: Baseline migration bookkeeping
+        run: pnpm run db:baseline:stage
       # Alchemy applies packages/db/migrations to the stage's D1 as part of
       # the deploy (D1.Database `migrations`), so no separate migrate step.
       - name: Deploy the stage

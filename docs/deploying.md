@@ -193,7 +193,14 @@ secret, update the value in the `production` environment (or your shell)
 and deploy again — Alchemy ships values as write-only Worker secrets, so
 they are never readable back from Cloudflare. To add a schema change,
 commit the generated migration; the deploy applies it to D1
-automatically.
+automatically. Deploys first run `db:baseline:remote`
+(`packages/db/scripts/baseline.ts`), which records a migration as applied
+only when every table it creates is already present — that is what lets a
+deploy survive the routine migration squashes, since Alchemy tracks
+applied migrations by folder name and every squash renames the folder. A
+squash of work the deployed database never received still fails the
+deploy loudly; the honest repair is a reset: `pnpm run destroy && pnpm
+run deploy`, then reseed.
 
 To tear everything down, run `pnpm run destroy`. This deletes the
 database and its data.
