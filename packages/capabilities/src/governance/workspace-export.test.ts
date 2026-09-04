@@ -95,7 +95,12 @@ describe('SeedWorkspaceExports', () => {
 
       const after = yield* feed.list
       expect(after).toHaveLength(before + 1)
-      expect(after[0]?.title).toBe('Workspace export ready')
+      // The seed list orders by createdAt like Live's SQL, and the test clock
+      // sits before the fixture rows — assert on the created row, not its
+      // position.
+      expect(
+        after.some((notification) => notification.title === 'Workspace export ready')
+      ).toBe(true)
     }).pipe(Effect.provide(ownerLayer))
   )
 

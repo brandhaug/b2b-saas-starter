@@ -246,7 +246,7 @@ function DigestRow({ item }: { readonly item: DigestItem }) {
 /**
  * The daily digest: every unread Notification of the last 24 hours whose kind
  * the recipient takes as `digest`, in one email. Sent at 08:00 UTC by the
- * background worker's cron trigger (ADR 0055).
+ * background worker's cron trigger (ADR 0057).
  */
 export function NotificationDigestEmail({
   recipientName,

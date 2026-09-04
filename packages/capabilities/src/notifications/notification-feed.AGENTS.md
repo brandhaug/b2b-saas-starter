@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Workspace-scoped notification stream plus the email fan-out that starts from it. Powers the bell icon and the notification panel in the workspace shell, and is the one place a Notification is created — producers (today: the background worker on a webhook delivery that gave up; `platform-user-admin` at impersonation start, ADR 0054; `workspace-export` when an export finishes or fails; the seed fixture) call `create` / `notifyUser`, and the instant-email queue and the daily digest both read from here. Decision record: ADR 0055.
+Workspace-scoped notification stream plus the email fan-out that starts from it. Powers the bell icon and the notification panel in the workspace shell, and is the one place a Notification is created — producers (today: the background worker on a webhook delivery that gave up; `platform-user-admin` at impersonation start, ADR 0054; `workspace-export` when an export finishes or fails; the seed fixture) call `create` / `notifyUser`, and the instant-email queue and the daily digest both read from here. Decision record: ADR 0057.
 
 Split into three modules (the standard seam): `notification-feed.ts` (contract, pure helpers), `notification-feed.seed.ts`, `notification-feed.live.ts`. `notification-fan-out.ts` holds the instant enqueue both adapters share, `notification-email-queue.ts` the queue message schema and binding port the background consumer imports, and `notification-feed.contract.ts` the mark-read cases both adapters run (`index.test.ts`, `notification-feed.live.test.ts`); the email and digest reads have their own live suite in `notification-email.live.test.ts`.
 

@@ -54,4 +54,4 @@ The schedule and the queue are declared once in `infra/bindings.ts`; alchemy and
 2. Sign in as `demo@starter.local` and open `/account`. The demo owner has a mix: API token creation moved to the digest, webhook failures moved to instant, announcements off.
 3. Run `pnpm -C apps/background dev` and trigger the cron with wrangler's scheduled test endpoint: `curl "http://localhost:8788/__scheduled?cron=0+8+*+*+*"`. The digest email renders to the worker log.
 
-See ADR 0055 for the decision record.
+See ADR 0057 for the decision record.

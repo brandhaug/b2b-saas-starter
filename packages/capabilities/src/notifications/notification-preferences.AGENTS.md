@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Per-user, per-kind email channel for Notifications: `off | instant | digest`. Identity-keyed (a preference follows the user across every workspace), so there is no `WorkspaceContext` — same family as `WorkspaceMembership.listWorkspacesForUser`. Read by the `/account` page and by the feed's instant fan-out; written by the `/account` page only. Decision record: ADR 0055.
+Per-user, per-kind email channel for Notifications: `off | instant | digest`. Identity-keyed (a preference follows the user across every workspace), so there is no `WorkspaceContext` — same family as `WorkspaceMembership.listWorkspacesForUser`. Read by the `/account` page and by the feed's instant fan-out; written by the `/account` page only. Decision record: ADR 0057.
 
 ## Public surface
 

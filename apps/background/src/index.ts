@@ -59,7 +59,7 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
     return consumeBatch(env, batch, (message) => deliverWebhook(message, env))
   },
 
-  // The daily notification digest (ADR 0055): one cron trigger, declared in
+  // The daily notification digest (ADR 0057): one cron trigger, declared in
   // `infra/bindings.ts` as `notificationDigestCron`. The run reads its window
   // from `Clock`, so the handler only forwards the platform's scheduled time
   // for the wide event. Sends are counted inside the run, so a rejection

@@ -230,6 +230,7 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
   },
   {
     id: 'not_export',
+    kind: 'announcement',
     title: 'Workspace export ready',
     message: 'Your export of Starter Lab is ready to download from workspace settings.',
     createdAt: '2026-05-16T07:30:05.000Z',
