@@ -55,6 +55,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0054 — System Admin impersonation](./0054-system-admin-impersonation.md)
 - [0056 — Passkeys on Better Auth's passkey plugin](./0056-passkeys-on-better-auth-passkey-plugin.md)
 - [0063 — Email one-time codes on the email-otp plugin](./0063-email-one-time-codes.md)
+- [0057 — Account deletion on the store's delete endpoint](./0057-account-deletion-on-the-store-delete-endpoint.md)
 
 ## Optional providers
 

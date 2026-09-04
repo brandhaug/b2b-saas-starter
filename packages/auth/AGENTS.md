@@ -29,7 +29,7 @@ Better Auth's `delete-user` endpoint is **disabled unless the app supplies
 the hook pair exists. The endpoint without its hooks would delete the user
 row with sole-owner workspaces still attached, so this package refuses to
 make "enabled" a standalone choice. The endpoint's own sequencing is the
-whole design (ADR 0054): password verified FIRST, then `beforeDelete` (the
+whole design (ADR 0057): password verified FIRST, then `beforeDelete` (the
 capability's workspace teardown), then the user row, then `afterDelete` (the
 actorless `account.deleted` record + the deletion email). The hook bodies
 live in the app (`apps/web/src/lib/server/account-delete-hooks.ts`); they
