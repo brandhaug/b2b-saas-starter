@@ -59,6 +59,9 @@ const EVENT_LABELS = new Map<string, string>(
     'auth.passkey_added_failed': 'Passkey add failed',
     'auth.passkey_removed': 'Passkey removed',
     'auth.passkey_removed_failed': 'Passkey removal failed',
+    // social account linking
+    'auth.account_linked': 'Sign-in provider linked',
+    'auth.account_unlinked': 'Sign-in provider unlinked',
     // Better Auth admin endpoints (system-level)
     'system_admin.user_created': 'System user created',
     'system_admin.user_creation_failed': 'System user creation failed',

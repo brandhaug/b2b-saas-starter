@@ -74,11 +74,14 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   // Sign out (drop the session cookie) and come back through the passkey
   // button — no password, no two-factor hop. On the virtual authenticator the
   // conditional-UI preload may complete the ceremony on its own (a real
-  // browser waits for the user to pick the autofill), so the click is
-  // best-effort: either path proves the passkey opened the session.
+  // browser waits for the user to pick the autofill) and navigate away —
+  // possibly before the form even hydrates — so the click is best-effort in
+  // both directions: the button is server-rendered, and if the page has
+  // already left for /workspaces it never becomes actionable and the click
+  // times out into the catch. Either path proves the passkey opened the
+  // session.
   await context.clearCookies()
   await page.goto('/sign-in')
-  await page.locator('form[data-hydrated="true"]').waitFor()
   await page
     .getByRole('button', { name: 'Sign in with a passkey' })
     .click({ timeout: 10_000 })

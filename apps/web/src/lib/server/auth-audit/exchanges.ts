@@ -85,6 +85,32 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     target: 'session',
     signInMethod: 'username'
   },
+  // Social sign-in completes at the provider callback — the response is a
+  // redirect, so the Location header carries the outcome (an `error` param on
+  // failure) and the body names nobody. The actor is the pre-handler session
+  // read when one exists (the link flow); a fresh social sign-in has no
+  // session yet and records unattributed — the account-linking events carry
+  // the user attribution for that path instead (see `social-account-audit`).
+  {
+    method: 'GET',
+    suffix: '/callback/github',
+    success: 'auth.sign_in',
+    failure: 'auth.sign_in_failed',
+    actor: 'session',
+    target: 'session',
+    successFromRedirect: true,
+    signInMethod: 'github'
+  },
+  {
+    method: 'GET',
+    suffix: '/callback/google',
+    success: 'auth.sign_in',
+    failure: 'auth.sign_in_failed',
+    actor: 'session',
+    target: 'session',
+    successFromRedirect: true,
+    signInMethod: 'google'
+  },
   {
     method: 'POST',
     suffix: '/sign-up/email',

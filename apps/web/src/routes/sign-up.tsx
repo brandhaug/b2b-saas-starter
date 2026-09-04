@@ -6,11 +6,16 @@ import { UserPlusIcon } from 'lucide-react'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
+import { SocialSignInButtons } from '@/components/auth/social-sign-in'
 import { FormTextField } from '@/components/form-text-field'
 import {
+  signInSocialWithAuthClient,
   signUpWithAuthClient,
-  type SignUpWithEmail
+  type SignInWithSocial,
+  type SignUpWithEmail,
+  type SocialProviderId
 } from '@/components/auth/auth-client-ports'
+import { getSocialProviderIds } from '@/lib/server/social-providers'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 import { TurnstileWidget } from '@/components/auth/turnstile-widget'
@@ -19,11 +24,18 @@ export type { SignUpWithEmail } from '@/components/auth/auth-client-ports'
 
 export const Route = createFileRoute('/sign-up')({
   validateSearch: redirectSearch,
-  // The site key is read on the server only; `null` keeps the widget unmounted.
-  loader: async () => ({ turnstileSiteKey: await getTurnstileSiteKey() }),
+  // Both server-only reads: the Turnstile site key and the active provider
+  // ids are fetched in the loader; `null`/empty keeps their UI unmounted.
+  loader: async () => ({
+    turnstileSiteKey: await getTurnstileSiteKey(),
+    socialProviders: await getSocialProviderIds()
+  }),
   component: SignUpRoute,
   head: () => ({ meta: [{ title: pageTitle('Create your account') }] })
 })
+
+/** Stable empty default: a fresh `[]` literal per render would defeat memoing. */
+const NO_SOCIAL_PROVIDERS: ReadonlyArray<SocialProviderId> = []
 
 type SignUpValues = {
   name: string
@@ -39,19 +51,30 @@ type SignUpValues = {
  */
 function SignUpRoute() {
   const { redirect } = Route.useSearch()
-  const { turnstileSiteKey } = Route.useLoaderData()
-  return <SignUpPage redirect={redirect} turnstileSiteKey={turnstileSiteKey} />
+  const { turnstileSiteKey, socialProviders } = Route.useLoaderData()
+  return (
+    <SignUpPage
+      redirect={redirect}
+      turnstileSiteKey={turnstileSiteKey}
+      socialProviders={socialProviders}
+    />
+  )
 }
 
 export function SignUpPage({
   redirect,
   signUp = signUpWithAuthClient,
-  turnstileSiteKey = null
+  turnstileSiteKey = null,
+  socialProviders = NO_SOCIAL_PROVIDERS,
+  signInSocial = signInSocialWithAuthClient
 }: {
   readonly redirect?: string | undefined
   readonly signUp?: SignUpWithEmail
   /** Server-provided Turnstile site key; `null` renders no widget (provider-light). */
   readonly turnstileSiteKey?: string | null | undefined
+  /** Active provider ids from the loader; empty renders no provider buttons. */
+  readonly socialProviders?: ReadonlyArray<SocialProviderId>
+  readonly signInSocial?: SignInWithSocial
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -111,6 +134,12 @@ export function SignUpPage({
         </p>
       }
     >
+      <SocialSignInButtons
+        providers={socialProviders}
+        redirectTo={redirect}
+        signIn={signInSocial}
+      />
+
       <form.Field
         name="name"
         validators={{

@@ -6,14 +6,21 @@ import { FingerprintIcon, KeyRoundIcon } from 'lucide-react'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
-import { FormTextField } from '@/components/form-text-field'
 import {
-  signInWithAuthClient,
+  LastSignInMethodHint,
+  SocialSignInButtons
+} from '@/components/auth/social-sign-in'
+import {
   signInPasskeyWithAuthClient,
+  signInSocialWithAuthClient,
+  signInWithAuthClient,
   type SignInWithEmail,
-  type SignInWithPasskey
+  type SignInWithPasskey,
+  type SignInWithSocial,
+  type SocialProviderId
 } from '@/components/auth/auth-client-ports'
 import { Button } from '@/components/ui/button'
+import { FormTextField } from '@/components/form-text-field'
 import {
   DEMO_CREDENTIALS,
   DEMO_MEMBER_CREDENTIALS,
@@ -22,6 +29,7 @@ import {
 import { conditionalMediationAvailable } from '@/lib/webauthn-support'
 import { authFailure } from '@/lib/auth-result'
 import { useServerAction } from '@/hooks/use-server-action'
+import { getSocialProviderIds } from '@/lib/server/social-providers'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 
 export type {
@@ -33,6 +41,10 @@ const PASSKEY_FAILED = 'Passkey sign-in failed'
 
 export const Route = createFileRoute('/sign-in')({
   validateSearch: redirectSearch,
+  // The active provider ids are read on the server only (env-gated: with no
+  // provider configured the loader answers an empty list and the page renders
+  // exactly what it did before social sign-in existed).
+  loader: async () => ({ socialProviders: await getSocialProviderIds() }),
   component: SignInRoute,
   head: () => ({ meta: [{ title: pageTitle('Sign in') }] })
 })
@@ -41,6 +53,9 @@ type SignInValues = {
   email: string
   password: string
 }
+
+/** Stable empty default: a fresh `[]` literal per render would defeat memoing. */
+const NO_SOCIAL_PROVIDERS: ReadonlyArray<SocialProviderId> = []
 
 /**
  * Whether the sign-in response asks for the two-factor hop. A plain field
@@ -65,17 +80,23 @@ function wantsTwoFactorRedirect(data: unknown): boolean {
  */
 function SignInRoute() {
   const { redirect } = Route.useSearch()
-  return <SignInPage redirect={redirect} />
+  const { socialProviders } = Route.useLoaderData()
+  return <SignInPage redirect={redirect} socialProviders={socialProviders} />
 }
 
 export function SignInPage({
   redirect,
+  socialProviders = NO_SOCIAL_PROVIDERS,
   signIn = signInWithAuthClient,
-  signInPasskey = signInPasskeyWithAuthClient
+  signInPasskey = signInPasskeyWithAuthClient,
+  signInSocial = signInSocialWithAuthClient
 }: {
   readonly redirect?: string | undefined
+  /** Active provider ids from the loader; empty renders no provider buttons. */
+  readonly socialProviders?: ReadonlyArray<SocialProviderId>
   readonly signIn?: SignInWithEmail
   readonly signInPasskey?: SignInWithPasskey
+  readonly signInSocial?: SignInWithSocial
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -191,6 +212,12 @@ export function SignInPage({
               </p>
             )}
           </div>
+          {socialProviders.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              The provider buttons sign you in through GitHub or Google; an account with
+              a matching verified email is linked automatically.
+            </p>
+          ) : null}
           <p className="text-right">
             <Link
               to="/forgot-password"
@@ -245,6 +272,13 @@ export function SignInPage({
         </>
       }
     >
+      <LastSignInMethodHint />
+      <SocialSignInButtons
+        providers={socialProviders}
+        redirectTo={redirect}
+        signIn={signInSocial}
+      />
+
       <form.Field name="email" validators={{ onChange: emailValidator }}>
         {(field) => (
           <FormTextField

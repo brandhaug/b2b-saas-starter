@@ -1,3 +1,4 @@
+import { type SOCIAL_PROVIDER_IDS } from '@b2b-saas-starter/env/social'
 import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
 
@@ -86,6 +87,83 @@ export function requestPasswordResetWithAuthClient(
     email: input.email,
     redirectTo: `${window.location.origin}/reset-password`
   })
+}
+
+/* -------------------------------------------------------------------------- */
+/* Social sign-in                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The providers the auth screens can offer — the same closed set the server
+ * resolver owns (`SOCIAL_PROVIDER_IDS` in `@b2b-saas-starter/env/social`),
+ * derived rather than restated so the env gate and the UI cannot disagree
+ * about which providers exist.
+ */
+export type SocialProviderId = (typeof SOCIAL_PROVIDER_IDS)[number]
+
+/**
+ * Social sign-in initiation. Better Auth's client answers with the provider's
+ * authorize URL and follows it itself (its redirect plugin navigates on
+ * `{ url, redirect: true }`), so the component only supplies the provider and
+ * where to land afterwards. The method the visitor used is remembered by the
+ * `lastLoginMethod` plugin's cookie, surfaced on the next sign-in page visit.
+ */
+export type SignInWithSocial = AuthPort<{
+  readonly provider: SocialProviderId
+  /** Absolute URL — Better Auth validates it against trusted origins. */
+  readonly callbackURL: string
+}>
+
+export function signInSocialWithAuthClient(
+  input: Parameters<SignInWithSocial>[0]
+): ReturnType<SignInWithSocial> {
+  return authClient.signIn.social(input)
+}
+
+/**
+ * The last authentication method this browser used ('github', 'google',
+ * 'email', …), from the `lastLoginMethod` plugin's client-readable cookie.
+ * Synchronous and SSR-safe (null without a document); null means "no
+ * remembered method" — the hint simply does not render.
+ */
+export type ReadLastLoginMethod = () => string | null
+
+export function readLastLoginMethodWithAuthClient(): string | null {
+  return authClient.getLastUsedLoginMethod()
+}
+
+/* -------------------------------------------------------------------------- */
+/* Linked accounts                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One linked sign-in method, narrowed to the fields the account page reads.
+ * `id` is the account row's id — the value `unlinkAccount` takes — and
+ * `providerId` is the method ('credential' for email and password).
+ */
+export type LinkedAccountRecord = {
+  readonly id: string
+  readonly providerId: string
+  readonly createdAt: Date
+}
+
+export type ListLinkedAccounts = AuthPort<void, ReadonlyArray<LinkedAccountRecord>>
+
+export function listAccountsWithAuthClient(): ReturnType<ListLinkedAccounts> {
+  return authClient.listAccounts()
+}
+
+/**
+ * Unlinking one sign-in method. Better Auth refuses the last remaining
+ * account (`allowUnlinkingAll` stays off), so the UI disables the control
+ * when only one is left — the endpoint refusal is the backstop.
+ */
+export type UnlinkAccount = AuthPort<{ readonly accountId: string }>
+
+export function unlinkAccountWithAuthClient(
+  input: Parameters<UnlinkAccount>[0]
+): ReturnType<UnlinkAccount> {
+  return authClient.unlinkAccount(input)
 }
 
 export type ResetPassword = AuthPort<{
