@@ -19,6 +19,13 @@ export const env = {
   CLOUDFLARE_EMAIL_FROM: process.env.CLOUDFLARE_EMAIL_FROM,
   TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY,
   TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+  // Social sign-in provider env: passed through so local dev matches what a
+  // deployed worker receives. Unset/absent keeps the provider out of the
+  // Better Auth config and its button off the auth screens.
+  GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
+  GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
   // Assistant provider env: passed through so local dev matches what a
   // deployed worker receives. Unset/absent leaves the mock provider active.
   WORKERS_AI_ENABLED: process.env.WORKERS_AI_ENABLED,

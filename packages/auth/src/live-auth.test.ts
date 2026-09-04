@@ -61,6 +61,12 @@ beforeAll(
               baseURL: 'http://localhost:3071',
               trustedOrigins: [],
               emails: capturingEmailSender,
+              // No provider configured: the Local Auth Path shape, unchanged.
+              socialProviders: {},
+              accountHooks: {
+                onAccountLinked: () => Promise.resolve(),
+                onAccountUnlinked: () => Promise.resolve()
+              },
               // Local-mode stance: the gate stays off in tests, matching dev.
               requireEmailVerification: false,
               // No execution context in a test: run the detached send inline
