@@ -379,7 +379,7 @@ function auditRows(fixture: Fixture): ReadonlyArray<string> {
 }
 
 /**
- * The fixture MCP Client and the demo owner's consent to it (ADR 0054). Both
+ * The fixture MCP Client and the demo owner's consent to it (ADR 0055). Both
  * tables are the OAuth provider's: epoch-integer dates, camelCase columns. The
  * consent's `referenceId` is the workspace the consent page picked.
  */

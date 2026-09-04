@@ -26,6 +26,7 @@ import {
   type AuthOptions
 } from './index.ts'
 import { decodeUriSecret } from './test-totp.ts'
+import { testMcpConfig } from './test-mcp.ts'
 
 // The organization plugin is only observable through a real database: its
 // `modelName` overrides, its `additionalFields`, and its role table all resolve
@@ -93,15 +94,7 @@ beforeAll(
               runBackground: (promise) => {
                 void promise.catch(() => undefined)
               },
-              mcp: {
-                resource: 'http://localhost:8787/mcp',
-                // Discovery never runs in this suite — the client rows are
-                // inserted directly — so the transport refuses if it is ever
-                // reached.
-                fetchClientMetadataResource: () => {
-                  throw new TypeError('client discovery is not exercised by this suite')
-                }
-              }
+              mcp: testMcpConfig()
             }))
           )
         )
@@ -564,17 +557,34 @@ describe('mcp oauth authorization server', () => {
   const REDIRECT_URI = 'http://127.0.0.1:33418/oauth/callback'
 
   /**
-   * The provider's authorize re-entry (`oauth2/continue`, `oauth2/consent`)
-   * demands a request context and reads the session off its headers. A plain
-   * header carrier satisfies it — and stays deliberately request-like
-   * *untrue*, so the endpoint still answers with parsed JSON, not a
-   * `Response`.
+   * The provider's re-entry endpoints (`oauth2/continue`, `oauth2/consent`)
+   * answered through the instance handler — the same Request shape the web
+   * app's consent page forwards — resolved to wherever the provider points
+   * next, whether that arrives as a 302 or a JSON `{ url }` body.
    */
-  function requestCarrier(headers: Headers): Request {
-    // SAFETY: only `headers` and `method` are read downstream; `isRequestLike`
-    // must keep failing on this shape so the endpoint returns parsed JSON.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, effect/noAs -- a header carrier stands in for the Request the router would have supplied
-    return { headers, method: 'POST' } as Request
+  function postForRedirect(
+    auth: {
+      readonly instance: { readonly handler: (request: Request) => Promise<Response> }
+    },
+    path: string,
+    headers: Headers,
+    body: Record<string, unknown>
+  ) {
+    const requestHeaders = new Headers(headers)
+    requestHeaders.set('content-type', 'application/json')
+    return Effect.flatMap(
+      Effect.promise(() =>
+        auth.instance.handler(
+          new Request(`http://localhost:3071/api/auth${path}`, {
+            method: 'POST',
+            headers: requestHeaders,
+            // oxlint-disable-next-line effect/noGlobals -- the auth handler's own JSON wire format is the thing under test here
+            body: JSON.stringify(body)
+          })
+        )
+      ),
+      redirectTarget
+    )
   }
 
   /**
@@ -697,32 +707,27 @@ describe('mcp oauth authorization server', () => {
         expect(toConsent.searchParams.has('sig')).toBe(true)
 
         // 2. The consent server function: pick the workspace, then resume the
-        //    authorization vouching for the pick. The provider's re-entry
-        //    demands a request context, so the calls carry a minimal one.
+        //    authorization vouching for the pick.
         yield* auth.api.setActiveOrganization({
           body: { organizationId: workspace.id },
           headers
         })
         const vouching = new Headers(headers)
         vouching.set(MCP_WORKSPACE_SELECTED_HEADER, workspace.id)
-        const continued = yield* auth.api.oauth2Continue({
-          body: { postLogin: true, oauth_query: toConsent.search.slice(1) },
-          headers: vouching,
-          request: requestCarrier(vouching)
+        const continued = yield* postForRedirect(auth, '/oauth2/continue', vouching, {
+          postLogin: true,
+          oauth_query: toConsent.search.slice(1)
         })
-        const consentHop = new URL(continued.url, 'http://localhost:3071')
         // No standing consent yet: back to the consent page, this time as the
         // consent hop (the provider marks the pick as cleared for this session).
-        expect(consentHop.pathname).toBe(MCP_CONSENT_PAGE)
-        expect(consentHop.searchParams.has('ba_pl')).toBe(true)
+        expect(continued.pathname).toBe(MCP_CONSENT_PAGE)
+        expect(continued.searchParams.has('ba_pl')).toBe(true)
 
         // 3. Accept — the code is issued to the client's redirect URI.
-        const accepted = yield* auth.api.oauth2Consent({
-          body: { accept: true, oauth_query: consentHop.search.slice(1) },
-          headers,
-          request: requestCarrier(headers)
+        const callback = yield* postForRedirect(auth, '/oauth2/consent', headers, {
+          accept: true,
+          oauth_query: continued.search.slice(1)
         })
-        const callback = new URL(accepted.url)
         expect(callback.origin + callback.pathname).toBe(REDIRECT_URI)
         expect(callback.searchParams.get('state')).toBe('xyz')
         const code = callback.searchParams.get('code')
@@ -818,17 +823,12 @@ describe('mcp oauth authorization server', () => {
         // the provider sends the browser back to the consent page.
         const vouching = new Headers(headers)
         vouching.set(MCP_WORKSPACE_SELECTED_HEADER, 'wrk_never_picked')
-        const continued = yield* auth.api.oauth2Continue({
-          body: { postLogin: true, oauth_query: toConsent.search.slice(1) },
-          headers: vouching,
-          request: requestCarrier(vouching)
+        const continued = yield* postForRedirect(auth, '/oauth2/continue', vouching, {
+          postLogin: true,
+          oauth_query: toConsent.search.slice(1)
         })
-        expect(new URL(continued.url, 'http://localhost:3071').pathname).toBe(
-          MCP_CONSENT_PAGE
-        )
-        expect(
-          new URL(continued.url, 'http://localhost:3071').searchParams.has('ba_pl')
-        ).toBe(false)
+        expect(continued.pathname).toBe(MCP_CONSENT_PAGE)
+        expect(continued.searchParams.has('ba_pl')).toBe(false)
       })
     ))
 })

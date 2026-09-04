@@ -144,11 +144,30 @@ const inactiveVerifier: OAuthTokenVerifierInterface = {
 }
 
 /**
+ * Raised at layer construction when a production deployment points the JWKS
+ * trust root at a plaintext origin — a misconfiguration worth refusing the
+ * worker over. There is no Effect channel during layer build, so the throw is
+ * the gate (the same stance `apps/web`'s env gate takes).
+ */
+export class InsecureOAuthIssuerError extends Error {
+  constructor(jwksUrl: string) {
+    super(
+      `Refusing to start: MCP_OAUTH_ISSUER must be https in production (got ${jwksUrl})`
+    )
+    this.name = 'InsecureOAuthIssuerError'
+  }
+}
+
+/**
  * Built once per isolate (it rides the isolate-level capability layer in
  * `http.ts`), so jose's remote key set — which caches keys and refetches only
  * on an unknown `kid`, at most every thirty seconds — lives as long as the
  * isolate does. Unconfigured, the OAuth path is inactive and `/mcp` accepts
  * API Tokens alone (CLAUDE.md rule 3).
+ *
+ * A production issuer must be `https:` — the JWKS fetch is the trust root, and
+ * a plaintext one would downgrade a misconfiguration into token forgery. Local
+ * dev's `http://localhost` issuer is the sanctioned exception.
  */
 export function makeOAuthTokenVerifierLayer(
   env: ApiEnv
@@ -156,6 +175,10 @@ export function makeOAuthTokenVerifierLayer(
   const config = oauthResourceConfig(env)
   if (config === undefined) {
     return Layer.succeed(OAuthTokenVerifier)(inactiveVerifier)
+  }
+  if (env.ENVIRONMENT === 'production' && !config.jwksUrl.startsWith('https:')) {
+    // oxlint-disable-next-line effect/noThrowStatement -- layer construction has no Effect channel; this throw IS the production gate
+    throw new InsecureOAuthIssuerError(config.jwksUrl)
   }
   const keySet = createRemoteJWKSet(new URL(config.jwksUrl), {
     cooldownDuration: 30_000,

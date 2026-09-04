@@ -2,6 +2,8 @@ import { Effect, Layer } from 'effect'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import {
+  consentGrantedAuditEvent,
+  consentRevokedAuditEvent,
   McpClientConnections,
   type McpClientConnection,
   type McpClientSummary
@@ -59,15 +61,7 @@ export function SeedMcpClientConnections(seed: {
                 return 0
               })
           ),
-        recordGrant: (input) =>
-          audit.record({
-            workspaceId: input.workspaceId,
-            actorUserId: input.userId,
-            eventType: 'mcp_client.consent_granted',
-            targetType: 'mcp_client',
-            targetId: input.clientId,
-            metadata: { scopes: [...input.scopes] }
-          }),
+        recordGrant: (input) => audit.record(consentGrantedAuditEvent(input)),
         revoke: (input) =>
           Effect.gen(function* () {
             const index = connections.findIndex(
@@ -80,14 +74,16 @@ export function SeedMcpClientConnections(seed: {
               return false
             }
             connections.splice(index, 1)
-            yield* audit.record({
-              workspaceId: connection.workspace?.id ?? null,
-              actorUserId: input.userId,
-              eventType: 'mcp_client.consent_revoked',
-              targetType: 'mcp_client',
-              targetId: connection.client.clientId,
-              metadata: { scopes: [...connection.scopes] }
-            })
+            yield* audit.record(
+              consentRevokedAuditEvent({
+                userId: input.userId,
+                clientId: connection.client.clientId,
+                scopes: connection.scopes,
+                // Same rule as Live: a consent outliving its workspace audits
+                // with no workspace, never a dangling id.
+                workspaceId: connection.workspace?.id ?? null
+              })
+            )
             return true
           })
       }

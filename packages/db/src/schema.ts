@@ -565,7 +565,7 @@ export const workspaceExports = sqliteTable(
 
 /*
  * Better Auth `jwt` plugin and `@better-auth/mcp` (the OAuth 2.1 provider it is
- * built on) — ADR 0054. Plugin-owned shape: camelCase columns, epoch-integer
+ * built on) — ADR 0055. Plugin-owned shape: camelCase columns, epoch-integer
  * dates, surrogate `id` keys, `string[]`/`json` fields as JSON text. The
  * export keys are the plugin's model names, which is what the drizzle adapter
  * resolves models by; the SQL names are snake_case like every other table.

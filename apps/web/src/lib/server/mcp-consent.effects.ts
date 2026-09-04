@@ -3,7 +3,9 @@ import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-p
 import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { Effect, Schema } from 'effect'
 
+import { causeMessage } from '../cause-message'
 import { runCapabilities } from '../capabilities'
+import { webRuntime } from '../observability'
 import { type OAuthConsentPayload, type OAuthRedirect } from './mcp-consent'
 import { sessionCall } from './plugin-call'
 
@@ -27,9 +29,20 @@ import { sessionCall } from './plugin-call'
 const RedirectResult = Schema.Struct({ url: Schema.String })
 const decodeRedirect = Schema.decodeUnknownSync(RedirectResult)
 
+/** Where the provider sends the browser next: its own URL string, plus the parsed view the flow inspects. */
+type Redirect = {
+  /** The provider's answer verbatim — handed to the page untouched. */
+  readonly url: string
+  /** Parsed against a synthetic base so relative answers can be inspected. */
+  readonly parsed: URL
+}
+
 /** Absolute-or-relative, the provider's redirect target as a URL we can inspect. */
-function redirectUrl(result: typeof RedirectResult.Type): URL {
-  return new URL(result.url, 'http://relative.invalid')
+function redirect(result: typeof RedirectResult.Type): Redirect {
+  return {
+    url: result.url,
+    parsed: new URL(result.url, 'http://oauth-redirect-base.invalid')
+  }
 }
 
 function withWorkspaceSelected(headers: Headers, workspaceId: string): Headers {
@@ -61,10 +74,13 @@ function scopesOf(url: URL): ReadonlyArray<string> {
     .filter((scope) => scope.length > 0)
 }
 
+/** The capability half of the consent payload; the server fn adds the request-read `oauthQuery`. */
+type ConsentLoad = Omit<OAuthConsentPayload, 'oauthQuery'>
+
 export function loadOAuthConsent(input: {
   readonly userId: string
   readonly clientId: string
-}): Promise<OAuthConsentPayload> {
+}): Promise<ConsentLoad> {
   return runCapabilities(
     Effect.all(
       {
@@ -86,7 +102,7 @@ export async function grantOAuthConsent(input: {
   await sessionCall((api, headers) =>
     api.setActiveOrganization({ body: { organizationId: input.workspaceId }, headers })
   )
-  const continued = redirectUrl(
+  const continued = redirect(
     decodeRedirect(
       await sessionCall((api, headers) =>
         api.oauth2Continue({
@@ -97,23 +113,51 @@ export async function grantOAuthConsent(input: {
       )
     )
   )
-  if (continued.pathname !== MCP_CONSENT_PAGE) {
+  if (continued.parsed.pathname !== MCP_CONSENT_PAGE) {
     // A standing consent covered the request: the code was issued without a
     // new grant, so there is nothing new to audit.
-    return { url: continued.href.replace('http://relative.invalid', '') }
+    return { url: continued.url }
   }
-  const consented = redirectUrl(
+  const consented = redirect(
     decodeRedirect(
       await sessionCall((api, headers) =>
         api.oauth2Consent({
-          body: { accept: true, oauth_query: continued.search.slice(1) },
+          body: { accept: true, oauth_query: continued.parsed.search.slice(1) },
           headers,
           request: oauthRequest(headers)
         })
       )
     )
   )
-  const clientId = continued.searchParams.get('client_id') ?? 'unknown'
+  await recordGrantBestEffort(input, continued.parsed)
+  return { url: consented.url }
+}
+
+/**
+ * The `mcp_client.consent_granted` audit event, recorded **after** the
+ * provider has already consented and issued the code. That ordering is why
+ * this is best-effort: by the time it runs, the consent exists and the client
+ * holds a working code, so a failed audit write must be reported and the user
+ * still sent on their way — failing the redirect here would show "could not
+ * be authorized" for an authorization that succeeded, and the plugin's own
+ * write cannot be re-run to retry it. Same trade as the account hooks'
+ * `reportDroppedAudit`: no ambient Effect survives the promise seam, so the
+ * report goes to the isolate logger.
+ */
+async function recordGrantBestEffort(
+  input: { readonly userId: string; readonly workspaceId: string },
+  continued: URL
+): Promise<void> {
+  const clientId = continued.searchParams.get('client_id')
+  if (clientId === null) {
+    // The authorization request always names its client; recording a grant
+    // for an unknown one would write a fake id into the audit trail, so this
+    // is a defect, not a fallback.
+    reportDroppedGrantAudit(
+      `mcp consent grant audit dropped (no client_id on the consent hop, user ${input.userId}, workspace ${input.workspaceId})`
+    )
+    return
+  }
   await runCapabilities(
     Effect.flatMap(McpClientConnections, (connections) =>
       connections.recordGrant({
@@ -123,14 +167,25 @@ export async function grantOAuthConsent(input: {
         scopes: scopesOf(continued)
       })
     )
+  ).catch(
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the rejected value is a cause to log, not input to parse; `: unknown` is the safe annotation the audit-drop path demands
+    (error: unknown) => {
+      reportDroppedGrantAudit(
+        `mcp consent grant audit dropped (client ${clientId}, user ${input.userId}, workspace ${input.workspaceId}): ${causeMessage(error, 'no reason given')}`
+      )
+    }
   )
-  return { url: consented.href.replace('http://relative.invalid', '') }
+}
+
+/** The same visibility `reportDroppedAudit` gives the account hooks: a dropped audit write is never silent. */
+function reportDroppedGrantAudit(message: string): void {
+  void webRuntime.runPromise(Effect.logError(message))
 }
 
 export async function denyOAuthConsent(input: {
   readonly oauthQuery: string
 }): Promise<OAuthRedirect> {
-  const denied = redirectUrl(
+  const denied = redirect(
     decodeRedirect(
       await sessionCall((api, headers) =>
         api.oauth2Consent({
@@ -141,5 +196,5 @@ export async function denyOAuthConsent(input: {
       )
     )
   )
-  return { url: denied.href.replace('http://relative.invalid', '') }
+  return { url: denied.url }
 }

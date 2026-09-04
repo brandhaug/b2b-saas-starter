@@ -2,6 +2,7 @@ import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { type AuthConfigInterface, makeAuthOptions } from './index.ts'
+import { testMcpConfig } from './test-mcp.ts'
 
 type AuthPlugin = ReturnType<typeof makeAuthOptions>['plugins'][number]
 
@@ -40,13 +41,7 @@ const baseConfig: AuthConfigInterface = {
   runBackground: (promise) => {
     void promise.catch(() => undefined)
   },
-  mcp: {
-    resource: 'http://localhost:8787/mcp',
-    // These tests only read the options object; discovery never runs.
-    fetchClientMetadataResource: () => {
-      throw new TypeError('client discovery is not exercised by this suite')
-    }
-  }
+  mcp: testMcpConfig()
 }
 
 describe('makeAuthOptions', () => {

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { consentRequest, scopeLabel } from '@/lib/oauth-query'
+import { pageTitle } from '@/components/page/page-title'
 import { requireSession } from '@/lib/server/auth'
 import {
   denyOAuthConsentServerFn,
@@ -42,7 +43,7 @@ export const Route = createFileRoute('/oauth/consent')({
   },
   loader: ({ deps }) => loadOAuthConsentServerFn({ data: { clientId: deps.clientId } }),
   component: OAuthConsentRoute,
-  head: () => ({ meta: [{ title: 'Connect an MCP client | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle('Connect an MCP client') }] })
 })
 /** The page's two server calls, as ports — a test drives the page with plain functions. */
 export type GrantConsent = (input: {
@@ -59,7 +60,6 @@ function OAuthConsentRoute() {
     <OAuthConsentPage
       payload={payload}
       request={consentRequest(search)}
-      oauthQuery={payload.oauthQuery}
       grant={grantOAuthConsentServerFn}
       deny={denyOAuthConsentServerFn}
     />
@@ -69,6 +69,14 @@ function OAuthConsentRoute() {
 const GRANT_FAILED = 'The connection could not be authorized'
 const DENY_FAILED = 'The request could not be declined'
 
+/** What `callServerFn` folds a server call into — restated so `grantPicked`'s refusal shares the shape without a promise wrapper. */
+type ConsentOutcome =
+  | { readonly ok: true; readonly value: OAuthRedirect }
+  | {
+      readonly ok: false
+      readonly message: string
+    }
+
 /** Where the browser goes with the provider's answer — injected so a test can watch it. */
 function assignLocation(url: string) {
   window.location.assign(url)
@@ -77,20 +85,18 @@ function assignLocation(url: string) {
 export function OAuthConsentPage({
   payload,
   request,
-  oauthQuery,
   grant,
   deny,
   assign = assignLocation
 }: {
   readonly payload: OAuthConsentPayload
   readonly request: ReturnType<typeof consentRequest>
-  /** The page's signed OAuth query; `null` until the browser has one to read. */
-  readonly oauthQuery: string | null
   readonly grant: GrantConsent
   readonly deny: DenyConsent
   /** Where the browser goes with the provider's answer — injected so a test can watch it. */
   readonly assign?: (url: string) => void
 }) {
+  const oauthQuery = payload.oauthQuery
   const [workspaceId, setWorkspaceId] = useState<string | null>(
     payload.workspaces.length === 1
       ? (payload.workspaces[0]?.workspace.id ?? null)
@@ -110,18 +116,32 @@ export function OAuthConsentPage({
     setPending(action)
     setError(null)
     const outcome =
-      action === 'grant' && workspaceId !== null
-        ? await callServerFn(
-            () => grant({ data: { workspaceId, oauthQuery } }),
-            GRANT_FAILED
-          )
-        : await callServerFn(() => deny({ data: { oauthQuery } }), DENY_FAILED)
+      action === 'deny'
+        ? await callServerFn(() => deny({ data: { oauthQuery } }), DENY_FAILED)
+        : await grantPicked(oauthQuery)
     if (!outcome.ok) {
       setPending(null)
       setError(outcome.message)
       return
     }
     assign(outcome.value.url)
+  }
+
+  /**
+   * The grant half, kept apart from `deny` so the two verbs can never bleed
+   * into each other: a grant arriving without a picked workspace refuses
+   * with a reason instead of declining the request the user just accepted.
+   */
+  async function grantPicked(query: string): Promise<ConsentOutcome> {
+    if (workspaceId === null) {
+      // The Allow control is disabled without a pick; this is the honest
+      // answer if one ever gets through.
+      return { ok: false, message: 'Pick the workspace to connect first.' }
+    }
+    return callServerFn(
+      () => grant({ data: { workspaceId, oauthQuery: query } }),
+      GRANT_FAILED
+    )
   }
 
   return (

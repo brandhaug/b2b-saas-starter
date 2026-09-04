@@ -1,4 +1,5 @@
 import {
+  auditEvents,
   oauthAccessToken,
   oauthClient,
   oauthConsent,
@@ -264,6 +265,51 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(
             refreshTokens.find((row) => row.id === 'ort_live_anonymous')?.revoked
           ).not.toBeNull()
+        })
+      )
+
+      it.effect('revokes a consent whose workspace has since been deleted', () =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          // The consent's reference names a workspace that does not exist —
+          // the state a workspace deletion leaves behind, since `referenceId`
+          // is deliberately FK-free. The revoke must still succeed and the
+          // audit row must carry no workspace: `audit_events.workspace_id`
+          // cascades, so replaying the dead id here would fail the whole
+          // batch and leave the consent permanently un-revocable.
+          yield* db.insert(oauthConsent).values({
+            id: 'con_live_ghost',
+            clientId: CLIENT_ID,
+            userId: 'usr_owner',
+            referenceId: 'wrk_deleted',
+            scopes: ['mcp:read'],
+            createdAt: grantedAt,
+            updatedAt: grantedAt
+          })
+
+          const revoked = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(McpClientConnections, (connections) =>
+              connections.revoke({
+                userId: 'usr_owner',
+                connectionId: 'con_live_ghost'
+              })
+            )
+          )
+          expect(revoked).toBe(true)
+
+          const consents = yield* db
+            .select()
+            .from(oauthConsent)
+            .where(eq(oauthConsent.id, 'con_live_ghost'))
+          expect(consents).toEqual([])
+          const events = yield* db.select().from(auditEvents)
+          const ghostEvent = events.find(
+            (event) =>
+              event.eventType === 'mcp_client.consent_revoked' &&
+              event.workspaceId === null
+          )
+          expect(ghostEvent?.targetId).toBe(CLIENT_ID)
         })
       )
     })

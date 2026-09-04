@@ -12,10 +12,10 @@ import { requireRequestSession } from './auth'
  * The account page's "Connected MCP clients" segment (ADR 0055): the consents
  * the signed-in user holds, and their revocation. Account-level reads, so
  * neither goes through a workspace layer — the consent names its workspace
- * itself.
+ * itself. The row type comes from the capability module directly
+ * (`McpClientConnection`); this file holds only the loader and the revoke
+ * server fn.
  */
-
-export type { McpClientConnection }
 
 /** The account route's loader segment. */
 export function loadMcpClientConnections(input: {

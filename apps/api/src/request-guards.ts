@@ -252,7 +252,7 @@ export function observed<A, E, R>(
  * `cf` object either, so the fallback rebuilds exactly the two things the
  * envelope still reads — the URL and the headers — against a synthetic origin.
  */
-function webRequest(request: HttpServerRequest.HttpServerRequest): Request {
+export function webRequest(request: HttpServerRequest.HttpServerRequest): Request {
   const web = HttpServerRequest.toWebResult(request)
   if (Result.isSuccess(web)) {
     return web.success

@@ -20,6 +20,7 @@ import {
   type AuthEmailSender,
   type AuthOptions
 } from './index.ts'
+import { testMcpConfig } from './test-mcp.ts'
 
 // Social sign-in is only observable end to end: the provider factory, the
 // state round-trip, implicit account linking, and the linking hooks all
@@ -161,15 +162,7 @@ beforeAll(
               runBackground: (promise) => {
                 void promise.catch(() => undefined)
               },
-              mcp: {
-                resource: 'http://localhost:8787/mcp',
-                // Discovery never runs in this suite — the provider callback is
-                // mocked at the fetch boundary — so the transport refuses if it
-                // is ever reached.
-                fetchClientMetadataResource: () => {
-                  throw new TypeError('client discovery is not exercised by this suite')
-                }
-              }
+              mcp: testMcpConfig()
             }))
           )
         )

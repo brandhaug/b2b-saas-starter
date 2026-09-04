@@ -20,7 +20,11 @@ import {
   type McpDiscovery,
   type McpToolDescriptor
 } from '@b2b-saas-starter/api'
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
+import {
+  HttpRouter,
+  HttpServerResponse,
+  type HttpServerRequest
+} from 'effect/unstable/http'
 import { type Context, Effect, Result } from 'effect'
 import { createMcpHandler } from 'agents/mcp/server'
 import { z } from 'zod'
@@ -34,6 +38,7 @@ import {
   mcpCallerWorkspaceSlug,
   observed,
   provideWorkspace,
+  webRequest,
   type McpCaller
 } from './request-guards.ts'
 import { type ApiEnv } from './env.ts'
@@ -64,7 +69,7 @@ import { oauthChallengeHeader, oauthResourceConfig } from './oauth-access-token.
  * `GET /mcp` remains the REST discovery document served by the contract group;
  * it advertises exactly what this module registers.
  *
- * Two credentials open the route (ADR 0054): a workspace API Token, or an
+ * Two credentials open the route (ADR 0055): a workspace API Token, or an
  * OAuth access token the web worker minted for a signed-in Member after the
  * consent page bound it to one workspace. `authenticateMcpCaller` tells them
  * apart; from there the only difference is who a tool authorizes as — the
@@ -222,7 +227,10 @@ function outcomeToToolResult(outcome: ToolOutcome): ToolResult {
  * Who a tool authorizes as. An API Token is its scopes. An OAuth caller is the
  * Member the workspace layer just resolved — from the membership table, not
  * from the token's role claim — so a member removed since consenting is
- * refused (`no_principal`), and a role change applies on the next call.
+ * refused with `WorkspaceNotFound` while the layer builds, and a role change
+ * applies on the next call. (The `ctx.actor === null` half is the context
+ * type's honesty: this route always builds the layer with the caller's
+ * `ActorRef`, so the null case is not reachable here.)
  */
 function callerPrincipal(
   caller: McpCaller
@@ -248,7 +256,7 @@ function callerPrincipal(
  * invokes plain async functions, so each callback bridges back onto the
  * request-scoped workspace layer with `Effect.runPromise`.
  */
-export function buildMcpServer(
+function buildMcpServer(
   env: ApiEnv,
   caller: McpCaller,
   services: Context.Context<CapabilityReadServices>
@@ -394,11 +402,7 @@ function failureResponse(
   // metadata is, which is how Claude finds the authorization server. Only
   // when OAuth is configured — otherwise there is nothing to discover.
   if (error._tag === 'Unauthorized' && oauthResourceConfig(env) !== undefined) {
-    const web = HttpServerRequest.toWebResult(request)
-    let origin = ''
-    if (Result.isSuccess(web)) {
-      origin = new URL(web.success.url).origin
-    }
+    const origin = new URL(webRequest(request).url).origin
     return HttpServerResponse.jsonUnsafe(body, {
       status,
       headers: { 'www-authenticate': oauthChallengeHeader(origin) }
@@ -408,47 +412,35 @@ function failureResponse(
 }
 
 /**
- * The route gate's principal: an API Token authorizes as its scopes; an OAuth
- * caller authorizes as the role the token carries. The per-tool checks below
- * re-resolve the Member's role from the membership table either way.
- */
-function routeGatePrincipal(caller: McpCaller): Principal {
-  if (caller.kind === 'token') {
-    return tokenPrincipal(caller.token.scopes)
-  }
-  return memberPrincipal(caller.token.workspaceRole)
-}
-
-/**
  * The `POST /mcp` handler: rate-limit, authenticate (API Token or OAuth access
- * token), prove `mcp:read`, then hand the request to the Agents SDK handler. Guard failures escape the body
- * so `observed` records them like any other rejected request; everything past
- * the gate — parsing included — is the Agents handler's job, fed the
- * pre-parsed body through `fetch(request, { parsedBody })`.
+ * token), then hand the request to the Agents SDK handler. Guard failures
+ * escape the body so `observed` records them like any other rejected request;
+ * everything past the gate — parsing included — is the Agents handler's job,
+ * fed the pre-parsed body through `fetch(request, { parsedBody })`.
+ *
+ * There is deliberately no route-level permission check beside authentication:
+ * every credential the system can mint already clears `mcp:read` (the read and
+ * write token scopes carry it, and the OAuth verifier refuses a token without
+ * it), so a gate here could never deny. The real enforcement is per tool —
+ * each invocation re-checks its own `operation.permission`, the same
+ * permission its REST counterpart demands.
  */
 function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest) {
   return Effect.gen(function* () {
     yield* enforceRateLimit(request, 'mcp')
     const caller = yield* authenticateMcpCaller(request)
-    // `observed` supplies the request Scope that `requirePermission` needs.
-    yield* requirePermission(routeGatePrincipal(caller), { mcp: ['read'] })
 
-    // The router's request wraps the Worker's own fetch `Request`, so
-    // `toWebResult` hands it straight back — absolute URL, original headers,
+    // The router's request wraps the Worker's own fetch `Request`, and
+    // `webRequest` hands it straight back — absolute URL, original headers,
     // body untouched. There is no transport to hand-roll: the conversion is
-    // the platform's. It fails only for a request with no derivable URL, which
-    // is a malformed request, not a protocol-level one.
-    const web = HttpServerRequest.toWebResult(request)
-    if (Result.isFailure(web)) {
-      return rpcErrorResponse(-32_600, 'invalid request', 400)
-    }
-    const webRequest = web.success
+    // the platform's, with the guard's own fallback for an underivable URL.
+    const web = webRequest(request)
 
     // Read the body off a clone so the forwarded request still carries it.
     // The Agents handler validates the message itself; this parse only turns
     // bytes into the object handed to `fetch(request, { parsedBody })`.
     const parsed = yield* Effect.result(
-      Effect.tryPromise((): Promise<JSONRPCMessage> => webRequest.clone().json())
+      Effect.tryPromise((): Promise<JSONRPCMessage> => web.clone().json())
     )
     if (Result.isFailure(parsed)) {
       return rpcErrorResponse(-32_700, 'parse error', 400)
@@ -471,10 +463,10 @@ function protocolBody(env: ApiEnv, request: HttpServerRequest.HttpServerRequest)
     // The one header a stock streamable-HTTP client always sends that a caller
     // here may omit: the handler negotiates its response body against
     // `accept`, and refuses the request without it.
-    const headers = new Headers(webRequest.headers)
+    const headers = new Headers(web.headers)
     headers.set('accept', 'application/json, text/event-stream')
     const response = yield* Effect.promise(() =>
-      handle.fetch(new Request(webRequest, { headers }), {
+      handle.fetch(new Request(web, { headers }), {
         parsedBody: parsed.success
       })
     )

@@ -42,11 +42,13 @@ export type AuditedMutationInput = {
   /** The audit event committed beside the write. Skipped entirely on no match. */
   readonly auditEvent: RecordAuditEventInput
   /**
-   * The mutation statement, built lazily so a zero-match mutation never pays
-   * for it. Laziness is load-bearing: `rotateSecret` mints its replacement
-   * secret here, and the interface promises no secret is minted on no match.
+   * The mutation statement(s), built lazily so a zero-match mutation never
+   * pays for them. Laziness is load-bearing: `rotateSecret` mints its
+   * replacement secret here, and the interface promises no secret is minted on
+   * no match. An array batches several statements beside the one audit insert
+   * (a revoke that must also retire the tokens it mints).
    */
-  readonly write: () => BatchStatement
+  readonly write: () => BatchStatement | ReadonlyArray<BatchStatement>
 }
 
 /** One audited mutation: `true` when the batch ran, `false` when the pre-check found nothing. */
@@ -71,7 +73,14 @@ export function auditedMutations(
           return false
         }
         const auditStatement = yield* deps.prepareAuditRecord(input.auditEvent)
-        yield* deps.unavailable(batch([input.write(), auditStatement]))
+        const written = input.write()
+        const statements: Array<BatchStatement> = []
+        if (Array.isArray(written)) {
+          statements.push(...written)
+        } else {
+          statements.push(written)
+        }
+        yield* deps.unavailable(batch([...statements, auditStatement]))
         return true
       }).pipe(Effect.provideService(RawD1, d1))
   })

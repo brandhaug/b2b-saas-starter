@@ -883,9 +883,6 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.112
-      jose:
-        specifier: 'catalog:'
-        version: 6.2.10
     devDependencies:
       '@b2b-saas-starter/config':
         specifier: workspace:*

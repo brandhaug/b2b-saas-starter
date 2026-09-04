@@ -5,14 +5,17 @@ import {
   oauthRefreshToken,
   workspaces
 } from '@b2b-saas-starter/db/schema'
-import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
+import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
+import { auditedMutations } from '../governance/audited-mutation.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import {
+  consentGrantedAuditEvent,
+  consentRevokedAuditEvent,
   McpClientConnections,
   type McpClientConnection,
   type McpClientSummary
@@ -20,11 +23,13 @@ import {
 
 const unavailable = orUnavailable('mcp-client-connections')
 
+/** The client half of a connection. `clientId` comes from the consent row — NOT NULL there — so it never needs a fallback; only the joined client's display fields can be missing. */
 function toClientSummary(
+  clientId: string,
   row: typeof oauthClient.$inferSelect | null
 ): McpClientSummary {
   return {
-    clientId: row?.clientId ?? 'unknown',
+    clientId,
     name: row?.name ?? null,
     uri: row?.uri ?? null
   }
@@ -42,16 +47,21 @@ function consentTokenWhere(
     readonly referenceId: AnySQLiteColumn
     readonly revoked: AnySQLiteColumn
   },
-  consent: typeof oauthConsent.$inferSelect
+  consent: {
+    readonly clientId: string
+    readonly userId: string
+    readonly referenceId: string | null
+  }
 ) {
-  const conditions = [eq(table.clientId, consent.clientId), isNull(table.revoked)]
+  const conditions = [
+    eq(table.clientId, consent.clientId),
+    eq(table.userId, consent.userId),
+    isNull(table.revoked)
+  ]
   if (consent.referenceId === null) {
     conditions.push(isNull(table.referenceId))
   } else {
     conditions.push(eq(table.referenceId, consent.referenceId))
-  }
-  if (consent.userId !== null) {
-    conditions.push(eq(table.userId, consent.userId))
   }
   return and(...conditions)
 }
@@ -63,8 +73,13 @@ export const LiveMcpClientConnections: Layer.Layer<
 > = Layer.effect(McpClientConnections)(
   Effect.gen(function* () {
     const db = yield* Database
-    const d1 = yield* RawD1
     const audit = yield* AuditEventLog
+    // The shared mutate+audit combinator (governance/audited-mutation.ts):
+    // one D1 batch, its zero-match skip, and the phantom-audit caveat.
+    const auditedMutation = yield* auditedMutations({
+      prepareAuditRecord: audit.prepareRecord,
+      unavailable
+    })
 
     return {
       describeClient: (clientId) =>
@@ -80,7 +95,7 @@ export const LiveMcpClientConnections: Layer.Layer<
             if (row === undefined) {
               return null
             }
-            return toClientSummary(row)
+            return toClientSummary(row.clientId, row)
           })
         ),
       listForUser: (userId) =>
@@ -109,7 +124,7 @@ export const LiveMcpClientConnections: Layer.Layer<
               }
               return {
                 id: row.consent.id,
-                client: toClientSummary(row.client),
+                client: toClientSummary(row.consent.clientId, row.client),
                 workspace,
                 scopes: row.consent.scopes,
                 grantedAt: row.consent.createdAt.toISOString()
@@ -117,23 +132,20 @@ export const LiveMcpClientConnections: Layer.Layer<
             })
           )
         ),
-      recordGrant: (input) =>
-        audit.record({
-          workspaceId: input.workspaceId,
-          actorUserId: input.userId,
-          eventType: 'mcp_client.consent_granted',
-          targetType: 'mcp_client',
-          targetId: input.clientId,
-          metadata: { scopes: [...input.scopes] }
-        }),
+      recordGrant: (input) => audit.record(consentGrantedAuditEvent(input)),
       revoke: (input) =>
         Effect.gen(function* () {
           // Ownership is part of the lookup, so another user's consent id
-          // matches nothing — and nothing is written.
-          const consent = yield* unavailable(
+          // matches nothing — and nothing is written. The workspace join
+          // resolves the consent's workspace in the same read: a consent can
+          // outlive its workspace (referenceId is deliberately FK-free), and
+          // the audit row must then carry no workspace — a dangling id would
+          // violate audit_events' FK and roll the whole revoke back.
+          const rows = yield* unavailable(
             db
-              .select()
+              .select({ consent: oauthConsent, workspaceId: workspaces.id })
               .from(oauthConsent)
+              .leftJoin(workspaces, eq(oauthConsent.referenceId, workspaces.id))
               .where(
                 and(
                   eq(oauthConsent.id, input.connectionId),
@@ -141,38 +153,44 @@ export const LiveMcpClientConnections: Layer.Layer<
                 )
               )
               .limit(1)
-          ).pipe(Effect.map((rows) => rows[0]))
-          if (consent === undefined) {
+          )
+          const row = rows[0]
+          if (row === undefined) {
             return false
           }
+          const { consent, workspaceId } = row
           const revokedAt = DateTime.toDate(yield* DateTime.now)
-          const auditStatement = yield* audit.prepareRecord({
-            workspaceId: consent.referenceId,
-            actorUserId: input.userId,
-            eventType: 'mcp_client.consent_revoked',
-            targetType: 'mcp_client',
-            targetId: consent.clientId,
-            metadata: { scopes: [...consent.scopes] }
-          })
+          // The pre-check matched on this exact user, so the token revocations
+          // key off `input.userId` rather than the (typed-nullable) column.
+          const tokenScope = {
+            clientId: consent.clientId,
+            userId: input.userId,
+            referenceId: consent.referenceId
+          }
           // Consent delete, token revocations and the audit row commit
           // together: a client must not keep a working refresh token after
           // the user revoked it, and the trail must say the revocation
           // happened.
-          yield* unavailable(
-            batch([
+          return yield* auditedMutation({
+            matched: Effect.succeed(true),
+            auditEvent: consentRevokedAuditEvent({
+              userId: input.userId,
+              clientId: consent.clientId,
+              scopes: consent.scopes,
+              workspaceId
+            }),
+            write: () => [
               db.delete(oauthConsent).where(eq(oauthConsent.id, consent.id)),
               db
                 .update(oauthRefreshToken)
                 .set({ revoked: revokedAt })
-                .where(consentTokenWhere(oauthRefreshToken, consent)),
+                .where(consentTokenWhere(oauthRefreshToken, tokenScope)),
               db
                 .update(oauthAccessToken)
                 .set({ revoked: revokedAt })
-                .where(consentTokenWhere(oauthAccessToken, consent)),
-              auditStatement
-            ])
-          ).pipe(Effect.provideService(RawD1, d1))
-          return true
+                .where(consentTokenWhere(oauthAccessToken, tokenScope))
+            ]
+          })
         })
     }
   })

@@ -1,11 +1,10 @@
 import { workspaceRoles } from '@b2b-saas-starter/db/enums'
 import { Schema } from 'effect'
-import { type JWTPayload } from 'jose'
 
 /**
  * The access-token contract between the web worker (the OAuth 2.1
  * authorization server, `packages/auth`) and the API worker (the MCP resource
- * server, `apps/api`) — ADR 0054. Both sides import these names from here, so
+ * server, `apps/api`) — ADR 0055. Both sides import these names from here, so
  * a claim the issuer stamps and a claim the verifier reads cannot drift.
  *
  * This package is the one both workers already share below `capabilities`; it
@@ -78,14 +77,13 @@ export type McpAccessTokenRejection =
 /**
  * Pure mapping from a verified JWT payload to the principal, or the reason it
  * is refused. Signature, issuer, audience and expiry are the verifier's job
- * (jose); this checks only what the starter itself stamped.
- *
- * A `cnf` claim means the token is DPoP-bound (RFC 9449) and must ride a
- * `DPoP` proof, which the starter's resource server does not implement — such
- * a token is refused rather than accepted as a bare bearer.
+ * (jose); this checks only what the starter itself stamped. The payload is
+ * `unknown` on purpose — every claim it reads is re-validated by the schema,
+ * so the module needs no JWT library to say what it accepts.
  */
 export function mcpAccessTokenPrincipal(
-  payload: JWTPayload
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- a verified JWT payload IS an untrusted claim bag; parsing it is this function's whole job
+  payload: Record<string, unknown>
 ):
   | { readonly ok: true; readonly principal: McpAccessTokenPrincipal }
   | { readonly ok: false; readonly reason: McpAccessTokenRejection } {

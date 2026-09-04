@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm'
 import { type Service } from 'effectful-better-auth'
 import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
 import { Auth, AuthConfig, type AuthEmailSender, type AuthOptions } from './index.ts'
+import { testMcpConfig } from './test-mcp.ts'
 import { decodeUriSecret } from './test-totp.ts'
 
 /* oxlint-disable effect/noGlobals, effect/noAsyncFunction -- these tests run a
@@ -71,14 +72,7 @@ beforeAll(
               runBackground: (promise) => {
                 void promise.catch(() => undefined)
               },
-              mcp: {
-                resource: 'http://localhost:8787/mcp',
-                // Discovery never runs in this suite — the ceremony is mocked —
-                // so the transport refuses if it is ever reached.
-                fetchClientMetadataResource: () => {
-                  throw new TypeError('client discovery is not exercised by this suite')
-                }
-              }
+              mcp: testMcpConfig()
             }))
           )
         )

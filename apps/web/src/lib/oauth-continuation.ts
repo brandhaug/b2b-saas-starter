@@ -24,6 +24,11 @@ export function oauthContinuationUrl(data: unknown): string | null {
 /**
  * The search string an auth-flow hop must carry forward so the signed OAuth
  * query survives it (sign-in → two-factor). Empty when the page carries none.
+ *
+ * Deliberately looser than `signedOAuthQuery` (lib/oauth-query.ts): this only
+ * decides whether a hop has something OAuth-shaped to forward — the raw
+ * search rides along verbatim, and the provider's signature check is what
+ * rejects a malformed one.
  */
 export function carriedOAuthSearch(search: string): string {
   return new URLSearchParams(search).has('sig') ? search : ''

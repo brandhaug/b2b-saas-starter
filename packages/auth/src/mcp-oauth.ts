@@ -59,25 +59,29 @@ type SessionWithActiveWorkspace = {
 
 /**
  * The plugin's "does the user still have to pick?" decision. `true` unless the
- * request itself vouches for the workspace on the session.
+ * request itself vouches for the workspace on the session. The parameter is
+ * the plugin's own callback bag, so the options object assigns this function
+ * directly — no rename wrapper.
  */
-export function mcpWorkspaceNeedsSelection(
-  headers: Headers,
-  session: SessionWithActiveWorkspace
-): boolean {
-  const selected = headers.get(MCP_WORKSPACE_SELECTED_HEADER)
-  return !selected || selected !== session.activeOrganizationId
+export function mcpWorkspaceNeedsSelection(input: {
+  readonly headers: Headers
+  readonly session: SessionWithActiveWorkspace
+}): boolean {
+  const selected = input.headers.get(MCP_WORKSPACE_SELECTED_HEADER)
+  return !selected || selected !== input.session.activeOrganizationId
 }
 
 /**
  * The consent's `referenceId`: the picked workspace. Thrown as the plugin's
  * own error type when the session carries none, so an authorization that
  * somehow skipped the picker fails instead of minting a workspace-less token.
+ * The parameter is the plugin's own callback bag, so the options object
+ * assigns this function directly.
  */
-export function mcpWorkspaceReferenceId(
-  session: SessionWithActiveWorkspace | undefined
-): string {
-  const workspaceId = session?.activeOrganizationId
+export function mcpWorkspaceReferenceId(input: {
+  readonly session: SessionWithActiveWorkspace | undefined
+}): string {
+  const workspaceId = input.session?.activeOrganizationId
   if (!workspaceId) {
     // oxlint-disable-next-line effect/noThrowStatement -- Better Auth's option callbacks signal failure by throwing its APIError; there is no Effect channel here
     throw new APIError('BAD_REQUEST', {

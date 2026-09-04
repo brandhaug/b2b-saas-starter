@@ -16,8 +16,7 @@
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",
     "better-auth": "catalog:",
-    "effect": "catalog:",
-    "jose": "catalog:"
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",

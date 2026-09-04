@@ -130,13 +130,13 @@ export const seedApiTokens: ReadonlyArray<ApiToken> = [
  * (its `clientId` is the HTTPS URL of that document), the shape every
  * interactive MCP client registers with (ADR 0055).
  */
-export const seedMcpClients: ReadonlyArray<McpClientSummary> = [
-  {
-    clientId: 'https://mcp-client.example.com/oauth/client-metadata.json',
-    name: 'Example MCP client',
-    uri: 'https://mcp-client.example.com'
-  }
-]
+const seedMcpClient: McpClientSummary = {
+  clientId: 'https://mcp-client.example.com/oauth/client-metadata.json',
+  name: 'Example MCP client',
+  uri: 'https://mcp-client.example.com'
+}
+
+export const seedMcpClients: ReadonlyArray<McpClientSummary> = [seedMcpClient]
 
 /**
  * The demo owner's standing consent to that client for the seed workspace —
@@ -145,11 +145,7 @@ export const seedMcpClients: ReadonlyArray<McpClientSummary> = [
 export const seedMcpClientConnections: ReadonlyArray<McpClientConnection> = [
   {
     id: 'con_example_mcp',
-    client: seedMcpClients[0] ?? {
-      clientId: 'https://mcp-client.example.com/oauth/client-metadata.json',
-      name: null,
-      uri: null
-    },
+    client: seedMcpClient,
     workspace: {
       id: seedWorkspaceRecord.id,
       slug: seedWorkspaceRecord.slug,

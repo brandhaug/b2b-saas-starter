@@ -57,6 +57,13 @@ export function AuthCardForm({
       errorRef.current?.focus()
     }
   }, [error])
+  // One alert for both branches: a card without a form (the consent page)
+  // still has errors to show.
+  const errorAlert = error ? (
+    <Alert ref={errorRef} tabIndex={-1} variant="destructive">
+      <AlertDescription>{error}</AlertDescription>
+    </Alert>
+  ) : null
   return (
     <PublicLayout>
       {/* `flex-1` fills the space PublicLayout's `min-h-dvh flex-col` leaves
@@ -74,7 +81,10 @@ export function AuthCardForm({
           </CardHeader>
           <CardContent className="grid gap-4">
             {form === null ? (
-              <div className="grid gap-4">{children}</div>
+              <div className="grid gap-4">
+                {children}
+                {errorAlert}
+              </div>
             ) : (
               <form
                 data-hydrated={hydrated ? 'true' : undefined}
@@ -87,11 +97,7 @@ export function AuthCardForm({
               >
                 {children}
                 {submit}
-                {error ? (
-                  <Alert ref={errorRef} tabIndex={-1} variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                ) : null}
+                {errorAlert}
                 {notice ? (
                   <Alert>
                     <AlertDescription>{notice}</AlertDescription>

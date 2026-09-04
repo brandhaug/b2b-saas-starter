@@ -1,6 +1,7 @@
 import { Context, Schema, type Effect } from 'effect'
 
 import { type CapabilityUnavailable } from '../errors.ts'
+import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
 
 /**
  * MCP Client connections (ADR 0055): the standing OAuth consents a user has
@@ -51,6 +52,44 @@ export type RecordMcpConsentGrantInput = {
 export type RevokeMcpClientInput = {
   readonly userId: string
   readonly connectionId: string
+}
+
+/**
+ * The two audit payloads, defined once so Seed and Live cannot drift — the
+ * drift that would matter most is the revoked event's `workspaceId`: a consent
+ * can outlive its workspace (the column is deliberately FK-free), and the
+ * audit row it leaves behind must carry `workspaceId: null` then, because
+ * `audit_events.workspace_id` cascades and a dangling id would fail the whole
+ * write.
+ */
+export function consentGrantedAuditEvent(
+  input: RecordMcpConsentGrantInput
+): RecordAuditEventInput {
+  return {
+    workspaceId: input.workspaceId,
+    actorUserId: input.userId,
+    eventType: 'mcp_client.consent_granted',
+    targetType: 'mcp_client',
+    targetId: input.clientId,
+    metadata: { scopes: [...input.scopes] }
+  }
+}
+
+export function consentRevokedAuditEvent(input: {
+  readonly userId: string
+  readonly clientId: string
+  readonly scopes: ReadonlyArray<string>
+  /** The consented workspace's id, or `null` once that workspace is gone. */
+  readonly workspaceId: string | null
+}): RecordAuditEventInput {
+  return {
+    workspaceId: input.workspaceId,
+    actorUserId: input.userId,
+    eventType: 'mcp_client.consent_revoked',
+    targetType: 'mcp_client',
+    targetId: input.clientId,
+    metadata: { scopes: [...input.scopes] }
+  }
 }
 
 export type McpClientConnectionsInterface = {

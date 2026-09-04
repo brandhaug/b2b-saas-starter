@@ -10,7 +10,7 @@ import {
   type VerifyTotpCode
 } from '@/components/auth/auth-client-ports'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
-import { oauthContinuationUrl } from '@/components/auth/oauth-continuation'
+import { oauthContinuationUrl } from '@/lib/oauth-continuation'
 import { FormTextField } from '@/components/form-text-field'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 

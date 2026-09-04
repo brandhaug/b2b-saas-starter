@@ -23,6 +23,7 @@ const FORBIDDEN_HOST_SUFFIXES = [
   '.localhost',
   '.local',
   '.internal',
+  '.invalid',
   '.test',
   '.example'
 ]

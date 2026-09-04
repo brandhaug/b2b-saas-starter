@@ -24,10 +24,7 @@ import {
 import { type SsoRoutingDecision } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { Button } from '@/components/ui/button'
 import { FormTextField } from '@/components/form-text-field'
-import {
-  carriedOAuthSearch,
-  oauthContinuationUrl
-} from '@/components/auth/oauth-continuation'
+import { carriedOAuthSearch, oauthContinuationUrl } from '@/lib/oauth-continuation'
 import {
   DEMO_CREDENTIALS,
   DEMO_MEMBER_CREDENTIALS,
@@ -162,6 +159,15 @@ export function SignInPage({
         return authFailure(result.error.message ?? PASSKEY_FAILED)
       }
       if (result.data !== null && result.data !== undefined) {
+        // A sign-in an MCP client started resumes the authorization first:
+        // `oauthProviderClient` attaches the signed OAuth query to this call
+        // too, so the provider answers with the next hop — the same
+        // continuation the password path takes below.
+        const continuation = oauthContinuationUrl(result.data)
+        if (continuation !== null) {
+          window.location.assign(continuation)
+          return
+        }
         router.history.push(safeRedirect(redirect))
       }
     },

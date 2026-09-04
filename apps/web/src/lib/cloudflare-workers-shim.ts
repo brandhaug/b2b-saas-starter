@@ -38,10 +38,11 @@ export const env = {
   OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
   OTEL_EXPORTER_OTLP_HEADERS: process.env.OTEL_EXPORTER_OTLP_HEADERS,
   // MCP OAuth (ADR 0055): the API worker's `/mcp` URL access tokens are bound
-  // to. Defaults to the local API dev server so the consent flow works with
-  // nothing configured; `MCP_OAUTH_ISSUER` is the API worker's var, not this
-  // one's, and only rides along so the shim mirrors the deployed env shape.
-  MCP_RESOURCE_URL: process.env.MCP_RESOURCE_URL ?? 'http://localhost:8787/mcp',
+  // to. Passed through raw — the local default lives in `auth-runtime.ts`
+  // (`LOCAL_MCP_RESOURCE`), this shim's one owner for it; `MCP_OAUTH_ISSUER`
+  // is the API worker's var, not this one's, and only rides along so the shim
+  // mirrors the deployed env shape.
+  MCP_RESOURCE_URL: process.env.MCP_RESOURCE_URL,
   MCP_OAUTH_ISSUER: process.env.MCP_OAUTH_ISSUER,
   SERVICE_VERSION: process.env.SERVICE_VERSION,
   GIT_COMMIT_SHA: process.env.GIT_COMMIT_SHA,

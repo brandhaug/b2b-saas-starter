@@ -1,6 +1,6 @@
 /**
  * The signed OAuth query the provider redirects to the consent and sign-in
- * pages with (ADR 0054): the authorization request's own parameters plus
+ * pages with (ADR 0055): the authorization request's own parameters plus
  * `exp`, `ba_iat`, `ba_param` (the names it signed) and `sig`. Both helpers are
  * pure and ship to the browser, so no Effect here.
  */
@@ -9,8 +9,10 @@ const SIGNED_PARAMETER_NAMES = 'ba_param'
 
 /**
  * Exactly the parameters the signature covers, as the `oauth_query` body field
- * the provider verifies. Mirrors what Better Auth's client plugin attaches to
- * sign-in; `null` when the page's query carries no signature at all.
+ * the provider verifies. Mirrors `@better-auth/oauth-provider`'s internal
+ * `buildSignedOAuthQuery` — which upstream does not export; if the two drift,
+ * the provider rejects the query with a signature error (loud, not silent).
+ * `null` when the page's query carries no signature at all.
  */
 export function signedOAuthQuery(search: string): string | null {
   const params = new URLSearchParams(search)
