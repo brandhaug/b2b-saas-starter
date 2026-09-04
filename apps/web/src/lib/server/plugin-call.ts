@@ -30,28 +30,26 @@ type AuthApi = Api<AuthOptions>
  * the admin role), so the session cookie is not optional — it is the whole
  * reason these adapters have to exist in the app at all. Headers are read at
  * call time, so one module-level adapter serves every request without
- * capturing one. The library provides them as ambient `CurrentHeaders`, so
+ * capturing one. The library carries them as ambient `CurrentHeaders`, so
  * `api.*` calls inside `build` may omit `headers`; the raw `Headers` are still
  * handed to `build` for the callers that forward them elsewhere (the MCP
  * consent re-entry builds a request carrier from them). A call with no
  * in-flight request rejects with the library's `MissingRequestHeaders`, which
- * classifies as unavailable, never as a refusal.
+ * classifies as unavailable, never as a refusal — and rejects before the
+ * runtime is touched, so a no-request caller never boots the auth instance.
  */
 export function sessionCall<A, E>(
   build: (api: AuthApi, headers: Headers) => Effect.Effect<A, E>
 ): Promise<A> {
   const headers = currentRequest()?.headers
-  return runAuth<AuthOptions, A, E | MissingRequestHeaders>({
+  if (headers === undefined) {
+    return Effect.runPromise(Effect.fail(new MissingRequestHeaders()))
+  }
+  return runAuth<AuthOptions, A, E>({
     tag: Auth.Tag,
     runtime: authRuntime,
     headers,
-    requireHeaders: true,
-    build: (api) =>
-      // `requireHeaders` rejects before `build` runs when `headers` is
-      // undefined; the branch exists for the type, not for a reachable path.
-      headers === undefined
-        ? Effect.fail(new MissingRequestHeaders())
-        : build(api, headers)
+    build: (api) => build(api, headers)
   })
 }
 
@@ -64,9 +62,5 @@ export function sessionCall<A, E>(
 export function serverCall<A, E>(
   build: (api: AuthApi) => Effect.Effect<A, E>
 ): Promise<A> {
-  return runAuth({
-    tag: Auth.Tag,
-    runtime: authRuntime,
-    build: (api) => build(api)
-  })
+  return runAuth({ tag: Auth.Tag, runtime: authRuntime, build })
 }
