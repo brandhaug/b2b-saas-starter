@@ -18,18 +18,13 @@
     "@b2b-saas-starter/infra": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
     "@b2b-saas-starter/rate-limit": "workspace:*",
-    "@modelcontextprotocol/sdk": "catalog:",
-    "@modelcontextprotocol/server": "catalog:",
     "@sentry/cloudflare": "catalog:",
-    "agents": "catalog:",
     "effect": "catalog:",
-    "jose": "catalog:",
-    "zod": "catalog:"
+    "jose": "catalog:"
   },
   "devDependencies": {
     "@b2b-saas-starter/config": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
-    "@modelcontextprotocol/client": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",

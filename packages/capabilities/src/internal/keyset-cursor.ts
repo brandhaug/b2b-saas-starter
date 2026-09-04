@@ -26,7 +26,7 @@ export type Page<T> = {
 export type ListPageInput = {
   /**
    * Opaque keyset cursor from a previous page's `nextCursor`. `| undefined`
-   * on purpose: MCP tool args carry zod optionals, and both adapters treat
+   * on purpose: MCP tool args carry optional keys, and both adapters treat
    * an absent key and an explicit `undefined` the same way.
    */
   readonly cursor?: string | undefined

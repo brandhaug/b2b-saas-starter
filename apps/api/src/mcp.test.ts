@@ -1,18 +1,17 @@
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { describe, expect, test } from 'vite-plus/test'
 import { Effect, Schema } from 'effect'
-import { z } from 'zod'
 import { buildWebHandler } from './http.ts'
 import { PAGED_TOOL_INPUT, mcpDiscoveryDocument } from './mcp.ts'
 import { mirroredRestPath, readOperations } from './operations.ts'
-import { jsonBody } from './test-utils.ts'
+import { jsonBody, mcpClient } from './test-utils.ts'
 
 /**
- * There is no MCP tool table left to mirror: `GET /mcp` and the SDK server are
- * both projected from the shared operation table row by row. What is still
- * worth asserting is that the projection is what ships — one tool per
- * workspace read, in contract order — so a hand-added tool, which would
- * resurrect a surface REST never advertised, has nowhere to hide.
+ * There is no MCP tool table left to mirror: the discovery document and the
+ * protocol's own tools are both projected from the shared operation table row
+ * by row. What is still worth asserting is that the projection is what ships
+ * — one tool per workspace read, in contract order — so a hand-added tool,
+ * which would resurrect a surface REST never advertised, has nowhere to hide.
  */
 describe('mcp ↔ rest operation mirror', () => {
   test('discovery advertises exactly the shared read operations, in order', () => {
@@ -41,8 +40,8 @@ describe('mcp ↔ rest operation mirror', () => {
     for (const operation of readOperations()) {
       const tool = byName.get(operation.toolName)
       expect(tool).toBeDefined()
-      // Decoded, not asserted: the advertised input is JSON Schema the SDK
-      // generated from zod.
+      // Decoded, not asserted: the advertised input is JSON Schema generated
+      // from the registered Effect schema.
       const { properties } = decodeAdvertisedInput(tool?.inputSchema)
       if (operation.param === undefined) {
         if (operation.paged) {
@@ -63,11 +62,11 @@ describe('mcp ↔ rest operation mirror', () => {
 
   test('the paged tool input names the same paging vocabulary as the REST query', () => {
     // `ListPageQuery` (packages/api) owns this vocabulary for REST — optional
-    // `cursor` string, optional `limit` number (ADR 0057). Pinning the zod
+    // `cursor` string, optional `limit` number (ADR 0057). Pinning the Effect
     // schema's advertised shape here keeps the two surfaces from drifting on
     // field names, types, or optionality; the one known behavioral edge (an
     // undecodable `limit`) is documented on both declarations.
-    const schema = z.toJSONSchema(PAGED_TOOL_INPUT)
+    const { schema } = Schema.toJsonSchemaDocument(PAGED_TOOL_INPUT)
     expect(schema.properties).toEqual({
       cursor: { type: 'string' },
       limit: { type: 'number' }
@@ -78,89 +77,30 @@ describe('mcp ↔ rest operation mirror', () => {
 
 /**
  * The MCP protocol surface at `POST /mcp`, driven as a stock streamable-HTTP
- * client would drive it: one JSON-RPC message per POST with a bearer token.
+ * client would drive it: initialize once (the transport mints a session),
+ * ack it, then one JSON-RPC message per POST with a bearer token and the
+ * session's headers.
  *
  * The authz rows matter as much as the happy paths — every tool re-checks its
- * own permission against the token's scopes inside the SDK callback, so a
+ * own permission against the token's scopes inside the tool handler, so a
  * scope-to-permission drift flips a `tools/call` result without ever touching
  * the HTTP status code. Response bodies are decoded through schemas at the
  * boundary rather than cast, mirroring `index.test.ts`.
  */
 
+/** One web handler for the whole file: the transport's sessions live in it. */
+const handler = buildWebHandler({}).handler
+
 const bearer = {
   authorization: `Bearer ${SEED_API_TOKEN}`,
-  'content-type': 'application/json'
+  'content-type': 'application/json',
+  accept: 'application/json, text/event-stream'
 }
-
-let nextId = 0
 
 const encodeJsonBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
-type Json = typeof Schema.Json.Type
-type JsonRpcWireRequest = {
-  jsonrpc: '2.0'
-  id: number
-  method: string
-  params?: Json
-}
-
-/**
- * The server runs strict stateless-only (`legacy: 'reject'`), so requests
- * must speak the 2026-07-28 modern protocol revision, exactly what a stock
- * MCP SDK v2 client sends:
- *
- * - a per-request `_meta` envelope naming the protocol version and the
- *   client capabilities (no session, no handshake), and
- * - the reserved cross-check headers: `Mcp-Method` always, plus `Mcp-Name`
- *   whenever the params carry a `name`/`uri`.
- */
-const MODERN_PROTOCOL_VERSION = '2026-07-28'
-
-const MODERN_ENVELOPE = {
-  'io.modelcontextprotocol/protocolVersion': MODERN_PROTOCOL_VERSION,
-  'io.modelcontextprotocol/clientCapabilities': {}
-}
-
-type RpcHeaders = {
-  authorization: string
-  'content-type': string
-  'mcp-method': string
-  'mcp-name'?: string
-}
-
-function rpc(method: string, params?: Json, name?: string): Request {
-  nextId += 1
-  const envelopeParams: Record<string, Json> = {}
-  if (params !== undefined) {
-    Object.assign(envelopeParams, params)
-  }
-  // oxlint-disable-next-line eslint/no-underscore-dangle -- protocol-reserved key
-  envelopeParams._meta = MODERN_ENVELOPE
-  const envelope: JsonRpcWireRequest = {
-    jsonrpc: '2.0',
-    id: nextId,
-    method,
-    params: envelopeParams
-  }
-  const headers: RpcHeaders = {
-    authorization: bearer.authorization,
-    'content-type': bearer['content-type'],
-    'mcp-method': method
-  }
-  // The handler rejects a modern request whose Mcp-Name header disagrees
-  // with (or is missing next to) params.name / params.uri.
-  if (name !== undefined) {
-    headers['mcp-name'] = name
-  }
-  return new Request('https://api.test/mcp', {
-    method: 'POST',
-    headers,
-    body: encodeJsonBody(envelope)
-  })
-}
-
 function send(request: Request): Effect.Effect<Response> {
-  return Effect.promise(() => buildWebHandler({}).handler(request))
+  return Effect.promise(() => handler(request))
 }
 
 /** A success envelope carrying a specific result shape; `.error` must be absent. */
@@ -182,9 +122,13 @@ const CallToolResult = Schema.Struct({
 const ResourceReadResult = Schema.Struct({
   contents: Schema.Array(Schema.Struct({ uri: Schema.String, text: Schema.String }))
 })
+const InitializeResult = Schema.Struct({
+  protocolVersion: Schema.Literal('2025-11-25'),
+  serverInfo: Schema.Struct({ name: Schema.String })
+})
 
 // The JSON-Schema side of the paging-input equivalence with the contract's
-// `ListPageQuery` is asserted in the operation-mirror describe below; the
+// `ListPageQuery` is asserted in the operation-mirror describe above; the
 // SSE-unwrap decode itself lives in `test-utils.ts`.
 
 /** The contract's tagged-error body: `{ _tag, ...fields }`, as REST serves it. */
@@ -193,106 +137,79 @@ const GuardFailureBody = Schema.Struct({
   message: Schema.String
 })
 
-const RpcErrorBody = Schema.Struct({
-  jsonrpc: Schema.Literal('2.0'),
-  id: Schema.NullOr(Schema.Unknown),
-  error: Schema.Struct({ code: Schema.Number, message: Schema.String })
-})
-
 describe('POST /mcp protocol', () => {
-  test('the modern era has no handshake: an initialize is answered method-not-found', () =>
+  test('a session-initialized client lists tools and calls them', () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        // Identity, version, and capabilities travel with every request's
-        // envelope — there is nothing for an initialize to negotiate.
-        const res = yield* send(
-          rpc('initialize', {
-            protocolVersion: MODERN_PROTOCOL_VERSION,
-            capabilities: {},
-            clientInfo: { name: 'stock-client', version: '1.0.0' }
-          })
-        )
-        // The SDK maps the modern method-not-found to an HTTP 404 carrying
-        // the JSON-RPC error.
-        expect(res.status).toBe(404)
-        const body = yield* jsonBody(res, RpcErrorBody)
-        expect(body.error.code).toBe(-32_601)
-      })
-    ))
+        const client = mcpClient(handler, bearer.authorization)
+        yield* Effect.promise(() => client.initialize())
 
-  test('a legacy-style initialize without the envelope claim is rejected', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        // Strict stateless-only posture: the 2025-era handshake gets the
-        // unsupported-protocol-version error naming what the endpoint serves,
-        // so a legacy client learns the answer from the rejection alone.
-        const res = yield* send(
-          new Request('https://api.test/mcp', {
-            method: 'POST',
-            headers: bearer,
-            body: encodeJsonBody({
-              jsonrpc: '2.0',
-              id: 99,
-              method: 'initialize',
-              params: {
-                protocolVersion: '2025-11-25',
-                capabilities: {},
-                clientInfo: { name: 'legacy-client', version: '1.0.0' }
-              }
-            })
-          })
-        )
-        expect(res.status).toBe(400)
-        const body = yield* jsonBody(res, RpcErrorBody)
-        expect(body.error.code).toBe(-32_022)
-        expect(body.error.message).toContain('2025-11-25')
-      })
-    ))
-
-  test('tools/list advertises exactly the registered read tools', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(rpc('tools/list', {}))
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, Ok(ToolListResult))
+        const listed = yield* Effect.promise(() => client.rpc('tools/list', {}))
+        expect(listed.status).toBe(200)
+        const body = yield* jsonBody(listed, Ok(ToolListResult))
         // `tools/list` and the discovery document are both projected from the
         // shared operation table, so both surfaces answer with one list.
         expect(body.result.tools.map((tool) => tool.name)).toEqual(
           readOperations().map((op) => op.toolName)
         )
         expect(mcpDiscoveryDocument().tools).toHaveLength(readOperations().length)
+
+        const called = yield* Effect.promise(() =>
+          client.rpc('tools/call', {
+            name: 'list_notifications',
+            arguments: {}
+          })
+        )
+        expect(called.status).toBe(200)
+        const result = yield* jsonBody(called, Ok(CallToolResult))
+        expect(result.result.isError).not.toBe(true)
+        expect(result.result.content[0]?.text).toContain('not_email')
       })
     ))
 
-  test('tools/call list_notifications returns the seed feed content', () =>
+  test('initialize answers an unknown offered revision with the served one', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const client = mcpClient(handler, bearer.authorization)
+        const res = yield* Effect.promise(() =>
+          client.rpc('initialize', {
+            protocolVersion: '2026-07-28',
+            capabilities: {},
+            clientInfo: { name: 'client-from-the-future', version: '1.0.0' }
+          })
+        )
+        expect(res.status).toBe(200)
+        const body = yield* jsonBody(res, Ok(InitializeResult))
+        expect(body.result.serverInfo.name).toBe('b2b-saas-starter-mcp')
+      })
+    ))
+
+  test('a request without a session is refused, not served statelessly', () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const res = yield* send(
-          rpc(
-            'tools/call',
-            { name: 'list_notifications', arguments: {} },
-            'list_notifications'
-          )
+          new Request('https://api.test/mcp', {
+            method: 'POST',
+            headers: bearer,
+            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+          })
         )
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, Ok(CallToolResult))
-        expect(body.result.isError).not.toBe(true)
-        expect(body.result.content[0]?.text).toContain('not_email')
+        // The transport is sessionful: only initialize opens a session, and
+        // everything else must carry the one it minted.
+        expect(res.status).toBe(400)
       })
     ))
 
   test('tools/call list_notifications honors the paging input like REST', () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const res = yield* send(
-          rpc(
-            'tools/call',
-            {
-              name: 'list_notifications',
-              arguments: { limit: 2, cursor: 'not-a-cursor' }
-            },
-            'list_notifications'
-          )
+        const client = mcpClient(handler, bearer.authorization)
+        yield* Effect.promise(() => client.initialize())
+        const res = yield* Effect.promise(() =>
+          client.rpc('tools/call', {
+            name: 'list_notifications',
+            arguments: { limit: 2, cursor: 'not-a-cursor' }
+          })
         )
         expect(res.status).toBe(200)
         const body = yield* jsonBody(res, Ok(CallToolResult))
@@ -306,8 +223,10 @@ describe('POST /mcp protocol', () => {
   test('resources/read serves the workspace overview resource', () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const res = yield* send(
-          rpc('resources/read', { uri: 'workspace://overview' }, 'workspace://overview')
+        const client = mcpClient(handler, bearer.authorization)
+        yield* Effect.promise(() => client.initialize())
+        const res = yield* Effect.promise(() =>
+          client.rpc('resources/read', { uri: 'workspace://overview' })
         )
         expect(res.status).toBe(200)
         const body = yield* jsonBody(res, Ok(ResourceReadResult))
@@ -322,8 +241,11 @@ describe('POST /mcp protocol', () => {
         const res = yield* send(
           new Request('https://api.test/mcp', {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+            headers: {
+              'content-type': 'application/json',
+              accept: 'application/json, text/event-stream'
+            },
+            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'initialize' })
           })
         )
         expect(res.status).toBe(401)
@@ -351,9 +273,10 @@ describe('POST /mcp protocol', () => {
             method: 'POST',
             headers: {
               authorization: 'Bearer bsk_live_bogus',
-              'content-type': 'application/json'
+              'content-type': 'application/json',
+              accept: 'application/json, text/event-stream'
             },
-            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'initialize' })
           })
         )
         expect(res.status).toBe(401)
@@ -370,7 +293,9 @@ describe('POST /mcp protocol', () => {
             body: '{not json'
           })
         )
-        expect(res.status).toBe(400)
+        // The transport carries the protocol error in a well-formed JSON-RPC
+        // body rather than an HTTP error status.
+        expect(res.status).toBe(200)
         const body = yield* jsonBody(
           res,
           Schema.Struct({
@@ -386,15 +311,10 @@ describe('POST /mcp protocol', () => {
   test('a notification is accepted with no reply body', () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const res = yield* send(
-          new Request('https://api.test/mcp', {
-            method: 'POST',
-            headers: bearer,
-            body: encodeJsonBody({
-              jsonrpc: '2.0',
-              method: 'notifications/initialized'
-            })
-          })
+        const client = mcpClient(handler, bearer.authorization)
+        yield* Effect.promise(() => client.initialize())
+        const res = yield* Effect.promise(() =>
+          client.notify('notifications/initialized')
         )
         expect(res.status).toBe(202)
       })

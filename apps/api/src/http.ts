@@ -56,6 +56,7 @@ const rootIndexLayer = HttpRouter.add('GET', '/', () =>
       openapi: '/openapi.json',
       docs: '/reference',
       mcp: '/mcp',
+      mcpDiscovery: '/mcp/discovery',
       oauthProtectedResource: '/.well-known/oauth-protected-resource/mcp'
     })
   )
