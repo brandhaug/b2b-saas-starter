@@ -1,17 +1,14 @@
 import { apiTokens, workspaces } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
-import { and, desc, eq, isNull, lt, or, type SQL } from 'drizzle-orm'
+import { and, desc, eq, isNull, type SQL } from 'drizzle-orm'
 
 import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
 import { AuthorizationDenied } from '../errors.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-import {
-  clampPageLimit,
-  cutKeysetPage,
-  decodeKeysetCursor
-} from '../internal/keyset-cursor.ts'
+import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
+import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -99,21 +96,18 @@ export const LiveApiTokenRegistry: Layer.Layer<
           const conditions: Array<SQL | undefined> = [
             activeTokenWhere(undefined, ctx.workspace.id)
           ]
-          // Keyset on `(createdAt DESC, id DESC)`: everything strictly
-          // before the cursor's position in that ordering. ISO timestamps
-          // compare lexicographically, so string comparison is correct.
-          if (input?.cursor !== undefined) {
-            const cursor = decodeKeysetCursor(input.cursor)
-            if (cursor === null) {
-              return { items: [], nextCursor: null }
-            }
-            const older = or(
-              lt(apiTokens.createdAt, cursor.key),
-              and(eq(apiTokens.createdAt, cursor.key), lt(apiTokens.id, cursor.id))
-            )
-            if (older !== undefined) {
-              conditions.push(older)
-            }
+          // The SQL half of the keyset recipe lives in `keyset-query.ts`,
+          // shared with every other paged Live read.
+          const resume = keysetResume(
+            'desc',
+            { key: apiTokens.createdAt, id: apiTokens.id },
+            input?.cursor
+          )
+          if (resume.kind === 'empty') {
+            return { items: [], nextCursor: null }
+          }
+          if (resume.kind === 'resume') {
+            conditions.push(resume.condition)
           }
           // One row past the page cap, so `cutKeysetPage` can see whether
           // the cap actually cut rows off before offering a cursor.

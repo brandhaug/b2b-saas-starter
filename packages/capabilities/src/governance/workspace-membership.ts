@@ -1,16 +1,16 @@
 import { Database } from '@b2b-saas-starter/db/service'
 import { user, workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
-import { and, asc, eq, gt, type SQL } from 'drizzle-orm'
+import { and, asc, eq, type SQL } from 'drizzle-orm'
 import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
 import {
   clampPageLimit,
   cutKeysetPage,
-  decodeKeysetCursor,
   seedKeysetPage,
   type ListPageInput,
   type Page
 } from '../internal/keyset-cursor.ts'
+import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
@@ -41,7 +41,7 @@ export type WorkspaceMembershipInterface = {
   >
 
   /**
-   * The paged read the REST and MCP list surfaces serve (ADR 0054). The
+   * The paged read the REST and MCP list surfaces serve (ADR 0057). The
    * member wire shape carries no timestamp, so pages run forward on
    * `id ASC` (user id) — the stable order a caller can resume. `listMembers`
    * stays for the app's whole-roster reads.
@@ -322,13 +322,18 @@ export function LiveWorkspaceMembership(
               eq(workspaceMembers.workspaceId, ctx.workspace.id)
             ]
             // Forward on user `id ASC` — no timestamp on the wire shape, so a
-            // cursor is every member with a strictly greater id.
-            if (input?.cursor !== undefined) {
-              const cursor = decodeKeysetCursor(input.cursor)
-              if (cursor === null) {
-                return { items: [], nextCursor: null }
-              }
-              conditions.push(gt(workspaceMembers.userId, cursor.id))
+            // cursor is every member with a strictly greater id. The SQL
+            // resume comes from `keyset-query.ts`, like every paged read.
+            const resume = keysetResume(
+              'asc',
+              { key: workspaceMembers.userId, id: workspaceMembers.userId },
+              input?.cursor
+            )
+            if (resume.kind === 'empty') {
+              return { items: [], nextCursor: null }
+            }
+            if (resume.kind === 'resume') {
+              conditions.push(resume.condition)
             }
             const rows = yield* unavailable(
               db

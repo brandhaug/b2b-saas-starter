@@ -89,7 +89,7 @@ export function workspaceGroup(env: ApiEnv) {
      * all six rows, and TypeScript rejects the union against any one
      * endpoint's schema.)
      *
-     * The decoded `query` rides along: list rows page on it (ADR 0054), and
+     * The decoded `query` rides along: list rows page on it (ADR 0057), and
      * the overview row ignores it — one shape for every row of the table.
      */
     function workspaceRead<A, E, R>(

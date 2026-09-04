@@ -1,16 +1,16 @@
 import { auditEvents, user, type JsonObject } from '@b2b-saas-starter/db/schema'
 import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
-import { and, desc, eq, gte, lt, lte, or, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, type SQL } from 'drizzle-orm'
 
 import { type CapabilityUnavailable } from '../errors.ts'
 import {
   clampPageLimit,
   cutKeysetPage,
-  decodeKeysetCursor,
   seedKeysetPage,
   type KeysetCursorPosition
 } from '../internal/keyset-cursor.ts'
+import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { type AuditEventType, type AuditTargetType } from './audit-event-taxonomy.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -316,21 +316,19 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         if (input?.until !== undefined) {
           conditions.push(lte(auditEvents.createdAt, input.until))
         }
-        // Keyset pagination on `(createdAt DESC, id DESC)`: everything strictly
-        // before the cursor's position in that ordering. ISO timestamps compare
-        // lexicographically, so plain string comparison is correct here.
-        if (input?.cursor !== undefined) {
-          const cursor = decodeKeysetCursor(input.cursor)
-          if (cursor === null) {
-            return null
-          }
-          const older = or(
-            lt(auditEvents.createdAt, cursor.key),
-            and(eq(auditEvents.createdAt, cursor.key), lt(auditEvents.id, cursor.id))
-          )
-          if (older !== undefined) {
-            conditions.push(older)
-          }
+        // The SQL half of the keyset recipe lives in `keyset-query.ts`,
+        // shared with every other paged Live read: everything strictly
+        // before the cursor's position in `(createdAt DESC, id DESC)`.
+        const resume = keysetResume(
+          'desc',
+          { key: auditEvents.createdAt, id: auditEvents.id },
+          input?.cursor
+        )
+        if (resume.kind === 'empty') {
+          return null
+        }
+        if (resume.kind === 'resume') {
+          conditions.push(resume.condition)
         }
         const query = db
           .select({ event: auditEvents, actor: user })

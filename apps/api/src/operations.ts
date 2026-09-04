@@ -74,7 +74,7 @@ export type WorkspaceReadOperation = {
   readonly permission: PermissionRequest
   /**
    * The capability read, taking the request's paging input. List rows page
-   * (`ListPageInput`: cursor + clamped limit, ADR 0054); the overview row
+   * (`ListPageInput`: cursor + clamped limit, ADR 0057); the overview row
    * ignores it — REST and MCP pass the same value, so neither surface can
    * page differently.
    */

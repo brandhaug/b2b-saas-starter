@@ -2,6 +2,7 @@ import { Effect } from 'effect'
 import { type ContractExpectMatchers } from './contract-expect.ts'
 import { type CapabilityUnavailable, type MembershipChangeRejected } from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
+import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 import { WorkspaceMembership } from './workspace-membership.ts'
 
@@ -137,28 +138,15 @@ export function workspaceMembershipContractCases(
       assert: Effect.gen(function* () {
         const membership = yield* WorkspaceMembership
         const whole = (yield* membership.listMembers).map((member) => member.id)
-        const walked: Array<string> = []
-        // Annotated: the cursor's type must not be inferred from the page
-        // result, or the loop's initializer would reference itself.
-        let cursor: string | null = null
-        let continueWalking = true
-        for (let guard = 0; guard < 25 && continueWalking; guard += 1) {
-          const page: {
-            readonly items: ReadonlyArray<{ readonly id: string }>
-            readonly nextCursor: string | null
-          } = yield* membership.listMembersPage({
-            limit: 1,
-            cursor: cursor ?? undefined
-          })
-          for (const member of page.items) {
-            walked.push(member.id)
-          }
-          cursor = page.nextCursor
-          continueWalking = cursor !== null
-        }
+        const walk = yield* walkKeysetPages(
+          (input) => membership.listMembersPage(input),
+          { limit: 1 }
+        )
         // Forward on `id ASC` — no timestamp on the wire shape — and every
         // member of the roster exactly once, matching the whole-collection
         // read the settings page renders.
+        const walked = walk.items.map((member) => member.id)
+        expect(walk.exhausted).toBe(true)
         expect(walked).toEqual(walked.toSorted())
         expect(walked.toSorted()).toEqual(whole.toSorted())
       })

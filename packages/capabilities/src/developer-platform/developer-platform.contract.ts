@@ -7,44 +7,7 @@ import { WorkspaceContext } from '../workspace-context.ts'
 import { ApiTokenRegistry } from './api-token-registry.ts'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-
-/**
- * Walks a paged read one row at a time and returns the ids in page order.
- * The loop cap is the runaway guard: a cursor that never reaches `null`
- * stops the walk early, and the coverage assertions the callers run over
- * the result fail loudly against a truncated walk.
- */
-function walkPageIds<A, E, R>(
-  page: (input: {
-    limit: number
-    cursor?: string | undefined
-  }) => Effect.Effect<
-    { readonly items: ReadonlyArray<A>; readonly nextCursor: string | null },
-    E,
-    R
-  >,
-  idOf: (item: A) => string
-): Effect.Effect<Array<string>, E, R> {
-  return Effect.gen(function* () {
-    const ids: Array<string> = []
-    // Annotated: `cursor`'s type must not be inferred from the page result,
-    // or the loop's initializer would reference itself.
-    let cursor: string | null = null
-    let continueWalking = true
-    for (let guard = 0; guard < 25 && continueWalking; guard += 1) {
-      const result: {
-        readonly items: ReadonlyArray<A>
-        readonly nextCursor: string | null
-      } = yield* page({ limit: 1, cursor: cursor ?? undefined })
-      for (const item of result.items) {
-        ids.push(idOf(item))
-      }
-      cursor = result.nextCursor
-      continueWalking = cursor !== null
-    }
-    return ids
-  })
-}
+import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 
 /**
  * The developer-platform mutation contract, written once and run against both
@@ -267,10 +230,14 @@ export function developerPlatformContractCases(
       name: 'token pages walk exactly once and an insert never disturbs the emitted prefix',
       assert: Effect.gen(function* () {
         const tokens = yield* ApiTokenRegistry
-        const first = yield* walkPageIds(
-          (input) => tokens.listPage(input),
-          (token) => token.id
-        )
+        function walk() {
+          return walkKeysetPages((input) => tokens.listPage(input), { limit: 1 })
+        }
+        // The walk runs to exhaustion — a truncated walk would fail the
+        // coverage assertions below against the whole-collection read.
+        const firstWalk = yield* walk()
+        expect(firstWalk.exhausted).toBe(true)
+        const first = firstWalk.items.map((token) => token.id)
         // Every active token exactly once — the walk agrees with the
         // whole-collection read as a set (row order may differ when rows
         // share a createdAt instant; the tie is broken by id, not position).
@@ -282,10 +249,7 @@ export function developerPlatformContractCases(
           name: 'paging-stability',
           scopes: ['read']
         })
-        const second = yield* walkPageIds(
-          (input) => tokens.listPage(input),
-          (token) => token.id
-        )
+        const second = (yield* walk()).items.map((token) => token.id)
         // The inserted token appears exactly once, every previously emitted
         // row keeps its position relative to the others, and nothing the
         // first walk already served was dropped or duplicated.
@@ -299,10 +263,10 @@ export function developerPlatformContractCases(
       name: 'webhook pages walk forward on id and an insert never duplicates a row',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
-        const first = yield* walkPageIds(
-          (input) => webhooks.listPage(input),
-          (endpoint) => endpoint.id
-        )
+        function walk() {
+          return walkKeysetPages((input) => webhooks.listPage(input), { limit: 1 })
+        }
+        const first = (yield* walk()).items.map((endpoint) => endpoint.id)
         // Forward order on `id ASC` — the wire shape carries no timestamp,
         // so the id is the one stable order a page can resume.
         expect(first).toEqual(first.toSorted())
@@ -311,10 +275,7 @@ export function developerPlatformContractCases(
           url: 'https://example.com/paging-hook',
           events: ['demo.event']
         })
-        const second = yield* walkPageIds(
-          (input) => webhooks.listPage(input),
-          (row) => row.id
-        )
+        const second = (yield* walk()).items.map((row) => row.id)
         // No duplicates, nothing lost: every pre-insert row survives the
         // second walk exactly once, and the new endpoint lands somewhere
         // valid in the id order — before or after the cursor alike.

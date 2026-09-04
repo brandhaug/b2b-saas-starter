@@ -84,7 +84,7 @@ export type ApiTokenRegistryInterface = {
   >
 
   /**
-   * The paged read the REST and MCP list surfaces serve (ADR 0054):
+   * The paged read the REST and MCP list surfaces serve (ADR 0057):
    * newest-first on `(createdAt DESC, id DESC)`. `list` stays for the
    * settings page's whole-collection read.
    */

@@ -205,7 +205,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
     )
   })
 
-  // The paging insert-stability case (ADR 0054): a brand-new newest row lands
+  // The paging insert-stability case (ADR 0057): a brand-new newest row lands
   // between two page fetches, and the resumed page's keyset window stays
   // frozen exactly where the first page ended. The Seed half of this
   // guarantee runs in the developer-platform and audit contracts; the

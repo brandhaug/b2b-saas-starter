@@ -54,6 +54,7 @@ describe('plain SDK client against the API worker (seed)', () => {
     // once, no duplicates — the keyset walk the REST surface serves.
     expect(walked).toEqual([
       'not_email',
+      'not_export',
       'not_webhook',
       'not_token',
       'not_billing',

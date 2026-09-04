@@ -115,24 +115,6 @@ describe('seed developer-platform plan-limit contract', () => {
   }
 })
 
-// The Live half of this same list runs in notification-feed.live.test.ts. One
-// contract, two adapters — capabilities invariant 4.
-describe('seed notification feed paging contract', () => {
-  const seedIds = {
-    broadcastUnread: 'not_c_unread',
-    broadcastRead: 'not_c_read',
-    aliceUnread: 'not_c_alice'
-  }
-  const layer = Layer.merge(
-    SeedNotificationFeed(notificationFeedContractDataset(seedIds)),
-    testWorkspaceContext(seedWorkspaceRecord)
-  )
-  const cases = notificationFeedContractCases(() => seedIds, expect)
-  for (const contractCase of cases) {
-    it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
-  }
-})
-
 describe('seed audit event log contract', () => {
   const workspaceId = 'wrk_audit_contract'
   const layer = Layer.merge(

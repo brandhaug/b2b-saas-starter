@@ -34,7 +34,7 @@ Public REST clients authenticate with a workspace-scoped API Token in the `Autho
 
 ## Pagination
 
-Every list endpoint — `members`, `notifications`, `api-tokens`, `webhooks`, `audit-events` — is a paged read (ADR 0054). It accepts two optional query parameters and answers a **Page**: `items` plus an opaque `nextCursor` that is `null` on the last page.
+Every list endpoint — `members`, `notifications`, `api-tokens`, `webhooks`, `audit-events` — is a paged read (ADR 0057). It accepts two optional query parameters and answers a **Page**: `items` plus an opaque `nextCursor` that is `null` on the last page.
 
 ```text
 GET /workspaces/acme/notifications?limit=2

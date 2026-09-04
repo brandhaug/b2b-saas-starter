@@ -1,9 +1,9 @@
-import { Encoding, Result } from 'effect'
+import { Effect, Encoding, Result } from 'effect'
 
 /**
  * The one keyset-cursor codec every paged list read shares — capabilities
  * (Seed and Live), the web app's audit page, the REST contract, and the MCP
- * tools all hand the same opaque string back and forth (ADR 0054).
+ * tools all hand the same opaque string back and forth (ADR 0057).
  *
  * A cursor addresses a *position*, not an offset: the sort key of the last
  * item on a page plus its id as the tie-break, base64-encoded as
@@ -113,20 +113,21 @@ export function seedKeysetPage<T>(
   input: ListPageInput | undefined
 ): Page<T> {
   const limit = clampPageLimit(input?.limit)
-  let cursor: KeysetCursorPosition | null | undefined
+  // `undefined` = first page, `null` = undecodable (no position, empty page).
+  let position: KeysetCursorPosition | null | undefined
   if (input?.cursor === undefined) {
-    cursor = undefined
+    position = undefined
   } else {
-    cursor = decodeKeysetCursor(input.cursor)
+    position = decodeKeysetCursor(input.cursor)
   }
-  if (cursor === null) {
+  if (position === null) {
     return { items: [], nextCursor: null }
   }
   let remaining: ReadonlyArray<T> = rows
-  if (cursor !== undefined) {
+  if (position !== undefined) {
     remaining = rows.filter((row) => {
       const at = positionOf(row)
-      return keysetIsAfter(order, cursor, at.key, at.id)
+      return keysetIsAfter(order, position, at.key, at.id)
     })
   }
   const ordered = remaining.toSorted(keysetComparator(order, positionOf))
@@ -179,4 +180,45 @@ export function cutKeysetPage<T>(
     nextCursor = encodeKeysetCursor(positionOf(last))
   }
   return { items, nextCursor }
+}
+
+/**
+ * The consumer half of the paging recipe: walks a paged read cursor-to-end
+ * and collects every item, following `nextCursor` until the server says the
+ * list is exhausted. Contract tests assert over `items` (a truncated walk
+ * fails their coverage assertions); wire-level tests also assert `exhausted`
+ * to prove the cursor chain itself terminated. `maxPages` is the runaway
+ * guard, not part of the contract — a cursor that never reaches `null`
+ * stops the walk with `exhausted: false`.
+ */
+export function walkKeysetPages<A, E, R>(
+  fetchPage: (input: ListPageInput) => Effect.Effect<Page<A>, E, R>,
+  options?: {
+    /** Page size handed to every fetch; omitted means the read's default. */
+    readonly limit?: number
+    /** Ceiling on fetches; the default bounds a walk well past any real list. */
+    readonly maxPages?: number
+  }
+): Effect.Effect<{ readonly items: Array<A>; readonly exhausted: boolean }, E, R> {
+  const maxPages = options?.maxPages ?? 25
+  return Effect.gen(function* () {
+    const items: Array<A> = []
+    let cursor: string | undefined
+    let exhausted = false
+    for (let page = 0; page < maxPages; page += 1) {
+      const result: Page<A> = yield* fetchPage({
+        limit: options?.limit,
+        cursor
+      })
+      for (const item of result.items) {
+        items.push(item)
+      }
+      if (result.nextCursor === null) {
+        exhausted = true
+        break
+      }
+      cursor = result.nextCursor
+    }
+    return { items, exhausted }
+  })
 }

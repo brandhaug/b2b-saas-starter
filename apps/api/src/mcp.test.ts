@@ -42,7 +42,7 @@ describe('mcp ↔ rest operation mirror', () => {
       // generated from zod.
       const { properties } = decodeAdvertisedInput(tool?.inputSchema)
       if (operation.paged) {
-        // ADR 0054: list tools take the same optional cursor/limit the REST
+        // ADR 0057: list tools take the same optional cursor/limit the REST
         // route accepts.
         expect(properties.cursor).toBeDefined()
         expect(properties.limit).toBeDefined()

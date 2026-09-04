@@ -1,11 +1,12 @@
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { walkKeysetPages } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
 import { describe, expect, test } from 'vite-plus/test'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
 
 /**
  * The REST paging contract, end to end over the worker's web handler
- * (ADR 0054): every list endpoint answers `{ items, nextCursor }`, honors
+ * (ADR 0057): every list endpoint answers `{ items, nextCursor }`, honors
  * `limit`, resumes from `cursor`, and clamps or empties gracefully. The
  * cursor codec's stability-across-inserts is proven at the capability
  * contracts (Seed and Live); what this file owns is the wire surface.
@@ -39,36 +40,31 @@ function jsonBody<S extends Schema.Top>(
 /** Walks one endpoint cursor-to-cursor, collecting item ids. */
 function walk(path: string) {
   return Effect.gen(function* () {
-    const ids: Array<string> = []
-    // Annotated: the cursor's type must not be inferred from the page body,
-    // or the loop's initializer would reference itself.
-    let cursor: string | null = null
-    let continueWalking = true
-    for (let guard = 0; guard < 25 && continueWalking; guard += 1) {
-      let separator = '?'
-      if (path.includes('?')) {
-        separator = '&'
-      }
-      let pagePath = path
-      if (cursor !== null) {
-        pagePath = `${path}${separator}cursor=${encodeURIComponent(cursor)}`
-      }
-      const response: Response = yield* send(get(pagePath))
-      expect(response.status).toBe(200)
-      const page: {
-        readonly items: ReadonlyArray<{ readonly id: string }>
-        readonly nextCursor: string | null
-      } = yield* jsonBody(response, PageBody)
-      for (const item of page.items) {
-        ids.push(item.id)
-      }
-      cursor = page.nextCursor
-      continueWalking = cursor !== null
-    }
-    if (cursor !== null) {
+    const result = yield* walkKeysetPages((input) =>
+      Effect.gen(function* () {
+        let pagePath = path
+        if (input.cursor !== undefined) {
+          let separator = '?'
+          if (path.includes('?')) {
+            separator = '&'
+          }
+          pagePath = `${path}${separator}cursor=${encodeURIComponent(input.cursor)}`
+        }
+        const response: Response = yield* send(get(pagePath))
+        expect(response.status).toBe(200)
+        const page: {
+          readonly items: ReadonlyArray<{ readonly id: string }>
+          readonly nextCursor: string | null
+        } = yield* jsonBody(response, PageBody)
+        return page
+      })
+    )
+    // The cursor chain must terminate; a server that never answers
+    // `nextCursor: null` stops the walk and dies here.
+    if (!result.exhausted) {
       return yield* Effect.die(new Error('paging walk never terminated'))
     }
-    return ids
+    return result.items.map((item) => item.id)
   })
 }
 
@@ -101,7 +97,7 @@ describe('REST list paging', () => {
         )
         const page = yield* jsonBody(response, PageBody)
         expect(page.items).toHaveLength(2)
-        expect(page.items.map((item) => item.id)).toEqual(['not_email', 'not_webhook'])
+        expect(page.items.map((item) => item.id)).toEqual(['not_email', 'not_export'])
         expect(page.nextCursor).not.toBe(null)
 
         const resumed = yield* send(
@@ -111,8 +107,8 @@ describe('REST list paging', () => {
         )
         const nextPage = yield* jsonBody(resumed, PageBody)
         expect(nextPage.items.map((item) => item.id)).toEqual([
-          'not_token',
-          'not_billing'
+          'not_webhook',
+          'not_token'
         ])
       })
     ))
@@ -123,6 +119,7 @@ describe('REST list paging', () => {
         const ids = yield* walk('/workspaces/starter-lab/notifications?limit=2')
         expect(ids).toEqual([
           'not_email',
+          'not_export',
           'not_webhook',
           'not_token',
           'not_billing',
@@ -139,11 +136,11 @@ describe('REST list paging', () => {
           get('/workspaces/starter-lab/audit-events?limit=1')
         )
         const page = yield* jsonBody(response, PageBody)
-        // The seed fixture holds one workspace-scoped audit event, so the
-        // first page is also the last — a full short page names no cursor.
+        // The seed fixture holds two workspace-scoped audit events, so the
+        // newest-first first page holds one and names the next.
         expect(page.items).toHaveLength(1)
-        expect(page.items[0]?.id).toBe('aud_token')
-        expect(page.nextCursor).toBe(null)
+        expect(page.items[0]?.id).toBe('aud_export')
+        expect(page.nextCursor).not.toBe(null)
       })
     ))
 
@@ -182,7 +179,7 @@ describe('REST list paging', () => {
         )
         expect(response.status).toBe(200)
         const page = yield* jsonBody(response, PageBody)
-        expect(page.items).toHaveLength(6)
+        expect(page.items).toHaveLength(7)
         expect(page.nextCursor).toBe(null)
       })
     ))

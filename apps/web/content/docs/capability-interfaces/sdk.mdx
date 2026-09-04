@@ -6,7 +6,7 @@ order: 40
 tags: [sdk, typescript, rest, pagination]
 ---
 
-`@b2b-saas-starter/sdk` is the typed client for the REST Capability Interface. It is derived from the shared `StarterApi` definition in `packages/api` through Effect's `HttpApiClient`, so every path, query parameter, payload, success schema, and error schema the API Worker serves is the one the client encodes and decodes. There is no codegen step and no generated file (ADR 0055): a contract change fails the SDK's type-check, and the served `/openapi.json` stays a document for humans and third-party generators.
+`@b2b-saas-starter/sdk` is the typed client for the REST Capability Interface. It is derived from the shared `StarterApi` definition in `packages/api` through Effect's `HttpApiClient`, so every path, query parameter, payload, success schema, and error schema the API Worker serves is the one the client encodes and decodes. There is no codegen step and no generated file (ADR 0058): a contract change fails the SDK's type-check, and the served `/openapi.json` stays a document for humans and third-party generators.
 
 The package lives in `packages/sdk` and is a workspace package today: it depends on the contract's schemas, which live beside the capabilities. Publishing it externally would mean extracting those schemas first (ADR 0048 keeps the public API unversioned until then).
 
@@ -57,7 +57,7 @@ await program.pipe(Effect.provide(FetchHttpClient.layer), Effect.runPromise)
 
 ## Pagination
 
-Every list method pages the same way the REST route does (ADR 0054): an optional `limit` (default 50, clamped to at most 200) and an opaque `cursor` from the previous page's `nextCursor`. The cursor is a keyset position, so rows inserted between fetches never shift, duplicate, or hide rows you have not seen. `.iterate()` does the cursor bookkeeping for you and stops when the server answers `nextCursor: null`.
+Every list method pages the same way the REST route does (ADR 0057): an optional `limit` (default 50, clamped to at most 200) and an opaque `cursor` from the previous page's `nextCursor`. The cursor is a keyset position, so rows inserted between fetches never shift, duplicate, or hide rows you have not seen. `.iterate()` does the cursor bookkeeping for you and stops when the server answers `nextCursor: null`.
 
 ## Errors
 

@@ -1,7 +1,7 @@
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/schema'
 import { DateTime, Effect, Layer, Option } from 'effect'
-import { and, asc, count, eq, gt, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, eq, sql, type SQL } from 'drizzle-orm'
 
 import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
@@ -17,11 +17,8 @@ import {
 } from './webhook-endpoints.ts'
 import { randomHex } from '../internal/crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-import {
-  clampPageLimit,
-  cutKeysetPage,
-  decodeKeysetCursor
-} from '../internal/keyset-cursor.ts'
+import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
+import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -178,14 +175,18 @@ export const LiveWebhookEndpoints: Layer.Layer<
             eq(webhookEndpoints.workspaceId, ctx.workspace.id)
           ]
           // Forward on `id ASC` — no timestamp on the wire shape, so the
-          // stable order a page can resume is the id itself; a cursor is
-          // then every endpoint with a strictly greater id.
-          if (input?.cursor !== undefined) {
-            const cursor = decodeKeysetCursor(input.cursor)
-            if (cursor === null) {
-              return { items: [], nextCursor: null }
-            }
-            conditions.push(gt(webhookEndpoints.id, cursor.id))
+          // stable order a page can resume is the id itself. The SQL resume
+          // comes from `keyset-query.ts`, like every paged read.
+          const resume = keysetResume(
+            'asc',
+            { key: webhookEndpoints.id, id: webhookEndpoints.id },
+            input?.cursor
+          )
+          if (resume.kind === 'empty') {
+            return { items: [], nextCursor: null }
+          }
+          if (resume.kind === 'resume') {
+            conditions.push(resume.condition)
           }
           // One row past the page cap, so `cutKeysetPage` can see whether the
           // cap actually cut rows off before offering a cursor.

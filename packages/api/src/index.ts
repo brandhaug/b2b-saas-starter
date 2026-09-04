@@ -255,7 +255,7 @@ const PROTECTED_ERRORS = [
 export const SlugParams = Schema.Struct({ slug: Schema.String })
 
 /**
- * The query vocabulary every paged list endpoint shares (ADR 0054): an
+ * The query vocabulary every paged list endpoint shares (ADR 0057): an
  * optional opaque `cursor` and an optional `limit`. `limit` defaults to 50
  * and is capped at 200 by the capability layer — the contract accepts any
  * number and lets the clamp, not a 400, absorb out-of-range values.

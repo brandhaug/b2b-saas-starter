@@ -62,7 +62,7 @@ const OVERVIEW_RESOURCE_URI = 'workspace://overview'
 /**
  * Every tool's arguments mirror its REST counterpart's query: the five list
  * tools take the same optional `cursor`/`limit` the REST route accepts
- * (ADR 0054) and the overview resource takes none. Out-of-range limits are
+ * (ADR 0057) and the overview resource takes none. Out-of-range limits are
  * clamped by the capability layer, exactly as REST clamps them — the wire
  * schema stays permissive so MCP and REST cannot disagree about what a valid
  * page request is. The zod schema is what the MCP SDK registers with, and the
@@ -70,12 +70,17 @@ const OVERVIEW_RESOURCE_URI = 'workspace://overview'
  * `$schema` dialect header, which a tool descriptor's `inputSchema` has no
  * use for.
  */
-const NO_TOOL_INPUT = z.object({})
-const PAGED_TOOL_INPUT = z.object({
+/** What every tool's parsed arguments look like: paging input, or none. */
+type ToolInput = {
+  readonly cursor?: string | undefined
+  readonly limit?: number | undefined
+}
+
+const NO_TOOL_INPUT: z.ZodType<ToolInput> = z.object({})
+const PAGED_TOOL_INPUT: z.ZodType<ToolInput> = z.object({
   cursor: z.string().optional(),
   limit: z.number().optional()
 })
-type ToolInput = z.infer<typeof PAGED_TOOL_INPUT>
 // oxlint-disable-next-line eslint/no-unused-vars -- destructured to drop the dialect header from the advertised schema
 const { $schema: _dialect, ...NO_TOOL_INPUT_SCHEMA } = z.toJSONSchema(NO_TOOL_INPUT)
 // oxlint-disable-next-line eslint/no-unused-vars -- destructured to drop the dialect header from the advertised schema
@@ -90,9 +95,11 @@ const { $schema: _dialectPaged, ...PAGED_TOOL_INPUT_SCHEMA } =
  * exposes what REST exposes, nothing resurrected.
  */
 function toolDescriptor(operation: WorkspaceReadOperation): McpToolDescriptor {
-  let inputSchema = NO_TOOL_INPUT_SCHEMA
+  let inputSchema: McpToolDescriptor['inputSchema']
   if (operation.paged) {
     inputSchema = PAGED_TOOL_INPUT_SCHEMA
+  } else {
+    inputSchema = NO_TOOL_INPUT_SCHEMA
   }
   return {
     name: operation.toolName,
@@ -215,9 +222,11 @@ export function buildMcpServer(
 
   for (const operation of readOperations()) {
     const descriptor = toolDescriptor(operation)
-    let registeredInput = NO_TOOL_INPUT
+    let registeredInput: z.ZodType<ToolInput>
     if (operation.paged) {
       registeredInput = PAGED_TOOL_INPUT
+    } else {
+      registeredInput = NO_TOOL_INPUT
     }
     server.registerTool(
       descriptor.name,

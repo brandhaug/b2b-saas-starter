@@ -17,7 +17,7 @@ import { createStarterClient, type NotificationItem } from './index.ts'
  * (`packages/capabilities/src/testing/live-harness.ts`) backs the worker's
  * web handler, a real hashed API Token row authenticates the client, and the
  * paged walks run against actual D1 semantics — including the insert between
- * page fetches that keyset pagination exists to absorb (ADR 0054).
+ * page fetches that keyset pagination exists to absorb (ADR 0057).
  *
  * Each test provides `TestDatabase` exactly once: the provision provisions a
  * fresh workerd D1, so the worker handler and the row inserts must draw from

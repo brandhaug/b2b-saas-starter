@@ -1,17 +1,17 @@
 import { Database } from '@b2b-saas-starter/db/service'
 import { notifications, workspaceMembers } from '@b2b-saas-starter/db/schema'
-import { and, count, desc, eq, inArray, isNull, lt, or, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull, or, type SQL } from 'drizzle-orm'
 import { Context, DateTime, Effect, Layer, Ref, Schema } from 'effect'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import {
   clampPageLimit,
   cutKeysetPage,
-  decodeKeysetCursor,
   type ListPageInput,
   type Page,
   seedKeysetPage
 } from '../internal/keyset-cursor.ts'
+import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext, type Actor } from '../workspace-context.ts'
 
@@ -72,7 +72,7 @@ export type NotificationFeedInterface = {
   >
 
   /**
-   * The paged read the REST and MCP list surfaces serve (ADR 0054):
+   * The paged read the REST and MCP list surfaces serve (ADR 0057):
    * newest-first on `(createdAt DESC, id DESC)`, one bounded `Page` at a
    * time. `list` stays for the whole-collection reads the app's own pages
    * render — feeds are small by construction there.
@@ -119,6 +119,38 @@ function visibleToActor(
   return userId === undefined || userId === null || userId === actor?.userId
 }
 
+type SeedRow = SeedNotification & { readonly workspaceId?: string }
+
+/**
+ * The rows one workspace's actor can see, stripped to the wire DTO — the
+ * fixture's store-only columns (`userId`, `workspaceId`) never leave the
+ * adapter, on the paged read exactly as on the whole-collection read.
+ */
+function visibleRows(
+  rows: ReadonlyArray<SeedRow>,
+  workspaceId: string,
+  actor: Actor | null
+): Array<Notification> {
+  const visible: Array<Notification> = []
+  for (const entry of rows) {
+    // Fixture rows carry no workspace and belong to the seed workspace;
+    // notified rows are scoped like Live's `workspaceId` column.
+    if (entry.workspaceId !== undefined && entry.workspaceId !== workspaceId) {
+      continue
+    }
+    if (visibleToActor(entry.userId, actor)) {
+      visible.push({
+        id: entry.id,
+        title: entry.title,
+        message: entry.message,
+        createdAt: entry.createdAt,
+        read: entry.read
+      })
+    }
+  }
+  return visible
+}
+
 /**
  * The in-memory feed. The rows live in a layer-scoped `Ref` so `markRead`
  * mutates them — the Seed layer is a real adapter, not a static answer sheet,
@@ -133,43 +165,21 @@ export function SeedNotificationFeed(
       // mutating the caller's fixture array, and notified rows read back
       // through `list`. Notified rows carry the `workspaceId` they were
       // written for, scoped like Live's `workspaceId` column.
-      const rows = Ref.makeUnsafe<
-        Array<SeedNotification & { readonly workspaceId?: string }>
-      >([...seed])
+      const rows = Ref.makeUnsafe<Array<SeedRow>>([...seed])
       return {
         list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
-          const current = yield* Ref.get(rows)
-          const visible: Array<Omit<SeedNotification, 'userId' | 'workspaceId'>> = []
-          for (const entry of current) {
-            const { userId, workspaceId, ...notification } = entry
-            // Fixture rows carry no workspace and belong to the seed workspace;
-            // notified rows are scoped like Live's `workspaceId` column.
-            if (workspaceId !== undefined && workspaceId !== ctx.workspace.id) {
-              continue
-            }
-            if (visibleToActor(userId, ctx.actor)) {
-              visible.push(notification)
-            }
-          }
-          return visible
+          return visibleRows(yield* Ref.get(rows), ctx.workspace.id, ctx.actor)
         }),
         listPage: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
-            const current = yield* Ref.get(rows)
-            const visible: Array<SeedNotification> = []
-            for (const entry of current) {
-              if (visibleToActor(entry.userId, ctx.actor)) {
-                visible.push(entry)
-              }
-            }
             // The store's insert order is not the wire order: the shared
             // keyset helper orders `(createdAt DESC, id DESC)` and cuts the
             // page, so a page fetch behaves exactly like Live's ordered SQL
-            // read. The userId-carrying store rows widen to the plain DTO.
+            // read — over the same visible, stripped rows `list` serves.
             return seedKeysetPage(
-              visible,
+              visibleRows(yield* Ref.get(rows), ctx.workspace.id, ctx.actor),
               'desc',
               (row) => ({ key: row.createdAt, id: row.id }),
               input
@@ -298,24 +308,18 @@ export const LiveNotificationFeed: Layer.Layer<NotificationFeed, never, Database
             const conditions: Array<SQL | undefined> = [
               visibilityFilter(ctx.workspace.id, ctx.actor)
             ]
-            // Keyset on `(createdAt DESC, id DESC)`: everything strictly
-            // before the cursor's position in that ordering. ISO timestamps
-            // compare lexicographically, so string comparison is correct.
-            if (input?.cursor !== undefined) {
-              const cursor = decodeKeysetCursor(input.cursor)
-              if (cursor === null) {
-                return { items: [], nextCursor: null }
-              }
-              const older = or(
-                lt(notifications.createdAt, cursor.key),
-                and(
-                  eq(notifications.createdAt, cursor.key),
-                  lt(notifications.id, cursor.id)
-                )
-              )
-              if (older !== undefined) {
-                conditions.push(older)
-              }
+            // The SQL half of the keyset recipe lives in `keyset-query.ts`,
+            // shared with every other paged Live read.
+            const resume = keysetResume(
+              'desc',
+              { key: notifications.createdAt, id: notifications.id },
+              input?.cursor
+            )
+            if (resume.kind === 'empty') {
+              return { items: [], nextCursor: null }
+            }
+            if (resume.kind === 'resume') {
+              conditions.push(resume.condition)
             }
             // One row past the page cap, so `cutKeysetPage` can see whether
             // the cap actually cut rows off before offering a cursor.

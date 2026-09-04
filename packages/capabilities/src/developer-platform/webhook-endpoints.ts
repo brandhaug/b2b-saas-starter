@@ -79,7 +79,7 @@ export type WebhookEndpointsInterface = {
   >
 
   /**
-   * The paged read the REST and MCP list surfaces serve (ADR 0054). The wire
+   * The paged read the REST and MCP list surfaces serve (ADR 0057). The wire
    * shape carries no timestamp, so pages run forward on `id ASC` — the one
    * stable order a caller can resume. `list` stays for the settings page's
    * whole-collection read.

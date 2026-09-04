@@ -1,6 +1,7 @@
 import { Effect } from 'effect'
 import { type ContractExpectMatchers } from '../governance/contract-expect.ts'
 import { type CapabilityUnavailable } from '../errors.ts'
+import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { NotificationFeed, type SeedNotification } from './notification-feed.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 
@@ -124,7 +125,7 @@ export function notificationFeedContractCases(
         expect(yield* feed.unreadCount).toBe(before - 1)
       })
     ),
-    // Paging (ADR 0054): the REST/MCP list surface reads the same store
+    // Paging (ADR 0057): the REST/MCP list surface reads the same store
     // through listPage, newest-first on (createdAt DESC, id DESC), with the
     // visibility filter applied to every page — the row addressed to another
     // user is invisible here and so appears on no page.
@@ -133,26 +134,14 @@ export function notificationFeedContractCases(
       (ids) =>
         Effect.gen(function* () {
           const feed = yield* NotificationFeed
-          const walked: Array<string> = []
-          // Annotated: the cursor's type must not be inferred from the page
-          // result, or the loop's initializer would reference itself.
-          let cursor: string | null = null
-          let continueWalking = true
-          for (let guard = 0; guard < 10 && continueWalking; guard += 1) {
-            const page: {
-              readonly items: ReadonlyArray<{ readonly id: string }>
-              readonly nextCursor: string | null
-            } = yield* feed.listPage({
-              limit: 1,
-              cursor: cursor ?? undefined
-            })
-            for (const notification of page.items) {
-              walked.push(notification.id)
-            }
-            cursor = page.nextCursor
-            continueWalking = cursor !== null
-          }
-          expect(walked).toEqual([ids.broadcastUnread, ids.broadcastRead])
+          const walk = yield* walkKeysetPages((input) => feed.listPage(input), {
+            limit: 1
+          })
+          expect(walk.exhausted).toBe(true)
+          expect(walk.items.map((notification) => notification.id)).toEqual([
+            ids.broadcastUnread,
+            ids.broadcastRead
+          ])
         })
     ),
     caseWith('an undecodable cursor addresses no position', () =>

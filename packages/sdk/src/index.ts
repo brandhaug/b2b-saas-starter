@@ -5,7 +5,7 @@ import { Effect, Layer } from 'effect'
 
 /**
  * The Typed SDK (CONTEXT.md): `@b2b-saas-starter/sdk`, the client derived
- * from the shared `StarterApi` HttpApi contract (ADR 0055). There is no
+ * from the shared `StarterApi` HttpApi contract (ADR 0058). There is no
  * codegen step and no generated file — every path, query parameter, payload,
  * success schema, and error schema the API Worker serves is the one this
  * client encodes and decodes, at type-check time, so a contract change fails
@@ -18,7 +18,7 @@ import { Effect, Layer } from 'effect'
  *   tagged error classes.
  * - `createStarterClient` — the plain promise-based client: a base URL plus
  *   an API Token in, promise-returning methods out, each paged list offering
- *   an async iterator that walks the Pages (ADR 0054) to exhaustion.
+ *   an async iterator that walks the Pages (ADR 0057) to exhaustion.
  */
 
 /** The derived client shape for the whole `StarterApi` surface. */
@@ -103,48 +103,45 @@ export type PagedListFn<T> = {
   ) => AsyncGenerator<T, void, undefined>
 }
 
-/** The item shapes, restated for the plain client's public surface. */
-export type MemberItem = {
-  readonly id: string
-  readonly name: string
-  readonly email: string
-  readonly role: string
-}
-export type NotificationItem = {
-  readonly id: string
-  readonly title: string
-  readonly message: string
-  readonly createdAt: string
-  readonly read: boolean
-}
-export type ApiTokenItem = {
-  readonly id: string
-  readonly name: string
-  readonly prefix: string
-  readonly scopes: ReadonlyArray<string>
-  readonly lastUsedAt: string | null
-  readonly createdAt: string
-}
-export type WebhookEndpointItem = {
-  readonly id: string
-  readonly url: string
-  readonly enabled: boolean
-  readonly events: ReadonlyArray<string>
-  readonly successRate: number
-}
-export type AuditEventItem = {
-  readonly id: string
-  readonly eventType: string
-  readonly targetType: string
-  readonly targetId: string | null
-  readonly actor: string
-  readonly createdAt: string
-}
+/**
+ * The success type of one derived-client method: what the contract's schema
+ * decodes to, read off the client's own method type instead of restated here.
+ */
+type Success<
+  Method extends (...args: never) => Effect.Effect<unknown, unknown, unknown>
+> = Effect.Success<ReturnType<Method>>
+
+/**
+ * The item shapes, derived from the derived client's own method types —
+ * never restated. A contract change that alters a served item type is a
+ * type error here, which is the whole point of the derivation.
+ */
+export type MemberItem = Success<
+  StarterApiClient['workspace']['members']
+>['items'][number]
+export type NotificationItem = Success<
+  StarterApiClient['workspace']['notifications']
+>['items'][number]
+export type ApiTokenItem = Success<
+  StarterApiClient['workspace']['api-tokens']
+>['items'][number]
+export type WebhookEndpointItem = Success<
+  StarterApiClient['workspace']['webhooks']
+>['items'][number]
+export type AuditEventItem = Success<
+  StarterApiClient['workspace']['audit-events']
+>['items'][number]
 
 /** One paged list endpoint's query, as the derived client request carries it. */
 type ListQuery = {
   readonly cursor?: string
   readonly limit?: number
+}
+
+/** The page query under assembly: absent keys mean "not sent", not `undefined`. */
+type MutablePageQuery = {
+  cursor?: string
+  limit?: number
 }
 
 /**
@@ -155,13 +152,12 @@ type ListQuery = {
  */
 export type StarterClient = {
   readonly health: {
-    readonly check: () => Promise<{ status: 'ok' }>
+    readonly check: () => Promise<Success<StarterApiClient['health']['check']>>
   }
   readonly workspace: {
-    readonly overview: (slug: string) => Promise<{
-      readonly workspace: { readonly slug: string; readonly name: string }
-      readonly notifications: ReadonlyArray<NotificationItem>
-    }>
+    readonly overview: (
+      slug: string
+    ) => Promise<Success<StarterApiClient['workspace']['overview']>>
     readonly members: PagedListFn<MemberItem>
     readonly notifications: PagedListFn<NotificationItem>
     readonly apiTokens: PagedListFn<ApiTokenItem>
@@ -190,15 +186,6 @@ function paged<T>(
     }
   ) => Promise<Page<T>>
 ): PagedListFn<T> {
-  function fetchOne(
-    slug: string,
-    pageOptions?: {
-      readonly limit?: number | undefined
-      readonly cursor?: string | undefined
-    }
-  ): Promise<Page<T>> {
-    return fetchPage(slug, pageOptions)
-  }
   async function* iterate(
     slug: string,
     iterateOptions?: {
@@ -226,7 +213,7 @@ function paged<T>(
     // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- promise-land runaway guard; see above
     throw new Error('paged walk did not terminate: nextCursor stayed non-null')
   }
-  return Object.assign(fetchOne, { iterate })
+  return Object.assign(fetchPage, { iterate })
 }
 // oxlint-enable effect/noAsyncFunction, eslint/no-await-in-loop
 
@@ -257,12 +244,11 @@ export function createStarterClient(
   }
 
   function pagedListFn<T>(
-    select: (resolved: StarterApiClient) => (request: {
+    select: (
+      resolved: StarterApiClient
+    ) => (request: {
       readonly params: { readonly slug: string }
-      readonly query: {
-        readonly cursor?: string
-        readonly limit?: number
-      }
+      readonly query: ListQuery
     }) => Effect.Effect<Page<T>, unknown, never>
   ): PagedListFn<T> {
     return paged((slug, pageOptions) => {
@@ -270,7 +256,7 @@ export function createStarterClient(
       // treats an absent key differently from an explicit `undefined`
       // (exactOptionalPropertyTypes). The query object itself is required —
       // an empty one means "first page, default limit".
-      const assembled: ListQuery = {}
+      const assembled: MutablePageQuery = {}
       if (pageOptions?.cursor !== undefined) {
         assembled.cursor = pageOptions.cursor
       }
