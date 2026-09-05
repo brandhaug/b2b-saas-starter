@@ -106,7 +106,7 @@ catalog:
   ultracite: 7.10.7
   vite: npm:@voidzero-dev/vite-plus-core@0.3.0
   vitest: 4.1.11
-  wrangler: 4.127.0
+  wrangler: 4.128.0
   vite-plus: 0.3.0
 
 minimumReleaseAgeExclude:
