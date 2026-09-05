@@ -44,7 +44,7 @@ catalog:
   '@react-email/render': 2.1.0
   '@react-email/ui': 6.9.3
   '@rolldown/plugin-babel': 0.2.3
-  '@sentry/cloudflare': 10.72.0
+  '@sentry/cloudflare': 10.73.0
   '@sentry/react': 10.73.0
   '@storybook/react-vite': 10.6.0
   '@tailwindcss/typography': 0.5.20
