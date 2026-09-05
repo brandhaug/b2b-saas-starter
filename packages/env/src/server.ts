@@ -140,16 +140,20 @@ export type RawEnvSource = {
 
 /**
  * Values that must never authenticate a deployed worker. Local development
- * legitimately boots on these (the dev/test workers shim supplies one, and the
- * docs hand out the others), so they are rejected by value, not by absence: a
- * copied-from-dev secret is exactly the deployment mistake this audit exists
- * to catch. Better Auth's own fallback is listed so a worker that somehow
- * reaches it is flagged too.
+ * legitimately boots on these (the dev/test workers shim supplies one, and
+ * `.env.example` hands out another), so they are rejected by value, not by
+ * absence: a copied-from-dev secret is exactly the deployment mistake this
+ * audit exists to catch. Better Auth's own fallback is listed so a worker
+ * that somehow reaches it is flagged too.
  */
 const PLACEHOLDER_AUTH_SECRETS: ReadonlySet<string> = new Set([
   'local-dev-secret-change-me-minimum-32-chars',
   'local-dev-secret',
-  'better-auth-secret-12345678901234567890'
+  'better-auth-secret-12345678901234567890',
+  // The shipped `.env.example` value: 45 chars, so only value rejection —
+  // never the length check — catches a local `.env` copied wholesale to a
+  // deploy.
+  'dev-only-secret-3f8a1c9e57b24d6f8e0a4c7b9d2f16e8'
 ])
 
 /** The documented placeholder URL and its obvious variants. */
@@ -166,9 +170,24 @@ function isPlaceholderAuthUrl(value: string): boolean {
   }
 }
 
+/**
+ * Whether `BETTER_AUTH_URL` carries the `https:` scheme. Better Auth derives
+ * cookie `Secure` flags and every emailed link from this URL, so a production
+ * deploy on plain `http:` would mint cookies any network hop can read. A
+ * value that does not parse as a URL at all is not `https:` either.
+ */
+function isHttpsAuthUrl(value: string): boolean {
+  // oxlint-disable-next-line effect/noTryCatch -- `new URL` throws on a malformed value and "not a URL" is the answer, not a failure to handle; there is no Effect context here to lift it into
+  try {
+    return new URL(value).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export type RequiredEnvProblem = {
   readonly key: 'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL' | 'BETTER_AUTH_TRUSTED_ORIGINS'
-  readonly reason: 'missing' | 'placeholder' | 'too-short' | 'malformed'
+  readonly reason: 'missing' | 'placeholder' | 'too-short' | 'malformed' | 'insecure'
 }
 
 export type RequiredEnvAudit = {
@@ -281,6 +300,13 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
     problems.push({ key: 'BETTER_AUTH_URL', reason: 'missing' })
   } else if (isPlaceholderAuthUrl(url)) {
     problems.push({ key: 'BETTER_AUTH_URL', reason: 'placeholder' })
+  } else if (mode === 'production' && !isHttpsAuthUrl(url)) {
+    // The scheme is a production-only verdict: local dev and preview stages
+    // legitimately run on http (`localhost`), and their audits are silent or
+    // warn-only anyway. In production the URL stamps the auth cookies and
+    // every emailed link, so `http:` — or a value that does not parse as a
+    // URL — is refused.
+    problems.push({ key: 'BETTER_AUTH_URL', reason: 'insecure' })
   }
 
   // A malformed trusted origin silently weakens Better Auth's origin checks —

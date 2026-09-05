@@ -44,10 +44,10 @@ let verdict: 'ok' | 'warned' | undefined
  * - `ENVIRONMENT` unset (local dev, tests): silent — the local-mode defaults
  *   are expected there.
  * - `ENVIRONMENT=production` with a missing, placeholder, or too-short
- *   `BETTER_AUTH_SECRET` or a placeholder `BETTER_AUTH_URL`: every request
- *   fails with {@link InsecureProductionEnvError} until the deploy is fixed.
- *   The gate re-runs on each request in that state, so a fix rolled out
- *   without a new isolate starts serving immediately.
+ *   `BETTER_AUTH_SECRET`, or a placeholder or non-`https:` `BETTER_AUTH_URL`:
+ *   every request fails with {@link InsecureProductionEnvError} until the
+ *   deploy is fixed. The gate re-runs on each request in that state, so a fix
+ *   rolled out without a new isolate starts serving immediately.
  * - Any other `ENVIRONMENT` (staging, preview, manual `wrangler deploy`):
  *   one `config.insecure` wide event per isolate — problems are named by key
  *   and reason, never by value — and the app keeps serving.

@@ -50,6 +50,9 @@ describe('authRateLimitBucket', () => {
     ['POST', '/api/auth/sign-in/email-otp', 'auth_sign_in'],
     ['POST', '/api/auth/email-otp/send-verification-otp', 'auth_sign_in'],
     ['POST', '/api/auth/email-otp/verify-email', 'auth_sign_in'],
+    // The link-based reset send: same mail-an-arbitrary-address primitive as
+    // its /email-otp sibling, so the same tight bucket.
+    ['POST', '/api/auth/request-password-reset', 'auth_sign_in'],
     ['POST', '/api/auth/email-otp/request-password-reset', 'auth_sign_in'],
     ['POST', '/api/auth/email-otp/reset-password', 'auth_sign_in'],
     // Session-management and other POSTs keep the generic write bucket.
