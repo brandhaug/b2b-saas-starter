@@ -104,9 +104,7 @@ function DocArticlePage() {
           </nav>
 
           <header className="mb-8">
-            <h1 className="font-display mb-2 text-2xl font-semibold">
-              {frontmatter.title}
-            </h1>
+            <h1 className="mb-2 text-3xl font-semibold">{frontmatter.title}</h1>
             <p className="text-sm text-muted-foreground">{frontmatter.description}</p>
             {frontmatter.tags && frontmatter.tags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -122,10 +120,11 @@ function DocArticlePage() {
             )}
           </header>
 
-          {/* In-page navigation below xl: the aside only exists from lg up,
-              so most laptops and every phone used to read long articles with
-              no way to jump sections. */}
-          <details className="mb-6 border border-border xl:hidden">
+          {/* In-page navigation below lg: the aside takes over from lg up, and
+              the two breakpoints are complementary — with `xl:hidden` here both
+              copies were on screen (and both named landmarks reached axe)
+              between lg and xl. */}
+          <details className="mb-6 border border-border lg:hidden">
             <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
               On this page
             </summary>
@@ -143,8 +142,10 @@ function DocArticlePage() {
               ref={articleRef}
               /* Colors come from the `.marketing .prose` token map in index.css;
                  `prose-neutral` would hardcode a gray palette that clashes with
-                 Catppuccin and can fail AA in dark mode. */
-              className="prose prose-lg max-w-3xl"
+                 Catppuccin and can fail AA in dark mode. Prose headings sit
+                 below the page h1's text-3xl — a section heading must never
+                 outrank the title of the page it belongs to. */
+              className="prose prose-lg max-w-3xl prose-h2:text-xl prose-h3:text-base"
             >
               <Suspense
                 fallback={<p className="text-sm text-muted-foreground">Loading…</p>}

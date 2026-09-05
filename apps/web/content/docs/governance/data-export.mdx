@@ -27,7 +27,7 @@ Every file is the same projection the application renders, so the export cannot 
 
 ## Requesting an export
 
-1. An owner opens workspace settings and clicks **Request export**. The permission is `workspaceExport:request`, granted to owners only — an admin can rename the workspace but not walk away with every member's email and the full audit trail.
+1. An owner opens workspace settings and clicks **Request export**. The permission is `workspaceExport:request`, granted to owners only: an admin can rename the workspace but not walk away with every member's email and the full audit trail.
 2. The app writes a `pending` export, records the Audit Event `workspace.export_requested`, and enqueues a job.
 3. The background worker snapshots the workspace through the capability services, builds the ZIP, writes it to the export bucket, marks the export `ready`, records `workspace.export_completed`, and creates a Notification for the requester.
 4. Settings lists the export with a **Download ZIP** link. The link is signed and valid for fifteen minutes; the archive itself is kept for seven days, after which the bucket's lifecycle rule deletes it and the row reports it as expired.
@@ -48,7 +48,7 @@ The export queue and R2 bucket are an Optional Provider. Set `WORKSPACE_EXPORT_B
 
 A GDPR request from a person has two halves, and the starter serves them with two features that stay separate on purpose.
 
-**Access (Article 15).** The Workspace Export is the workspace's data, requested by the workspace's owner. When the data subject is a Member, the owner exports the workspace and hands over the parts that concern the person: their `members.json` entry, the Audit Events where they are the actor or the target, and any Invitation addressed to their email. When the data subject is not a Member — an invitee who never accepted — `invitations.json` is the only place they appear. The export never contains another user's personal notifications, so the owner does not have to redact them.
+**Access (Article 15).** The Workspace Export is the workspace's data, requested by the workspace's owner. When the data subject is a Member, the owner exports the workspace and hands over the parts that concern the person: their `members.json` entry, the Audit Events where they are the actor or the target, and any Invitation addressed to their email. When the data subject is not a Member (an invitee who never accepted), `invitations.json` is the only place they appear. The export never contains another user's personal notifications, so the owner does not have to redact them.
 
 **Erasure (Article 17).** Account deletion, owned by the account settings surface, removes the person's user row and, through the database's cascades, their memberships, sessions, and personal notifications. It does not rewrite the Audit Event trail: rows where the person was the actor keep their `actorUserId` for as long as the log's retention says, because a governance record that forgets who acted is not a governance record. That retention is the deployment's decision to document in its privacy notice.
 

@@ -82,6 +82,8 @@ export function WebhookForm({
         setSubmitError(outcome.message)
         return
       }
+      // No toast: the inline ok alert below carries the created endpoint
+      // and its signing secret — the corner copy would say less.
       setCreated(outcome.value)
       onCreated?.(outcome.value)
       form.reset()
@@ -152,7 +154,10 @@ export function WebhookForm({
       </form.Subscribe>
 
       {created ? (
-        <Alert className="justify-self-start">
+        // `ok`, not the neutral default: this is the one moment the signing
+        // secret is visible, the same treatment the API token form's reveal
+        // and the rotated-secret alert get.
+        <Alert variant="ok" className="justify-self-start">
           <AlertTitle>
             Endpoint created. Copy the signing secret now, it will not be shown again.
           </AlertTitle>

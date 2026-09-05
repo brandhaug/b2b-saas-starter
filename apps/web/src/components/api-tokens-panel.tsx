@@ -20,6 +20,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/u
 import { formatUtcOr } from '@/lib/format-date'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { revokeApiTokenServerFn } from '@/lib/server/api-tokens'
+import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { useServerAction } from '@/hooks/use-server-action'
 
 const REVOKE_FAILED = 'Failed to revoke token'
@@ -70,6 +71,15 @@ export function ApiTokensPanel({
     (tokenId: string) => revokeToken({ data: { workspaceSlug, tokenId } }),
     { failureMessage: REVOKE_FAILED }
   )
+
+  // A revoke failure renders on the token row that produced it and is
+  // cleared by the next mutation — the shared per-row failure hook, the same
+  // model the webhooks panel uses, instead of a lone panel-foot alert.
+  const { failure: failedRow, runWith: revokeOnRow } = useKeyedFailure<string>()
+
+  async function revokeTokenOnRow(tokenId: string) {
+    await revokeOnRow(tokenId, () => revoke.runAsync(tokenId))
+  }
 
   return (
     <Panel>
@@ -134,17 +144,18 @@ export function ApiTokensPanel({
                       busy={revoke.pendingInput === token.id}
                       onArm={() => setConfirmingId(token.id)}
                       onCancel={() => setConfirmingId(null)}
-                      onConfirm={() => revoke.run(token.id)}
+                      onConfirm={() => void revokeTokenOnRow(token.id)}
                     />
                   </ItemActions>
+                ) : null}
+                {failedRow?.key === token.id ? (
+                  <ActionFeedback error={failedRow.message} />
                 ) : null}
               </Item>
             ))}
           </ItemGroup>
         )}
       </ListSection>
-
-      <ActionFeedback error={revoke.error} />
     </Panel>
   )
 }

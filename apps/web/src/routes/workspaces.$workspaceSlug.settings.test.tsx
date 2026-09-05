@@ -1,5 +1,6 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
+import { Toaster } from '@/components/ui/sonner'
 import { type WorkspaceSettingsPayload } from '@/lib/server/workspace-settings'
 import { renderWithRouter } from '@/test/router-harness'
 import {
@@ -8,7 +9,7 @@ import {
 } from '@/components/workspace-general-settings'
 import { type SignOut } from '@/components/workspace-shell'
 import { type RequestWorkspaceExport } from '@/components/workspace-export-panel'
-import { WorkspaceSettingsPage } from './workspaces.$workspaceSlug.settings'
+import { WorkspaceSettingsPage } from '@/components/workspace-settings-page'
 
 // The page takes its params and loader projection as props, so the test renders
 // it directly under a real router: no route tree, no loader, and no mocked
@@ -105,11 +106,15 @@ describe('WorkspaceSettingsPage lifecycle ports', () => {
   it('renames through the port and reports success', async () => {
     const rename = vi.fn<RenameWorkspace>().mockResolvedValue({ name: 'Renamed Lab' })
     await renderWithRouter(
-      <WorkspaceSettingsPage
-        workspaceSlug="starter-lab"
-        data={settingsSummary}
-        ports={{ signOut, renameWorkspace: rename }}
-      />,
+      <>
+        <WorkspaceSettingsPage
+          workspaceSlug="starter-lab"
+          data={settingsSummary}
+          ports={{ signOut, renameWorkspace: rename }}
+        />
+        {/* Success is a sonner toast; it only renders where a Toaster lives. */}
+        <Toaster />
+      </>,
       { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
     )
     await screen.findByRole('heading', { name: 'Workspace settings' })
@@ -122,10 +127,10 @@ describe('WorkspaceSettingsPage lifecycle ports', () => {
         data: { workspaceSlug: 'starter-lab', name: 'Renamed Lab' }
       })
     )
-    await screen.findByText(/renamed to “Renamed Lab”/)
+    await screen.findByText(/Workspace renamed to “Renamed Lab”/)
   })
 
-  it('deletes through the port after the confirm step', async () => {
+  it('deletes through the port after typing the slug to arm the dialog', async () => {
     const remove = vi.fn<DeleteWorkspace>().mockResolvedValue(undefined)
     // `window.location.assign` is how the page lands on /workspaces; stub the
     // one property the page reads instead of replacing the Location object.
@@ -144,9 +149,16 @@ describe('WorkspaceSettingsPage lifecycle ports', () => {
     )
     await screen.findByRole('heading', { name: 'Workspace settings' })
     fireEvent.click(screen.getByRole('button', { name: 'Delete workspace' }))
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Delete Starter Lab permanently' })
-    )
+    // The confirm button stays inert until the slug is typed exactly.
+    const confirm = await screen.findByRole('button', {
+      name: 'Delete this workspace permanently'
+    })
+    expect(confirm.hasAttribute('disabled')).toBe(true)
+    fireEvent.change(screen.getByLabelText('Type starter-lab to confirm'), {
+      target: { value: 'starter-lab' }
+    })
+    expect(confirm.hasAttribute('disabled')).toBe(false)
+    fireEvent.click(confirm)
     await waitFor(() =>
       expect(remove).toHaveBeenCalledWith({ data: { workspaceSlug: 'starter-lab' } })
     )

@@ -6,7 +6,7 @@ import {
   type WorkspaceMembersPayload
 } from '@/lib/server/workspace-members'
 import { type WorkspaceViewer } from '@/lib/permissions'
-import { WorkspaceMembersPage } from './workspaces.$workspaceSlug.members'
+import { WorkspaceMembersPage } from '@/components/workspace-members-page'
 
 /**
  * The members page renders its loader projection directly, so the seat

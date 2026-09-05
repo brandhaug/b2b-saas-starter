@@ -131,7 +131,9 @@ describe('SessionsPanel', () => {
       data: [session({ token: 'tok_current' }), session({ token: 'tok_other' })]
     })
     revokeOtherSessions.mockResolvedValue({
-      error: { message: 'Could not revoke sessions' }
+      // No code: the panel falls back to its own failure sentence rather
+      // than rendering the raw message.
+      error: {}
     })
     renderWithQueryClient(
       <SessionsPanel
@@ -146,6 +148,6 @@ describe('SessionsPanel', () => {
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Could not revoke sessions')
+    expect(alert.textContent).toContain('The change could not be made')
   })
 })

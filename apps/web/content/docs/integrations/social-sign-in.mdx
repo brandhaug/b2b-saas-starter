@@ -10,12 +10,12 @@ Social sign-in is an **Optional Provider** built on Better Auth's `socialProvide
 
 ## What exists where
 
-- **Provider wiring** — `packages/auth/src/index.ts` builds Better Auth's `socialProviders` from `AuthConfig.socialProviders`, which the web app resolves from worker env through `activeSocialProviders` (`packages/env/src/server.ts`). A provider is included only when **both** its `*_CLIENT_ID` and `*_CLIENT_SECRET` have values — one without the other means the provider is unconfigured, never half-configured.
-- **Auth screens** — `/sign-in` and `/sign-up` load the active provider ids server-side (`apps/web/src/lib/server/social-providers.ts`) and render one secondary button per provider above the email form, separated by a divider. No providers, no buttons, no divider.
-- **Last sign-in method** — the core `lastLoginMethod` plugin remembers how each visitor last signed in (a client-readable cookie, no database column). The sign-in page answers with a quiet "Last signed in with GitHub." hint when a method is remembered.
-- **Account linking** — Better Auth's default implicit linking: a social sign-in whose email matches an existing account links the provider to it when the provider confirms the email as verified **and** the local mailbox is verified. An unverified local mailbox is refused (`account_not_linked`) — that refusal is the guard against pre-registering a victim's address and taking the account over with a matching provider email.
-- **Account page** — `/account` lists every sign-in method (email and password plus linked providers) with an **Unlink** action. Unlinking stays available only while another sign-in method remains; Better Auth refuses removing the last account and the UI presents that rule as a reason instead of a control.
-- **Audit events** — linking and unlinking record `auth.account_linked` / `auth.account_unlinked` through the governance `AuditEventLog` (adapter: `apps/web/src/lib/server/social-account-audit.ts`), attributed to the user and naming the provider. Social sign-ins and failures also record `auth.sign_in` / `auth.sign_in_failed` from the OAuth callback, like credential sign-ins.
+- **Provider wiring**: `packages/auth/src/index.ts` builds Better Auth's `socialProviders` from `AuthConfig.socialProviders`, which the web app resolves from worker env through `activeSocialProviders` (`packages/env/src/server.ts`). A provider is included only when **both** its `*_CLIENT_ID` and `*_CLIENT_SECRET` have values; one without the other means the provider is unconfigured, never half-configured.
+- **Auth screens**: `/sign-in` and `/sign-up` load the active provider ids server-side (`apps/web/src/lib/server/social-providers.ts`) and render one secondary button per provider above the email form, separated by a divider. No providers, no buttons, no divider.
+- **Last sign-in method**: the core `lastLoginMethod` plugin remembers how each visitor last signed in (a client-readable cookie, no database column). The sign-in page answers with a quiet "Last signed in with GitHub." hint when a method is remembered.
+- **Account linking**: Better Auth's default implicit linking: a social sign-in whose email matches an existing account links the provider to it when the provider confirms the email as verified **and** the local mailbox is verified. An unverified local mailbox is refused (`account_not_linked`); that refusal is the guard against pre-registering a victim's address and taking the account over with a matching provider email.
+- **Account page**: `/account` lists every sign-in method (email and password plus linked providers) with an **Unlink** action. Unlinking stays available only while another sign-in method remains; Better Auth refuses removing the last account and the UI presents that rule as a reason instead of a control.
+- **Audit events**: linking and unlinking record `auth.account_linked` / `auth.account_unlinked` through the governance `AuditEventLog` (adapter: `apps/web/src/lib/server/social-account-audit.ts`), attributed to the user and naming the provider. Social sign-ins and failures also record `auth.sign_in` / `auth.sign_in_failed` from the OAuth callback, like credential sign-ins.
 
 ## Environment variables
 
@@ -26,7 +26,7 @@ Social sign-in is an **Optional Provider** built on Better Auth's `socialProvide
 | `GOOGLE_CLIENT_ID`     | Google OAuth client ID                            |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret (server-side only)     |
 
-Set a pair in the root `.env` for local development, or in the deploy shell environment — `alchemy.run.ts` forwards them to the web worker (secrets wrapped in `Redacted`). The web worker is the only consumer: Better Auth runs there, and the API worker authenticates bearer tokens, not browsers.
+Set a pair in the root `.env` for local development, or in the deploy shell environment; `alchemy.run.ts` forwards them to the web worker (secrets wrapped in `Redacted`). The web worker is the only consumer: Better Auth runs there, and the API worker authenticates bearer tokens, not browsers.
 
 ## Provider setup
 
@@ -46,7 +46,7 @@ Set a pair in the root `.env` for local development, or in the deploy shell envi
 
 ## OAuth callback URLs
 
-The Better Auth catchall (`/api/auth/*`) serves both providers' callbacks. Use these exact URLs when registering each app — `{BETTER_AUTH_URL}` is the same base URL the auth instance runs on (`http://localhost:3071` in local development):
+The Better Auth catchall (`/api/auth/*`) serves both providers' callbacks. Use these exact URLs when registering each app: `{BETTER_AUTH_URL}` is the same base URL the auth instance runs on (`http://localhost:3071` in local development):
 
 | Provider | Callback URL                                 |
 | -------- | -------------------------------------------- |
@@ -57,7 +57,7 @@ The callback origin must also be trusted by Better Auth: same-origin callbacks a
 
 ## Verification
 
-With the variables unset, `/sign-in` shows no provider buttons — that is the provider-light default, not a failure. After setting a pair and restarting the dev server:
+With the variables unset, `/sign-in` shows no provider buttons; that is the provider-light default working as designed. After setting a pair and restarting the dev server:
 
 1. `/sign-in` and `/sign-up` render the provider's button above the email form.
 2. Completing the provider's consent screen lands you signed-in, and the sign-in page later shows "Last signed in with …".
@@ -67,5 +67,5 @@ With the variables unset, `/sign-in` shows no provider buttons — that is the p
 ## Notes and limits
 
 - The **Local Auth Path is untouched**: email/password sign-in, username sign-in, two-factor, and verification all behave identically with providers on or off.
-- Manual linking (a signed-in user adding a provider from `/account` via `linkSocial`) is available through Better Auth's API but has no dedicated UI in the starter yet — implicit linking on sign-in covers the common path.
+- Manual linking (a signed-in user adding a provider from `/account` via `linkSocial`) is available through Better Auth's API but has no dedicated UI in the starter yet; implicit linking on sign-in covers the common path.
 - The linked GitHub account on the **Seed Workspace**'s demo user is fixture state for `/account`, like the seed webhook endpoints: it demonstrates the surface and names no real GitHub identity.

@@ -8,19 +8,19 @@ tags: [account, sessions, audit, deletion]
 
 Account deletion is self-service on the `/account` page. It demands the account's password, and it runs one rule per Workspace membership before the account row goes:
 
-1. The user is the workspace's only **Member** — the workspace is deleted with the account.
-2. The user is the only **owner** among several members — deletion is blocked until ownership is transferred. The page links each blocked workspace's members page.
-3. Other owners remain (or the user was never an owner) — the membership is removed and the workspace survives.
+1. The user is the workspace's only **Member**: the workspace is deleted with the account.
+2. The user is the only **owner** among several members: deletion is blocked until ownership is transferred. The page links each blocked workspace's members page.
+3. Other owners remain (or the user was never an owner): the membership is removed and the workspace survives.
 
 The capability that owns this rule is `AccountLifecycle` in `@b2b-saas-starter/capabilities` (`governance/account-lifecycle`). Both the in-memory Seed adapter and the D1 Live adapter implement the same contract, `planDeletion` / `prepareDeletion` / `recordDeleted` / `deleteAccount`, and the contract is tested against both.
 
 ## Where the password check happens
 
-The delete rides Better Auth's `delete-user` endpoint, and the endpoint owns the order: the password is verified **first**; only then does the app's `beforeDelete` hook run the workspace teardown, then the user row is removed, then the `afterDelete` hook records `account.deleted`. A wrong password therefore never tears down a workspace. The endpoint stays disabled unless the app supplies the hook pair (`userDeleteHooks` on `AuthConfig`, wired in `apps/web/src/lib/server/account-delete-hooks.ts`) — enabled without a teardown half would strand sole-owner workspaces.
+The delete rides Better Auth's `delete-user` endpoint, and the endpoint owns the order: the password is verified **first**; only then does the app's `beforeDelete` hook run the workspace teardown, then the user row is removed, then the `afterDelete` hook records `account.deleted`. A wrong password therefore never tears down a workspace. The endpoint stays disabled unless the app supplies the hook pair (`userDeleteHooks` on `AuthConfig`, wired in `apps/web/src/lib/server/account-delete-hooks.ts`); enabled without a teardown half would strand sole-owner workspaces.
 
 ## Audit Events and email
 
-Every teardown step records an Audit Event through the governance capability: `workspace.deleted` for sole-member workspaces (a system event, because `audit_events.workspace_id` cascades with the deleted row), `workspace_member.removed` for leaves, and `account.deleted` once the account row is gone. That last event is deliberately actorless — `audit_events.actor_user_id` restricts on `user.id`, so the event names the account in `targetId` instead of an actor column that would reject the insert.
+Every teardown step records an Audit Event through the governance capability: `workspace.deleted` for sole-member workspaces (a system event, because `audit_events.workspace_id` cascades with the deleted row), `workspace_member.removed` for leaves, and `account.deleted` once the account row is gone. That last event is deliberately actorless: `audit_events.actor_user_id` restricts on `user.id`, so the event names the account in `targetId` instead of an actor column that would reject the insert.
 
 The same columns restrict `api_tokens.created_by_user_id`; `prepareDeletion` nulls both before the user row is deleted, so history and token rows survive as system rows instead of blocking the delete.
 

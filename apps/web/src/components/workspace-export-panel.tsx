@@ -1,4 +1,5 @@
 import { type WorkspaceExport } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { toast } from 'sonner'
 
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Badge } from '@/components/ui/badge'
@@ -58,7 +59,12 @@ export function WorkspaceExportPanel({
   // The loader owns the list, so the hook re-runs it on success rather than
   // mirroring the new row into local state.
   const request = useServerAction(() => requestExport({ data: { workspaceSlug } }), {
-    failureMessage: REQUEST_FAILED
+    failureMessage: REQUEST_FAILED,
+    onSuccess: () => {
+      // The row's pending badge is the fuller story; this only confirms the
+      // workspace accepted the request.
+      toast.success('Export requested')
+    }
   })
 
   return (
@@ -117,7 +123,6 @@ export function WorkspaceExportPanel({
                       straight to the API worker, which streams the ZIP. */}
                   <Button
                     variant="outline"
-                    size="sm"
                     render={
                       <a href={row.downloadUrl} download aria-label="Download ZIP" />
                     }

@@ -157,7 +157,6 @@ function ConnectionRow({
           <>
             <Button
               variant="ghost"
-              size="sm"
               disabled={test.pendingInput === connection.id}
               onClick={() => test.run(connection.id)}
             >
@@ -168,7 +167,6 @@ function ConnectionRow({
             </Button>
             <Button
               variant="ghost"
-              size="sm"
               disabled={updating}
               onClick={() =>
                 update.run({

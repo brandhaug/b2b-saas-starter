@@ -3,32 +3,20 @@ import { ArrowRightIcon } from 'lucide-react'
 import { type DemoShowcase } from '@/lib/server/demo-showcase'
 
 /**
- * The landing page's live-numbers band: the seed workspace's real counts,
- * read actorless by the route's loader from the same capability services the
- * REST endpoint serves. Hidden entirely when the showcase workspace is
+ * The landing page's live-numbers band, read actorless by the route's loader
+ * from the same capability services the REST endpoint serves. The selection
+ * argues for the starter, not against it: the live member and notification
+ * counts beside the vocabulary the product enforces (every workspace role
+ * RBAC gates on, every audit event type the write boundary records) — the
+ * numbers that prove breadth. Hidden entirely when the showcase workspace is
  * missing — the strip never renders zeros it did not read.
  */
 export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
   const stats: ReadonlyArray<{ readonly label: string; readonly value: string }> = [
     { label: 'Members', value: String(demo.memberCount) },
-    {
-      label: 'API tokens',
-      value:
-        demo.unusedTokenCount === 0
-          ? String(demo.tokenCount)
-          : `${demo.tokenCount} · ${demo.unusedTokenCount} never used`
-    },
-    {
-      label: 'Endpoint success',
-      value: demo.endpointSuccessRate === null ? '—' : `${demo.endpointSuccessRate}%`
-    },
-    {
-      label: 'Notifications',
-      value:
-        demo.unreadCount === 0
-          ? String(demo.notificationCount)
-          : `${demo.notificationCount} · ${demo.unreadCount} unread`
-    }
+    { label: 'Workspace roles', value: String(demo.roleCount) },
+    { label: 'Audit event types', value: String(demo.auditEventTypeCount) },
+    { label: 'Notifications', value: String(demo.notificationCount) }
   ]
   return (
     <section className="border-b border-border bg-muted/40">

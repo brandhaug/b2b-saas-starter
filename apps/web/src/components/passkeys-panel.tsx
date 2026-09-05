@@ -154,7 +154,6 @@ export function PasskeysPanel({
                   render={
                     <Button
                       variant="ghost"
-                      size="sm"
                       aria-label={`Remove ${row.label} passkey`}
                     />
                   }
@@ -289,7 +288,6 @@ function RenamePasskey({
     return (
       <Button
         variant="ghost"
-        size="sm"
         aria-label={`Rename ${row.label} passkey`}
         onClick={() => setArmed(true)}
       >
@@ -317,13 +315,12 @@ function RenamePasskey({
         required
         className="h-8 w-36"
       />
-      <Button type="submit" variant="outline" size="sm" disabled={rename.pending}>
+      <Button type="submit" variant="outline" disabled={rename.pending}>
         Save
       </Button>
       <Button
         type="button"
         variant="ghost"
-        size="sm"
         onClick={() => {
           setName(row.label)
           setArmed(false)

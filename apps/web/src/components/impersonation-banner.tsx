@@ -57,7 +57,6 @@ export function ImpersonationBanner({
         <Button
           type="button"
           variant="outline"
-          size="sm"
           disabled={stopping.pending}
           onClick={() => stopping.run()}
         >

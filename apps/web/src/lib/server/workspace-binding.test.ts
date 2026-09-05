@@ -69,7 +69,8 @@ describe('webWorkspaceLifecycleBinding with no request', () => {
 
   it('does not demand headers for create', async () => {
     // Without a request the call proceeds past the header check — it fails
-    // later, inside Better Auth (absent here), never on MissingRequestHeaders.
+    // later, on the missing local D1 binding (no database in the test
+    // environment), never on MissingRequestHeaders.
     const outcome = await rejectionOf(() =>
       webWorkspaceLifecycleBinding.create({
         name: 'Headerless Labs',
@@ -77,6 +78,6 @@ describe('webWorkspaceLifecycleBinding with no request', () => {
         userId: 'usr_1'
       })
     )
-    expect(outcome.tag).toBe('untagged')
+    expect(outcome.tag).toBe('MissingD1Binding')
   })
 })

@@ -13,9 +13,13 @@ import {
 } from '@b2b-saas-starter/capabilities/errors'
 import { EmailDispatcher } from '@b2b-saas-starter/email'
 import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/templates'
-import { Effect, Option, Result, type Scope } from 'effect'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { Effect, Option, Result, Schema, type Scope } from 'effect'
+import {
+  WORKSPACE_ROLES,
+  type WorkspaceRole
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
+import { EMAIL_PATTERN } from '../email-pattern'
 import { requestOrigin } from './request-origin'
 import { emailDispatcherLayer } from './auth-emails'
 import { requireRequestSession } from './auth'
@@ -93,17 +97,47 @@ export function sendInvitation(input: {
   })
 }
 
-export async function sendInvitationHandler(data: {
-  readonly workspaceSlug: string
-  readonly email: string
-  readonly role: WorkspaceRole
-}): Promise<SentInvitation> {
+/**
+ * The server functions' input schemas, decoded here rather than in
+ * `invitations.ts`: the client stub never runs validators, and a module-level
+ * Schema construct in the client-safe file would drag the Effect Schema chunk
+ * onto every page. All input constraints live in the schema — no imperative
+ * re-validation.
+ */
+const WorkspaceRoleInput = Schema.Literals(WORKSPACE_ROLES)
+
+const SendInvitationInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  email: Schema.String.check(
+    Schema.isMinLength(3),
+    Schema.isMaxLength(320),
+    Schema.isPattern(EMAIL_PATTERN)
+  ),
+  role: WorkspaceRoleInput
+})
+
+const CancelInvitationInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  invitationId: Schema.NonEmptyString
+})
+
+const AcceptInvitationInput = Schema.Struct({
+  invitationId: Schema.NonEmptyString
+})
+
+const decodeSend = Schema.decodeUnknownSync(SendInvitationInput)
+const decodeCancel = Schema.decodeUnknownSync(CancelInvitationInput)
+const decodeAccept = Schema.decodeUnknownSync(AcceptInvitationInput)
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
+export async function sendInvitationHandler(data: unknown): Promise<SentInvitation> {
+  const input = decodeSend(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
-    data.workspaceSlug,
+    input.workspaceSlug,
     sendInvitation({
-      email: data.email,
-      role: data.role,
+      email: input.email,
+      role: input.role,
       origin: requestOrigin()
     }).pipe(Effect.provide(emailDispatcherLayer())),
     { userId: session.user.id },
@@ -125,14 +159,13 @@ export function cancelInvitation(input: {
   })
 }
 
-export async function cancelInvitationHandler(data: {
-  readonly workspaceSlug: string
-  readonly invitationId: string
-}): Promise<void> {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function first act
+export async function cancelInvitationHandler(data: unknown): Promise<void> {
+  const input = decodeCancel(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
-    data.workspaceSlug,
-    cancelInvitation({ invitationId: data.invitationId }),
+    input.workspaceSlug,
+    cancelInvitation({ invitationId: input.invitationId }),
     { userId: session.user.id },
     { invitationBinding: webInvitationBinding }
   )
@@ -179,17 +212,20 @@ export function invitationPreview(input: {
   })
 }
 
-export async function invitationPreviewHandler(data: {
-  readonly invitationId: string
-}): Promise<InvitationPreview> {
+// oxlint-disable anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
+export async function invitationPreviewHandler(
+  data: unknown
+): Promise<InvitationPreview> {
+  const input = decodeAccept(data)
   const session = await requireRequestSession()
   return runCapabilities(
     invitationPreview({
-      invitationId: data.invitationId,
+      invitationId: input.invitationId,
       viewerEmail: session.user.email
     })
   )
 }
+// oxlint-enable anti-slop/no-unknown-parameters
 
 /**
  * Accepting is the one workspace write with no workspace gate, and it has to be.
@@ -223,16 +259,19 @@ export function acceptInvitation(input: {
   )
 }
 
-export async function acceptInvitationHandler(data: {
-  readonly invitationId: string
-}): Promise<AcceptedInvitation> {
+// oxlint-disable anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
+export async function acceptInvitationHandler(
+  data: unknown
+): Promise<AcceptedInvitation> {
+  const input = decodeAccept(data)
   const session = await requireRequestSession()
   return runCapabilities(
     acceptInvitation({
-      invitationId: data.invitationId,
+      invitationId: input.invitationId,
       userId: session.user.id,
       email: session.user.email
     }),
     { invitationBinding: webInvitationBinding }
   )
 }
+// oxlint-enable anti-slop/no-unknown-parameters

@@ -2,6 +2,7 @@ import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-p
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
+import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -38,6 +39,7 @@ import {
   type SendTestEvent
 } from '@/components/webhook-deliveries-drawer'
 import { useServerAction } from '@/hooks/use-server-action'
+import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 
 const DISABLE_FAILED = 'Failed to disable endpoint'
 const ROTATE_FAILED = 'Failed to rotate secret'
@@ -157,7 +159,12 @@ export function WebhooksPanel({
       updateEndpoint({
         data: { workspaceSlug, endpointId, enabled: false }
       }),
-    { failureMessage: DISABLE_FAILED }
+    {
+      failureMessage: DISABLE_FAILED,
+      onSuccess: () => {
+        toast.success('Endpoint disabled')
+      }
+    }
   )
 
   const rotate = useServerAction(
@@ -165,10 +172,26 @@ export function WebhooksPanel({
     {
       failureMessage: ROTATE_FAILED,
       onSuccess: (secret, endpointId) => {
+        // No toast: the row's inline ok alert below is where the one-time
+        // secret is revealed — the corner copy would announce the rotation
+        // without the value.
         setRotatedSecret({ endpointId, secret })
       }
     }
   )
+
+  // A failure renders on the endpoint row that produced it and is cleared by
+  // the next mutation — the shared per-row failure hook.
+  const { failure: failedRow, runWith: runOnRow } = useKeyedFailure<string>()
+
+  async function disableOnRow(endpointId: string) {
+    await runOnRow(endpointId, () => disable.runAsync(endpointId))
+  }
+
+  async function rotateOnRow(endpointId: string) {
+    setRotatedSecret(null)
+    await runOnRow(endpointId, () => rotate.runAsync(endpointId))
+  }
 
   const busyId = disable.pendingInput ?? rotate.pendingInput ?? null
   const drawerEndpoint =
@@ -188,22 +211,14 @@ export function WebhooksPanel({
         />
       </CreateSection>
 
-      <ListSection
-        title="Endpoints"
-        footer={
-          <>
-            {/* Stacked, not merged: each mutation's failure renders in its
-                own alert, the same idiom the sessions panel uses. */}
-            <ActionFeedback error={disable.error} />
-            <ActionFeedback error={rotate.error} />
-          </>
-        }
-      >
+      <ListSection title="Endpoints">
         {endpoints.length === 0 ? (
           <Empty>
             <EmptyHeader>
               <EmptyTitle>No endpoints registered</EmptyTitle>
-              <EmptyDescription>Register one above to get started.</EmptyDescription>
+              <EmptyDescription>
+                Create an endpoint to start receiving webhook events.
+              </EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
@@ -212,7 +227,6 @@ export function WebhooksPanel({
               <Item
                 key={endpoint.id}
                 variant="outline"
-                size="sm"
                 className="flex-col items-stretch"
               >
                 <ItemContent>
@@ -221,7 +235,7 @@ export function WebhooksPanel({
                     {endpoint.enabled ? (
                       <Badge variant="outline">enabled</Badge>
                     ) : (
-                      <Badge variant="secondary">disabled</Badge>
+                      <Badge variant="neutral">disabled</Badge>
                     )}
                   </ItemTitle>
                   <ItemDescription>
@@ -251,18 +265,14 @@ export function WebhooksPanel({
                         busy={busyId === endpoint.id}
                         onArm={() => setConfirmingId(endpoint.id)}
                         onCancel={() => setConfirmingId(null)}
-                        onConfirm={() => disable.run(endpoint.id)}
+                        onConfirm={() => void disableOnRow(endpoint.id)}
                       />
                     ) : null}
                     {canRotate ? (
                       <Button
                         variant="ghost"
-                        size="sm"
                         disabled={busyId === endpoint.id}
-                        onClick={() => {
-                          setRotatedSecret(null)
-                          rotate.run(endpoint.id)
-                        }}
+                        onClick={() => void rotateOnRow(endpoint.id)}
                       >
                         {busyId === endpoint.id ? (
                           <Spinner data-icon="inline-start" />
@@ -273,10 +283,17 @@ export function WebhooksPanel({
                   </ItemActions>
                 ) : null}
 
+                {failedRow?.key === endpoint.id ? (
+                  <ActionFeedback error={failedRow.message} />
+                ) : null}
+
                 {rotatedSecret?.endpointId === endpoint.id ? (
                   <>
                     <Separator />
-                    <Alert>
+                    {/* `ok`, not the neutral default: this is the one moment
+                        the signing secret is visible, the same treatment the
+                        API token form's reveal gets. */}
+                    <Alert variant="ok">
                       <AlertTitle>
                         Secret rotated. Copy it now, it will not be shown again.
                       </AlertTitle>

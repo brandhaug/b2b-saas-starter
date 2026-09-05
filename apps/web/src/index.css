@@ -4,16 +4,12 @@
 @source "../node_modules/streamdown/dist/*.js";
 @plugin "@tailwindcss/typography";
 
-@custom-variant dark (&:is(.dark *));
-
-/* The only scheme: Catppuccin Mocha. Light mode was removed — `<html>`
-   carries a hardcoded `dark` class (kept as a safety net so any stray
-   `dark:` variant still resolves against this scheme instead of
-   prefers-color-scheme), and `:root` carries the same values so the
-   pre-hydration paint matches. The `dark:`-prefixed classes themselves were
-   flattened: with one scheme they were either dead or always-on. */
-:root,
-.dark {
+/* The only scheme: Catppuccin Mocha. Light mode was removed and the `dark:`
+   variant with it (`starter/no-dark-prefix` fails the build on any use), so
+   there is no dark custom-variant and no `.dark` selector to keep in sync —
+   `:root` is the single source. `color-scheme: dark` keeps form controls and
+   scrollbars native-dark. */
+:root {
   color-scheme: dark;
   --background: oklch(0.2429 0.0304 283.911); /* mocha base #1e1e2e */
   --foreground: oklch(0.8787 0.0426 272.277); /* mocha text #cdd6f4 */
@@ -32,7 +28,13 @@
   --destructive: oklch(0.7556 0.1297 2.7642); /* mocha red #f38ba8 */
   --destructive-foreground: oklch(0.1828 0.0204 284.204);
   --border: oklch(0.324 0.0319 281.978);
-  --input: oklch(0.4037 0.032 280.152);
+  /* Control edge: overlay0, not the surface1 accent. A 1px border must clear
+     3:1 non-text contrast on every surface a control sits on — surface1 was
+     1.80:1 on background / 1.92:1 on card; overlay0 is 3.36:1 / 3.59:1. The
+     token also drives `bg-input/30` fills, so overlay1 (4.44:1 / 4.75:1) was
+     passed over: at 30% it lifts fills above `--muted`, inverting the
+     input-vs-secondary hierarchy. */
+  --input: oklch(0.5497 0.0345 277.095); /* mocha overlay0 #6c7086 */
   --ring: oklch(0.8166 0.091 277.309); /* mocha lavender #b4befe */
   --chart-1: oklch(0.7664 0.1113 259.885); /* mocha blue #89b4fa */
   --chart-2: oklch(0.8577 0.1092 142.715); /* mocha green #a6e3a1 */
@@ -80,6 +82,11 @@
   --status-ok: oklch(0.8577 0.1092 142.715); /* mocha green #a6e3a1 */
   --status-warn: oklch(0.9193 0.0704 86.5281); /* mocha yellow #f9e2af */
   --status-info: oklch(0.7664 0.1113 259.885); /* mocha blue #89b4fa */
+  /* Overlay scrim: mocha crust. Dialog/sheet/command backdrops render
+     `bg-overlay/80` — crust at high alpha reads as a dimming layer on this
+     scheme (black/10 was invisible), and stays a raw-color-free token so the
+     hex lint holds. */
+  --overlay: oklch(0.1828 0.0204 284.204); /* mocha crust #11111b */
 }
 
 /* The public showcase and the workspace app share one palette. `.marketing`
@@ -107,8 +114,11 @@
   --muted-foreground: oklch(0.751 0.0396 273.932); /* mocha subtext0 #a6adc8 */
   --accent: oklch(0.324 0.0319 281.978); /* mocha surface0 #313244 */
   --accent-foreground: oklch(0.8787 0.0426 272.277);
+  /* Same control-edge rule as :root: overlay0 clears 3:1 against this
+     block's crust background (3.84:1) and mantle card (3.59:1), where
+     surface0 managed 1.49:1. */
   --border: oklch(0.324 0.0319 281.978);
-  --input: oklch(0.324 0.0319 281.978);
+  --input: oklch(0.5497 0.0345 277.095); /* mocha overlay0 #6c7086 */
   --ring: oklch(0.8237 0.1015 52.6294);
   --signal: oklch(0.8237 0.1015 52.6294);
   --signal-ink: oklch(0.8237 0.1015 52.6294);
@@ -139,6 +149,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -163,6 +174,13 @@
   --text-2xs: 0.6875rem;
   --text-3xs: 0.625rem;
   --text-4xs: 0.5rem;
+
+  /* Near-solid leading for the display face at display sizes (the hero h1):
+     a 5–6xl serif wants its lines locked together, where `leading-tight`
+     (1.25) opens air the wordmark was never sized for. A leading-* token, so
+     `leading-display` is generated from it — the one place this number
+     exists. */
+  --leading-display: 1.08;
 
   /* Dialog surfaces span the viewport minus the mobile gutter before the
      `sm:` breakpoint caps them at a container width. */
@@ -219,10 +237,12 @@
   }
 }
 
-/* rehype-pretty-code */
+/* rehype-pretty-code. The pre sits on the palette surface (`--card`) rather
+   than the shiki theme's own background, so code blocks keep the panel
+   treatment whatever theme vite.config compiles in. */
 [data-rehype-pretty-code-figure] pre {
   @apply overflow-x-auto rounded-lg border border-border px-0 py-3;
-  background-color: var(--shiki-dark-bg);
+  background-color: var(--card);
 }
 
 [data-rehype-pretty-code-figure] code {
@@ -262,6 +282,14 @@
   /* Zero tracking, unlike the grotesque headings: the display cut already
      sets a tight fit, and negative tracking collides its thin strokes. */
   letter-spacing: 0;
+}
+
+/* The knowledge sidebar's own scroll height: pinned `top-18` below the
+   header, its list must stop at the fold rather than 72px past it, which
+   `max-h-dvh` left unreachable. A utility because the calc is the one
+   expression of "viewport minus header". */
+@utility max-h-below-header {
+  max-height: calc(100dvh - 4.5rem);
 }
 
 /* Balanced ragged edges on every marketing heading, and a guaranteed

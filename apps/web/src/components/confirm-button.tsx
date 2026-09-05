@@ -16,7 +16,7 @@ export function ConfirmButton({
   onConfirm,
   busy = false,
   variant = 'ghost',
-  size = 'sm',
+  size,
   cancelVariant = 'ghost',
   className,
   target,

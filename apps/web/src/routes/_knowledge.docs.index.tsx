@@ -29,7 +29,7 @@ function DocsIndex() {
   return (
     <div>
       <header className="mb-8">
-        <h1 className="font-display mb-2 text-2xl font-semibold">Documentation</h1>
+        <h1 className="mb-2 text-3xl font-semibold">Documentation</h1>
         <p className="text-sm text-muted-foreground">
           Concepts and recipes for the starter architecture, modules, capability
           interfaces, and operations.

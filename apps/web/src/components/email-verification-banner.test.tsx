@@ -48,9 +48,9 @@ describe('EmailVerificationBanner', () => {
     ).toBeNull()
   })
 
-  it('surfaces send errors and keeps the resend button', async () => {
+  it('surfaces send errors as table copy and keeps the resend button', async () => {
     sendVerificationEmail.mockResolvedValueOnce({
-      error: { message: 'Email already verified' }
+      error: { code: 'rate_limited' }
     })
     render(
       <EmailVerificationBanner
@@ -60,7 +60,11 @@ describe('EmailVerificationBanner', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Resend verification email' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Email already verified')
+    // The banner carries the error inline after its own sentence, so the
+    // match is on the mapped copy, not the whole text content.
+    expect(alert.textContent).toContain(
+      'Too many attempts. Wait a moment and try again.'
+    )
     expect(
       screen.getByRole('button', { name: 'Resend verification email' })
     ).toBeDefined()

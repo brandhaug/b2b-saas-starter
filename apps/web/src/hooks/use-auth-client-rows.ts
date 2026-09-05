@@ -1,6 +1,7 @@
 import { useQuery, type QueryObserverResult } from '@tanstack/react-query'
 import { useHydrated } from '@/lib/client-only-value'
 import { type AuthResult } from '@/lib/auth-result'
+import { copyForAuthCode } from '@/lib/auth-error-copy'
 import { useServerAction, type ServerAction } from '@/hooks/use-server-action'
 
 /** What `useAuthClientRows` hands a panel: the list read, ready to render. */
@@ -46,8 +47,11 @@ export function useAuthClientRows<Record, Row>({
     queryFn: async (): Promise<Array<Row>> => {
       const result = await list()
       if (result.error) {
+        // The table's sentence for a known code, the panel's own
+        // load-failed message otherwise — never the raw `error.message`,
+        // which is whatever the far end put on the wire.
         // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- TanStack Query surfaces failure states by rejecting the query function; there is no Effect channel here
-        throw new Error(result.error.message ?? loadFailedMessage)
+        throw new Error(copyForAuthCode(result.error) ?? loadFailedMessage)
       }
       return toRows(result.data ?? [])
     },

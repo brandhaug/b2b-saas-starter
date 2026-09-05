@@ -115,7 +115,6 @@ export function LinkedAccountsPanel({
                       render={
                         <Button
                           variant="ghost"
-                          size="sm"
                           aria-label={`Unlink ${row.methodLabel}`}
                         />
                       }

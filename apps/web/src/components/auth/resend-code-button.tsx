@@ -16,7 +16,6 @@ export function ResendCodeButton({
     <Button
       type="button"
       variant="secondary"
-      size="sm"
       disabled={cooldownSeconds > 0}
       onClick={() => {
         void onResend()

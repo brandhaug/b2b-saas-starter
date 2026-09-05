@@ -41,7 +41,7 @@ const userColumns: Array<DataTableColumnDef<SystemUser>> = [
     accessorKey: 'role',
     header: 'System role',
     enableSorting: true,
-    cell: ({ row }) => <Badge variant="secondary">{row.original.role}</Badge>
+    cell: ({ row }) => <Badge variant="neutral">{row.original.role}</Badge>
   },
   {
     accessorKey: 'banned',

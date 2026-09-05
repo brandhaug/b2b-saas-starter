@@ -17,6 +17,7 @@ import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
+import { authErrorCopy } from '@/lib/auth-error-copy'
 
 export type { RequestPasswordReset } from '@/components/auth/auth-client-ports'
 
@@ -69,7 +70,7 @@ export function ForgotPasswordPage({
       setSubmitError(null)
       const result = await requestReset({ email: value.email })
       if (result.error) {
-        setSubmitError(result.error.message ?? 'Request failed')
+        setSubmitError(authErrorCopy(result.error, 'Request failed'))
         return
       }
       setStage('link-sent')
@@ -87,7 +88,7 @@ export function ForgotPasswordPage({
     }
     const result = await requestCode({ email: address })
     if (result.error) {
-      setSubmitError(result.error.message ?? 'Could not send the code')
+      setSubmitError(authErrorCopy(result.error, 'Could not send the code'))
       return
     }
     setEmail(address)
@@ -175,7 +176,7 @@ export function ForgotPasswordPage({
   return (
     <AuthCardForm
       title="Reset your password"
-      description="Enter the email you sign in with and we will send a reset link — or a one-time code."
+      description="Enter the email you sign in with and we will send a reset link, or a one-time code."
       // The link-sent stage is a confirmation, not a form — no wrapper, no
       // hydration signal needed.
       form={stage === 'form' ? form : null}

@@ -51,7 +51,6 @@ export function RoleChangeButtons({
     <Button
       key={role}
       variant="ghost"
-      size="sm"
       disabled={disabled}
       aria-label={labelFor(role)}
       onClick={() => onChange(role)}

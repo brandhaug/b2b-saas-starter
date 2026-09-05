@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { requireSession } from '@/lib/server/auth'
+import { roleVariant } from '@/lib/badge-variants'
 import { Spinner } from '@/components/ui/spinner'
 import {
   acceptInvitationServerFn,
@@ -177,8 +178,8 @@ function PendingInvitation({
           <CardContent className="grid gap-4">
             <p className="text-sm text-muted-foreground">
               You have been invited to {preview.workspaceName} as{' '}
-              <Badge variant="secondary">{preview.role}</Badge>. Accepting adds you to
-              the workspace.
+              <Badge variant={roleVariant(preview.role)}>{preview.role}</Badge>.
+              Accepting adds you to the workspace.
             </p>
             {error ? (
               <Alert variant="destructive">

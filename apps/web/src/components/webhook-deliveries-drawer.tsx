@@ -152,7 +152,6 @@ export function WebhookDeliveriesDrawer({
               <div>
                 <Button
                   variant="secondary"
-                  size="sm"
                   disabled={sendTest.pending}
                   onClick={() => sendTest.run(undefined)}
                 >

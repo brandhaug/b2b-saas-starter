@@ -69,15 +69,15 @@ describe('ResetPasswordPage', () => {
     expect(resetPassword).not.toHaveBeenCalled()
   })
 
-  it('surfaces reset errors and keeps the form', async () => {
+  it('surfaces reset errors as table copy and keeps the form', async () => {
     resetPassword.mockResolvedValueOnce({
-      error: { message: 'The reset token is invalid' }
+      error: { code: 'INVALID_TOKEN' }
     })
     const { router } = await renderPage({ token: 'tok_reset_123' })
     fillValidPasswords()
     fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('The reset token is invalid')
+    expect(alert.textContent).toBe('That link or code is invalid. Request a new one.')
     expect(router.state.location.pathname).toBe('/reset-password')
   })
 })

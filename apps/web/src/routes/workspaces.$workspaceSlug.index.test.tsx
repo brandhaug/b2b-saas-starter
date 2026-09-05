@@ -10,7 +10,7 @@ import {
   loadWorkspaceDashboard,
   type WorkspaceDashboardPayload
 } from '@/lib/server/workspace-dashboard'
-import { WorkspaceDashboardPage } from './workspaces.$workspaceSlug.index'
+import { WorkspaceDashboardPage } from '@/components/workspace-dashboard-page'
 
 /**
  * The payload comes from the real loader against the Seed layer rather than a
@@ -22,7 +22,9 @@ const listNotifications = vi.fn<ListNotifications>(async () => [
     id: 'not_email',
     title: 'Email needs configuration',
     message: 'Set it up.',
-    read: false
+    read: false,
+    // The seed row's own timestamp, so the fixture mirrors the real feed.
+    createdAt: '2026-05-16T08:10:00.000Z'
   }
 ])
 const markNotificationsRead = vi.fn<MarkNotificationsRead>(async () => 1)

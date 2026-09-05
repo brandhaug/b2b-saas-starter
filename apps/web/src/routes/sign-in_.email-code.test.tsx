@@ -93,24 +93,37 @@ describe('EmailCodeSignInPage', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/workspaces'))
   })
 
-  it('surfaces verify errors and stays on the code step', async () => {
+  it('surfaces an incorrect email-OTP code as table copy and stays on the code step', async () => {
     await renderPage()
     await requestCode()
-    signIn.mockResolvedValueOnce({ error: { message: 'Too many attempts' } })
+    signIn.mockResolvedValueOnce({ error: { code: 'INVALID_OTP' } })
     fireEvent.change(screen.getByLabelText('Digit 1 of 6'), {
       target: { value: '000000' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Verify and sign in' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Too many attempts')
+    expect(alert.textContent).toBe('That code is incorrect. Check it and try again.')
+    expect(screen.getByLabelText('Digit 1 of 6')).toBeDefined()
+  })
+
+  it('surfaces an expired email-OTP code as table copy and stays on the code step', async () => {
+    await renderPage()
+    await requestCode()
+    signIn.mockResolvedValueOnce({ error: { code: 'OTP_EXPIRED' } })
+    fireEvent.change(screen.getByLabelText('Digit 1 of 6'), {
+      target: { value: '000000' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify and sign in' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('That code has expired. Request a new one.')
     expect(screen.getByLabelText('Digit 1 of 6')).toBeDefined()
   })
 
   it('names the two-factor path when the gate refuses the code sign-in', async () => {
     // Same body shape as the sso_required refusal on /sign-in: the gate's
     // `{ code, message }` answer spread over better-fetch's status fields.
-    // The generic fold would surface the raw message, so the screen owes the
-    // refusal its own guidance.
+    // The shared code table maps the code to the sentence that names the
+    // path that still works; the raw message never renders.
     const refused = {
       code: 'two_factor_required',
       message: 'two factor required'
@@ -172,15 +185,15 @@ describe('EmailCodeSignInPage', () => {
     expect(screen.queryByText(/we emailed a six-digit code/i)).toBeNull()
   })
 
-  it('surfaces send errors and keeps the email form', async () => {
-    sendCode.mockResolvedValueOnce({ error: { message: 'Rate limited' } })
+  it('surfaces send errors as table copy and keeps the email form', async () => {
+    sendCode.mockResolvedValueOnce({ error: { code: 'rate_limited' } })
     await renderPage()
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'demo@starter.local' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Email me a code' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Rate limited')
+    expect(alert.textContent).toBe('Too many attempts. Wait a moment and try again.')
     expect(screen.getByLabelText('Email')).toBeDefined()
   })
 

@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
+import { CircleAlertIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -9,10 +10,16 @@ const alertVariants = cva(
     variants: {
       variant: {
         default: 'bg-card text-card-foreground',
+        /* Tinted fill + tinted border, never plain card: inside a Panel (also
+           bg-card/border-border) a failed mutation must read as an alert, not
+           as one more row. The icon is mandatory — see the fallback in
+           `Alert`. The title rides the description's foreground because the
+           destructive ink on the tinted fill misses 4.5:1 on a muted page;
+           the icon keeps the tint (non-text contrast). */
         destructive:
-          'bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current',
+          'bg-destructive/5 border-destructive/40 text-destructive *:data-[slot=alert-description]:text-foreground *:data-[slot=alert-title]:text-foreground *:[svg]:text-current',
         /* Success state, from the same status token as the ok badge. */
-        ok: 'bg-card text-status-ok *:data-[slot=alert-description]:text-foreground *:[svg]:text-current'
+        ok: 'bg-status-ok/10 border-status-ok/40 text-status-ok *:data-[slot=alert-description]:text-foreground *:[svg]:text-current'
       }
     },
     defaultVariants: {
@@ -21,18 +28,41 @@ const alertVariants = cva(
   }
 )
 
+/**
+ * A direct child that is an element without a `data-slot` prop is an icon —
+ * every named child here (title, description, action) carries its slot, and
+ * the cva grid reserves the first column for a direct-child `<svg>`.
+ */
+function hasIconChild(children: React.ReactNode): boolean {
+  // A direct child that is not one of the named slots is the icon: every
+  // named child (title/description/action) is a known component here, so
+  // the cva grid's `has-[>svg]` column gets exactly one candidate.
+  return React.Children.toArray(children).some(
+    (child) =>
+      React.isValidElement(child) &&
+      child.type !== AlertTitle &&
+      child.type !== AlertDescription &&
+      child.type !== AlertAction
+  )
+}
+
 function Alert({
   className,
   variant,
+  children,
   ...props
 }: React.ComponentProps<'div'> & VariantProps<typeof alertVariants>) {
+  const showDefaultIcon = variant === 'destructive' && !hasIconChild(children)
   return (
     <div
       data-slot="alert"
       role="alert"
       className={cn(alertVariants({ variant }), className)}
       {...props}
-    />
+    >
+      {showDefaultIcon ? <CircleAlertIcon aria-hidden="true" /> : null}
+      {children}
+    </div>
   )
 }
 

@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { WorkspaceDashboardPage } from '@/routes/workspaces.$workspaceSlug.index'
+import { WorkspaceDashboardPage } from '@/components/workspace-dashboard-page'
 import {
   type ListNotifications,
   type NotificationPreview
@@ -7,7 +7,7 @@ import {
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
-import { loadDemoWorkspace } from '@/lib/server/demo-showcase'
+import { loadDemoWorkspaceServerFn } from '@/lib/server/demo-showcase'
 import { type WorkspaceDashboardPayload } from '@/lib/server/workspace-dashboard'
 
 export const Route = createFileRoute('/demo')({
@@ -20,7 +20,7 @@ export const Route = createFileRoute('/demo')({
   // open that projection to any other workspace the deployment carries. A
   // missing showcase workspace (an unseeded deployment) still 404s through the
   // shared failure mapping.
-  loader: () => loadDemoWorkspace(),
+  loader: () => loadDemoWorkspaceServerFn(),
   pendingComponent: RoutePending,
   component: DemoWorkspaceRoute,
   head: () => ({
@@ -65,6 +65,9 @@ function DashboardDemo(data: WorkspaceDashboardPayload) {
   return (
     <WorkspaceDashboardPage
       data={data}
+      // The actorless demo carries no dismiss control anywhere, so the
+      // checklist must not claim one in its member note.
+      dismissalNote={false}
       ports={{
         listNotifications: demoListNotifications(data.notifications),
         markNotificationsRead: demoMarkNotificationsRead

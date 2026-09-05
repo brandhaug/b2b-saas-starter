@@ -52,7 +52,7 @@ describe('UserAdminRefusedError', () => {
     expect(
       new UserAdminRefusedError('You are not allowed to update this member').message
     ).toBe(
-      'The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner — the system role confers nothing inside a workspace.'
+      'The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner. The system role confers nothing inside a workspace.'
     )
     expect(
       new UserAdminRefusedError('You are not allowed to update this member').name

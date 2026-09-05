@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
-import { AccountPage } from './account'
+import { AccountPage } from '@/components/account-page'
 import { loadAccountPageData } from '@/lib/server/account.effects'
 import { type RouteSession } from '@/lib/server/auth'
 import {
@@ -115,7 +115,7 @@ describe('/account', () => {
       />,
       { path: '/account' }
     )
-    await screen.findByText(/You leave workspace Starter Lab — other owners keep it\./)
+    await screen.findByText(/You leave workspace Starter Lab\. Other owners keep it\./)
     screen.getByRole('button', { name: 'Delete account' })
     // With one session there is nothing to sign out elsewhere.
     await waitFor(() => {
@@ -141,5 +141,48 @@ describe('/account', () => {
     )
     expect(screen.queryByLabelText('Password')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Delete account' })).toBeNull()
+  })
+
+  it('keeps the full sidebar anchored to the last visited workspace', async () => {
+    listSessions.mockReset()
+    listSessions.mockResolvedValue({ data: [browserSession({ token: 'tok_current' })] })
+    const payload = await loadAccountPageData({ userId: 'usr_demo' })
+    await renderWithRouter(
+      <AccountPage
+        session={routeSession()}
+        deletionPlan={payload.deletionPlan}
+        currentSessionToken="tok_current"
+      />,
+      {
+        path: '/account',
+        routerContext: { lastWorkspace: { slug: 'starter-lab', name: 'Starter Lab' } }
+      }
+    )
+    // /account is not a workspace surface, but the column still carries the
+    // remembered workspace's nav beside the user rows.
+    const overview = screen.getByRole('link', { name: 'Overview' })
+    expect(overview.getAttribute('href')).toBe('/workspaces/starter-lab')
+    screen.getByText('Starter Lab')
+    screen.getByRole('link', { name: 'Account' })
+    screen.getByRole('link', { name: 'System admin' })
+  })
+
+  it('falls back to the picker doorway when no workspace has been visited', async () => {
+    // The SSR truth for a direct /account landing: nothing remembered yet, so
+    // the column keeps its shape and points at the picker.
+    listSessions.mockReset()
+    listSessions.mockResolvedValue({ data: [browserSession({ token: 'tok_current' })] })
+    const payload = await loadAccountPageData({ userId: 'usr_demo' })
+    await renderWithRouter(
+      <AccountPage
+        session={routeSession()}
+        deletionPlan={payload.deletionPlan}
+        currentSessionToken="tok_current"
+      />,
+      { path: '/account' }
+    )
+    screen.getByRole('link', { name: 'Choose a workspace…' })
+    expect(screen.queryByRole('link', { name: 'Overview' })).toBeNull()
+    screen.getByText('You')
   })
 })

@@ -4,6 +4,7 @@ import {
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -20,28 +21,18 @@ import { Panel } from '@/components/page/panel'
 import { ConfirmButton } from '@/components/confirm-button'
 import { RoleChangeButtons } from '@/components/role-change-buttons'
 import { viewerCan, type Viewer } from '@/lib/permissions'
+import { roleVariant } from '@/lib/badge-variants'
 import {
   changeMemberRoleServerFn,
   leaveWorkspaceServerFn,
   removeMemberServerFn
 } from '@/lib/server/workspace-members'
 import { useServerAction } from '@/hooks/use-server-action'
+import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 
 const CHANGE_FAILED = 'Failed to change the role'
 const REMOVE_FAILED = 'Failed to remove the member'
 const LEAVE_FAILED = 'Failed to leave the workspace'
-
-// A role is not a status: it never wears the mauve `default` (that is for
-// current/selected), and the status hues stay reserved for states.
-function roleVariant(role: WorkspaceRole): 'neutral' | 'secondary' | 'outline' {
-  if (role === 'owner') {
-    return 'neutral'
-  }
-  if (role === 'admin') {
-    return 'secondary'
-  }
-  return 'outline'
-}
 
 /**
  * The workspace roster with per-member role change, removal, and the actor's
@@ -77,23 +68,49 @@ export function MembersPanel({
   // shape the API tokens panel's revoke uses.
   const [confirmingRemovalId, setConfirmingRemovalId] = useState<string | null>(null)
 
+  // One failure on screen at a time, pinned to the row that produced it and
+  // cleared by the next roster mutation — the shared per-row failure hook,
+  // instead of a lone alert 600px under the button.
+  const { failure: failedRow, runWith: runOnRow } = useKeyedFailure<string>()
+
   // The loader owns the roster, so the hook re-runs it on success rather than
   // mirroring the changed row into local state.
   const changeRole = useServerAction(
     ({ userId, role }: { readonly userId: string; readonly role: WorkspaceRole }) =>
       changeMemberRoleServerFn({ data: { workspaceSlug, userId, role } }),
-    { failureMessage: CHANGE_FAILED }
+    {
+      failureMessage: CHANGE_FAILED,
+      onSuccess: (_, { userId, role }) => {
+        const member = members.find((candidate) => candidate.id === userId)
+        toast.success(
+          member === undefined
+            ? `Role changed to ${role}`
+            : `${member.name} is now ${role}`
+        )
+      }
+    }
   )
 
   const removeMember = useServerAction(
     ({ userId }: { readonly userId: string }) =>
       removeMemberServerFn({ data: { workspaceSlug, userId } }),
-    { failureMessage: REMOVE_FAILED }
+    {
+      failureMessage: REMOVE_FAILED,
+      onSuccess: (_, { userId }) => {
+        const member = members.find((candidate) => candidate.id === userId)
+        toast.success(
+          member === undefined
+            ? 'Member removed'
+            : `${member.name} removed from the workspace`
+        )
+      }
+    }
   )
 
   // Leaving is not a roster refresh: the actor's next view of this workspace
   // is the workspaces list, loaded fresh — no client cache of a membership
-  // that no longer exists should outlive the click.
+  // that no longer exists should outlive the click. No success toast either:
+  // the full-page load would erase it before it rendered.
   const leaveWorkspace = useServerAction(
     () => leaveWorkspaceServerFn({ data: { workspaceSlug } }),
     {
@@ -103,13 +120,27 @@ export function MembersPanel({
     }
   )
 
+  async function changeRoleOnRow(userId: string, role: WorkspaceRole) {
+    await runOnRow(userId, () => changeRole.runAsync({ userId, role }))
+  }
+
+  async function removeMemberOnRow(userId: string) {
+    await runOnRow(userId, () => removeMember.runAsync({ userId }))
+  }
+
+  async function leaveOnRow() {
+    await runOnRow(actorUserId, () => leaveWorkspace.runAsync())
+  }
+
   if (members.length === 0) {
     return (
       <Panel title="Roster" description="Everyone with access to this workspace.">
         <Empty>
           <EmptyHeader>
             <EmptyTitle>No members yet</EmptyTitle>
-            <EmptyDescription>Invite someone from the members page.</EmptyDescription>
+            <EmptyDescription>
+              Send an invitation to add the first teammate.
+            </EmptyDescription>
           </EmptyHeader>
         </Empty>
       </Panel>
@@ -136,6 +167,9 @@ export function MembersPanel({
               <ItemContent>
                 <ItemTitle>{member.name}</ItemTitle>
                 <ItemDescription>{member.email}</ItemDescription>
+                {failedRow?.key === member.id ? (
+                  <ActionFeedback error={failedRow.message} />
+                ) : null}
               </ItemContent>
               <ItemActions>
                 <Badge variant={roleVariant(member.role)}>{member.role}</Badge>
@@ -145,7 +179,7 @@ export function MembersPanel({
                     confirmLabel="Confirm leave"
                     variant="ghost"
                     busy={leaveWorkspace.pending}
-                    onConfirm={() => leaveWorkspace.run()}
+                    onConfirm={() => void leaveOnRow()}
                   />
                 ) : null}
                 {canReRole ? (
@@ -155,7 +189,7 @@ export function MembersPanel({
                     labelFor={(role) => `Make ${role}: ${member.name}`}
                     disabled={changing}
                     busy={changing}
-                    onChange={(role) => changeRole.run({ userId: member.id, role })}
+                    onChange={(role) => void changeRoleOnRow(member.id, role)}
                   />
                 ) : null}
                 {canRemove && !isOwnRow ? (
@@ -169,7 +203,7 @@ export function MembersPanel({
                     onCancel={() => setConfirmingRemovalId(null)}
                     onConfirm={() => {
                       setConfirmingRemovalId(null)
-                      removeMember.run({ userId: member.id })
+                      void removeMemberOnRow(member.id)
                     }}
                   />
                 ) : null}
@@ -183,9 +217,6 @@ export function MembersPanel({
           Your role cannot change member roles.
         </p>
       )}
-      <ActionFeedback
-        error={changeRole.error ?? removeMember.error ?? leaveWorkspace.error}
-      />
     </Panel>
   )
 }

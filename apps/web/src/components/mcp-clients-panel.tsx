@@ -97,7 +97,6 @@ export function McpClientsPanel({
                       render={
                         <Button
                           variant="ghost"
-                          size="sm"
                           disabled={busy}
                           aria-label={`Revoke ${label}`}
                         />

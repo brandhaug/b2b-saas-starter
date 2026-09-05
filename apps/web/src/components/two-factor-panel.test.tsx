@@ -106,7 +106,7 @@ describe('TwoFactorPanel', () => {
   })
 
   it('surfaces an invalid verification code and stays on the setup step', async () => {
-    verifyTotp.mockResolvedValue({ error: { message: 'Invalid code' } })
+    verifyTotp.mockResolvedValue({ error: { code: 'INVALID_CODE' } })
     renderWithQueryClient(
       <TwoFactorPanel
         twoFactorEnabled={false}
@@ -126,7 +126,7 @@ describe('TwoFactorPanel', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Verify code' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Invalid code')
+    expect(alert.textContent).toBe('That code is incorrect. Check it and try again.')
     // Still on the setup step — the QR is still shown for another try.
     expect(
       screen.getByRole('figure', { name: 'Two-factor secret QR code' })
@@ -157,7 +157,7 @@ describe('TwoFactorPanel', () => {
   })
 
   it('surfaces a wrong-password failure without flipping state', async () => {
-    disableTwoFactor.mockResolvedValue({ error: { message: 'Invalid password' } })
+    disableTwoFactor.mockResolvedValue({ error: { code: 'INVALID_PASSWORD' } })
     renderWithQueryClient(
       <TwoFactorPanel
         twoFactorEnabled
@@ -171,7 +171,7 @@ describe('TwoFactorPanel', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Turn off' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Invalid password')
+    expect(alert.textContent).toBe('That password is incorrect. Try again.')
     // Still on.
     expect(screen.getByText(/On\. Codes are required at sign-in/)).toBeDefined()
   })
@@ -208,7 +208,7 @@ describe('TwoFactorPanel', () => {
   })
 
   it('surfaces a failed backup-code regeneration without clearing the password state flip', async () => {
-    generateBackupCodes.mockResolvedValue({ error: { message: 'Invalid password' } })
+    generateBackupCodes.mockResolvedValue({ error: { code: 'INVALID_PASSWORD' } })
     renderWithQueryClient(
       <TwoFactorPanel
         twoFactorEnabled
@@ -223,7 +223,7 @@ describe('TwoFactorPanel', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Regenerate backup codes' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Invalid password')
+    expect(alert.textContent).toBe('That password is incorrect. Try again.')
     expect(screen.queryByRole('region', { name: 'Backup codes' })).toBeNull()
   })
 

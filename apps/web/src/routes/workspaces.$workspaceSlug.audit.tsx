@@ -1,16 +1,14 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { Schema } from 'effect'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAuditPage } from '@/components/workspace-audit-page'
 import { type ApplyWorkspaceAuditSearch } from '@/lib/audit-search'
+import { pickOptionalStrings } from '@/lib/utils'
 import {
   loadWorkspaceAuditEvents,
   type LoadWorkspaceAuditEventsInput,
   type WorkspaceAuditFilters
 } from '@/lib/server/workspace-audit'
-
-const optionalString = Schema.optionalKey(Schema.String)
 
 /**
  * The audit page is read-only, so its whole state lives in the URL: filters and
@@ -18,17 +16,33 @@ const optionalString = Schema.optionalKey(Schema.String)
  * and lets the router re-run the loader per change. Lenient on purpose — an
  * unknown event type or an undecodable cursor addresses an empty result, not
  * an error (mirrors the capability's read contract).
+ *
+ * The five keys are picked with `pickOptionalStrings`, not effect/Schema:
+ * `validateSearch` runs client-side in the route shell the whole route tree
+ * carries, and a Schema construct here would pin the 145 kB Effect Schema
+ * chunk onto every page — the same trade the auth-flow routes make
+ * (see apps/web's intent node).
  */
-const AuditSearch = Schema.Struct({
-  actor: optionalString,
-  eventType: optionalString,
-  since: optionalString,
-  until: optionalString,
-  cursor: optionalString
-})
-type AuditSearch = typeof AuditSearch.Type
+const AUDIT_SEARCH_KEYS: ReadonlyArray<string> = [
+  'actor',
+  'eventType',
+  'since',
+  'until',
+  'cursor'
+]
 
-const decodeSearch = Schema.decodeUnknownSync(AuditSearch)
+type AuditSearch = {
+  readonly actor?: string | undefined
+  readonly eventType?: string | undefined
+  readonly since?: string | undefined
+  readonly until?: string | undefined
+  readonly cursor?: string | undefined
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the router hands `validateSearch` an untyped record; `pickOptionalStrings` (which carries the same exemption) is the parse step
+function decodeSearch(search: unknown): AuditSearch {
+  return pickOptionalStrings(search, AUDIT_SEARCH_KEYS)
+}
 
 function filtersFromSearch(search: AuditSearch): WorkspaceAuditFilters {
   const filters: WorkspaceAuditFilters = {}

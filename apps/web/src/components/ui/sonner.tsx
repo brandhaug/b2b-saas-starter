@@ -38,7 +38,9 @@ const TOASTER_STYLE: CssVariableStyle = {
   '--info-bg': 'var(--status-info)',
   '--info-text': 'var(--primary-foreground)',
   '--info-border': 'var(--status-info)',
-  '--border-radius': 'var(--radius)'
+  // Same interactive radius as buttons/inputs (`rounded-md`), not a third
+  // value: `--radius-md` is calc(var(--radius) - 2px) = 6px.
+  '--border-radius': 'var(--radius-md)'
 }
 
 const TOAST_OPTIONS = {

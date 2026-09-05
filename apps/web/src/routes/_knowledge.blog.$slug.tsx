@@ -71,9 +71,7 @@ function BlogPostPage() {
           </Link>
 
           <header className="mb-8">
-            <h1 className="font-display mb-2 text-3xl font-semibold">
-              {frontmatter.title}
-            </h1>
+            <h1 className="mb-2 text-3xl font-semibold">{frontmatter.title}</h1>
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
               <span>{frontmatter.author}</span>
               <span>&middot;</span>
@@ -99,10 +97,11 @@ function BlogPostPage() {
             )}
           </header>
 
-          {/* In-page navigation below xl: the aside only exists from lg up,
-                so most laptops and every phone used to read long articles with
-                no way to jump sections. */}
-          <details className="mb-6 border border-border xl:hidden">
+          {/* In-page navigation below lg: the aside takes over from lg up, and
+              the two breakpoints are complementary — with `xl:hidden` here both
+              copies were on screen (and both named landmarks reached axe)
+              between lg and xl. */}
+          <details className="mb-6 border border-border lg:hidden">
             <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
               On this page
             </summary>
