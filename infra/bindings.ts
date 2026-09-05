@@ -311,7 +311,7 @@ export function stageResourceNames(stage: string): StageResourceNames {
 /**
  * The `workers.dev` URL a Worker serves at when it has no custom domain:
  * `https://<worker>.<account subdomain>.workers.dev`. The preview workflow and
- * `alchemy.run.ts` derive `BETTER_AUTH_URL` and the sticky PR comment from
+ * `alchemy.run.ts` derive `BETTER_AUTH_URL` and the deployment status URL from
  * this, so the two can never disagree about where a preview lives.
  */
 export function workersDevUrl(workerName: string, subdomain: string): string {

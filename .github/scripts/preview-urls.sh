@@ -3,7 +3,7 @@
 # three Worker URLs to later steps ($GITHUB_ENV). The names follow
 # `stageResourceNames` in infra/bindings.ts: b2b-saas-starter-<stage>-<app>.
 # alchemy.run.ts derives BETTER_AUTH_URL from the same subdomain, so the URL in
-# the PR comment is the one the web Worker was deployed with.
+# the deployment status is the one the web Worker was deployed with.
 set -euo pipefail
 
 : "${ALCHEMY_STAGE:?set ALCHEMY_STAGE, e.g. pr-42}"

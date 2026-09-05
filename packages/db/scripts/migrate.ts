@@ -33,7 +33,19 @@ function wranglerExecute(
   args: ReadonlyArray<string>,
   captureJson: boolean
 ): Promise<string> {
-  return wranglerD1Execute('b2b-saas-starter', [target, ...args], captureJson)
+  return wranglerD1Execute('b2b-saas-starter', [target, ...args], captureJson).then(
+    (run) => {
+      if (!run.ok) {
+        // In --json mode wrangler's error lands on stdout, captured here;
+        // otherwise the inherited streams already showed it.
+        if (run.output) {
+          console.error(run.output)
+        }
+        process.exit(run.code)
+      }
+      return run.stdout
+    }
+  )
 }
 
 // Wrangler's `--json` output for a SELECT: one batch per statement. Decoding it

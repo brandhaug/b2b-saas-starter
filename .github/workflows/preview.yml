@@ -1,9 +1,12 @@
 name: Preview
 
-# One ephemeral Alchemy stage per pull request (ADR 0054). `opened` /
+# One ephemeral Alchemy stage per pull request (ADR 0065). `opened` /
 # `synchronize` / `reopened` deploy the stage `pr-<number>` — its own D1,
-# queues, and three Workers — seed the Seed Workspace into it, and keep one
-# sticky PR comment pointing at the URLs. `closed` destroys the stage.
+# queues, and three Workers — seed the Seed Workspace into it, and report the
+# URLs through GitHub's Deployments API: the PR timeline links the web Worker,
+# the run summary lists all three URLs, and no notification email goes out (a
+# PR comment would email every participant on creation). `closed` destroys the
+# stage and marks its deployments inactive.
 # Production deploys are unchanged (ci.yml, ADR 0019).
 on:
   pull_request:
@@ -14,7 +17,7 @@ on:
 # Dependabot runs see a separate (empty) secret set and are skipped too.
 permissions:
   contents: read
-  pull-requests: write
+  deployments: write
 
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
@@ -64,13 +67,11 @@ jobs:
             echo "Probing $url"
             curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$url" > /dev/null
           done
-      - name: Post or update the sticky PR comment
+      - name: Report the deployment
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           {
-            echo '<!-- preview-deploy-comment -->'
             echo "### Preview stage \`$ALCHEMY_STAGE\`"
             echo
             echo '| Worker | URL |'
@@ -80,8 +81,8 @@ jobs:
             echo "| background | $BACKGROUND_URL |"
             echo
             echo "Deployed \`$GIT_COMMIT_SHA\`. The stage has its own D1 seeded with the Seed Workspace (\`starter-lab\`; demo sign-in in \`docs/setup.md\`). Env-gated providers (Turnstile, Stripe, Sentry, PostHog, email, AI) are off. The stage is destroyed when this PR closes."
-          } > "$RUNNER_TEMP/preview-comment.md"
-          ./.github/scripts/sticky-comment.sh "$PR_NUMBER" "$RUNNER_TEMP/preview-comment.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+          ./.github/scripts/preview-status.sh deployed
 
   destroy:
     name: Destroy preview stage
@@ -102,15 +103,7 @@ jobs:
         run: ./.github/scripts/preview-urls.sh
       - name: Destroy the stage
         run: pnpm run destroy:stage
-      - name: Update the sticky PR comment
+      - name: Mark the stage's deployments inactive
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          {
-            echo '<!-- preview-deploy-comment -->'
-            echo "### Preview stage \`$ALCHEMY_STAGE\`"
-            echo
-            echo 'Destroyed: the D1 database, queues, and Workers for this stage are gone.'
-          } > "$RUNNER_TEMP/preview-comment.md"
-          ./.github/scripts/sticky-comment.sh "$PR_NUMBER" "$RUNNER_TEMP/preview-comment.md"
+        run: ./.github/scripts/preview-status.sh destroyed
