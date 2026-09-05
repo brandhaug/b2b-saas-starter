@@ -32,7 +32,7 @@ export const env = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
   OPENAI_MODEL_ID: process.env.OPENAI_MODEL_ID,
-  // Observability: with an OTLP endpoint set, `bun run dev` exports traces,
+  // Observability: with an OTLP endpoint set, `pnpm run dev` exports traces,
   // metrics, and the canonical log records to a local collector exactly as a
   // deployed worker does. Unset, the console JSON event is the whole story.
   OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,

@@ -1,7 +1,7 @@
 // Dev-server variant of the `cloudflare:workers` shim (aliased in
 // vite.config.ts for `vite dev` only — test and build keep the inert shim so
 // bundles never pull in wrangler). When packages/db has persisted local D1
-// state (created by `bun run db:migrate:local`), that database is exposed as
+// state (created by `pnpm run db:migrate:local`), that database is exposed as
 // the `DB` binding through wrangler's getPlatformProxy, so credential sign-in
 // and the Live capability layers run against the seeded data. Without that
 // state — or when the proxy misses its boot deadline — this module behaves

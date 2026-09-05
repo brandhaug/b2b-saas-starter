@@ -7,7 +7,7 @@
 export const DEMO_WORKSPACE_SLUG = 'starter-lab'
 
 /**
- * Credential account created by `bun run db:seed` (see scripts/seed.ts and
+ * Credential account created by `pnpm run db:seed` (see scripts/seed.ts and
  * docs/setup.md). Only exists after seeding a local D1 — the plain vite dev
  * shim has no database, so these do nothing there.
  */

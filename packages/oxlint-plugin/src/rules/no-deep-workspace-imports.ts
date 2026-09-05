@@ -8,8 +8,9 @@ import { getStringValue } from '../internal/ast.ts'
  *
  * The curated subpaths are the packages' real interfaces: they are what keeps
  * the browser-safe-client rule and the testing-only module out of application
- * code. The wildcard was removed so Bun enforces this at runtime; this rule
- * surfaces the violation at lint time with the concrete replacement named.
+ * code. The wildcard was removed so the packages' export maps refuse these at
+ * runtime; this rule surfaces the violation at lint time with the concrete
+ * replacement named.
  *
  * Only specifiers under the workspace scope are checked. Intra-package
  * relative imports and third-party `/src/` paths are not this rule's business.
