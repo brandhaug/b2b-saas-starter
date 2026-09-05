@@ -22,7 +22,7 @@ import {
   leaveWorkspace,
   loadWorkspaceMembers,
   removeMember
-} from './workspace-members'
+} from './workspace-members.effects'
 
 /**
  * The member-management surface below its session gate. `changeMemberRole`,

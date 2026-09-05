@@ -1,7 +1,4 @@
-import {
-  WORKSPACE_ROLES,
-  type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
@@ -26,7 +23,7 @@ import { Identifier } from '@/components/page/identifier'
 import { CreateSection, ListSection, Panel } from '@/components/page/panel'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
-import { viewerCan, type Viewer } from '@/lib/permissions'
+import { viewerCan, WORKSPACE_ROLES, type Viewer } from '@/lib/permissions'
 import {
   cancelInvitationServerFn,
   sendInvitationServerFn,

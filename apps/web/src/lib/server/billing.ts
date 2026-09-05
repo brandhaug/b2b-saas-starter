@@ -1,14 +1,27 @@
-import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
-import { PLANS, type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+import { type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema } from 'effect'
-import { env as cloudflareEnv } from 'cloudflare:workers'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
-import { requireWorkspacePermission } from './authorize'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
+import { expectRecord, expectString } from './input-shape'
+
+/**
+ * The billing server functions and the billing loader, in a **client-safe**
+ * module.
+ *
+ * This file is statically imported by the billing route and the components
+ * it renders, and the route tree ships to the browser — so everything at
+ * this module's top level rides on every page. That is why the payload
+ * assembly and the checkout wiring (the Billing capability, the plan
+ * catalog, the permission helper, the worker env) live in
+ * `billing.effects.ts` and are reached only through dynamic `import()`
+ * inside each handler: TanStack Start strips handler bodies from the client
+ * build, so the capabilities graph never ships, while the payload type
+ * still does. The validators are stripped the same way — `.validator()`
+ * runs on the server only — so the plain shape checks below are the
+ * server's first decode, a wire-shape gate that declares each fn's input
+ * type without dragging the Effect Schema chunk onto the route tree, while
+ * the strict schemas decode again in the effects file before anything runs.
+ */
 
 /**
  * The billing page payload: the workspace's current plan, the catalog, and
@@ -28,101 +41,65 @@ export type WorkspaceBillingPayload = {
   readonly stripeConfigured: boolean
 }
 
-/** The billing route's loader effect. Hard-gated like the other pages. */
-const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePage(
-  { notification: ['read'] },
-  (ctx) =>
-    Effect.flatMap(Billing, (billing) =>
-      Effect.map(
-        Effect.all(
-          {
-            unreadCount,
-            plan: billing.currentPlan,
-            stripeConfigured: billing.configured
-          },
-          { concurrency: 'unbounded' }
-        ),
-        (segments) => ({
-          workspaceName: ctx.workspace.name,
-          unreadCount: segments.unreadCount,
-          plans: PLANS,
-          currentPlanId: segments.plan.id,
-          stripeConfigured: segments.stripeConfigured
-        })
-      )
-    )
-)
-
-/** The billing route's loader. */
-export function loadWorkspaceBilling(input: {
+type WorkspaceBillingInput = {
   readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceBillingPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, billingPayload, {
-    userId: input.userId
-  })
 }
 
-// All input constraints live in the schema — no imperative re-validation.
-const StartCheckoutInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  planId: Schema.NonEmptyString
-})
-const decodeCheckoutInput = Schema.decodeUnknownSync(StartCheckoutInput)
+type StartCheckoutInput = {
+  readonly workspaceSlug: string
+  readonly planId: string
+}
+
+type PortalInput = {
+  readonly workspaceSlug: string
+}
 
 /**
- * The upgrade action below the session and permission gates. Redirect URLs
- * are composed server-side from the configured base URL — the client names
- * only its slug and the plan — so a crafted success/cancel URL cannot turn
- * the checkout handoff into an open redirect.
+ * The server fns' validators, plain shape checks that run on the server only
+ * (TanStack strips `.validator()` from the client build): they are the
+ * server's first decode, and the strict schemas decode again in
+ * `billing.effects.ts`. These probes ARE the I/O boundary, so `unknown` in
+ * and `throw` out is the contract, the same exemption `pickOptionalStrings`
+ * carries (lib/utils.ts).
  */
-export const startCheckoutServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeCheckoutInput(input))
-  .handler(async ({ data }): Promise<{ url: string }> => {
-    const session = await requireRequestSession()
-    const base = cloudflareEnv.BETTER_AUTH_URL.replace(/\/$/, '')
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      Effect.gen(function* () {
-        yield* requireWorkspacePermission({ organization: ['update'] })
-        const billing = yield* Billing
-        const backTo = `${base}/workspaces/${encodeURIComponent(data.workspaceSlug)}/billing`
-        return yield* billing.startCheckout({
-          planId: data.planId,
-          successUrl: `${backTo}?checkout=success`,
-          cancelUrl: `${backTo}?checkout=canceled`
-        })
-      }),
-      { userId: session.user.id }
-    )
+// oxlint-disable anti-slop/no-unknown-parameters
+function decodeBillingInput(input: unknown): WorkspaceBillingInput {
+  const record = expectRecord(input, 'billing input')
+  return { workspaceSlug: expectString(record, 'workspaceSlug', 'billing input') }
+}
+
+function decodeCheckoutInput(input: unknown): StartCheckoutInput {
+  const record = expectRecord(input, 'billing input')
+  return {
+    workspaceSlug: expectString(record, 'workspaceSlug', 'billing input'),
+    planId: expectString(record, 'planId', 'billing input')
+  }
+}
+
+function decodePortalInput(input: unknown): PortalInput {
+  const record = expectRecord(input, 'billing input')
+  return { workspaceSlug: expectString(record, 'workspaceSlug', 'billing input') }
+}
+// oxlint-enable anti-slop/no-unknown-parameters
+
+/** The billing route's loader. */
+export const loadWorkspaceBillingServerFn = createServerFn({ method: 'GET' })
+  .validator(decodeBillingInput)
+  .handler(async ({ data }): Promise<WorkspaceBillingPayload> => {
+    const { loadWorkspaceBillingHandler } = await import('./billing.effects')
+    return loadWorkspaceBillingHandler(data)
   })
 
-// All input constraints live in the schema — no imperative re-validation.
-const PortalInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-const decodePortalInput = Schema.decodeUnknownSync(PortalInput)
-
-/**
- * The "Manage billing" action below the session and permission gates. The
- * return URL is composed server-side from the configured base URL — same
- * open-redirect posture as checkout — and the portal itself owns invoices,
- * payment method, and cancellation.
- */
-export const startPortalSessionServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodePortalInput(input))
+export const startCheckoutServerFn = createServerFn({ method: 'POST' })
+  .validator(decodeCheckoutInput)
   .handler(async ({ data }): Promise<{ url: string }> => {
-    const session = await requireRequestSession()
-    const base = cloudflareEnv.BETTER_AUTH_URL.replace(/\/$/, '')
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      Effect.gen(function* () {
-        yield* requireWorkspacePermission({ organization: ['update'] })
-        const billing = yield* Billing
-        return yield* billing.startPortalSession({
-          returnUrl: `${base}/workspaces/${encodeURIComponent(data.workspaceSlug)}/billing`
-        })
-      }),
-      { userId: session.user.id }
-    )
+    const { startCheckoutHandler } = await import('./billing.effects')
+    return startCheckoutHandler(data)
+  })
+
+export const startPortalSessionServerFn = createServerFn({ method: 'POST' })
+  .validator(decodePortalInput)
+  .handler(async ({ data }): Promise<{ url: string }> => {
+    const { startPortalSessionHandler } = await import('./billing.effects')
+    return startPortalSessionHandler(data)
   })

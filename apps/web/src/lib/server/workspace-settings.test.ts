@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test'
-import { loadWorkspaceSettings } from './workspace-settings'
+import { loadWorkspaceSettings } from './workspace-settings.effects'
 
 /**
  * The loader seam, driven against the Seed layer: `runWorkspaceCapabilities`

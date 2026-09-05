@@ -1,9 +1,11 @@
-import { hasValue } from '@b2b-saas-starter/env/server'
-import { env as cloudflareEnv } from 'cloudflare:workers'
+import { createServerFn } from '@tanstack/react-start'
 
 /**
  * The public, non-secret subset of the observability provider env the browser
- * SDKs need. Served to the client through the root route's loader; every field
+ * SDKs need, served through a **client-safe** server-fn module. The env-bag
+ * read lives in `telemetry-config.effects.ts`, reached only through dynamic
+ * `import()` inside the handler: TanStack Start strips handler bodies from
+ * the client build, so `env/server`'s Effect graph never ships. Every field
  * stays undefined when its variable is unset, which keeps both vendors
  * inactive on a provider-light deployment.
  */
@@ -13,25 +15,10 @@ export type ClientTelemetryConfig = {
   readonly posthogHost: string | undefined
 }
 
-/**
- * Absent, null, and empty all count as unset — no empty-string DSNs reach an
- * SDK. (Worker env keys for unset optional providers arrive as `null` from
- * deploys that forward them explicitly, so `undefined` alone is not enough.)
- * The test itself is `hasValue` from `@b2b-saas-starter/env` — the one
- * "unset means inactive" rule; this only turns its verdict into the optional
- * string the client config carries.
- */
-function nonEmptyEnvValue(value: string | null | undefined): string | undefined {
-  return hasValue(value) ? value : undefined
-}
-
-/** Runs on the server only — it reads the worker's env bag. */
-export function readClientTelemetryConfig(): ClientTelemetryConfig {
-  return {
-    // DSNs and PostHog project keys are public ingest identifiers by design;
-    // no secret ever reaches this object.
-    sentryDsn: nonEmptyEnvValue(cloudflareEnv.SENTRY_DSN),
-    posthogKey: nonEmptyEnvValue(cloudflareEnv.POSTHOG_KEY),
-    posthogHost: nonEmptyEnvValue(cloudflareEnv.POSTHOG_HOST)
-  }
-}
+/** Hands the browser SDKs their config; identity-free, so no gate applies. */
+export const clientTelemetryConfigServerFn = createServerFn({
+  method: 'GET'
+}).handler(async (): Promise<ClientTelemetryConfig> => {
+  const { readClientTelemetryConfig } = await import('./telemetry-config.effects')
+  return readClientTelemetryConfig()
+})

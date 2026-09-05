@@ -9,7 +9,7 @@ import { WorkspaceShell } from '@/components/workspace-shell'
 import { requireSession } from '@/lib/server/auth'
 import {
   isNotificationKind,
-  loadNotificationPreferences
+  loadNotificationPreferencesServerFn
 } from '@/lib/server/notification-preferences'
 import { pickOptionalStrings } from '@/lib/utils'
 
@@ -26,8 +26,7 @@ export const Route = createFileRoute('/account_/notifications')({
     const session = await requireSession(location.href)
     return { session }
   },
-  loader: ({ context }) =>
-    loadNotificationPreferences({ userId: context.session.user.id }),
+  loader: () => loadNotificationPreferencesServerFn(),
   component: AccountNotificationsRoute,
   head: () => ({ meta: [{ title: pageTitle('Notification preferences') }] })
 })

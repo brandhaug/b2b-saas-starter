@@ -1,17 +1,25 @@
-import {
-  SsoConnections,
-  type SsoConnection
-} from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
+import { type SsoConnection } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { type WorkspaceViewer } from '@/lib/permissions'
-import { Effect } from 'effect'
+import { createServerFn } from '@tanstack/react-start'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { whenPermitted } from './authorize'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
-import {
-  workspaceExportsSegment,
-  type WorkspaceExportsSegment
-} from './workspace-exports'
+import { expectRecord, expectString } from './input-shape'
+import { type WorkspaceExportsSegment } from './workspace-exports'
+
+/**
+ * The workspace settings loader, in a **client-safe** module.
+ *
+ * This file is statically imported by the settings route, and the route tree
+ * ships to the browser — so everything at this module's top level rides on
+ * every page. That is why the payload assembly and its imports (the
+ * capability services, the permission helpers, the export segment) live in
+ * `workspace-settings.effects.ts` and are reached only through dynamic
+ * `import()` inside the handler: TanStack Start strips handler bodies from
+ * the client build, so the capabilities graph never ships, while the payload
+ * type still does.
+ *
+ * The behaviour is tested as the plain loader function in the effects file
+ * (`workspace-settings.test.ts`), driven directly with fixture actors.
+ */
 
 /**
  * The workspace settings payload, assembled per actor.
@@ -48,39 +56,31 @@ export type WorkspaceSettingsPayload = {
   readonly exports: WorkspaceExportsSegment | null
 }
 
-/**
- * `notification:read` is the page's own read permission and a hard gate: an
- * actor who cannot read notifications has no settings page to render, so that
- * is a 403 rather than an empty shell.
- */
-const settingsPayload: WorkspacePageFrame<WorkspaceSettingsPayload> = workspacePage(
-  { notification: ['read'] },
-  (ctx) =>
-    Effect.map(
-      Effect.all(
-        {
-          unreadCount,
-          ssoConnections: whenPermitted(
-            { sso: ['list'] },
-            Effect.flatMap(SsoConnections, (sso) => sso.list)
-          ),
-          exports: whenPermitted(
-            { workspaceExport: ['request'] },
-            workspaceExportsSegment
-          )
-        },
-        { concurrency: 'unbounded' }
-      ),
-      (segments) => ({ workspaceName: ctx.workspace.name, ...segments })
-    )
-)
-
-/** The settings route's loader. */
-export function loadWorkspaceSettings(input: {
+type WorkspaceSettingsInput = {
   readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceSettingsPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, settingsPayload, {
-    userId: input.userId
-  })
 }
+
+/**
+ * The server fn's validator, a plain shape check that runs on the server only
+ * (TanStack strips `.validator()` from the client build): it is the server's
+ * first decode, and the strict schema decodes again in
+ * `workspace-settings.effects.ts`.
+ */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
+function decodeSettingsInput(input: unknown): WorkspaceSettingsInput {
+  const record = expectRecord(input, 'settings input')
+  return { workspaceSlug: expectString(record, 'workspaceSlug', 'settings input') }
+}
+
+/**
+ * The settings route's loader. `notification:read` is the page's own read
+ * permission and a hard gate: an actor who cannot read notifications has no
+ * settings page to render, so that is a 403 rather than an empty shell.
+ */
+export const loadWorkspaceSettingsServerFn = createServerFn({ method: 'GET' })
+  .validator(decodeSettingsInput)
+  .handler(async ({ data }): Promise<WorkspaceSettingsPayload> => {
+    const { loadWorkspaceSettingsHandler } =
+      await import('./workspace-settings.effects')
+    return loadWorkspaceSettingsHandler(data)
+  })

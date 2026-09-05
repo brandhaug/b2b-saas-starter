@@ -1,10 +1,6 @@
-import {
-  type AuditEvent,
-  AuditEventLog
-} from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute } from '@tanstack/react-router'
-import { Effect } from 'effect'
 
 import { AdminUserActions } from '@/components/admin-user-actions'
 import { BanUserAction } from '@/components/ban-user-action'
@@ -15,9 +11,12 @@ import { Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
 import { RoutePending } from '@/components/route-pending'
-import { runCapabilities } from '@/lib/capabilities'
 import { formatDateTime } from '@/lib/format-date'
-import { listSystemUsersServerFn, type SystemUser } from '@/lib/server/admin'
+import {
+  listSystemUsersServerFn,
+  loadAdminAuditEventsServerFn,
+  type SystemUser
+} from '@/lib/server/admin'
 import { requireAdmin } from '@/lib/server/auth'
 
 // Column definitions are static — module scope keeps the cell renderers out of
@@ -88,17 +87,12 @@ export const Route = createFileRoute('/admin')({
     return { session }
   },
   // System-level reads only — no workspace is borrowed: users come from the
-  // PlatformUserAdmin capability, audit events from the global log via the
-  // non-workspace capabilities runner. Both reads are started before either
-  // is awaited, so they still overlap.
+  // PlatformUserAdmin capability, audit events from the global log, both via
+  // the non-workspace server fns in lib/server/admin. Both reads are started
+  // before either is awaited, so they still overlap.
   loader: async () => {
     const usersRead = listSystemUsersServerFn()
-    const eventsRead = runCapabilities(
-      Effect.gen(function* () {
-        const log = yield* AuditEventLog
-        return yield* log.listGlobal
-      })
-    )
+    const eventsRead = loadAdminAuditEventsServerFn()
     return { users: await usersRead, events: await eventsRead }
   },
   pendingComponent: RoutePending,

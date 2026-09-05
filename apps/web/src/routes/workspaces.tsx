@@ -1,8 +1,7 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router'
-import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { RoutePending } from '@/components/route-pending'
 import { requireSession } from '@/lib/server/auth'
-import { runCapabilities } from '@/lib/capabilities'
+import { loadWorkspaceDirectoryServerFn } from '@/lib/server/workspace-directory'
 import {
   WorkspaceDirectoryContext,
   type WorkspaceDirectory
@@ -22,8 +21,9 @@ export const Route = createFileRoute('/workspaces')({
   // once per subtree visit and feeds the sidebar switcher, the user menu's
   // switch submenu, and the workspaces index — one read, published through
   // the context provider below instead of a payload prop on every page.
-  loader: ({ context }) =>
-    runCapabilities(listWorkspacesForUser(context.session.user.id)),
+  // The read itself lives behind the server fn in lib/server, so the route
+  // tree stays free of the capabilities graph.
+  loader: () => loadWorkspaceDirectoryServerFn(),
   pendingComponent: RoutePending,
   component: WorkspacesLayout
 })

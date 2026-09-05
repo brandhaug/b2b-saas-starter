@@ -1,54 +1,165 @@
 import {
   type CreatedWebhookEndpoint,
-  type UpdateWebhookEndpointInput,
-  type WebhookDispatchRejected,
-  type WebhookEndpointNotFound,
-  type WebhookDeliveryNotFound,
-  WebhookEndpoints,
   type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { type InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema, type Scope } from 'effect'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
-import { requireWorkspacePermission } from './authorize'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
+import { expectOptionalString, expectRecord, expectString } from './input-shape'
 
-// All input constraints live in the schema — no imperative re-validation.
-const CreateWebhookInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  url: Schema.NonEmptyString,
-  events: Schema.NonEmptyArray(Schema.NonEmptyString)
-})
+/**
+ * The webhook server functions, in a **client-safe** module.
+ *
+ * This file is statically imported by the webhooks route and the components
+ * it renders, and the route tree ships to the browser — so everything at
+ * this module's top level rides on every page. That is why the mutation
+ * effects and the payload assembly (the capability service, the permission
+ * helper, the page frame) live in `webhooks.effects.ts` and are reached only
+ * through dynamic `import()` inside each handler: TanStack Start strips
+ * handler bodies from the client build, so the effects graph never ships.
+ * The validators are stripped the same way handler bodies are —
+ * `.validator()` runs on the server only — so the plain shape checks below
+ * are the server's first decode, a wire-shape gate that declares each fn's
+ * input type without dragging the Effect Schema chunk onto the route tree,
+ * while the strict schemas (event bounds, optional patch fields) decode
+ * again in the effects file before anything runs.
+ *
+ * The behaviour itself is tested as the plain effects in the effects file
+ * (`webhooks.test.ts` imports `webhooks.effects.ts` directly), driven with
+ * fixture layers and fixture actors.
+ */
 
-const decodeCreateInput = Schema.decodeUnknownSync(CreateWebhookInput)
+/** Input shape of `createWebhookEndpointServerFn`, for its client stub. */
+type CreateWebhookInput = {
+  readonly workspaceSlug: string
+  readonly url: string
+  readonly events: ReadonlyArray<string>
+}
+
+type EndpointMutationInput = {
+  readonly workspaceSlug: string
+  readonly endpointId: string
+}
+
+type UpdateEndpointInput = {
+  readonly workspaceSlug: string
+  readonly endpointId: string
+  readonly url?: string | undefined
+  readonly events?: ReadonlyArray<string> | undefined
+  readonly enabled?: boolean | undefined
+}
+
+type ReplayDeliveryInput = {
+  readonly workspaceSlug: string
+  readonly deliveryId: string
+}
+
+type WorkspaceWebhooksInput = {
+  readonly workspaceSlug: string
+}
+
+/**
+ * The server fns' validators, plain shape checks that run on the server only
+ * (TanStack strips `.validator()` from the client build): they are the
+ * server's first decode, a wire-shape gate, and the strict schemas — event
+ * bounds, optional patch fields — decode again in `webhooks.effects.ts`.
+ * The array and boolean probes live here beside `input-shape.ts`'s string
+ * probes because only this module sends those shapes over the wire; these
+ * probes ARE the I/O boundary, so `unknown` in and `throw` out is the
+ * contract, the same exemption `pickOptionalStrings` carries (lib/utils.ts).
+ */
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, effect/noThrowStatement, effect/noNewError, unicorn/prefer-type-error
+function isNonEmptyStringArray(value: unknown): value is ReadonlyArray<string> {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => typeof item === 'string' && item.length > 0)
+  )
+}
+
+function expectStringArray(
+  record: Record<string, unknown>,
+  key: string,
+  label: string
+): ReadonlyArray<string> {
+  const value = record[key]
+  if (!isNonEmptyStringArray(value)) {
+    throw new Error(`Invalid ${label}: ${key}`)
+  }
+  return value
+}
+
+function expectOptionalStringArray(
+  record: Record<string, unknown>,
+  key: string,
+  label: string
+): ReadonlyArray<string> | undefined {
+  return record[key] === undefined ? undefined : expectStringArray(record, key, label)
+}
+
+function expectOptionalBoolean(
+  record: Record<string, unknown>,
+  key: string,
+  label: string
+): boolean | undefined {
+  const value = record[key]
+  if (value === undefined) {
+    return undefined
+  }
+  if (typeof value !== 'boolean') {
+    throw new Error(`Invalid ${label}: ${key}`)
+  }
+  return value
+}
+
+function decodeCreateInput(input: unknown): CreateWebhookInput {
+  const record = expectRecord(input, 'webhook input')
+  return {
+    workspaceSlug: expectString(record, 'workspaceSlug', 'webhook input'),
+    url: expectString(record, 'url', 'webhook input'),
+    events: expectStringArray(record, 'events', 'webhook input')
+  }
+}
+
+function decodeEndpointMutation(input: unknown): EndpointMutationInput {
+  const record = expectRecord(input, 'webhook input')
+  return {
+    workspaceSlug: expectString(record, 'workspaceSlug', 'webhook input'),
+    endpointId: expectString(record, 'endpointId', 'webhook input')
+  }
+}
+
+function decodeUpdateEndpoint(input: unknown): UpdateEndpointInput {
+  const record = expectRecord(input, 'webhook input')
+  return {
+    workspaceSlug: expectString(record, 'workspaceSlug', 'webhook input'),
+    endpointId: expectString(record, 'endpointId', 'webhook input'),
+    url: expectOptionalString(record, 'url', 'webhook input'),
+    events: expectOptionalStringArray(record, 'events', 'webhook input'),
+    enabled: expectOptionalBoolean(record, 'enabled', 'webhook input')
+  }
+}
+
+function decodeReplayDelivery(input: unknown): ReplayDeliveryInput {
+  const record = expectRecord(input, 'webhook input')
+  return {
+    workspaceSlug: expectString(record, 'workspaceSlug', 'webhook input'),
+    deliveryId: expectString(record, 'deliveryId', 'webhook input')
+  }
+}
+
+function decodeWebhooksInput(input: unknown): WorkspaceWebhooksInput {
+  const record = expectRecord(input, 'webhooks input')
+  return { workspaceSlug: expectString(record, 'workspaceSlug', 'webhooks input') }
+}
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, effect/noThrowStatement, effect/noNewError, unicorn/prefer-type-error
 
 export const createWebhookEndpointServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeCreateInput(input))
+  .validator(decodeCreateInput)
   .handler(async ({ data }): Promise<CreatedWebhookEndpoint> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      Effect.gen(function* () {
-        // The session gate above proves who is asking; this proves they may.
-        yield* requireWorkspacePermission({ webhook: ['create'] })
-        const webhooks = yield* WebhookEndpoints
-        // The entitlement gate and webhook fan-out live inside the capability,
-        // below the interface — identical for every surface.
-        return yield* webhooks.create({
-          url: data.url,
-          events: data.events
-        })
-      }),
-      { userId: session.user.id }
-    )
+    const { createWebhookEndpointHandler } = await import('./webhooks.effects')
+    return createWebhookEndpointHandler(data)
   })
 
 /**
@@ -70,208 +181,40 @@ export type WorkspaceWebhooksPayload = {
 }
 
 /**
- * `webhook:list` is the page's own read permission and a hard gate.
+ * The webhooks route's loader. `webhook:list` is the page's own read
+ * permission and a hard gate.
  */
-const webhooksPayload: WorkspacePageFrame<WorkspaceWebhooksPayload> = workspacePage(
-  { webhook: ['list'] },
-  () =>
-    Effect.gen(function* () {
-      const webhooks = yield* WebhookEndpoints
-      const segment = yield* Effect.all(
-        { unreadCount, endpoints: webhooks.list },
-        { concurrency: 'unbounded' }
-      )
-      const endpoints = yield* Effect.forEach(
-        segment.endpoints,
-        (endpoint) =>
-          Effect.map(
-            webhooks.listDeliveries({ endpointId: endpoint.id }),
-            (deliveries) => ({ ...endpoint, deliveries })
-          ),
-        { concurrency: 'unbounded' }
-      )
-      return { unreadCount: segment.unreadCount, endpoints }
-    })
-)
-
-/** The webhooks route's loader. */
-export function loadWorkspaceWebhooks(input: {
-  readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceWebhooksPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, webhooksPayload, {
-    userId: input.userId
+export const loadWorkspaceWebhooksServerFn = createServerFn({ method: 'GET' })
+  .validator(decodeWebhooksInput)
+  .handler(async ({ data }): Promise<WorkspaceWebhooksPayload> => {
+    const { loadWorkspaceWebhooksHandler } = await import('./webhooks.effects')
+    return loadWorkspaceWebhooksHandler(data)
   })
-}
-
-// All input constraints live in the schema — no imperative re-validation.
-const EndpointMutationSchema = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  endpointId: Schema.NonEmptyString
-})
-
-const decodeEndpointMutation = Schema.decodeUnknownSync(EndpointMutationSchema)
-
-// All input constraints live in the schema — no imperative re-validation.
-const UpdateEndpointInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  endpointId: Schema.NonEmptyString,
-  url: Schema.optionalKey(Schema.NonEmptyString),
-  events: Schema.optionalKey(Schema.NonEmptyArray(Schema.NonEmptyString)),
-  enabled: Schema.optionalKey(Schema.Boolean)
-})
-
-const decodeUpdateEndpoint = Schema.decodeUnknownSync(UpdateEndpointInput)
-
-/**
- * The effect below the session gate: proves the actor may update
- * (`webhook:update`), then hands the patch to the capability. Disabling is
- * `update { enabled: false }` — there is no separate disable mutation to keep
- * in step. Exported so tests drive it against fixture layers without a
- * request or an auth runtime; an unknown endpoint fails the capability's
- * typed `WebhookEndpointNotFound`, which `callServerFn` folds into the
- * calling form's failure message.
- */
-export function updateWebhookEndpoint(
-  input: UpdateWebhookEndpointInput
-): Effect.Effect<
-  WebhookEndpoint,
-  | AuthorizationDenied
-  | CapabilityUnavailable
-  | InvalidWebhookUrl
-  | WebhookEndpointNotFound,
-  Scope.Scope | WorkspaceContext | WebhookEndpoints
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ webhook: ['update'] })
-    const webhooks = yield* WebhookEndpoints
-    // The patch is the input: the gate above is the only decision this effect
-    // adds, and the capability's own input contract types the patch's
-    // optionality — absent fields stay absent.
-    return yield* webhooks.update(input)
-  })
-}
 
 export const updateWebhookEndpointServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeUpdateEndpoint(input))
+  .validator(decodeUpdateEndpoint)
   .handler(async ({ data }): Promise<WebhookEndpoint> => {
-    const session = await requireRequestSession()
-    // Rest-destructuring drops `workspaceSlug` and keeps every optional field
-    // exactly as the schema decoded it — absent fields stay absent.
-    const { workspaceSlug, ...input } = data
-    return runWorkspaceCapabilities(workspaceSlug, updateWebhookEndpoint(input), {
-      userId: session.user.id
-    })
+    const { updateWebhookEndpointHandler } = await import('./webhooks.effects')
+    return updateWebhookEndpointHandler(data)
   })
-
-/**
- * Resolves the new signing secret to show once. An unknown endpoint fails the
- * capability's typed `WebhookEndpointNotFound` — folded into the panel's
- * failure message like every other rejection. Exported for tests, same seam
- * as `updateWebhookEndpoint`.
- */
-export function rotateWebhookSecret(input: {
-  readonly endpointId: string
-}): Effect.Effect<
-  string,
-  AuthorizationDenied | CapabilityUnavailable | WebhookEndpointNotFound,
-  Scope.Scope | WorkspaceContext | WebhookEndpoints
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ webhook: ['rotateSecret'] })
-    const webhooks = yield* WebhookEndpoints
-    const rotated = yield* webhooks.rotateSecret(input)
-    return rotated.signingSecret
-  })
-}
 
 export const rotateWebhookSecretServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeEndpointMutation(input))
+  .validator(decodeEndpointMutation)
   .handler(async ({ data }): Promise<string> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      rotateWebhookSecret({
-        endpointId: data.endpointId
-      }),
-      { userId: session.user.id }
-    )
+    const { rotateWebhookSecretHandler } = await import('./webhooks.effects')
+    return rotateWebhookSecretHandler(data)
   })
-
-// All input constraints live in the schema — no imperative re-validation.
-const ReplayDeliveryInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  deliveryId: Schema.NonEmptyString
-})
-
-const decodeReplayDelivery = Schema.decodeUnknownSync(ReplayDeliveryInput)
-
-/**
- * The effect below the session gate for a replay. Fails with the capability's
- * typed errors (`WebhookDeliveryNotFound` 404, `WebhookDispatchRejected` 409)
- * which `callServerFn` folds into the drawer's failure message.
- */
-export function replayWebhookDelivery(input: {
-  readonly deliveryId: string
-}): Effect.Effect<
-  { readonly deliveryId: string },
-  | AuthorizationDenied
-  | CapabilityUnavailable
-  | WebhookDeliveryNotFound
-  | WebhookDispatchRejected,
-  Scope.Scope | WorkspaceContext | WebhookEndpoints
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ webhook: ['replay'] })
-    const webhooks = yield* WebhookEndpoints
-    return yield* webhooks.replayDelivery(input)
-  })
-}
 
 export const replayWebhookDeliveryServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeReplayDelivery(input))
+  .validator(decodeReplayDelivery)
   .handler(async ({ data }): Promise<{ readonly deliveryId: string }> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      replayWebhookDelivery({ deliveryId: data.deliveryId }),
-      { userId: session.user.id }
-    )
+    const { replayWebhookDeliveryHandler } = await import('./webhooks.effects')
+    return replayWebhookDeliveryHandler(data)
   })
-
-// All input constraints live in the schema — no imperative re-validation.
-const SendTestEventInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  endpointId: Schema.NonEmptyString
-})
-
-const decodeSendTestEvent = Schema.decodeUnknownSync(SendTestEventInput)
-
-/** Same seam as `replayWebhookDelivery`, for the endpoint-level test send. */
-export function sendTestEvent(input: {
-  readonly endpointId: string
-}): Effect.Effect<
-  { readonly deliveryId: string },
-  | AuthorizationDenied
-  | CapabilityUnavailable
-  | WebhookEndpointNotFound
-  | WebhookDispatchRejected,
-  Scope.Scope | WorkspaceContext | WebhookEndpoints
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ webhook: ['test'] })
-    const webhooks = yield* WebhookEndpoints
-    return yield* webhooks.sendTestEvent(input)
-  })
-}
 
 export const sendTestEventServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeSendTestEvent(input))
+  .validator(decodeEndpointMutation)
   .handler(async ({ data }): Promise<{ readonly deliveryId: string }> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      sendTestEvent({ endpointId: data.endpointId }),
-      { userId: session.user.id }
-    )
+    const { sendTestEventHandler } = await import('./webhooks.effects')
+    return sendTestEventHandler(data)
   })

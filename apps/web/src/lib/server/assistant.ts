@@ -1,31 +1,33 @@
-import {
-  AssistantService,
-  isAssistantConfigured,
-  selectAssistantLayer,
-  type AssistantProvider,
-  type ProviderEnv
-} from '@b2b-saas-starter/ai'
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { type AssistantProvider } from '@b2b-saas-starter/ai'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema, type Scope } from 'effect'
 
-import { env as cloudflareEnv } from 'cloudflare:workers'
-
-import { runWorkspaceCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
-import { requireWorkspacePermission } from './authorize'
-import { workspacePage, type WorkspacePageFrame } from './page-frame'
+import { expectRecord, expectString } from './input-shape'
 
 /**
- * Honest copy shown wherever the assistant would be, when no provider is
- * configured. It names the variables that enable the feature instead of
- * pretending it is broken (CLAUDE.md rule 3 — provider-light).
+ * The assistant server functions and the assistant loader, in a
+ * **client-safe** module.
+ *
+ * This file is statically imported by the assistant route, the page
+ * component and its tests, and the route tree ships to the browser — so
+ * everything at this module's top level rides on every page. That is why
+ * the ask effect and the payload assembly (the AI service selection, the
+ * permission helper, the worker env) live in `assistant.effects.ts` and are
+ * reached only through dynamic `import()` inside each handler: TanStack
+ * Start strips handler bodies from the client build, so the effects graph
+ * never ships. The validators are stripped the same way — `.validator()`
+ * runs on the server only — so the plain shape checks below are the
+ * server's first decode, a wire-shape gate that declares each fn's input
+ * type without dragging the Effect Schema chunk onto the route tree, while
+ * the strict schemas decode again in the effects file before anything runs.
+ *
+ * The behaviour itself is tested as the plain effects in the effects file
+ * (`assistant.test.ts` imports `assistant.effects.ts` directly).
  */
-export const ASSISTANT_UNCONFIGURED_MESSAGE =
-  'The AI assistant is not enabled on this deployment. Set WORKERS_AI_ENABLED=true with the AI binding, or OPENAI_API_KEY, to turn it on.'
+
+// `ASSISTANT_UNCONFIGURED_MESSAGE` moved to `lib/assistant-copy.ts`: both the
+// effects half and the page need it as a value, and owning it here would make
+// `assistant.effects.ts` import one from its client-safe twin (a cycle).
 
 /**
  * The assistant page payload: who is viewing and whether a real provider is
@@ -43,20 +45,45 @@ export type AssistantPagePayload = {
   readonly configured: boolean
 }
 
-const assistantPagePayload: WorkspacePageFrame<AssistantPagePayload> = workspacePage(
-  { assistant: ['read'] },
-  () => Effect.sync(() => ({ configured: isAssistantConfigured(cloudflareEnv) }))
-)
+type AssistantPageInput = {
+  readonly workspaceSlug: string
+}
+
+type AskAssistantInput = {
+  readonly workspaceSlug: string
+  readonly question: string
+}
+
+/**
+ * The server fns' validators, plain shape checks that run on the server only
+ * (TanStack strips `.validator()` from the client build): they are the
+ * server's first decode, and the strict schemas — the question's length
+ * bounds — decode again in `assistant.effects.ts`. These probes ARE the
+ * I/O boundary, so `unknown` in and `throw` out is the contract, the same
+ * exemption `pickOptionalStrings` carries (lib/utils.ts).
+ */
+// oxlint-disable anti-slop/no-unknown-parameters
+function decodePageInput(input: unknown): AssistantPageInput {
+  const record = expectRecord(input, 'assistant input')
+  return { workspaceSlug: expectString(record, 'workspaceSlug', 'assistant input') }
+}
+
+function decodeAskInput(input: unknown): AskAssistantInput {
+  const record = expectRecord(input, 'assistant input')
+  return {
+    workspaceSlug: expectString(record, 'workspaceSlug', 'assistant input'),
+    question: expectString(record, 'question', 'assistant input')
+  }
+}
+// oxlint-enable anti-slop/no-unknown-parameters
 
 /** The assistant route's loader. */
-export function loadAssistantPage(input: {
-  readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<AssistantPagePayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, assistantPagePayload, {
-    userId: input.userId
+export const loadAssistantPageServerFn = createServerFn({ method: 'GET' })
+  .validator(decodePageInput)
+  .handler(async ({ data }): Promise<AssistantPagePayload> => {
+    const { loadAssistantPageHandler } = await import('./assistant.effects')
+    return loadAssistantPageHandler(data)
   })
-}
 
 /**
  * What an ask turns into. Failures are values here rather than rejections:
@@ -81,77 +108,9 @@ export type AskAssistantOutcome =
       readonly message: string
     }
 
-// All input constraints live in the schema — mirrors AssistantPrompt in
-// `packages/ai` so the UI cannot send what the capability would refuse.
-export const AskAssistantInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  question: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000))
-})
-
-const decodeAskInput = Schema.decodeUnknownSync(AskAssistantInput)
-
-/**
- * The effect below the session gate: proves the actor may use the assistant
- * (`assistant: ['read']`), then asks through `AssistantService`. Exported so
- * tests drive it against fixture layers without a request or auth runtime.
- *
- * The service is a requirement, not an import — the caller provides the layer
- * selected from the deployment's env, which keeps this effect honest under test.
- */
-export function askAssistantEffect(
-  question: string,
-  provider: ProviderEnv
-): Effect.Effect<
-  AskAssistantOutcome,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext | AssistantService
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ assistant: ['read'] })
-    const ctx = yield* WorkspaceContext
-    if (!isAssistantConfigured(provider)) {
-      return {
-        ok: false,
-        reason: 'unconfigured',
-        message: ASSISTANT_UNCONFIGURED_MESSAGE
-      }
-    }
-    const service = yield* AssistantService
-    // Annotated so the outcome object literals keep their discriminated
-    // `ok` values instead of widening to `boolean`.
-    const answered: Effect.Effect<AskAssistantOutcome, never, never> = service
-      .ask({ workspaceSlug: ctx.workspace.slug, question })
-      .pipe(
-        Effect.map((reply): AssistantAnswered => ({
-          ok: true,
-          answer: reply.answer,
-          provider: reply.provider,
-          modelId: reply.modelId
-        })),
-        Effect.catchTag('AssistantUnavailable', (error) =>
-          Effect.succeed<AssistantRefused>({
-            ok: false,
-            reason: 'unavailable',
-            message: `The assistant could not answer right now (${error.reason}).`
-          })
-        )
-      )
-    return yield* answered
-  })
-}
-
 export const askAssistantServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeAskInput(input))
+  .validator(decodeAskInput)
   .handler(async ({ data }): Promise<AskAssistantOutcome> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      askAssistantEffect(data.question, cloudflareEnv).pipe(
-        // Per call, from the same worker env the configured-check reads —
-        // mock when unconfigured, Workers AI / OpenAI-compatible when the
-        // deployment says so.
-        Effect.provide(selectAssistantLayer(cloudflareEnv))
-      ),
-      { userId: session.user.id }
-    )
+    const { askAssistantHandler } = await import('./assistant.effects')
+    return askAssistantHandler(data)
   })

@@ -5,16 +5,16 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/account-lifecycle'
 
 import { runCapabilities } from '../capabilities'
-import {
-  notificationPreferencesPayload,
-  type NotificationPreferenceRow
-} from './notification-preferences'
+import { requireRequestSession } from './auth'
+import { type NotificationPreferenceRow } from './notification-preferences'
+import { notificationPreferencesPayload } from './notification-preferences.effects'
 
 /**
- * The `/account` page's server reads — plain module functions the route's
- * loader calls directly, testable against the Seed layer like
- * `loadWorkspaceDashboard`. The delete is a server fn whose handler lives in
- * `account-delete.ts`, reached through a dynamic import (see `account.ts`).
+ * The `/account` page's server reads, testable against the Seed layer like
+ * `loadWorkspaceDashboard`. The route reaches them through
+ * `loadAccountPageServerFn` (in the client-safe `account.ts`), whose handler
+ * imports this module dynamically; the delete is a server fn whose handler
+ * lives in `account-delete.ts`, reached the same way.
  *
  * This surface is user-level, not workspace-level: no `WorkspaceContext`, no
  * workspace permission gate — the ownership rule lives in the capability, and
@@ -59,6 +59,16 @@ export function loadAccountPageData(input: { readonly userId: string }): Promise
       })
     )
   )
+}
+
+/** The handler the loader server fn delegates to; the session keys the read. */
+export async function loadAccountPageHandler(): Promise<
+  AccountPagePayload & {
+    readonly preferences: ReadonlyArray<NotificationPreferenceRow>
+  }
+> {
+  const session = await requireRequestSession()
+  return loadAccountPageData({ userId: session.user.id })
 }
 
 /**

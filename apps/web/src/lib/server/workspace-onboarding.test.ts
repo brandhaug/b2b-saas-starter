@@ -11,8 +11,8 @@ import {
 import { describe, expect, it } from 'vite-plus/test'
 import { Effect, Layer } from 'effect'
 
-import { loadWorkspaceDashboard } from './workspace-dashboard'
-import { dismissOnboardingChecklist } from './workspace-onboarding'
+import { loadWorkspaceDashboard } from './workspace-dashboard.effects'
+import { dismissOnboardingChecklist } from './workspace-onboarding.effects'
 
 /**
  * Dismissal below its session gate: the `onboarding:dismiss` permission is the

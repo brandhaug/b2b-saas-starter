@@ -1,31 +1,31 @@
+import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import {
-  ApiTokenRegistry,
-  type ApiToken
-} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import {
-  WebhookEndpoints,
-  type WebhookEndpoint
-} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import {
-  AuditEventLog,
-  type AuditEvent
-} from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import {
-  WorkspaceInvitations,
-  type Invitation
-} from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import {
-  workspaceDashboard,
-  workspaceProgress,
   type WorkspaceDashboardProjection,
   type WorkspaceProgressProjection
 } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { type WorkspaceViewer } from '@/lib/permissions'
-import { Effect } from 'effect'
+import { createServerFn } from '@tanstack/react-start'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { permitted, whenPermitted } from './authorize'
-import { workspacePage, type WorkspacePageFrame } from './page-frame'
+import { expectRecord, expectString } from './input-shape'
+
+/**
+ * The dashboard loader, in a **client-safe** module.
+ *
+ * This file is statically imported by the workspace index route (and its
+ * payload type by `/demo`), and the route tree ships to the browser — so
+ * everything at this module's top level rides on every page. That is why the
+ * payload assembly and its imports (the capability services, the permission
+ * helpers, the projections) live in `workspace-dashboard.effects.ts` and are
+ * reached only through dynamic `import()` inside the handler: TanStack Start
+ * strips handler bodies from the client build, so the capabilities graph
+ * never ships, while the payload type still does.
+ *
+ * The behaviour is tested as the plain loader function in the effects file
+ * (`workspace-dashboard.test.ts`), driven directly with fixture actors.
+ */
 
 /**
  * The dashboard payload, assembled per actor: the `workspaceDashboard`
@@ -48,59 +48,27 @@ export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
   readonly progress: WorkspaceProgressProjection
 }
 
-/**
- * The checklist's developer-platform steps read the token and endpoint lists,
- * which the matrix withholds from a `member`. The projection cannot decide
- * that, so the loader does — the same decision `whenPermitted` makes for the
- * webhook segment, applied to two steps instead of one segment.
- */
-const progress = Effect.flatMap(
-  permitted({ apiToken: ['list'], webhook: ['list'] }),
-  (developerPlatform) => workspaceProgress({ developerPlatform })
-)
+type WorkspaceDashboardInput = {
+  readonly workspaceSlug: string
+}
 
-const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspacePage(
-  { notification: ['read'] },
-  () =>
-    Effect.map(
-      Effect.all(
-        {
-          core: workspaceDashboard,
-          webhooks: whenPermitted(
-            { webhook: ['list'] },
-            Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
-          ),
-          apiTokens: whenPermitted(
-            { apiToken: ['list'] },
-            Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
-          ),
-          invitations: whenPermitted(
-            { invitation: ['create'] },
-            Effect.flatMap(WorkspaceInvitations, (invites) => invites.list)
-          ),
-          auditEvents: whenPermitted(
-            { auditLog: ['read'] },
-            Effect.flatMap(AuditEventLog, (log) =>
-              Effect.map(log.list(), (page) => page.events.slice(0, 5))
-            )
-          ),
-          progress
-        },
-        { concurrency: 'unbounded' }
-      ),
-      (segments) => {
-        const { core, ...soft } = segments
-        return { ...core, ...soft }
-      }
-    )
-)
+/**
+ * The server fn's validator, a plain shape check that runs on the server only
+ * (TanStack strips `.validator()` from the client build): it is the server's
+ * first decode, and the strict schema decodes again in
+ * `workspace-dashboard.effects.ts`.
+ */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
+function decodeDashboardInput(input: unknown): WorkspaceDashboardInput {
+  const record = expectRecord(input, 'dashboard input')
+  return { workspaceSlug: expectString(record, 'workspaceSlug', 'dashboard input') }
+}
 
 /** The dashboard route's loader. */
-export function loadWorkspaceDashboard(input: {
-  readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceDashboardPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, dashboardPayload, {
-    userId: input.userId
+export const loadWorkspaceDashboardServerFn = createServerFn({ method: 'GET' })
+  .validator(decodeDashboardInput)
+  .handler(async ({ data }): Promise<WorkspaceDashboardPayload> => {
+    const { loadWorkspaceDashboardHandler } =
+      await import('./workspace-dashboard.effects')
+    return loadWorkspaceDashboardHandler(data)
   })
-}

@@ -24,7 +24,7 @@ import {
   rotateWebhookSecret,
   sendTestEvent,
   updateWebhookEndpoint
-} from './webhooks'
+} from './webhooks.effects'
 
 /**
  * The webhook management surface below its session gate. The mutation effects

@@ -1,54 +1,33 @@
 import {
-  ApiTokenRegistry,
-  ApiTokenScope,
   type ApiToken,
-  type CreatedApiToken,
-  type RevokeApiTokenInput
+  type ApiTokenScope,
+  type CreatedApiToken
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema, type Scope } from 'effect'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
-import { requireWorkspacePermission } from './authorize'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
+import { expectRecord, expectString } from './input-shape'
 
-// All input constraints live in the schema — no imperative re-validation.
-const CreateApiTokenInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  name: Schema.NonEmptyString.check(Schema.isMaxLength(80)),
-  scopes: Schema.NonEmptyArray(ApiTokenScope)
-})
-
-// The schema decoder IS the boundary contract: passing it as the validator
-// keeps the untyped wire value inside `decodeUnknownSync` and hands the handler
-// the decoded domain type.
-const decodeInput = Schema.decodeUnknownSync(CreateApiTokenInput)
-
-export const createApiTokenServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeInput(input))
-  .handler(async ({ data }): Promise<CreatedApiToken> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      Effect.gen(function* () {
-        // The session gate above proves who is asking; this proves they may.
-        yield* requireWorkspacePermission({ apiToken: ['create'] })
-        const tokens = yield* ApiTokenRegistry
-        // The entitlement gate and webhook fan-out live inside the capability,
-        // below the interface — identical for every surface.
-        return yield* tokens.create({
-          name: data.name,
-          scopes: data.scopes
-        })
-      }),
-      { userId: session.user.id }
-    )
-  })
+/**
+ * The API-token server functions, in a **client-safe** module.
+ *
+ * This file is statically imported by the tokens route and its components,
+ * and the route tree ships to the browser — so everything at this module's
+ * top level rides on every page. That is why the loader composition, the
+ * revoke effect and their imports (the capability services, the permission
+ * helpers) live in `api-tokens.effects.ts` and are reached only through
+ * dynamic `import()` inside each handler: TanStack Start strips handler
+ * bodies from the client build, so the capabilities graph never ships. The
+ * validators are stripped the same way handler bodies are — `.validator()`
+ * runs on the server only — so the plain shape checks below are the
+ * server's first decode, a wire-shape gate that declares each fn's input
+ * type without dragging the Effect Schema chunk onto the route tree, while
+ * the strict schemas (scope literals, name bounds) decode again in the
+ * effects file before anything runs.
+ *
+ * The behaviour itself is tested as the loader and revoke effect in the
+ * effects file (`api-tokens.test.ts`), driven directly with fixture actors.
+ */
 
 /**
  * The API tokens payload.
@@ -63,69 +42,97 @@ export type WorkspaceApiTokensPayload = {
   readonly tokens: ReadonlyArray<ApiToken>
 }
 
+/** Input shape of `loadWorkspaceApiTokensServerFn`, for its client stub. */
+type LoadApiTokensInput = {
+  readonly workspaceSlug: string
+}
+
+/** Input shape of `createApiTokenServerFn`, for its client stub. */
+type CreateApiTokenInput = {
+  readonly workspaceSlug: string
+  readonly name: string
+  readonly scopes: ReadonlyArray<ApiTokenScope>
+}
+
+/** Input shape of `revokeApiTokenServerFn`, for its client stub. */
+type RevokeApiTokenInput = {
+  readonly workspaceSlug: string
+  readonly tokenId: string
+}
+
 /**
- * `apiToken:list` is the page's own read permission and a hard gate.
+ * The server fns' validators, plain shape checks that run on the server only
+ * (TanStack strips `.validator()` from the client build): they are the
+ * server's first decode, and the strict schemas — scope literals, name
+ * bounds — decode again in `api-tokens.effects.ts`. `expectStrings` carries
+ * the same exemption the probes in `input-shape.ts` carry: these checks ARE
+ * the I/O boundary, so `unknown` in and `throw` out is the contract.
  */
-const apiTokensPayload: WorkspacePageFrame<WorkspaceApiTokensPayload> = workspacePage(
-  { apiToken: ['list'] },
-  () =>
-    Effect.all(
-      {
-        unreadCount,
-        tokens: Effect.flatMap(ApiTokenRegistry, (registry) => registry.list)
-      },
-      { concurrency: 'unbounded' }
-    )
-)
+// oxlint-disable anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, effect/noThrowStatement, effect/noNewError
+function expectStrings(
+  record: Record<string, unknown>,
+  key: string,
+  label: string
+): ReadonlyArray<string> {
+  const value = record[key]
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new Error(`Invalid ${label}: ${key}`)
+  }
+  return value
+}
+// oxlint-enable anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, effect/noThrowStatement, effect/noNewError
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
+function decodeLoadInput(input: unknown): LoadApiTokensInput {
+  const record = expectRecord(input, 'tokens input')
+  return { workspaceSlug: expectString(record, 'workspaceSlug', 'tokens input') }
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
+function decodeCreateInput(input: unknown): CreateApiTokenInput {
+  const record = expectRecord(input, 'create-token input')
+  return {
+    workspaceSlug: expectString(record, 'workspaceSlug', 'create-token input'),
+    name: expectString(record, 'name', 'create-token input'),
+    // SAFETY: the strict schema in `api-tokens.effects.ts` re-decodes the
+    // scopes against the literal tuple before anything runs; this check only
+    // establishes the wire shape for the client stub's type.
+    // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- the cast only narrows string to the scope union the strict schema enforces
+    scopes: expectStrings(
+      record,
+      'scopes',
+      'create-token input'
+    ) as CreateApiTokenInput['scopes']
+  }
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
+function decodeRevokeInput(input: unknown): RevokeApiTokenInput {
+  const record = expectRecord(input, 'revoke-token input')
+  return {
+    workspaceSlug: expectString(record, 'workspaceSlug', 'revoke-token input'),
+    tokenId: expectString(record, 'tokenId', 'revoke-token input')
+  }
+}
 
 /** The API tokens route's loader. */
-export function loadWorkspaceApiTokens(input: {
-  readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceApiTokensPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, apiTokensPayload, {
-    userId: input.userId
+export const loadWorkspaceApiTokensServerFn = createServerFn({ method: 'GET' })
+  .validator(decodeLoadInput)
+  .handler(async ({ data }): Promise<WorkspaceApiTokensPayload> => {
+    const { loadWorkspaceApiTokensHandler } = await import('./api-tokens.effects')
+    return loadWorkspaceApiTokensHandler(data)
   })
-}
 
-// All input constraints live in the schema — no imperative re-validation.
-const RevokeApiTokenInputSchema = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  tokenId: Schema.NonEmptyString
-})
-
-const decodeRevokeInput = Schema.decodeUnknownSync(RevokeApiTokenInputSchema)
-
-/**
- * The effect below the session gate: proves the actor may revoke
- * (`apiToken:revoke`, declared → enforced here), then hands the revocation to
- * the capability. Exported so tests drive it against fixture layers without a
- * request or an auth runtime. Revoking an unknown id is not an error — the
- * capability resolves `false` and skips the audit row.
- */
-export function revokeApiToken(
-  input: RevokeApiTokenInput
-): Effect.Effect<
-  boolean,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext | ApiTokenRegistry
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ apiToken: ['revoke'] })
-    const tokens = yield* ApiTokenRegistry
-    return yield* tokens.revoke(input)
+export const createApiTokenServerFn = createServerFn({ method: 'POST' })
+  .validator(decodeCreateInput)
+  .handler(async ({ data }): Promise<CreatedApiToken> => {
+    const { createApiTokenHandler } = await import('./api-tokens.effects')
+    return createApiTokenHandler(data)
   })
-}
 
 export const revokeApiTokenServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeRevokeInput(input))
+  .validator(decodeRevokeInput)
   .handler(async ({ data }): Promise<boolean> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      revokeApiToken({
-        tokenId: data.tokenId
-      }),
-      { userId: session.user.id }
-    )
+    const { revokeApiTokenHandler } = await import('./api-tokens.effects')
+    return revokeApiTokenHandler(data)
   })

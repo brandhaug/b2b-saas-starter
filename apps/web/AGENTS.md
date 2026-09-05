@@ -14,7 +14,7 @@ TanStack Start app on a Cloudflare Worker. Owns the public showcase, the auth sc
 ## Usage Patterns
 
 - Loader modules, not inline loaders. `workspacePage(gate, segment)` hard-gates the read permission, resolves `WorkspaceContext` once and wraps a second permission in `whenPermitted`. Payload types belong here, not in `capabilities`: segment shape is an authorization call.
-- A server fn holds the gate; its behavior is an exported effect in a sibling `.effects.ts`, reached by dynamic `import()` because the route tree ships to the browser (`assert-client-boundary.mjs` checks this). Input constraints live in its schema.
+- A server fn holds the gate; its behavior is an exported effect in a sibling `.effects.ts`, reached by dynamic `import()` because the route tree ships to the browser (`assert-client-boundary.mjs` checks this). Input constraints live in its schema: the `.validator()` in the client-safe module is a plain shape check (`lib/server/input-shape.ts`) that runs on the server only — TanStack strips `.validator()` from the client build — and the strict Effect Schema decode is the effects file's first act.
 - Organization-plugin mutations pass a `CapabilityBindings` binding per call, never module env.
 - The UI gates by permission, never role name (`viewerCan`): an unreadable section is absent, an unpermitted action shows a reason, and the server re-checks.
 - Auth-flow routes validate search params with `pickOptionalStrings`; `effect/Schema` there would pin the Effect runtime onto pages that run no capability.

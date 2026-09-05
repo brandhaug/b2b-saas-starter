@@ -2,16 +2,15 @@ import { createFileRoute } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceApiTokensPage } from '@/components/workspace-api-tokens-page'
-import { loadWorkspaceApiTokens } from '@/lib/server/api-tokens'
+import { loadWorkspaceApiTokensServerFn } from '@/lib/server/api-tokens'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there. The page's own read permission
 // (`apiToken:list`) is a hard gate inside the loader.
 export const Route = createFileRoute('/workspaces/$workspaceSlug/api-tokens')({
-  loader: ({ params, context }) =>
-    loadWorkspaceApiTokens({
-      workspaceSlug: params.workspaceSlug,
-      userId: context.session.user.id
+  loader: ({ params }) =>
+    loadWorkspaceApiTokensServerFn({
+      data: { workspaceSlug: params.workspaceSlug }
     }),
   pendingComponent: RoutePending,
   component: WorkspaceApiTokensRoute,

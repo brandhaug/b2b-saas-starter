@@ -1,26 +1,29 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
-  WorkspaceExports,
   type WorkspaceExport,
   type WorkspaceExportAvailability
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { hasValue } from '@b2b-saas-starter/env/server'
 import { createServerFn } from '@tanstack/react-start'
-import { env as cloudflareEnv } from 'cloudflare:workers'
-import { Effect, Option, Schema, type Scope } from 'effect'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
-import { requireWorkspacePermission } from './authorize'
+import { expectRecord, expectString } from './input-shape'
 
 /**
- * Workspace data export (ADR 0055) on the session surface: the settings page's
+ * Workspace data export (ADR 0055) on the session surface, in a
+ * **client-safe** module — the `invitations.ts` pattern: the settings page's
  * export segment and the "Request export" mutation. Both name the owner-only
  * `workspaceExport` statements — the loader withholds the segment from every
  * other role, and the server function re-checks the permission before the
  * capability call, like every other workspace mutation.
+ *
+ * This file is statically imported by the settings route's payload and the
+ * export panel, and the route tree ships to the browser — so everything at
+ * this module's top level rides on every page. That is why the segment
+ * assembly and the request effect (the capability service, the env reader,
+ * the permission gate) live in `workspace-exports.effects.ts` and are
+ * reached only through dynamic `import()` inside the handler: TanStack Start
+ * strips handler bodies from the client build, so the effects graph never
+ * ships. The validator is stripped the same way — `.validator()` runs on the
+ * server only — so the plain shape check below is the server's first decode,
+ * while the strict schema decodes again in the effects file.
  */
 
 /** One export as the settings page renders it: the record plus a signed link when it is downloadable. */
@@ -33,78 +36,28 @@ export type WorkspaceExportsSegment = {
   readonly exports: ReadonlyArray<WorkspaceExportView>
 }
 
-/**
- * Where signed download links point: the API worker serves them. `API_PUBLIC_URL`
- * names the deployed worker; unset means local development, where the API dev
- * server listens on 8787 (`apps/api/package.json`).
- */
-const LOCAL_API_URL = 'http://localhost:8787'
-
-function apiPublicUrl(): string {
-  const configured = cloudflareEnv.API_PUBLIC_URL
-  if (hasValue(configured)) {
-    return configured
-  }
-  return LOCAL_API_URL
+type RequestExportInput = {
+  readonly workspaceSlug: string
 }
 
 /**
- * The export segment of the settings payload. Links are minted here, at load
- * time, after `whenPermitted` has already decided the actor may download —
- * one signed URL per ready export, valid for the capability's link TTL.
+ * The server fn's validator, a plain shape check that runs on the server only
+ * (TanStack strips `.validator()` from the client build): it is the server's
+ * first decode, and the strict schema decodes again in
+ * `workspace-exports.effects.ts`.
  */
-export const workspaceExportsSegment: Effect.Effect<
-  WorkspaceExportsSegment,
-  CapabilityUnavailable,
-  WorkspaceExports | WorkspaceContext
-> = Effect.gen(function* () {
-  const exports = yield* WorkspaceExports
-  const availability = yield* exports.availability
-  const records = yield* exports.list
-  const base = apiPublicUrl()
-  const views = yield* Effect.forEach(
-    records,
-    (record) =>
-      Effect.map(exports.issueDownloadLink({ exportId: record.id }), (link) => ({
-        ...record,
-        downloadUrl: Option.match(link, {
-          onNone: () => null,
-          onSome: (issued) => new URL(issued.path, base).toString()
-        })
-      })),
-    { concurrency: 'unbounded' }
-  )
-  return { availability, exports: views }
-})
-
-const RequestExportInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-
-const decodeRequestInput = Schema.decodeUnknownSync(RequestExportInput)
-
-/**
- * The effect below the session gate: proves the actor may request
- * (`workspaceExport:request`), then hands the request to the capability.
- * Exported so tests drive it against fixture layers without an auth runtime.
- */
-export function requestWorkspaceExport(): Effect.Effect<
-  WorkspaceExport,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext | WorkspaceExports
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ workspaceExport: ['request'] })
-    const exports = yield* WorkspaceExports
-    return yield* exports.request
-  })
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
+function decodeRequestInput(input: unknown): RequestExportInput {
+  const record = expectRecord(input, 'export request input')
+  return {
+    workspaceSlug: expectString(record, 'workspaceSlug', 'export request input')
+  }
 }
 
 export const requestWorkspaceExportServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeRequestInput(input))
+  .validator(decodeRequestInput)
   .handler(async ({ data }): Promise<WorkspaceExport> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(data.workspaceSlug, requestWorkspaceExport(), {
-      userId: session.user.id
-    })
+    const { requestWorkspaceExportHandler } =
+      await import('./workspace-exports.effects')
+    return requestWorkspaceExportHandler(data)
   })

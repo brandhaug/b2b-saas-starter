@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vite-plus/test'
 
-import { UnverifiedEmailError, unverifiedCreatorRefused } from './workspace-lifecycle'
+import {
+  UnverifiedEmailError,
+  unverifiedCreatorRefused
+} from './workspace-lifecycle.effects'
 
 /**
  * The creation gate's decision, driven as the exported branch rather than the

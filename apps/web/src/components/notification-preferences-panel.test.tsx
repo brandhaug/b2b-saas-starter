@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { type ReactNode } from 'react'
-import { loadNotificationPreferences } from '@/lib/server/notification-preferences'
+import { loadNotificationPreferences } from '@/lib/server/notification-preferences.effects'
 import {
   NotificationPreferencesPanel,
   type SetNotificationPreference

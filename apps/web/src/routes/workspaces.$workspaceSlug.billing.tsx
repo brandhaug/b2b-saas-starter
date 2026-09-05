@@ -2,15 +2,14 @@ import { createFileRoute } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceBillingPage } from '@/components/workspace-billing-page'
-import { loadWorkspaceBilling } from '@/lib/server/billing'
+import { loadWorkspaceBillingServerFn } from '@/lib/server/billing'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
 export const Route = createFileRoute('/workspaces/$workspaceSlug/billing')({
-  loader: ({ params, context }) =>
-    loadWorkspaceBilling({
-      workspaceSlug: params.workspaceSlug,
-      userId: context.session.user.id
+  loader: ({ params }) =>
+    loadWorkspaceBillingServerFn({
+      data: { workspaceSlug: params.workspaceSlug }
     }),
   pendingComponent: RoutePending,
   component: WorkspaceBillingRoute,

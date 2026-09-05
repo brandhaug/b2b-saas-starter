@@ -1,10 +1,8 @@
 import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import {
-  loadWorkspaceMembers,
-  type WorkspaceMembersPayload
-} from '@/lib/server/workspace-members'
+import { loadWorkspaceMembers } from '@/lib/server/workspace-members.effects'
+import { type WorkspaceMembersPayload } from '@/lib/server/workspace-members'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { WorkspaceMembersPage } from '@/components/workspace-members-page'
 

@@ -1,7 +1,5 @@
-import {
-  WORKSPACE_ROLES,
-  type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { WORKSPACE_ROLES } from '@/lib/permissions'
 
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
