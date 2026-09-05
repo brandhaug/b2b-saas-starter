@@ -20,6 +20,7 @@ import {
 import { CommandPaletteProvider } from '@/components/command-palette'
 import { Toaster } from '@/components/ui/sonner'
 import { ClientTelemetry } from '@/lib/client-telemetry'
+import { clientTelemetryConfigServerFn } from '@/lib/server/telemetry-config'
 import { type SidebarWorkspace } from '@/lib/workspace-directory'
 import appCss from '../index.css?url'
 
@@ -56,16 +57,12 @@ type RouterAppContext = {
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   // Server-side only: hands the browser SDKs their public config. Undefined
   // fields keep Sentry/PostHog inactive in the browser (see
-  // lib/client-telemetry.tsx). The loader runs on the server for SSR and
-  // client navigations alike, so `cloudflare:workers` env is always readable.
-  // The config module is imported dynamically: the root route is the one route
-  // the code splitter cannot split, so a static import here rides the entry
-  // chunk every page preloads — and `telemetry-config`'s `env/server` import
-  // would pin the Effect Schema chunk with it.
-  loader: async () => {
-    const { readClientTelemetryConfig } = await import('@/lib/server/telemetry-config')
-    return readClientTelemetryConfig()
-  },
+  // lib/client-telemetry.tsx). The config crosses through a server fn whose
+  // env-bag read lives behind a dynamic import — the root route is the one
+  // route the code splitter cannot split, so a static import of the reader
+  // would ride the entry chunk every page preloads, pinning `env/server`'s
+  // Effect Schema chunk with it.
+  loader: async () => clientTelemetryConfigServerFn(),
   head: () => ({
     meta: [
       { charSet: 'utf8' },

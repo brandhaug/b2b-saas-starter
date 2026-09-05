@@ -2,16 +2,15 @@ import { createFileRoute } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceWebhooksPage } from '@/components/workspace-webhooks-page'
-import { loadWorkspaceWebhooks } from '@/lib/server/webhooks'
+import { loadWorkspaceWebhooksServerFn } from '@/lib/server/webhooks'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there. The page's own read permission
 // (`webhook:list`) is a hard gate inside the loader.
 export const Route = createFileRoute('/workspaces/$workspaceSlug/webhooks')({
-  loader: ({ params, context }) =>
-    loadWorkspaceWebhooks({
-      workspaceSlug: params.workspaceSlug,
-      userId: context.session.user.id
+  loader: ({ params }) =>
+    loadWorkspaceWebhooksServerFn({
+      data: { workspaceSlug: params.workspaceSlug }
     }),
   pendingComponent: RoutePending,
   component: WorkspaceWebhooksRoute,

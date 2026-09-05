@@ -6,7 +6,8 @@ import {
 import {
   SsoConnections,
   type SsoConnection,
-  type SsoConnectionDetail
+  type SsoConnectionDetail,
+  type SsoRoutingDecision
 } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
@@ -15,7 +16,7 @@ import { Effect, Option, Result, type Scope } from 'effect'
 
 import { causeMessage } from '../cause-message'
 
-import { runWorkspaceCapabilities } from '../capabilities'
+import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requestOrigin } from './request-origin'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
@@ -28,13 +29,15 @@ import {
 import {
   type CreateSsoConnectionInput,
   type RemoveSsoConnectionInput,
+  type RoutingInput,
   type SsoTestResult,
   type UpdateSsoConnectionInput
 } from './workspace-sso'
 
 /**
- * The workspace SSO effects and their server-only wiring, on the
- * `invitations.effects.ts` pattern: the effects take their inputs as
+ * The workspace SSO effects and their server-only wiring, reached only
+ * through dynamic `import()` inside the handlers of `workspace-sso.ts` (see
+ * apps/web/AGENTS.md for the split): the effects take their inputs as
  * arguments so the permission gates and the notify-on-failure rule are
  * testable without a session or an auth runtime; each `…Handler` adds the
  * session gate, the request origin and the plugin binding, nothing else.
@@ -139,12 +142,12 @@ function loadSamlMetadata(
 }
 
 export async function createSsoConnectionHandler(
-  data: CreateSsoConnectionInput
+  input: CreateSsoConnectionInput
 ): Promise<SsoConnection> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
-    data.workspaceSlug,
-    createSsoConnection(data),
+    input.workspaceSlug,
+    createSsoConnection(input),
     { userId: session.user.id },
     { ssoBinding: webSsoBinding }
   )
@@ -183,12 +186,12 @@ export function updateSsoConnection(
 }
 
 export async function updateSsoConnectionHandler(
-  data: UpdateSsoConnectionInput
+  input: UpdateSsoConnectionInput
 ): Promise<SsoConnection | null> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
-    data.workspaceSlug,
-    updateSsoConnection(data),
+    input.workspaceSlug,
+    updateSsoConnection(input),
     { userId: session.user.id },
     { ssoBinding: webSsoBinding }
   )
@@ -209,12 +212,12 @@ export function removeSsoConnection(input: {
 }
 
 export async function removeSsoConnectionHandler(
-  data: RemoveSsoConnectionInput
+  input: RemoveSsoConnectionInput
 ): Promise<boolean> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
-    data.workspaceSlug,
-    removeSsoConnection({ providerId: data.providerId }),
+    input.workspaceSlug,
+    removeSsoConnection({ providerId: input.providerId }),
     { userId: session.user.id },
     { ssoBinding: webSsoBinding }
   )
@@ -304,10 +307,25 @@ function notifyOwnersOfFailedTest(
 }
 
 export async function testSsoConnectionHandler(
-  data: RemoveSsoConnectionInput
+  input: RemoveSsoConnectionInput
 ): Promise<SsoTestResult> {
   const session = await requireRequestSession()
-  return runWorkspaceCapabilities(data.workspaceSlug, testSsoConnection(data), {
+  return runWorkspaceCapabilities(input.workspaceSlug, testSsoConnection(input), {
     userId: session.user.id
   })
+}
+
+/**
+ * The sign-in page's routing ask: does this email's domain belong to an
+ * enabled connection? Deliberately **not** session-gated — the asker is on
+ * the public sign-in page — and it discloses nothing beyond the fact that the
+ * domain routes, which the IdP redirect discloses anyway.
+ */
+export async function resolveSsoRoutingHandler(
+  input: RoutingInput
+): Promise<SsoRoutingDecision | null> {
+  const decision = await runCapabilities(
+    Effect.flatMap(SsoConnections, (sso) => sso.resolveRouting(input.email))
+  )
+  return Option.isSome(decision) ? decision.value : null
 }

@@ -1,35 +1,28 @@
-import {
-  McpClientConnections,
-  type McpClientConnection
-} from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
+import { type McpClientConnection } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema } from 'effect'
-
-import { runCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
+import { Schema } from 'effect'
 
 /**
- * The account page's "Connected MCP clients" segment (ADR 0068): the consents
- * the signed-in user holds, and their revocation. Account-level reads, so
- * neither goes through a workspace layer — the consent names its workspace
- * itself. The row type comes from the capability module directly
- * (`McpClientConnection`); this file holds only the loader and the revoke
- * server fn.
+ * The account page's "Connected MCP clients" server functions (ADR 0068), in
+ * a **client-safe** module — the client-safe half of the
+ * `mcp-clients.effects.ts` split; see apps/web/AGENTS.md for the rule and
+ * `scripts/assert-client-boundary.mjs` for the enforcement. Each input is
+ * written once, as its Effect Schema: the validator is the single strict
+ * decode, and the derived type types both the client stub and the effects
+ * handler.
  */
 
-/** The account route's loader segment. */
-export function loadMcpClientConnections(input: {
-  readonly userId: string
-}): Promise<ReadonlyArray<McpClientConnection>> {
-  return runCapabilities(
-    Effect.flatMap(McpClientConnections, (connections) =>
-      connections.listForUser(input.userId)
-    )
-  )
-}
-
 const RevokeInput = Schema.Struct({ connectionId: Schema.NonEmptyString })
-const decodeRevokeInput = Schema.decodeUnknownSync(RevokeInput)
+
+export type RevokeInput = typeof RevokeInput.Type
+
+/** The account route's loader segment: the consents the signed-in user holds. */
+export const loadMcpClientConnectionsServerFn = createServerFn({
+  method: 'GET'
+}).handler(async (): Promise<ReadonlyArray<McpClientConnection>> => {
+  const { loadMcpClientConnectionsHandler } = await import('./mcp-clients.effects')
+  return loadMcpClientConnectionsHandler()
+})
 
 /**
  * Revokes one connection: the consent, the tokens it minted, and the
@@ -38,12 +31,8 @@ const decodeRevokeInput = Schema.decodeUnknownSync(RevokeInput)
  * connection id revokes nothing and returns `false`.
  */
 export const revokeMcpClientServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeRevokeInput(input))
+  .validator(Schema.decodeUnknownSync(RevokeInput))
   .handler(async ({ data }): Promise<boolean> => {
-    const session = await requireRequestSession()
-    return runCapabilities(
-      Effect.flatMap(McpClientConnections, (connections) =>
-        connections.revoke({ userId: session.user.id, connectionId: data.connectionId })
-      )
-    )
+    const { revokeMcpClientHandler } = await import('./mcp-clients.effects')
+    return revokeMcpClientHandler(data)
   })

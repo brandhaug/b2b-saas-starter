@@ -1,10 +1,8 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { WorkspaceAssistantPage, type AskAssistant } from './workspace-assistant-page'
-import {
-  ASSISTANT_UNCONFIGURED_MESSAGE,
-  type AssistantPagePayload
-} from '@/lib/server/assistant'
+import { type AssistantPagePayload } from '@/lib/server/assistant'
+import { ASSISTANT_UNCONFIGURED_MESSAGE } from '@/lib/assistant-copy'
 import { renderWithRouter } from '@/test/router-harness'
 
 // The page's one server call, as a port — a real function of the declared

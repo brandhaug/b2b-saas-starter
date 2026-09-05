@@ -6,6 +6,7 @@
     "dev": "B2B_STARTER_USE_WORKERS_SHIM=1 vp dev --port 3071",
     "build": "B2B_STARTER_USE_WORKERS_SHIM=1 vp build && node scripts/assert-client-boundary.mjs",
     "serve": "vp preview --port 3071",
+    "measure": "node scripts/measure-preloads.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vp test run",
     "test:e2e": "playwright test",

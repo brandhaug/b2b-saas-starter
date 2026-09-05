@@ -1,31 +1,26 @@
+import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import {
-  ApiTokenRegistry,
-  type ApiToken
-} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import {
-  WebhookEndpoints,
-  type WebhookEndpoint
-} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import {
-  AuditEventLog,
-  type AuditEvent
-} from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import {
-  WorkspaceInvitations,
-  type Invitation
-} from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import {
-  workspaceDashboard,
-  workspaceProgress,
   type WorkspaceDashboardProjection,
   type WorkspaceProgressProjection
 } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { type WorkspaceViewer } from '@/lib/permissions'
-import { Effect } from 'effect'
+import { createServerFn } from '@tanstack/react-start'
+import { Schema } from 'effect'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { permitted, whenPermitted } from './authorize'
-import { workspacePage, type WorkspacePageFrame } from './page-frame'
+/**
+ * The dashboard loader, in a **client-safe** module — the client-safe half
+ * of the `workspace-dashboard.effects.ts` split (see apps/web/AGENTS.md for
+ * the rule and `assert-client-boundary.mjs` for the enforcement). Each input
+ * is written once, as its Effect Schema: the validator is the single strict
+ * decode, and the derived type types both the client stub and the effects
+ * handler.
+ *
+ * The behaviour is tested as the plain loader function in the effects file
+ * (`workspace-dashboard.test.ts`), driven directly with fixture actors.
+ */
 
 /**
  * The dashboard payload, assembled per actor: the `workspaceDashboard`
@@ -48,59 +43,17 @@ export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
   readonly progress: WorkspaceProgressProjection
 }
 
-/**
- * The checklist's developer-platform steps read the token and endpoint lists,
- * which the matrix withholds from a `member`. The projection cannot decide
- * that, so the loader does — the same decision `whenPermitted` makes for the
- * webhook segment, applied to two steps instead of one segment.
- */
-const progress = Effect.flatMap(
-  permitted({ apiToken: ['list'], webhook: ['list'] }),
-  (developerPlatform) => workspaceProgress({ developerPlatform })
-)
+const WorkspaceDashboardInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
 
-const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspacePage(
-  { notification: ['read'] },
-  () =>
-    Effect.map(
-      Effect.all(
-        {
-          core: workspaceDashboard,
-          webhooks: whenPermitted(
-            { webhook: ['list'] },
-            Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
-          ),
-          apiTokens: whenPermitted(
-            { apiToken: ['list'] },
-            Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
-          ),
-          invitations: whenPermitted(
-            { invitation: ['create'] },
-            Effect.flatMap(WorkspaceInvitations, (invites) => invites.list)
-          ),
-          auditEvents: whenPermitted(
-            { auditLog: ['read'] },
-            Effect.flatMap(AuditEventLog, (log) =>
-              Effect.map(log.list(), (page) => page.events.slice(0, 5))
-            )
-          ),
-          progress
-        },
-        { concurrency: 'unbounded' }
-      ),
-      (segments) => {
-        const { core, ...soft } = segments
-        return { ...core, ...soft }
-      }
-    )
-)
+export type WorkspaceDashboardInput = typeof WorkspaceDashboardInput.Type
 
 /** The dashboard route's loader. */
-export function loadWorkspaceDashboard(input: {
-  readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceDashboardPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, dashboardPayload, {
-    userId: input.userId
+export const loadWorkspaceDashboardServerFn = createServerFn({ method: 'GET' })
+  .validator(Schema.decodeUnknownSync(WorkspaceDashboardInput))
+  .handler(async ({ data }): Promise<WorkspaceDashboardPayload> => {
+    const { loadWorkspaceDashboardHandler } =
+      await import('./workspace-dashboard.effects')
+    return loadWorkspaceDashboardHandler(data)
   })
-}

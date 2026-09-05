@@ -1,36 +1,21 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import {
-  WorkspaceMembership,
-  type MemberRef,
-  type MemberRoleInput
-} from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import {
-  WorkspaceInvitations,
-  type Invitation
-} from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import {
-  WorkspaceRole as WorkspaceRoleSchema,
-  type Member
-} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import {
-  planById,
-  seatUsage,
-  type SeatUsage
-} from '@b2b-saas-starter/capabilities/billing/plan-catalog'
-import { type WorkspaceViewer } from '@/lib/permissions'
-import {
-  type CapabilityUnavailable,
-  type MembershipChangeRejected
-} from '@b2b-saas-starter/capabilities/errors'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { type SeatUsage } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
+import { WORKSPACE_ROLES, type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema, type Scope } from 'effect'
+import { Schema } from 'effect'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
-import { requireWorkspacePermission, whenPermitted } from './authorize'
-import { webMemberBinding } from './member-binding'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
+/**
+ * The workspace-members server functions, in a **client-safe** module: the
+ * client-safe half of the `workspace-members.effects.ts` split (see
+ * apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for the
+ * enforcement). Each input is written once, as its Effect Schema — the
+ * validator is the single strict decode, and the derived types below type
+ * both the client stub and the effects handlers.
+ *
+ * The behaviour itself is tested as the loader and effects in the effects
+ * file (`workspace-members.test.ts`), driven directly with fixture actors.
+ */
 
 /**
  * The workspace members payload: the roster plus, for the roles that manage
@@ -58,165 +43,55 @@ export type WorkspaceMembersPayload = {
   readonly seatUsage: SeatUsage
 }
 
-/**
- * `notification:read` is the page's own read permission and a hard gate —
- * same shape as every page. A `member` holds it; only an actorless context
- * fails it.
- */
-const membersPayload: WorkspacePageFrame<WorkspaceMembersPayload> = workspacePage(
-  { notification: ['read'] },
-  (ctx) =>
-    Effect.flatMap(
-      Effect.all(
-        {
-          unreadCount,
-          members: Effect.flatMap(WorkspaceMembership, (roster) => roster.listMembers),
-          invitations: whenPermitted(
-            { invitation: ['create'] },
-            Effect.flatMap(WorkspaceInvitations, (invites) => invites.list)
-          )
-        },
-        { concurrency: 'unbounded' }
-      ),
-      (segments) =>
-        Effect.succeed({
-          ...segments,
-          // The plan gate's seat half: a flat plan past its included seats
-          // prompts for an upgrade; a per-seat plan just bills the seats.
-          seatUsage: seatUsage(planById(ctx.workspace.planId), segments.members.length)
-        })
-    )
-)
+const LoadWorkspaceMembersInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
 
-/** The members route's loader. */
-export function loadWorkspaceMembers(input: {
-  readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceMembersPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, membersPayload, {
-    userId: input.userId
-  })
-}
-
-// All input constraints live in the schema — no imperative re-validation.
 const ChangeMemberRoleInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   userId: Schema.NonEmptyString,
-  role: WorkspaceRoleSchema
+  role: Schema.Literals(WORKSPACE_ROLES)
 })
-
-const decodeInput = Schema.decodeUnknownSync(ChangeMemberRoleInput)
-
-/**
- * The effect below the session gate: proves the actor may manage members
- * (`member:update`, declared → enforced here), then hands the change to the
- * capability. Exported so tests drive it against fixture layers without a
- * request or an auth runtime.
- *
- * Self-promotion and self-demotion are refused by Better Auth itself (the
- * plugin endpoint checks the acting member against its own rules); this guard
- * refuses everyone the role table already refuses.
- */
-export function changeMemberRole(
-  input: MemberRoleInput
-): Effect.Effect<
-  Member,
-  AuthorizationDenied | CapabilityUnavailable | MembershipChangeRejected,
-  Scope.Scope | WorkspaceContext | WorkspaceMembership
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ member: ['update'] })
-    const membership = yield* WorkspaceMembership
-    return yield* membership.changeRole(input)
-  })
-}
-
-export const changeMemberRoleServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeInput(input))
-  .handler(async ({ data }): Promise<Member> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      changeMemberRole({ userId: data.userId, role: data.role }),
-      { userId: session.user.id },
-      // The adapter lives server-only and rides per call — see
-      // `member-binding.ts` for why it cannot sit on `starterEnv`.
-      { memberBinding: webMemberBinding }
-    )
-  })
 
 const RemoveMemberInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   userId: Schema.NonEmptyString
 })
 
-const decodeRemoveInput = Schema.decodeUnknownSync(RemoveMemberInput)
-
-/**
- * Off-boarding a member, below the session gate: `member:delete` (owner and
- * admin hold it in the role table) decides who may ask, and the capability's
- * ownership rule decides what the workspace refuses — the sole owner first
- * among them, which the boundary words as "transfer ownership first". The
- * actor's own row is not this verb; that is `leaveWorkspace` below.
- */
-export function removeMember(
-  input: MemberRef
-): Effect.Effect<
-  void,
-  AuthorizationDenied | CapabilityUnavailable | MembershipChangeRejected,
-  Scope.Scope | WorkspaceContext | WorkspaceMembership
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ member: ['delete'] })
-    const membership = yield* WorkspaceMembership
-    return yield* membership.removeMember(input)
-  })
-}
-
-export const removeMemberServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeRemoveInput(input))
-  .handler(async ({ data }): Promise<void> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      removeMember({ userId: data.userId }),
-      { userId: session.user.id },
-      { memberBinding: webMemberBinding }
-    )
-  })
-
 const LeaveWorkspaceInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString
 })
 
-const decodeLeaveInput = Schema.decodeUnknownSync(LeaveWorkspaceInput)
+export type LoadWorkspaceMembersInput = typeof LoadWorkspaceMembersInput.Type
+export type ChangeMemberRoleInput = typeof ChangeMemberRoleInput.Type
+export type RemoveMemberInput = typeof RemoveMemberInput.Type
+export type LeaveWorkspaceInput = typeof LeaveWorkspaceInput.Type
 
-/**
- * Leaving: the actor's own membership, ended by their own hand. No permission
- * statement gates it — the authz matrix has no self-action, and any member
- * may leave — because `WorkspaceContext` is the proof that the membership
- * exists, and the capability's sole-owner rule (the plugin's own) is the one
- * refusal, worded as "transfer ownership first" at the boundary.
- */
-export function leaveWorkspace(): Effect.Effect<
-  void,
-  CapabilityUnavailable | MembershipChangeRejected,
-  Scope.Scope | WorkspaceContext | WorkspaceMembership
-> {
-  return Effect.flatMap(WorkspaceMembership, (membership) => membership.leave)
-}
+/** The members route's loader. */
+export const loadWorkspaceMembersServerFn = createServerFn({ method: 'GET' })
+  .validator(Schema.decodeUnknownSync(LoadWorkspaceMembersInput))
+  .handler(async ({ data }): Promise<WorkspaceMembersPayload> => {
+    const { loadWorkspaceMembersHandler } = await import('./workspace-members.effects')
+    return loadWorkspaceMembersHandler(data)
+  })
+
+export const changeMemberRoleServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(ChangeMemberRoleInput))
+  .handler(async ({ data }): Promise<Member> => {
+    const { changeMemberRoleHandler } = await import('./workspace-members.effects')
+    return changeMemberRoleHandler(data)
+  })
+
+export const removeMemberServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(RemoveMemberInput))
+  .handler(async ({ data }): Promise<void> => {
+    const { removeMemberHandler } = await import('./workspace-members.effects')
+    return removeMemberHandler(data)
+  })
 
 export const leaveWorkspaceServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeLeaveInput(input))
+  .validator(Schema.decodeUnknownSync(LeaveWorkspaceInput))
   .handler(async ({ data }): Promise<void> => {
-    // The input carries no identity because there is none to carry: the
-    // leaver is the session's own user, and a non-member gets the same
-    // non-disclosing 404 every workspace route gives them.
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      leaveWorkspace(),
-      { userId: session.user.id },
-      { memberBinding: webMemberBinding }
-    )
+    const { leaveWorkspaceHandler } = await import('./workspace-members.effects')
+    return leaveWorkspaceHandler(data)
   })

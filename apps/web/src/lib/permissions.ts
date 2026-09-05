@@ -5,6 +5,16 @@ import {
 } from '@b2b-saas-starter/authz/client'
 import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 
+// The UI's role/scope vocabularies, re-exported from the Schema-free enum
+// leaf so components never import `@b2b-saas-starter/db` directly (the lint
+// rule bans it from routes/components) and never touch the capability
+// modules that own the `Schema.Literals` forms — those pin effect/Schema
+// into the route tree the browser preloads.
+export {
+  apiTokenScopes as API_TOKEN_SCOPES,
+  workspaceRoles as WORKSPACE_ROLES
+} from '@b2b-saas-starter/db/enums'
+
 /**
  * Client-side permission checks for workspace UI.
  *

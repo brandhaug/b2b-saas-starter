@@ -3,18 +3,17 @@ import {
   type SsoRoutingDecision
 } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Option, Schema } from 'effect'
+import { Schema } from 'effect'
 
 import { EMAIL_PATTERN } from '../email-pattern'
-import { runCapabilities } from '../capabilities'
 
 /**
  * The workspace-SSO server functions, in a **client-safe** module — the
- * `invitations.ts` pattern. The capability effects and their imports (the
- * session gate, the plugin binding, the IdP discovery client) live in
- * `workspace-sso.effects.ts` and are reached only through dynamic `import()`
- * inside each handler, so nothing here rides the client bundle beyond the
- * declarations, the payload types and the input schemas.
+ * client-safe half of the `workspace-sso.effects.ts` split; see
+ * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
+ * for the enforcement. Each input is written once, as its Effect Schema: the
+ * validator is the single strict decode, and the derived type types both the
+ * client stub and the effects handler.
  */
 
 /** A connection domain: labels, dots, hyphens — never an @ or a slash. */
@@ -23,10 +22,8 @@ const Domain = Schema.String.check(
   Schema.isPattern(/^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/i)
 )
 
-const WorkspaceSlug = Schema.NonEmptyString
-
 const CreateOidcInput = Schema.Struct({
-  workspaceSlug: WorkspaceSlug,
+  workspaceSlug: Schema.NonEmptyString,
   protocol: Schema.Literal('oidc'),
   domain: Domain,
   issuer: Schema.String.check(Schema.isMinLength(8), Schema.isPattern(/^https:\/\//)),
@@ -36,7 +33,7 @@ const CreateOidcInput = Schema.Struct({
 })
 
 const CreateSamlInput = Schema.Struct({
-  workspaceSlug: WorkspaceSlug,
+  workspaceSlug: Schema.NonEmptyString,
   protocol: Schema.Literal('saml'),
   domain: Domain,
   // XML or URL: exactly one. The issuer is derived from the request origin
@@ -59,47 +56,12 @@ const CreateSamlInput = Schema.Struct({
   })
 )
 
-export type CreateSsoConnectionInput = { readonly workspaceSlug: string } & (
-  | {
-      readonly protocol: 'oidc'
-      readonly domain: string
-      readonly issuer: string
-      readonly clientId: string
-      readonly clientSecret: string
-      readonly defaultWorkspaceRole: 'member' | 'admin'
-    }
-  | {
-      readonly protocol: 'saml'
-      readonly domain: string
-      readonly metadataXml?: string | undefined
-      readonly metadataUrl?: string | undefined
-      readonly issuer?: string | undefined
-      readonly defaultWorkspaceRole: 'member' | 'admin'
-    }
-)
+const CreateSsoConnectionInput = Schema.Union([CreateOidcInput, CreateSamlInput])
 
-const CreateInput = Schema.Union([CreateOidcInput, CreateSamlInput])
-const decodeCreate = Schema.decodeUnknownSync(CreateInput)
+export type CreateSsoConnectionInput = typeof CreateSsoConnectionInput.Type
 
-export const createSsoConnectionServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeCreate(input))
-  .handler(async ({ data }): Promise<SsoConnection> => {
-    const { createSsoConnectionHandler } = await import('./workspace-sso.effects')
-    return createSsoConnectionHandler(data)
-  })
-
-export type UpdateSsoConnectionInput = {
-  workspaceSlug: string
-  providerId: string
-  enabled?: boolean | undefined
-  requireSso?: boolean | undefined
-  defaultWorkspaceRole?: 'member' | 'admin' | undefined
-  clientId?: string | undefined
-  clientSecret?: string | undefined
-}
-
-const UpdateInput = Schema.Struct({
-  workspaceSlug: WorkspaceSlug,
+const UpdateSsoConnectionInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
   providerId: Schema.NonEmptyString,
   enabled: Schema.optional(Schema.Boolean),
   requireSso: Schema.optional(Schema.Boolean),
@@ -123,28 +85,43 @@ const UpdateInput = Schema.Struct({
     }
   })
 )
-const decodeUpdate = Schema.decodeUnknownSync(UpdateInput)
+
+export type UpdateSsoConnectionInput = typeof UpdateSsoConnectionInput.Type
+
+/** Remove and test both address one connection, by provider id. */
+const RemoveSsoConnectionInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  providerId: Schema.NonEmptyString
+})
+
+export type RemoveSsoConnectionInput = typeof RemoveSsoConnectionInput.Type
+
+const RoutingInput = Schema.Struct({
+  email: Schema.String.check(
+    Schema.isMinLength(3),
+    Schema.isMaxLength(320),
+    Schema.isPattern(EMAIL_PATTERN)
+  )
+})
+
+export type RoutingInput = typeof RoutingInput.Type
+
+export const createSsoConnectionServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(CreateSsoConnectionInput))
+  .handler(async ({ data }): Promise<SsoConnection> => {
+    const { createSsoConnectionHandler } = await import('./workspace-sso.effects')
+    return createSsoConnectionHandler(data)
+  })
 
 export const updateSsoConnectionServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeUpdate(input))
+  .validator(Schema.decodeUnknownSync(UpdateSsoConnectionInput))
   .handler(async ({ data }): Promise<SsoConnection | null> => {
     const { updateSsoConnectionHandler } = await import('./workspace-sso.effects')
     return updateSsoConnectionHandler(data)
   })
 
-export type RemoveSsoConnectionInput = {
-  readonly workspaceSlug: string
-  readonly providerId: string
-}
-
-const ByProviderInput = Schema.Struct({
-  workspaceSlug: WorkspaceSlug,
-  providerId: Schema.NonEmptyString
-})
-const decodeByProvider = Schema.decodeUnknownSync(ByProviderInput)
-
 export const removeSsoConnectionServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeByProvider(input))
+  .validator(Schema.decodeUnknownSync(RemoveSsoConnectionInput))
   .handler(async ({ data }): Promise<boolean> => {
     const { removeSsoConnectionHandler } = await import('./workspace-sso.effects')
     return removeSsoConnectionHandler(data)
@@ -160,34 +137,20 @@ export type SsoTestResult =
     }
 
 export const testSsoConnectionServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeByProvider(input))
+  .validator(Schema.decodeUnknownSync(RemoveSsoConnectionInput))
   .handler(async ({ data }): Promise<SsoTestResult> => {
     const { testSsoConnectionHandler } = await import('./workspace-sso.effects')
     return testSsoConnectionHandler(data)
   })
 
 /**
- * The sign-in page's routing ask: does this email's domain belong to an
- * enabled connection? Deliberately **not** session-gated — the asker is on
- * the public sign-in page — and it discloses nothing beyond the fact that the
- * domain routes, which the IdP redirect discloses anyway.
+ * The sign-in page's routing ask, as a server fn: does this email's domain
+ * belong to an enabled connection? See `resolveSsoRoutingHandler` in
+ * `workspace-sso.effects.ts` for why it is deliberately **not** session-gated.
  */
-const RoutingInput = Schema.Struct({
-  email: Schema.String.check(
-    Schema.isMinLength(3),
-    Schema.isMaxLength(320),
-    Schema.isPattern(EMAIL_PATTERN)
-  )
-})
-const decodeRouting = Schema.decodeUnknownSync(RoutingInput)
-
 export const resolveSsoRoutingServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeRouting(input))
+  .validator(Schema.decodeUnknownSync(RoutingInput))
   .handler(async ({ data }): Promise<SsoRoutingDecision | null> => {
-    const { SsoConnections } =
-      await import('@b2b-saas-starter/capabilities/governance/workspace-sso-connections')
-    const decision = await runCapabilities(
-      Effect.flatMap(SsoConnections, (sso) => sso.resolveRouting(data.email))
-    )
-    return Option.isSome(decision) ? decision.value : null
+    const { resolveSsoRoutingHandler } = await import('./workspace-sso.effects')
+    return resolveSsoRoutingHandler(data)
   })

@@ -13,7 +13,7 @@ import {
 import { describe, expect, it } from 'vite-plus/test'
 import { Effect, Layer } from 'effect'
 
-import { loadWorkspaceApiTokens, revokeApiToken } from './api-tokens'
+import { loadWorkspaceApiTokens, revokeApiToken } from './api-tokens.effects'
 
 /**
  * The API-token management surface below its session gate. `revokeApiToken` is

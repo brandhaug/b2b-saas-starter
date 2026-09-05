@@ -2,23 +2,36 @@ import { type AccountDeletionPlan } from '@b2b-saas-starter/capabilities/governa
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
+import { type AccountPagePayload } from './account.effects'
+import { type NotificationPreferenceRow } from './notification-preferences'
+
 /**
- * The account-deletion server function, in a **client-safe** module.
- *
- * This file is statically imported by the `/account` route, and the route tree
- * ships to the browser — so the capability effects, the Better Auth session
- * gate and the plugin binding live in `account.effects.ts` and are reached
- * only through dynamic `import()` inside the handler, exactly like the
- * invitation flow (`invitations.ts` / `invitations.effects.ts`). The plan read
- * needs no server fn: the route's loader calls `loadAccountPageData` directly,
- * the same way the workspace routes call their loaders' server modules.
+ * The account page's server functions, in a **client-safe** module — the
+ * client-safe half of the `account.effects.ts` split; see apps/web/AGENTS.md
+ * for the rule and `scripts/assert-client-boundary.mjs` for the enforcement.
+ * Each input is written once, as its Effect Schema: the validator is the
+ * single strict decode, and the derived type types both the client stub and
+ * the effects handler.
  */
+
+/** The composed `/account` loader payload: the plan plus the preference rows. */
+export type AccountPageData = AccountPagePayload & {
+  readonly preferences: ReadonlyArray<NotificationPreferenceRow>
+}
+
+/** The `/account` route's composed loader read, identity-keyed by the session. */
+export const loadAccountPageServerFn = createServerFn({
+  method: 'GET'
+}).handler(async (): Promise<AccountPageData> => {
+  const { loadAccountPageHandler } = await import('./account.effects')
+  return loadAccountPageHandler()
+})
 
 const DeleteAccountInput = Schema.Struct({
   password: Schema.NonEmptyString
 })
 
-const decodeDelete = Schema.decodeUnknownSync(DeleteAccountInput)
+export type DeleteAccountInput = typeof DeleteAccountInput.Type
 
 /** What deleting the account would do to each workspace, for the panel. */
 export type { AccountDeletionPlan }
@@ -29,8 +42,8 @@ export type { AccountDeletionPlan }
  * `/sign-in`.
  */
 export const deleteAccountServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeDelete(input))
+  .validator(Schema.decodeUnknownSync(DeleteAccountInput))
   .handler(async ({ data }): Promise<AccountDeletionPlan> => {
-    const { deleteAccountHandler } = await import('./account-delete')
-    return deleteAccountHandler({ password: data.password })
+    const { deleteAccountHandler } = await import('./account-delete.effects')
+    return deleteAccountHandler(data)
   })

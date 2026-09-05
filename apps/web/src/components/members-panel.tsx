@@ -1,5 +1,4 @@
 import {
-  WORKSPACE_ROLES,
   type Member,
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
@@ -20,7 +19,7 @@ import { ActionFeedback } from '@/components/page/action-feedback'
 import { Panel } from '@/components/page/panel'
 import { ConfirmButton } from '@/components/confirm-button'
 import { RoleChangeButtons } from '@/components/role-change-buttons'
-import { viewerCan, type Viewer } from '@/lib/permissions'
+import { viewerCan, WORKSPACE_ROLES, type Viewer } from '@/lib/permissions'
 import { roleVariant } from '@/lib/badge-variants'
 import {
   changeMemberRoleServerFn,

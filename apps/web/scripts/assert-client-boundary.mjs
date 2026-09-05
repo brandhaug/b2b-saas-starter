@@ -22,13 +22,67 @@ import { join } from 'node:path'
  *   server effects (and docs prose, which this never matched because prose
  *   spells the package without the `/templates` subpath… guard kept exact).
  *
- * Deliberately NOT a marker: `better-auth` — the Better Auth *client* SDK
+ * The capabilities / Effect Schema invariant (the loader code-split removal
+ * made this load-bearing: the route tree's static graph ships on every page).
+ * One marker is not enough — minified `effect` mangles its namespace, so the
+ * Schema chunk can ship without any obvious `Schema.*` name. The set below
+ * covers the three violation shapes observed in this repo, each verified
+ * absent from a clean `dist/client` and present in a deliberately violated
+ * one (a route loader statically importing an `.effects` module):
+ *
+ * - `capability.workspace` — the capabilities runtime's wide-event scope; the
+ *   full workspace graph ships with it (the historical `capabilities-*.js`
+ *   155 kB preload).
+ * - `no_principal`, `insufficient_permission` — the authz/capabilities
+ *   `Schema.TaggedError` reason literals; a bare error-class pin (a client
+ *   component importing `@b2b-saas-starter/authz/errors` at runtime) ships
+ *   exactly these strings. `httpApiStatus` — the third literal on those
+ *   classes — was rejected: the `/docs` effect-backbone pages quote it in
+ *   MDX code samples, so it matches docs content chunks on a clean build.
+ * - `isMinLength` — a `Schema` filter combinator called as a property in
+ *   capabilities/effects source; minification keeps the property name, so any
+ *   Schema-using capability code that ships carries it.
+ * - `onExcessProperty`, `unsafePreserveChecks` — Schema internals that ship
+ *   with the *minimal* schema construct (`Schema.Struct({ x: Schema.String })`
+ *   — no filters, no NonEmptyString), verified present in a deliberately
+ *   leaked plain struct and absent from a clean build, docs prose, and every
+ *   bundled vendor dist. These close the hole `isMinLength` alone left: the
+ *   client-safe halves' validators are Effect Schemas stripped from the
+ *   client build by the TanStack compiler, so a regression here is exactly
+ *   "a schema construct shipped", and these two names ride along with any
+ *   construct, filters or not. (`toJsonSchema` was verified too but rejected:
+ *   other validator libraries implement the same method name, so it would
+ *   false-positive on a legitimately bundled validator.)
+ *
+ * If a marker starts matching docs prose (the `/docs` routes bundle MDX into
+ * client chunks — `TaggedError` was rejected for exactly that reason), pick
+ * another literal from `packages/capabilities` and re-verify both directions.
+ *
+ * Deliberately NOT markers: `better-auth` — the Better Auth *client* SDK
  * (`better-auth/react`) legitimately ships in `auth-client.ts`, and the bare
  * string also appears in docs prose, so it cannot distinguish server from
- * client.
+ * client. Chunk *names* are not checked either: `grep capabilities|Schema`
+ * over file names has no false positives today, but the bundler inlines these
+ * graphs into shared chunks as readily as it names one after them, so a name
+ * is an accident of chunking, not a property of the code inside it.
+ *
+ * Byte budget: intentionally NOT enforced here. The root route's static
+ * import graph is only observable by fetching a built page's modulepreload
+ * set — `scripts/measure-preloads.mjs` does that against a running
+ * `vp preview` and owns the budget signal.
  */
 
-const MARKERS = ['@react-email', 'css-tree', '@b2b-saas-starter/email/templates']
+const MARKERS = [
+  '@react-email',
+  'css-tree',
+  '@b2b-saas-starter/email/templates',
+  'capability.workspace',
+  'no_principal',
+  'insufficient_permission',
+  'isMinLength',
+  'onExcessProperty',
+  'unsafePreserveChecks'
+]
 
 const CLIENT_DIR = new URL('../dist/client', import.meta.url)
 
@@ -60,9 +114,14 @@ if (offenders.length > 0) {
       'Client bundle boundary violated — server-only modules shipped to dist/client:',
       ...offenders.map((line) => `  - ${line}`),
       '',
-      'A lib/server module is being imported statically by client code again.',
-      'Server functions must reach their effects via dynamic import() inside',
-      'the handler (see lib/server/invitations.ts for the reference split).'
+      'A capabilities or Effect Schema graph is in the client bundle again.',
+      'lib/server modules must stay client-safe at module level: the server fn',
+      'keeps createServerFn, type imports, and its Effect Schema validators (the',
+      'TanStack compiler strips .validator() from the client build — these',
+      'markers are the proof it did), and its behavior lives in a sibling',
+      '.effects.ts reached by dynamic import(). Components read vocabularies',
+      'from Schema-free leaves (@b2b-saas-starter/db/enums,',
+      'capabilities .../webhook-events).'
     ].join('\n')
   )
   process.exit(1)

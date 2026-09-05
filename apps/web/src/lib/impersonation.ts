@@ -1,5 +1,5 @@
 import { useRouteContext } from '@tanstack/react-router'
-import { Option, Schema } from 'effect'
+import { Option } from 'effect'
 import { stopImpersonatingServerFn } from '@/lib/server/admin'
 
 /**
@@ -26,16 +26,55 @@ export function stopImpersonatingWithServerFn(): Promise<void> {
  * than asserted, because `useRouteContext({ strict: false })` hands back the
  * union of every route's context and a public page carries no session at all.
  */
-const ImpersonatedRouteContext = Schema.Struct({
-  session: Schema.Struct({
-    user: Schema.Struct({ name: Schema.String, email: Schema.String }),
-    impersonatedBy: Schema.NullOr(Schema.String)
+type ImpersonatedRouteContext = {
+  readonly session: {
+    readonly user: {
+      readonly name: string
+      readonly email: string
+    }
+    readonly impersonatedBy: string | null
+  }
+}
+
+/**
+ * A plain shape check, deliberately not an `effect/Schema` decode: unlike a
+ * server fn's `.validator()` (stripped from the client build by the TanStack
+ * compiler — see apps/web/AGENTS.md), this decode runs *in the browser* on
+ * every workspace page, so an `effect/Schema` construct here would ship the
+ * Schema runtime unconditionally. Same tier as `pickOptionalStrings`
+ * (lib/utils.ts): a value that is not session-shaped is the Option-none the
+ * old decode produced.
+ */
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function decodeRouteContext(context: unknown): Option.Option<ImpersonatedRouteContext> {
+  if (!isRecord(context)) {
+    return Option.none()
+  }
+  const session = context.session
+  if (!isRecord(session)) {
+    return Option.none()
+  }
+  const user = session.user
+  if (
+    !isRecord(user) ||
+    typeof user.name !== 'string' ||
+    typeof user.email !== 'string'
+  ) {
+    return Option.none()
+  }
+  const impersonatedBy = session.impersonatedBy
+  if (typeof impersonatedBy !== 'string' && impersonatedBy !== null) {
+    return Option.none()
+  }
+  return Option.some({
+    session: { user: { name: user.name, email: user.email }, impersonatedBy }
   })
-})
-
-type ImpersonatedRouteContext = typeof ImpersonatedRouteContext.Type
-
-const decodeRouteContext = Schema.decodeUnknownOption(ImpersonatedRouteContext)
+}
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type
 
 /** Pure half of {@link useImpersonation}: the banner state for a decoded route context. */
 export function impersonationOf(

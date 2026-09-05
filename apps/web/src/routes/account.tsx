@@ -3,8 +3,8 @@ import { AccountPage } from '@/components/account-page'
 import { pageTitle } from '@/components/page/page-title'
 import { authClient } from '@/lib/auth-client'
 import { requireSession } from '@/lib/server/auth'
-import { loadAccountPageData } from '@/lib/server/account.effects'
-import { loadMcpClientConnections } from '@/lib/server/mcp-clients'
+import { loadAccountPageServerFn } from '@/lib/server/account'
+import { loadMcpClientConnectionsServerFn } from '@/lib/server/mcp-clients'
 
 // Account settings live outside the /workspaces subtree on purpose: they are
 // user-level, not workspace-level, so the route keeps its own session gate
@@ -16,15 +16,14 @@ export const Route = createFileRoute('/account')({
     return { session }
   },
   // The deletion plan and notification preferences compose into one server
-  // call (see `loadAccountPageData`); the MCP clients connected to this
-  // account (ADR 0068) ride beside it — all identity-keyed, no workspace
-  // involved.
-  loader: async ({ context }) => {
-    const userId = context.session.user.id
+  // call (see `account.effects.ts`); the MCP clients connected to this
+  // account (ADR 0068) ride beside it via their own server fn — all
+  // identity-keyed, no workspace involved.
+  loader: async () => {
     // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the account read and the MCP-client read parallel
     const [account, connections] = await Promise.all([
-      loadAccountPageData({ userId }),
-      loadMcpClientConnections({ userId })
+      loadAccountPageServerFn(),
+      loadMcpClientConnectionsServerFn()
     ])
     return { ...account, connections }
   },

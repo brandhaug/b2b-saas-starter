@@ -29,7 +29,7 @@ import {
   impersonationGuardResponse
 } from '@/lib/server/impersonation-guard'
 import { enforceTwoFactorSignIn } from '@/lib/server/two-factor-sign-in-gate'
-import { makeTurnstileLayer } from '@/lib/server/turnstile'
+import { makeTurnstileLayer } from '@/lib/server/turnstile.effects'
 import {
   sendBackupCodesRotatedEmail,
   sendPasskeyChangedEmail,

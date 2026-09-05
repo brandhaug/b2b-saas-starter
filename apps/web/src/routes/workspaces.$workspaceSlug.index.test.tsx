@@ -6,10 +6,8 @@ import {
   type ListNotifications,
   type MarkNotificationsRead
 } from '@/components/live-notifications'
-import {
-  loadWorkspaceDashboard,
-  type WorkspaceDashboardPayload
-} from '@/lib/server/workspace-dashboard'
+import { loadWorkspaceDashboard } from '@/lib/server/workspace-dashboard.effects'
+import { type WorkspaceDashboardPayload } from '@/lib/server/workspace-dashboard'
 import { WorkspaceDashboardPage } from '@/components/workspace-dashboard-page'
 
 /**

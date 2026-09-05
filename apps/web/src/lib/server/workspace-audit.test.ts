@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test'
+import { loadWorkspaceAuditEvents } from './workspace-audit.effects'
 import {
-  loadWorkspaceAuditEvents,
   type LoadWorkspaceAuditEventsInput,
   type WorkspaceAuditFilters
 } from './workspace-audit'

@@ -5,12 +5,24 @@ import { Effect, Schema } from 'effect'
 
 import { causeMessage } from '../cause-message'
 import { runCapabilities } from '../capabilities'
+import { signedOAuthQuery } from '../oauth-query'
 import { webRuntime } from '../observability'
-import { type OAuthConsentPayload, type OAuthRedirect } from './mcp-consent'
+import { currentRequest } from '../request-context'
+import { requireRequestSession } from './auth'
+import {
+  type DenyOAuthConsentInput,
+  type GrantOAuthConsentInput,
+  type LoadOAuthConsentInput,
+  type OAuthConsentPayload,
+  type OAuthRedirect
+} from './mcp-consent'
 import { sessionCall } from './plugin-call'
 
 /**
- * The consent page's behaviour (ADR 0068), below the session gate.
+ * The consent page's behaviour (ADR 0068): the capability reads below, and
+ * the `…Handler` functions that add the session gate and the request-read
+ * query — reached only through dynamic `import()` inside the handlers of
+ * `mcp-consent.ts` (see apps/web/AGENTS.md for the split).
  *
  * Granting is three calls to the app's own OAuth provider, in an order the
  * plugin fixes: (1) `setActiveOrganization` writes the pick onto the session —
@@ -74,7 +86,7 @@ function scopesOf(url: URL): ReadonlyArray<string> {
     .filter((scope) => scope.length > 0)
 }
 
-/** The capability half of the consent payload; the server fn adds the request-read `oauthQuery`. */
+/** The capability half of the consent payload; the load handler adds the request-read `oauthQuery`. */
 type ConsentLoad = Omit<OAuthConsentPayload, 'oauthQuery'>
 
 export function loadOAuthConsent(input: {
@@ -92,6 +104,22 @@ export function loadOAuthConsent(input: {
       { concurrency: 'unbounded' }
     )
   )
+}
+
+export async function loadOAuthConsentHandler(
+  input: LoadOAuthConsentInput
+): Promise<OAuthConsentPayload> {
+  const session = await requireRequestSession()
+  // The signed query is read here, on the server, from the request the
+  // provider's redirect arrived on — never from `window` in a component.
+  const request = currentRequest()
+  const oauthQuery =
+    request === undefined ? null : signedOAuthQuery(new URL(request.url).search)
+  const payload = await loadOAuthConsent({
+    userId: session.user.id,
+    clientId: input.clientId
+  })
+  return { ...payload, oauthQuery }
 }
 
 export async function grantOAuthConsent(input: {
@@ -131,6 +159,17 @@ export async function grantOAuthConsent(input: {
   )
   await recordGrantBestEffort(input, continued.parsed)
   return { url: consented.url }
+}
+
+export async function grantOAuthConsentHandler(
+  input: GrantOAuthConsentInput
+): Promise<OAuthRedirect> {
+  const session = await requireRequestSession()
+  return grantOAuthConsent({
+    userId: session.user.id,
+    workspaceId: input.workspaceId,
+    oauthQuery: input.oauthQuery
+  })
 }
 
 /**
@@ -197,4 +236,11 @@ export async function denyOAuthConsent(input: {
     )
   )
   return { url: denied.url }
+}
+
+export async function denyOAuthConsentHandler(
+  input: DenyOAuthConsentInput
+): Promise<OAuthRedirect> {
+  await requireRequestSession()
+  return denyOAuthConsent({ oauthQuery: input.oauthQuery })
 }

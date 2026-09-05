@@ -10,10 +10,10 @@ import { viewerCan } from '@/lib/permissions'
 import { Spinner } from '@/components/ui/spinner'
 import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty'
 import {
-  ASSISTANT_UNCONFIGURED_MESSAGE,
   type AskAssistantOutcome,
   type AssistantPagePayload
 } from '@/lib/server/assistant'
+import { ASSISTANT_UNCONFIGURED_MESSAGE } from '@/lib/assistant-copy'
 
 /**
  * The one server call this page makes, as a port. Injected rather than

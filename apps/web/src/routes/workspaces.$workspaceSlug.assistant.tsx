@@ -2,13 +2,12 @@ import { createFileRoute } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAssistantPage } from '@/components/workspace-assistant-page'
-import { askAssistantServerFn, loadAssistantPage } from '@/lib/server/assistant'
+import { askAssistantServerFn, loadAssistantPageServerFn } from '@/lib/server/assistant'
 
 export const Route = createFileRoute('/workspaces/$workspaceSlug/assistant')({
-  loader: ({ params, context }) =>
-    loadAssistantPage({
-      workspaceSlug: params.workspaceSlug,
-      userId: context.session.user.id
+  loader: ({ params }) =>
+    loadAssistantPageServerFn({
+      data: { workspaceSlug: params.workspaceSlug }
     }),
   pendingComponent: RoutePending,
   component: WorkspaceAssistantRoute,

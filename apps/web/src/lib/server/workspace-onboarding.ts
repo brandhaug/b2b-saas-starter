@@ -1,45 +1,28 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { WorkspaceOnboarding } from '@b2b-saas-starter/capabilities/governance/workspace-onboarding'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema, type Scope } from 'effect'
+import { Schema } from 'effect'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
-import { requireWorkspacePermission } from './authorize'
+/**
+ * The onboarding-dismissal server function, in a **client-safe** module —
+ * the `invitations.ts` pattern, and the client-safe half of the
+ * `workspace-onboarding.effects.ts` split; see apps/web/AGENTS.md for the
+ * rule and `scripts/assert-client-boundary.mjs` for the enforcement. Each
+ * input is written once, as its Effect Schema: the validator is the single
+ * strict decode, and the derived type types both the client stub and the
+ * effects handler.
+ */
 
-// All input constraints live in the schema — no imperative re-validation.
 const DismissInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString
 })
 
-const decodeDismissInput = Schema.decodeUnknownSync(DismissInput)
+export type DismissInput = typeof DismissInput.Type
 
-/**
- * The effect below the session gate: proves the actor may dismiss
- * (`onboarding:dismiss` — owner and admin, never member), then hands the
- * mutation to the capability. Exported so the permission test drives it
- * against fixture layers without a request or an auth runtime. Resolves
- * `false` when the workspace had already dismissed — no second audit row.
- */
-export function dismissOnboardingChecklist(): Effect.Effect<
-  boolean,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext | WorkspaceOnboarding
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ onboarding: ['dismiss'] })
-    const onboarding = yield* WorkspaceOnboarding
-    return yield* onboarding.dismiss
-  })
-}
-
-export const dismissOnboardingChecklistServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeDismissInput(input))
+export const dismissOnboardingChecklistServerFn = createServerFn({
+  method: 'POST'
+})
+  .validator(Schema.decodeUnknownSync(DismissInput))
   .handler(async ({ data }): Promise<boolean> => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(data.workspaceSlug, dismissOnboardingChecklist(), {
-      userId: session.user.id
-    })
+    const { dismissOnboardingChecklistHandler } =
+      await import('./workspace-onboarding.effects')
+    return dismissOnboardingChecklistHandler(data)
   })

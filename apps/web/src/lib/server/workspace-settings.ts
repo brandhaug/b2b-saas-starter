@@ -1,17 +1,21 @@
-import {
-  SsoConnections,
-  type SsoConnection
-} from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
+import { type SsoConnection } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { type WorkspaceViewer } from '@/lib/permissions'
-import { Effect } from 'effect'
+import { createServerFn } from '@tanstack/react-start'
+import { Schema } from 'effect'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { whenPermitted } from './authorize'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
-import {
-  workspaceExportsSegment,
-  type WorkspaceExportsSegment
-} from './workspace-exports'
+import { type WorkspaceExportsSegment } from './workspace-exports'
+
+/**
+ * The workspace settings loader, in a **client-safe** module — the
+ * client-safe half of the `workspace-settings.effects.ts` split; see
+ * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
+ * for the enforcement. Each input is written once, as its Effect Schema: the
+ * validator is the single strict decode, and the derived type types both
+ * the client stub and the effects handler.
+ *
+ * The behaviour is tested as the plain loader function in the effects file
+ * (`workspace-settings.test.ts`), driven directly with fixture actors.
+ */
 
 /**
  * The workspace settings payload, assembled per actor.
@@ -48,39 +52,21 @@ export type WorkspaceSettingsPayload = {
   readonly exports: WorkspaceExportsSegment | null
 }
 
-/**
- * `notification:read` is the page's own read permission and a hard gate: an
- * actor who cannot read notifications has no settings page to render, so that
- * is a 403 rather than an empty shell.
- */
-const settingsPayload: WorkspacePageFrame<WorkspaceSettingsPayload> = workspacePage(
-  { notification: ['read'] },
-  (ctx) =>
-    Effect.map(
-      Effect.all(
-        {
-          unreadCount,
-          ssoConnections: whenPermitted(
-            { sso: ['list'] },
-            Effect.flatMap(SsoConnections, (sso) => sso.list)
-          ),
-          exports: whenPermitted(
-            { workspaceExport: ['request'] },
-            workspaceExportsSegment
-          )
-        },
-        { concurrency: 'unbounded' }
-      ),
-      (segments) => ({ workspaceName: ctx.workspace.name, ...segments })
-    )
-)
+const WorkspaceSettingsInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
 
-/** The settings route's loader. */
-export function loadWorkspaceSettings(input: {
-  readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceSettingsPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, settingsPayload, {
-    userId: input.userId
+export type WorkspaceSettingsInput = typeof WorkspaceSettingsInput.Type
+
+/**
+ * The settings route's loader. `notification:read` is the page's own read
+ * permission and a hard gate: an actor who cannot read notifications has no
+ * settings page to render, so that is a 403 rather than an empty shell.
+ */
+export const loadWorkspaceSettingsServerFn = createServerFn({ method: 'GET' })
+  .validator(Schema.decodeUnknownSync(WorkspaceSettingsInput))
+  .handler(async ({ data }): Promise<WorkspaceSettingsPayload> => {
+    const { loadWorkspaceSettingsHandler } =
+      await import('./workspace-settings.effects')
+    return loadWorkspaceSettingsHandler(data)
   })
-}

@@ -206,23 +206,7 @@ export default defineConfig(({ command, mode }) => {
           : [
               tanstackStart({
                 router: {
-                  routeFileIgnorePattern: '\\.test\\.',
-                  // Which route segments become lazy chunks. Start splits
-                  // routes by default (component/error/notFound); `loader`
-                  // is not in the default groupings, and this repo's loaders
-                  // are exactly the heavy segments — they run capabilities
-                  // in-process — so the grouping is stated here. Together
-                  // with pages living beside their routes (never exported
-                  // from them), that is what keeps `/` from preloading the
-                  // workspace graph.
-                  codeSplittingOptions: {
-                    defaultBehavior: [
-                      ['loader'],
-                      ['component'],
-                      ['errorComponent'],
-                      ['notFoundComponent']
-                    ]
-                  }
+                  routeFileIgnorePattern: '\\.test\\.'
                 }
               })
             ]),

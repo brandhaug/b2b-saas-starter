@@ -1,25 +1,25 @@
+import { type NotificationPreference } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import {
-  NOTIFICATION_KIND_DESCRIPTIONS,
-  NotificationChannel,
-  NotificationKind,
-  isSecurityNotificationKind,
+  notificationChannels,
+  notificationKinds,
   type NotificationKind as Kind
-} from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
-import {
-  NotificationPreferences,
-  type NotificationPreference
-} from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
+} from '@b2b-saas-starter/db/enums'
 import { createServerFn } from '@tanstack/react-start'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { Effect, Schema } from 'effect'
+import { Schema } from 'effect'
 
-import { runCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
+/**
+ * The notification-preference server functions, in a **client-safe** module:
+ * the client-safe half of the `notification-preferences.effects.ts` split
+ * (see apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for
+ * the enforcement). Each input is written once, as its Effect Schema — the
+ * validator is the single strict decode, and the derived type below types
+ * both the client stub and the effects handler.
+ */
 
 /**
  * One row of the `/account` preferences section: the resolved preference plus
- * the copy the page shows for it. Assembled here so the component renders
- * words and never imports the kind table.
+ * the copy the page shows for it. Assembled server-side (in the effects
+ * file) so the component renders words and never imports the kind table.
  */
 export type NotificationPreferenceRow = NotificationPreference & {
   readonly label: string
@@ -31,75 +31,47 @@ export type NotificationPreferencesPayload = {
   readonly preferences: ReadonlyArray<NotificationPreferenceRow>
 }
 
-export function toPreferenceRow(
-  preference: NotificationPreference
-): NotificationPreferenceRow {
-  const copy = NOTIFICATION_KIND_DESCRIPTIONS[preference.kind]
-  return {
-    ...preference,
-    label: copy.label,
-    description: copy.description,
-    security: isSecurityNotificationKind(preference.kind)
-  }
-}
-
-/**
- * The `/account` preferences segment, as an effect so the route's composed
- * loader can run it beside its other identity-keyed read.
- */
-export function notificationPreferencesPayload(input: {
-  readonly userId: string
-}): Effect.Effect<
-  NotificationPreferencesPayload,
-  CapabilityUnavailable,
-  NotificationPreferences
-> {
-  return Effect.map(
-    Effect.flatMap(NotificationPreferences, (preferences) =>
-      preferences.list(input.userId)
-    ),
-    (resolved) => ({ preferences: resolved.map(toPreferenceRow) })
-  )
-}
-
-/** The `/account` loader's segment: the signed-in user's full preference matrix. */
-export function loadNotificationPreferences(input: {
-  readonly userId: string
-}): Promise<NotificationPreferencesPayload> {
-  return runCapabilities(notificationPreferencesPayload(input))
-}
-
 // All input constraints live in the schema — no imperative re-validation.
 const SetNotificationPreferenceInput = Schema.Struct({
-  kind: NotificationKind,
-  channel: NotificationChannel
+  kind: Schema.Literals(notificationKinds),
+  channel: Schema.Literals(notificationChannels)
 })
 
-const decodeSetInput = Schema.decodeUnknownSync(SetNotificationPreferenceInput)
+export type SetNotificationPreferenceInput = typeof SetNotificationPreferenceInput.Type
+
+/**
+ * The `/account/notifications` loader segment: the signed-in user's full
+ * preference matrix.
+ */
+export const loadNotificationPreferencesServerFn = createServerFn({
+  method: 'GET'
+}).handler(async (): Promise<NotificationPreferencesPayload> => {
+  const { loadNotificationPreferencesHandler } =
+    await import('./notification-preferences.effects')
+  return loadNotificationPreferencesHandler()
+})
 
 /**
  * Stores one choice for the signed-in user. The session gate is the whole
  * authorization: a preference is the user's own, keyed by their id, so no
  * workspace permission applies and no other user's row is reachable.
  */
-export const setNotificationPreferenceServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeSetInput(input))
+export const setNotificationPreferenceServerFn = createServerFn({
+  method: 'POST'
+})
+  .validator(Schema.decodeUnknownSync(SetNotificationPreferenceInput))
   .handler(async ({ data }): Promise<NotificationPreferenceRow> => {
-    const session = await requireRequestSession()
-    return runCapabilities(
-      Effect.gen(function* () {
-        const preferences = yield* NotificationPreferences
-        const set = yield* preferences.set({
-          userId: session.user.id,
-          kind: data.kind,
-          channel: data.channel
-        })
-        return toPreferenceRow(set)
-      })
-    )
+    const { setNotificationPreferenceHandler } =
+      await import('./notification-preferences.effects')
+    return setNotificationPreferenceHandler(data)
   })
 
-/** Whether a `?kind=` search value names a real kind. */
+/**
+ * Whether a `?kind=` search value names a real kind. Reads the stored kind
+ * tuple from `@b2b-saas-starter/db/enums` rather than the capability's kind
+ * table: the table lives beside Effect schemas, and this probe runs in the
+ * browser on the unsubscribe route.
+ */
 export function isNotificationKind(value: string | undefined): value is Kind {
-  return value !== undefined && Object.hasOwn(NOTIFICATION_KIND_DESCRIPTIONS, value)
+  return value !== undefined && notificationKinds.some((kind) => kind === value)
 }

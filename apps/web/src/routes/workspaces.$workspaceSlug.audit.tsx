@@ -5,8 +5,7 @@ import { WorkspaceAuditPage } from '@/components/workspace-audit-page'
 import { type ApplyWorkspaceAuditSearch } from '@/lib/audit-search'
 import { pickOptionalStrings } from '@/lib/utils'
 import {
-  loadWorkspaceAuditEvents,
-  type LoadWorkspaceAuditEventsInput,
+  loadWorkspaceAuditEventsServerFn,
   type WorkspaceAuditFilters
 } from '@/lib/server/workspace-audit'
 
@@ -64,17 +63,14 @@ function filtersFromSearch(search: AuditSearch): WorkspaceAuditFilters {
 export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
   validateSearch: (search) => decodeSearch(search),
   loaderDeps: ({ search }) => ({ search: decodeSearch(search) }),
-  loader: ({ params, context, deps }) => {
-    const input: LoadWorkspaceAuditEventsInput = {
-      workspaceSlug: params.workspaceSlug,
-      userId: context.session.user.id,
-      filters: filtersFromSearch(deps.search)
-    }
-    if (deps.search.cursor !== undefined) {
-      input.cursor = deps.search.cursor
-    }
-    return loadWorkspaceAuditEvents(input)
-  },
+  loader: ({ params, deps }) =>
+    loadWorkspaceAuditEventsServerFn({
+      data: {
+        workspaceSlug: params.workspaceSlug,
+        filters: filtersFromSearch(deps.search),
+        ...(deps.search.cursor !== undefined && { cursor: deps.search.cursor })
+      }
+    }),
   pendingComponent: RoutePending,
   component: WorkspaceAuditRoute,
   head: ({ params }) => ({

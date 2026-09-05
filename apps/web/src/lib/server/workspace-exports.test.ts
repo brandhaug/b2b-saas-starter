@@ -11,7 +11,7 @@ import {
 import { describe, expect, it } from 'vite-plus/test'
 import { Effect, Exit, Layer } from 'effect'
 
-import { requestWorkspaceExport } from './workspace-exports'
+import { requestWorkspaceExport } from './workspace-exports.effects'
 
 /**
  * The effect below the session gate, driven against the Seed layer with the

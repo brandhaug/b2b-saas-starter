@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vite-plus/test'
 import {
-  isNotificationKind,
   loadNotificationPreferences,
   toPreferenceRow
-} from './notification-preferences'
+} from './notification-preferences.effects'
+import { isNotificationKind } from './notification-preferences'
 
 // The test shim leaves `DB` undefined, so the loader answers from the Seed
 // layer — the same fixture the landing demo and the D1 seed script read.

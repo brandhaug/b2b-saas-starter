@@ -1,36 +1,35 @@
-import {
-  AuditEventLog,
-  type AuditEvent,
-  type ListAuditEventsInput
-} from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type WorkspaceViewer } from '@/lib/permissions'
-import { Effect } from 'effect'
+import { createServerFn } from '@tanstack/react-start'
+import { Schema, type Types } from 'effect'
 
-import { runWorkspaceCapabilities } from '../capabilities'
-import { workspacePage } from './page-frame'
+/**
+ * The audit-trail loader, in a **client-safe** module — the client-safe half
+ * of the `workspace-audit.effects.ts` split (see apps/web/AGENTS.md for the
+ * rule and `assert-client-boundary.mjs` for the enforcement). Each input is
+ * written once, as its Effect Schema: the validator is the single strict
+ * decode, and the derived types below type both the client stub and the
+ * effects handler.
+ *
+ * The behaviour is tested as the plain loader function in the effects file
+ * (`workspace-audit.test.ts`), driven directly with fixture actors.
+ */
 
 /**
  * Server-side filters for the audit page, straight from the route's search
  * params. Dates arrive as `YYYY-MM-DD` and are widened to inclusive UTC
  * instant bounds in `loadWorkspaceAuditEvents` — the only place that knows
- * the wire contract is ISO timestamps (see `AuditEventLog.list`).
+ * the wire contract is ISO timestamps (see `AuditEventLog.list`). Widened
+ * mutable because the route stages a filter onto an empty record key by key.
  */
-export type WorkspaceAuditFilters = {
-  actorUserId?: string
-  eventType?: string
-  since?: string
-  until?: string
-}
+const WorkspaceAuditFilters = Schema.Struct({
+  actorUserId: Schema.optionalKey(Schema.String),
+  eventType: Schema.optionalKey(Schema.String),
+  since: Schema.optionalKey(Schema.String),
+  until: Schema.optionalKey(Schema.String)
+})
 
-/** The loader's input shape. */
-export type LoadWorkspaceAuditEventsInput = {
-  workspaceSlug: string
-  userId: string
-  filters: WorkspaceAuditFilters
-  /** Opaque keyset cursor from a previous page. */
-  cursor?: string
-}
+export type WorkspaceAuditFilters = Types.Mutable<typeof WorkspaceAuditFilters.Type>
 
 /**
  * The per-workspace audit payload. `auditLog: ['read']` is the page's own read
@@ -53,43 +52,38 @@ export type WorkspaceAuditPayload = {
   readonly members: ReadonlyArray<{ readonly id: string; readonly name: string }>
 }
 
-export function loadWorkspaceAuditEvents(
-  input: LoadWorkspaceAuditEventsInput
-): Promise<WorkspaceAuditPayload> {
-  const { filters, cursor } = input
-  // Spreads keep an absent filter absent; the date filters are the only ones
-  // that transform.
-  const { actorUserId, eventType, since, until } = filters
-  const listInput: ListAuditEventsInput = {
-    ...(actorUserId !== undefined && { actorUserId }),
-    ...(eventType !== undefined && { eventType }),
-    // `YYYY-MM-DD` widens to inclusive UTC instant bounds — the only place
-    // that knows the wire contract is ISO timestamps.
-    ...(since !== undefined && { since: `${since}T00:00:00.000Z` }),
-    ...(until !== undefined && { until: `${until}T23:59:59.999Z` }),
-    ...(cursor !== undefined && { cursor })
-  }
-  return runWorkspaceCapabilities(
-    input.workspaceSlug,
-    workspacePage({ auditLog: ['read'] }, () =>
-      Effect.gen(function* () {
-        const log = yield* AuditEventLog
-        const membership = yield* WorkspaceMembership
-        // No second gate here: the hard `auditLog` read above already decided
-        // who reaches this payload (owner/admin only), and the role table has no
-        // separate member-list statement to compose.
-        const [page, members] = yield* Effect.all(
-          [log.list(listInput), membership.listMembers],
-          { concurrency: 'unbounded' }
-        )
-        return {
-          events: page.events,
-          nextCursor: page.nextCursor,
-          filters: input.filters,
-          members: members.map((member) => ({ id: member.id, name: member.name }))
-        }
-      })
-    ),
-    { userId: input.userId }
-  )
+/**
+ * The server fn's input. The filter keys stay optional and unconstrained —
+ * the page's search params are lenient on purpose, and an unknown event type
+ * or an undecodable cursor addresses an empty result, not an error.
+ */
+const WorkspaceAuditInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  filters: WorkspaceAuditFilters,
+  cursor: Schema.optionalKey(Schema.String)
+})
+
+export type WorkspaceAuditInput = typeof WorkspaceAuditInput.Type
+
+/**
+ * The loader's input: the fn's decoded input plus the acting member —
+ * `userId` never rides the wire, so the handler adds it from the session.
+ * Widened mutable because tests stage a cursor onto the built input
+ * (`workspace-audit.test.ts`).
+ */
+export type LoadWorkspaceAuditEventsInput = Types.Mutable<
+  typeof WorkspaceAuditInput.Type
+> & {
+  userId: string
 }
+
+/** The audit route's loader. */
+export const loadWorkspaceAuditEventsServerFn = createServerFn({
+  method: 'GET'
+})
+  .validator(Schema.decodeUnknownSync(WorkspaceAuditInput))
+  .handler(async ({ data }): Promise<WorkspaceAuditPayload> => {
+    const { loadWorkspaceAuditEventsHandler } =
+      await import('./workspace-audit.effects')
+    return loadWorkspaceAuditEventsHandler(data)
+  })
