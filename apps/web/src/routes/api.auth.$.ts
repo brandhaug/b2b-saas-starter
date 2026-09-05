@@ -28,29 +28,45 @@ import {
   impersonationForbiddenAction,
   impersonationGuardResponse
 } from '@/lib/server/impersonation-guard'
+import { enforceTwoFactorSignIn } from '@/lib/server/two-factor-sign-in-gate'
 import { makeTurnstileLayer } from '@/lib/server/turnstile'
 import {
-  sendTwoFactorChangedEmail,
-  sendPasskeyChangedEmail
+  sendBackupCodesRotatedEmail,
+  sendPasskeyChangedEmail,
+  sendPasswordChangedEmail,
+  sendTwoFactorChangedEmail
 } from '@/lib/server/auth-emails'
 import { notifyCredentialChangedEffect } from '@/lib/server/credential-change-notification'
 import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
 
 /**
  * The credential-change sender, bound to the provider-light email dispatcher:
- * the change the row names picks the email's wording.
+ * the change the row names picks the email's wording — one case per kind, the
+ * table is the only place that decides which fire. Exhaustive on purpose: a
+ * new `CredentialChange` kind is a compile error here, not a silent
+ * backup-codes email for a change that never rotated any.
  */
 function sendCredentialChangeEmail(input: {
   readonly email: string
   readonly change: CredentialChange
 }) {
-  if (input.change.kind === 'two-factor') {
-    return sendTwoFactorChangedEmail({
-      email: input.email,
-      enabled: input.change.enabled
-    })
+  switch (input.change.kind) {
+    case 'two-factor': {
+      return sendTwoFactorChangedEmail({
+        email: input.email,
+        enabled: input.change.enabled
+      })
+    }
+    case 'passkey': {
+      return sendPasskeyChangedEmail({ email: input.email, added: input.change.added })
+    }
+    case 'password': {
+      return sendPasswordChangedEmail({ email: input.email })
+    }
+    case 'backup-codes': {
+      return sendBackupCodesRotatedEmail({ email: input.email })
+    }
   }
-  return sendPasskeyChangedEmail({ email: input.email, added: input.change.added })
 }
 
 /**
@@ -237,13 +253,24 @@ async function handleAuth(request: Request): Promise<Response> {
         // The effectful-better-auth mount. The Auth service comes from
         // authRuntime's layer; only the request is handed over per call.
         const response = yield* handleWebRequest(Auth.Tag, request)
+        // The two-factor gate for the mailbox-only sign-ins (the email-OTP
+        // verify and the magic-link consume): the plugin's challenge hook
+        // covers the credential endpoints, so these two would otherwise mint
+        // a session from mailbox possession alone. Post-handler by design —
+        // the refusal replaces only a SUCCESS, so a probe that fails Better
+        // Auth's own checks learns nothing about who has 2FA on (ADR 0056's
+        // passkey bypass stays deliberate; social/SSO delegate MFA to the
+        // IdP). `null` = the handler's response stands.
+        const twoFactorResponse = yield* enforceTwoFactorSignIn(exchange, response)
+        const finalResponse = twoFactorResponse ?? response
         // Governance audit for credential sign-in attempts (ADR 0025) —
         // best-effort by contract, so it can't fail the auth response. It
         // annotates its own failure reason onto this wide event; the outcome is
-        // added below.
+        // added below. A gate refusal is audited as the failed sign-in it is:
+        // the table reads the final response, not the one it replaced.
         const authAudit = yield* recordAuthAudit(
           exchange,
-          response,
+          finalResponse,
           runCapabilities,
           context
         )
@@ -252,20 +279,27 @@ async function handleAuth(request: Request): Promise<Response> {
         }
         // SSO sign-ins audit through their own path (ADR 0069): the callback
         // redirects name no actor and the event is workspace-scoped.
-        yield* recordSsoSignInAudit(exchange, response)
+        yield* recordSsoSignInAudit(exchange, finalResponse)
         // Security notification for a credential change (best-effort, same
         // contract as the audit above): the account holder is emailed on
-        // every successful second-factor or passkey change, so a hijacked
-        // session cannot silently take over the account or enroll or strip a
-        // sign-in credential.
+        // every successful second-factor, passkey, or password change, so a
+        // hijacked session cannot silently take over the account or enroll or
+        // strip a sign-in credential.
         yield* notifyCredentialChangedEffect(
           exchange,
-          response,
+          finalResponse,
           sendCredentialChangeEmail,
           context
         )
-        yield* Effect.annotateLogsScoped({ outcome: 'ok', statusCode: response.status })
-        return response
+        // A gate refusal is this exchange's outcome; 'ok' would lie about a
+        // session the gate just revoked. `finalResponse` carries either
+        // story: it is the refusal itself when one replaced the handler's
+        // answer.
+        yield* Effect.annotateLogsScoped({
+          outcome: twoFactorResponse === null ? 'ok' : 'two_factor_required',
+          statusCode: finalResponse.status
+        })
+        return finalResponse
       }).pipe(Effect.provide(rateLimitLayer))
     )
   )

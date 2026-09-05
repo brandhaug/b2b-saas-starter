@@ -31,9 +31,10 @@ function ForgotPasswordRoute() {
 
 // One message for every outcome, by design: the endpoint answers identically
 // whether or not the email exists (account enumeration defense), and the
-// screen must not know more than the endpoint does.
+// screen must not know more than the endpoint does. Thirty minutes is the
+// window the auth config pins (`resetPasswordTokenExpiresIn: 60 * 30`).
 const SENT_MESSAGE =
-  'If this email exists in our system, check your inbox for a reset link. It expires in one hour.'
+  'If this email exists in our system, check your inbox for a reset link. It expires in thirty minutes.'
 
 // The code request endpoint holds the same non-disclosure contract, so the
 // code step echoes no address either.

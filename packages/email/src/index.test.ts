@@ -9,8 +9,11 @@ import {
   type SendEmailBuilderArgs
 } from './index.ts'
 import {
+  BackupCodesRotatedEmail,
   MagicLinkEmail,
   OneTimeCodeEmail,
+  PasswordChangedEmail,
+  PasswordResetEmail,
   WorkspaceInvitationEmail
 } from './templates.tsx'
 
@@ -139,4 +142,66 @@ describe('MagicLinkEmail', () => {
       }).pipe(Effect.provide(makeCloudflareEmailDispatcherLayer({ send })))
     )
   })
+})
+
+describe('PasswordResetEmail', () => {
+  it('names the thirty-minute window the auth config pins', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const text = yield* Effect.promise(() =>
+          render(PasswordResetEmail({ url: 'http://localhost:3071/x' }), {
+            plainText: true
+          })
+        )
+        // `resetPasswordTokenExpiresIn: 60 * 30` in packages/auth — the copy
+        // is where a drift between the config and the promise would surface.
+        expect(text).toContain('thirty minutes')
+        expect(text).not.toContain('hour')
+      })
+    ))
+})
+
+describe('PasswordChangedEmail', () => {
+  it.each([
+    ['reset', 'Your password was reset', 'reset through the link'],
+    ['password-change', 'Your password was changed', 'changed from your account']
+  ] satisfies ReadonlyArray<
+    readonly [via: 'reset' | 'password-change', heading: string, flow: string]
+  >)('renders the %s flow, naming what happened', (via, heading, flow) =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const html = yield* Effect.promise(() => render(PasswordChangedEmail({ via })))
+        const text = yield* Effect.promise(() =>
+          render(PasswordChangedEmail({ via }), { plainText: true })
+        )
+        expect(html).toContain(heading)
+        expect(text.toLowerCase()).toContain(heading.toLowerCase())
+        expect(text).toContain(flow)
+      })
+    )
+  )
+
+  it('renders no action link — a sign-in button in this email is a phishing assist', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const html = yield* Effect.promise(() =>
+          render(PasswordChangedEmail({ via: 'reset' }))
+        )
+        expect(html).not.toContain('href=')
+      })
+    ))
+})
+
+describe('BackupCodesRotatedEmail', () => {
+  it('warns that the previously saved codes stopped working, with no link', () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const text = yield* Effect.promise(() =>
+          render(BackupCodesRotatedEmail(), { plainText: true })
+        )
+        expect(text).toContain('stopped working')
+        const html = yield* Effect.promise(() => render(BackupCodesRotatedEmail()))
+        expect(html).not.toContain('href=')
+      })
+    ))
 })

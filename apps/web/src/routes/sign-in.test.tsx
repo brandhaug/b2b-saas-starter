@@ -258,6 +258,12 @@ describe('SignInPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     await waitFor(() => expect(assign).toHaveBeenCalledTimes(1))
     expect(assign).toHaveBeenCalledWith('https://login.acme.com/authorize?state=x')
+    // The IdP's landing URL is absolute — Better Auth validates `callbackURL`
+    // against trusted origins — with the safe redirect target as its path.
+    expect(signInWithSso).toHaveBeenCalledWith({
+      email: 'person@acme.com',
+      callbackURL: `${window.location.origin}/workspaces`
+    })
     // The credential path never ran, and no navigation happened client-side.
     expect(signIn).not.toHaveBeenCalled()
     expect(router.state.location.pathname).toBe('/sign-in')
@@ -290,6 +296,33 @@ describe('SignInPage', () => {
     expect(notice.textContent).toBe(
       'This workspace requires single sign-on for your email domain. Sign in with your identity provider.'
     )
+  })
+
+  it('explains the two-factor refusal a magic-link hop lands with', async () => {
+    // The TOTP gate refuses the link before consumption and redirects the
+    // browser to /sign-in?error=two_factor_required — the search param is the
+    // refusal's only channel, so the page renders it as guidance naming the
+    // path that still works, not a failed sign-in.
+    await renderWithRouter(
+      <SignInPage searchError="two_factor_required" signIn={signIn} />,
+      { path: '/sign-in', destinations: ['/workspaces'] }
+    )
+    const notice = await screen.findByRole('alert')
+    expect(notice.textContent).toBe(
+      'This account uses two-factor authentication. Sign in with your password and authenticator.'
+    )
+    // Guidance, not a dead end: the credential form the message points at is
+    // right there under the notice.
+    expect(screen.getByLabelText('Password')).toBeDefined()
+  })
+
+  it('renders nothing for an unknown error search param', async () => {
+    await renderWithRouter(
+      <SignInPage searchError="something_else" signIn={signIn} />,
+      { path: '/sign-in', destinations: ['/workspaces'] }
+    )
+    await screen.findByLabelText('Email')
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('offers the email-code path without touching the credential form', async () => {

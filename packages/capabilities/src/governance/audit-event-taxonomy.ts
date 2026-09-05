@@ -77,6 +77,14 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'auth.password_reset_failed',
   'auth.email_verified',
   'auth.email_verification_failed',
+  // signed-in account changes over the auth catchall (the credential path has
+  // its reset pair above; these are the changes a live session makes)
+  'auth.password_changed',
+  'auth.password_change_failed',
+  'auth.email_changed',
+  'auth.email_change_failed',
+  'auth.user_updated',
+  'auth.user_update_failed',
   'auth.sign_out',
   'auth.sign_out_failed',
   'auth.session_revoked',
@@ -90,6 +98,8 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'auth.two_factor_disable_failed',
   'auth.two_factor_verified',
   'auth.two_factor_verification_failed',
+  'auth.two_factor_backup_codes_rotated',
+  'auth.two_factor_backup_codes_rotation_failed',
   // passkey lifecycle over the auth catchall (ADR 0056)
   'auth.passkey_added',
   'auth.passkey_added_failed',

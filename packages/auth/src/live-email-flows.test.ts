@@ -63,7 +63,10 @@ const capturingEmailSender: AuthEmailSender = {
   sendMagicLink: (data) => {
     sentEmails.push({ kind: 'magic-link', email: data.email, url: data.url })
     return Promise.resolve()
-  }
+  },
+  // The reset confirmation is a notification, not a flow input — the suite
+  // has no assertion for it yet, so it captures nothing.
+  sendPasswordResetConfirmation: () => Promise.resolve()
 }
 
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process

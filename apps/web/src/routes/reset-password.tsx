@@ -85,7 +85,7 @@ export function ResetPasswordPage({
       >
         <p className="text-sm text-muted-foreground">
           The password reset link is invalid or has expired. Links work once and expire
-          after an hour.
+          after thirty minutes.
         </p>
       </AuthCardForm>
     )

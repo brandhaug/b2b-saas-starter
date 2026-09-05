@@ -72,6 +72,34 @@ describe('notifyCredentialChanged', () => {
     })
   })
 
+  it('emails the actor on a backup-code rotation — saved codes die with it', async () => {
+    send.mockReset().mockResolvedValue(undefined)
+    await notifyCredentialChanged(
+      post('/two-factor/generate-backup-codes'),
+      ok(),
+      send,
+      context('u@example.com')
+    )
+    expect(send).toHaveBeenCalledWith({
+      email: 'u@example.com',
+      change: { kind: 'backup-codes' }
+    })
+  })
+
+  it('emails the actor on a signed-in password change', async () => {
+    send.mockReset().mockResolvedValue(undefined)
+    await notifyCredentialChanged(
+      post('/change-password'),
+      ok(),
+      send,
+      context('u@example.com')
+    )
+    expect(send).toHaveBeenCalledWith({
+      email: 'u@example.com',
+      change: { kind: 'password' }
+    })
+  })
+
   it('stays silent on failures, sign-in exchanges, and renames', async () => {
     send.mockReset()
     await notifyCredentialChanged(
@@ -96,6 +124,20 @@ describe('notifyCredentialChanged', () => {
     // Renaming is a label change, not a credential change.
     await notifyCredentialChanged(
       post('/passkey/update-passkey'),
+      ok(),
+      send,
+      context('u@example.com')
+    )
+    // The signed-in profile changes record audit rows but email nobody: a
+    // name change is benign, and an email change mails its own verification.
+    await notifyCredentialChanged(
+      post('/update-user'),
+      ok(),
+      send,
+      context('u@example.com')
+    )
+    await notifyCredentialChanged(
+      post('/change-email'),
       ok(),
       send,
       context('u@example.com')

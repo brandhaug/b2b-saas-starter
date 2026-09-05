@@ -2,10 +2,12 @@ import { type AuthEmailSender } from '@b2b-saas-starter/auth'
 import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import {
   AccountDeletedEmail,
+  BackupCodesRotatedEmail,
   EmailVerificationEmail,
   MagicLinkEmail,
   OneTimeCodeEmail,
   PasskeyChangedEmail,
+  PasswordChangedEmail,
   PasswordResetEmail,
   TwoFactorChangedEmail
 } from '@b2b-saas-starter/email/templates'
@@ -123,6 +125,16 @@ export function makeAuthEmailSender(): AuthEmailSender {
         to: email,
         subject: 'Your sign-in link',
         element: MagicLinkEmail({ url })
+      }),
+    // `onPasswordReset`: fired after a link reset succeeded and every prior
+    // session was revoked, so the email is the holder-facing record of a
+    // takeover response having run — one template with the signed-in change,
+    // discriminated only by the flow sentence.
+    sendPasswordResetConfirmation: ({ user }) =>
+      dispatch({
+        to: user.email,
+        subject: 'Your password was reset',
+        element: PasswordChangedEmail({ via: 'reset' })
       })
   }
 }
@@ -161,6 +173,38 @@ export function sendPasskeyChangedEmail(input: {
     to: input.email,
     subject,
     element: PasskeyChangedEmail({ added: input.added })
+  })
+}
+
+/**
+ * The password-change wording of the credential-change notification, on the
+ * same best-effort contract as the two-factor one: the signed-in change
+ * (`/change-password`) emails the account holder so a hijacked session
+ * cannot swap the password out silently.
+ */
+export function sendPasswordChangedEmail(input: {
+  readonly email: string
+}): Promise<void> {
+  return dispatch({
+    to: input.email,
+    subject: 'Your password was changed',
+    element: PasswordChangedEmail({ via: 'password-change' })
+  })
+}
+
+/**
+ * The backup-code-rotation wording of the credential-change notification, on
+ * the same best-effort contract: rotation invalidates every previously saved
+ * recovery code, which the holder must hear about from somewhere other than
+ * a locked-out sign-in.
+ */
+export function sendBackupCodesRotatedEmail(input: {
+  readonly email: string
+}): Promise<void> {
+  return dispatch({
+    to: input.email,
+    subject: 'Your two-factor recovery codes were replaced',
+    element: BackupCodesRotatedEmail()
   })
 }
 
