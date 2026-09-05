@@ -1,5 +1,7 @@
 // oxlint-disable effect/noNodeBuiltinImport -- a measurement script reads the repo's built output; it runs in Node by design, not in a Worker
 // oxlint-disable eslint/no-console -- a CLI tool reports through the console by definition
+// oxlint-disable eslint/no-await-in-loop -- each route is fetched and measured sequentially by design
+// oxlint-disable effect/noTryCatch -- a CLI tool treats a missing chunk as a reported row, not an Effect failure
 import { statSync } from 'node:fs'
 import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -27,7 +29,9 @@ const ROUTES = ['/', '/demo', '/sign-in', '/docs']
 const baseUrl = process.argv[2]
 if (!baseUrl) {
   console.error('usage: node scripts/measure-preloads.mjs <baseUrl> [route...]')
-  console.error('  e.g. node scripts/measure-preloads.mjs http://localhost:3093 / /demo')
+  console.error(
+    '  e.g. node scripts/measure-preloads.mjs http://localhost:3093 / /demo'
+  )
   process.exit(2)
 }
 const routes = process.argv.slice(3).length > 0 ? process.argv.slice(3) : ROUTES
@@ -51,7 +55,9 @@ for (const route of routes) {
   const url = new URL(route, baseUrl).toString()
   const response = await fetch(url)
   if (!response.ok) {
-    console.error(`${route}: HTTP ${response.status} — is the preview server serving a production build?`)
+    console.error(
+      `${route}: HTTP ${response.status} — is the preview server serving a production build?`
+    )
     failed = true
     continue
   }
@@ -78,14 +84,18 @@ for (const route of routes) {
     failed = true
   }
   if (forbidden.length > 0) {
-    console.log(`  !! client-boundary violation: ${forbidden.map((chunk) => chunk.href).join(', ')}`)
+    console.log(
+      `  !! client-boundary violation: ${forbidden.map((chunk) => chunk.href).join(', ')}`
+    )
   }
   for (const chunk of chunks.toSorted((a, b) => b.bytes - a.bytes).slice(0, 10)) {
     console.log(`  ${String(chunk.bytes).padStart(8)}  ${chunk.href}`)
   }
 }
 
-console.log(`total across ${routes.length} routes: ${(grandTotal / 1024).toFixed(1)} kB`)
+console.log(
+  `total across ${routes.length} routes: ${(grandTotal / 1024).toFixed(1)} kB`
+)
 if (failed) {
   process.exit(1)
 }
