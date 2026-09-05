@@ -119,8 +119,11 @@ by Dependabot) gets an ephemeral Alchemy stage named `pr-<number>`
 [Preview workflow](../.github/workflows/preview.yml) deploys it on
 `opened`, `synchronize`, and `reopened`, applies the migrations, seeds
 the Seed Workspace (`starter-lab`, demo sign-in in
-[setup.md](./setup.md)), smoke-tests the API and web Workers, and keeps
-one sticky comment on the PR with the three URLs:
+[setup.md](./setup.md)), smoke-tests the API and web Workers, and reports
+the stage through GitHub's Deployments API: the PR timeline carries a
+"View deployment" link to the web Worker, and the workflow run's summary
+holds all three URLs. A deployment status never sends a notification
+email, unlike a PR comment:
 
 | Worker     | URL                                                                       |
 | ---------- | ------------------------------------------------------------------------- |
