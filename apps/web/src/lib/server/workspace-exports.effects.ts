@@ -7,20 +7,22 @@ import {
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { hasValue } from '@b2b-saas-starter/env/server'
 import { env as cloudflareEnv } from 'cloudflare:workers'
-import { Effect, Option, Schema, type Scope } from 'effect'
+import { Effect, Option, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
-import { type WorkspaceExportsSegment } from './workspace-exports'
+import {
+  type RequestExportInput,
+  type WorkspaceExportsSegment
+} from './workspace-exports'
 
 /**
  * The export segment assembly, the request effect and their server-only
  * wiring, reached only through dynamic `import()` inside the handler of
  * `requestWorkspaceExportServerFn` (`workspace-exports.ts`) — and by the
  * settings payload, which composes the segment
- * (`workspace-settings.effects.ts`): handler bodies are stripped from the
- * client build, so this graph ships to the server alone.
+ * (`workspace-settings.effects.ts`); see apps/web/AGENTS.md.
  * `workspace-exports.ts` holds the client-safe half and the reason for the
  * split.
  */
@@ -69,12 +71,6 @@ export const workspaceExportsSegment: Effect.Effect<
   return { availability, exports: views }
 })
 
-const RequestExportInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-
-const decodeRequestInput = Schema.decodeUnknownSync(RequestExportInput)
-
 /**
  * The effect below the session gate: proves the actor may request
  * (`workspaceExport:request`), then hands the request to the capability.
@@ -93,10 +89,8 @@ export function requestWorkspaceExport(): Effect.Effect<
 }
 
 export async function requestWorkspaceExportHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: RequestExportInput
 ): Promise<WorkspaceExport> {
-  const input = decodeRequestInput(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(input.workspaceSlug, requestWorkspaceExport(), {
     userId: session.user.id

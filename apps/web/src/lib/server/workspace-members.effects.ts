@@ -3,10 +3,7 @@ import {
   planById,
   seatUsage
 } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
-import {
-  WorkspaceRole as WorkspaceRoleSchema,
-  type Member
-} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { WorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import {
   WorkspaceMembership,
@@ -18,14 +15,20 @@ import {
   type MembershipChangeRejected
 } from '@b2b-saas-starter/capabilities/errors'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { Effect, Schema, type Scope } from 'effect'
+import { Effect, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
 import { webMemberBinding } from './member-binding'
 import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
-import { type WorkspaceMembersPayload } from './workspace-members'
+import {
+  type ChangeMemberRoleInput,
+  type LeaveWorkspaceInput,
+  type LoadWorkspaceMembersInput,
+  type RemoveMemberInput,
+  type WorkspaceMembersPayload
+} from './workspace-members'
 
 /**
  * The members payload composition, the member effects and their server-only
@@ -86,42 +89,9 @@ export function loadWorkspaceMembers(input: {
   })
 }
 
-/**
- * The server fns' input schemas, decoded here rather than in
- * `workspace-members.ts`: the client stub never runs validators, and a
- * module-level Schema construct in the client-safe file would drag the
- * Effect Schema chunk onto every page. All input constraints live in the
- * schema — no imperative re-validation.
- */
-const LoadWorkspaceMembersInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-
-const ChangeMemberRoleInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  userId: Schema.NonEmptyString,
-  role: WorkspaceRoleSchema
-})
-
-const RemoveMemberInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  userId: Schema.NonEmptyString
-})
-
-const LeaveWorkspaceInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-
-const decodeLoadInput = Schema.decodeUnknownSync(LoadWorkspaceMembersInput)
-const decodeChangeRoleInput = Schema.decodeUnknownSync(ChangeMemberRoleInput)
-const decodeRemoveInput = Schema.decodeUnknownSync(RemoveMemberInput)
-const decodeLeaveInput = Schema.decodeUnknownSync(LeaveWorkspaceInput)
-
 export async function loadWorkspaceMembersHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: LoadWorkspaceMembersInput
 ): Promise<WorkspaceMembersPayload> {
-  const input = decodeLoadInput(data)
   const session = await requireRequestSession()
   return loadWorkspaceMembers({
     workspaceSlug: input.workspaceSlug,
@@ -153,9 +123,9 @@ export function changeMemberRole(
   })
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function changeMemberRoleHandler(data: unknown): Promise<Member> {
-  const input = decodeChangeRoleInput(data)
+export async function changeMemberRoleHandler(
+  input: ChangeMemberRoleInput
+): Promise<Member> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -188,9 +158,7 @@ export function removeMember(
   })
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function removeMemberHandler(data: unknown): Promise<void> {
-  const input = decodeRemoveInput(data)
+export async function removeMemberHandler(input: RemoveMemberInput): Promise<void> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -215,9 +183,7 @@ export function leaveWorkspace(): Effect.Effect<
   return Effect.flatMap(WorkspaceMembership, (membership) => membership.leave)
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function leaveWorkspaceHandler(data: unknown): Promise<void> {
-  const input = decodeLeaveInput(data)
+export async function leaveWorkspaceHandler(input: LeaveWorkspaceInput): Promise<void> {
   // The input carries no identity because there is none to carry: the
   // leaver is the session's own user, and a non-member gets the same
   // non-disclosing 404 every workspace route gives them.

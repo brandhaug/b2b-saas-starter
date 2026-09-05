@@ -1,29 +1,17 @@
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import {
-  type SystemRole,
-  type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type SystemRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type WorkspaceWithMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { WORKSPACE_ROLES } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
-
-import { expectRecord, expectString } from './input-shape'
+import { Schema } from 'effect'
 
 /**
- * The `/admin` server functions, in a **client-safe** module.
- *
- * This file is statically imported by the admin route and the user-action
- * components, and the route tree ships to the browser — so everything at
- * this module's top level rides on every page. That is why the capability
- * effects and their wiring (the platform user-admin service, the global
- * audit log, the Better Auth session gate, the plugin binding) live in
- * `admin.effects.ts` and are reached only through dynamic `import()` inside
- * each handler: TanStack Start strips handler bodies from the client build,
- * so the capabilities graph never ships. The validators are stripped the
- * same way handler bodies are — `.validator()` runs on the server only — so
- * the plain shape checks below are the server's first decode, a wire-shape
- * gate that declares each fn's input type without dragging the Effect
- * Schema chunk onto the route tree, while the strict schemas (non-empty ids,
- * the role literal) decode again in `admin.effects.ts` before anything runs.
+ * The `/admin` server functions, in a **client-safe** module — the
+ * client-safe half of the `admin.effects.ts` split; see apps/web/AGENTS.md
+ * for the rule and `scripts/assert-client-boundary.mjs` for the enforcement.
+ * Each input is written once, as its Effect Schema: the validator is the
+ * single strict decode, and the derived type types both the client stub and
+ * the effects handler.
  */
 
 /**
@@ -47,47 +35,16 @@ export type SystemUser = {
   readonly banned: boolean
 }
 
-/** Input shape of the user-keyed server fns, for their client stubs. */
-type SystemUserInput = {
-  readonly userId: string
-}
+const SystemUserInput = Schema.Struct({ userId: Schema.NonEmptyString })
 
-type ChangeWorkspaceRoleInput = {
-  readonly userId: string
-  readonly workspaceId: string
-  readonly role: WorkspaceRole
-}
+const ChangeWorkspaceRoleInput = Schema.Struct({
+  userId: Schema.NonEmptyString,
+  workspaceId: Schema.NonEmptyString,
+  role: Schema.Literals(WORKSPACE_ROLES)
+})
 
-/**
- * The server fns' validators, plain shape checks that run on the server only
- * (TanStack strips `.validator()` from the client build): they are the
- * server's first decode, and the strict schemas decode again in
- * `admin.effects.ts`. These probes ARE the I/O boundary, so `unknown` in and
- * `throw` out is the contract, the same exemption `pickOptionalStrings`
- * carries (lib/utils.ts).
- */
-// oxlint-disable anti-slop/no-unknown-parameters, effect/noAs, typescript/no-unsafe-type-assertion
-function decodeSystemUser(input: unknown): SystemUserInput {
-  const record = expectRecord(input, 'system user input')
-  return { userId: expectString(record, 'userId', 'system user input') }
-}
-
-function decodeChangeWorkspaceRole(input: unknown): ChangeWorkspaceRoleInput {
-  const record = expectRecord(input, 'workspace role input')
-  // SAFETY: the strict schema in `admin.effects.ts` re-decodes the role
-  // against the literal tuple before anything runs; this check only
-  // establishes the wire shape for the client stub's type.
-  return {
-    userId: expectString(record, 'userId', 'workspace role input'),
-    workspaceId: expectString(record, 'workspaceId', 'workspace role input'),
-    role: expectString(
-      record,
-      'role',
-      'workspace role input'
-    ) as ChangeWorkspaceRoleInput['role']
-  }
-}
-// oxlint-enable anti-slop/no-unknown-parameters, effect/noAs, typescript/no-unsafe-type-assertion
+export type SystemUserInput = typeof SystemUserInput.Type
+export type ChangeWorkspaceRoleInput = typeof ChangeWorkspaceRoleInput.Type
 
 /**
  * System-level user list for `/admin`, via the `PlatformUserAdmin`
@@ -111,20 +68,20 @@ export const listSystemUsersServerFn = createServerFn({ method: 'GET' }).handler
  */
 export const loadAdminAuditEventsServerFn = createServerFn({ method: 'GET' }).handler(
   async (): Promise<ReadonlyArray<AuditEvent>> => {
-    const { loadAdminAuditEvents } = await import('./admin.effects')
-    return loadAdminAuditEvents()
+    const { loadAdminAuditEventsHandler } = await import('./admin.effects')
+    return loadAdminAuditEventsHandler()
   }
 )
 
 export const banSystemUserServerFn = createServerFn({ method: 'POST' })
-  .validator(decodeSystemUser)
+  .validator(Schema.decodeUnknownSync(SystemUserInput))
   .handler(async ({ data }) => {
     const { banSystemUserHandler } = await import('./admin.effects')
     return banSystemUserHandler(data)
   })
 
 export const unbanSystemUserServerFn = createServerFn({ method: 'POST' })
-  .validator(decodeSystemUser)
+  .validator(Schema.decodeUnknownSync(SystemUserInput))
   .handler(async ({ data }) => {
     const { unbanSystemUserHandler } = await import('./admin.effects')
     return unbanSystemUserHandler(data)
@@ -136,14 +93,14 @@ export const unbanSystemUserServerFn = createServerFn({ method: 'POST' })
  * would, which is exactly the scope the role change acts on.
  */
 export const listUserWorkspacesServerFn = createServerFn({ method: 'POST' })
-  .validator(decodeSystemUser)
+  .validator(Schema.decodeUnknownSync(SystemUserInput))
   .handler(async ({ data }): Promise<ReadonlyArray<WorkspaceWithMembership>> => {
     const { listUserWorkspacesHandler } = await import('./admin.effects')
     return listUserWorkspacesHandler(data)
   })
 
 export const changeUserWorkspaceRoleServerFn = createServerFn({ method: 'POST' })
-  .validator(decodeChangeWorkspaceRole)
+  .validator(Schema.decodeUnknownSync(ChangeWorkspaceRoleInput))
   .handler(async ({ data }) => {
     const { changeUserWorkspaceRoleHandler } = await import('./admin.effects')
     return changeUserWorkspaceRoleHandler(data)
@@ -157,7 +114,7 @@ export const changeUserWorkspaceRoleServerFn = createServerFn({ method: 'POST' }
  * the browser holds one admin cookie, and the plugin would overwrite it.
  */
 export const impersonateUserServerFn = createServerFn({ method: 'POST' })
-  .validator(decodeSystemUser)
+  .validator(Schema.decodeUnknownSync(SystemUserInput))
   .handler(async ({ data }) => {
     const { impersonateUserHandler } = await import('./admin.effects')
     return impersonateUserHandler(data)

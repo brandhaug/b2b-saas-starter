@@ -1,13 +1,12 @@
 import { createServerFn } from '@tanstack/react-start'
 
 /**
- * The public, non-secret subset of the observability provider env the browser
- * SDKs need, served through a **client-safe** server-fn module. The env-bag
- * read lives in `telemetry-config.effects.ts`, reached only through dynamic
- * `import()` inside the handler: TanStack Start strips handler bodies from
- * the client build, so `env/server`'s Effect graph never ships. Every field
- * stays undefined when its variable is unset, which keeps both vendors
- * inactive on a provider-light deployment.
+ * The public, non-secret subset of the observability provider env the
+ * browser SDKs need, served through a **client-safe** server-fn module: the
+ * client-safe half of the `telemetry-config.effects.ts` split (see
+ * apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for the
+ * enforcement). Every field stays undefined when its variable is unset,
+ * which keeps both vendors inactive on a provider-light deployment.
  */
 export type ClientTelemetryConfig = {
   readonly sentryDsn: string | undefined
@@ -19,6 +18,7 @@ export type ClientTelemetryConfig = {
 export const clientTelemetryConfigServerFn = createServerFn({
   method: 'GET'
 }).handler(async (): Promise<ClientTelemetryConfig> => {
-  const { readClientTelemetryConfig } = await import('./telemetry-config.effects')
-  return readClientTelemetryConfig()
+  const { readClientTelemetryConfigHandler } =
+    await import('./telemetry-config.effects')
+  return readClientTelemetryConfigHandler()
 })

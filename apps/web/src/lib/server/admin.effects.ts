@@ -6,19 +6,20 @@ import {
   PlatformUserAdmin,
   type ImpersonationStarted
 } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
-import {
-  WORKSPACE_ROLES,
-  type Member
-} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import {
   WorkspaceMembership,
   type WorkspaceWithMembership
 } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
-import { Effect, Schema } from 'effect'
+import { Effect } from 'effect'
 
 import { runCapabilities } from '../capabilities'
-import { type SystemUser } from './admin'
+import {
+  type ChangeWorkspaceRoleInput,
+  type SystemUser,
+  type SystemUserInput
+} from './admin'
 import { requireRequestSession, UnauthorizedError } from './auth'
 import { webUserAdminBinding } from './user-admin-binding'
 
@@ -43,11 +44,10 @@ export class ImpersonationStateError extends Error {
 
 /**
  * The `/admin` capability effects and their server-only wiring, reached only
- * through dynamic `import()` inside the `createServerFn` handlers in
- * `admin.ts`: handler bodies are stripped from the client build, so this
- * graph — the platform user-admin service, the global audit log, the Better
- * Auth session gate, the plugin binding — ships to the server alone.
- * `admin.ts` holds the client-safe half and the reason for the split.
+ * through dynamic `import()` inside the handlers in `admin.ts` (see
+ * apps/web/AGENTS.md for the split) — the platform user-admin service, the
+ * global audit log, the Better Auth session gate, and the plugin binding all
+ * ship to the server alone.
  */
 
 /**
@@ -79,7 +79,7 @@ export async function listSystemUsersHandler(): Promise<ReadonlyArray<SystemUser
  * gate — the route's `requireAdmin` decides who may ask, the same trust
  * boundary the user list carries.
  */
-export function loadAdminAuditEvents(): Promise<ReadonlyArray<AuditEvent>> {
+export function loadAdminAuditEventsHandler(): Promise<ReadonlyArray<AuditEvent>> {
   return runCapabilities(
     Effect.gen(function* () {
       const log = yield* AuditEventLog
@@ -102,27 +102,7 @@ async function requireAdminSession() {
   return session
 }
 
-/**
- * Server-fn inputs, as schemas — every constraint stated once, in the schema,
- * so the handler below never re-checks a field. An identity validator
- * (`(input: T) => input`) types the handler without validating anything: the
- * wire carries whatever the caller sent, and `userId: ''` or an invented role
- * would reach the capability.
- */
-const SystemUserInput = Schema.Struct({ userId: Schema.NonEmptyString })
-
-const ChangeWorkspaceRoleInput = Schema.Struct({
-  userId: Schema.NonEmptyString,
-  workspaceId: Schema.NonEmptyString,
-  role: Schema.Literals(WORKSPACE_ROLES)
-})
-
-const decodeSystemUser = Schema.decodeUnknownSync(SystemUserInput)
-const decodeChangeWorkspaceRole = Schema.decodeUnknownSync(ChangeWorkspaceRoleInput)
-
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function banSystemUserHandler(data: unknown): Promise<void> {
-  const input = decodeSystemUser(data)
+export async function banSystemUserHandler(input: SystemUserInput): Promise<void> {
   const session = await requireAdminSession()
   return runCapabilities(
     Effect.gen(function* () {
@@ -136,9 +116,7 @@ export async function banSystemUserHandler(data: unknown): Promise<void> {
   )
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function unbanSystemUserHandler(data: unknown): Promise<void> {
-  const input = decodeSystemUser(data)
+export async function unbanSystemUserHandler(input: SystemUserInput): Promise<void> {
   const session = await requireAdminSession()
   return runCapabilities(
     Effect.gen(function* () {
@@ -157,11 +135,9 @@ export async function unbanSystemUserHandler(data: unknown): Promise<void> {
  * same identity-keyed read "my workspaces" uses — an admin sees what the user
  * would, which is exactly the scope the role change acts on.
  */
-// oxlint-disable anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
 export async function listUserWorkspacesHandler(
-  data: unknown
+  input: SystemUserInput
 ): Promise<ReadonlyArray<WorkspaceWithMembership>> {
-  const input = decodeSystemUser(data)
   await requireAdminSession()
   return runCapabilities(
     Effect.gen(function* () {
@@ -170,11 +146,10 @@ export async function listUserWorkspacesHandler(
     })
   )
 }
-// oxlint-enable anti-slop/no-unknown-parameters
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function changeUserWorkspaceRoleHandler(data: unknown): Promise<Member> {
-  const input = decodeChangeWorkspaceRole(data)
+export async function changeUserWorkspaceRoleHandler(
+  input: ChangeWorkspaceRoleInput
+): Promise<Member> {
   const session = await requireAdminSession()
   return runCapabilities(
     Effect.gen(function* () {
@@ -197,11 +172,9 @@ export async function changeUserWorkspaceRoleHandler(data: unknown): Promise<Mem
  * No nesting: an impersonation session cannot start another — the browser
  * holds one admin cookie, and the plugin would overwrite it.
  */
-// oxlint-disable anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
 export async function impersonateUserHandler(
-  data: unknown
+  input: SystemUserInput
 ): Promise<ImpersonationStarted> {
-  const input = decodeSystemUser(data)
   const session = await requireAdminSession()
   if (session.session.impersonatedBy) {
     // oxlint-disable-next-line effect/noThrowStatement -- TanStack Start serializes a thrown server-fn error back to the caller; the returned Promise has no error channel
@@ -218,7 +191,6 @@ export async function impersonateUserHandler(
     { userAdminBinding: webUserAdminBinding }
   )
 }
-// oxlint-enable anti-slop/no-unknown-parameters
 
 /**
  * Ends the request's impersonation session and restores the admin's own. The

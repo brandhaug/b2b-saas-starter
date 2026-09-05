@@ -1,21 +1,17 @@
 import { type SsoConnection } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
+import { Schema } from 'effect'
 
-import { expectRecord, expectString } from './input-shape'
 import { type WorkspaceExportsSegment } from './workspace-exports'
 
 /**
- * The workspace settings loader, in a **client-safe** module.
- *
- * This file is statically imported by the settings route, and the route tree
- * ships to the browser — so everything at this module's top level rides on
- * every page. That is why the payload assembly and its imports (the
- * capability services, the permission helpers, the export segment) live in
- * `workspace-settings.effects.ts` and are reached only through dynamic
- * `import()` inside the handler: TanStack Start strips handler bodies from
- * the client build, so the capabilities graph never ships, while the payload
- * type still does.
+ * The workspace settings loader, in a **client-safe** module — the
+ * client-safe half of the `workspace-settings.effects.ts` split; see
+ * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
+ * for the enforcement. Each input is written once, as its Effect Schema: the
+ * validator is the single strict decode, and the derived type types both
+ * the client stub and the effects handler.
  *
  * The behaviour is tested as the plain loader function in the effects file
  * (`workspace-settings.test.ts`), driven directly with fixture actors.
@@ -56,21 +52,11 @@ export type WorkspaceSettingsPayload = {
   readonly exports: WorkspaceExportsSegment | null
 }
 
-type WorkspaceSettingsInput = {
-  readonly workspaceSlug: string
-}
+const WorkspaceSettingsInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
 
-/**
- * The server fn's validator, a plain shape check that runs on the server only
- * (TanStack strips `.validator()` from the client build): it is the server's
- * first decode, and the strict schema decodes again in
- * `workspace-settings.effects.ts`.
- */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-function decodeSettingsInput(input: unknown): WorkspaceSettingsInput {
-  const record = expectRecord(input, 'settings input')
-  return { workspaceSlug: expectString(record, 'workspaceSlug', 'settings input') }
-}
+export type WorkspaceSettingsInput = typeof WorkspaceSettingsInput.Type
 
 /**
  * The settings route's loader. `notification:read` is the page's own read
@@ -78,7 +64,7 @@ function decodeSettingsInput(input: unknown): WorkspaceSettingsInput {
  * settings page to render, so that is a 403 rather than an empty shell.
  */
 export const loadWorkspaceSettingsServerFn = createServerFn({ method: 'GET' })
-  .validator(decodeSettingsInput)
+  .validator(Schema.decodeUnknownSync(WorkspaceSettingsInput))
   .handler(async ({ data }): Promise<WorkspaceSettingsPayload> => {
     const { loadWorkspaceSettingsHandler } =
       await import('./workspace-settings.effects')

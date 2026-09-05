@@ -1,11 +1,14 @@
 import { SsoConnections } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
-import { Effect, Schema } from 'effect'
+import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { whenPermitted } from './authorize'
 import { requireRequestSession } from './auth'
 import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
-import { type WorkspaceSettingsPayload } from './workspace-settings'
+import {
+  type WorkspaceSettingsInput,
+  type WorkspaceSettingsPayload
+} from './workspace-settings'
 import { workspaceExportsSegment } from './workspace-exports.effects'
 
 /**
@@ -54,17 +57,9 @@ export function loadWorkspaceSettings(input: {
   })
 }
 
-const WorkspaceSettingsInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-
-const decodeSettingsInput = Schema.decodeUnknownSync(WorkspaceSettingsInput)
-
 export async function loadWorkspaceSettingsHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: WorkspaceSettingsInput
 ): Promise<WorkspaceSettingsPayload> {
-  const input = decodeSettingsInput(data)
   const session = await requireRequestSession()
   return loadWorkspaceSettings({
     workspaceSlug: input.workspaceSlug,

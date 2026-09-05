@@ -6,12 +6,10 @@ import { requireRequestSession } from './auth'
 
 /**
  * The workspace-directory read — the behaviour behind
- * `loadWorkspaceDirectoryServerFn` (`workspace-directory.ts`). Everything
- * imported at this module's top level (the `listWorkspacesForUser`
- * projection, the Effect runtime it rides) must never reach the browser
- * bundle, which is why the route tree reaches this file only through dynamic
- * `import()` inside the server fn's handler (see `invitations.ts` for the
- * reference split).
+ * `loadWorkspaceDirectoryServerFn` — reached only through dynamic
+ * `import()` inside the handler of `workspace-directory.ts` (see
+ * apps/web/AGENTS.md). The `listWorkspacesForUser` projection and the
+ * Effect runtime it rides must never reach the browser bundle.
  */
 
 /**

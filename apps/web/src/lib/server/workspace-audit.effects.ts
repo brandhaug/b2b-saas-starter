@@ -3,23 +3,23 @@ import {
   type ListAuditEventsInput
 } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import { Effect, Schema } from 'effect'
+import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { workspacePage } from './page-frame'
 import {
   type LoadWorkspaceAuditEventsInput,
+  type WorkspaceAuditInput,
   type WorkspaceAuditPayload
 } from './workspace-audit'
 
 /**
  * The audit payload assembly and its server-only wiring, reached only
  * through dynamic `import()` inside the handler of
- * `loadWorkspaceAuditEventsServerFn` (`workspace-audit.ts`): handler bodies
- * are stripped from the client build, so this graph ships to the server
- * alone. `workspace-audit.ts` holds the client-safe half and the reason
- * for the split.
+ * `loadWorkspaceAuditEventsServerFn` (`workspace-audit.ts`); see
+ * apps/web/AGENTS.md. `workspace-audit.ts` holds the client-safe half and
+ * the reason for the split.
  */
 
 /**
@@ -69,33 +69,9 @@ export function loadWorkspaceAuditEvents(
   )
 }
 
-/**
- * The server fn's input schema, decoded here rather than in
- * `workspace-audit.ts`: the client stub never runs validators, and a
- * module-level Schema construct in the client-safe file would drag the
- * Effect Schema chunk onto every page. The filter keys stay optional and
- * unconstrained — the page's search params are lenient on purpose, and an
- * unknown event type or an undecodable cursor addresses an empty result,
- * not an error.
- */
-const WorkspaceAuditInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  filters: Schema.Struct({
-    actorUserId: Schema.optionalKey(Schema.String),
-    eventType: Schema.optionalKey(Schema.String),
-    since: Schema.optionalKey(Schema.String),
-    until: Schema.optionalKey(Schema.String)
-  }),
-  cursor: Schema.optionalKey(Schema.String)
-})
-
-const decodeAuditInput = Schema.decodeUnknownSync(WorkspaceAuditInput)
-
 export async function loadWorkspaceAuditEventsHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: WorkspaceAuditInput
 ): Promise<WorkspaceAuditPayload> {
-  const input = decodeAuditInput(data)
   const session = await requireRequestSession()
   return loadWorkspaceAuditEvents({
     workspaceSlug: input.workspaceSlug,

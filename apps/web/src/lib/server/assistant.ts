@@ -1,25 +1,15 @@
 import { type AssistantProvider } from '@b2b-saas-starter/ai'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
-
-import { expectRecord, expectString } from './input-shape'
+import { Schema } from 'effect'
 
 /**
  * The assistant server functions and the assistant loader, in a
- * **client-safe** module.
- *
- * This file is statically imported by the assistant route, the page
- * component and its tests, and the route tree ships to the browser — so
- * everything at this module's top level rides on every page. That is why
- * the ask effect and the payload assembly (the AI service selection, the
- * permission helper, the worker env) live in `assistant.effects.ts` and are
- * reached only through dynamic `import()` inside each handler: TanStack
- * Start strips handler bodies from the client build, so the effects graph
- * never ships. The validators are stripped the same way — `.validator()`
- * runs on the server only — so the plain shape checks below are the
- * server's first decode, a wire-shape gate that declares each fn's input
- * type without dragging the Effect Schema chunk onto the route tree, while
- * the strict schemas decode again in the effects file before anything runs.
+ * **client-safe** module: the client-safe half of the `assistant.effects.ts`
+ * split (see apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs`
+ * for the enforcement). Each input is written once, as its Effect Schema —
+ * the validator is the single strict decode, and the derived types below
+ * type both the client stub and the effects handlers.
  *
  * The behaviour itself is tested as the plain effects in the effects file
  * (`assistant.test.ts` imports `assistant.effects.ts` directly).
@@ -45,41 +35,23 @@ export type AssistantPagePayload = {
   readonly configured: boolean
 }
 
-type AssistantPageInput = {
-  readonly workspaceSlug: string
-}
+const AssistantPageInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
 
-type AskAssistantInput = {
-  readonly workspaceSlug: string
-  readonly question: string
-}
+// All input constraints live in the schema — mirrors AssistantPrompt in
+// `packages/ai` so the UI cannot send what the capability would refuse.
+const AskAssistantInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  question: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000))
+})
 
-/**
- * The server fns' validators, plain shape checks that run on the server only
- * (TanStack strips `.validator()` from the client build): they are the
- * server's first decode, and the strict schemas — the question's length
- * bounds — decode again in `assistant.effects.ts`. These probes ARE the
- * I/O boundary, so `unknown` in and `throw` out is the contract, the same
- * exemption `pickOptionalStrings` carries (lib/utils.ts).
- */
-// oxlint-disable anti-slop/no-unknown-parameters
-function decodePageInput(input: unknown): AssistantPageInput {
-  const record = expectRecord(input, 'assistant input')
-  return { workspaceSlug: expectString(record, 'workspaceSlug', 'assistant input') }
-}
-
-function decodeAskInput(input: unknown): AskAssistantInput {
-  const record = expectRecord(input, 'assistant input')
-  return {
-    workspaceSlug: expectString(record, 'workspaceSlug', 'assistant input'),
-    question: expectString(record, 'question', 'assistant input')
-  }
-}
-// oxlint-enable anti-slop/no-unknown-parameters
+export type AssistantPageInput = typeof AssistantPageInput.Type
+export type AskAssistantInput = typeof AskAssistantInput.Type
 
 /** The assistant route's loader. */
 export const loadAssistantPageServerFn = createServerFn({ method: 'GET' })
-  .validator(decodePageInput)
+  .validator(Schema.decodeUnknownSync(AssistantPageInput))
   .handler(async ({ data }): Promise<AssistantPagePayload> => {
     const { loadAssistantPageHandler } = await import('./assistant.effects')
     return loadAssistantPageHandler(data)
@@ -109,7 +81,7 @@ export type AskAssistantOutcome =
     }
 
 export const askAssistantServerFn = createServerFn({ method: 'POST' })
-  .validator(decodeAskInput)
+  .validator(Schema.decodeUnknownSync(AskAssistantInput))
   .handler(async ({ data }): Promise<AskAssistantOutcome> => {
     const { askAssistantHandler } = await import('./assistant.effects')
     return askAssistantHandler(data)

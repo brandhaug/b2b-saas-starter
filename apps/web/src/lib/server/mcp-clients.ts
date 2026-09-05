@@ -1,43 +1,20 @@
 import { type McpClientConnection } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { createServerFn } from '@tanstack/react-start'
-
-import { expectRecord, expectString } from './input-shape'
+import { Schema } from 'effect'
 
 /**
  * The account page's "Connected MCP clients" server functions (ADR 0068), in
- * a **client-safe** module.
- *
- * This file is statically imported by the `/account` route and the MCP
- * clients panel, and the route tree ships to the browser — so everything at
- * this module's top level rides on every page. That is why the capability
- * effects and their wiring live in `mcp-clients.effects.ts` and are reached
- * only through dynamic `import()` inside each handler: TanStack Start strips
- * handler bodies from the client build, so the capabilities graph never
- * ships, while the row type (`McpClientConnection`, type-only here) still
- * does. The validators are stripped the same way handler bodies are —
- * `.validator()` runs on the server only — so the plain shape checks below
- * are the server's first decode, and the strict schema decodes again in
- * `mcp-clients.effects.ts` before anything runs.
+ * a **client-safe** module — the client-safe half of the
+ * `mcp-clients.effects.ts` split; see apps/web/AGENTS.md for the rule and
+ * `scripts/assert-client-boundary.mjs` for the enforcement. Each input is
+ * written once, as its Effect Schema: the validator is the single strict
+ * decode, and the derived type types both the client stub and the effects
+ * handler.
  */
 
-type RevokeInput = {
-  readonly connectionId: string
-}
+const RevokeInput = Schema.Struct({ connectionId: Schema.NonEmptyString })
 
-/**
- * The server fn's validator, a plain shape check that runs on the server only
- * (TanStack strips `.validator()` from the client build): it is the server's
- * first decode, and the strict schema decodes again in
- * `mcp-clients.effects.ts`. This probe IS the I/O boundary, so `unknown` in
- * and `throw` out is the contract, the same exemption `pickOptionalStrings`
- * carries (lib/utils.ts).
- */
-// oxlint-disable anti-slop/no-unknown-parameters
-function decodeRevokeInput(input: unknown): RevokeInput {
-  const record = expectRecord(input, 'mcp client input')
-  return { connectionId: expectString(record, 'connectionId', 'mcp client input') }
-}
-// oxlint-enable anti-slop/no-unknown-parameters
+export type RevokeInput = typeof RevokeInput.Type
 
 /** The account route's loader segment: the consents the signed-in user holds. */
 export const loadMcpClientConnectionsServerFn = createServerFn({
@@ -54,7 +31,7 @@ export const loadMcpClientConnectionsServerFn = createServerFn({
  * connection id revokes nothing and returns `false`.
  */
 export const revokeMcpClientServerFn = createServerFn({ method: 'POST' })
-  .validator(decodeRevokeInput)
+  .validator(Schema.decodeUnknownSync(RevokeInput))
   .handler(async ({ data }): Promise<boolean> => {
     const { revokeMcpClientHandler } = await import('./mcp-clients.effects')
     return revokeMcpClientHandler(data)

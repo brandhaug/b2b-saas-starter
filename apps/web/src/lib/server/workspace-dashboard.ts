@@ -8,20 +8,15 @@ import {
 } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
-
-import { expectRecord, expectString } from './input-shape'
+import { Schema } from 'effect'
 
 /**
- * The dashboard loader, in a **client-safe** module.
- *
- * This file is statically imported by the workspace index route (and its
- * payload type by `/demo`), and the route tree ships to the browser — so
- * everything at this module's top level rides on every page. That is why the
- * payload assembly and its imports (the capability services, the permission
- * helpers, the projections) live in `workspace-dashboard.effects.ts` and are
- * reached only through dynamic `import()` inside the handler: TanStack Start
- * strips handler bodies from the client build, so the capabilities graph
- * never ships, while the payload type still does.
+ * The dashboard loader, in a **client-safe** module — the client-safe half
+ * of the `workspace-dashboard.effects.ts` split (see apps/web/AGENTS.md for
+ * the rule and `assert-client-boundary.mjs` for the enforcement). Each input
+ * is written once, as its Effect Schema: the validator is the single strict
+ * decode, and the derived type types both the client stub and the effects
+ * handler.
  *
  * The behaviour is tested as the plain loader function in the effects file
  * (`workspace-dashboard.test.ts`), driven directly with fixture actors.
@@ -48,25 +43,15 @@ export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
   readonly progress: WorkspaceProgressProjection
 }
 
-type WorkspaceDashboardInput = {
-  readonly workspaceSlug: string
-}
+const WorkspaceDashboardInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
 
-/**
- * The server fn's validator, a plain shape check that runs on the server only
- * (TanStack strips `.validator()` from the client build): it is the server's
- * first decode, and the strict schema decodes again in
- * `workspace-dashboard.effects.ts`.
- */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-function decodeDashboardInput(input: unknown): WorkspaceDashboardInput {
-  const record = expectRecord(input, 'dashboard input')
-  return { workspaceSlug: expectString(record, 'workspaceSlug', 'dashboard input') }
-}
+export type WorkspaceDashboardInput = typeof WorkspaceDashboardInput.Type
 
 /** The dashboard route's loader. */
 export const loadWorkspaceDashboardServerFn = createServerFn({ method: 'GET' })
-  .validator(decodeDashboardInput)
+  .validator(Schema.decodeUnknownSync(WorkspaceDashboardInput))
   .handler(async ({ data }): Promise<WorkspaceDashboardPayload> => {
     const { loadWorkspaceDashboardHandler } =
       await import('./workspace-dashboard.effects')

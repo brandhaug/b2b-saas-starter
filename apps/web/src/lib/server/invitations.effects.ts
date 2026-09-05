@@ -13,29 +13,26 @@ import {
 } from '@b2b-saas-starter/capabilities/errors'
 import { EmailDispatcher } from '@b2b-saas-starter/email'
 import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/templates'
-import { Effect, Option, Result, Schema, type Scope } from 'effect'
-import {
-  WORKSPACE_ROLES,
-  type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { Effect, Option, Result, type Scope } from 'effect'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
-import { EMAIL_PATTERN } from '../email-pattern'
 import { requestOrigin } from './request-origin'
 import { emailDispatcherLayer } from './auth-emails'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { webInvitationBinding } from './invitation-binding'
-import { type InvitationPreview, type SentInvitation } from './invitations'
+import {
+  type AcceptInvitationInput,
+  type CancelInvitationInput,
+  type InvitationPreview,
+  type SendInvitationInput,
+  type SentInvitation
+} from './invitations'
 
 /**
- * The invitation effects and their server-only wiring.
- *
- * Everything imported at this module's top level — the react-email template,
- * the email dispatcher layer, the Better Auth session gate, the plugin
- * binding — must never reach the browser bundle. That is why this file is
- * reached only through dynamic `import()` inside the `createServerFn`
- * handlers in `invitations.ts`: handler bodies are stripped from the client
- * build, so this graph ships to the server alone.
+ * The invitation effects and their server-only wiring, reached only through
+ * dynamic `import()` inside the handlers of `invitations.ts` (see
+ * apps/web/AGENTS.md for the split).
  *
  * The split of behaviour vs. wiring follows the AGENTS.md reference: each
  * effect takes the actor's address, the request origin and the email
@@ -97,41 +94,9 @@ export function sendInvitation(input: {
   })
 }
 
-/**
- * The server functions' input schemas, decoded here rather than in
- * `invitations.ts`: the client stub never runs validators, and a module-level
- * Schema construct in the client-safe file would drag the Effect Schema chunk
- * onto every page. All input constraints live in the schema — no imperative
- * re-validation.
- */
-const WorkspaceRoleInput = Schema.Literals(WORKSPACE_ROLES)
-
-const SendInvitationInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  email: Schema.String.check(
-    Schema.isMinLength(3),
-    Schema.isMaxLength(320),
-    Schema.isPattern(EMAIL_PATTERN)
-  ),
-  role: WorkspaceRoleInput
-})
-
-const CancelInvitationInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  invitationId: Schema.NonEmptyString
-})
-
-const AcceptInvitationInput = Schema.Struct({
-  invitationId: Schema.NonEmptyString
-})
-
-const decodeSend = Schema.decodeUnknownSync(SendInvitationInput)
-const decodeCancel = Schema.decodeUnknownSync(CancelInvitationInput)
-const decodeAccept = Schema.decodeUnknownSync(AcceptInvitationInput)
-
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function sendInvitationHandler(data: unknown): Promise<SentInvitation> {
-  const input = decodeSend(data)
+export async function sendInvitationHandler(
+  input: SendInvitationInput
+): Promise<SentInvitation> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -159,9 +124,9 @@ export function cancelInvitation(input: {
   })
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function first act
-export async function cancelInvitationHandler(data: unknown): Promise<void> {
-  const input = decodeCancel(data)
+export async function cancelInvitationHandler(
+  input: CancelInvitationInput
+): Promise<void> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -212,11 +177,9 @@ export function invitationPreview(input: {
   })
 }
 
-// oxlint-disable anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
 export async function invitationPreviewHandler(
-  data: unknown
+  input: AcceptInvitationInput
 ): Promise<InvitationPreview> {
-  const input = decodeAccept(data)
   const session = await requireRequestSession()
   return runCapabilities(
     invitationPreview({
@@ -225,7 +188,6 @@ export async function invitationPreviewHandler(
     })
   )
 }
-// oxlint-enable anti-slop/no-unknown-parameters
 
 /**
  * Accepting is the one workspace write with no workspace gate, and it has to be.
@@ -259,11 +221,9 @@ export function acceptInvitation(input: {
   )
 }
 
-// oxlint-disable anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
 export async function acceptInvitationHandler(
-  data: unknown
+  input: AcceptInvitationInput
 ): Promise<AcceptedInvitation> {
-  const input = decodeAccept(data)
   const session = await requireRequestSession()
   return runCapabilities(
     acceptInvitation({
@@ -274,4 +234,3 @@ export async function acceptInvitationHandler(
     { invitationBinding: webInvitationBinding }
   )
 }
-// oxlint-enable anti-slop/no-unknown-parameters

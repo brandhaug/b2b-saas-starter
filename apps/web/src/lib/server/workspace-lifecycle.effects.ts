@@ -5,12 +5,17 @@ import {
 import { type Workspace } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { requireEmailVerification } from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
-import { Effect, Schema } from 'effect'
+import { Effect } from 'effect'
 
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { webWorkspaceLifecycleBinding } from './workspace-binding'
+import {
+  type CreateWorkspaceInput,
+  type DeleteWorkspaceInput,
+  type RenameWorkspaceInput
+} from './workspace-lifecycle'
 
 /**
  * The workspace lifecycle effects and their server-only wiring, reached only
@@ -46,24 +51,9 @@ export function unverifiedCreatorRefused(input: {
   return requireEmailVerification(input.environment) && !input.emailVerified
 }
 
-// All input constraints live in the schema — no imperative re-validation. The
-// slug rule is lowercase letters, digits, and inner hyphens; the plugin
-// enforces uniqueness on top of it.
-const WORKSPACE_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
-const CreateWorkspaceInput = Schema.Struct({
-  name: Schema.NonEmptyString.check(Schema.isMaxLength(80)),
-  slug: Schema.NonEmptyString.check(Schema.isPattern(WORKSPACE_SLUG_PATTERN)).check(
-    Schema.isMinLength(3)
-  )
-})
-
-const decodeCreateInput = Schema.decodeUnknownSync(CreateWorkspaceInput)
-
 export async function createWorkspaceHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: CreateWorkspaceInput
 ): Promise<CreatedWorkspace> {
-  const input = decodeCreateInput(data)
   // Creating is not a workspace-scoped call: there is no workspace to resolve,
   // so this runs through `runCapabilities` with no `WorkspaceContext`. The
   // plugin itself makes the creator its first owner.
@@ -104,16 +94,9 @@ export async function createWorkspaceHandler(
 // Rename and delete ARE workspace-scoped: the settings route resolves the
 // workspace and the permission gates prove the actor may touch it.
 
-const RenameWorkspaceInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  name: Schema.NonEmptyString.check(Schema.isMaxLength(80))
-})
-
-const decodeRenameInput = Schema.decodeUnknownSync(RenameWorkspaceInput)
-
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function renameWorkspaceHandler(data: unknown): Promise<Workspace> {
-  const input = decodeRenameInput(data)
+export async function renameWorkspaceHandler(
+  input: RenameWorkspaceInput
+): Promise<Workspace> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -127,15 +110,9 @@ export async function renameWorkspaceHandler(data: unknown): Promise<Workspace> 
   )
 }
 
-const DeleteWorkspaceInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-
-const decodeDeleteInput = Schema.decodeUnknownSync(DeleteWorkspaceInput)
-
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function deleteWorkspaceHandler(data: unknown): Promise<void> {
-  const input = decodeDeleteInput(data)
+export async function deleteWorkspaceHandler(
+  input: DeleteWorkspaceInput
+): Promise<void> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,

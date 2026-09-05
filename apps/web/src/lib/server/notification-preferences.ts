@@ -1,28 +1,19 @@
 import { type NotificationPreference } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import {
+  notificationChannels,
   notificationKinds,
-  type NotificationChannel,
   type NotificationKind as Kind
 } from '@b2b-saas-starter/db/enums'
 import { createServerFn } from '@tanstack/react-start'
-
-import { expectRecord, expectString } from './input-shape'
+import { Schema } from 'effect'
 
 /**
- * The notification-preference server functions, in a **client-safe** module.
- *
- * This file is statically imported by the notifications route and the
- * preferences panel, and the route tree ships to the browser — so everything
- * at this module's top level rides on every page. That is why the capability
- * effects and their wiring (the preference service, the kind table's copy,
- * the Better Auth session gate) live in `notification-preferences.effects.ts`
- * and are reached only through dynamic `import()` inside each handler:
- * TanStack Start strips handler bodies from the client build, so the
- * capabilities graph never ships. The validators are stripped the same way
- * handler bodies are — `.validator()` runs on the server only — so the plain
- * shape checks below are the server's first decode, while the strict schemas
- * (the kind and channel literals) decode again in the effects file before
- * anything runs.
+ * The notification-preference server functions, in a **client-safe** module:
+ * the client-safe half of the `notification-preferences.effects.ts` split
+ * (see apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for
+ * the enforcement). Each input is written once, as its Effect Schema — the
+ * validator is the single strict decode, and the derived type below types
+ * both the client stub and the effects handler.
  */
 
 /**
@@ -40,41 +31,13 @@ export type NotificationPreferencesPayload = {
   readonly preferences: ReadonlyArray<NotificationPreferenceRow>
 }
 
-/** Input shape of `setNotificationPreferenceServerFn`, for its client stub. */
-type SetNotificationPreferenceInput = {
-  readonly kind: NotificationPreferenceRow['kind']
-  readonly channel: NotificationChannel
-}
+// All input constraints live in the schema — no imperative re-validation.
+const SetNotificationPreferenceInput = Schema.Struct({
+  kind: Schema.Literals(notificationKinds),
+  channel: Schema.Literals(notificationChannels)
+})
 
-/**
- * The server fn's validator, a plain shape check that runs on the server only
- * (TanStack strips `.validator()` from the client build): it is the server's
- * first decode, and the strict schema decodes again in
- * `notification-preferences.effects.ts`. This probe IS the I/O boundary, so
- * `unknown` in and `throw` out is the contract, the same exemption
- * `pickOptionalStrings` carries (lib/utils.ts).
- */
-// oxlint-disable anti-slop/no-unknown-parameters, effect/noAs, typescript/no-unsafe-type-assertion
-function decodeSetInput(input: unknown): SetNotificationPreferenceInput {
-  const record = expectRecord(input, 'notification preference input')
-  // SAFETY: the strict schema in `notification-preferences.effects.ts`
-  // re-decodes kind and channel against the literal tuples before anything
-  // runs; this check only establishes the wire shape for the client stub's
-  // type.
-  return {
-    kind: expectString(
-      record,
-      'kind',
-      'notification preference input'
-    ) as SetNotificationPreferenceInput['kind'],
-    channel: expectString(
-      record,
-      'channel',
-      'notification preference input'
-    ) as SetNotificationPreferenceInput['channel']
-  }
-}
-// oxlint-enable anti-slop/no-unknown-parameters, effect/noAs, typescript/no-unsafe-type-assertion
+export type SetNotificationPreferenceInput = typeof SetNotificationPreferenceInput.Type
 
 /**
  * The `/account/notifications` loader segment: the signed-in user's full
@@ -96,7 +59,7 @@ export const loadNotificationPreferencesServerFn = createServerFn({
 export const setNotificationPreferenceServerFn = createServerFn({
   method: 'POST'
 })
-  .validator(decodeSetInput)
+  .validator(Schema.decodeUnknownSync(SetNotificationPreferenceInput))
   .handler(async ({ data }): Promise<NotificationPreferenceRow> => {
     const { setNotificationPreferenceHandler } =
       await import('./notification-preferences.effects')

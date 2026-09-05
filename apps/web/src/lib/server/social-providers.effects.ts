@@ -6,9 +6,10 @@ import {
 import { env } from 'cloudflare:workers'
 
 /**
- * Social sign-in's server-only read, reached through dynamic `import()` from
- * the client-safe `social-providers.ts`: the env/server vocabulary pins the
- * Effect graph, which must never ship to the browser.
+ * Social sign-in's server-only read, reached only through dynamic `import()`
+ * inside the handler of `social-providers.ts` (see apps/web/AGENTS.md): the
+ * env/server vocabulary pins the Effect graph, which must never ship to the
+ * browser.
  */
 
 /**

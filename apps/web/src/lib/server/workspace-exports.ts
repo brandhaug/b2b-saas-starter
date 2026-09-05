@@ -3,8 +3,7 @@ import {
   type WorkspaceExportAvailability
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { createServerFn } from '@tanstack/react-start'
-
-import { expectRecord, expectString } from './input-shape'
+import { Schema } from 'effect'
 
 /**
  * Workspace data export (ADR 0055) on the session surface, in a
@@ -14,16 +13,11 @@ import { expectRecord, expectString } from './input-shape'
  * other role, and the server function re-checks the permission before the
  * capability call, like every other workspace mutation.
  *
- * This file is statically imported by the settings route's payload and the
- * export panel, and the route tree ships to the browser — so everything at
- * this module's top level rides on every page. That is why the segment
- * assembly and the request effect (the capability service, the env reader,
- * the permission gate) live in `workspace-exports.effects.ts` and are
- * reached only through dynamic `import()` inside the handler: TanStack Start
- * strips handler bodies from the client build, so the effects graph never
- * ships. The validator is stripped the same way — `.validator()` runs on the
- * server only — so the plain shape check below is the server's first decode,
- * while the strict schema decodes again in the effects file.
+ * The client-safe half of the `workspace-exports.effects.ts` split (see
+ * apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for the
+ * enforcement). Each input is written once, as its Effect Schema: the
+ * validator is the single strict decode, and the derived type types both
+ * the client stub and the effects handler.
  */
 
 /** One export as the settings page renders it: the record plus a signed link when it is downloadable. */
@@ -36,26 +30,14 @@ export type WorkspaceExportsSegment = {
   readonly exports: ReadonlyArray<WorkspaceExportView>
 }
 
-type RequestExportInput = {
-  readonly workspaceSlug: string
-}
+const RequestExportInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
 
-/**
- * The server fn's validator, a plain shape check that runs on the server only
- * (TanStack strips `.validator()` from the client build): it is the server's
- * first decode, and the strict schema decodes again in
- * `workspace-exports.effects.ts`.
- */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-function decodeRequestInput(input: unknown): RequestExportInput {
-  const record = expectRecord(input, 'export request input')
-  return {
-    workspaceSlug: expectString(record, 'workspaceSlug', 'export request input')
-  }
-}
+export type RequestExportInput = typeof RequestExportInput.Type
 
 export const requestWorkspaceExportServerFn = createServerFn({ method: 'POST' })
-  .validator(decodeRequestInput)
+  .validator(Schema.decodeUnknownSync(RequestExportInput))
   .handler(async ({ data }): Promise<WorkspaceExport> => {
     const { requestWorkspaceExportHandler } =
       await import('./workspace-exports.effects')

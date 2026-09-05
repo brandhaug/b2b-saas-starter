@@ -42,6 +42,17 @@ import { join } from 'node:path'
  * - `isMinLength` — a `Schema` filter combinator called as a property in
  *   capabilities/effects source; minification keeps the property name, so any
  *   Schema-using capability code that ships carries it.
+ * - `onExcessProperty`, `unsafePreserveChecks` — Schema internals that ship
+ *   with the *minimal* schema construct (`Schema.Struct({ x: Schema.String })`
+ *   — no filters, no NonEmptyString), verified present in a deliberately
+ *   leaked plain struct and absent from a clean build, docs prose, and every
+ *   bundled vendor dist. These close the hole `isMinLength` alone left: the
+ *   client-safe halves' validators are Effect Schemas stripped from the
+ *   client build by the TanStack compiler, so a regression here is exactly
+ *   "a schema construct shipped", and these two names ride along with any
+ *   construct, filters or not. (`toJsonSchema` was verified too but rejected:
+ *   other validator libraries implement the same method name, so it would
+ *   false-positive on a legitimately bundled validator.)
  *
  * If a marker starts matching docs prose (the `/docs` routes bundle MDX into
  * client chunks — `TaggedError` was rejected for exactly that reason), pick
@@ -68,7 +79,9 @@ const MARKERS = [
   'capability.workspace',
   'no_principal',
   'insufficient_permission',
-  'isMinLength'
+  'isMinLength',
+  'onExcessProperty',
+  'unsafePreserveChecks'
 ]
 
 const CLIENT_DIR = new URL('../dist/client', import.meta.url)
@@ -103,10 +116,12 @@ if (offenders.length > 0) {
       '',
       'A capabilities or Effect Schema graph is in the client bundle again.',
       'lib/server modules must stay client-safe at module level: the server fn',
-      'keeps only createServerFn plus type imports, and its behavior lives in a',
-      'sibling .effects.ts reached by dynamic import() (see lib/server/invitations.ts',
-      'for the reference split). Components read vocabularies from Schema-free',
-      'leaves (@b2b-saas-starter/db/enums, capabilities .../webhook-events).'
+      'keeps createServerFn, type imports, and its Effect Schema validators (the',
+      'TanStack compiler strips .validator() from the client build — these',
+      'markers are the proof it did), and its behavior lives in a sibling',
+      '.effects.ts reached by dynamic import(). Components read vocabularies',
+      'from Schema-free leaves (@b2b-saas-starter/db/enums,',
+      'capabilities .../webhook-events).'
     ].join('\n')
   )
   process.exit(1)

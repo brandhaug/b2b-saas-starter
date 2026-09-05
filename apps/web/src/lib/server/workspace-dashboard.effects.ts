@@ -6,21 +6,23 @@ import {
   workspaceDashboard,
   workspaceProgress
 } from '@b2b-saas-starter/capabilities/workspace-projections'
-import { Effect, Schema } from 'effect'
+import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { permitted, whenPermitted } from './authorize'
 import { workspacePage, type WorkspacePageFrame } from './page-frame'
-import { type WorkspaceDashboardPayload } from './workspace-dashboard'
+import {
+  type WorkspaceDashboardInput,
+  type WorkspaceDashboardPayload
+} from './workspace-dashboard'
 
 /**
  * The dashboard payload assembly and its server-only wiring, reached only
  * through dynamic `import()` inside the handler of
- * `loadWorkspaceDashboardServerFn` (`workspace-dashboard.ts`): handler bodies
- * are stripped from the client build, so this graph ships to the server
- * alone. `workspace-dashboard.ts` holds the client-safe half and the reason
- * for the split.
+ * `loadWorkspaceDashboardServerFn` (`workspace-dashboard.ts`); see
+ * apps/web/AGENTS.md. `workspace-dashboard.ts` holds the client-safe half
+ * and the reason for the split.
  */
 
 /**
@@ -83,17 +85,9 @@ export function loadWorkspaceDashboard(input: {
   })
 }
 
-const WorkspaceDashboardInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-
-const decodeDashboardInput = Schema.decodeUnknownSync(WorkspaceDashboardInput)
-
 export async function loadWorkspaceDashboardHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: WorkspaceDashboardInput
 ): Promise<WorkspaceDashboardPayload> {
-  const input = decodeDashboardInput(data)
   const session = await requireRequestSession()
   return loadWorkspaceDashboard({
     workspaceSlug: input.workspaceSlug,

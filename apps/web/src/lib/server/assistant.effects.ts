@@ -7,7 +7,7 @@ import {
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { Effect, Schema, type Scope } from 'effect'
+import { Effect, type Scope } from 'effect'
 
 import { env as cloudflareEnv } from 'cloudflare:workers'
 
@@ -17,7 +17,9 @@ import { requireWorkspacePermission } from './authorize'
 import { workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type AssistantAnswered,
+  type AssistantPageInput,
   type AssistantPagePayload,
+  type AskAssistantInput,
   type AskAssistantOutcome,
   type AssistantRefused
 } from './assistant'
@@ -25,10 +27,9 @@ import { ASSISTANT_UNCONFIGURED_MESSAGE } from '../assistant-copy'
 
 /**
  * The assistant effects and their server-only wiring, reached only through
- * dynamic `import()` inside the handlers of `assistant.ts`: handler bodies
- * are stripped from the client build, so this graph ships to the server
- * alone. `assistant.ts` holds the client-safe half and the reason for the
- * split.
+ * dynamic `import()` inside the handlers of `assistant.ts` (see
+ * apps/web/AGENTS.md). `assistant.ts` holds the client-safe half and the
+ * reason for the split.
  */
 
 const assistantPagePayload: WorkspacePageFrame<AssistantPagePayload> = workspacePage(
@@ -46,31 +47,9 @@ export function loadAssistantPage(input: {
   })
 }
 
-/**
- * The server functions' input schemas, decoded here rather than in
- * `assistant.ts`: the client stub never runs validators, and a module-level
- * Schema construct in the client-safe file would drag the Effect Schema
- * chunk onto every page. All input constraints live in the schema — mirrors
- * AssistantPrompt in `packages/ai` so the UI cannot send what the capability
- * would refuse.
- */
-const AssistantPageInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-const decodePageInput = Schema.decodeUnknownSync(AssistantPageInput)
-
-const AskAssistantInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  question: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000))
-})
-
-const decodeAskInput = Schema.decodeUnknownSync(AskAssistantInput)
-
 export async function loadAssistantPageHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: AssistantPageInput
 ): Promise<AssistantPagePayload> {
-  const input = decodePageInput(data)
   const session = await requireRequestSession()
   return loadAssistantPage({
     workspaceSlug: input.workspaceSlug,
@@ -129,10 +108,8 @@ export function askAssistantEffect(
 }
 
 export async function askAssistantHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: AskAssistantInput
 ): Promise<AskAssistantOutcome> {
-  const input = decodeAskInput(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,

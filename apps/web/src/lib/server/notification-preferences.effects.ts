@@ -1,7 +1,5 @@
 import {
   NOTIFICATION_KIND_DESCRIPTIONS,
-  NotificationChannel,
-  NotificationKind,
   isSecurityNotificationKind
 } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
 import {
@@ -9,21 +7,20 @@ import {
   type NotificationPreference
 } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { Effect, Schema } from 'effect'
+import { Effect } from 'effect'
 
 import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import {
   type NotificationPreferenceRow,
-  type NotificationPreferencesPayload
+  type NotificationPreferencesPayload,
+  type SetNotificationPreferenceInput
 } from './notification-preferences'
 
 /**
  * The notification-preference effects and their server-only wiring, reached
- * only through dynamic `import()` inside the `createServerFn` handlers in
- * `notification-preferences.ts`: handler bodies are stripped from the client
- * build, so this graph — the preference service, the kind table and its
- * copy, the Better Auth session gate — ships to the server alone.
+ * only through dynamic `import()` inside the handlers of
+ * `notification-preferences.ts` (see apps/web/AGENTS.md).
  * `notification-preferences.ts` holds the client-safe half and the reason
  * for the split.
  */
@@ -81,24 +78,14 @@ export async function loadNotificationPreferencesHandler(): Promise<Notification
   return loadNotificationPreferences({ userId: session.user.id })
 }
 
-// All input constraints live in the schema — no imperative re-validation.
-const SetNotificationPreferenceInput = Schema.Struct({
-  kind: NotificationKind,
-  channel: NotificationChannel
-})
-
-const decodeSetInput = Schema.decodeUnknownSync(SetNotificationPreferenceInput)
-
 /**
  * Stores one choice for the signed-in user. The session gate is the whole
  * authorization: a preference is the user's own, keyed by their id, so no
  * workspace permission applies and no other user's row is reachable.
  */
-// oxlint-disable anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
 export async function setNotificationPreferenceHandler(
-  data: unknown
+  input: SetNotificationPreferenceInput
 ): Promise<NotificationPreferenceRow> {
-  const input = decodeSetInput(data)
   const session = await requireRequestSession()
   return runCapabilities(
     Effect.gen(function* () {
@@ -112,4 +99,3 @@ export async function setNotificationPreferenceHandler(
     })
   )
 }
-// oxlint-enable anti-slop/no-unknown-parameters

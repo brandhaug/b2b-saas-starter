@@ -3,15 +3,12 @@ import { createServerFn } from '@tanstack/react-start'
 import { type WorkspaceDirectory } from '../workspace-directory'
 
 /**
- * The workspace-directory loader, in a **client-safe** module.
- *
- * The `/workspaces` layout route statically imports this file, and the route
- * tree ships to the browser — so everything at this module's top level rides
- * on every page. That is why the `listWorkspacesForUser` projection and its
- * Effect wiring live in `workspace-directory.effects.ts` and are reached only
- * through dynamic `import()` inside the handler: TanStack Start strips
- * handler bodies from the client build, so the capabilities graph never
- * ships, while the directory type still does.
+ * The workspace-directory loader, in a **client-safe** module: the
+ * client-safe half of the `workspace-directory.effects.ts` split (see
+ * apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for the
+ * enforcement). The directory type still ships with this half; the
+ * `listWorkspacesForUser` projection and its Effect wiring stay in the
+ * effects half.
  */
 export const loadWorkspaceDirectoryServerFn = createServerFn({
   method: 'GET'

@@ -1,26 +1,15 @@
 import { type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
-
-import { expectRecord, expectString } from './input-shape'
+import { Schema } from 'effect'
 
 /**
  * The billing server functions and the billing loader, in a **client-safe**
- * module.
- *
- * This file is statically imported by the billing route and the components
- * it renders, and the route tree ships to the browser — so everything at
- * this module's top level rides on every page. That is why the payload
- * assembly and the checkout wiring (the Billing capability, the plan
- * catalog, the permission helper, the worker env) live in
- * `billing.effects.ts` and are reached only through dynamic `import()`
- * inside each handler: TanStack Start strips handler bodies from the client
- * build, so the capabilities graph never ships, while the payload type
- * still does. The validators are stripped the same way — `.validator()`
- * runs on the server only — so the plain shape checks below are the
- * server's first decode, a wire-shape gate that declares each fn's input
- * type without dragging the Effect Schema chunk onto the route tree, while
- * the strict schemas decode again in the effects file before anything runs.
+ * module — the client-safe half of the `billing.effects.ts` split; see
+ * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
+ * for the enforcement. Each input is written once, as its Effect Schema: the
+ * validator is the single strict decode, and the derived types below type
+ * both the client stub and the effects handlers.
  */
 
 /**
@@ -41,64 +30,40 @@ export type WorkspaceBillingPayload = {
   readonly stripeConfigured: boolean
 }
 
-type WorkspaceBillingInput = {
-  readonly workspaceSlug: string
-}
+const WorkspaceBillingInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
 
-type StartCheckoutInput = {
-  readonly workspaceSlug: string
-  readonly planId: string
-}
+const StartCheckoutInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  planId: Schema.NonEmptyString
+})
 
-type PortalInput = {
-  readonly workspaceSlug: string
-}
+const PortalInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
 
-/**
- * The server fns' validators, plain shape checks that run on the server only
- * (TanStack strips `.validator()` from the client build): they are the
- * server's first decode, and the strict schemas decode again in
- * `billing.effects.ts`. These probes ARE the I/O boundary, so `unknown` in
- * and `throw` out is the contract, the same exemption `pickOptionalStrings`
- * carries (lib/utils.ts).
- */
-// oxlint-disable anti-slop/no-unknown-parameters
-function decodeBillingInput(input: unknown): WorkspaceBillingInput {
-  const record = expectRecord(input, 'billing input')
-  return { workspaceSlug: expectString(record, 'workspaceSlug', 'billing input') }
-}
-
-function decodeCheckoutInput(input: unknown): StartCheckoutInput {
-  const record = expectRecord(input, 'billing input')
-  return {
-    workspaceSlug: expectString(record, 'workspaceSlug', 'billing input'),
-    planId: expectString(record, 'planId', 'billing input')
-  }
-}
-
-function decodePortalInput(input: unknown): PortalInput {
-  const record = expectRecord(input, 'billing input')
-  return { workspaceSlug: expectString(record, 'workspaceSlug', 'billing input') }
-}
-// oxlint-enable anti-slop/no-unknown-parameters
+export type WorkspaceBillingInput = typeof WorkspaceBillingInput.Type
+export type StartCheckoutInput = typeof StartCheckoutInput.Type
+export type PortalInput = typeof PortalInput.Type
 
 /** The billing route's loader. */
 export const loadWorkspaceBillingServerFn = createServerFn({ method: 'GET' })
-  .validator(decodeBillingInput)
+  .validator(Schema.decodeUnknownSync(WorkspaceBillingInput))
   .handler(async ({ data }): Promise<WorkspaceBillingPayload> => {
     const { loadWorkspaceBillingHandler } = await import('./billing.effects')
     return loadWorkspaceBillingHandler(data)
   })
 
 export const startCheckoutServerFn = createServerFn({ method: 'POST' })
-  .validator(decodeCheckoutInput)
+  .validator(Schema.decodeUnknownSync(StartCheckoutInput))
   .handler(async ({ data }): Promise<{ url: string }> => {
     const { startCheckoutHandler } = await import('./billing.effects')
     return startCheckoutHandler(data)
   })
 
 export const startPortalSessionServerFn = createServerFn({ method: 'POST' })
-  .validator(decodePortalInput)
+  .validator(Schema.decodeUnknownSync(PortalInput))
   .handler(async ({ data }): Promise<{ url: string }> => {
     const { startPortalSessionHandler } = await import('./billing.effects')
     return startPortalSessionHandler(data)

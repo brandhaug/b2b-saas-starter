@@ -2,11 +2,12 @@ import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { WorkspaceOnboarding } from '@b2b-saas-starter/capabilities/governance/workspace-onboarding'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { Effect, Schema, type Scope } from 'effect'
+import { Effect, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
+import { type DismissInput } from './workspace-onboarding'
 
 /**
  * The onboarding dismissal effect and its server-only wiring, reached only
@@ -16,13 +17,6 @@ import { requireWorkspacePermission } from './authorize'
  * server alone. `workspace-onboarding.ts` holds the client-safe half and the
  * reason for the split.
  */
-
-// All input constraints live in the schema — no imperative re-validation.
-const DismissInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-
-const decodeDismissInput = Schema.decodeUnknownSync(DismissInput)
 
 /**
  * The effect below the session gate: proves the actor may dismiss
@@ -44,10 +38,8 @@ export function dismissOnboardingChecklist(): Effect.Effect<
 }
 
 export async function dismissOnboardingChecklistHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: DismissInput
 ): Promise<boolean> {
-  const input = decodeDismissInput(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(input.workspaceSlug, dismissOnboardingChecklist(), {
     userId: session.user.id

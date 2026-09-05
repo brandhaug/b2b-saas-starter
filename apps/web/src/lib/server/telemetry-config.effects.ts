@@ -4,9 +4,10 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { type ClientTelemetryConfig } from './telemetry-config'
 
 /**
- * The telemetry config's server-only read, reached through dynamic
- * `import()` from the client-safe `telemetry-config.ts`: the `env/server`
- * import pins the Effect graph, which must never ship to the browser.
+ * The telemetry config's server-only read, reached only through dynamic
+ * `import()` inside the handler of `telemetry-config.ts` (see
+ * apps/web/AGENTS.md). The `env/server` import pins the Effect graph, which
+ * must never ship to the browser.
  */
 
 /**
@@ -22,7 +23,7 @@ function nonEmptyEnvValue(value: string | null | undefined): string | undefined 
 }
 
 /** Runs on the server only — it reads the worker's env bag. */
-export function readClientTelemetryConfig(): ClientTelemetryConfig {
+export function readClientTelemetryConfigHandler(): ClientTelemetryConfig {
   return {
     // DSNs and PostHog project keys are public ingest identifiers by design;
     // no secret ever reaches this object.

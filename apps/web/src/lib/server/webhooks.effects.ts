@@ -11,20 +11,25 @@ import {
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { type InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { Effect, Schema, type Scope } from 'effect'
+import { Effect, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
-import { type WorkspaceWebhooksPayload } from './webhooks'
+import {
+  type CreateWebhookInput,
+  type EndpointMutationInput,
+  type ReplayDeliveryInput,
+  type UpdateEndpointInput,
+  type WorkspaceWebhooksInput,
+  type WorkspaceWebhooksPayload
+} from './webhooks'
 
 /**
  * The webhook effects, the payload assembly and their server-only wiring,
  * reached only through dynamic `import()` inside the handlers of
- * `webhooks.ts`: handler bodies are stripped from the client build, so this
- * graph ships to the server alone. `webhooks.ts` holds the client-safe half
- * and the reason for the split.
+ * `webhooks.ts` (see apps/web/AGENTS.md for the split).
  *
  * The mutation effects are exported taking only the mutation input, so what
  * is testable without a request or an auth runtime is exactly the behaviour:
@@ -67,63 +72,9 @@ export function loadWorkspaceWebhooks(input: {
   })
 }
 
-/**
- * The server functions' input schemas, decoded here rather than in
- * `webhooks.ts`: the client stub never runs validators, and a module-level
- * Schema construct in the client-safe file would drag the Effect Schema
- * chunk onto every page. All input constraints live in the schema — no
- * imperative re-validation.
- */
-const CreateWebhookInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  url: Schema.NonEmptyString,
-  events: Schema.NonEmptyArray(Schema.NonEmptyString)
-})
-
-const decodeCreateInput = Schema.decodeUnknownSync(CreateWebhookInput)
-
-const WorkspaceWebhooksInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-
-const decodeWebhooksInput = Schema.decodeUnknownSync(WorkspaceWebhooksInput)
-
-const EndpointMutationSchema = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  endpointId: Schema.NonEmptyString
-})
-
-const decodeEndpointMutation = Schema.decodeUnknownSync(EndpointMutationSchema)
-
-const UpdateEndpointInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  endpointId: Schema.NonEmptyString,
-  url: Schema.optionalKey(Schema.NonEmptyString),
-  events: Schema.optionalKey(Schema.NonEmptyArray(Schema.NonEmptyString)),
-  enabled: Schema.optionalKey(Schema.Boolean)
-})
-
-const decodeUpdateEndpoint = Schema.decodeUnknownSync(UpdateEndpointInput)
-
-const ReplayDeliveryInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  deliveryId: Schema.NonEmptyString
-})
-
-const decodeReplayDelivery = Schema.decodeUnknownSync(ReplayDeliveryInput)
-
-const SendTestEventInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  endpointId: Schema.NonEmptyString
-})
-
-const decodeSendTestEvent = Schema.decodeUnknownSync(SendTestEventInput)
-
 export async function createWebhookEndpointHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: CreateWebhookInput
 ): Promise<CreatedWebhookEndpoint> {
-  const input = decodeCreateInput(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -143,10 +94,8 @@ export async function createWebhookEndpointHandler(
 }
 
 export async function loadWorkspaceWebhooksHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: WorkspaceWebhooksInput
 ): Promise<WorkspaceWebhooksPayload> {
-  const input = decodeWebhooksInput(data)
   const session = await requireRequestSession()
   return loadWorkspaceWebhooks({
     workspaceSlug: input.workspaceSlug,
@@ -184,10 +133,8 @@ export function updateWebhookEndpoint(
 }
 
 export async function updateWebhookEndpointHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: UpdateEndpointInput
 ): Promise<WebhookEndpoint> {
-  const input = decodeUpdateEndpoint(data)
   const session = await requireRequestSession()
   // Rest-destructuring drops `workspaceSlug` and keeps every optional field
   // exactly as the schema decoded it — absent fields stay absent.
@@ -218,9 +165,9 @@ export function rotateWebhookSecret(input: {
   })
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function rotateWebhookSecretHandler(data: unknown): Promise<string> {
-  const input = decodeEndpointMutation(data)
+export async function rotateWebhookSecretHandler(
+  input: EndpointMutationInput
+): Promise<string> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -254,10 +201,8 @@ export function replayWebhookDelivery(input: {
 }
 
 export async function replayWebhookDeliveryHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: ReplayDeliveryInput
 ): Promise<{ readonly deliveryId: string }> {
-  const input = decodeReplayDelivery(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -285,10 +230,8 @@ export function sendTestEvent(input: {
 }
 
 export async function sendTestEventHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: EndpointMutationInput
 ): Promise<{ readonly deliveryId: string }> {
-  const input = decodeSendTestEvent(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,

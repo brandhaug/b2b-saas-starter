@@ -1,26 +1,29 @@
 import {
   ApiTokenRegistry,
-  ApiTokenScope,
   type CreatedApiToken,
   type RevokeApiTokenInput
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { Effect, Schema, type Scope } from 'effect'
+import { Effect, type Scope } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
-import { type WorkspaceApiTokensPayload } from './api-tokens'
+import {
+  type CreateApiTokenInput,
+  type LoadApiTokensInput,
+  type RevokeApiTokenInputSchema,
+  type WorkspaceApiTokensPayload
+} from './api-tokens'
 
 /**
  * The API-tokens payload composition, the revoke effect and their
  * server-only wiring, reached only through dynamic `import()` inside the
- * handlers of `api-tokens.ts`: handler bodies are stripped from the client
- * build, so this graph ships to the server alone. `api-tokens.ts` holds the
- * client-safe half and the reason for the split.
+ * handlers of `api-tokens.ts` (see apps/web/AGENTS.md). `api-tokens.ts`
+ * holds the client-safe half and the reason for the split.
  */
 
 /**
@@ -53,37 +56,9 @@ export function loadWorkspaceApiTokens(input: {
   })
 }
 
-/**
- * The server fns' input schemas, decoded here rather than in
- * `api-tokens.ts`: the client stub never runs validators, and a module-level
- * Schema construct in the client-safe file would drag the Effect Schema
- * chunk onto every page. All input constraints live in the schema — no
- * imperative re-validation.
- */
-const LoadApiTokensInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-
-const CreateApiTokenInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  name: Schema.NonEmptyString.check(Schema.isMaxLength(80)),
-  scopes: Schema.NonEmptyArray(ApiTokenScope)
-})
-
-const RevokeApiTokenInputSchema = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  tokenId: Schema.NonEmptyString
-})
-
-const decodeLoadInput = Schema.decodeUnknownSync(LoadApiTokensInput)
-const decodeCreateInput = Schema.decodeUnknownSync(CreateApiTokenInput)
-const decodeRevokeInput = Schema.decodeUnknownSync(RevokeApiTokenInputSchema)
-
 export async function loadWorkspaceApiTokensHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: LoadApiTokensInput
 ): Promise<WorkspaceApiTokensPayload> {
-  const input = decodeLoadInput(data)
   const session = await requireRequestSession()
   return loadWorkspaceApiTokens({
     workspaceSlug: input.workspaceSlug,
@@ -92,10 +67,8 @@ export async function loadWorkspaceApiTokensHandler(
 }
 
 export async function createApiTokenHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: CreateApiTokenInput
 ): Promise<CreatedApiToken> {
-  const input = decodeCreateInput(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -135,9 +108,9 @@ export function revokeApiToken(
   })
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function revokeApiTokenHandler(data: unknown): Promise<boolean> {
-  const input = decodeRevokeInput(data)
+export async function revokeApiTokenHandler(
+  input: RevokeApiTokenInputSchema
+): Promise<boolean> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,

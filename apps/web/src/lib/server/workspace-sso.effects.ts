@@ -12,12 +12,11 @@ import {
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { Effect, Option, Result, Schema, type Scope } from 'effect'
+import { Effect, Option, Result, type Scope } from 'effect'
 
 import { causeMessage } from '../cause-message'
 
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
-import { EMAIL_PATTERN } from '../email-pattern'
 import { requestOrigin } from './request-origin'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
@@ -29,112 +28,20 @@ import {
 } from './sso-discovery'
 import {
   type CreateSsoConnectionInput,
+  type RemoveSsoConnectionInput,
+  type RoutingInput,
   type SsoTestResult,
   type UpdateSsoConnectionInput
 } from './workspace-sso'
 
 /**
- * The workspace SSO effects and their server-only wiring, on the
- * `invitations.effects.ts` pattern: the effects take their inputs as
+ * The workspace SSO effects and their server-only wiring, reached only
+ * through dynamic `import()` inside the handlers of `workspace-sso.ts` (see
+ * apps/web/AGENTS.md for the split): the effects take their inputs as
  * arguments so the permission gates and the notify-on-failure rule are
  * testable without a session or an auth runtime; each `…Handler` adds the
  * session gate, the request origin and the plugin binding, nothing else.
  */
-
-/**
- * The server functions' input schemas, decoded here rather than in
- * `workspace-sso.ts`: the client stub never runs validators, and a
- * module-level Schema construct in the client-safe file would drag the
- * Effect Schema chunk onto every page. All input constraints live in the
- * schemas — no imperative re-validation.
- */
-
-/** A connection domain: labels, dots, hyphens — never an @ or a slash. */
-const Domain = Schema.String.check(
-  Schema.isMinLength(3),
-  Schema.isPattern(/^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/i)
-)
-
-const WorkspaceSlug = Schema.NonEmptyString
-
-const CreateOidcInput = Schema.Struct({
-  workspaceSlug: WorkspaceSlug,
-  protocol: Schema.Literal('oidc'),
-  domain: Domain,
-  issuer: Schema.String.check(Schema.isMinLength(8), Schema.isPattern(/^https:\/\//)),
-  clientId: Schema.NonEmptyString,
-  clientSecret: Schema.NonEmptyString,
-  defaultWorkspaceRole: Schema.Literals(['member', 'admin'])
-})
-
-const CreateSamlInput = Schema.Struct({
-  workspaceSlug: WorkspaceSlug,
-  protocol: Schema.Literal('saml'),
-  domain: Domain,
-  // XML or URL: exactly one. The issuer is derived from the request origin
-  // when omitted (the conventional SP entity id).
-  metadataXml: Schema.optional(Schema.NonEmptyString),
-  metadataUrl: Schema.optional(Schema.String.check(Schema.isPattern(/^https:\/\//))),
-  issuer: Schema.optional(Schema.String),
-  defaultWorkspaceRole: Schema.Literals(['member', 'admin'])
-}).check(
-  Schema.makeFilter((input) => {
-    const hasXml = input.metadataXml !== undefined
-    const hasUrl = input.metadataUrl !== undefined
-    if (hasXml !== hasUrl) {
-      return
-    }
-    return {
-      path: ['metadataXml'],
-      issue: 'Provide exactly one of metadataXml or metadataUrl'
-    }
-  })
-)
-
-const CreateInput = Schema.Union([CreateOidcInput, CreateSamlInput])
-const decodeCreate = Schema.decodeUnknownSync(CreateInput)
-
-const UpdateInput = Schema.Struct({
-  workspaceSlug: WorkspaceSlug,
-  providerId: Schema.NonEmptyString,
-  enabled: Schema.optional(Schema.Boolean),
-  requireSso: Schema.optional(Schema.Boolean),
-  defaultWorkspaceRole: Schema.optional(Schema.Literals(['member', 'admin'])),
-  clientId: Schema.optional(Schema.NonEmptyString),
-  clientSecret: Schema.optional(Schema.NonEmptyString)
-}).check(
-  Schema.makeFilter((input) => {
-    // Credential rotation is both-or-neither: the plugin merges a partial
-    // oidcConfig over the stored one, so a lone half would silently do
-    // nothing (or worse, half-rotate). Same rule shape as the SAML create
-    // filter above.
-    const hasId = input.clientId !== undefined
-    const hasSecret = input.clientSecret !== undefined
-    if (hasId === hasSecret) {
-      return
-    }
-    return {
-      path: ['clientSecret'],
-      issue: 'Rotating credentials requires both clientId and clientSecret'
-    }
-  })
-)
-const decodeUpdate = Schema.decodeUnknownSync(UpdateInput)
-
-const ByProviderInput = Schema.Struct({
-  workspaceSlug: WorkspaceSlug,
-  providerId: Schema.NonEmptyString
-})
-const decodeByProvider = Schema.decodeUnknownSync(ByProviderInput)
-
-const RoutingInput = Schema.Struct({
-  email: Schema.String.check(
-    Schema.isMinLength(3),
-    Schema.isMaxLength(320),
-    Schema.isPattern(EMAIL_PATTERN)
-  )
-})
-const decodeRouting = Schema.decodeUnknownSync(RoutingInput)
 
 function samlIssuer(
   input: Extract<CreateSsoConnectionInput, { readonly protocol: 'saml' }>,
@@ -235,10 +142,8 @@ function loadSamlMetadata(
 }
 
 export async function createSsoConnectionHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: CreateSsoConnectionInput
 ): Promise<SsoConnection> {
-  const input = decodeCreate(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -281,10 +186,8 @@ export function updateSsoConnection(
 }
 
 export async function updateSsoConnectionHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: UpdateSsoConnectionInput
 ): Promise<SsoConnection | null> {
-  const input = decodeUpdate(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -309,10 +212,8 @@ export function removeSsoConnection(input: {
 }
 
 export async function removeSsoConnectionHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: RemoveSsoConnectionInput
 ): Promise<boolean> {
-  const input = decodeByProvider(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -406,10 +307,8 @@ function notifyOwnersOfFailedTest(
 }
 
 export async function testSsoConnectionHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: RemoveSsoConnectionInput
 ): Promise<SsoTestResult> {
-  const input = decodeByProvider(data)
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(input.workspaceSlug, testSsoConnection(input), {
     userId: session.user.id
@@ -423,10 +322,8 @@ export async function testSsoConnectionHandler(
  * domain routes, which the IdP redirect discloses anyway.
  */
 export async function resolveSsoRoutingHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: RoutingInput
 ): Promise<SsoRoutingDecision | null> {
-  const input = decodeRouting(data)
   const decision = await runCapabilities(
     Effect.flatMap(SsoConnections, (sso) => sso.resolveRouting(input.email))
   )

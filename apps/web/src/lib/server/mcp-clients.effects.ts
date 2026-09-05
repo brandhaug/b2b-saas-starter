@@ -2,17 +2,16 @@ import {
   McpClientConnections,
   type McpClientConnection
 } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
-import { Effect, Schema } from 'effect'
+import { Effect } from 'effect'
 
 import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
+import { type RevokeInput } from './mcp-clients'
 
 /**
  * The MCP-client connection effects and their server-only wiring, reached
- * only through dynamic `import()` inside the `createServerFn` handlers in
- * `mcp-clients.ts`: handler bodies are stripped from the client build, so
- * the capabilities graph ships to the server alone. `mcp-clients.ts` holds
- * the client-safe half and the reason for the split.
+ * only through dynamic `import()` inside the handlers of `mcp-clients.ts`
+ * (see apps/web/AGENTS.md for the split).
  */
 
 /**
@@ -39,18 +38,13 @@ export async function loadMcpClientConnectionsHandler(): Promise<
   return loadMcpClientConnections({ userId: session.user.id })
 }
 
-const RevokeInput = Schema.Struct({ connectionId: Schema.NonEmptyString })
-const decodeRevokeInput = Schema.decodeUnknownSync(RevokeInput)
-
 /**
  * Revokes one connection: the consent, the tokens it minted, and the
  * `mcp_client.consent_revoked` Audit Event, in one batch inside the
  * capability. The owner is the session, never the input — another user's
  * connection id revokes nothing and returns `false`.
  */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function revokeMcpClientHandler(data: unknown): Promise<boolean> {
-  const input = decodeRevokeInput(data)
+export async function revokeMcpClientHandler(input: RevokeInput): Promise<boolean> {
   const session = await requireRequestSession()
   return runCapabilities(
     Effect.flatMap(McpClientConnections, (connections) =>

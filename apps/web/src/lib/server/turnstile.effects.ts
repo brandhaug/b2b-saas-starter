@@ -3,10 +3,10 @@ import { hasValue } from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
 
 /**
- * Turnstile's server-only wiring (ADR 0031), reached through dynamic
- * `import()` from the client-safe `turnstile.ts`: the verifier layer factory
- * and the env-bag site-key read both pin `effect`/capabilities graphs that
- * must never ship to the browser.
+ * Turnstile's server-only wiring (ADR 0031), reached only through dynamic
+ * `import()` inside the handler of `turnstile.ts` (see apps/web/AGENTS.md):
+ * the verifier layer factory and the env-bag site-key read both pin
+ * `effect`/capabilities graphs that must never ship to the browser.
  */
 
 /** Per-request verifier layer, built from worker env like the rate limiter's. */

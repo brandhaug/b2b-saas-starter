@@ -1,13 +1,18 @@
 import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
 import { PLANS } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
-import { Effect, Schema } from 'effect'
+import { Effect } from 'effect'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
-import { type WorkspaceBillingPayload } from './billing'
+import {
+  type PortalInput,
+  type StartCheckoutInput,
+  type WorkspaceBillingInput,
+  type WorkspaceBillingPayload
+} from './billing'
 
 /**
  * The billing payload assembly and the checkout wiring, reached only
@@ -52,34 +57,9 @@ export function loadWorkspaceBilling(input: {
   })
 }
 
-/**
- * The server functions' input schemas, decoded here rather than in
- * `billing.ts`: the client stub never runs validators, and a module-level
- * Schema construct in the client-safe file would drag the Effect Schema
- * chunk onto every page. All input constraints live in the schema — no
- * imperative re-validation.
- */
-const WorkspaceBillingInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-const decodeBillingInput = Schema.decodeUnknownSync(WorkspaceBillingInput)
-
-const StartCheckoutInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  planId: Schema.NonEmptyString
-})
-const decodeCheckoutInput = Schema.decodeUnknownSync(StartCheckoutInput)
-
-const PortalInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString
-})
-const decodePortalInput = Schema.decodeUnknownSync(PortalInput)
-
 export async function loadWorkspaceBillingHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: WorkspaceBillingInput
 ): Promise<WorkspaceBillingPayload> {
-  const input = decodeBillingInput(data)
   const session = await requireRequestSession()
   return loadWorkspaceBilling({
     workspaceSlug: input.workspaceSlug,
@@ -93,9 +73,9 @@ export async function loadWorkspaceBillingHandler(
  * only its slug and the plan — so a crafted success/cancel URL cannot turn
  * the checkout handoff into an open redirect.
  */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-export async function startCheckoutHandler(data: unknown): Promise<{ url: string }> {
-  const input = decodeCheckoutInput(data)
+export async function startCheckoutHandler(
+  input: StartCheckoutInput
+): Promise<{ url: string }> {
   const session = await requireRequestSession()
   const base = cloudflareEnv.BETTER_AUTH_URL.replace(/\/$/, '')
   return runWorkspaceCapabilities(
@@ -121,10 +101,8 @@ export async function startCheckoutHandler(data: unknown): Promise<{ url: string
  * payment method, and cancellation.
  */
 export async function startPortalSessionHandler(
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the server fn hands the handler untyped `data`; the strict schema decode is this function's first act
-  data: unknown
+  input: PortalInput
 ): Promise<{ url: string }> {
-  const input = decodePortalInput(data)
   const session = await requireRequestSession()
   const base = cloudflareEnv.BETTER_AUTH_URL.replace(/\/$/, '')
   return runWorkspaceCapabilities(
