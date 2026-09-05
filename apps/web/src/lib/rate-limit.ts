@@ -59,7 +59,9 @@ function pickBinding(
  * `auth_sign_in` bucket: password and username sign-in, the magic-link send,
  * and the email one-time-code endpoints — sending a code or a link is an
  * email-sending primitive and verifying either is a guessable-credential
- * check, so all sit in the same bucket as a password guess (ADR 0030).
+ * check, so all sit in the same bucket as a password guess (ADR 0030). The
+ * password-reset request joins them in either spelling: the link flow and
+ * its `/email-otp` sibling are the same mail-an-arbitrary-address primitive.
  */
 const AUTH_SIGN_IN_SUFFIXES = [
   '/sign-in/email',
@@ -68,7 +70,10 @@ const AUTH_SIGN_IN_SUFFIXES = [
   '/sign-in/email-otp',
   '/email-otp/send-verification-otp',
   '/email-otp/verify-email',
-  '/email-otp/request-password-reset',
+  // Suffix-matched so both the link flow (`/request-password-reset`) and
+  // `/email-otp/request-password-reset` land here — the same reuse-by-suffix
+  // the audit exchange table applies to this pair.
+  '/request-password-reset',
   '/email-otp/reset-password'
 ]
 

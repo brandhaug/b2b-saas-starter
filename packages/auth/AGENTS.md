@@ -19,6 +19,10 @@ The Better Auth instance and nothing else: options, plugin list, plugin↔schema
 
 **Model mapping.** `modelName` is the **drizzle schema export key**, not the SQL table name (`organization → 'workspaces'`); `fields` renames `organizationId → workspaceId`, the only rename allowed. `additionalFields` never belong in `metadata`.
 
+**No `organizationClient`.** Workspace mutations ride server fns → `CapabilityBindings` (ADR 0051); the client plugin would open a browser-direct write path that bypasses the capability and audit layer. Registering it is a architecture change, not a missing setup step.
+
+**Stated hardening options.** `account.encryptOAuthTokens`, `verification.storeIdentifier: 'hashed'`, `advanced.ipAddress: ['cf-connecting-ip']`, and `rateLimit: { enabled: false }` (the boundary is the Cloudflare RateLimit bindings, ADR 0030 — Better Auth's memory limiter is per-isolate noise on Workers) are all on and pinned in `options.test.ts`.
+
 **sso** (ADR 0069). `provisionedRoleOf` maps anything outside `member | admin` to `member`, so **SSO never mints `owner`**. `enabled` is starter vocabulary the plugin knows nothing of, enforced by the app; connections register fully hydrated, so a new IdP needs no env change.
 
 **MCP OAuth** (ADR 0068). `AuthConfig.mcp` supplies the audience-bound `/mcp` URL and the outbound transport, both the app's, since Workers cannot run the Node transport. `/oauth/consent` is both post-login and consent hop, its workspace pick vouched for by `MCP_WORKSPACE_SELECTED_HEADER`; `customAccessTokenClaims` re-reads membership from D1 on every refresh.
@@ -39,6 +43,7 @@ The Better Auth instance and nothing else: options, plugin list, plugin↔schema
 4. **A passkey sign-in satisfies the two-factor requirement**: the gate is an after-hook on the credential endpoints only, and the passkey endpoint creates its session directly. Deliberate.
 5. **`new Date()` in `additionalFields` callbacks is deliberate**: Better Auth calls them outside any Effect, so no `Clock` reaches them, and `effect/noGlobals` exempts this adapter.
 6. **Keep the array inside `plugins(...)`.** A bare array literal widens to a union and silently drops plugin schema inference; `SessionUserRole` then fails typecheck.
+7. **No `session.cookieCache`, deliberately.** A cached session cookie would serve a stale `impersonatedBy` (banner and guard read it server-side), lag revocation within `maxAge`, and break the MCP consent flow's write-then-read of `activeOrganizationId` within one authorization. Server session reads are memoized to one D1 read per request instead.
 
 ## Dependencies & Edges
 

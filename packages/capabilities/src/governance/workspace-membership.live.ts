@@ -13,9 +13,12 @@ import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   type WorkspaceMemberBinding,
-  WorkspaceMembership
+  WorkspaceMembership,
+  MEMBERSHIP_REFUSAL_REASONS,
+  refuseMembershipChange
 } from './workspace-membership.ts'
 import {
+  countWorkspaceOwners,
   findWorkspaceMember,
   requireMemberRowId,
   toMember,
@@ -71,6 +74,21 @@ export function LiveWorkspaceMembership(
           )
         }
         return member
+      })
+
+      /**
+       * The ownership rule's inputs, as D1 sees them: the target's current
+       * role and the owner count the plugin would count itself. Refusing here
+       * means the caller gets the machine reason, and the plugin is never
+       * asked for a change it would refuse with message text.
+       */
+      const rosterFacts = Effect.fnUntraced(function* (
+        workspaceId: string,
+        userId: string
+      ) {
+        const target = yield* findWorkspaceMember(db, { workspaceId, userId })
+        const ownerCount = yield* countWorkspaceOwners(db, workspaceId)
+        return { targetRole: target?.role ?? null, ownerCount }
       })
 
       return {
@@ -164,6 +182,17 @@ export function LiveWorkspaceMembership(
         removeMember: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
+            const facts = yield* rosterFacts(ctx.workspace.id, input.userId)
+            const refusal = refuseMembershipChange('remove', {
+              actorRole: ctx.actor?.role ?? null,
+              targetRole: facts.targetRole,
+              ownerCount: facts.ownerCount
+            })
+            if (refusal !== null) {
+              return yield* Effect.fail(
+                new MembershipChangeRejected({ reason: refusal })
+              )
+            }
             const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
             yield* callBinding(binding, (bound) =>
               bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
@@ -178,9 +207,61 @@ export function LiveWorkspaceMembership(
               reason: 'member_removed'
             })
           }),
+        leave: Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          const actor = ctx.actor
+          if (actor === null) {
+            // An actorless context has no membership to end — the same
+            // fail-closed read the rule itself states.
+            return yield* Effect.fail(
+              new MembershipChangeRejected({
+                reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
+              })
+            )
+          }
+          // The actor's own row is both sides of the rule: an actor the
+          // context resolved but the roster no longer carries (a concurrent
+          // removal) fails closed as `not_a_member`.
+          const facts = yield* rosterFacts(ctx.workspace.id, actor.userId)
+          const refusal = refuseMembershipChange('leave', {
+            actorRole: facts.targetRole,
+            targetRole: facts.targetRole,
+            ownerCount: facts.ownerCount
+          })
+          if (refusal !== null) {
+            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+          }
+          // The plugin's leave endpoint resolves the member from the session,
+          // so no row id is resolved here — the session IS the address.
+          yield* callBinding(binding, (bound) =>
+            bound.leave({ workspaceId: ctx.workspace.id })
+          )
+          yield* recordInWorkspace(audit, {
+            eventType: 'workspace_member.removed',
+            targetType: 'workspace_member',
+            targetId: actor.userId,
+            metadata: { reason: 'left' }
+          })
+          yield* publishSeatSyncWith(seatSync, {
+            workspaceId: ctx.workspace.id,
+            reason: 'member_removed'
+          })
+        }),
         changeRole: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
+            const facts = yield* rosterFacts(ctx.workspace.id, input.userId)
+            const refusal = refuseMembershipChange('change_role', {
+              actorRole: ctx.actor?.role ?? null,
+              targetRole: facts.targetRole,
+              ownerCount: facts.ownerCount,
+              nextRole: input.role
+            })
+            if (refusal !== null) {
+              return yield* Effect.fail(
+                new MembershipChangeRejected({ reason: refusal })
+              )
+            }
             const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
             yield* callBinding(binding, (bound) =>
               bound.changeRole({

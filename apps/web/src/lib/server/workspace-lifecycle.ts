@@ -3,7 +3,9 @@ import {
   WorkspaceLifecycle
 } from '@b2b-saas-starter/capabilities/governance/workspace-lifecycle'
 import { type Workspace } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { requireEmailVerification } from '@b2b-saas-starter/env/server'
 import { createServerFn } from '@tanstack/react-start'
+import { env } from 'cloudflare:workers'
 import { Effect, Schema } from 'effect'
 
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
@@ -19,6 +21,32 @@ import { webWorkspaceLifecycleBinding } from './workspace-binding'
  * enforced here, on the server, exactly where every other workspace mutation's
  * gate lives.
  */
+
+/**
+ * Typed failure for the creation gate below. Same shape and reason as
+ * `UnauthorizedError`: server functions serialize thrown errors with
+ * `name`/`message` intact, and the calling form shows `message`.
+ */
+export class UnverifiedEmailError extends Error {
+  constructor() {
+    super('Verify your email address before creating a workspace.')
+    this.name = 'UnverifiedEmailError'
+  }
+}
+
+/**
+ * The creation gate's refusal decision, in one place so the branch the tests
+ * drive is the branch a request takes (the same rule `enforceRequiredEnvAudit`
+ * follows). It states exactly what the plugin's
+ * `allowUserToCreateOrganization` callback states: when verification is
+ * enforced, an unverified mailbox does not get to mint workspaces.
+ */
+export function unverifiedCreatorRefused(input: {
+  readonly emailVerified: boolean
+  readonly environment: string | undefined
+}): boolean {
+  return requireEmailVerification(input.environment) && !input.emailVerified
+}
 
 // All input constraints live in the schema — no imperative re-validation. The
 // slug rule is lowercase letters, digits, and inner hyphens; the plugin
@@ -40,6 +68,24 @@ export const createWorkspaceServerFn = createServerFn({ method: 'POST' })
     // so this runs through `runCapabilities` with no `WorkspaceContext`. The
     // plugin itself makes the creator its first owner.
     const session = await requireRequestSession()
+    // The email-verification gate the plugin config promises has to run here:
+    // `createOrganization` is a headerless server-only endpoint, so Better
+    // Auth treats this app's own call as a system action and never invokes
+    // `allowUserToCreateOrganization` — the same headerless-trust seam #242
+    // closed for identity. The session is the identity source for both halves
+    // of the decision; `requireEmailVerification` derives the stance from
+    // `ENVIRONMENT` exactly as `auth-runtime.ts` feeds the plugin config, so
+    // the two gates cannot drift (local dev stays open, per the
+    // provider-light rule).
+    if (
+      unverifiedCreatorRefused({
+        emailVerified: session.user.emailVerified,
+        environment: env.ENVIRONMENT
+      })
+    ) {
+      // oxlint-disable-next-line effect/noThrowStatement -- TanStack Start serializes a thrown server-fn error back to the caller; the returned Promise has no error channel
+      throw new UnverifiedEmailError()
+    }
     return runCapabilities(
       Effect.gen(function* () {
         const lifecycle = yield* WorkspaceLifecycle

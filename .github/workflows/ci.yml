@@ -101,6 +101,11 @@ jobs:
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
           BETTER_AUTH_TRUSTED_ORIGINS: ${{ secrets.BETTER_AUTH_TRUSTED_ORIGINS }}
+          # A plain value, not a secret: marks the deploy as production, which
+          # arms the env gate and email verification. alchemy.run.ts applies
+          # the same default to the prod stage; forwarding it here keeps the
+          # documented path explicit.
+          ENVIRONMENT: production
           # Optional — the SendEmail binding is skipped when unset (alchemy.run.ts).
           CLOUDFLARE_EMAIL_FROM: ${{ secrets.CLOUDFLARE_EMAIL_FROM }}
       # The workers.dev URLs are not known until deploy time: the account's

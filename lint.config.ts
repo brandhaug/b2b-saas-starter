@@ -680,14 +680,7 @@ const { lint = {} } = defineConfig({
         plugins: ['typescript', 'vitest', 'react']
       },
       {
-        files: [
-          'scripts/**',
-          'packages/*/scripts/**',
-          'infra/**',
-          'alchemy.run.ts',
-          '**/bun.build.ts',
-          '**/bun.watch.ts'
-        ],
+        files: ['scripts/**', 'packages/*/scripts/**', 'infra/**', 'alchemy.run.ts'],
         rules: {
           'no-console': 'off',
           'anti-slop/no-unknown-parameters': 'off',

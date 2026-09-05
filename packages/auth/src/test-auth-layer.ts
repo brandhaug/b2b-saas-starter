@@ -82,7 +82,8 @@ export function buildAuthLayer(
           sendResetPassword: noop,
           sendVerificationEmail: noop,
           sendOneTimeCode: noop,
-          sendMagicLink: noop
+          sendMagicLink: noop,
+          sendPasswordResetConfirmation: noop
         },
         // No provider configured: the Local Auth Path shape, unchanged.
         socialProviders: {},

@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "bun",
-      "runtimeArgs": ["--cwd", "apps/web", "dev"],
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", "apps/web", "dev"],
       "port": 3071
     }
   ]

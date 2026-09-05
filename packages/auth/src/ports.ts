@@ -27,6 +27,12 @@ export type AuthEmailSender = {
   readonly sendOneTimeCode: AuthOneTimeCodeCallback
   /** The magic-link plugin's `sendMagicLink` callback. */
   readonly sendMagicLink: AuthMagicLinkCallback
+  /**
+   * Better Auth's `emailAndPassword.onPasswordReset` callback: the
+   * confirmation after a reset through the emailed link succeeded (sessions
+   * already revoked by then). No-op-able by the app like any other sender.
+   */
+  readonly sendPasswordResetConfirmation: AuthPasswordResetCallback
 }
 
 /**
@@ -77,6 +83,16 @@ export type AuthOneTimeCodeCallback = (data: {
 export type AuthMagicLinkCallback = (data: {
   readonly email: string
   readonly url: string
+}) => Promise<void>
+
+/**
+ * Better Auth's `onPasswordReset` callback shape, narrowed to what the
+ * starter reads. Fires once per successful reset through the emailed link —
+ * after the new password is set and every prior session is revoked — so the
+ * notification is a "this happened" email, never one with an action link.
+ */
+export type AuthPasswordResetCallback = (data: {
+  readonly user: { readonly email: string }
 }) => Promise<void>
 
 /**

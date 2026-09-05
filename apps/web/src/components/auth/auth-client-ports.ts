@@ -1,6 +1,10 @@
 import { type SOCIAL_PROVIDER_IDS } from '@b2b-saas-starter/env/social'
 import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
+import {
+  TWO_FACTOR_REQUIRED_ERROR_CODE,
+  TWO_FACTOR_REQUIRED_MESSAGE
+} from '@/lib/two-factor-refusal'
 
 /**
  * One Better Auth client endpoint, as a port: the input it takes, and the
@@ -237,13 +241,45 @@ export function resetPasswordWithAuthClient(
 /* Two-factor                                                                  */
 /* -------------------------------------------------------------------------- */
 
-/** Verifying the second factor: the sign-in challenge page and the account panel. */
-export type VerifyTotpCode = AuthPort<{ readonly code: string }>
+/**
+ * Verifying the second factor: the sign-in challenge page and the account
+ * panel. `trustDevice` signs the 30-day trust cookie (`trustDeviceMaxAge` in
+ * `packages/auth`) — a sign-in-page concern only, so it stays optional and
+ * the account panel's enrollment verify simply omits it.
+ */
+export type VerifyTotpCode = AuthPort<{
+  readonly code: string
+  readonly trustDevice?: boolean | undefined
+}>
 
 export function verifyTotpWithAuthClient(
   input: Parameters<VerifyTotpCode>[0]
 ): ReturnType<VerifyTotpCode> {
-  return authClient.twoFactor.verifyTotp({ code: input.code })
+  return authClient.twoFactor.verifyTotp({
+    code: input.code,
+    trustDevice: input.trustDevice
+  })
+}
+
+/**
+ * Redeeming a one-time backup code instead of the authenticator: enrollment
+ * promises the ten codes and shows them once, and this is the only endpoint
+ * that spends them — each code dies on use. A sign-in-page method only: the
+ * account panel manages its codes behind a password and never verifies with
+ * one.
+ */
+export type VerifyBackupCode = AuthPort<{
+  readonly code: string
+  readonly trustDevice?: boolean | undefined
+}>
+
+export function verifyBackupCodeWithAuthClient(
+  input: Parameters<VerifyBackupCode>[0]
+): ReturnType<VerifyBackupCode> {
+  return authClient.twoFactor.verifyBackupCode({
+    code: input.code,
+    trustDevice: input.trustDevice
+  })
 }
 
 /**
@@ -299,6 +335,43 @@ export function sixDigitCodeValidator({
 }): string | undefined {
   return /^\d{6}$/.test(value) ? undefined : 'Enter the 6-digit code'
 }
+
+/**
+ * The backup-code field validator: something besides whitespace. Deliberately
+ * shallow for the same reason as the TOTP one — Better Auth owns the real
+ * check, and the code's exact shape (length, casing, the dash) is the
+ * plugin's to define.
+ */
+export function backupCodeValidator({ value }: { value: string }): string | undefined {
+  return value.trim().length > 0 ? undefined : 'Enter a backup code'
+}
+
+/**
+ * The TOTP gate's refusal vocabulary, re-exported from
+ * `lib/two-factor-refusal.ts` — the one module the server gate and this
+ * side both read, so the gate's refusal and the page's notice cannot drift.
+ * The server-side gate refuses magic-link and email-code sign-in for a
+ * two-factor-enabled account (those hops cannot carry a second factor) and
+ * redirects the browser to `/sign-in?error=two_factor_required`; the
+ * message names the path that still works.
+ */
+export { TWO_FACTOR_REQUIRED_ERROR_CODE, TWO_FACTOR_REQUIRED_MESSAGE }
+
+/**
+ * Whether a failed exchange was that refusal. Same probe discipline as
+ * sign-in's `sso_required` check: the envelope is untyped JSON at this
+ * boundary.
+ */
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- Better Auth's client `error` is untyped JSON at this boundary; this probe is the parse step
+export function wasRefusedForTwoFactor(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === TWO_FACTOR_REQUIRED_ERROR_CODE
+  )
+}
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
 /* -------------------------------------------------------------------------- */
 /* Passkeys                                                                    */

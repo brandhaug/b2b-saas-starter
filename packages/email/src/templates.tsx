@@ -144,8 +144,8 @@ export function PasswordResetEmail({ url }: PasswordResetEmailProps) {
     <EmailLayout preview="Reset your password" heading="Reset your password">
       <Text className="text-base text-gray-700 mt-4">
         Somebody asked to reset the password for your B2B SaaS Starter account. If that
-        was you, choose a new password within one hour; the link works once and then
-        expires.
+        was you, choose a new password within thirty minutes; the link works once and
+        then expires.
       </Text>
       <ActionLink href={url} label="Choose a new password" />
       <Text className="text-sm text-gray-500 mt-4">
@@ -371,6 +371,83 @@ export function PasskeyChangedEmail({ added }: PasskeyChangedEmailProps) {
 PasskeyChangedEmail.PreviewProps = {
   added: true
 } satisfies PasskeyChangedEmailProps
+
+type PasswordChangedEmailProps = {
+  /**
+   * Which flow set the password: `reset` is the emailed-link reset (sessions
+   * already revoked), `password-change` is a signed-in change. The email is
+   * one template because the security message is the same either way — only
+   * the sentence naming the flow differs.
+   */
+  readonly via: 'reset' | 'password-change'
+}
+
+/**
+ * Security notification that the password was replaced — sent for both flows
+ * that can do it without the old password in hand afterwards (the reset's
+ * confirmation, and the signed-in change). No action link on purpose, same
+ * rule as the two-factor and passkey notifications: a "sign in" button in an
+ * email the true owner did not ask for is a phishing assist, and the copy
+ * only needs to say what happened and what to do about it.
+ */
+export function PasswordChangedEmail({ via }: PasswordChangedEmailProps) {
+  // Plain branches keep the two wordings next to each other, per the rule
+  // TwoFactorChangedEmail follows.
+  let flow = 'reset through the link we emailed you'
+  let preview = 'Your password was reset'
+  let heading = 'Your password was reset'
+  if (via === 'password-change') {
+    flow = 'changed from your account settings'
+    preview = 'Your password was changed'
+    heading = 'Your password was changed'
+  }
+  return (
+    <EmailLayout preview={preview} heading={heading}>
+      <Text className="text-base text-gray-700 mt-4">
+        The password for your B2B SaaS Starter account was just {flow}. If that was you,
+        sign in with the new password the next time you need it.
+      </Text>
+      <Text className="text-sm text-gray-500 mt-4">
+        If you did not make this change, reset your password immediately and review your
+        account security settings.
+      </Text>
+    </EmailLayout>
+  )
+}
+
+PasswordChangedEmail.PreviewProps = {
+  via: 'password-change'
+} satisfies PasswordChangedEmailProps
+
+/**
+ * Security notification that every two-factor recovery code was replaced.
+ * Rotation invalidates the codes the account holder saved at enrollment, so
+ * the email is the only honest warning that those no longer work — the new
+ * codes travel in the endpoint response the account page shows, never here.
+ * No action link on purpose, same rule as the other security notifications,
+ * and no props: like its siblings, everything it says is flow state, not
+ * per-recipient data (the address rides the envelope, not the template).
+ */
+export function BackupCodesRotatedEmail() {
+  return (
+    <EmailLayout
+      preview="Your two-factor recovery codes were replaced"
+      heading="Recovery codes replaced"
+    >
+      <Text className="text-base text-gray-700 mt-4">
+        New two-factor recovery codes were just generated for your B2B SaaS Starter
+        account. Every code you saved before this change has stopped working.
+      </Text>
+      <Text className="text-sm text-gray-500 mt-4">
+        If that was you, store the new codes somewhere safe. If you did not make this
+        change, reset your password immediately and review your account security
+        settings.
+      </Text>
+    </EmailLayout>
+  )
+}
+
+BackupCodesRotatedEmail.PreviewProps = {}
 
 type AccountDeletedEmailProps = {
   /** Workspaces the account left because other owners remained. */

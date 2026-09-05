@@ -153,8 +153,8 @@ export default defineConfig(({ command, mode }) => {
         )
       }
     : {}
-  // Bun's auto-`.env`
-  // loading nor Vite's `envDir` reach the repo-root `.env` — but the workers
+  // No auto-`.env`
+  // loading reaches the repo-root `.env`, and neither does Vite's `envDir` — but the workers
   // shim and the capability layers read `process.env` directly, so every
   // value in that file (auth origins, optional providers) was silently
   // ignored in dev while docs/setup.md promised it worked. Load the root

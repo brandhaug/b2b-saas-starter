@@ -32,7 +32,7 @@ TanStack Start app on a Cloudflare Worker. Owns the public showcase, the auth sc
 
 - Bindings come from `cloudflare:workers`: a real `DB` activates Live, its absence Seed, and an empty env must never be hardcoded (`vite dev` aliases a shim with persisted local D1, ADR 0049). Client navigations rerun loaders in the browser against Seed, so fixture parity is load-bearing.
 - Two runtimes. `webRuntime` runs every server-side Effect, with isolate-level `WideEventLoggerLive` and OTLP per invocation (ADR 0050). `authRuntime` holds only `Auth`: merging `AuthLive` in drags the Better Auth server into the browser bundle.
-- Optional providers stay absent until configured: Turnstile (ADR 0031), social (ADR 0070), Stripe (ADR 0060), OTLP, MCP OAuth (ADR 0068). `lib/rate-limit.ts` trusts only `cf-connecting-ip`; email-OTP and magic-link sends share sign-in's `auth_sign_in` bucket (ADR 0030).
+- Optional providers stay absent until configured: Turnstile (ADR 0031), social (ADR 0070), Stripe (ADR 0060), OTLP, MCP OAuth (ADR 0068). `lib/rate-limit.ts` trusts only `cf-connecting-ip`; email-OTP, magic-link, and link-based reset sends share sign-in's `auth_sign_in` bucket (ADR 0030).
 
 ## Patterns & Pitfalls
 

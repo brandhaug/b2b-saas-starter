@@ -8,9 +8,10 @@ import { type AuthAuditContext } from './auth-audit/shared'
 
 /**
  * A change to an account's sign-in credentials — a hijacked session enabling
- * its own authenticator, enrolling its own passkey, or stripping the owner's —
- * must not be silent, so each success emails the account holder. Which
- * exchanges those are is the `notifyOnSuccess` column of the audit table in
+ * its own authenticator, enrolling its own passkey, swapping out the
+ * password, or rotating away the owner's printed recovery codes — must not be
+ * silent, so each success emails the account holder. Which exchanges those
+ * are is the `notifyOnSuccess` column of the audit table in
  * `auth-audit/exchanges`: the rows already attribute these exchanges, this
  * adds the user-facing half. One notifier for every credential, because the
  * rows name the change themselves.
@@ -22,10 +23,11 @@ export type CredentialChangeSender = (input: {
 
 /**
  * Best-effort security notification after a successful two-factor enable or
- * disable, or passkey add or remove. Never fails the auth exchange it
- * observes: a missing pre-handler context (no session), a non-2xx response,
- * or a dispatcher rejection all resolve quietly — the failure mode belongs to
- * the wide event, not to Better Auth's answer.
+ * disable, passkey add or remove, backup-code rotation, or signed-in
+ * password change. Never fails the auth exchange it observes: a missing
+ * pre-handler context (no session), a non-2xx response, or a dispatcher
+ * rejection all resolve quietly — the failure mode belongs to the wide
+ * event, not to Better Auth's answer.
  */
 export async function notifyCredentialChanged(
   exchange: AuthExchange,

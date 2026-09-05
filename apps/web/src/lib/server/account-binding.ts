@@ -13,13 +13,16 @@ import { sessionCall } from './plugin-call'
  * See `./plugin-call.ts`.
  */
 export const webAccountLifecycleBinding: AccountLifecycleBinding = {
+  // The plugin's leave endpoint resolves the member from the deleting user's
+  // session — unlike `removeMember`, no `member:delete` permission applies,
+  // so a plain member can leave their workspaces as part of deleting the
+  // account. `input.memberId` is redundant here (the session is the member)
+  // but stays on the port for the Seed adapter, which resolves by row id.
   leaveWorkspace: async (input) => {
+    void input.memberId
     await sessionCall((api, headers) =>
-      api.removeMember({
-        body: {
-          memberIdOrEmail: input.memberId,
-          organizationId: input.workspaceId
-        },
+      api.leaveOrganization({
+        body: { organizationId: input.workspaceId },
         headers
       })
     )

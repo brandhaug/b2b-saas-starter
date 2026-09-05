@@ -10,7 +10,7 @@
 - The two alchemy forwarding lists are `satisfies ReadonlyArray<keyof ServerEnv>`, so a dropped var fails to compile. Secret keys get `Redacted`.
 - `ProviderEnvOf<K>` keys are explicitly `| undefined`, because `exactOptionalPropertyTypes` makes a bare `?:` reject the `undefined` a worker env bag passes for an unset var.
 - `activeSocialProviders` needs id and secret both set (ADR 0070); its return type names each provider, never `Partial<Record<…>>`.
-- `auditRequiredEnv` reports, never throws. It rejects placeholders by value rather than absence, short secrets, localhost or example URLs, and unparsable trusted origins (which silently lose their CSRF carve-out). `apps/web`'s `enforceRequiredEnvOnce` throws on a production verdict and otherwise emits one `config.insecure` event. `requireEmailVerification` gates on production alone.
+- `auditRequiredEnv` reports, never throws. It rejects placeholders by value rather than absence (including the shipped `.env.example` secret), short secrets, localhost, example, or non-`https` production URLs, and unparsable trusted origins (which silently lose their CSRF carve-out). `apps/web`'s `enforceRequiredEnvOnce` throws on a production verdict and otherwise emits one `config.insecure` event. `requireEmailVerification` gates on production alone — the `prod` alchemy stage defaults `ENVIRONMENT` to `production` (preview forces `preview`; unset stays local).
 
 ## Usage Patterns
 

@@ -61,6 +61,7 @@ export {
   type AuthEmailSender,
   type AuthMagicLinkCallback,
   type AuthOneTimeCodeCallback,
+  type AuthPasswordResetCallback,
   type OneTimeCodePurpose,
   type SocialProviderCredentials,
   type SocialProviderCredentialsByName,
@@ -154,6 +155,38 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     // no provider exists at all (nothing exists-but-disabled), and the Local
     // Auth Path's runtime shape is unchanged either way.
     socialProviders: options.socialProviders,
+    // Stated, not defaulted, and on before the first provider exists: once a
+    // social or SSO account row lands in D1, its provider access/refresh
+    // tokens are live takeover credentials against that provider. With this
+    // on, they are AES-256-GCM ciphertext keyed off the secret — a read of
+    // the `account` table is not a token grant. Zero providers are configured
+    // today, which is exactly when flipping this is free.
+    account: {
+      encryptOAuthTokens: true
+    },
+    // The `verification` table's plaintext half, closed. Magic-link and
+    // email-OTP identifiers were already hashed by their own plugins; the
+    // core reset flow stored `reset-password:<token>` in the clear, so a read
+    // of the table was a 30-minute account-takeover credential — the exact
+    // threat ADR 0064 names for magic links. `'hashed'` runs every identifier
+    // through the same hash on both write and lookup (already-hashed ones
+    // double-hash consistently; old plain rows keep a fallback lookup, and
+    // this starter has no old rows to keep).
+    verification: {
+      // `as const`: the inferred return type has no context to keep the
+      // literal, and Better Auth's option type is a closed union.
+      // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+      storeIdentifier: 'hashed' as const
+    },
+    // Better Auth's own limiter is memory-backed — on Workers that is
+    // per-isolate, so `max` is really `max × isolates`. The rate-limit
+    // boundary is the Cloudflare `RateLimit` bindings in front of the auth
+    // route (ADR 0030). Stating `enabled: false` here keeps the options
+    // object honest about where limiting actually happens instead of letting
+    // a no-op second layer imply coverage it cannot provide.
+    rateLimit: {
+      enabled: false
+    },
     databaseHooks: {
       account: {
         // The linking audit port, assigned straight to Better Auth's hooks —
@@ -200,9 +233,24 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // `verification` table); the port carries Better Auth's own callback
       // signature, so the adapter the app supplies is the callback — there is
       // nothing to adapt here.
-      sendResetPassword: options.emails.sendResetPassword
+      sendResetPassword: options.emails.sendResetPassword,
+      // The after-the-fact twin of `sendResetPassword`: once a reset via the
+      // emailed link succeeds, the account holder is told so — the same
+      // best-effort notification the second-factor changes already send. A
+      // victim of an intercepted link learns about the takeover at the moment
+      // it happens, not at the next sign-in.
+      onPasswordReset: options.emails.sendPasswordResetConfirmation
     },
     advanced: {
+      // Cloudflare's front door sets `cf-connecting-ip` on every request and
+      // strips client-supplied copies; `x-forwarded-for` is attacker-writable
+      // there, and multi-value XFF (what a spoofing client produces) makes
+      // Better Auth resolve no IP at all — null session IPs and a shared
+      // bucket for exactly the traffic that spoofs. One trusted header,
+      // named so the sessions panel and any future limiter read real IPs.
+      ipAddress: {
+        ipAddressHeaders: ['cf-connecting-ip']
+      },
       backgroundTasks: {
         // Verification and reset sends ride this instead of the response
         // chain: the endpoint must not hang on SMTP, and on Workers only
@@ -218,10 +266,11 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // visible diff rather than a silent session-lifetime shift.
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
-      // The knob the starter states beyond the defaults: an hour after each
-      // session's last fresh authentication, sensitive account actions
-      // (password change, 2FA enable/disable) can demand re-authentication
-      // instead of trusting a long-lived cookie alone.
+      // Stated beyond the defaults so a Better Auth default change is a
+      // visible diff. The mechanism is plugin-side: Better Auth's fresh-session
+      // middleware guards session-listing and email-change endpoints, and the
+      // second-factor endpoints demand the password outright — a stronger
+      // check than freshness. No app surface reads `session.fresh` today.
       freshAge: 60 * 60
     },
     emailVerification: {
@@ -234,6 +283,10 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // requiring the user to ask for it afterwards — is an extra hop the
       // starter has no UI reason to demand.
       sendOnSignUp: true,
+      // Stated rather than defaulted: three pieces of UI copy promise "an
+      // hour" (the banner, the verify page, the email template), so the
+      // window they name lives here instead of in Better Auth's defaults.
+      expiresIn: 60 * 60,
       sendVerificationEmail: options.emails.sendVerificationEmail
     },
     plugins: plugins(
@@ -276,7 +329,13 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         // change cannot silently lengthen the challenge window or the
         // trusted-device grace period.
         twoFactorCookieMaxAge: 600,
-        trustDeviceMaxAge: 60 * 60 * 24 * 30
+        trustDeviceMaxAge: 60 * 60 * 24 * 30,
+        // Stated for the same reason: six digits and a thirty-second period
+        // are what every authenticator screenshot in onboarding copy assumes.
+        totpOptions: {
+          digits: 6,
+          period: 30
+        }
       }),
       // WebAuthn passkeys: registration demands a session, sign-in opens one
       // directly. `rpID`/`origin` derive from the app URL on the config — no

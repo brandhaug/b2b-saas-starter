@@ -31,7 +31,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         function reject() {
           return Promise.reject(cause)
         }
-        return { addMember: reject, removeMember: reject, changeRole: reject }
+        return {
+          addMember: reject,
+          removeMember: reject,
+          leave: reject,
+          changeRole: reject
+        }
       }
 
       it.effect('reads a 4xx rejection as a refusal the caller must not retry', () =>

@@ -16,6 +16,8 @@ import {
   signInSocialWithAuthClient,
   signInWithAuthClient,
   signInWithSsoAuthClient,
+  TWO_FACTOR_REQUIRED_ERROR_CODE,
+  TWO_FACTOR_REQUIRED_MESSAGE,
   type SendMagicLink,
   type SignInWithEmail,
   type SignInWithPasskey,
@@ -36,7 +38,7 @@ import {
 import { getSocialProviderIds } from '@/lib/server/social-providers'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { resolveSsoRoutingServerFn } from '@/lib/server/workspace-sso'
-import { redirectSearch, safeRedirect } from '@/lib/utils'
+import { pickOptionalStrings, safeRedirect } from '@/lib/utils'
 
 export type {
   SendMagicLink,
@@ -65,7 +67,11 @@ async function resolveSsoRouting(email: string) {
 }
 
 export const Route = createFileRoute('/sign-in')({
-  validateSearch: redirectSearch,
+  // `redirect` rides every hop; `error` arrives once — the TOTP gate's
+  // magic-link refusal redirects the browser here with
+  // `two_factor_required`, and that landing owes the visitor the notice that
+  // says why the link did not sign them in.
+  validateSearch: (search) => pickOptionalStrings(search, ['redirect', 'error']),
   // The active provider ids and the Turnstile site key are read on the server
   // only (env-gated: with nothing configured the loader answers an empty list
   // and `null`, and the page renders exactly what it did before either
@@ -163,7 +169,10 @@ async function applySignInOutcome({
   if (routing !== null) {
     const sso = await signInWithSso({
       email,
-      callbackURL: safeRedirect(redirect)
+      // Absolute like every other callback hop in the flow: Better Auth
+      // validates `callbackURL` against trusted origins, and a bare path is
+      // not one. `safeRedirect` has already constrained the path.
+      callbackURL: `${window.location.origin}${safeRedirect(redirect)}`
     })
     if (sso.error) {
       onSubmitError(sso.error.message ?? 'Single sign-in failed')
@@ -224,17 +233,18 @@ async function applySignInOutcome({
 }
 
 /**
- * The route's thin wrapper: reads the search param the router validated and
+ * The route's thin wrapper: reads the search params the router validated and
  * the loader's server-provided values, then hands them to the page. Keeping
  * the two apart is what lets the page be rendered from a test with plain
  * props, no route tree and no mocked router.
  */
 function SignInRoute() {
-  const { redirect } = Route.useSearch()
+  const { redirect, error } = Route.useSearch()
   const { socialProviders, turnstileSiteKey } = Route.useLoaderData()
   return (
     <SignInPage
       redirect={redirect}
+      searchError={error}
       socialProviders={socialProviders}
       turnstileSiteKey={turnstileSiteKey}
     />
@@ -243,6 +253,7 @@ function SignInRoute() {
 
 export function SignInPage({
   redirect,
+  searchError,
   socialProviders = NO_SOCIAL_PROVIDERS,
   signIn = signInWithAuthClient,
   signInPasskey,
@@ -253,6 +264,13 @@ export function SignInPage({
   turnstileSiteKey = null
 }: {
   readonly redirect?: string | undefined
+  /**
+   * The `?error=` code a refusal hop landed with. `two_factor_required` (the
+   * magic-link gate's redirect for a TOTP-enabled account) renders the
+   * guidance notice; anything else is not this page's vocabulary and renders
+   * nothing rather than a guess.
+   */
+  readonly searchError?: string | undefined
   /** Active provider ids from the loader; empty renders no provider buttons. */
   readonly socialProviders?: ReadonlyArray<SocialProviderId>
   readonly signIn?: SignInWithEmail
@@ -275,6 +293,11 @@ export function SignInPage({
   // The challenge token; single-use, so a failed send clears it and the
   // visitor answers a fresh challenge on retry.
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  // The refusal-hop notice is derived, not state: it describes how the visit
+  // arrived, and a submit's own notice (fresher, from something the visitor
+  // just did) supersedes it.
+  const twoFactorNotice =
+    searchError === TWO_FACTOR_REQUIRED_ERROR_CODE ? TWO_FACTOR_REQUIRED_MESSAGE : null
 
   const passwordForm = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
@@ -341,6 +364,7 @@ export function SignInPage({
           )
         }
         error={submitError}
+        notice={ssoNotice ?? twoFactorNotice}
         footer={footer({
           mode,
           redirect,
@@ -405,7 +429,7 @@ export function SignInPage({
         />
       }
       error={submitError}
-      notice={ssoNotice}
+      notice={ssoNotice ?? twoFactorNotice}
       footer={footer({
         mode,
         redirect,

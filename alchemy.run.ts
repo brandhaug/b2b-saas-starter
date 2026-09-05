@@ -8,6 +8,7 @@ import {
   isPreviewStage,
   notificationDigestCron,
   notificationEmailConsumerSettings,
+  productionStage,
   queueBindingKeys,
   stageResourceNames,
   webhookConsumerSettings,
@@ -60,7 +61,7 @@ function rateLimitBindings(specs: ReadonlyArray<RateLimitBindingSpec>) {
 }
 
 // Single `process.env` reader for the whole deploy entrypoint. This file runs
-// on Bun at deploy time (CI or a developer machine), not inside a Worker, and
+// on Node at deploy time (CI or a developer machine), not inside a Worker, and
 // the values below are read at module scope where no Effect runtime — and so
 // no `Config`/`ConfigProvider` — exists yet. Every other env read in this file
 // goes through here so the platform-global escape hatch has exactly one site.
@@ -163,7 +164,16 @@ const previewPlainKeys: ReadonlySet<string> = new Set([
 
 function providerEnvForStage(stage: string) {
   if (!isPreviewStage(stage)) {
-    return optionalProviderEnv
+    if (stage !== productionStage) {
+      return optionalProviderEnv
+    }
+    // The prod stage defaults to `ENVIRONMENT=production`: the documented
+    // deploy path may not carry ENVIRONMENT at all, and unset it reads as
+    // local dev inside the worker — silently disarming both
+    // `requireEmailVerification` and the production env gate. An explicit
+    // value in the deploying shell still wins (spread order), mirroring the
+    // preview default below.
+    return { ENVIRONMENT: 'production', ...optionalProviderEnv }
   }
   const kept = Object.fromEntries(
     Object.entries(optionalProviderEnv).filter(([key]) => previewPlainKeys.has(key))

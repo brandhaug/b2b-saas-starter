@@ -2,10 +2,15 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import {
   sendEmailCodeWithAuthClient,
   signInWithEmailCodeWithAuthClient,
+  TWO_FACTOR_REQUIRED_MESSAGE,
+  wasRefusedForTwoFactor,
   type SendEmailCode,
   type SignInWithEmailCode
 } from '@/components/auth/auth-client-ports'
-import { EmailCodeExchange } from '@/components/auth/email-code-exchange'
+import {
+  EmailCodeExchange,
+  type VerifyEmailCode
+} from '@/components/auth/email-code-exchange'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 
 export const Route = createFileRoute('/sign-in_/email-code')({
@@ -17,6 +22,23 @@ export const Route = createFileRoute('/sign-in_/email-code')({
 function EmailCodeSignInRoute() {
   const { redirect } = Route.useSearch()
   return <EmailCodeSignInPage redirect={redirect} />
+}
+
+/**
+ * The verify hop with the one translation this screen owes: the TOTP gate
+ * refuses a code sign-in for a two-factor-enabled account with
+ * `two_factor_required`, and the shared exchange folds `error.message` into
+ * its alert verbatim — so the refusal is mapped to the message that names
+ * the path that still works while the envelope is still in hand.
+ */
+function verifySignInCode(signIn: SignInWithEmailCode): VerifyEmailCode {
+  return async (input) => {
+    const result = await signIn({ email: input.email, otp: input.otp })
+    if (result.error && wasRefusedForTwoFactor(result.error)) {
+      return { error: { message: TWO_FACTOR_REQUIRED_MESSAGE } }
+    }
+    return result
+  }
 }
 
 /**
@@ -40,7 +62,7 @@ export function EmailCodeSignInPage({
     <EmailCodeExchange
       purpose="sign-in"
       send={sendCode}
-      verify={({ email, otp }) => signIn({ email, otp })}
+      verify={verifySignInCode(signIn)}
       onVerified={() => {
         router.history.push(safeRedirect(redirect))
       }}

@@ -60,10 +60,15 @@ export type ExchangeRow = {
 /**
  * The credential change a row's success performs, as the security notifier
  * reads it: which credential moved, and the state the success leaves behind.
+ * The password kind carries no direction — a password is always replaced,
+ * never enabled or removed — and backup codes only rotate: every prior code
+ * dies with the request.
  */
 export type CredentialChange =
   | { readonly kind: 'two-factor'; readonly enabled: boolean }
   | { readonly kind: 'passkey'; readonly added: boolean }
+  | { readonly kind: 'password' }
+  | { readonly kind: 'backup-codes' }
 
 export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   // Account lifecycle.
@@ -214,6 +219,48 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     actor: 'session',
     target: 'session'
   },
+  // Signed-in account changes (distinct from the anonymous reset rows above:
+  // these demand a live session — and the password change demands the current
+  // password too). All three take the pre-handler actor — the endpoint
+  // already proved who is calling, and a failed change is exactly the event
+  // worth attributing, which a response-scraped actor could never be.
+  {
+    method: 'POST',
+    suffix: '/change-password',
+    success: 'auth.password_changed',
+    failure: 'auth.password_change_failed',
+    actor: 'session',
+    target: 'user',
+    notifyOnSuccess: { kind: 'password' }
+  },
+  {
+    // The endpoint is disabled today (`user.changeEmail` stays off in
+    // `packages/auth`), and the route still exists — it answers the plugin's
+    // CHANGE_EMAIL_DISABLED failure — so until the day it is turned on every
+    // exchange this row sees is a probe of a sensitive endpoint, audited as
+    // the failed change it is. Turning it on later flips exactly the success
+    // half: the audit exists before the surface does, instead of an email
+    // change shipping unaudited. No notification: the verification email the
+    // endpoint itself sends IS the holder-facing notice, and it covers both
+    // addresses.
+    method: 'POST',
+    suffix: '/change-email',
+    success: 'auth.email_changed',
+    failure: 'auth.email_change_failed',
+    actor: 'session',
+    target: 'user'
+  },
+  {
+    // Profile changes (name, image): benign, but they are signed-in writes to
+    // the account row, so they record without emailing — a name change the
+    // holder did not make is a compromised-session clue, not an emergency.
+    method: 'POST',
+    suffix: '/update-user',
+    success: 'auth.user_updated',
+    failure: 'auth.user_update_failed',
+    actor: 'session',
+    target: 'user'
+  },
   // Two-factor lifecycle. Enable and disable demand an authenticated session
   // and answer with secrets (totpURI, backup codes), never an actor, so both
   // take the pre-handler actor — a failed enable is exactly the event worth
@@ -244,6 +291,21 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     failure: 'auth.two_factor_verification_failed',
     actor: 'response',
     target: 'session'
+  },
+  {
+    // Backup-code rotation. The endpoint REPLACES every stored recovery code —
+    // the codes the account holder printed or saved at enrollment die here —
+    // so it is a second-factor change like enable/disable, down to the
+    // security notification. Demands a session and a password; its response
+    // is the new codes (never an actor), so the pre-handler actor applies,
+    // and the impersonation guard already refuses it (ADR 0054).
+    method: 'POST',
+    suffix: '/two-factor/generate-backup-codes',
+    success: 'auth.two_factor_backup_codes_rotated',
+    failure: 'auth.two_factor_backup_codes_rotation_failed',
+    actor: 'session',
+    target: 'user',
+    notifyOnSuccess: { kind: 'backup-codes' }
   },
   // Passkey lifecycle (ADR 0056). Registration demands a fresh session and
   // its response is the passkey row (never an actor), so both management rows

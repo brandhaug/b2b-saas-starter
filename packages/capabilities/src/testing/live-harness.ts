@@ -15,7 +15,7 @@ import {
 } from '@b2b-saas-starter/db/service'
 import { provisionTestD1 } from '@b2b-saas-starter/db/testing'
 import { Context, Effect, Layer, Option, Schema } from 'effect'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import { auditEventContractDataset } from '../governance/audit-event-log.contract.ts'
 import { type AccountLifecycleBinding } from '../governance/account-lifecycle.ts'
@@ -303,8 +303,13 @@ export function inWorkspace<A, E>(
  * behaviour is covered in packages/auth/src/live-auth.test.ts; what the live
  * suites own is the capability's half of the contract — that it calls the
  * binding with the resolved workspace, reads the result back, and audits it.
+ *
+ * `sessionUser` is the member the fake's leave endpoint acts on: the real
+ * `/organization/leave` resolves the actor from the request's session, and the
+ * harness's `inWorkspace` actor is that session's user.
  */
 export function fakeMemberBinding(db: EffectDatabase) {
+  const sessionUser = 'usr_owner'
   const calls: Array<unknown> = []
   const binding: WorkspaceMemberBinding = {
     addMember: (input) => {
@@ -325,6 +330,21 @@ export function fakeMemberBinding(db: EffectDatabase) {
       return Effect.runPromise(
         Effect.asVoid(
           db.delete(workspaceMembers).where(eq(workspaceMembers.id, input.memberId))
+        )
+      )
+    },
+    leave: (input) => {
+      calls.push(input)
+      return Effect.runPromise(
+        Effect.asVoid(
+          db
+            .delete(workspaceMembers)
+            .where(
+              and(
+                eq(workspaceMembers.workspaceId, input.workspaceId),
+                eq(workspaceMembers.userId, sessionUser)
+              )
+            )
         )
       )
     },

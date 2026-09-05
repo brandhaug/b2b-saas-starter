@@ -1,7 +1,9 @@
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   CapabilityUnavailable,
+  MembershipChangeRejected,
   PlanLimitExceeded,
+  UserAdminRejected,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
 import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing.live'
@@ -22,7 +24,9 @@ import { Cause, Effect, Exit, Option, type Scope } from 'effect'
 import {
   CapabilityUnavailableError,
   ForbiddenError,
-  PlanLimitError
+  MembershipRefusedError,
+  PlanLimitError,
+  UserAdminRefusedError
 } from './capability-error'
 import { webRuntime, withWebRequestScope } from './observability'
 
@@ -90,6 +94,14 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
     if (error instanceof PlanLimitExceeded) {
       // oxlint-disable-next-line effect/noThrowStatement -- carries the entitlement refusal across the Promise boundary with the upgrade hint the form shows
       throw new PlanLimitError(error.planId, error.limit)
+    }
+    if (error instanceof MembershipChangeRejected) {
+      // oxlint-disable-next-line effect/noThrowStatement -- carries the refusal's explanation across the Promise boundary: past it only name/message survive, and the typed reason does not
+      throw new MembershipRefusedError(error.reason)
+    }
+    if (error instanceof UserAdminRejected) {
+      // oxlint-disable-next-line effect/noThrowStatement -- carries the /admin refusal's explanation across the Promise boundary, on the same name/message-only terms
+      throw new UserAdminRefusedError(error.reason)
     }
     // oxlint-disable-next-line effect/noThrowStatement -- re-raises the original typed failure across the Promise boundary
     throw error

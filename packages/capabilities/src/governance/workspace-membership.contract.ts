@@ -21,7 +21,12 @@ import { WorkspaceMembership } from './workspace-membership.ts'
  */
 
 export type MembershipContractIds = {
-  /** A user who already holds a membership when the case starts. */
+  /**
+   * A user who already holds a membership when the case starts — the roster's
+   * sole owner, because the ownership-rule cases refuse on exactly that
+   * standing. The runner's resolved actor is this member; the cases below
+   * only refuse, so every one of them can act as them without ordering.
+   */
   readonly member: string
   /** A user who exists but holds no membership. Each case adds them fresh. */
   readonly newcomer: string
@@ -118,6 +123,36 @@ export function workspaceMembershipContractCases(
           membership.removeMember({ userId: ids.stranger })
         )
         expect(failureTag(outcome)).toBe('MembershipChangeRejected')
+      })
+    },
+    {
+      // The last owner is the workspace's continuity: the plugin refuses the
+      // removal and the rule states it as a machine reason before the plugin
+      // is asked.
+      name: 'rejects removing the sole owner',
+      assert: Effect.gen(function* () {
+        const membership = yield* WorkspaceMembership
+        const outcome = yield* Effect.exit(
+          membership.removeMember({ userId: ids.member })
+        )
+        expect(failureTag(outcome)).toBe('MembershipChangeRejected')
+        // Refused before the store was asked: the member never left.
+        const members = yield* membership.listMembers
+        expect(members.some((each) => each.id === ids.member)).toBe(true)
+      })
+    },
+    {
+      // Same protection, the actor's own verb: a sole owner transfers
+      // ownership first. The success paths for both adapters live in their
+      // own suites — a leave ends the actor's membership, which the shared
+      // list cannot afford to do to the runner's actor.
+      name: 'rejects the sole owner leaving',
+      assert: Effect.gen(function* () {
+        const membership = yield* WorkspaceMembership
+        const outcome = yield* Effect.exit(membership.leave)
+        expect(failureTag(outcome)).toBe('MembershipChangeRejected')
+        const members = yield* membership.listMembers
+        expect(members.some((each) => each.id === ids.member)).toBe(true)
       })
     },
     {

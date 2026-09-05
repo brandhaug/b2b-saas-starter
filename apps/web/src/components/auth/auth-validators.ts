@@ -18,10 +18,17 @@ export function emailValidator({ value }: { value: string }): string | undefined
 }
 
 /**
- * The password validator: mirrors the server's `minPasswordLength` (12) in
- * `packages/auth` so a too-short password fails in the form instead of as a
- * round-trip server error.
+ * The password validator: mirrors the server's `minPasswordLength` (12) and
+ * `maxPasswordLength` (256) in `packages/auth` so an out-of-policy password
+ * fails in the form instead of as a round-trip server error. The cap is not
+ * decoration — Better Auth refuses a longer one outright.
  */
 export function passwordValidator({ value }: { value: string }): string | undefined {
-  return value.length < 12 ? 'Password must be at least 12 characters' : undefined
+  if (value.length < 12) {
+    return 'Password must be at least 12 characters'
+  }
+  if (value.length > 256) {
+    return 'Password must be at most 256 characters'
+  }
+  return
 }

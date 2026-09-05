@@ -35,12 +35,13 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/members')({
 function WorkspaceMembersRoute() {
   const { workspaceSlug } = Route.useParams()
   const data = Route.useLoaderData()
-  const systemRole = Route.useRouteContext().session.user.role
+  const session = Route.useRouteContext().session
   return (
     <WorkspaceMembersPage
       workspaceSlug={workspaceSlug}
       data={data}
-      systemRole={systemRole}
+      systemRole={session.user.role}
+      actorUserId={session.user.id}
     />
   )
 }
@@ -48,12 +49,15 @@ function WorkspaceMembersRoute() {
 export function WorkspaceMembersPage({
   workspaceSlug,
   data,
-  systemRole
+  systemRole,
+  actorUserId
 }: {
   readonly workspaceSlug: string
   readonly data: WorkspaceMembersPayload
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
+  /** The signed-in user's id — the roster's own-row verb (leave) keys on it. */
+  readonly actorUserId: string
 }) {
   const { viewer, unreadCount, members, invitations, seatUsage } = data
 
@@ -88,7 +92,12 @@ export function WorkspaceMembersPage({
           </AlertDescription>
         </Alert>
       ) : null}
-      <MembersPanel workspaceSlug={workspaceSlug} members={members} viewer={viewer} />
+      <MembersPanel
+        workspaceSlug={workspaceSlug}
+        members={members}
+        viewer={viewer}
+        actorUserId={actorUserId}
+      />
       {/* `null` means this actor may not read the invitation segment; the
           panel gates its own form against `invitation:create`. */}
       {invitations === null ? null : (

@@ -155,6 +155,137 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         })
       )
 
+      it.effect('refuses the sole owner leaving without asking the binding', () =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          const { binding, calls } = fakeMemberBinding(db)
+          const error = yield* Effect.flip(
+            inWorkspace(
+              'live-lab',
+              Effect.gen(function* () {
+                const membership = yield* WorkspaceMembership
+                return yield* membership.leave
+              }),
+              { userId: 'usr_owner' },
+              { memberBinding: binding }
+            )
+          )
+          expect(error).toBeInstanceOf(MembershipChangeRejected)
+          expect(error instanceof MembershipChangeRejected && error.reason).toBe(
+            'sole_owner'
+          )
+          // The rule refused, so the plugin never heard about it.
+          expect(calls).toEqual([])
+        })
+      )
+
+      it.effect('refuses an owner-role change from a non-owner actor', () =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          const { binding, calls } = fakeMemberBinding(db)
+          // A plain member to act as, minted by this case so it leans on no
+          // other case's roster state. The route gate would already deny them
+          // `member:update`; this asserts the capability's own rule for the
+          // change the permission matrix cannot see coming — an admin may
+          // hold `member:update` and still not touch an owner's role.
+          yield* inWorkspace(
+            'live-lab',
+            Effect.gen(function* () {
+              const membership = yield* WorkspaceMembership
+              return yield* membership.addMember({
+                userId: 'usr_mover',
+                role: 'member'
+              })
+            }),
+            { userId: 'usr_owner' },
+            { memberBinding: binding }
+          )
+          const callsBefore = calls.length
+          const error = yield* Effect.flip(
+            inWorkspace(
+              'live-lab',
+              Effect.gen(function* () {
+                const membership = yield* WorkspaceMembership
+                return yield* membership.changeRole({
+                  userId: 'usr_owner',
+                  role: 'admin'
+                })
+              }),
+              { userId: 'usr_mover' },
+              { memberBinding: binding }
+            )
+          )
+          expect(error).toBeInstanceOf(MembershipChangeRejected)
+          expect(error instanceof MembershipChangeRejected && error.reason).toBe(
+            'owner_requires_owner'
+          )
+          expect(calls).toHaveLength(callsBefore)
+        })
+      )
+
+      it.effect(
+        'leaves through the session-bound endpoint once another owner remains',
+        () =>
+          Effect.gen(function* () {
+            const db = yield* Database
+            const { binding, calls } = fakeMemberBinding(db)
+            // `other-lab` starts empty, so the two owners are minted actorless —
+            // the context resolves membership before the effect runs, and
+            // `usr_owner` becomes addressable there only after the add. Using a
+            // second workspace leaves `live-lab` exactly as the suites after it
+            // expect it (`usr_owner` still its sole owner), and `usr_bob` — a
+            // fixture account no other suite gives a member row — keeps the
+            // fake's `mem_<user>` surrogate ids from colliding with the
+            // contract's own inserts below.
+            yield* inWorkspace(
+              'other-lab',
+              Effect.gen(function* () {
+                const membership = yield* WorkspaceMembership
+                yield* membership.addMember({ userId: 'usr_owner', role: 'owner' })
+                yield* membership.addMember({ userId: 'usr_bob', role: 'owner' })
+              }),
+              undefined,
+              { memberBinding: binding }
+            )
+            yield* inWorkspace(
+              'other-lab',
+              Effect.gen(function* () {
+                const membership = yield* WorkspaceMembership
+                return yield* membership.leave
+              }),
+              { userId: 'usr_owner' },
+              { memberBinding: binding }
+            )
+            // The leave endpoint is addressed by workspace only — the plugin
+            // resolves the member from the session, which the fake mirrors.
+            expect(calls).toEqual([
+              { workspaceId: 'wrk_other', userId: 'usr_owner', role: 'owner' },
+              { workspaceId: 'wrk_other', userId: 'usr_bob', role: 'owner' },
+              { workspaceId: 'wrk_other' }
+            ])
+            const remaining = yield* inWorkspace(
+              'other-lab',
+              Effect.gen(function* () {
+                const membership = yield* WorkspaceMembership
+                return yield* membership.listMembers
+              }),
+              { userId: 'usr_bob' }
+            )
+            expect(remaining.map((member) => member.id)).toEqual(['usr_bob'])
+            const events = yield* inWorkspace(
+              'other-lab',
+              Effect.gen(function* () {
+                const audit = yield* AuditEventLog
+                return (yield* audit.list()).events
+              }),
+              { userId: 'usr_bob' }
+            )
+            expect(events.map((event) => event.eventType)).toContain(
+              'workspace_member.removed'
+            )
+          })
+      )
+
       it.effect('fails as unavailable when no binding is configured', () =>
         Effect.gen(function* () {
           const error = yield* Effect.flip(

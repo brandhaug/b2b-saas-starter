@@ -43,7 +43,7 @@ async function deviceContext(
 test.beforeEach(() => {
   test.skip(
     !hasLocalD1State(),
-    'requires a migrated + seeded local D1 (bun run db:migrate:local && bun run db:seed)'
+    'requires a migrated + seeded local D1 (pnpm run db:migrate:local && pnpm run db:seed)'
   )
 })
 

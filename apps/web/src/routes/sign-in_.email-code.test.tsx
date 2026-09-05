@@ -106,6 +106,31 @@ describe('EmailCodeSignInPage', () => {
     expect(screen.getByLabelText('Digit 1 of 6')).toBeDefined()
   })
 
+  it('names the two-factor path when the gate refuses the code sign-in', async () => {
+    // Same body shape as the sso_required refusal on /sign-in: the gate's
+    // `{ code, message }` answer spread over better-fetch's status fields.
+    // The generic fold would surface the raw message, so the screen owes the
+    // refusal its own guidance.
+    const refused = {
+      code: 'two_factor_required',
+      message: 'two factor required'
+    } satisfies {
+      readonly code: string
+      readonly message: string
+    }
+    signIn.mockResolvedValueOnce({ error: refused })
+    await renderPage()
+    await requestCode()
+    fireEvent.change(screen.getByLabelText('Digit 1 of 6'), {
+      target: { value: '654321' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify and sign in' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe(
+      'This account uses two-factor authentication. Sign in with your password and authenticator.'
+    )
+  })
+
   it('shows the resend cooldown and re-sends when it expires', async () => {
     // Fake timers go in BEFORE the send so the cooldown's interval is a fake
     // one and advancing reaches it.

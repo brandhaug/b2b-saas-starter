@@ -6,17 +6,21 @@ Reads and changes the roster of the workspace in `WorkspaceContext`. Not an auth
 
 Reads go through Drizzle, since `workspace-projections.ts` joins member data into dashboard reads. Writes go through the `WorkspaceMemberBinding` port.
 
+Joining is invitation-only (plus SSO provisioning): `addMember` exists as the plugin-backed primitive for programmatic/admin paths and is deliberately not surfaced in the UI.
+
 ## Entry Points & Contracts
 
-- `addMember` audits `workspace_member.added` and publishes seat sync `member_added`; `removeMember` audits `.removed` and publishes `member_removed`; `changeRole` audits `.role_changed` and publishes nothing. Seat publishing is best-effort.
-- `WorkspaceMemberBinding` addresses rows by `workspaceId` plus the member row id; `addMember` alone takes a user id.
+- `addMember` audits `workspace_member.added` and publishes seat sync `member_added`; `removeMember` audits `.removed` and publishes `member_removed`; `leave` audits `.removed` with `metadata.reason: 'left'` and publishes `member_removed`; `changeRole` audits `.role_changed` and publishes nothing. Seat publishing is best-effort.
+- `WorkspaceMemberBinding` addresses rows by `workspaceId` plus the member row id; `addMember` alone takes a user id, and `leave` takes none — the plugin's leave endpoint resolves the actor from the session, which is what makes leaving a plain member's right (`removeMember` demands `member:delete`).
 - `listWorkspacesForUser(userId)` is identity-keyed, resolved before a workspace is selected, and never discloses workspaces the user is outside.
 - `MembershipChangeRejected` (409) is a refusal: unknown user, non-member, a role the plugin refuses. `CapabilityUnavailable` (503) is a retryable store failure or a missing binding (`reason: 'no_member_binding'`). Reversing the split tells callers to retry the impossible.
+- `refuseMembershipChange` states the plugin's ownership rules once — sole-owner protection, owner-role reserved to owners — so both adapters refuse identically with a machine reason from `MEMBERSHIP_REFUSAL_REASONS` instead of the plugin's message text. It is an invariant, not authorization: permission is `requirePermission` at the route boundary. The web boundary maps each reason to copy (`MembershipRefusedError`).
 
 ## Patterns & Pitfalls
 
 - `listMembers` inner-joins `user`, so a member whose user row is gone silently drops off the roster; a tombstone display needs a left join.
 - `layers.ts` builds one `SeedRoster` shared with `SeedWorkspaceInvitations` and `SeedAccountLifecycle`: accepting an invitation adds a member and deleting an account removes one, so separate `Ref`s let those adapters disagree about the roster. Seed `addMember` fabricates identity fields, having no `user` table to join.
+- The shared contract cases only refuse (they must leave the runner's actor a member); the leave success paths live in each adapter's own suite, where the actor's workspace can be chosen freely.
 
 ## Anti-patterns
 

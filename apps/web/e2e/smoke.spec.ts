@@ -100,7 +100,7 @@ test('seeded demo user signs in and reaches the workspace dashboard', async ({
 }) => {
   test.skip(
     !hasLocalD1State(),
-    'requires a migrated + seeded local D1 (bun run db:migrate:local && bun run db:seed)'
+    'requires a migrated + seeded local D1 (pnpm run db:migrate:local && pnpm run db:seed)'
   )
   await page.goto('/sign-in?redirect=%2Fworkspaces%2Fstarter-lab')
   // Interacting before React hydrates falls through to a native GET submit
@@ -118,7 +118,7 @@ test('seeded demo user signs in and reaches the workspace dashboard', async ({
 test('seeded demo user can request a magic link', async ({ page }) => {
   test.skip(
     !hasLocalD1State(),
-    'requires a migrated + seeded local D1 (bun run db:migrate:local && bun run db:seed)'
+    'requires a migrated + seeded local D1 (pnpm run db:migrate:local && pnpm run db:seed)'
   )
   await page.goto('/sign-in')
   await page.locator('form[data-hydrated="true"]').waitFor()

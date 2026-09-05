@@ -72,13 +72,22 @@ then add these environment secrets:
 | `BETTER_AUTH_URL`             | yes      | The web Worker URL from step 3                                                          |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | yes      | Same value as `BETTER_AUTH_URL`                                                         |
 | `CLOUDFLARE_EMAIL_FROM`       | no       | A verified Email Routing destination address; leave unset to skip the SendEmail binding |
+| `ENVIRONMENT`                 | no       | `production` — set by the workflow itself, not a secret you create                      |
 
 Keep production values in the environment, not your local `.env`. The
 `.env` file only needs local development defaults.
 
-The workflow forwards exactly these six variables. To activate optional
-providers (Stripe, Sentry, PostHog, Turnstile, Workers AI or OpenAI,
-OTLP export), add each secret to the `production` environment and
+`ENVIRONMENT=production` rides along as a plain value the deploy job sets
+for itself. It marks the deployment as production, which turns on email
+verification and arms the before-production env gate — the refusal to
+serve on a placeholder secret, a placeholder URL, or a non-`https` URL.
+`alchemy.run.ts` applies the same default to the `prod` stage, so a
+laptop deploy that never exports `ENVIRONMENT` still gets the production
+stance; exporting your own value overrides it.
+
+The workflow forwards exactly the variables in this table. To activate
+optional providers (Stripe, Sentry, PostHog, Turnstile, Workers AI or
+OpenAI, OTLP export), add each secret to the `production` environment and
 forward it in the deploy job's `env` block — the key lists and the
 secret-vs-plain split live in `packages/env/src/server.ts`, and the
 [secret matrix](../ARCHITECTURE.md#secret-matrix) documents what each

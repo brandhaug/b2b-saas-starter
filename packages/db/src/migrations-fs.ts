@@ -2,7 +2,7 @@
 // (migrations/<name>/migration.sql), shared by scripts/migrate.ts and the
 // test-only ./testing subpath so both apply the same set in the same order.
 //
-// A build- and test-time filesystem adapter: `scripts/migrate.ts` (a Bun CLI) and
+// A build- and test-time filesystem adapter: `scripts/migrate.ts` (a Node CLI) and
 // the `./testing` subpath both call it synchronously, outside any Effect runtime,
 // so there is no FileSystem/Path service to read the migrations through.
 // oxlint-disable effect/noNodeBuiltinImport -- no Effect runtime at either call site

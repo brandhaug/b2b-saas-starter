@@ -637,5 +637,5 @@ const program = collectFixture.pipe(
 )
 
 // Script entrypoint: the top-level await is what makes a failed seed reject
-// and exit the Bun process non-zero. There is no enclosing Effect to yield in.
+// and exit the process non-zero. There is no enclosing Effect to yield in.
 await Effect.runPromise(program)

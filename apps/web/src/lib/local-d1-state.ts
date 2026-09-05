@@ -1,5 +1,5 @@
 // Single source of truth for the persisted local D1 location in packages/db
-// (created by `bun run db:migrate:local`). Node-only: the e2e smoke spec
+// (created by `pnpm run db:migrate:local`). Node-only: the e2e smoke spec
 // imports it directly (Playwright runs in Node), and the dev shim imports it
 // dynamically behind its `import.meta.env.SSR` guard so the browser never
 // evaluates the node:* imports.

@@ -5,7 +5,7 @@ import {
   type ListPageInput,
   type Page
 } from '../internal/keyset-cursor.ts'
-import { type WorkspaceContext } from '../workspace-context.ts'
+import { WorkspaceContext } from '../workspace-context.ts'
 import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import {
@@ -63,6 +63,20 @@ export type WorkspaceMembershipInterface = {
     WorkspaceContext
   >
 
+  /**
+   * The actor's own membership, ended by their own hand. Any member may ask —
+   * the `WorkspaceContext` already proved the membership, and the plugin's
+   * leave endpoint demands no permission statement — with the one refusal
+   * both the rule below and the plugin share: a sole owner transfers
+   * ownership first. The inverse of `removeMember`, which is someone else's
+   * decision about the actor's workspace.
+   */
+  readonly leave: Effect.Effect<
+    void,
+    CapabilityUnavailable | MembershipChangeRejected,
+    WorkspaceContext
+  >
+
   readonly changeRole: (
     input: MemberRoleInput
   ) => Effect.Effect<
@@ -78,6 +92,89 @@ export type MemberRef = {
 
 export type MemberRoleInput = MemberRef & {
   readonly role: WorkspaceRole
+}
+
+/**
+ * The closed reason vocabulary both adapters refuse with before the plugin is
+ * asked. The plugin's own refusals are 4xx replies whose message text is all
+ * a caller could match on — these machine reasons are what the boundary maps
+ * copy from. Widen the record, never inline a string (the same rule
+ * `AUTHORIZATION_DENIED_REASONS` follows in `authz`).
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const MEMBERSHIP_REFUSAL_REASONS = {
+  /** The acted-on user holds no membership in this workspace. */
+  notAMember: 'not_a_member',
+  /** Last-owner protection: removing, demoting, or leaving would strand the workspace without an owner. */
+  soleOwner: 'sole_owner',
+  /** Granting or changing an owner's role is reserved to owners — the plugin's `creatorRole` rule. */
+  ownerRequiresOwner: 'owner_requires_owner'
+} as const
+export type MembershipRefusalReason =
+  (typeof MEMBERSHIP_REFUSAL_REASONS)[keyof typeof MEMBERSHIP_REFUSAL_REASONS]
+
+export type MembershipChangeIntent = 'remove' | 'change_role' | 'leave'
+
+/**
+ * The ownership rules the organization plugin enforces on its member
+ * endpoints, written once so both adapters refuse identically and with a
+ * machine reason. The rule is what the store enforces, stated in the
+ * capability — the same shape as `planAccountDeletion`, for the same reason:
+ * deriving it here keeps the Seed adapter (which has no plugin) honest and
+ * spares callers message-text matching. It is not authorization: who may ask
+ * at all is `requirePermission` at the route boundary; this is the
+ * workspace's own invariant about who its owners may be.
+ *
+ * `null` means the change may proceed to the binding.
+ */
+export function refuseMembershipChange(
+  intent: MembershipChangeIntent,
+  input: {
+    /** The acting member's role; `null` when the context carries no actor. */
+    readonly actorRole: WorkspaceRole | null
+    /** The acted-on member's role; `null` names a non-member. For a leave this is the actor's own. */
+    readonly targetRole: WorkspaceRole | null
+    /** How many owners the roster holds, target included. */
+    readonly ownerCount: number
+    /** The role a `change_role` would set; ignored by the other intents. */
+    readonly nextRole?: WorkspaceRole
+  }
+): MembershipRefusalReason | null {
+  const { actorRole, targetRole, ownerCount } = input
+  if (intent === 'leave') {
+    // The leave is the actor's own verb: no actor is no membership to leave,
+    // and a sole owner transfers ownership first.
+    if (actorRole === null) {
+      return MEMBERSHIP_REFUSAL_REASONS.notAMember
+    }
+    if (actorRole === 'owner' && ownerCount <= 1) {
+      return MEMBERSHIP_REFUSAL_REASONS.soleOwner
+    }
+    return null
+  }
+  if (targetRole === null) {
+    return MEMBERSHIP_REFUSAL_REASONS.notAMember
+  }
+  if (intent === 'remove') {
+    if (targetRole === 'owner' && ownerCount <= 1) {
+      return MEMBERSHIP_REFUSAL_REASONS.soleOwner
+    }
+    if (targetRole === 'owner' && actorRole !== 'owner') {
+      return MEMBERSHIP_REFUSAL_REASONS.ownerRequiresOwner
+    }
+    return null
+  }
+  // `change_role`: any change that touches the owner role — granting it, or
+  // rewriting someone who holds it — is reserved to owners, and the last
+  // owner cannot be demoted out from under the workspace.
+  const touchesOwnerRole = targetRole === 'owner' || input.nextRole === 'owner'
+  if (touchesOwnerRole && actorRole !== 'owner') {
+    return MEMBERSHIP_REFUSAL_REASONS.ownerRequiresOwner
+  }
+  if (targetRole === 'owner' && ownerCount <= 1 && input.nextRole !== 'owner') {
+    return MEMBERSHIP_REFUSAL_REASONS.soleOwner
+  }
+  return null
 }
 
 export class WorkspaceMembership extends Context.Service<
@@ -100,23 +197,9 @@ export function makeSeedRoster(
   return Ref.make<ReadonlyArray<Member>>(members)
 }
 
-/**
- * Fails the way the Live adapter fails for a user with no membership, so the
- * shared contract in `workspace-membership.contract.ts` holds on both sides.
- */
-function requireMember(
-  roster: SeedRoster,
-  userId: string
-): Effect.Effect<Member, MembershipChangeRejected> {
-  return Ref.get(roster).pipe(
-    Effect.flatMap((current) => {
-      const member = current.find((candidate) => candidate.id === userId)
-      if (!member) {
-        return Effect.fail(new MembershipChangeRejected({ reason: 'not_a_member' }))
-      }
-      return Effect.succeed(member)
-    })
-  )
+/** Owners on a roster — the count the ownership rule reads. */
+function ownerCountOf(members: ReadonlyArray<Member>): number {
+  return members.filter((member) => member.role === 'owner').length
 }
 
 /**
@@ -188,9 +271,25 @@ export function SeedWorkspaceMembership(
           }),
         removeMember: (input) =>
           Effect.gen(function* () {
-            yield* requireMember(roster, input.userId)
-            yield* Ref.update(roster, (current) =>
-              current.filter((candidate) => candidate.id !== input.userId)
+            // The ownership rule runs against the roster this adapter owns,
+            // refusing with a machine reason where the plugin would refuse
+            // with message text (and where the plugin never gets a say, since
+            // the binding here is a stand-in).
+            const ctx = yield* WorkspaceContext
+            const current = yield* Ref.get(roster)
+            const target = current.find((candidate) => candidate.id === input.userId)
+            const refusal = refuseMembershipChange('remove', {
+              actorRole: ctx.actor?.role ?? null,
+              targetRole: target?.role ?? null,
+              ownerCount: ownerCountOf(current)
+            })
+            if (refusal !== null) {
+              return yield* Effect.fail(
+                new MembershipChangeRejected({ reason: refusal })
+              )
+            }
+            yield* Ref.update(roster, (rows) =>
+              rows.filter((candidate) => candidate.id !== input.userId)
             )
             const audit = yield* Effect.serviceOption(AuditEventLog)
             if (Option.isSome(audit)) {
@@ -205,12 +304,74 @@ export function SeedWorkspaceMembership(
               reason: 'member_removed'
             })
           }),
+        leave: Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          const current = yield* Ref.get(roster)
+          // The actor's own row — no actor, or an actor the roster no longer
+          // carries (a concurrent removal), is no membership to leave, and
+          // failing closed here is what lets the rule below speak in
+          // non-null roles.
+          const own = current.find((member) => member.id === ctx.actor?.userId)
+          if (own === undefined) {
+            return yield* Effect.fail(
+              new MembershipChangeRejected({
+                reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
+              })
+            )
+          }
+          const refusal = refuseMembershipChange('leave', {
+            actorRole: own.role,
+            targetRole: own.role,
+            ownerCount: ownerCountOf(current)
+          })
+          if (refusal !== null) {
+            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+          }
+          yield* Ref.update(roster, (rows) =>
+            rows.filter((member) => member.id !== own.id)
+          )
+          const audit = yield* Effect.serviceOption(AuditEventLog)
+          if (Option.isSome(audit)) {
+            yield* recordInWorkspace(audit.value, {
+              eventType: 'workspace_member.removed',
+              targetType: 'workspace_member',
+              targetId: own.id,
+              metadata: { reason: 'left' }
+            })
+          }
+          yield* publishSeatSyncWith(seatSync, {
+            workspaceId: workspace.id,
+            reason: 'member_removed'
+          })
+        }),
         changeRole: (input) =>
           Effect.gen(function* () {
-            const member = yield* requireMember(roster, input.userId)
+            const ctx = yield* WorkspaceContext
+            // One roster read serves both halves: the target row to rewrite
+            // and the owner count the rule refuses on.
+            const current = yield* Ref.get(roster)
+            const member = current.find((candidate) => candidate.id === input.userId)
+            if (member === undefined) {
+              return yield* Effect.fail(
+                new MembershipChangeRejected({
+                  reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
+                })
+              )
+            }
+            const refusal = refuseMembershipChange('change_role', {
+              actorRole: ctx.actor?.role ?? null,
+              targetRole: member.role,
+              ownerCount: ownerCountOf(current),
+              nextRole: input.role
+            })
+            if (refusal !== null) {
+              return yield* Effect.fail(
+                new MembershipChangeRejected({ reason: refusal })
+              )
+            }
             const promoted: Member = { ...member, role: input.role }
-            yield* Ref.update(roster, (current) =>
-              current.map((candidate) => {
+            yield* Ref.update(roster, (rows) =>
+              rows.map((candidate) => {
                 if (candidate.id === input.userId) {
                   return promoted
                 }
@@ -241,7 +402,7 @@ export function SeedWorkspaceMembership(
  * `@cloudflare/workers-types`, and the reason `auth` and `capabilities` stay
  * siblings (see `../../authz/AGENTS.md`).
  *
- * The app supplies the adapter, because two of the three plugin endpoints are
+ * The app supplies the adapter, because three of the four plugin endpoints are
  * `requireHeaders: true` and only the app holds the request's session headers.
  * `addMember` alone runs headerless.
  *
@@ -263,6 +424,8 @@ export type WorkspaceMemberBinding = {
     readonly workspaceId: string
     readonly memberId: string
   }) => Promise<void>
+  /** The plugin's leave endpoint: no member row id — it resolves the actor from the session. */
+  readonly leave: (input: { readonly workspaceId: string }) => Promise<void>
   readonly changeRole: (input: {
     readonly workspaceId: string
     readonly memberId: string

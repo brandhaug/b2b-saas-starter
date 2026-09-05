@@ -33,7 +33,8 @@ const baseConfig: AuthConfigInterface = {
     sendResetPassword: () => Promise.resolve(),
     sendVerificationEmail: () => Promise.resolve(),
     sendOneTimeCode: () => Promise.resolve(),
-    sendMagicLink: () => Promise.resolve()
+    sendMagicLink: () => Promise.resolve(),
+    sendPasswordResetConfirmation: () => Promise.resolve()
   },
   // The provider-light default: no provider resolved, so no social surface.
   socialProviders: {},
@@ -98,6 +99,38 @@ describe('makeAuthOptions', () => {
     // window in which a leaked reset link is live.
     expect(makeAuthOptions(baseConfig).emailAndPassword).toMatchObject({
       resetPasswordTokenExpiresIn: 60 * 30
+    })
+  })
+
+  it('hashes verification identifiers at rest', () => {
+    // The reset flow's plaintext `reset-password:<token>` rows were a read-
+    // the-table-take-the-account credential (ADR 0064's threat, applied to
+    // the whole table). Magic-link/OTP identifiers double-hash consistently.
+    expect(makeAuthOptions(baseConfig).verification).toMatchObject({
+      storeIdentifier: 'hashed'
+    })
+  })
+
+  it('encrypts provider tokens before they reach the account table', () => {
+    expect(makeAuthOptions(baseConfig).account).toMatchObject({
+      encryptOAuthTokens: true
+    })
+  })
+
+  it('disables the built-in limiter in favor of the edge bindings', () => {
+    // ADR 0030: the boundary is the Cloudflare RateLimit bindings; Better
+    // Auth's memory limiter is per-isolate on Workers and would only imply
+    // coverage it cannot provide.
+    expect(makeAuthOptions(baseConfig).rateLimit).toMatchObject({
+      enabled: false
+    })
+  })
+
+  it('resolves request IPs from Cloudflare’s header only', () => {
+    // `x-forwarded-for` is attacker-writable behind Cloudflare and multi-
+    // value XFF resolves no IP at all in Better Auth 1.7.
+    expect(makeAuthOptions(baseConfig).advanced.ipAddress).toEqual({
+      ipAddressHeaders: ['cf-connecting-ip']
     })
   })
 
@@ -175,9 +208,20 @@ describe('makeAuthOptions', () => {
       expect(options.emailAndPassword.sendResetPassword).toBe(
         baseConfig.emails.sendResetPassword
       )
+      expect(options.emailAndPassword.onPasswordReset).toBe(
+        baseConfig.emails.sendPasswordResetConfirmation
+      )
       expect(options.emailVerification.sendVerificationEmail).toBe(
         baseConfig.emails.sendVerificationEmail
       )
+    })
+
+    it('states the verification window the UI copy names', () => {
+      // "An hour" is promised by the banner, the verify page, and the email
+      // template — so the number lives here, not in a default.
+      expect(makeAuthOptions(baseConfig).emailVerification).toMatchObject({
+        expiresIn: 60 * 60
+      })
     })
   })
 
@@ -234,6 +278,11 @@ describe('makeAuthOptions', () => {
       const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'two-factor')
       expect(options.twoFactorCookieMaxAge).toBe(600)
       expect(options.trustDeviceMaxAge).toBe(60 * 60 * 24 * 30)
+    })
+
+    it('states the TOTP shape every authenticator assumes', () => {
+      const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'two-factor')
+      expect(options.totpOptions).toEqual({ digits: 6, period: 30 })
     })
   })
 

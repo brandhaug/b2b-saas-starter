@@ -732,6 +732,76 @@ describe('two-factor lifecycle exchanges', () => {
       actorUserId: null
     })
   })
+
+  it('audits backup-code rotation as a second-factor change, with notification', () => {
+    const rotate = {
+      method: 'POST',
+      pathname: '/api/auth/two-factor/generate-backup-codes'
+    }
+    expect(isAudited(rotate)).toBe(true)
+    // Rotation demands a session and a password; its response is the new
+    // codes, never an actor.
+    expect(needsPreHandlerActor(rotate)).toBe(true)
+    expect(
+      authAuditInput({ ...rotate, status: 200, actorUserId: 'usr_demo' })
+    ).toMatchObject({
+      eventType: 'auth.two_factor_backup_codes_rotated',
+      actorUserId: 'usr_demo',
+      targetType: 'user'
+    })
+    expect(
+      authAuditInput({ ...rotate, status: 400, actorUserId: 'usr_demo' })
+    ).toMatchObject({
+      eventType: 'auth.two_factor_backup_codes_rotation_failed',
+      actorUserId: 'usr_demo'
+    })
+  })
+})
+
+describe('signed-in account changes', () => {
+  const changePassword = { method: 'POST', pathname: '/api/auth/change-password' }
+  const changeEmail = { method: 'POST', pathname: '/api/auth/change-email' }
+  const updateUser = { method: 'POST', pathname: '/api/auth/update-user' }
+
+  it('audits the three changes, each attributed to the pre-handler session', () => {
+    for (const exchange of [changePassword, changeEmail, updateUser]) {
+      expect(isAudited(exchange)).toBe(true)
+      // The endpoints demand a live session; their responses are shape-only
+      // (`{ status: true }`, `{ token, user }`), and a FAILED change is
+      // exactly the event worth attributing — the session predates the
+      // judgment.
+      expect(needsPreHandlerActor(exchange)).toBe(true)
+      expect(
+        authAuditInput({ ...exchange, status: 200, actorUserId: 'usr_demo' })
+      ).toMatchObject({ actorUserId: 'usr_demo', targetType: 'user' })
+    }
+  })
+
+  it('maps each endpoint to its own success/failure pair', () => {
+    const pairs: ReadonlyArray<readonly [AuthExchange, string, string]> = [
+      [changePassword, 'auth.password_changed', 'auth.password_change_failed'],
+      [changeEmail, 'auth.email_changed', 'auth.email_change_failed'],
+      [updateUser, 'auth.user_updated', 'auth.user_update_failed']
+    ]
+    for (const [exchange, success, failure] of pairs) {
+      expect(
+        authAuditInput({ ...exchange, status: 200, actorUserId: 'usr_demo' })?.eventType
+      ).toBe(success)
+      expect(
+        authAuditInput({ ...exchange, status: 400, actorUserId: 'usr_demo' })?.eventType
+      ).toBe(failure)
+    }
+  })
+
+  it('keeps the actor on failure — a rejected change is the event worth attributing', () => {
+    const failed = authAuditInput({
+      ...changePassword,
+      status: 400,
+      actorUserId: 'usr_demo'
+    })
+    expect(failed?.eventType).toBe('auth.password_change_failed')
+    expect(failed?.actorUserId).toBe('usr_demo')
+  })
 })
 
 describe('the admin rows of the table', () => {

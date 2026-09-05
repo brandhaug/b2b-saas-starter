@@ -106,6 +106,20 @@ describe('auditRequiredEnv', () => {
     ])
   })
 
+  it('rejects the shipped .env.example secret by value in production', () => {
+    // The other copy-paste deploy: `.env.example` taken wholesale. The value
+    // is 45 chars, so the length check stays silent — only value rejection
+    // catches it.
+    const audit = auditRequiredEnv({
+      ENVIRONMENT: 'production',
+      BETTER_AUTH_SECRET: 'dev-only-secret-3f8a1c9e57b24d6f8e0a4c7b9d2f16e8',
+      BETTER_AUTH_URL: realUrl
+    })
+    expect(audit.problems).toEqual([
+      { key: 'BETTER_AUTH_SECRET', reason: 'placeholder' }
+    ])
+  })
+
   it('rejects Better Auth own fallback and short secrets', () => {
     const fallback = auditRequiredEnv({
       ENVIRONMENT: 'production',
@@ -138,6 +152,37 @@ describe('auditRequiredEnv', () => {
         { key: 'BETTER_AUTH_URL', reason: 'placeholder' }
       ])
     }
+  })
+
+  it('requires an https BETTER_AUTH_URL in production — http would mint non-Secure cookies', () => {
+    const audit = auditRequiredEnv({
+      ENVIRONMENT: 'production',
+      BETTER_AUTH_SECRET: realSecret,
+      BETTER_AUTH_URL: 'http://app.acme.test'
+    })
+    expect(audit.problems).toEqual([{ key: 'BETTER_AUTH_URL', reason: 'insecure' }])
+  })
+
+  it('flags a production BETTER_AUTH_URL that does not parse as a URL at all', () => {
+    // Scheme-less is the common shape of the mistake, and it has no https:
+    // scheme to check — "does not parse" is the answer, not a crash.
+    const audit = auditRequiredEnv({
+      ENVIRONMENT: 'production',
+      BETTER_AUTH_SECRET: realSecret,
+      BETTER_AUTH_URL: 'app.acme.test'
+    })
+    expect(audit.problems).toEqual([{ key: 'BETTER_AUTH_URL', reason: 'insecure' }])
+  })
+
+  it('leaves non-production deployments free to run on http', () => {
+    // The scheme verdict is production-only: previews and local dev
+    // legitimately sit on http, and their audits are silent or warn-only.
+    const audit = auditRequiredEnv({
+      ENVIRONMENT: 'preview',
+      BETTER_AUTH_SECRET: realSecret,
+      BETTER_AUTH_URL: 'http://app.acme.test'
+    })
+    expect(audit.problems).toEqual([])
   })
 
   it('passes real values in production and audits non-production deploys too', () => {

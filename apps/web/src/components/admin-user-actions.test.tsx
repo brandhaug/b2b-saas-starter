@@ -7,6 +7,7 @@ import {
   type ListUserWorkspaces
 } from './admin-user-actions'
 import { type SystemUser } from '@/lib/server/admin'
+import { UserAdminRefusedError } from '@/lib/capability-error'
 import { renderWithRouter } from '@/test/router-harness'
 
 const users: ReadonlyArray<SystemUser> = [
@@ -87,5 +88,23 @@ describe('AdminUserActions', () => {
     await renderActions()
     fireEvent.click(screen.getByRole('button', { name: /Load workspaces/ }))
     await screen.findByText('Admin session expired')
+  })
+
+  it('explains a workspace refusal instead of a generic role-change failure', async () => {
+    // The server fn maps the typed rejection to `UserAdminRefusedError`; the
+    // plugin's own refusals on this surface carry no machine reason, so the
+    // boundary's fallback sentence — the system-axis constraint — is what
+    // the admin reads. Rejected with the real class, not a lookalike, so the
+    // copy under test is the copy the server sends.
+    changeUserRole.mockRejectedValue(
+      new UserAdminRefusedError('You are not allowed to update this member')
+    )
+    await renderActions()
+    fireEvent.click(screen.getByRole('button', { name: /Load workspaces/ }))
+    fireEvent.click(await screen.findByLabelText('Make Starter Lab role admin'))
+    await screen.findByText(
+      'The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner — the system role confers nothing inside a workspace.'
+    )
+    expect(screen.queryByText('Role change failed')).toBeNull()
   })
 })
