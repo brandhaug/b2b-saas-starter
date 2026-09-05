@@ -22,11 +22,11 @@ The starter is Cloudflare-first. Production resources are declared once in the r
 bun run deploy
 ```
 
-`bun run deploy` is `bun alchemy.run.ts` — it executes the Alchemy Stack programmatically rather than going through a separate CLI. Each Worker also has a hand-maintained `wrangler.jsonc` that mirrors the Alchemy declaration so `wrangler dev` and `wrangler d1 migrations apply` keep working locally; Alchemy is the source of truth for production.
+`bun run deploy` is `bun alchemy.run.ts`: it executes the Alchemy Stack programmatically rather than going through a separate CLI. Each Worker also has a hand-maintained `wrangler.jsonc` that mirrors the Alchemy declaration so `wrangler dev` and `wrangler d1 migrations apply` keep working locally; Alchemy is the source of truth for production.
 
 ## Environment configuration
 
-Sensitive values are wrapped in `effect/Redacted` inside `alchemy.run.ts` so they never appear in logs or stack traces. Optional providers are validated in `packages/env/src/server.ts` — missing config keeps the relevant provider inactive rather than failing startup. See the secret matrix in `ARCHITECTURE.md` for the full list (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`, `SENTRY_DSN`, `POSTHOG_KEY`/`POSTHOG_HOST`, `CLOUDFLARE_EMAIL_FROM`, `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`, `WORKERS_AI_ENABLED`, `OPENAI_API_KEY`).
+Sensitive values are wrapped in `effect/Redacted` inside `alchemy.run.ts` so they never appear in logs or stack traces. Optional providers are validated in `packages/env/src/server.ts`: missing config keeps the relevant provider inactive rather than failing startup. See the secret matrix in `ARCHITECTURE.md` for the full list (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`, `SENTRY_DSN`, `POSTHOG_KEY`/`POSTHOG_HOST`, `CLOUDFLARE_EMAIL_FROM`, `TURNSTILE_SITE_KEY`/`TURNSTILE_SECRET_KEY`, `WORKERS_AI_ENABLED`, `OPENAI_API_KEY`).
 
 ## Preview deployments per pull request
 
@@ -46,4 +46,4 @@ The required secrets and the reasoning are in `docs/deploying.md` and ADR 0065.
 
 ## Rolling back
 
-`bun run destroy` (which is `bun alchemy.run.ts --destroy`) tears the entire stack down. Targeted rollbacks today go through redeploying a previous commit from CI — there is no versioned rollback flag in the starter's scripts.
+`bun run destroy` (which is `bun alchemy.run.ts --destroy`) tears the entire stack down. Targeted rollbacks today go through redeploying a previous commit from CI; there is no versioned rollback flag in the starter's scripts.

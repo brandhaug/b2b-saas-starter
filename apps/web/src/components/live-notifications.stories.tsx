@@ -12,19 +12,22 @@ const notifications: ReadonlyArray<NotificationPreview> = [
     id: 'n1',
     title: 'Catalog refreshed',
     message: 'Background job retried 14 deliveries at 09:12.',
-    read: false
+    read: false,
+    createdAt: '2026-09-04T09:12:00.000Z'
   },
   {
     id: 'n2',
     title: 'New audit event',
     message: 'API token "MCP local client" created with admin scope.',
-    read: false
+    read: false,
+    createdAt: '2026-09-04T08:40:00.000Z'
   },
   {
     id: 'n3',
     title: 'Weekly report ready',
     message: "This week's delivery report is available for review.",
-    read: true
+    read: true,
+    createdAt: '2026-09-01T08:00:00.000Z'
   }
 ]
 

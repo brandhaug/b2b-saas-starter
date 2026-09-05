@@ -78,15 +78,17 @@ describe('SignUpPage', () => {
     )
   })
 
-  it('surfaces sign-up errors and does not navigate', async () => {
+  it('surfaces sign-up errors as table copy and does not navigate', async () => {
     signUp.mockResolvedValueOnce({
-      error: { message: 'User already exists' }
+      error: { code: 'USER_ALREADY_EXISTS' }
     })
     const { router } = await renderPage()
     fillValidValues()
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('User already exists')
+    expect(alert.textContent).toBe(
+      'An account with that email already exists. Sign in instead.'
+    )
     expect(router.state.location.pathname).toBe('/sign-up')
   })
 

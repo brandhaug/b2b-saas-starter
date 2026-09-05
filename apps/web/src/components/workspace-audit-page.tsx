@@ -8,6 +8,7 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -139,7 +140,7 @@ export function WorkspaceAuditPage({
         description="Newest first, up to 100 events per server page."
         actions={
           hasFilters ? (
-            <Button variant="ghost" size="sm" onClick={() => withFilter({})}>
+            <Button variant="ghost" onClick={() => withFilter({})}>
               <FilterXIcon aria-hidden className="size-4" />
               Clear
             </Button>
@@ -205,20 +206,39 @@ export function WorkspaceAuditPage({
               </SelectGroup>
             </SelectContent>
           </Select>
-          <Input
-            aria-label="Since date"
-            type="date"
-            value={filters.since ?? ''}
-            onChange={(e) => withFilter({ since: e.target.value })}
-            className="w-40"
-          />
-          <Input
-            aria-label="Until date"
-            type="date"
-            value={filters.until ?? ''}
-            onChange={(e) => withFilter({ until: e.target.value })}
-            className="w-40"
-          />
+          {/* `Label` + `htmlFor`: the date inputs get a visible label — and
+              the programmatic name that comes with it — instead of an
+              aria-label only. */}
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="audit-since"
+              className="text-xs font-normal text-muted-foreground"
+            >
+              Since
+            </Label>
+            <Input
+              id="audit-since"
+              type="date"
+              value={filters.since ?? ''}
+              onChange={(e) => withFilter({ since: e.target.value })}
+              className="w-36"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="audit-until"
+              className="text-xs font-normal text-muted-foreground"
+            >
+              Until
+            </Label>
+            <Input
+              id="audit-until"
+              type="date"
+              value={filters.until ?? ''}
+              onChange={(e) => withFilter({ until: e.target.value })}
+              className="w-36"
+            />
+          </div>
         </div>
         {events.length === 0 ? (
           <EmptyTrail hasFilters={hasFilters} />
@@ -226,19 +246,22 @@ export function WorkspaceAuditPage({
           <>
             {/* One row model for both tables: the same component renders the
                 admin users table, so column treatment, the mono `When` cell,
-                and the count footer cannot drift between them. */}
+                and the count footer cannot drift between them. `pager={false}`
+                drops `DataTable`'s own Previous/Next footer — this table pages
+                through the keyset button below, so a second, always-disabled
+                "Page 1 of 1" model would read as broken. */}
             <DataTable
               columns={auditColumns}
               data={events}
               pageSize={100}
               tableLabel="Audit events, newest first"
+              pager={false}
             />
             <div className="flex items-center justify-end">
               {/* Keyset pagination has exactly one direction: older. The
                 button carries the opaque cursor back through the URL. */}
               <Button
                 variant="outline"
-                size="sm"
                 disabled={nextCursor === null}
                 onClick={() => nextPage()}
               >

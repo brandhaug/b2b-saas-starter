@@ -353,25 +353,11 @@ export function backupCodeValidator({ value }: { value: string }): string | unde
  * The server-side gate refuses magic-link and email-code sign-in for a
  * two-factor-enabled account (those hops cannot carry a second factor) and
  * redirects the browser to `/sign-in?error=two_factor_required`; the
- * message names the path that still works.
+ * message names the path that still works. The shared code table
+ * (`lib/auth-error-copy.ts`) maps the code to that same sentence, so no
+ * screen needs its own probe for it.
  */
 export { TWO_FACTOR_REQUIRED_ERROR_CODE, TWO_FACTOR_REQUIRED_MESSAGE }
-
-/**
- * Whether a failed exchange was that refusal. Same probe discipline as
- * sign-in's `sso_required` check: the envelope is untyped JSON at this
- * boundary.
- */
-// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- Better Auth's client `error` is untyped JSON at this boundary; this probe is the parse step
-export function wasRefusedForTwoFactor(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === TWO_FACTOR_REQUIRED_ERROR_CODE
-  )
-}
-// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
 /* -------------------------------------------------------------------------- */
 /* Passkeys                                                                    */

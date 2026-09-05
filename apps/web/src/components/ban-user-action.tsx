@@ -41,7 +41,6 @@ export function BanUserAction({ user }: { readonly user: SystemUser }) {
     <>
       <Button
         variant="ghost"
-        size="sm"
         aria-label={`${verb} ${user.email}`}
         onClick={() => setOpen(true)}
       >

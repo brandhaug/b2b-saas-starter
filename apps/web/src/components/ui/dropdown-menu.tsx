@@ -47,7 +47,7 @@ function DropdownMenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
     <MenuPrimitive.Item
       data-slot="dropdown-menu-item"
       className={cn(
-        'focus-visible:bg-accent focus-visible:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 relative grid cursor-default grid-cols-[auto_1fr] items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none [&_svg:not([class*=size-])]:size-4 [&_svg]:shrink-0',
+        'focus-visible:bg-accent focus-visible:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 relative grid cursor-default grid-cols-[auto_1fr] items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none [&_svg:not([class*=size-])]:size-4 [&_svg]:shrink-0 max-md:min-h-11',
         className
       )}
       {...props}
@@ -95,7 +95,7 @@ function DropdownMenuSubmenuTrigger({
     <MenuPrimitive.SubmenuTrigger
       data-slot="dropdown-menu-submenu-trigger"
       className={cn(
-        'focus-visible:bg-accent focus-visible:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground grid cursor-default grid-cols-[auto_1fr_auto] items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none [&_svg:not([class*=size-])]:size-4 [&_svg]:shrink-0',
+        'focus-visible:bg-accent focus-visible:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground grid cursor-default grid-cols-[auto_1fr_auto] items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none [&_svg:not([class*=size-])]:size-4 [&_svg]:shrink-0 max-md:min-h-11',
         className
       )}
       {...props}

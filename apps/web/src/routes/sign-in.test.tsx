@@ -2,15 +2,18 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import {
-  SignInPage,
+  LOCAL_D1_UNAVAILABLE_ERROR_CODE,
+  LOCAL_D1_UNAVAILABLE_MESSAGE,
+  SIGN_IN_FAILED
+} from '@/lib/auth-error-copy'
+import {
   type SendMagicLink,
   type SignInWithEmail,
-  type SignInWithPasskey
-} from './sign-in'
-import {
+  type SignInWithPasskey,
   type SignInWithSocial,
   type SignInWithSso
 } from '@/components/auth/auth-client-ports'
+import { SignInPage } from '@/components/auth/sign-in-page'
 
 // The page's own `signIn` port, handed in as a prop. The router is real, so the
 // redirect assertions read the resulting location instead of asking whether a
@@ -109,13 +112,36 @@ describe('SignInPage', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/workspaces'))
   })
 
-  it('surfaces sign-in errors and does not navigate', async () => {
-    signIn.mockResolvedValueOnce({ error: { message: 'Invalid email or password' } })
+  it('surfaces sign-in errors as table copy and does not navigate', async () => {
+    signIn.mockResolvedValueOnce({ error: { code: 'INVALID_EMAIL_OR_PASSWORD' } })
     const { router } = await renderPage()
     fillValidCredentials()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Invalid email or password')
+    expect(alert.textContent).toBe(SIGN_IN_FAILED)
+    expect(router.state.location.pathname).toBe('/sign-in')
+  })
+
+  it('never renders the raw error message, whatever the far end sent', async () => {
+    // What a 500ing endpoint actually puts on the wire: a class name or a
+    // stack fragment where a message should be. The card shows the generic
+    // sentence, not the wire.
+    signIn.mockResolvedValueOnce({ error: { message: 'HTTPError' } })
+    await renderPage()
+    fillValidCredentials()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe(SIGN_IN_FAILED)
+    expect(alert.textContent).not.toContain('HTTPError')
+  })
+
+  it('shows the local-database guidance when the backend answers the no-D1 state', async () => {
+    signIn.mockResolvedValueOnce({ error: { code: LOCAL_D1_UNAVAILABLE_ERROR_CODE } })
+    const { router } = await renderPage()
+    fillValidCredentials()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe(LOCAL_D1_UNAVAILABLE_MESSAGE)
     expect(router.state.location.pathname).toBe('/sign-in')
   })
 
@@ -150,12 +176,20 @@ describe('SignInPage', () => {
 
   it('surfaces a cancelled passkey ceremony without navigating', async () => {
     const { router } = await renderPage()
-    signInPasskey.mockResolvedValue({ error: { message: 'Auth cancelled' } })
+    // The passkey client's own shape for a cancelled ceremony: the
+    // AUTH_CANCELLED code with the plugin's message. The mapped sentence
+    // renders; the message never does.
+    signInPasskey.mockResolvedValue({
+      error: { code: 'AUTH_CANCELLED', message: 'Auth cancelled' }
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with a passkey' }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Auth cancelled')
+    expect(alert.textContent).toBe(
+      'The passkey action was cancelled. Try again when you are ready.'
+    )
+    expect(alert.textContent).not.toContain('Auth cancelled')
     expect(router.state.location.pathname).toBe('/sign-in')
   })
 
@@ -166,6 +200,57 @@ describe('SignInPage', () => {
     await renderPage()
 
     await waitFor(() => expect(signInPasskey).toHaveBeenCalledWith({ autoFill: true }))
+  })
+
+  it('keeps a failed conditional-UI preload silent', async () => {
+    // The WCAG half of the contract: the preload runs on mount, before the
+    // visitor touches anything, and its failures (no passkeys on the device,
+    // a browser quirk) are the normal case — so nothing may land in the
+    // alert channel. The preload's promise is held unresolved until the
+    // attempt is provably in flight, then failed: that is what makes "no
+    // alert appeared" a real assertion rather than a race.
+    vi.stubGlobal('PublicKeyCredential', {
+      isConditionalMediationAvailable: () => Promise.resolve(true)
+    })
+    let failPreload: (() => void) | undefined
+    signInPasskey.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          failPreload = () => resolve({ error: { code: 'AUTH_CANCELLED' } })
+        })
+    )
+    await renderPage()
+
+    const button = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'Sign in with a passkey'
+    })
+    // The preload is provably in flight (pending disables the button), then
+    // provably settled (pending clears) — only then is "no alert" a claim
+    // about the settled state rather than about timing.
+    await waitFor(() => expect(button.disabled).toBe(true))
+    failPreload?.()
+    await waitFor(() => expect(button.disabled).toBe(false))
+    expect(screen.queryByRole('alert')).toBeNull()
+    // A visitor-initiated attempt after the silent preload still surfaces:
+    // the suppression names the preload, not every passkey failure.
+    signInPasskey.mockResolvedValue({ error: { code: 'AUTH_CANCELLED' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with a passkey' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe(
+      'The passkey action was cancelled. Try again when you are ready.'
+    )
+  })
+
+  it('surfaces the no-D1 guidance for a visitor-initiated passkey attempt', async () => {
+    signInPasskey.mockResolvedValue({
+      error: { code: LOCAL_D1_UNAVAILABLE_ERROR_CODE }
+    })
+    await renderPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with a passkey' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe(LOCAL_D1_UNAVAILABLE_MESSAGE)
   })
 
   it('does not preload conditional UI where the browser lacks support', async () => {
@@ -405,7 +490,7 @@ describe('SignInPage link mode', () => {
   })
 
   it('surfaces send errors without claiming the link was sent', async () => {
-    sendMagicLink.mockResolvedValueOnce({ error: { message: 'rate_limited' } })
+    sendMagicLink.mockResolvedValueOnce({ error: { code: 'rate_limited' } })
     await renderPage()
     await switchToLinkMode()
     fireEvent.change(screen.getByLabelText('Email'), {
@@ -413,7 +498,7 @@ describe('SignInPage link mode', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Email me a sign-in link' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('rate_limited')
+    expect(alert.textContent).toBe('Too many attempts. Wait a moment and try again.')
     expect(screen.queryByText(/check your inbox/)).toBeNull()
   })
 })

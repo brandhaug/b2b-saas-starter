@@ -1,14 +1,14 @@
 import '@fontsource-variable/geist/index.css'
 import '@fontsource-variable/geist-mono/index.css'
 import '@fontsource-variable/newsreader/opsz.css'
-// Latin variable woff2 for the faces that render above the fold, resolved by
-// Vite so the preload href always matches the emitted asset. Without these,
-// the fonts start loading two round-trips deep (CSS → font file) after first
-// paint — the display face included, or the landing hero flashes its serif
-// fallback before Newsreader lands.
+// Latin variable woff2 for the text faces that render above the fold,
+// resolved by Vite so the preload href always matches the emitted asset.
+// Without these, the fonts start loading two round-trips deep (CSS → font
+// file) after first paint. Newsreader is not preloaded here: most routes
+// (sign-in, the workspace app) render no display glyphs, so its 132 kB
+// preload belongs to the routes that actually use the face.
 import geistLatinWoff2 from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
 import geistMonoLatinWoff2 from '@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url'
-import newsreaderLatinWoff2 from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url'
 import { type QueryClient } from '@tanstack/react-query'
 import { lazy, Suspense, type ReactNode } from 'react'
 import {
@@ -20,7 +20,7 @@ import {
 import { CommandPaletteProvider } from '@/components/command-palette'
 import { Toaster } from '@/components/ui/sonner'
 import { ClientTelemetry } from '@/lib/client-telemetry'
-import { readClientTelemetryConfig } from '@/lib/server/telemetry-config'
+import { type SidebarWorkspace } from '@/lib/workspace-directory'
 import appCss from '../index.css?url'
 
 // Browser `theme-color` meta requires literal color values — cannot use CSS vars.
@@ -41,6 +41,16 @@ const TanStackRouterDevtools = import.meta.env.DEV
 
 type RouterAppContext = {
   queryClient: QueryClient
+  /**
+   * Client-session memory for the last workspace visited: the workspace
+   * shell writes it, surfaces without a workspace of their own (/account,
+   * /admin, the picker) read it back so the sidebar keeps its shape instead
+   * of collapsing to a logo. Declared here — the one owner of the router
+   * context's shape — so the read/write helpers in
+   * `lib/workspace-directory.ts` type it instead of asserting past it.
+   * Server renders always start at `null`: never a cross-request fact.
+   */
+  lastWorkspace: SidebarWorkspace | null
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
@@ -48,7 +58,14 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   // fields keep Sentry/PostHog inactive in the browser (see
   // lib/client-telemetry.tsx). The loader runs on the server for SSR and
   // client navigations alike, so `cloudflare:workers` env is always readable.
-  loader: () => readClientTelemetryConfig(),
+  // The config module is imported dynamically: the root route is the one route
+  // the code splitter cannot split, so a static import here rides the entry
+  // chunk every page preloads — and `telemetry-config`'s `env/server` import
+  // would pin the Effect Schema chunk with it.
+  loader: async () => {
+    const { readClientTelemetryConfig } = await import('@/lib/server/telemetry-config')
+    return readClientTelemetryConfig()
+  },
   head: () => ({
     meta: [
       { charSet: 'utf8' },
@@ -67,11 +84,11 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     links: [
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-      /* Preload the latin variable woff2 for the text faces and the display
-         face: the family names in index.css resolve to the fontsource
-         `@font-face` rules, which otherwise start loading two round-trips
-         deep (CSS → font file). The display preload keeps the landing hero
-         from flashing its serif fallback. */
+      /* Preload the latin variable woff2 for the text faces: the family
+         names in index.css resolve to the fontsource `@font-face` rules,
+         which otherwise start loading two round-trips deep (CSS → font
+         file). The display face is deliberately absent — only routes that
+         render display glyphs preload it. */
       {
         rel: 'preload',
         href: geistLatinWoff2,
@@ -82,13 +99,6 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       {
         rel: 'preload',
         href: geistMonoLatinWoff2,
-        as: 'font',
-        type: 'font/woff2',
-        crossOrigin: 'anonymous'
-      },
-      {
-        rel: 'preload',
-        href: newsreaderLatinWoff2,
         as: 'font',
         type: 'font/woff2',
         crossOrigin: 'anonymous'
@@ -110,11 +120,9 @@ function RootComponent() {
 
 function RootDocument({ children }: { readonly children: ReactNode }) {
   return (
-    // `dark` is hardcoded rather than toggled: Catppuccin Mocha is the only
-    // scheme. The class is a safety net so a stray `dark:` variant (e.g. from
-    // a vendored upstream primitive) resolves against this scheme instead of
-    // prefers-color-scheme.
-    <html lang="en" className="dark">
+    // Catppuccin Mocha is the only scheme, painted from `:root` tokens in
+    // index.css — there is no `dark` class to toggle.
+    <html lang="en">
       <head>
         <HeadContent />
       </head>

@@ -122,9 +122,11 @@ describe('PasskeysPanel', () => {
     await waitFor(() => expect(addPasskey).toHaveBeenCalledWith({}))
   })
 
-  it('surfaces a cancelled ceremony as its error message', async () => {
+  it('surfaces a cancelled ceremony with the copy-table sentence', async () => {
     listPasskeys.mockResolvedValue({ data: [] })
-    addPasskey.mockResolvedValue({ error: { message: 'Registration cancelled' } })
+    // A code, not a message: the panels never render the far end's raw
+    // message — the copy table maps the code (see lib/auth-error-copy.ts).
+    addPasskey.mockResolvedValue({ error: { code: 'AUTH_CANCELLED' } })
     renderWithQueryClient(
       <PasskeysPanel
         listPasskeys={listPasskeys}
@@ -137,7 +139,7 @@ describe('PasskeysPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Add passkey' }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Registration cancelled')
+    expect(alert.textContent).toContain('The passkey action was cancelled')
   })
 
   it('renames a passkey inline and refreshes the list', async () => {
@@ -192,7 +194,9 @@ describe('PasskeysPanel', () => {
     listPasskeys.mockResolvedValue({
       data: [passkey({ id: 'pk_mac', name: 'MacBook' })]
     })
-    deletePasskey.mockResolvedValue({ error: { message: 'Could not delete' } })
+    // No code: the panel falls back to its own failure sentence rather than
+    // rendering the raw message.
+    deletePasskey.mockResolvedValue({ error: {} })
     renderWithQueryClient(
       <PasskeysPanel
         listPasskeys={listPasskeys}
@@ -208,6 +212,6 @@ describe('PasskeysPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Remove passkey' }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Could not delete')
+    expect(alert.textContent).toContain('The change could not be made')
   })
 })

@@ -2,15 +2,10 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import {
   sendEmailCodeWithAuthClient,
   signInWithEmailCodeWithAuthClient,
-  TWO_FACTOR_REQUIRED_MESSAGE,
-  wasRefusedForTwoFactor,
   type SendEmailCode,
   type SignInWithEmailCode
 } from '@/components/auth/auth-client-ports'
-import {
-  EmailCodeExchange,
-  type VerifyEmailCode
-} from '@/components/auth/email-code-exchange'
+import { EmailCodeExchange } from '@/components/auth/email-code-exchange'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 
 export const Route = createFileRoute('/sign-in_/email-code')({
@@ -25,28 +20,14 @@ function EmailCodeSignInRoute() {
 }
 
 /**
- * The verify hop with the one translation this screen owes: the TOTP gate
- * refuses a code sign-in for a two-factor-enabled account with
- * `two_factor_required`, and the shared exchange folds `error.message` into
- * its alert verbatim — so the refusal is mapped to the message that names
- * the path that still works while the envelope is still in hand.
- */
-function verifySignInCode(signIn: SignInWithEmailCode): VerifyEmailCode {
-  return async (input) => {
-    const result = await signIn({ email: input.email, otp: input.otp })
-    if (result.error && wasRefusedForTwoFactor(result.error)) {
-      return { error: { message: TWO_FACTOR_REQUIRED_MESSAGE } }
-    }
-    return result
-  }
-}
-
-/**
  * The code-entry alternative to the password form on /sign-in: step one asks
  * for the email and sends a six-digit code, step two turns the code into a
  * session. Registration is not possible from here — the server's
  * `disableSignUp` refuses codes for unknown addresses, and the endpoint
  * answers identically either way, so an unknown email looks like a sent one.
+ * The TOTP gate's `two_factor_required` refusal needs no translation here:
+ * the shared code table maps it to the sentence that names the path that
+ * still works.
  */
 export function EmailCodeSignInPage({
   redirect,
@@ -62,7 +43,7 @@ export function EmailCodeSignInPage({
     <EmailCodeExchange
       purpose="sign-in"
       send={sendCode}
-      verify={verifySignInCode(signIn)}
+      verify={({ email, otp }) => signIn({ email, otp })}
       onVerified={() => {
         router.history.push(safeRedirect(redirect))
       }}

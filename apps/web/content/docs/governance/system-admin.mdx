@@ -12,9 +12,9 @@ A System Admin is a user with global user-management permissions through Better 
 
 The `/admin` route renders a global users table (name, email, system role, status) with per-row actions, a cross-workspace role editor, and a global audit-event table sourced from `AuditEventLog.listGlobal`. The actions go through the `PlatformUserAdmin` capability, never straight to the plugin:
 
-- **Ban / Unban** — blocks or restores sign-in. Audited as `system_admin.user_banned` / `system_admin.user_unbanned`.
-- **Change workspace role** — sets a user's Workspace Role in one workspace. Audited as `system_admin.user_role_changed`.
-- **Impersonate** — opens an Impersonation Session as that user (below). Audited as `system_admin.impersonation_started` / `system_admin.impersonation_stopped`.
+- **Ban / Unban**: blocks or restores sign-in. Audited as `system_admin.user_banned` / `system_admin.user_unbanned`.
+- **Change workspace role**: sets a user's Workspace Role in one workspace. Audited as `system_admin.user_role_changed`.
+- **Impersonate**: opens an Impersonation Session as that user (below). Audited as `system_admin.impersonation_started` / `system_admin.impersonation_stopped`.
 
 Password reset and account creation from `/admin` are not surfaced.
 

@@ -5,6 +5,7 @@ import {
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
+import { toast } from 'sonner'
 
 import { FormTextField } from '@/components/form-text-field'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -32,6 +33,7 @@ import {
   type SentInvitation
 } from '@/lib/server/invitations'
 import { useServerAction } from '@/hooks/use-server-action'
+import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { EMAIL_PATTERN } from '@/lib/email-pattern'
 import { invitationStatusVariant } from '@/lib/badge-variants'
 
@@ -82,14 +84,38 @@ export function InvitationPanel({
       sendInvitationServerFn({
         data: { workspaceSlug, email: value.email, role: value.role }
       }),
-    { failureMessage: SEND_FAILED, onSuccess: setSent }
+    {
+      failureMessage: SEND_FAILED,
+      onSuccess: (result) => {
+        // No toast: the inline ok alert below carries the delivery verdict
+        // and the invite link — a second, poorer copy of the same news in
+        // the corner is noise, not confirmation.
+        setSent(result)
+      }
+    }
   )
 
   const cancel = useServerAction(
     (invitationId: string) =>
       cancelInvitationServerFn({ data: { workspaceSlug, invitationId } }),
-    { failureMessage: CANCEL_FAILED }
+    {
+      failureMessage: CANCEL_FAILED,
+      onSuccess: (_, invitationId) => {
+        const invitation = invitations.find(
+          (candidate) => candidate.id === invitationId
+        )
+        toast.success(
+          invitation === undefined
+            ? 'Invitation canceled'
+            : `Invitation for ${invitation.email} canceled`
+        )
+      }
+    }
   )
+
+  // A cancel failure renders on the row that produced it and is cleared by
+  // the next cancel — the shared per-row failure hook.
+  const { failure: failedRow, runWith: cancelOnRow } = useKeyedFailure<string>()
 
   const form = useForm({
     defaultValues: DEFAULT_INVITATION_VALUES,
@@ -191,15 +217,14 @@ export function InvitationPanel({
         </form>
       </CreateSection>
 
-      <ListSection
-        title="Pending invitations"
-        footer={<ActionFeedback error={cancel.error} />}
-      >
+      <ListSection title="Pending invitations">
         {invitations.length === 0 ? (
           <Empty>
             <EmptyHeader>
               <EmptyTitle>No invitations yet</EmptyTitle>
-              <EmptyDescription>Invite someone above.</EmptyDescription>
+              <EmptyDescription>
+                Sent invitations wait here until they are accepted or canceled.
+              </EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
@@ -209,6 +234,9 @@ export function InvitationPanel({
                 <ItemContent>
                   <ItemTitle>{invitation.email}</ItemTitle>
                   <ItemDescription>{invitation.role}</ItemDescription>
+                  {failedRow?.key === invitation.id ? (
+                    <ActionFeedback error={failedRow.message} />
+                  ) : null}
                 </ItemContent>
                 <ItemActions>
                   <Badge variant={invitationStatusVariant(invitation.status)}>
@@ -217,9 +245,12 @@ export function InvitationPanel({
                   {invitation.status === 'pending' ? (
                     <Button
                       variant="ghost"
-                      size="sm"
                       disabled={cancel.pendingInput === invitation.id}
-                      onClick={() => cancel.run(invitation.id)}
+                      onClick={() =>
+                        void cancelOnRow(invitation.id, () =>
+                          cancel.runAsync(invitation.id)
+                        )
+                      }
                     >
                       {cancel.pendingInput === invitation.id ? (
                         <Spinner data-icon="inline-start" />

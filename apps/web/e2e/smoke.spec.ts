@@ -17,7 +17,7 @@ test('the homepage renders the live seed numbers and the real overview payload',
   await page.goto('/')
   // The demo strip reads the same actorless projection the REST endpoint
   // serves, so the numbers are the seed's own.
-  await expect(page.getByText('Endpoint success')).toBeVisible()
+  await expect(page.getByText('Audit event types')).toBeVisible()
   // The REST snippet embeds the workspace the curl line targets — the seed
   // workspace's real name, not a hand-written placeholder.
   await expect(page.getByText(/"name": "Starter Lab"/).first()).toBeVisible()

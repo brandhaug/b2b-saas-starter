@@ -73,12 +73,12 @@ describe('TwoFactorChallengePage', () => {
     )
   })
 
-  it('surfaces verification errors and stays on the challenge', async () => {
-    verifyTotp.mockResolvedValueOnce({ error: { message: 'Invalid code' } })
+  it('surfaces verification errors as table copy and stays on the challenge', async () => {
+    verifyTotp.mockResolvedValueOnce({ error: { code: 'INVALID_CODE' } })
     const { router } = await renderPage()
     submitTotp()
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Invalid code')
+    expect(alert.textContent).toBe('That code is incorrect. Check it and try again.')
     expect(router.state.location.pathname).toBe('/two-factor')
   })
 

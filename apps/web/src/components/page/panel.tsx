@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, useId } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -8,6 +8,9 @@ import { cn } from '@/lib/utils'
  * forms, transcripts, tables — renders inside one of these, so pages read as
  * `WorkspaceShell > PageHeader + Panel(s)` end to end. Presentation only: it
  * owns no state and makes no calls.
+ *
+ * The `h2` names a landmark: `aria-labelledby` turns the `<section>` into a
+ * region screen readers can list and jump to (`useId` is SSR-stable).
  */
 export function Panel({
   title,
@@ -27,10 +30,12 @@ export function Panel({
   readonly children: ReactNode
   readonly className?: string
 }) {
+  const titleId = useId()
   const hasHeader =
     title !== undefined || description !== undefined || actions !== undefined
   return (
     <section
+      aria-labelledby={title === undefined ? undefined : titleId}
       className={cn(
         'grid gap-4 rounded-none border border-border bg-card p-4 text-card-foreground sm:p-6',
         className
@@ -40,7 +45,9 @@ export function Panel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="grid gap-1">
             {title === undefined ? null : (
-              <h2 className="text-lg font-semibold">{title}</h2>
+              <h2 id={titleId} className="text-lg font-semibold">
+                {title}
+              </h2>
             )}
             {description === undefined ? null : (
               <p className="text-sm text-muted-foreground">{description}</p>
@@ -64,6 +71,7 @@ export function Panel({
  * mutation's failure). Every resource panel reads as
  * `Panel > CreateSection + ListSection`, so a new one copies the anatomy
  * instead of hand-rolling the heading-and-empty markup a fourth time.
+ * Like `Panel`, the `h3` names a landmark region.
  */
 export function ListSection({
   title,
@@ -76,12 +84,15 @@ export function ListSection({
   /** The rows, or the empty state in their place when the list is empty. */
   readonly children: ReactNode
 }) {
+  const titleId = useId()
   return (
-    <div className="grid gap-2">
-      <h3 className="text-sm font-semibold">{title}</h3>
+    <section aria-labelledby={titleId} className="grid gap-2">
+      <h3 id={titleId} className="text-sm font-semibold">
+        {title}
+      </h3>
       {children}
       {footer}
-    </div>
+    </section>
   )
 }
 
@@ -103,13 +114,18 @@ export function CreateSection({
   readonly deniedReason: string
   readonly children: ReactNode
 }) {
+  const titleId = useId()
   if (!allowed) {
+    // No heading, no landmark: an unnamed region is noise to a screen
+    // reader's landmark list.
     return <p className="text-xs text-muted-foreground">{deniedReason}</p>
   }
   return (
-    <div className="grid gap-3">
-      <h3 className="text-sm font-semibold">{title}</h3>
+    <section aria-labelledby={titleId} className="grid gap-3">
+      <h3 id={titleId} className="text-sm font-semibold">
+        {title}
+      </h3>
       {children}
-    </div>
+    </section>
   )
 }

@@ -6,33 +6,33 @@ order: 40
 tags: [passkeys, webauthn, authentication]
 ---
 
-A **Passkey** is a WebAuthn credential registered to a user's account for passwordless, phishing-resistant sign-in: a private key stored by an authenticator (a platform's fingerprint or face sensor, a phone, or a security key) and a public key stored by the app. The starter ships passkeys on Better Auth's `passkey` plugin (ADR 0056) — they are account-level, like two-factor, not a workspace capability.
+A **Passkey** is a WebAuthn credential registered to a user's account for passwordless, phishing-resistant sign-in: a private key stored by an authenticator (a platform's fingerprint or face sensor, a phone, or a security key) and a public key stored by the app. The starter ships passkeys on Better Auth's `passkey` plugin (ADR 0056); they are account-level, like two-factor, not a workspace capability.
 
 ## What's wired today
 
-- **Sign-in** — `/sign-in` offers "Sign in with a passkey". Where the browser supports conditional UI, the email field also offers saved passkeys as autofill (the `webauthn` autocomplete token plus an on-mount preload); the button is the fallback everywhere else.
-- **Management** — `/account` has a Passkeys section: register with a name you choose, rename, and remove. Registration demands a signed-in (and fresh) session; the browser mediates the ceremony itself.
-- **Audit Events** — `auth.passkey_added` / `auth.passkey_removed` (and their `_failed` pairs) record every credential change, with the acting session as the actor. A passkey sign-in records `auth.sign_in` with `method: "passkey"` in the metadata, like the email and username paths.
-- **Email** — every successful add or remove emails the account holder (`PasskeyChangedEmail`), the same best-effort security notification the two-factor changes send, so a hijacked session cannot silently enroll or strip a credential.
+- **Sign-in**: `/sign-in` offers "Sign in with a passkey". Where the browser supports conditional UI, the email field also offers saved passkeys as autofill (the `webauthn` autocomplete token plus an on-mount preload); the button is the fallback everywhere else.
+- **Management**: `/account` has a Passkeys section: register with a name you choose, rename, and remove. Registration demands a signed-in (and fresh) session; the browser mediates the ceremony itself.
+- **Audit Events**: `auth.passkey_added` / `auth.passkey_removed` (and their `_failed` pairs) record every credential change, with the acting session as the actor. A passkey sign-in records `auth.sign_in` with `method: "passkey"` in the metadata, like the email and username paths.
+- **Email**: every successful add or remove emails the account holder (`PasskeyChangedEmail`), the same best-effort security notification the two-factor changes send, so a hijacked session cannot silently enroll or strip a credential.
 
 ## Two-factor interaction
 
-**A passkey sign-in satisfies the two-factor requirement.** When a user has TOTP two-factor enabled, credential sign-in opens no session — it sets a challenge cookie and routes to `/two-factor` for a code. Passkey sign-in does not take that hop: the ceremony is already two factors in one gesture (possession of the hardware-bound credential, plus the user verification the authenticator performed), so it opens a session directly.
+**A passkey sign-in satisfies the two-factor requirement.** When a user has TOTP two-factor enabled, credential sign-in opens no session: it sets a challenge cookie and routes to `/two-factor` for a code. Passkey sign-in does not take that hop: the ceremony is already two factors in one gesture (possession of the hardware-bound credential, plus the user verification the authenticator performed), so it opens a session directly.
 
-This is mechanical, not policy: Better Auth's two-factor gate is an after-hook that matches the credential sign-in endpoints (`/sign-in/email`, `/sign-in/username`, `/sign-in/phone-number`) only, while the passkey plugin's verification endpoint creates the session itself. The live-auth test suite pins this — a TOTP-enabled user signs in with a passkey and gets a session with no code (ADR 0056 records the reasoning).
+This is mechanical, not policy: Better Auth's two-factor gate is an after-hook that matches the credential sign-in endpoints (`/sign-in/email`, `/sign-in/username`, `/sign-in/phone-number`) only, while the passkey plugin's verification endpoint creates the session itself. The live-auth test suite pins this: a TOTP-enabled user signs in with a passkey and gets a session with no code (ADR 0056 records the reasoning).
 
 Turning two-factor on or off remains independent of passkeys: they answer the same challenge (prove who you are at sign-in) by different means.
 
-Under a System Admin's impersonation session (ADR 0054), the Passkeys section is replaced by a one-line reason and the catchall refuses the passkey endpoints outright (`change_passkey` in the forbidden-actions vocabulary) — a credential enrolled under impersonation would keep working after it ends.
+Under a System Admin's impersonation session (ADR 0054), the Passkeys section is replaced by a one-line reason and the catchall refuses the passkey endpoints outright (`change_passkey` in the forbidden-actions vocabulary): a credential enrolled under impersonation would keep working after it ends.
 
 ## Configuration
 
 No new environment variables. The WebAuthn Relying Party id and origin derive from `BETTER_AUTH_URL`:
 
-- `rpID` — the URL's hostname (`localhost` locally, the app domain in production; a valid rpID by construction).
-- `origin` — the URL's origin, normalized (scheme, host, port; any path dropped).
+- `rpID`: the URL's hostname (`localhost` locally, the app domain in production; a valid rpID by construction).
+- `origin`: the URL's origin, normalized (scheme, host, port; any path dropped).
 
-`localhost` is a valid WebAuthn rpID, so local development works with zero configuration — registering and signing in with a passkey against the local dev server needs no env at all. A deployment serving the app on more than one origin widens `origin` in `packages/auth` (the plugin accepts an array).
+`localhost` is a valid WebAuthn rpID, so local development works with zero configuration: registering and signing in with a passkey against the local dev server needs no env at all. A deployment serving the app on more than one origin widens `origin` in `packages/auth` (the plugin accepts an array).
 
 Passkey rows live in the `passkey` table (`packages/db/src/schema.ts`), owned by the plugin: camelCase columns and epoch-integer dates, like the other Better Auth tables.
 
@@ -42,6 +42,6 @@ Chrome and Edge ship a virtual authenticator in DevTools (Settings → WebAuthn)
 
 ## Non-goals
 
-- No passkey-first onboarding (`registration.requireSession: false` with a `resolveUser` callback) — the Local Auth Path is email/password, and pre-auth registration needs a signed-context scheme the starter does not ship.
+- No passkey-first onboarding (`registration.requireSession: false` with a `resolveUser` callback); the Local Auth Path is email/password, and pre-auth registration needs a signed-context scheme the starter does not ship.
 - No per-passkey metadata beyond the name (last-used tracking, device labels beyond synced/device).
-- Renaming a passkey is unaudited and unemailed — a label change is presentation, not a credential change.
+- Renaming a passkey is unaudited and unemailed: a label change is presentation, not a credential change.

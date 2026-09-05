@@ -107,7 +107,7 @@ export function DeleteAccountPanel({
           <li>
             You leave{' '}
             {leaving.length === 1 ? 'workspace' : `${leaving.length} workspaces`}{' '}
-            {leaving.map((step) => step.workspace.name).join(', ')} — other owners keep
+            {leaving.map((step) => step.workspace.name).join(', ')}. Other owners keep
             it.
           </li>
         ) : null}

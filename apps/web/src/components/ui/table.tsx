@@ -20,7 +20,7 @@ function Table({
       role="region"
       aria-label={label ?? 'Data table'}
       tabIndex={0}
-      className="relative w-full overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+      className="relative w-full overflow-x-auto focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
       <table
         data-slot="table"

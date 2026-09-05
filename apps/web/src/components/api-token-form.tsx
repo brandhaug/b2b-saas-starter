@@ -88,6 +88,9 @@ export function ApiTokenForm({
         setSubmitError(outcome.message)
         return
       }
+      // No toast: the inline ok alert reveals the token's one-time secret —
+      // a corner copy would announce the creation without the thing the
+      // reader actually needs to copy.
       setCreated(outcome.value)
       // Awaited so the loader invalidation completes within the submit flow:
       // fire-and-forget here is how the list stayed a create behind until a
@@ -161,7 +164,10 @@ export function ApiTokenForm({
       </form.Subscribe>
 
       {created ? (
-        <Alert className="justify-self-start">
+        // The one secret this form ever shows: the `ok` variant separates it
+        // from every neutral box on the page, and the title carries the copy
+        // guidance — this is the only chance to take the token.
+        <Alert variant="ok" className="justify-self-start">
           <AlertTitle>
             Token created. Copy it now, it will not be shown again.
           </AlertTitle>
@@ -171,6 +177,9 @@ export function ApiTokenForm({
               label="API token"
               className="flex items-center gap-2"
             />
+            <p className="mt-2 text-xs">
+              Store it in your secret manager before leaving this page.
+            </p>
           </AlertDescription>
         </Alert>
       ) : null}

@@ -3,6 +3,7 @@ import { Link, useRouter } from '@tanstack/react-router'
 import {
   BellIcon,
   BoxesIcon,
+  ChevronsUpDownIcon,
   LogOutIcon,
   MenuIcon,
   ShieldIcon,
@@ -40,12 +41,20 @@ import { ActionFeedback } from '@/components/page/action-feedback'
 import { CommandPaletteContext } from '@/lib/command-palette-context'
 import { useImpersonation, type StopImpersonating } from '@/lib/impersonation'
 import { viewerCan, type Viewer } from '@/lib/permissions'
-import { findWorkspace, useWorkspaceDirectory } from '@/lib/workspace-directory'
+import {
+  findWorkspace,
+  lastVisitedWorkspace,
+  rememberWorkspace,
+  useWorkspaceDirectory,
+  type SidebarWorkspace
+} from '@/lib/workspace-directory'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import {
-  WORKSPACE_NAV,
+  SHELL_NAV,
+  isWorkspaceNavTarget,
   type WorkspaceNavGroup,
-  type WorkspaceNavTarget
+  type WorkspaceNavTarget,
+  type YouNavTarget
 } from '@/lib/workspace-nav'
 
 const SIGN_OUT_FAILED = 'Sign-out failed'
@@ -68,9 +77,10 @@ export function WorkspaceShell({
    */
   readonly unreadCount?: number
   /**
-   * Current workspace slug for nav links. Pass `null` on non-workspace
-   * surfaces (e.g. /admin): the nav renders without the workspace links
-   * instead of borrowing a workspace.
+   * Current workspace slug. Pass `null` on non-workspace surfaces (e.g.
+   * /admin): the sidebar then anchors to the last workspace the user visited
+   * (router context) instead of emptying the column — see `sidebarWorkspace`
+   * below.
    */
   readonly workspaceSlug: string | null
   /**
@@ -102,6 +112,10 @@ export function WorkspaceShell({
   const signingOut = useServerAction(
     async () => {
       await signOut()
+      // The remembered workspace is session memory: the next sign-in in this
+      // tab may be someone else, and they have no business seeing which
+      // workspace the last session had open.
+      rememberWorkspace(router, null)
       await router.navigate({ to: '/sign-in' })
     },
     { failureMessage: SIGN_OUT_FAILED, invalidate: false }
@@ -125,6 +139,22 @@ export function WorkspaceShell({
     workspaceSlug === null
       ? null
       : (findWorkspace(directory, workspaceSlug)?.name ?? workspaceSlug)
+  // The workspace the sidebar anchors to: the surface's own when it has one,
+  // else the last one the user visited. `null` is the degenerate state (first
+  // visit, no workspace opened yet) — the column keeps its shape and points
+  // at the picker instead of pretending there is nothing to navigate.
+  const sidebarWorkspace: SidebarWorkspace | null =
+    workspaceSlug === null
+      ? lastVisitedWorkspace(router)
+      : { slug: workspaceSlug, name: workspaceName ?? workspaceSlug }
+  // Remember the visited workspace (client-session memory in router context)
+  // so the next non-workspace surface can anchor its sidebar to it.
+  useEffect(() => {
+    if (workspaceSlug === null || workspaceName === null) {
+      return
+    }
+    rememberWorkspace(router, { slug: workspaceSlug, name: workspaceName })
+  }, [router, workspaceSlug, workspaceName])
   return (
     <div className="grid min-h-dvh bg-background lg:grid-cols-[16rem_1fr]">
       <a
@@ -135,7 +165,7 @@ export function WorkspaceShell({
       </a>
       <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
         <WorkspaceNav
-          workspaceSlug={workspaceSlug}
+          workspace={sidebarWorkspace}
           viewer={viewer}
           systemRole={systemRole}
         />
@@ -170,7 +200,7 @@ export function WorkspaceShell({
                 </SheetHeader>
                 <div className="p-4">
                   <WorkspaceNav
-                    workspaceSlug={workspaceSlug}
+                    workspace={sidebarWorkspace}
                     viewer={viewer}
                     systemRole={systemRole}
                     onNavigate={() => setMobileNavOpen(false)}
@@ -192,10 +222,19 @@ export function WorkspaceShell({
             )}
             <SearchButton />
             {unreadCount === undefined ? null : (
+              // The badge is the notification feed's one always-visible entry
+              // point: it lands on the user-level notifications route, where
+              // the unread kinds are managed — same count, same label, now
+              // clickable.
               <Badge
-                variant="secondary"
+                variant="neutral"
                 className="gap-1 font-mono tabular-nums"
-                aria-label={`${unreadCount} unread notifications`}
+                render={
+                  <Link
+                    to="/account/notifications"
+                    aria-label={`${unreadCount} unread notifications`}
+                  />
+                }
               >
                 <BellIcon className="size-3" />
                 {unreadCount}
@@ -323,44 +362,72 @@ const navLinkClasses =
   'flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground'
 
 function WorkspaceNav({
-  workspaceSlug,
+  workspace,
   viewer,
   systemRole,
   onNavigate
 }: {
-  readonly workspaceSlug: string | null
+  /** The workspace the nav anchors to, or null in the degenerate state. */
+  readonly workspace: SidebarWorkspace | null
   readonly viewer: Viewer
   readonly systemRole?: string | null | undefined
   readonly onNavigate?: (() => void) | undefined
 }) {
   // One pass over the nav table: build the visible rows in order, skipping
-  // rows the viewer's role cannot read and emitting a section label each time
-  // the group changes.
+  // rows the viewer's role cannot read, rows that need a workspace when none
+  // is in play, and the admin row for non-admins — emitting a section label
+  // each time the group changes. Account and System admin are rows in the
+  // same table, so they render under their own "You" label and can never
+  // inherit the group printed before them.
   const navRows: Array<ReactNode> = []
   let lastGroup: WorkspaceNavGroup | undefined
-  if (workspaceSlug !== null) {
-    for (const row of WORKSPACE_NAV) {
-      if (row.permission !== undefined && !viewerCan(viewer, row.permission)) {
+  function sectionLabel(group: WorkspaceNavGroup | undefined) {
+    if (group === lastGroup) {
+      return
+    }
+    lastGroup = group
+    if (group !== undefined) {
+      navRows.push(
+        <p
+          key={`group-${group}`}
+          className="px-3 pt-4 pb-1 text-2xs font-medium text-sidebar-foreground/60"
+        >
+          {group}
+        </p>
+      )
+    }
+  }
+  for (const row of SHELL_NAV) {
+    if (row.adminOnly === true && systemRole !== 'admin') {
+      continue
+    }
+    if (row.permission !== undefined && !viewerCan(viewer, row.permission)) {
+      continue
+    }
+    if (isWorkspaceNavTarget(row.to)) {
+      // No workspace in play: the workspace rows are absent, their group
+      // labels with them — the user-level rows below still render.
+      if (workspace === null) {
         continue
       }
-      if (row.group !== lastGroup) {
-        lastGroup = row.group
-        if (row.group !== undefined) {
-          navRows.push(
-            <p
-              key={`group-${row.group}`}
-              className="px-3 pt-4 pb-1 text-2xs font-medium text-sidebar-foreground/60"
-            >
-              {row.group}
-            </p>
-          )
-        }
-      }
+      sectionLabel(row.group)
       navRows.push(
         <NavLink
           key={row.to}
           to={row.to}
-          workspaceSlug={workspaceSlug}
+          workspaceSlug={workspace.slug}
+          label={row.label}
+          icon={row.icon}
+          exact={row.exact ?? false}
+          onNavigate={onNavigate}
+        />
+      )
+    } else {
+      sectionLabel(row.group)
+      navRows.push(
+        <YouNavLink
+          key={row.to}
+          to={row.to}
           label={row.label}
           icon={row.icon}
           exact={row.exact ?? false}
@@ -382,40 +449,30 @@ function WorkspaceNav({
         </span>
         B2B SaaS Starter
       </Link>
-      {/* The switcher sits above the nav on every workspace surface; the
-          mobile sheet renders the same component, so both close on pick. */}
-      {workspaceSlug === null ? null : (
-        <div className="mt-6">
-          <WorkspaceSwitcher workspaceSlug={workspaceSlug} onNavigate={onNavigate} />
-        </div>
-      )}
-      <nav aria-label="Workspace" className="mt-6 grid gap-1">
-        {navRows}
-        <Link
-          to="/account"
-          onClick={onNavigate}
-          className={navLinkClasses}
-          activeOptions={{ exact: true }}
-          activeProps={{ 'aria-current': 'page' }}
-        >
-          <UserRoundIcon className="size-4" />
-          Account
-        </Link>
-        {/* System admin 404s for every non-admin, so the link renders only
-            for them (the route keeps its own `requireAdmin` gate — this is
-            presentation, not enforcement). */}
-        {systemRole === 'admin' ? (
+      {/* The switcher sits above the nav on every surface; the mobile sheet
+          renders the same component, so both close on pick. Without a
+          workspace in play the slot becomes the picker's doorway — the column
+          keeps its shape instead of collapsing to a logo. */}
+      <div className="mt-6">
+        {workspace === null ? (
           <Link
-            to="/admin"
+            to="/workspaces"
             onClick={onNavigate}
-            className={navLinkClasses}
-            activeOptions={{ exact: true }}
-            activeProps={{ 'aria-current': 'page' }}
+            className="flex w-full items-center justify-between gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 px-3 py-2 text-sm font-medium text-sidebar-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
-            <ShieldIcon className="size-4" />
-            System admin
+            Choose a workspace…
+            <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
           </Link>
-        ) : null}
+        ) : (
+          <WorkspaceSwitcher
+            workspaceSlug={workspace.slug}
+            fallbackName={workspace.name}
+            onNavigate={onNavigate}
+          />
+        )}
+      </div>
+      <nav aria-label="Main" className="mt-6 grid gap-1">
+        {navRows}
       </nav>
     </>
   )
@@ -440,6 +497,34 @@ function NavLink({
     <Link
       to={to}
       params={{ workspaceSlug }}
+      onClick={onNavigate}
+      className={navLinkClasses}
+      activeOptions={{ exact }}
+      activeProps={{ 'aria-current': 'page' }}
+    >
+      {icon}
+      {label}
+    </Link>
+  )
+}
+
+/** The user-level twin of {@link NavLink}: same treatments, no slug to thread. */
+function YouNavLink({
+  to,
+  label,
+  icon,
+  exact = false,
+  onNavigate
+}: {
+  readonly to: YouNavTarget
+  readonly label: string
+  readonly icon: ReactNode
+  readonly exact?: boolean
+  readonly onNavigate?: (() => void) | undefined
+}) {
+  return (
+    <Link
+      to={to}
       onClick={onNavigate}
       className={navLinkClasses}
       activeOptions={{ exact }}

@@ -2,9 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { GithubIcon } from '@/components/icons/github'
-import { ArchitectureSchematic } from '@/components/landing/architecture-schematic'
 import { GITHUB_URL } from '@/components/landing/github-url'
-import { INSTALL_AND_RUN } from '@/lib/toolchain'
+import { SETUP_STEPS } from '@/lib/toolchain'
 
 const BILL_OF_MATERIALS: ReadonlyArray<string> = [
   'TanStack Start',
@@ -20,13 +19,23 @@ const BILL_OF_MATERIALS: ReadonlyArray<string> = [
 function HeroSection() {
   return (
     <section className="border-b border-border">
-      <div className="mx-auto max-w-7xl px-4 pt-16 pb-10 sm:px-6 lg:pt-24">
-        <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-16">
-          <div className="flex max-w-xl flex-col items-start">
+      <div className="mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:pt-28 lg:pb-16">
+        {/* The schematic moved: it now works for the whole scroll as the
+            sticky rail of the traced-request section below, instead of dying
+            at this fold. The hero is the claim; the spine is the proof. The
+            fold is two columns from `lg`: the claim and its actions on the
+            left, the quickstart card holding the right half — the commands
+            are the proof-of-work half of the pitch, so they earn fold space
+            rather than trailing the lede. */}
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] lg:items-end lg:gap-16">
+          <div className="max-w-2xl">
             <p className="rise font-mono text-sm text-signal-ink">
               A Cloudflare-first B2B SaaS starter
             </p>
-            <h1 className="rise rise-2 mt-5 font-display text-balance text-5xl font-semibold leading-none sm:text-6xl">
+            {/* `leading-display`: a display face at 5–6xl wants near-solid
+                leading; `leading-tight` (1.25) opened air between lines the
+                wordmark was never sized for. */}
+            <h1 className="rise rise-2 mt-5 font-display text-balance text-5xl font-semibold leading-display sm:text-6xl">
               The hard parts, already wired.
             </h1>
             <p className="rise rise-3 mt-6 text-pretty text-lg text-muted-foreground">
@@ -37,18 +46,13 @@ function HeroSection() {
             <div className="rise rise-4 mt-9 flex flex-wrap items-center gap-3">
               {/* The demo tree renders the reference dashboard for the seed
                   workspace with no sign-in and no mutation path; the real app
-                  is one sign-in away from there. */}
+                  is one sign-in away from there. No second "Sign in" button:
+                  the header carries one on every scroll position, and a
+                  second at the fold read as a duplicate control, not a
+                  choice. */}
               <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
                 Open the live demo
                 <ArrowRightIcon className="size-4" />
-              </Button>
-              <Button
-                nativeButton={false}
-                render={<Link to="/sign-in" />}
-                size="lg"
-                variant="outline"
-              >
-                Sign in
               </Button>
               <a
                 href={GITHUB_URL}
@@ -60,56 +64,28 @@ function HeroSection() {
                 View on GitHub
                 <span className="sr-only">(opens in new tab)</span>
               </a>
-              <code className="font-mono text-xs text-muted-foreground max-sm:mt-2">
-                $ {INSTALL_AND_RUN}
-              </code>
             </div>
           </div>
-          <figure
-            // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <figure> is the semantic element; role="region" exposes the scrollable area without losing figure semantics.
-            role="region"
-            aria-label="Architecture schematic, scrollable horizontally"
-            // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focus stop to pan the horizontally overflowing schematic.
-            tabIndex={0}
-            className="rise rise-3 min-w-0 overflow-x-auto border border-border bg-card p-3 sm:p-4"
+          {/* The quickstart's real commands, one per line — not a
+              copy-paste line that quietly skips the migrate and seed steps
+              before it. `lib/toolchain.ts` holds them, and its test fails
+              if they stop matching the quickstart verbatim. */}
+          <ol
+            aria-label="Quickstart commands"
+            className="rise rise-4 w-full max-w-sm justify-self-start border border-border bg-card font-mono text-xs lg:justify-self-stretch"
           >
-            <ArchitectureSchematic />
-            {/* Text alternative for the diagram's detail: the SVG is one
-                image (role="img") whose 8–10px labels are not individually
-                exposed, so the nodes and edges exist as a hidden list. */}
-            <figcaption className="sr-only">
-              Every label in this diagram is a real path in the repository.
-            </figcaption>
-            <dl className="sr-only">
-              <div>
-                <dt>Clients</dt>
-                <dd>browser, curl / SDK, MCP client, queue jobs</dd>
-              </div>
-              <div>
-                <dt>Workers</dt>
-                <dd>
-                  apps/web (TanStack Start), apps/api (REST + MCP), apps/background
-                  (queue consumer)
-                </dd>
-              </div>
-              <div>
-                <dt>Shared layer</dt>
-                <dd>packages/capabilities: every worker calls the same effects</dd>
-              </div>
-              <div>
-                <dt>Infrastructure</dt>
-                <dd>D1 (database), Queues (outbound webhooks), Email Service</dd>
-              </div>
-              <div>
-                <dt>Flows</dt>
-                <dd>
-                  browser to apps/web to capabilities to D1; REST and MCP clients to
-                  apps/api to capabilities to D1; queue jobs to apps/background to
-                  capabilities to Queues and Email
-                </dd>
-              </div>
-            </dl>
-          </figure>
+            {SETUP_STEPS.map((step) => (
+              <li
+                key={step}
+                className="flex items-baseline gap-2 border-b border-border px-3 py-1.5 text-foreground/90 last:border-b-0"
+              >
+                <span aria-hidden className="select-none text-muted-foreground">
+                  $
+                </span>
+                <code>{step}</code>
+              </li>
+            ))}
+          </ol>
         </div>
         <ul className="mt-14 flex flex-wrap gap-x-7 gap-y-2 border-t border-border pt-5 font-mono text-xs text-muted-foreground">
           {BILL_OF_MATERIALS.map((item) => (

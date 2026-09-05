@@ -1,7 +1,13 @@
 import { type ReactNode, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { BoxesIcon, MenuIcon } from 'lucide-react'
+// The public layout is the one scope that still renders Newsreader (the
+// landing hero and section headings), so its latin variable woff2 preloads
+// here instead of in __root.tsx: auth screens and the workspace app never
+// enter this layout and never pay for the font.
+import newsreaderLatinWoff2 from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url'
 import { SearchButton } from '@/components/command-palette'
+import { GITHUB_URL } from '@/components/landing/github-url'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -17,6 +23,15 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   return (
     <div className="marketing flex min-h-dvh flex-col bg-background">
+      {/* Rendered in the tree, hoisted to <head> by React 19 — see the import
+          comment above. Deduped by href if the root ever preloads it again. */}
+      <link
+        rel="preload"
+        href={newsreaderLatinWoff2}
+        as="font"
+        type="font/woff2"
+        crossOrigin="anonymous"
+      />
       <a
         // oxlint-disable-next-line react-doctor/anchor-target-exists -- the target is owned by this layout's children: every public route renders its own <main id="main-content"> (routes/index.tsx, sign-in.tsx, pricing.tsx, …). The rule scans only the file declaring the link.
         href="#main-content"
@@ -25,7 +40,9 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
         Skip to content
       </a>
       <header className="sticky top-0 z-40 border-b border-border bg-background">
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
+        {/* `gap-3` on the narrow bar: the wordmark is nowrap (P3), so the
+            16px gaps pushed Sign in 8px past a 390px viewport. */}
+        <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6 md:gap-4">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger
               render={
@@ -61,7 +78,10 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
               </nav>
             </SheetContent>
           </Sheet>
-          <Link to="/" className="flex items-center gap-2 font-semibold">
+          <Link
+            to="/"
+            className="flex items-center gap-2 font-semibold whitespace-nowrap"
+          >
             <span className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground">
               <BoxesIcon className="size-4" />
             </span>
@@ -101,12 +121,18 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             >
               Terms
             </Link>
-            <Link
-              to="/changelog"
+            {/* /changelog redirects to the repository's releases, so link
+                there directly — the footer should not bounce through a
+                redirect to leave the site. */}
+            <a
+              href={`${GITHUB_URL}/releases`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
             >
               Changelog
-            </Link>
+              <span className="sr-only"> (opens in new tab)</span>
+            </a>
           </div>
         </div>
       </footer>

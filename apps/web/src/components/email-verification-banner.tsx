@@ -6,6 +6,7 @@ import {
 } from '@/components/auth/auth-client-ports'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { authErrorCopy } from '@/lib/auth-error-copy'
 
 export { type SendVerificationEmail }
 
@@ -45,7 +46,7 @@ export function EmailVerificationBanner({
     setSendError(null)
     const result = await sendVerificationEmail({ email })
     if (result.error) {
-      setSendError(result.error.message ?? 'Could not send the email')
+      setSendError(authErrorCopy(result.error, 'Could not send the email'))
       return
     }
     setSent(true)
@@ -67,7 +68,7 @@ export function EmailVerificationBanner({
             </span>
           ) : null}
         </span>
-        <Button type="button" variant="outline" size="sm" onClick={() => void resend()}>
+        <Button type="button" variant="outline" onClick={() => void resend()}>
           Resend verification email
         </Button>
       </AlertDescription>

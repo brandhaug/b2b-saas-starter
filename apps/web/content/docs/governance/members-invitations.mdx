@@ -8,7 +8,7 @@ tags: [members, invitations]
 
 A Member is a user who belongs to a workspace with one Workspace Role. An Invitation is a request for a user to join a workspace with a specific role.
 
-> **Status:** the send, cancel, and accept flows are built and persisted in the Reference Application. Resend is not implemented. Invitations are a Reference Application surface only — the API Worker serves none, see "One surface, and why" below. Invitations run on Better Auth's `organization` plugin (ADR 0051).
+> **Status:** the send, cancel, and accept flows are built and persisted in the Reference Application. Resend is not implemented. Invitations are a Reference Application surface only (the API Worker serves none; see "One surface, and why" below). Invitations run on Better Auth's `organization` plugin (ADR 0051).
 
 ## Invitation flow
 
@@ -17,19 +17,19 @@ A Member is a user who belongs to a workspace with one Workspace Role. An Invita
 3. The recipient signs in (via the Local Auth Path or an Example OAuth Provider) and accepts
 4. A Member row is created with the target role and the invitation is marked accepted, both in the same call
 
-Accepting is keyed by invitation id and carries no workspace context and no permission check. The accepter is not a Member until they accept, so there is no role to check — the invitation itself is the authorization.
+Accepting is keyed by invitation id and carries no workspace context and no permission check. The accepter is not a Member until they accept, so there is no role to check: the invitation itself is the authorization.
 
 ## One surface, and why
 
 The Reference Application (`apps/web`) holds the whole flow, because every invitation endpoint on Better Auth's `organization` plugin requires a session and `createInvitation` requires a caller who is already a Member. The API Worker authenticates with an API Token and has no session to offer.
 
-The Worker used to serve `POST /workspaces/:slug/invitations`. It emailed the recipient and wrote an Audit Event but persisted no row, and the link it sent carried no invitation id — so the recipient always landed on the "cannot be used" notice. That endpoint is gone. The Worker could instead mint a session for the API Token's creating user, but that manufactures an identity nobody signed in as and puts a second authority beside the single `authorize()` call the starter enforces with; writing around the plugin would mean reimplementing the invitation state machine. Neither is worth it without a use case. Member and Invitation **reads** are still on the REST surface.
+The Worker used to serve `POST /workspaces/:slug/invitations`. It emailed the recipient and wrote an Audit Event but persisted no row, and the link it sent carried no invitation id, so the recipient always landed on the "cannot be used" notice. That endpoint is gone. The Worker could instead mint a session for the API Token's creating user, but that manufactures an identity nobody signed in as and puts a second authority beside the single `authorize()` call the starter enforces with; writing around the plugin would mean reimplementing the invitation state machine. Neither is worth it without a use case. Member and Invitation **reads** are still on the REST surface.
 
 One consequence: nothing outside the Reference Application publishes invitation Webhook Events any more. The Reference Application writes Audit Events but publishes no Webhooks at all, so `workspace_invitation.sent` has no outbound producer today.
 
 ## Pending invitations
 
-Workspace settings renders a pending-invitation panel: each row shows the email, target role, status, and expiry, and an owner or admin can cancel it. Cancelling emits a `workspace_invitation.canceled` Audit Event. Resend is not implemented — cancel and send again.
+Workspace settings renders a pending-invitation panel: each row shows the email, target role, status, and expiry, and an owner or admin can cancel it. Cancelling emits a `workspace_invitation.canceled` Audit Event. Resend is not implemented; cancel and send again.
 
 ## Existing users
 
@@ -37,4 +37,4 @@ If the invited email already corresponds to a user, accepting the invitation ski
 
 ## Edge cases
 
-`workspace_invitations.expiresAt` is required and set at issuance time. An expired, cancelled, already-accepted, or wrongly-addressed invitation all resolve to one opaque "cannot be used" state, deliberately — a distinct message per case would tell a stranger whether an address has a pending invitation. A user can be a Member of many workspaces simultaneously; switching workspaces is a slug in the URL, not a session operation and not a re-auth.
+`workspace_invitations.expiresAt` is required and set at issuance time. An expired, cancelled, already-accepted, or wrongly-addressed invitation all resolve to one opaque "cannot be used" state, deliberately: a distinct message per case would tell a stranger whether an address has a pending invitation. A user can be a Member of many workspaces simultaneously; switching workspaces is a slug in the URL, not a session operation and not a re-auth.

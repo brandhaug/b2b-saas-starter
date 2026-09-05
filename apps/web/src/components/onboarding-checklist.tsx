@@ -7,8 +7,9 @@ import { CircleCheckIcon, CircleIcon } from 'lucide-react'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useServerAction } from '@/hooks/use-server-action'
+import { ActionFeedback } from '@/components/page/action-feedback'
+import { Panel } from '@/components/page/panel'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { dismissOnboardingChecklistServerFn } from '@/lib/server/workspace-onboarding'
 import { type WorkspaceNavTarget } from '@/lib/workspace-nav'
@@ -92,12 +93,18 @@ export function OnboardingChecklist({
   workspaceSlug,
   progress,
   viewer,
-  dismiss = dismissOnboardingChecklistServerFn
+  dismiss = dismissOnboardingChecklistServerFn,
+  dismissalNote = true
 }: {
   readonly workspaceSlug: string
   readonly progress: WorkspaceProgressProjection
   readonly viewer: Viewer
   readonly dismiss?: DismissOnboardingChecklist
+  /**
+   * Off on the read-only demo, where the note would name a dismiss control
+   * the page does not carry.
+   */
+  readonly dismissalNote?: boolean | undefined
 }) {
   const [justDismissed, setJustDismissed] = useState(false)
   const canDismiss = viewerCan(viewer, { onboarding: ['dismiss'] })
@@ -119,15 +126,18 @@ export function OnboardingChecklist({
   const allDone = progress.completedCount === progress.totalCount
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle as="h2">Set up your workspace</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {allDone
-            ? 'Every step is done. Dismiss this card whenever you like.'
-            : 'Each step is checked against the workspace itself, so it reopens if the thing behind it is removed.'}
-        </p>
-        <div data-slot="card-action" className="flex items-center gap-3">
+    // The page Panel anatomy, not a hand-rolled Card: the title owns its row
+    // and wraps to full width on a phone, and the action slot is Panel's own,
+    // so the count and Dismiss can never squeeze the title to three lines.
+    <Panel
+      title="Set up your workspace"
+      description={
+        allDone
+          ? 'Every step is done. Dismiss this card whenever you like.'
+          : 'Each step is checked against the workspace itself, so it reopens if the thing behind it is removed.'
+      }
+      actions={
+        <>
           <span className="font-mono text-sm tabular-nums text-muted-foreground">
             {progress.completedCount} of {progress.totalCount}
           </span>
@@ -135,54 +145,48 @@ export function OnboardingChecklist({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               disabled={dismissal.pending}
               onClick={() => dismissal.run()}
             >
               Dismiss
             </Button>
           ) : null}
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        <ul className="grid gap-2 text-sm">
-          {progress.steps.map((step) => {
-            const copy = STEP_COPY[step.id]
-            return (
-              <li key={step.id} className="flex items-center gap-2">
-                {step.complete ? (
-                  <CircleCheckIcon
-                    aria-label="Done"
-                    className="size-4 shrink-0 text-status-ok"
-                  />
-                ) : (
-                  <CircleIcon
-                    aria-label="To do"
-                    className="size-4 shrink-0 text-muted-foreground"
-                  />
-                )}
-                {step.complete ? (
-                  <span className="text-muted-foreground">{copy.label}</span>
-                ) : (
-                  <StepLink to={copy.to} workspaceSlug={workspaceSlug}>
-                    {copy.label}
-                  </StepLink>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-        {canDismiss ? null : (
-          <p className="text-xs text-muted-foreground">
-            Owners and admins can dismiss this checklist for the workspace.
-          </p>
-        )}
-        {dismissal.error ? (
-          <p role="alert" className="text-xs text-destructive">
-            {dismissal.error}
-          </p>
-        ) : null}
-      </CardContent>
-    </Card>
+        </>
+      }
+    >
+      <ul className="grid gap-2 text-sm">
+        {progress.steps.map((step) => {
+          const copy = STEP_COPY[step.id]
+          return (
+            <li key={step.id} className="flex items-center gap-2">
+              {step.complete ? (
+                <CircleCheckIcon
+                  aria-label="Done"
+                  className="size-4 shrink-0 text-status-ok"
+                />
+              ) : (
+                <CircleIcon
+                  aria-label="To do"
+                  className="size-4 shrink-0 text-muted-foreground"
+                />
+              )}
+              {step.complete ? (
+                <span className="text-muted-foreground">{copy.label}</span>
+              ) : (
+                <StepLink to={copy.to} workspaceSlug={workspaceSlug}>
+                  {copy.label}
+                </StepLink>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {canDismiss || !dismissalNote ? null : (
+        <p className="text-xs text-muted-foreground">
+          Owners and admins can dismiss this checklist for the workspace.
+        </p>
+      )}
+      <ActionFeedback error={dismissal.error} />
+    </Panel>
   )
 }

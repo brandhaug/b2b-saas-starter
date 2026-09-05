@@ -29,10 +29,17 @@ export const Route = createFileRoute('/_knowledge/faq')({
 })
 
 function FaqPage() {
+  // The first answer starts open: a page of nothing but collapsed questions
+  // reads as a bare list, and the first item is what almost every visitor
+  // opened the page for.
+  const [firstFaq] = faqItems
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <h1 className="font-display text-3xl font-semibold">FAQ</h1>
-      <Accordion className="mt-8">
+      <h1 className="text-3xl font-semibold">FAQ</h1>
+      <Accordion
+        className="mt-8"
+        defaultValue={firstFaq === undefined ? [] : [firstFaq.question]}
+      >
         {faqItems.map((item) => (
           <AccordionItem key={item.question} value={item.question}>
             <AccordionTrigger>{item.question}</AccordionTrigger>

@@ -18,6 +18,7 @@ import {
 import { getSocialProviderIds } from '@/lib/server/social-providers'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
+import { authErrorCopy } from '@/lib/auth-error-copy'
 import { TurnstileWidget } from '@/components/auth/turnstile-widget'
 
 export type { SignUpWithEmail } from '@/components/auth/auth-client-ports'
@@ -96,12 +97,11 @@ export function SignUpPage({
         turnstileToken: turnstileToken ?? undefined
       })
       if (result.error) {
+        // The captcha refusals (`captcha_rejected`, `captcha_unavailable`)
+        // are codes in the shared table, so the challenge-reset below is the
+        // only thing this branch adds to the mapped copy.
         setTurnstileToken(null)
-        setSubmitError(
-          result.error.message?.includes('captcha') === true
-            ? 'The bot check failed — try the challenge again.'
-            : (result.error.message ?? 'Sign-up failed')
-        )
+        setSubmitError(authErrorCopy(result.error, 'Sign-up failed'))
         return
       }
       // Registration signs the user in (auto sign-in) and emails a

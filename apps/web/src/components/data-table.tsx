@@ -103,6 +103,8 @@ type DataTableProps<TData extends RowData> = {
   readonly emptyMessage?: string
   /** Accessible name for the underlying `<table>` element. */
   readonly tableLabel?: string
+  /** Whether to render the count footer with the Previous/Next pager (default true). */
+  readonly pager?: boolean
 }
 
 export function DataTable<TData extends RowData>({
@@ -112,7 +114,8 @@ export function DataTable<TData extends RowData>({
   filterColumnId,
   pageSize = 10,
   emptyMessage = 'No results.',
-  tableLabel
+  tableLabel,
+  pager = true
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -174,7 +177,6 @@ export function DataTable<TData extends RowData>({
                     {canSort && label !== null ? (
                       <Button
                         variant="ghost"
-                        size="sm"
                         onClick={header.column.getToggleSortingHandler()}
                         aria-label={`Sort by ${columnTitle}${sortState.label}`}
                       >
@@ -220,35 +222,35 @@ export function DataTable<TData extends RowData>({
           )}
         </TableBody>
       </Table>
-      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        {/* Live: filter/pagination changes announce the new count, as the
-            audit trail's count already does. */}
-        <span aria-live="polite">
-          Page {table.state.pagination.pageIndex + 1} of {table.getPageCount()}
-          {' · '}
-          {filteredCount} rows
-        </span>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
+      {pager ? (
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          {/* Live: filter/pagination changes announce the new count, as the
+              audit trail's count already does. */}
+          <span aria-live="polite">
+            Page {table.state.pagination.pageIndex + 1} of {table.getPageCount()}
+            {' · '}
+            {filteredCount} rows
+          </span>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Next
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

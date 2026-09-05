@@ -126,7 +126,7 @@ export function SessionsPanel({
       actions={
         othersExist ? (
           <AlertDialog>
-            <AlertDialogTrigger render={<Button variant="outline" size="sm" />}>
+            <AlertDialogTrigger render={<Button variant="outline" />}>
               Sign out everywhere else
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -188,7 +188,6 @@ export function SessionsPanel({
                       render={
                         <Button
                           variant="ghost"
-                          size="sm"
                           aria-label={`Revoke ${row.deviceLabel} session`}
                         />
                       }

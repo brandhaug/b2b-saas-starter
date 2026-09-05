@@ -3,7 +3,7 @@ import { createRouter, Link } from '@tanstack/react-router'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import { routeTree } from './routeTree.gen'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
-import './index.css'
+import { type SidebarWorkspace } from '@/lib/workspace-directory'
 
 function NotFound() {
   return (
@@ -44,12 +44,24 @@ function RouteError({ error }: { readonly error: Error }) {
 
 export function getRouter() {
   const queryClient = new QueryClient()
+  // `lastWorkspace` remembers the workspace the user last visited: the
+  // workspace shell writes it, and surfaces without a workspace of their own
+  // (/account, /admin, the picker) read it back so the sidebar keeps its shape
+  // instead of collapsing to a logo. Server renders always start at `null` —
+  // it is client-session memory, never a cross-request fact. The root route's
+  // context type is closed (`RouterAppContext` declares only `queryClient`), so
+  // this rides the runtime context object, reached only through the helpers in
+  // lib/workspace-directory.ts — hence a const, not a literal, at this call.
+  const context = {
+    queryClient,
+    lastWorkspace: null satisfies SidebarWorkspace | null
+  }
   const router = createRouter({
     routeTree,
     defaultPreload: 'intent',
     defaultNotFoundComponent: NotFound,
     defaultErrorComponent: RouteError,
-    context: { queryClient }
+    context
   })
 
   setupRouterSsrQueryIntegration({ router, queryClient })

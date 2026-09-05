@@ -94,10 +94,16 @@ export function toRouteSession(session: Session): RouteSession {
 /**
  * Route gate for `beforeLoad`. Redirects unauthenticated visitors to
  * `/sign-in` and returns the projected session so loaders can pass the actor
- * to `runWorkspaceCapabilities`.
+ * to `runWorkspaceCapabilities`. `loadSession` is injectable because the
+ * server fn it defaults to only runs inside a request —
+ * `auth-runtime.test.ts` drives the gate with the degraded runtime's own
+ * null answer.
  */
-export async function requireSession(redirectTo: string): Promise<RouteSession> {
-  const session = await getSessionServerFn()
+export async function requireSession(
+  redirectTo: string,
+  loadSession: () => Promise<Session | null> = getSessionServerFn
+): Promise<RouteSession> {
+  const session = await loadSession()
   if (!session) {
     // oxlint-disable-next-line effect/noThrowStatement -- `throw redirect()` is TanStack Router's navigation control-flow API
     throw redirect({ to: '/sign-in', search: { redirect: redirectTo } })
@@ -130,7 +136,7 @@ export async function requireAdmin(redirectTo: string): Promise<RouteSession> {
  */
 export class UnauthorizedError extends Error {
   constructor() {
-    super('Your session has expired — sign in again and retry.')
+    super('Your session has expired. Sign in again and retry.')
     this.name = 'UnauthorizedError'
   }
 }

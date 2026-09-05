@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { type AuthResult } from '@/lib/auth-result'
+import { authErrorCopy } from '@/lib/auth-error-copy'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 
 export const Route = createFileRoute('/two-factor')({
@@ -64,7 +65,7 @@ export function TwoFactorChallengePage({
    */
   function finishChallenge(result: AuthResult): void {
     if (result.error) {
-      setSubmitError(result.error.message ?? 'Verification failed')
+      setSubmitError(authErrorCopy(result.error, 'Verification failed'))
       return
     }
     const continuation = oauthContinuationUrl(result.data)

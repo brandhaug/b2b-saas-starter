@@ -22,6 +22,7 @@ import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { type AuthResult } from '@/lib/auth-result'
+import { authErrorCopy } from '@/lib/auth-error-copy'
 
 /**
  * The second hop of the exchange, as the flow drives it: the address a code
@@ -67,9 +68,9 @@ type EmailCodeFormApi = ReactFormExtendedApi<
  * asks for the email and sends a code (`send`, with the flow's `purpose`),
  * step two exchanges it (`verify`) and hands off to `onVerified`. Owns the
  * whole state machine — the non-disclosing sent state, the visible resend
- * cooldown, the "use a different email" reset, and the
- * `result.error.message ?? fallback` folding — so the routes only supply the
- * ports and the copy.
+ * cooldown, the "use a different email" reset, and the failure copy
+ * (`authErrorCopy`, the shared code table, with each flow's fallback) — so
+ * the routes only supply the ports and the copy.
  *
  * `layout` picks the chrome: `"page"` renders both steps as standalone
  * `AuthCardForm`s (title + description per step, the footer slots); `"card"`
@@ -146,7 +147,7 @@ export function EmailCodeExchange({
       setSubmitError(null)
       const result = await send({ email: value.email, purpose })
       if (result.error) {
-        setSubmitError(result.error.message ?? 'Could not send the code')
+        setSubmitError(authErrorCopy(result.error, 'Could not send the code'))
         return
       }
       setSentEmail(value.email)
@@ -168,7 +169,7 @@ export function EmailCodeExchange({
         password: value.password
       })
       if (result.error) {
-        setSubmitError(result.error.message ?? verifyErrorFallback)
+        setSubmitError(authErrorCopy(result.error, verifyErrorFallback))
         return
       }
       onVerified()
@@ -182,7 +183,7 @@ export function EmailCodeExchange({
     setSubmitError(null)
     const result = await send({ email: sentEmail, purpose })
     if (result.error) {
-      setSubmitError(result.error.message ?? 'Could not resend the code')
+      setSubmitError(authErrorCopy(result.error, 'Could not resend the code'))
       return
     }
     cooldown.start()

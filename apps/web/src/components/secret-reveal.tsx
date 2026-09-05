@@ -43,7 +43,6 @@ export function SecretReveal({
       <Button
         type="button"
         variant="ghost"
-        size="sm"
         className="shrink-0"
         aria-label={revealed ? `Hide ${label}` : `Show ${label}`}
         aria-pressed={revealed}
@@ -56,14 +55,20 @@ export function SecretReveal({
       <Button
         type="button"
         variant="ghost"
-        size="sm"
         className="shrink-0"
         onClick={() => void copy()}
       >
         Copy
         <span className="sr-only"> {label}</span>
       </Button>
-      <output className="sr-only">{copied ? 'Copied' : ''}</output>
+      {/* Always mounted, content swapped: a live region must exist before the
+          change for screen readers to announce it. Visible for the same ~2s
+          the timer holds it, so sighted users get the one confirmation too —
+          a toast per copy would be spam. It is the last flex child, so
+          appearing shifts nothing to its left. */}
+      <output className="shrink-0 text-xs font-medium text-status-ok">
+        {copied ? 'Copied' : ''}
+      </output>
     </span>
   )
 }

@@ -18,6 +18,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { RoleChangeButtons } from '@/components/role-change-buttons'
+import { roleVariant } from '@/lib/badge-variants'
 import {
   changeUserWorkspaceRoleServerFn,
   listUserWorkspacesServerFn,
@@ -133,7 +134,6 @@ export function AdminUserActions({
           </SelectContent>
         </Select>
         <Button
-          size="sm"
           variant="ghost"
           disabled={busy || !selectedId}
           onClick={() => selectUser(selectedId)}
@@ -184,7 +184,7 @@ function MembershipList({
         >
           <span className="min-w-0 text-sm break-words">{workspace.name}</span>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">{member.role}</Badge>
+            <Badge variant={roleVariant(member.role)}>{member.role}</Badge>
             <RoleChangeButtons
               currentRole={member.role}
               labelFor={(role) => `Make ${workspace.name} role ${role}`}

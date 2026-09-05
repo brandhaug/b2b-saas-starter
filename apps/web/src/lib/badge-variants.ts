@@ -1,8 +1,25 @@
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { type WorkspaceExport } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type Badge } from '@/components/ui/badge'
 
 export type BadgeVariant = NonNullable<React.ComponentProps<typeof Badge>['variant']>
+
+/**
+ * Workspace role → badge variant, the one mapping every surface that renders
+ * a role uses (roster, `/admin`'s membership editor, invitation accept). A
+ * role is identity, not a status: the status hues (ok/warn/info/destructive)
+ * stay reserved for states, mauve stays reserved for emphasis, and the owner
+ * — the one role a workspace cannot share, since only owners grant ownership
+ * — is the one role that earns the emphasis hue. Admin and member are peers
+ * in neutral.
+ */
+export function roleVariant(role: WorkspaceRole): BadgeVariant {
+  if (role === 'owner') {
+    return 'default'
+  }
+  return 'neutral'
+}
 
 /**
  * Status → badge variant, in one place. `pending` is the only state a

@@ -1,3 +1,5 @@
+import { type AuthErrorPayload, copyForAuthCode } from './auth-error-copy'
+
 /**
  * Better Auth's client resolves with `{ error }` instead of rejecting, so a
  * failed call reads as a success to anything that only watches the promise.
@@ -9,11 +11,13 @@
  * The response shape the Better Auth client endpoints return. `data` is opaque
  * on purpose — Better Auth's client types don't expose every marker (the
  * two-factor redirect, the plugin's status flags), so consumers decode what
- * they need rather than assert on the body.
+ * they need rather than assert on the body. The error envelope's `code` is
+ * what user-facing copy comes from (`lib/auth-error-copy.ts`), never the
+ * message.
  */
 export type AuthResult<D = unknown> = {
   readonly data?: D | null | undefined
-  readonly error?: { readonly message?: string | undefined } | null
+  readonly error?: AuthErrorPayload | null
 }
 
 /**
@@ -33,7 +37,11 @@ export async function unwrapAuthResult<D>(
 ): Promise<D | null> {
   const result = await run()
   if (result.error) {
-    return authFailure(result.error.message ?? fallback)
+    // Known codes get the table's sentence; everything else gets the
+    // caller's fallback. Never `error.message`: a raw message is whatever
+    // the far end put on the wire — a class name from a proxy 500, a stack
+    // fragment — and the account panels read this string to the visitor.
+    return authFailure(copyForAuthCode(result.error) ?? fallback)
   }
   return result.data ?? null
 }

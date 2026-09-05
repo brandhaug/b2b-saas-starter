@@ -15,7 +15,7 @@ const CHECKOUT_DISABLED =
 const CHECKOUT_FAILED = 'Something went wrong starting checkout.'
 const PORTAL_FAILED = 'Something went wrong opening the billing portal.'
 const PORTAL_UNAVAILABLE =
-  'The billing portal is not available for this workspace yet — it opens after the first subscription. Start an upgrade first, then manage invoices and payment methods there.'
+  'The billing portal is not available for this workspace yet. It opens after the first subscription. Start an upgrade first, then manage invoices and payment methods there.'
 
 /** The server function the Upgrade button calls; a test supplies its own. */ export type StartCheckout =
   (input: {
@@ -137,7 +137,6 @@ export function BillingPlans({
           stripeConfigured && canManageBilling ? (
             <Button
               variant="secondary"
-              size="sm"
               disabled={portal.pending}
               onClick={() => portal.run(undefined)}
             >
@@ -211,7 +210,7 @@ function PlanTile({
     <div className="grid gap-2 rounded-none border border-border bg-muted p-4 content-start">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-semibold">{plan.name}</h3>
-        {plan.id === currentPlanId ? <Badge variant="secondary">Current</Badge> : null}
+        {plan.id === currentPlanId ? <Badge variant="neutral">Current</Badge> : null}
       </div>
       <p className="text-2xl font-semibold">{plan.price}</p>
       <p className="text-sm text-muted-foreground">{plan.description}</p>

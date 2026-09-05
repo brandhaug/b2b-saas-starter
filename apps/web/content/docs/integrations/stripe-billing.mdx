@@ -6,11 +6,11 @@ order: 20
 tags: [stripe, billing, seats, webhooks]
 ---
 
-Billing is an **Optional Provider** built on Stripe. Plan display, seat usage, and entitlement gating work with no Stripe configuration at all; only the provider touchpoints — checkout, the Billing Portal, seat sync, and the inbound webhook — activate when their environment variables are present. Everything else in the app keeps working when they are unset.
+Billing is an **Optional Provider** built on Stripe. Plan display, seat usage, and entitlement gating work with no Stripe configuration at all; only the provider touchpoints (checkout, the Billing Portal, seat sync, and the inbound webhook) activate when their environment variables are present. Everything else in the app keeps working when they are unset.
 
 ## What exists where
 
-- **Plan catalog** — `packages/capabilities/src/billing/plan-catalog.ts` owns the `PLANS` constant, each plan's pricing shape (`flat` or `per_seat`), and its entitlement ceilings. The workspace billing page, the members page's seat prompt, and the entitlement gate read this one list. As rendered from the catalog:
+- **Plan catalog**: `packages/capabilities/src/billing/plan-catalog.ts` owns the `PLANS` constant, each plan's pricing shape (`flat` or `per_seat`), and its entitlement ceilings. The workspace billing page, the members page's seat prompt, and the entitlement gate read this one list. As rendered from the catalog:
 
   | Plan       | Price       | Billing shape | Entitlement ceilings              | Included seats | How you get on it           |
   | ---------- | ----------- | ------------- | --------------------------------- | -------------- | --------------------------- |
@@ -18,14 +18,14 @@ Billing is an **Optional Provider** built on Stripe. Plan display, seat usage, a
   | Team       | $12/seat/mo | Per seat      | Unlimited                         | — (per seat)   | Self-serve Stripe checkout  |
   | Enterprise | Custom      | Flat          | Unlimited                         | Unlimited      | Sold outside the product    |
 
-  The starter is MIT — these plans are the reference billing vocabulary the code ships with, not an offer.
+  The starter is MIT; these plans are the reference billing vocabulary the code ships with, not an offer.
 
-- **Billing page** — `/workspaces/$slug/billing` shows the current plan and catalog. With Stripe configured, owners get a **Manage billing** button that opens the Stripe Billing Portal (invoices, payment method, cancellation live there, not here), and can start a checkout for Team; Enterprise says "contact sales" and downgrades ride the provider's subscription flow. Unset, the button is absent and the page explains what to configure.
-- **Seat usage** — `seatUsage(plan, memberCount)` compares the roster against the plan's seat terms. On a flat plan past its included seats, the members page shows an upgrade prompt; members are never blocked, the workspace is asked to cover them. A per-seat plan never prompts — it bills one **Seat Quantity** per Member.
-- **Seat sync** — membership mutations (a Member added or removed) and invitation acceptances enqueue one message onto the `BILLING_QUEUE`. The background worker consumes it and mirrors the member count onto the Stripe subscription item's quantity through `Billing.syncSeats`, so a membership mutation never awaits Stripe. The stored quantity and a `billing.seats_changed` audit event commit together; a Stripe failure retries through the queue.
-- **Checkout handoff** — the `startCheckoutServerFn` server function composes success/cancel URLs server-side from `BETTER_AUTH_URL` (the client names only its slug and plan), calls Stripe's REST API directly over form-encoded fetch (no SDK), and records a `billing.checkout_started` audit event. On a per-seat plan the subscription item opens at the workspace's current member count.
-- **Entitlement gate** — `assertWithinPlanLimit` caps Starter workspaces at 2 API tokens and 1 webhook endpoint; paid plans do not cap. The web server functions and the API worker both compose it before creates, failing with a 402 `PlanLimitExceeded`.
-- **Inbound webhook** — `POST /webhooks/stripe` on the background Worker verifies Stripe's signature scheme against `STRIPE_WEBHOOK_SECRET`, then applies:
+- **Billing page**: `/workspaces/$slug/billing` shows the current plan and catalog. With Stripe configured, owners get a **Manage billing** button that opens the Stripe Billing Portal (invoices, payment method, cancellation live there, not here), and can start a checkout for Team; Enterprise says "contact sales" and downgrades ride the provider's subscription flow. Unset, the button is absent and the page explains what to configure.
+- **Seat usage**: `seatUsage(plan, memberCount)` compares the roster against the plan's seat terms. On a flat plan past its included seats, the members page shows an upgrade prompt; members are never blocked, the workspace is asked to cover them. A per-seat plan never prompts; it bills one **Seat Quantity** per Member.
+- **Seat sync**: membership mutations (a Member added or removed) and invitation acceptances enqueue one message onto the `BILLING_QUEUE`. The background worker consumes it and mirrors the member count onto the Stripe subscription item's quantity through `Billing.syncSeats`, so a membership mutation never awaits Stripe. The stored quantity and a `billing.seats_changed` audit event commit together; a Stripe failure retries through the queue.
+- **Checkout handoff**: the `startCheckoutServerFn` server function composes success/cancel URLs server-side from `BETTER_AUTH_URL` (the client names only its slug and plan), calls Stripe's REST API directly over form-encoded fetch (no SDK), and records a `billing.checkout_started` audit event. On a per-seat plan the subscription item opens at the workspace's current member count.
+- **Entitlement gate**: `assertWithinPlanLimit` caps Starter workspaces at 2 API tokens and 1 webhook endpoint; paid plans do not cap. The web server functions and the API worker both compose it before creates, failing with a 402 `PlanLimitExceeded`.
+- **Inbound webhook**: `POST /webhooks/stripe` on the background Worker verifies Stripe's signature scheme against `STRIPE_WEBHOOK_SECRET`, then applies:
 
   | Event                           | What it does                                                                       |
   | ------------------------------- | ---------------------------------------------------------------------------------- |
@@ -52,7 +52,7 @@ All three are optional fields in `packages/env/src/server.ts`. Unset, checkout a
 
 ## Queue topology
 
-Seat sync rides its own `b2b-saas-starter-billing` queue (produced by the web worker, consumed by the background worker) rather than sharing the webhook delivery queue — the message shapes and retry semantics are different. It has no dead-letter queue on purpose: sync is self-healing, so the next membership change re-syncs and the `customer.subscription.updated` webhook reconciles any drift. The full decision is recorded in ADR 0060 (`docs/adr/0060-seat-based-billing-with-queue-decoupled-seat-sync.md`).
+Seat sync rides its own `b2b-saas-starter-billing` queue (produced by the web worker, consumed by the background worker) rather than sharing the webhook delivery queue: the message shapes and retry semantics are different. It has no dead-letter queue on purpose: sync is self-healing, so the next membership change re-syncs and the `customer.subscription.updated` webhook reconciles any drift. The full decision is recorded in ADR 0060 (`docs/adr/0060-seat-based-billing-with-queue-decoupled-seat-sync.md`).
 
 ## Webhook setup
 
@@ -60,4 +60,4 @@ Point a Stripe webhook endpoint at `<background-worker>/webhooks/stripe` subscri
 
 ## What Stripe is not used for
 
-Stripe is not used for user authentication, not for invitation emails, and not for storing PII beyond what the subscription metadata carries (a workspace id and plan id). The starter's domain stays in D1, and the Billing Portal — not the starter — owns invoice, payment-method, and cancellation screens.
+Stripe is not used for user authentication, not for invitation emails, and not for storing PII beyond what the subscription metadata carries (a workspace id and plan id). The starter's domain stays in D1, and the Billing Portal (not the starter) owns invoice, payment-method, and cancellation screens.

@@ -12,6 +12,7 @@ import {
   type ResetPassword
 } from '@/components/auth/auth-client-ports'
 import { pickOptionalStrings } from '@/lib/utils'
+import { authErrorCopy } from '@/lib/auth-error-copy'
 
 export type { ResetPassword } from '@/components/auth/auth-client-ports'
 
@@ -56,7 +57,7 @@ export function ResetPasswordPage({
         token: token ?? ''
       })
       if (result.error) {
-        setSubmitError(result.error.message ?? 'Reset failed')
+        setSubmitError(authErrorCopy(result.error, 'Reset failed'))
         return
       }
       // The reset revokes every session (revokeSessionsOnPasswordReset), so

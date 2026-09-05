@@ -74,9 +74,9 @@ describe('ForgotPasswordPage', () => {
     expect(message.textContent).not.toContain('nobody@nowhere.test')
   })
 
-  it('surfaces request errors and keeps the form', async () => {
+  it('surfaces request errors as table copy and keeps the form', async () => {
     requestReset.mockResolvedValueOnce({
-      error: { message: 'Too many requests' }
+      error: { code: 'rate_limited' }
     })
     await renderPage()
     fireEvent.change(screen.getByLabelText('Email'), {
@@ -84,7 +84,8 @@ describe('ForgotPasswordPage', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Too many requests')
+    expect(alert.textContent).toBe('Too many attempts. Wait a moment and try again.')
+    expect(alert.textContent).not.toContain('rate_limited')
     expect(screen.getByLabelText('Email')).toBeDefined()
   })
 
@@ -151,15 +152,18 @@ describe('ForgotPasswordPage', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'))
   })
 
-  it('surfaces code-reset errors and keeps the code form', async () => {
+  it('surfaces code-reset errors as table copy and keeps the code form', async () => {
     await renderPage()
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'demo@starter.local' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
     await screen.findByText('Enter your code')
+    // The reset rides the email-OTP plugin, whose wrong-code answer is
+    // `INVALID_OTP` (not the two-factor plugin's `INVALID_CODE`) — the code
+    // the port really sees on the wire.
     resetWithCode.mockResolvedValueOnce({
-      error: { message: 'Too many attempts' }
+      error: { code: 'INVALID_OTP' }
     })
     fireEvent.change(screen.getByLabelText('Digit 1 of 6'), {
       target: { value: '000000' }
@@ -172,7 +176,7 @@ describe('ForgotPasswordPage', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Too many attempts')
+    expect(alert.textContent).toBe('That code is incorrect. Check it and try again.')
     expect(screen.getByLabelText('Digit 1 of 6')).toBeDefined()
   })
 

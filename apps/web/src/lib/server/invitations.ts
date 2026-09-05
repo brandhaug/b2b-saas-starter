@@ -1,10 +1,9 @@
-import { WORKSPACE_ROLES } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import {
   type AcceptedInvitation,
   type Invitation
 } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
+import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { createServerFn } from '@tanstack/react-start'
-import { Schema } from 'effect'
 import { EMAIL_PATTERN } from '../email-pattern'
 
 /**
@@ -16,40 +15,92 @@ import { EMAIL_PATTERN } from '../email-pattern'
  * the Better Auth session gate, the plugin binding) live in
  * `invitations.effects.ts` and are reached only through dynamic `import()`
  * inside each handler: TanStack Start strips handler bodies from the client
- * build, so the effects graph never ships, while the `createServerFn`
- * declarations, the payload types and the input schemas still do.
+ * build, so the effects graph never ships. The validators are stripped the
+ * same way handler bodies are — `.validator()` runs on the server only — so
+ * the plain shape checks below are the server's first decode, a wire-shape
+ * gate that declares each fn's input type without dragging the Effect
+ * Schema chunk onto the route tree, while the strict schemas (role
+ * literals, email bounds) decode again in the effects file before anything
+ * runs.
  *
  * The behaviour itself is tested as the effects (`invitations.test.ts`
- * imports `invitations.effects.ts` directly) — see that file for why the
- * effects take the actor's address, the request origin and the email
+ * imports `invitations.effects.ts` directly) — see that file for why
+ * the effects take the actor's address, the request origin and the email
  * dispatcher as arguments rather than reading them.
  */
 
-// All input constraints live in the schema — no imperative re-validation.
-const WorkspaceRoleInput = Schema.Literals(WORKSPACE_ROLES)
+/** Input shape of `sendInvitationServerFn`, for its client stub. */
+type SendInvitationInput = {
+  readonly workspaceSlug: string
+  readonly email: string
+  readonly role: WorkspaceRole
+}
 
-const SendInvitationInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  email: Schema.String.check(
-    Schema.isMinLength(3),
-    Schema.isMaxLength(320),
-    Schema.isPattern(EMAIL_PATTERN)
-  ),
-  role: WorkspaceRoleInput
-})
+type CancelInvitationInput = {
+  readonly workspaceSlug: string
+  readonly invitationId: string
+}
 
-const CancelInvitationInput = Schema.Struct({
-  workspaceSlug: Schema.NonEmptyString,
-  invitationId: Schema.NonEmptyString
-})
+type AcceptInvitationInput = {
+  readonly invitationId: string
+}
 
-const AcceptInvitationInput = Schema.Struct({
-  invitationId: Schema.NonEmptyString
-})
+/**
+ * The server fns' validators, plain shape checks that run server-side only
+ * (TanStack strips `.validator()` from the client build): they are the
+ * server's first decode, a wire-shape gate, and the strict schemas — role
+ * literals, email bounds — decode again in `invitations.effects.ts`; these
+ * probes ARE the I/O boundary, so `unknown` in and `throw` out is the
+ * contract, the same exemption `pickOptionalStrings` carries (lib/utils.ts).
+ */
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, effect/noThrowStatement, effect/noNewError, unicorn/prefer-type-error, effect/noAs, typescript/no-unsafe-type-assertion
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
 
-const decodeSend = Schema.decodeUnknownSync(SendInvitationInput)
-const decodeCancel = Schema.decodeUnknownSync(CancelInvitationInput)
-const decodeAccept = Schema.decodeUnknownSync(AcceptInvitationInput)
+function inputRecord(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) {
+    throw new Error('Invalid invitation input')
+  }
+  return value
+}
+
+function inputString(record: Record<string, unknown>, key: string): string {
+  const value = record[key]
+  if (typeof value !== 'string') {
+    throw new Error(`Invalid invitation input: ${key}`)
+  }
+  return value
+}
+
+function decodeSend(input: unknown): SendInvitationInput {
+  const record = inputRecord(input)
+  const email = inputString(record, 'email')
+  if (!EMAIL_PATTERN.test(email)) {
+    throw new Error('Invalid invitation input: email')
+  }
+  // SAFETY: the strict schema in `invitations.effects.ts` re-decodes the
+  // role against the literal tuple before anything runs; this check only
+  // establishes the wire shape for the client stub's type.
+  return {
+    workspaceSlug: inputString(record, 'workspaceSlug'),
+    email,
+    role: inputString(record, 'role') as SendInvitationInput['role']
+  }
+}
+
+function decodeCancel(input: unknown): CancelInvitationInput {
+  const record = inputRecord(input)
+  return {
+    workspaceSlug: inputString(record, 'workspaceSlug'),
+    invitationId: inputString(record, 'invitationId')
+  }
+}
+
+function decodeAccept(input: unknown): AcceptInvitationInput {
+  return { invitationId: inputString(inputRecord(input), 'invitationId') }
+}
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, effect/noThrowStatement, effect/noNewError, unicorn/prefer-type-error, effect/noAs, typescript/no-unsafe-type-assertion
 
 export type SentInvitation = {
   readonly invitation: Invitation
@@ -64,14 +115,14 @@ export type SentInvitation = {
 }
 
 export const sendInvitationServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeSend(input))
+  .validator(decodeSend)
   .handler(async ({ data }): Promise<SentInvitation> => {
     const { sendInvitationHandler } = await import('./invitations.effects')
     return sendInvitationHandler(data)
   })
 
 export const cancelInvitationServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeCancel(input))
+  .validator(decodeCancel)
   .handler(async ({ data }): Promise<void> => {
     const { cancelInvitationHandler } = await import('./invitations.effects')
     return cancelInvitationHandler(data)
@@ -99,14 +150,14 @@ export type InvitationPreview =
   | { readonly state: 'unavailable' }
 
 export const invitationPreviewServerFn = createServerFn({ method: 'GET' })
-  .validator((input) => decodeAccept(input))
+  .validator(decodeAccept)
   .handler(async ({ data }): Promise<InvitationPreview> => {
     const { invitationPreviewHandler } = await import('./invitations.effects')
     return invitationPreviewHandler(data)
   })
 
 export const acceptInvitationServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeAccept(input))
+  .validator(decodeAccept)
   .handler(async ({ data }): Promise<AcceptedInvitation> => {
     const { acceptInvitationHandler } = await import('./invitations.effects')
     return acceptInvitationHandler(data)

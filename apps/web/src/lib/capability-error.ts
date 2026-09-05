@@ -19,7 +19,7 @@ export class CapabilityUnavailableError extends Error {
   constructor(capability: string, reason: string) {
     super(
       `This area is temporarily unavailable because the "${capability}" capability cannot reach its backing service (${reason}). ` +
-        'The rest of the app keeps working — check the database configuration and try again.'
+        'The rest of the app keeps working. Check the database configuration and try again.'
     )
     this.name = CAPABILITY_UNAVAILABLE_ERROR_NAME
   }
@@ -38,7 +38,7 @@ export class ForbiddenError extends Error {
   constructor(reason: string) {
     super(
       reason === 'no_principal'
-        ? 'You are not signed in to this workspace — sign in again and retry.'
+        ? 'You are not signed in to this workspace. Sign in again and retry.'
         : 'You do not have permission to do this in this workspace. Ask a workspace owner or admin.'
     )
     this.name = FORBIDDEN_ERROR_NAME
@@ -113,7 +113,7 @@ export const USER_ADMIN_REFUSED_ERROR_NAME = 'UserAdminRefusedError'
 
 /** The constraint the `/admin` role editor keeps running into, worded once. */
 const SYSTEM_AXIS_COPY =
-  'The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner — the system role confers nothing inside a workspace.'
+  'The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner. The system role confers nothing inside a workspace.'
 
 /**
  * Copy for the platform-user-admin capability's machine refusal reasons.

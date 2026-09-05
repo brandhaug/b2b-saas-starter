@@ -22,7 +22,8 @@ const progress: WorkspaceProgressProjection = {
 async function renderChecklist(
   viewer: { readonly role: 'owner' | 'member' },
   dismiss: DismissOnboardingChecklist,
-  data: WorkspaceProgressProjection = progress
+  data: WorkspaceProgressProjection = progress,
+  dismissalNote?: boolean
 ) {
   return renderWithRouter(
     <OnboardingChecklist
@@ -30,6 +31,7 @@ async function renderChecklist(
       progress={data}
       viewer={viewer}
       dismiss={dismiss}
+      {...(dismissalNote === undefined ? {} : { dismissalNote })}
     />,
     {
       path: '/workspaces/starter-lab',
@@ -72,6 +74,23 @@ describe('OnboardingChecklist', () => {
     )
     expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
     screen.getByText('Owners and admins can dismiss this checklist for the workspace.')
+  })
+
+  it('omits the member note where the page carries no dismiss control', async () => {
+    await renderChecklist(
+      { role: 'member' },
+      vi.fn(async () => true),
+      progress,
+      false
+    )
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
+    expect(
+      screen.queryByText(
+        'Owners and admins can dismiss this checklist for the workspace.'
+      )
+    ).toBeNull()
+    // The steps themselves still render.
+    screen.getByRole('link', { name: 'Create an API token' })
   })
 
   it('renders nothing once dismissed', async () => {

@@ -181,7 +181,12 @@ export default defineConfig(({ command, mode }) => {
     // ADR 0063 strips those at the source and is the rule for any new
     // browser-only dynamic import.
     build: { minify: true },
-    server: { port: 3071, host: 'localhost' },
+    // `forwardConsole` auto-enables when an AI coding agent is detected, and
+    // mirrored `[Server]` errors (e.g. the pre-migration MissingD1Binding 500
+    // storm) then flood the terminal — a dev process died at 1.67M log lines
+    // this way. The D1-absent path now answers 503 instead of throwing, but
+    // the forwarding itself stays off for this app.
+    server: { port: 3071, host: 'localhost', forwardConsole: false },
     preview: { port: 3071, host: 'localhost' },
     resolve: {
       tsconfigPaths: true,
@@ -200,7 +205,25 @@ export default defineConfig(({ command, mode }) => {
           ? []
           : [
               tanstackStart({
-                router: { routeFileIgnorePattern: '\\.test\\.' }
+                router: {
+                  routeFileIgnorePattern: '\\.test\\.',
+                  // Which route segments become lazy chunks. Start splits
+                  // routes by default (component/error/notFound); `loader`
+                  // is not in the default groupings, and this repo's loaders
+                  // are exactly the heavy segments — they run capabilities
+                  // in-process — so the grouping is stated here. Together
+                  // with pages living beside their routes (never exported
+                  // from them), that is what keeps `/` from preloading the
+                  // workspace graph.
+                  codeSplittingOptions: {
+                    defaultBehavior: [
+                      ['loader'],
+                      ['component'],
+                      ['errorComponent'],
+                      ['notFoundComponent']
+                    ]
+                  }
+                }
               })
             ]),
         {
@@ -218,8 +241,10 @@ export default defineConfig(({ command, mode }) => {
                 rehypePrettyCode,
                 // Dual-theme keeps rehype-pretty-code emitting the `--shiki-dark*`
                 // custom properties that index.css reads. Both slots are dark:
-                // the app has one scheme.
-                { theme: { dark: 'github-dark', light: 'github-dark' } }
+                // the app has one scheme. Catppuccin Mocha matches the page
+                // palette; index.css additionally pins the pre background to
+                // var(--card) so code blocks sit on the token surface.
+                { theme: { dark: 'catppuccin-mocha', light: 'catppuccin-mocha' } }
               ]
             ]
           })

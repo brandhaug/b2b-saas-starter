@@ -17,13 +17,18 @@ import { findWorkspace, useWorkspaceDirectory } from '@/lib/workspace-directory'
  * name opening a menu of the user's memberships. Choosing one navigates to its
  * overview. Reads the directory the `/workspaces` layout publishes, so every
  * workspace page — not just the list — can switch from here. With no directory
- * in context it renders the current name as a static label.
+ * in context it renders the current name as a static label: `fallbackName`
+ * covers the surfaces that anchor to a remembered workspace instead (e.g.
+ * /account), where the slug is known but the directory is not.
  */
 export function WorkspaceSwitcher({
   workspaceSlug,
+  fallbackName,
   onNavigate
 }: {
   readonly workspaceSlug: string
+  /** Display name when no directory is in context; the slug is the last resort. */
+  readonly fallbackName?: string | undefined
   /** Closes the mobile sheet after a choice, when rendered inside it. */
   readonly onNavigate?: (() => void) | undefined
 }) {
@@ -36,7 +41,7 @@ export function WorkspaceSwitcher({
     // current name is a label, not a menu.
     return (
       <div className="truncate rounded-md border border-sidebar-border px-3 py-2 text-sm font-medium text-sidebar-foreground">
-        {current?.name ?? workspaceSlug}
+        {current?.name ?? fallbackName ?? workspaceSlug}
       </div>
     )
   }

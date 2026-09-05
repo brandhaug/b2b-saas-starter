@@ -54,7 +54,6 @@ export function ImpersonateUserAction({
     <>
       <Button
         variant="ghost"
-        size="sm"
         aria-label={`Impersonate ${user.email}`}
         onClick={() => setOpen(true)}
       >

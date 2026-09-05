@@ -103,7 +103,7 @@ describe('AdminUserActions', () => {
     fireEvent.click(screen.getByRole('button', { name: /Load workspaces/ }))
     fireEvent.click(await screen.findByLabelText('Make Starter Lab role admin'))
     await screen.findByText(
-      'The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner — the system role confers nothing inside a workspace.'
+      'The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner. The system role confers nothing inside a workspace.'
     )
     expect(screen.queryByText('Role change failed')).toBeNull()
   })

@@ -1,7 +1,6 @@
 import { type McpClientSummary } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { type WorkspaceListItemProjection } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { createServerFn } from '@tanstack/react-start'
-import { Schema } from 'effect'
 
 import { requireRequestSession } from './auth'
 import { signedOAuthQuery } from '../oauth-query'
@@ -13,7 +12,14 @@ import { currentRequest } from '../request-context'
  * into a consent and an authorization code — lives in `mcp-consent.effects.ts`
  * and is reached through dynamic `import()`, so the route tree never carries
  * the auth server into the browser bundle (the same split
- * `invitations.ts` / `invitations.effects.ts` uses).
+ * `invitations.ts` / `invitations.effects.ts` uses). The validators below
+ * are the only decode these inputs get: TanStack Start strips
+ * `.validator()` from the client build and runs it on the server only, so
+ * the plain string checks are the server-side boundary, and
+ * `mcp-consent.effects.ts` trusts their output without re-decoding — the
+ * whole constraint, empty strings rejected on the workspace pick and the
+ * signed query, is stated right there. Plain checks (no Effect Schema) keep
+ * the module cheap for the route tree to carry.
  */
 
 export type OAuthConsentPayload = {
@@ -28,11 +34,66 @@ export type OAuthConsentPayload = {
   readonly oauthQuery: string | null
 }
 
-const LoadInput = Schema.Struct({ clientId: Schema.String })
-const decodeLoadInput = Schema.decodeUnknownSync(LoadInput)
+type LoadInput = { readonly clientId: string }
+
+type GrantInput = {
+  readonly workspaceId: string
+  /** The page's signed OAuth query (`signedOAuthQuery` in `lib/oauth-query.ts`). */
+  readonly oauthQuery: string
+}
+
+type DenyInput = { readonly oauthQuery: string }
+
+/**
+ * The server fns' validators, plain string checks that run server-side only
+ * (TanStack strips `.validator()` from the client build): they are the
+ * server's first decode and — the consent effects re-decode nothing — the
+ * whole constraint. These probes ARE the I/O boundary, so `unknown` in and
+ * `throw` out is the contract, the same exemption `pickOptionalStrings`
+ * carries (lib/utils.ts).
+ */
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, effect/noThrowStatement, effect/noNewError, unicorn/prefer-type-error
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function inputString(value: unknown, key: string): string {
+  if (!isRecord(value)) {
+    throw new Error('Invalid consent input')
+  }
+  const field = value[key]
+  if (typeof field !== 'string') {
+    throw new Error(`Invalid consent input: ${key}`)
+  }
+  return field
+}
+
+function inputNonEmptyString(value: unknown, key: string): string {
+  const field = inputString(value, key)
+  if (field.length === 0) {
+    throw new Error(`Invalid consent input: ${key}`)
+  }
+  return field
+}
+
+function decodeLoadInput(input: unknown): LoadInput {
+  return { clientId: inputString(input, 'clientId') }
+}
+
+function decodeGrantInput(input: unknown): GrantInput {
+  return {
+    workspaceId: inputNonEmptyString(input, 'workspaceId'),
+    oauthQuery: inputNonEmptyString(input, 'oauthQuery')
+  }
+}
+
+function decodeDenyInput(input: unknown): DenyInput {
+  return { oauthQuery: inputNonEmptyString(input, 'oauthQuery') }
+}
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, effect/noThrowStatement, effect/noNewError, unicorn/prefer-type-error
 
 export const loadOAuthConsentServerFn = createServerFn({ method: 'GET' })
-  .validator((input) => decodeLoadInput(input))
+  .validator(decodeLoadInput)
   .handler(async ({ data }): Promise<OAuthConsentPayload> => {
     const session = await requireRequestSession()
     // The signed query is read here, on the server, from the request the
@@ -51,15 +112,8 @@ export const loadOAuthConsentServerFn = createServerFn({ method: 'GET' })
 /** Where the browser goes next: the client's redirect URI carrying the code, or its error. */
 export type OAuthRedirect = { readonly url: string }
 
-const GrantInput = Schema.Struct({
-  workspaceId: Schema.NonEmptyString,
-  /** The page's signed OAuth query (`signedOAuthQuery` in `lib/oauth-query.ts`). */
-  oauthQuery: Schema.NonEmptyString
-})
-const decodeGrantInput = Schema.decodeUnknownSync(GrantInput)
-
 export const grantOAuthConsentServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeGrantInput(input))
+  .validator(decodeGrantInput)
   .handler(async ({ data }): Promise<OAuthRedirect> => {
     const session = await requireRequestSession()
     const { grantOAuthConsent } = await import('./mcp-consent.effects')
@@ -70,11 +124,8 @@ export const grantOAuthConsentServerFn = createServerFn({ method: 'POST' })
     })
   })
 
-const DenyInput = Schema.Struct({ oauthQuery: Schema.NonEmptyString })
-const decodeDenyInput = Schema.decodeUnknownSync(DenyInput)
-
 export const denyOAuthConsentServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeDenyInput(input))
+  .validator(decodeDenyInput)
   .handler(async ({ data }): Promise<OAuthRedirect> => {
     await requireRequestSession()
     const { denyOAuthConsent } = await import('./mcp-consent.effects')

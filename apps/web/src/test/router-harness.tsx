@@ -34,6 +34,10 @@ import { render, type RenderResult } from '@testing-library/react'
  * `routeContext` is what the route under test's `beforeLoad` returns — the
  * stand-in for a gate's `{ session }`, for components that read the route
  * context (`useRouteContext`) instead of taking it as a prop.
+ *
+ * `routerContext` seeds the router-level context object instead — the
+ * client-session memory production keeps there (`lastWorkspace`, see
+ * `lib/workspace-directory.ts`), for tests of the surfaces that read it back.
  */
 export async function renderWithRouter(
   ui: ReactNode,
@@ -42,6 +46,7 @@ export async function renderWithRouter(
     readonly destinations?: ReadonlyArray<string>
     readonly initialEntry?: string
     readonly routeContext?: Record<string, unknown>
+    readonly routerContext?: Record<string, unknown>
   }
 ): Promise<RenderResult & { readonly router: AnyRouter }> {
   const path = options?.path ?? '/'
@@ -64,7 +69,8 @@ export async function renderWithRouter(
     )
   const router = createRouter({
     routeTree: rootRoute.addChildren([routeUnderTest, ...destinations]),
-    history: createMemoryHistory({ initialEntries: [options?.initialEntry ?? path] })
+    history: createMemoryHistory({ initialEntries: [options?.initialEntry ?? path] }),
+    context: options?.routerContext ?? {}
   })
   // The router resolves its first match asynchronously, so priming it here keeps
   // the render synchronous for callers and their queries.
