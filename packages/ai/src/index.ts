@@ -1,24 +1,30 @@
 import { type Writable } from '@b2b-saas-starter/config/writable'
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 import { failureMessage } from '@b2b-saas-starter/failure'
-import { Context, Effect, Layer, Option, Schema, Stream } from 'effect'
-import {
-  AiError,
-  IdGenerator,
-  LanguageModel,
-  Model,
-  Prompt,
-  type Response
-} from 'effect/unstable/ai'
+import { Context, Effect, Layer, Schema } from 'effect'
+import { LanguageModel, Model, Prompt } from 'effect/unstable/ai'
 
-// The starter assistant, on Effect's provider-agnostic `LanguageModel`
-// (ADR 0008, 0071). There is one `ask` implementation — `AssistantLive`
-// below — which builds a normalized prompt and calls `generateText`; which
-// model answers is a layer decision, never a branch inside the behavior.
-// Each provider is a `LanguageModel` adapter built with `LanguageModel.make`
-// and wrapped in `Model.make`, which stamps `ProviderName` and `ModelName`
-// beside the model it provides, so the reply's `provider` / `modelId` fields
-// come from the same context as the model that answered.
+import { MockAssistantModel } from './mock.ts'
+import { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
+import { type WorkersAIBinding, makeWorkersAIModel } from './workers-ai.ts'
+
+// The starter assistant on Effect's provider-agnostic `LanguageModel`
+// (ADR 0008, 0071). This module holds the contract — the prompt/reply
+// schemas and the `AssistantService` tag — plus the one `ask` implementation
+// and the env-driven provider selection. The providers themselves are
+// `LanguageModel` adapters, one module each: `workers-ai.ts` (the Cloudflare
+// binding), `openai.ts` (any OpenAI-compatible chat endpoint), and `mock.ts`
+// (the honest no-provider model), all sharing the text-only acceptance
+// policy in `text-model.ts`. Which model answers is a layer decision, never
+// a branch inside the behavior: each adapter is wrapped in `Model.make`,
+// which stamps `ProviderName` and `ModelName` beside the model it provides,
+// so the reply's `provider` / `modelId` fields come from the same context as
+// the model that answered.
+
+// The provider factories stay part of the package's surface: a deployment
+// wires a custom combination the env selector does not know about.
+export { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
+export { type WorkersAIBinding, makeWorkersAIModel } from './workers-ai.ts'
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class AssistantUnavailable extends Schema.TaggedError<AssistantUnavailable>()(
@@ -66,7 +72,8 @@ const isAssistantProvider = Schema.is(AssistantProvider)
 /**
  * The one `ask` implementation. `AiError` is the adapters' error channel;
  * this is the one boundary that maps it — into the `AssistantUnavailable`
- * the HTTP contract declares.
+ * the HTTP contract declares. Tools are off (`toolChoice: 'none'` and every
+ * adapter refuses them), so `usedTools` is honestly empty until they land.
  */
 export const AssistantLive = Layer.effect(AssistantService)(
   Effect.gen(function* () {
@@ -103,428 +110,12 @@ export const AssistantLive = Layer.effect(AssistantService)(
         answer: response.text,
         provider: providerName,
         modelId,
-        usedTools: response.toolCalls.map(
-          (call: { readonly name: string }) => call.name
-        )
+        usedTools: []
       })
     })
 
     return AssistantService.of({ ask })
   })
-)
-
-// --- Prompt flattening -------------------------------------------------------
-// The adapters below speak plain text: `AssistantLive` builds a system
-// message plus a user message with text parts only, so these helpers describe
-// exactly the prompt shape this package itself produces; anything richer (a
-// file part, a tool message) is refused by the adapters through
-// `unsupportedPromptPart` instead of being silently dropped.
-
-function textOf(parts: ReadonlyArray<Prompt.Part>): string {
-  return parts
-    .filter((part): part is Prompt.TextPart => part.type === 'text')
-    .map((part) => part.text)
-    .join('')
-}
-
-/** The text of one prompt message: system content as-is, part content flattened. */
-function messageText(message: Prompt.Message): string {
-  switch (message.role) {
-    case 'system': {
-      return message.content
-    }
-    case 'assistant': {
-      return textOf(message.content)
-    }
-    case 'user': {
-      return textOf(message.content)
-    }
-    case 'tool': {
-      return ''
-    }
-  }
-}
-
-/** The last user message's text — the question `AssistantLive` appends. */
-function lastUserQuestion(prompt: Prompt.Prompt): string {
-  const last = prompt.content.findLast(
-    (message): message is Prompt.UserMessage => message.role === 'user'
-  )
-  if (last === undefined) {
-    return ''
-  }
-  return textOf(last.content)
-}
-
-/**
- * The first part these adapters cannot send, if any. `undefined` means the
- * prompt is plain text throughout.
- */
-function unsupportedPromptPart(prompt: Prompt.Prompt): string | undefined {
-  for (const message of prompt.content) {
-    if (message.role === 'assistant' || message.role === 'user') {
-      for (const part of message.content) {
-        if (part.type !== 'text') {
-          return part.type
-        }
-      }
-    }
-  }
-  return undefined
-}
-
-// --- LanguageModel plumbing --------------------------------------------------
-
-/**
- * `LanguageModel.make` builds its service on the `IdGenerator` service; the
- * default generator is provided once here so every adapter below carries it.
- */
-function languageModelLayer(model: Effect.Effect<LanguageModel.Service>) {
-  return Layer.effect(LanguageModel.LanguageModel)(
-    Effect.provideService(
-      IdGenerator.IdGenerator,
-      IdGenerator.defaultIdGenerator
-    )(model)
-  )
-}
-
-/**
- * Every adapter here answers with one complete response. Streaming is refused
- * with a typed `AiError` — visible at the call site, not a silent
- * approximation — until an adapter implements it.
- */
-function unsupportedStream(module: string) {
-  return () =>
-    Stream.fail(
-      AiError.make({
-        module,
-        method: 'streamText',
-        reason: new AiError.InvalidRequestError({
-          description: `${module} adapter does not support streaming`
-        })
-      })
-    )
-}
-
-// --- Workers AI ----------------------------------------------------------------
-
-export type WorkersAIBinding = {
-  readonly run: (
-    model: string,
-    input: { readonly prompt: string }
-  ) => Promise<{ readonly response?: string }>
-}
-
-/** The Workers AI prompt is one raw string: the messages, flattened, blank lines dropped. */
-function flattenPrompt(prompt: Prompt.Prompt): string {
-  const chunks: Array<string> = []
-  for (const message of prompt.content) {
-    const chunk = messageText(message)
-    if (chunk !== '') {
-      chunks.push(chunk)
-    }
-  }
-  return chunks.join('\n\n')
-}
-
-/** One `AiError` for this provider's `generateText` hook, with the module stamped. */
-function workersAiError(reason: AiError.AiErrorReason) {
-  return AiError.make({ module: 'workers-ai', method: 'generateText', reason })
-}
-
-/**
- * A `LanguageModel` over the Workers AI binding — the Cloudflare-first
- * provider. The binding reports no finish reason or token usage, so the
- * finish part claims only `stop` with empty usage.
- */
-export function makeWorkersAIModel(
-  binding: WorkersAIBinding,
-  modelId = '@cf/meta/llama-3.1-8b-instruct'
-) {
-  function generateText(options: LanguageModel.ProviderOptions) {
-    return Effect.gen(function* () {
-      const unsupported = unsupportedPromptPart(options.prompt)
-      if (unsupported !== undefined) {
-        return yield* workersAiError(
-          new AiError.InvalidUserInputError({
-            description: `workers-ai adapter sends text only, got a '${unsupported}' part`
-          })
-        )
-      }
-      const result = yield* Effect.tryPromise({
-        try: () => binding.run(modelId, { prompt: flattenPrompt(options.prompt) }),
-        catch: (cause) =>
-          workersAiError(
-            new AiError.UnknownError({ description: failureMessage(cause) })
-          )
-      })
-      if (!result.response) {
-        return yield* workersAiError(
-          new AiError.InvalidOutputError({ description: 'missing response text' })
-        )
-      }
-      const parts: Array<Response.PartEncoded> = [
-        { type: 'text', text: result.response },
-        {
-          type: 'finish',
-          reason: 'stop',
-          usage: { inputTokens: {}, outputTokens: {} }
-        }
-      ]
-      return parts
-    })
-  }
-
-  return Model.make(
-    'workers-ai',
-    modelId,
-    languageModelLayer(
-      LanguageModel.make({
-        generateText,
-        streamText: unsupportedStream('workers-ai')
-      })
-    )
-  )
-}
-
-// --- OpenAI-compatible ---------------------------------------------------------
-
-export type OpenAIConfig = {
-  readonly apiKey: string
-  readonly baseUrl?: string
-  readonly modelId?: string
-}
-
-type ChatMessage = {
-  readonly role: 'system' | 'user'
-  readonly content: string
-}
-
-const OpenAIFinishReason = Schema.Literals(['stop', 'length', 'content_filter'])
-
-/** Only OpenAI's `content_filter` differs from the response part's spelling. */
-function finishReason(
-  reason: typeof OpenAIFinishReason.Type | undefined
-): Response.FinishPartEncoded['reason'] {
-  if (reason === 'content_filter') {
-    return 'content-filter'
-  }
-  if (reason === undefined) {
-    return 'stop'
-  }
-  return reason
-}
-
-const OpenAIChatRequest = Schema.Struct({
-  model: Schema.String,
-  messages: Schema.Array(
-    Schema.Struct({
-      role: Schema.Literals(['system', 'user']),
-      content: Schema.String
-    })
-  )
-})
-
-/** Schema JSON codec for the request body — no hand-rolled `JSON.stringify`. */
-const encodeChatRequest = Schema.encodeSync(Schema.fromJsonString(OpenAIChatRequest))
-
-const OpenAIChatResponse = Schema.Struct({
-  choices: Schema.Array(
-    Schema.Struct({
-      message: Schema.Struct({
-        content: Schema.String.check(Schema.isMinLength(1))
-      }),
-      finish_reason: Schema.optional(OpenAIFinishReason)
-    })
-  ).check(Schema.isMinLength(1))
-})
-
-const decodeOpenAIChatResponse = Schema.decodeUnknownOption(OpenAIChatResponse)
-
-/**
- * The single platform adapter in this package: one outbound HTTP POST against
- * an OpenAI-compatible endpoint. `packages/ai` deliberately depends on `effect`
- * only, so there is no `@effect/platform` HttpClient to route through; the
- * global `fetch` is confined to this one function and every caller wraps
- * it with a typed `AiError` failure.
- */
-function postJson(
-  url: string,
-  headers: Record<string, string>,
-  body: string,
-  signal: AbortSignal
-) {
-  // This package depends on `effect` only — there is no @effect/platform HttpClient to
-  // route through — and the whole outbound boundary is this one call, wrapped by
-  // `Effect.tryPromise` with a typed `AiError` failure at every caller.
-  // oxlint-disable-next-line effect/noGlobals -- raw fetch is the platform transport here
-  return fetch(url, { method: 'POST', headers, body, signal })
-}
-
-/** The chat messages this adapter can send: system and user, text only. */
-function chatMessages(prompt: Prompt.Prompt): Array<ChatMessage> {
-  const messages: Array<ChatMessage> = []
-  for (const message of prompt.content) {
-    if (message.role === 'system' || message.role === 'user') {
-      messages.push({ role: message.role, content: messageText(message) })
-    }
-  }
-  return messages
-}
-
-/** One `AiError` for this provider's `generateText` hook, with the module stamped. */
-function openaiCompatibleError(reason: AiError.AiErrorReason) {
-  return AiError.make({
-    module: 'openai-compatible',
-    method: 'generateText',
-    reason
-  })
-}
-
-/**
- * A `LanguageModel` over any OpenAI-compatible `/chat/completions` endpoint.
- * Config resolution happens once, here, so `ask` never re-reads defaults.
- */
-export function makeOpenAIModel(config: OpenAIConfig) {
-  const baseUrl = config.baseUrl ?? 'https://api.openai.com/v1'
-  const modelId = config.modelId ?? 'gpt-4o-mini'
-  const chatUrl = `${baseUrl}/chat/completions`
-  const headers = {
-    authorization: `Bearer ${config.apiKey}`,
-    'content-type': 'application/json'
-  }
-
-  function generateText(options: LanguageModel.ProviderOptions) {
-    return Effect.gen(function* () {
-      const unsupported = unsupportedPromptPart(options.prompt)
-      if (unsupported !== undefined) {
-        return yield* openaiCompatibleError(
-          new AiError.InvalidUserInputError({
-            description: `openai-compatible adapter sends text only, got a '${unsupported}' part`
-          })
-        )
-      }
-      if (options.tools.length > 0) {
-        return yield* openaiCompatibleError(
-          new AiError.InvalidRequestError({
-            description: 'openai-compatible adapter carries no tools yet'
-          })
-        )
-      }
-      if (options.responseFormat.type === 'json') {
-        return yield* openaiCompatibleError(
-          new AiError.UnsupportedSchemaError({
-            description: 'openai-compatible adapter answers text only'
-          })
-        )
-      }
-      const messages = chatMessages(options.prompt)
-      if (messages.length !== options.prompt.content.length) {
-        return yield* openaiCompatibleError(
-          new AiError.InvalidUserInputError({
-            description: 'openai-compatible adapter sends system and user messages only'
-          })
-        )
-      }
-      const response = yield* Effect.tryPromise({
-        try: (signal) =>
-          postJson(
-            chatUrl,
-            headers,
-            encodeChatRequest({ model: modelId, messages }),
-            signal
-          ),
-        catch: (cause) =>
-          openaiCompatibleError(
-            new AiError.NetworkError({
-              reason: 'TransportError',
-              request: { method: 'POST', url: chatUrl, urlParams: [], headers },
-              description: failureMessage(cause)
-            })
-          )
-      })
-      if (!response.ok) {
-        return yield* openaiCompatibleError(
-          AiError.reasonFromHttpStatus({
-            status: response.status,
-            description: `status ${response.status}`
-          })
-        )
-      }
-      const raw: unknown = yield* Effect.tryPromise({
-        try: () => response.json(),
-        catch: (cause) =>
-          openaiCompatibleError(
-            new AiError.InvalidOutputError({ description: failureMessage(cause) })
-          )
-      })
-      const body = decodeOpenAIChatResponse(raw)
-      if (Option.isNone(body)) {
-        return yield* openaiCompatibleError(
-          new AiError.InvalidOutputError({
-            description: 'response body does not match the chat shape'
-          })
-        )
-      }
-      const first = body.value.choices[0]
-      if (first === undefined) {
-        return yield* openaiCompatibleError(
-          new AiError.InvalidOutputError({
-            description: 'response body carries no choice'
-          })
-        )
-      }
-      const parts: Array<Response.PartEncoded> = [
-        { type: 'text', text: first.message.content },
-        {
-          type: 'finish',
-          reason: finishReason(first.finish_reason),
-          usage: { inputTokens: {}, outputTokens: {} }
-        }
-      ]
-      return parts
-    })
-  }
-
-  return Model.make(
-    'openai-compatible',
-    modelId,
-    languageModelLayer(
-      LanguageModel.make({
-        generateText,
-        streamText: unsupportedStream('openai-compatible')
-      })
-    )
-  )
-}
-
-// --- Mock ----------------------------------------------------------------------
-
-/**
- * The honest no-provider model: it echoes the question and names the env vars
- * that would enable a real provider. It satisfies the same `LanguageModel`
- * contract as the real adapters, so `AssistantLive` cannot tell it apart.
- */
-export const MockAssistantModel = Model.make(
-  'mock',
-  'starter-mock',
-  languageModelLayer(
-    LanguageModel.make({
-      generateText: (options) =>
-        Effect.succeed([
-          {
-            type: 'text',
-            text: `Mock assistant: "${lastUserQuestion(options.prompt)}". Configure WORKERS_AI_ENABLED=true or OPENAI_API_KEY to enable a real provider.`
-          },
-          {
-            type: 'finish',
-            reason: 'stop',
-            usage: { inputTokens: {}, outputTokens: {} }
-          }
-        ]),
-      streamText: unsupportedStream('mock')
-    })
-  )
 )
 
 // --- Selection -------------------------------------------------------------------
