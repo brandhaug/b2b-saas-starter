@@ -38,21 +38,43 @@ import {
   tablesCreatedBy
 } from './alchemy-bookkeeping.ts'
 import { listMigrations } from '../src/migrations-fs.ts'
-import { wranglerD1Execute, type Target } from './wrangler-d1.ts'
+import { listRemoteDatabases, wranglerD1Execute, type Target } from './wrangler-d1.ts'
 
 /**
  * Baselines the committed migrations against one D1: records each unrecorded
  * migration whose tables all already exist. Returns the names it recorded.
  */
 export async function runBaseline(target: Target): Promise<Array<string>> {
-  function execute(args: ReadonlyArray<string>, captureJson: boolean): Promise<string> {
-    return wranglerD1Execute(target.database, [target.flag, ...args], captureJson)
+  // A database that does not exist remotely yet has nothing to converge: the
+  // deploy creates it and Alchemy applies every migration from scratch. This
+  // is the routine case for a PR's first push — baseline runs before the
+  // stage's first deploy — and the recovery case after a prod DB is deleted.
+  const databases = await listRemoteDatabases()
+  if (target.flag === '--remote' && !databases.includes(target.database)) {
+    console.log(
+      `${target.database} does not exist yet — nothing to baseline; its deploy applies every migration from scratch.`
+    )
+    return []
   }
 
-  await execute([`--command=${ENSURE_BOOKKEEPING_TABLE}`], true)
+  function execute(args: ReadonlyArray<string>): Promise<string> {
+    return wranglerD1Execute(target.database, [target.flag, ...args], true).then(
+      (run) => {
+        if (!run.ok) {
+          if (run.output) {
+            console.error(run.output)
+          }
+          process.exit(run.code)
+        }
+        return run.stdout
+      }
+    )
+  }
+
+  await execute([`--command=${ENSURE_BOOKKEEPING_TABLE}`])
 
   function selectRecorded(): Promise<Array<string>> {
-    return execute(['--command=SELECT name FROM __alchemy_migrations'], true).then(
+    return execute(['--command=SELECT name FROM __alchemy_migrations']).then(
       decodeNames
     )
   }
@@ -81,7 +103,7 @@ SELECT ${sqlLiteral(hash)}, ${
     }, ${sqlLiteral(name)}, datetime('now')
 WHERE NOT EXISTS (SELECT 1 FROM __alchemy_migrations WHERE name = ${sqlLiteral(name)})
   AND ${guards};`
-    await execute([`--command=${command}`], true)
+    await execute([`--command=${command}`])
   }
 
   // Which inserts landed: re-read the bookkeeping and diff against the
