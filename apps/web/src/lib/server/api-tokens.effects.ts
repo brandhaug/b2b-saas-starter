@@ -1,7 +1,7 @@
 import {
   ApiTokenRegistry,
   type CreatedApiToken,
-  type RevokeApiTokenInput
+  type RevokeApiTokenInput as RevokeApiTokenRef
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
@@ -15,7 +15,7 @@ import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-fram
 import {
   type CreateApiTokenInput,
   type LoadApiTokensInput,
-  type RevokeApiTokenInputSchema,
+  type RevokeApiTokenInput,
   type WorkspaceApiTokensPayload
 } from './api-tokens'
 
@@ -95,7 +95,7 @@ export async function createApiTokenHandler(
  * capability resolves `false` and skips the audit row.
  */
 export function revokeApiToken(
-  input: RevokeApiTokenInput
+  input: RevokeApiTokenRef
 ): Effect.Effect<
   boolean,
   AuthorizationDenied | CapabilityUnavailable,
@@ -109,7 +109,7 @@ export function revokeApiToken(
 }
 
 export async function revokeApiTokenHandler(
-  input: RevokeApiTokenInputSchema
+  input: RevokeApiTokenInput
 ): Promise<boolean> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(

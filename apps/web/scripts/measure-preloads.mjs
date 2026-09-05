@@ -14,10 +14,15 @@ import { fileURLToPath } from 'node:url'
  *
  * Fetches each route's SSR HTML, collects every <link rel="modulepreload">
  * href, resolves each against dist/client, and reports the count, the total
- * bytes, the ten largest chunks, and whether any chunk name matches
- * /capabilities|Schema/ — the client-boundary invariant: those graphs may
- * exist as lazy chunks (client navigations fetch loaders on demand) but must
- * never sit in a page's static preload set.
+ * bytes, and the ten largest chunks — the byte budget for the root route's
+ * static import graph, which is only observable against a running preview.
+ *
+ * The /capabilities|Schema/ name check is a trip-wire scoped to the preload
+ * set, not the invariant itself: assert-client-boundary.mjs owns that,
+ * scanning every dist/client file's contents on every build (and rejecting
+ * chunk names there as an accident of chunking — see its header). This
+ * script does not scan contents; a name match here is the same leak the
+ * guard would fail on, caught and named at the point of measurement.
  *
  * Byte sizes are the built files on disk (gzip is what the wire sends; the
  * un-gzipped size is the stable, compression-independent budget signal).

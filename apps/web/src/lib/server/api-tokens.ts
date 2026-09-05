@@ -41,16 +41,16 @@ const CreateApiTokenInput = Schema.Struct({
   scopes: Schema.NonEmptyArray(Schema.Literals(API_TOKEN_SCOPES))
 })
 
-// The `Schema` suffix keeps the server fn's input distinct from the
-// capability's own `RevokeApiTokenInput`, which is `{ tokenId }` alone.
-const RevokeApiTokenInputSchema = Schema.Struct({
+// The `workspaceSlug` half is the web fn's own; the capability's revoke
+// input is `{ tokenId }` alone (`RevokeApiTokenRef` below).
+const RevokeApiTokenInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   tokenId: Schema.NonEmptyString
 })
 
 export type LoadApiTokensInput = typeof LoadApiTokensInput.Type
 export type CreateApiTokenInput = typeof CreateApiTokenInput.Type
-export type RevokeApiTokenInputSchema = typeof RevokeApiTokenInputSchema.Type
+export type RevokeApiTokenInput = typeof RevokeApiTokenInput.Type
 
 /** The API tokens route's loader. */
 export const loadWorkspaceApiTokensServerFn = createServerFn({ method: 'GET' })
@@ -68,7 +68,7 @@ export const createApiTokenServerFn = createServerFn({ method: 'POST' })
   })
 
 export const revokeApiTokenServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(RevokeApiTokenInputSchema))
+  .validator(Schema.decodeUnknownSync(RevokeApiTokenInput))
   .handler(async ({ data }): Promise<boolean> => {
     const { revokeApiTokenHandler } = await import('./api-tokens.effects')
     return revokeApiTokenHandler(data)

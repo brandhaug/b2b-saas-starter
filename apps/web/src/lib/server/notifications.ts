@@ -1,32 +1,19 @@
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { type Notification } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { createServerFn } from '@tanstack/react-start'
-import { Effect, Schema } from 'effect'
-import { runWorkspaceCapabilities } from '../capabilities'
-import { requireRequestSession } from './auth'
-import { requireWorkspacePermission } from './authorize'
+import { Schema } from 'effect'
+
+/**
+ * The notification-feed server functions, in a **client-safe** module — the
+ * client-safe half of the `notifications.effects.ts` split; see
+ * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
+ * for the enforcement. Each input is written once, as its Effect Schema: the
+ * validator is the single strict decode, and the derived type types both the
+ * client stub and the effects handler.
+ */
 
 const ListNotificationsInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString
 })
-
-// The schema decoder IS the boundary contract: passing it as the validator
-// keeps the untyped wire value inside `decodeUnknownSync` and hands the handler
-// the decoded domain type.
-const decodeInput = Schema.decodeUnknownSync(ListNotificationsInput)
-
-export const listNotificationsServerFn = createServerFn({ method: 'GET' })
-  .validator((input) => decodeInput(input))
-  .handler(async ({ data }) => {
-    const session = await requireRequestSession()
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      Effect.gen(function* () {
-        const feed = yield* NotificationFeed
-        return yield* feed.list
-      }),
-      { userId: session.user.id }
-    )
-  })
 
 const MarkNotificationsReadInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
@@ -35,25 +22,21 @@ const MarkNotificationsReadInput = Schema.Struct({
   ids: Schema.Array(Schema.String)
 })
 
-const decodeMarkReadInput = Schema.decodeUnknownSync(MarkNotificationsReadInput)
+export type ListNotificationsInput = typeof ListNotificationsInput.Type
+export type MarkNotificationsReadInput = typeof MarkNotificationsReadInput.Type
+
+export const listNotificationsServerFn = createServerFn({ method: 'GET' })
+  .validator(Schema.decodeUnknownSync(ListNotificationsInput))
+  .handler(async ({ data }): Promise<ReadonlyArray<Notification>> => {
+    const { listNotificationsHandler } = await import('./notifications.effects')
+    return listNotificationsHandler(data)
+  })
 
 export const markNotificationsReadServerFn = createServerFn({ method: 'POST' })
-  .validator((input) => decodeMarkReadInput(input))
-  .handler(async ({ data }) => {
-    const session = await requireRequestSession()
-    // Same permission as the read: marking read is the actor consuming their
-    // own feed, and the capability's visibility filter scopes the write to
-    // rows the actor can see. The decision is recorded in the capability's
-    // intent node.
-    return runWorkspaceCapabilities(
-      data.workspaceSlug,
-      Effect.gen(function* () {
-        yield* requireWorkspacePermission({ notification: ['read'] })
-        const feed = yield* NotificationFeed
-        return yield* feed.markRead(data.ids)
-      }),
-      { userId: session.user.id }
-    )
+  .validator(Schema.decodeUnknownSync(MarkNotificationsReadInput))
+  .handler(async ({ data }): Promise<number> => {
+    const { markNotificationsReadHandler } = await import('./notifications.effects')
+    return markNotificationsReadHandler(data)
   })
 
 export function notificationsQueryKey(
