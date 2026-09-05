@@ -53,15 +53,6 @@ export function bookkeepingRecord(name: string, sql: string): BookkeepingRecord 
   }
 }
 
-// Mirrors alchemy's sqlite insertSql: one bookkeeping row for an applied
-// migration, values inlined (the D1 HTTP path is raw-SQL-only).
-export function bookkeepingInsertSql(name: string, sql: string): string {
-  const { hash, createdAtMillis } = bookkeepingRecord(name, sql)
-  return `INSERT INTO __alchemy_migrations (hash, created_at, name, applied_at) VALUES (${sqlLiteral(hash)}, ${
-    createdAtMillis === null ? 'NULL' : String(createdAtMillis)
-  }, ${sqlLiteral(name)}, datetime('now'));`
-}
-
 /** The tables and columns a migration's CREATE TABLE statements define. */
 export type TableDdl = {
   readonly table: string

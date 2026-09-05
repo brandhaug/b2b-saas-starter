@@ -1,8 +1,30 @@
-import { failureMessage } from '@b2b-saas-starter/failure'
-import { Context, Effect, Layer, Option, Schema } from 'effect'
-
 import { type Writable } from '@b2b-saas-starter/config/writable'
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
+import { failureMessage } from '@b2b-saas-starter/failure'
+import { Context, Effect, Layer, Schema } from 'effect'
+import { LanguageModel, Model, Prompt } from 'effect/unstable/ai'
+
+import { MockAssistantModel } from './mock.ts'
+import { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
+import { type WorkersAIBinding, makeWorkersAIModel } from './workers-ai.ts'
+
+// The starter assistant on Effect's provider-agnostic `LanguageModel`
+// (ADR 0008, 0071). This module holds the contract — the prompt/reply
+// schemas and the `AssistantService` tag — plus the one `ask` implementation
+// and the env-driven provider selection. The providers themselves are
+// `LanguageModel` adapters, one module each: `workers-ai.ts` (the Cloudflare
+// binding), `openai.ts` (any OpenAI-compatible chat endpoint), and `mock.ts`
+// (the honest no-provider model), all sharing the text-only acceptance
+// policy in `text-model.ts`. Which model answers is a layer decision, never
+// a branch inside the behavior: each adapter is wrapped in `Model.make`,
+// which stamps `ProviderName` and `ModelName` beside the model it provides,
+// so the reply's `provider` / `modelId` fields come from the same context as
+// the model that answered.
+
+// The provider factories stay part of the package's surface: a deployment
+// wires a custom combination the env selector does not know about.
+export { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
+export { type WorkersAIBinding, makeWorkersAIModel } from './workers-ai.ts'
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class AssistantUnavailable extends Schema.TaggedError<AssistantUnavailable>()(
@@ -45,172 +67,58 @@ export class AssistantService extends Context.Service<
   AssistantInterface
 >()('@b2b-saas-starter/ai/AssistantService') {}
 
-export const MockAssistantLayer = Layer.succeed(AssistantService)({
-  ask: (prompt) =>
-    Effect.succeed(
-      AssistantReply.make({
-        answer: `Mock assistant: "${prompt.question}" for workspace ${prompt.workspaceSlug}. Configure WORKERS_AI_ENABLED=true or OPENAI_API_KEY to enable a real provider.`,
-        provider: 'mock',
-        modelId: 'starter-mock',
+const isAssistantProvider = Schema.is(AssistantProvider)
+
+/**
+ * The one `ask` implementation. `AiError` is the adapters' error channel;
+ * this is the one boundary that maps it — into the `AssistantUnavailable`
+ * the HTTP contract declares. Tools are off (`toolChoice: 'none'` and every
+ * adapter refuses them), so `usedTools` is honestly empty until they land.
+ */
+export const AssistantLive = Layer.effect(AssistantService)(
+  Effect.gen(function* () {
+    const model = yield* LanguageModel.LanguageModel
+    const providerName = yield* Model.ProviderName
+    const modelId = yield* Model.ModelName
+
+    const ask = Effect.fn('AssistantService.ask')(function* (prompt: AssistantPrompt) {
+      // The provider names in context are ours — but they cross a context
+      // boundary as plain strings, so the reply's literal-union field is
+      // guarded here rather than trusted.
+      if (!isAssistantProvider(providerName)) {
+        return yield* new AssistantUnavailable({
+          reason: `unknown assistant provider: ${providerName}`
+        })
+      }
+      const response = yield* model
+        .generateText({
+          prompt: Prompt.make([
+            {
+              role: 'system',
+              content: `You are the B2B SaaS Starter assistant for workspace ${prompt.workspaceSlug}.`
+            },
+            { role: 'user', content: prompt.question }
+          ]),
+          toolChoice: 'none'
+        })
+        .pipe(
+          Effect.mapError(
+            (error) => new AssistantUnavailable({ reason: failureMessage(error) })
+          )
+        )
+      return AssistantReply.make({
+        answer: response.text,
+        provider: providerName,
+        modelId,
         usedTools: []
       })
-    )
-})
-
-export type WorkersAIBinding = {
-  readonly run: (
-    model: string,
-    input: { readonly prompt: string }
-  ) => Promise<{ readonly response?: string }>
-}
-
-export function makeWorkersAILayer(
-  binding: WorkersAIBinding,
-  modelId = '@cf/meta/llama-3.1-8b-instruct'
-) {
-  return Layer.succeed(AssistantService)({
-    ask: (prompt) =>
-      Effect.gen(function* () {
-        const result = yield* Effect.tryPromise({
-          try: () =>
-            binding.run(modelId, {
-              prompt: `Workspace: ${prompt.workspaceSlug}\nQuestion: ${prompt.question}\nAnswer:`
-            }),
-          catch: (cause) =>
-            new AssistantUnavailable({ reason: `workers-ai: ${failureMessage(cause)}` })
-        })
-        if (!result.response) {
-          return yield* Effect.fail(
-            new AssistantUnavailable({ reason: 'workers-ai: missing response' })
-          )
-        }
-        return AssistantReply.make({
-          answer: result.response,
-          provider: 'workers-ai',
-          modelId,
-          usedTools: []
-        })
-      })
-  })
-}
-
-export type OpenAIConfig = {
-  readonly apiKey: string
-  readonly baseUrl?: string
-  readonly modelId?: string
-}
-
-/**
- * The config is built via {@link Writable} by assignment so an unset var
- * leaves its key absent rather than set it to `undefined`, so the layer's own
- * defaults still apply.
- */
-
-const OpenAIChatRequest = Schema.Struct({
-  model: Schema.String,
-  messages: Schema.Array(
-    Schema.Struct({
-      role: Schema.Literals(['system', 'user']),
-      content: Schema.String
     })
-  )
-})
 
-/** Schema JSON codec for the request body — no hand-rolled `JSON.stringify`. */
-const encodeChatRequest = Schema.encodeSync(Schema.fromJsonString(OpenAIChatRequest))
-
-const OpenAIChatResponse = Schema.Struct({
-  choices: Schema.Array(
-    Schema.Struct({
-      message: Schema.Struct({
-        content: Schema.String.check(Schema.isMinLength(1))
-      })
-    })
-  ).check(Schema.isMinLength(1))
-})
-
-const decodeOpenAIChatResponse = Schema.decodeUnknownOption(OpenAIChatResponse)
-
-/**
- * The single platform adapter in this package: one outbound HTTP POST against
- * an OpenAI-compatible endpoint. `packages/ai` deliberately depends on `effect`
- * only, so there is no `@effect/platform` HttpClient to route through; the
- * global `fetch` is confined to this one function and every caller wraps it in
- * `Effect.tryPromise` with a tagged `AssistantUnavailable` failure.
- */
-function postJson(
-  url: string,
-  headers: Record<string, string>,
-  body: string,
-  signal: AbortSignal
-) {
-  // This package depends on `effect` only — there is no @effect/platform HttpClient to
-  // route through — and the whole outbound boundary is this one call, wrapped by
-  // `Effect.tryPromise` with a tagged `AssistantUnavailable` failure at every caller.
-  // oxlint-disable-next-line effect/noGlobals -- raw fetch is the platform transport here
-  return fetch(url, { method: 'POST', headers, body, signal })
-}
-
-export function makeOpenAILayer(config: OpenAIConfig) {
-  return Layer.succeed(AssistantService)({
-    ask: (prompt) =>
-      Effect.gen(function* () {
-        const baseUrl = config.baseUrl ?? 'https://api.openai.com/v1'
-        const modelId = config.modelId ?? 'gpt-4o-mini'
-        const response = yield* Effect.tryPromise({
-          try: (signal) =>
-            postJson(
-              `${baseUrl}/chat/completions`,
-              {
-                authorization: `Bearer ${config.apiKey}`,
-                'content-type': 'application/json'
-              },
-              encodeChatRequest({
-                model: modelId,
-                messages: [
-                  {
-                    role: 'system',
-                    content: `You are the B2B SaaS Starter assistant for workspace ${prompt.workspaceSlug}.`
-                  },
-                  { role: 'user', content: prompt.question }
-                ]
-              }),
-              signal
-            ),
-          catch: (cause) =>
-            new AssistantUnavailable({ reason: `openai: ${failureMessage(cause)}` })
-        })
-        if (!response.ok) {
-          return yield* Effect.fail(
-            new AssistantUnavailable({ reason: `openai: status ${response.status}` })
-          )
-        }
-        const raw: unknown = yield* Effect.tryPromise({
-          try: () => response.json(),
-          catch: (cause) =>
-            new AssistantUnavailable({ reason: `openai: ${failureMessage(cause)}` })
-        })
-        const body = decodeOpenAIChatResponse(raw)
-        if (Option.isNone(body)) {
-          return yield* Effect.fail(
-            new AssistantUnavailable({ reason: 'openai response: invalid shape' })
-          )
-        }
-        const firstChoice = body.value.choices[0]
-        if (!firstChoice) {
-          return yield* Effect.fail(
-            new AssistantUnavailable({ reason: 'openai response: missing choice' })
-          )
-        }
-        return AssistantReply.make({
-          answer: firstChoice.message.content,
-          provider: 'openai-compatible',
-          modelId,
-          usedTools: []
-        })
-      })
+    return AssistantService.of({ ask })
   })
-}
+)
+
+// --- Selection -------------------------------------------------------------------
 
 /**
  * The assistant's slice of the worker env. Keys are `Pick`ed from
@@ -230,10 +138,12 @@ export type ProviderEnv = ProviderEnvOf<
 
 /**
  * The one place that decides which provider a deployment configured.
- * `selectAssistantLayer` builds the layer for the choice and
- * `isAssistantConfigured` asks whether the choice is a real provider, so the
- * condition ("Workers AI with its binding, or an OpenAI key") is stated once
- * and the UI's "not enabled" copy can never disagree with the ask path.
+ * `selectModel` builds the `Model` layer for the choice (a `LanguageModel`
+ * plus its `ProviderName` / `ModelName` stamps), `selectAssistantLayer`
+ * composes it under `AssistantLive`, and `isAssistantConfigured` asks whether
+ * the choice is a real provider — so the condition ("Workers AI with its
+ * binding, or an OpenAI key") is stated once and the UI's "not enabled" copy
+ * can never disagree with the ask path.
  */
 type ProviderChoice =
   | { readonly provider: 'workers-ai'; readonly binding: WorkersAIBinding }
@@ -259,20 +169,32 @@ function selectProvider(env: ProviderEnv): ProviderChoice {
   return { provider: 'mock' }
 }
 
-export function selectAssistantLayer(env: ProviderEnv): Layer.Layer<AssistantService> {
+function selectModel(
+  env: ProviderEnv
+): Layer.Layer<LanguageModel.LanguageModel | Model.ProviderName | Model.ModelName> {
   const choice = selectProvider(env)
   switch (choice.provider) {
     case 'workers-ai': {
-      return makeWorkersAILayer(choice.binding)
+      return makeWorkersAIModel(choice.binding)
     }
     case 'openai-compatible': {
-      return makeOpenAILayer(choice.config)
+      return makeOpenAIModel(choice.config)
     }
     case 'mock': {
-      return MockAssistantLayer
+      return MockAssistantModel
     }
   }
 }
+
+/** The assistant wired to whichever model the env selected — the mock when nothing is. */
+export function selectAssistantLayer(env: ProviderEnv): Layer.Layer<AssistantService> {
+  return AssistantLive.pipe(Layer.provide(selectModel(env)))
+}
+
+/** `AssistantLive` on the mock model — the layer an unconfigured env selects. */
+export const MockAssistantLayer: Layer.Layer<AssistantService> = AssistantLive.pipe(
+  Layer.provide(MockAssistantModel)
+)
 
 /** Whether a real provider is configured — the mock does not count. */
 export function isAssistantConfigured(env: ProviderEnv): boolean {
