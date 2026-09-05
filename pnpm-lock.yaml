@@ -229,8 +229,8 @@ catalogs:
       specifier: 5.2.0
       version: 5.2.0
     shadcn:
-      specifier: 4.19.0
-      version: 4.19.0
+      specifier: 4.20.1
+      version: 4.20.1
     sonner:
       specifier: 2.0.8
       version: 2.0.8
@@ -354,7 +354,7 @@ importers:
         version: 0.9.12
       shadcn:
         specifier: 'catalog:'
-        version: 4.19.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(typescript@7.0.2)
+        version: 4.20.1(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(typescript@7.0.2)
       storybook:
         specifier: 'catalog:'
         version: 10.5.10(@types/react@19.2.18)(prettier@3.9.6)(react@19.2.8)(vite-plus@0.3.0(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.0))
@@ -9163,8 +9163,8 @@ packages:
   setprototypeof@1.2.0:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
 
-  shadcn@4.19.0:
-    resolution: {integrity: sha512-EQF6R+CUXTsEP2BpyhxrUEAFesrtFD1POvVOf5jM+wkgtA4kG1EW1+1Wlmi9LqiprSL681JJXBcS0u8WkVVVyQ==}
+  shadcn@4.20.1:
+    resolution: {integrity: sha512-gq3Z2MNeGpiPvMkiy0bTc24KIUcl3gVHS/aoWCmlkoychQHL38KSx3CkD7+7DHcFjyPvy8fzmynfmUFf7fejeg==}
     engines: {node: '>=20.18.1'}
     hasBin: true
 
@@ -10496,7 +10496,7 @@ snapshots:
       '@babel/code-frame': 7.29.7
       '@babel/generator': 7.29.8
       '@babel/helper-globals': 7.29.7
-      '@babel/parser': 7.29.2
+      '@babel/parser': 7.29.8
       '@babel/template': 7.29.7
       '@babel/types': 7.29.8
       debug: 4.4.3(supports-color@10.2.2)
@@ -17795,7 +17795,7 @@ snapshots:
 
   setprototypeof@1.2.0: {}
 
-  shadcn@4.19.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(typescript@7.0.2):
+  shadcn@4.20.1(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(typescript@7.0.2):
     dependencies:
       '@babel/core': 7.29.7(supports-color@10.2.2)
       '@babel/parser': 7.29.8
