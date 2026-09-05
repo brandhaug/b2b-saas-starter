@@ -82,6 +82,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+      # Migrations are squashed routinely, and a squash renames the surviving
+      # folder. Alchemy tracks applied migrations by that folder name, so the
+      # squashed migration looks pending on a database that already carries
+      # the schema and the deploy dies on `CREATE TABLE` ("table `account`
+      # already exists"). Baseline first: record migrations whose tables ALL
+      # already exist as applied (packages/db/scripts/baseline.ts), so
+      # squashes of already-deployed work converge instead of re-running.
+      - name: Baseline migration bookkeeping
+        run: pnpm run db:baseline:remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - run: pnpm run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

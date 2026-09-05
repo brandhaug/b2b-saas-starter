@@ -16,9 +16,11 @@ Five subpaths, no root export.
 
 ## Usage Patterns
 
-Edit `schema.ts`, run `db:generate`, commit schema and migration together (drizzle-kit folder style). `scripts/migrate.ts` and `./testing` share `migrations-fs.ts` for identical ordering.
+Edit `schema.ts`, run `db:generate`, commit schema and migration together (drizzle-kit folder style). `scripts/migrate.ts`, `scripts/baseline.ts`, and `./testing` share `migrations-fs.ts` for identical ordering.
 
 After a squash a stale local D1 cannot be migrated onto, its `d1_migrations` table naming deleted migrations: delete `packages/db/.wrangler/state/v3/d1`, re-run `db:migrate:local` and `db:seed`, restart `pnpm run dev` (ADR 0049).
+
+Deployed databases converge instead of resetting: both deploy workflows run `scripts/baseline.ts` first, recording a migration in Alchemy's `__alchemy_migrations` bookkeeping as applied only when every table it creates already exists. Alchemy keys appliedness by folder name, so without the baseline every squash rename would re-run the squashed migration and die on `CREATE TABLE`. A squash of work the deployed database never received cannot converge — the deploy fails loudly; the repair is a reset (`pnpm run destroy && pnpm run deploy`, then reseed) or keeping new tables in their own incremental migration.
 
 ## Anti-patterns
 
