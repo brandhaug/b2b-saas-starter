@@ -90,6 +90,7 @@ function stubReads(failing = false) {
       listWorkspacesForUser: () => unused,
       addMember: () => unused,
       removeMember: () => unused,
+      leave: unused,
       changeRole: () => unused
     }),
     Layer.succeed(WorkspaceInvitations)({

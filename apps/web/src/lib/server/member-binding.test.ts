@@ -11,14 +11,14 @@ import { webMemberBinding } from './member-binding'
  * The adapter's one behaviour that does not need Better Auth: what it does with
  * no in-flight request to take session headers from.
  *
- * `updateMemberRole` and `removeMember` are `requireHeaders: true`, so this is
- * not an edge case — it is the state a client-side navigation or a background
- * call is in. The rejection has to reach the capability as "the store is
- * unreachable", never as "the workspace refused", because nothing about the
- * membership is wrong. The assertion runs the capability's own classifier over
- * the rejected value rather than restating its rule, so a `statusCode` appearing
- * on this error — or the classifier changing its mind about a missing status —
- * fails here.
+ * `updateMemberRole`, `removeMember`, and `leave` are `requireHeaders: true`,
+ * so this is not an edge case — it is the state a client-side navigation or a
+ * background call is in. The rejection has to reach the capability as "the
+ * store is unreachable", never as "the workspace refused", because nothing
+ * about the membership is wrong. The assertion runs the capability's own
+ * classifier over the rejected value rather than restating its rule, so a
+ * `statusCode` appearing on this error — or the classifier changing its mind
+ * about a missing status — fails here.
  *
  * Under Vitest there is no TanStack request storage, so `currentRequest()`
  * answers `undefined` and every headered call below takes that branch.
@@ -62,6 +62,10 @@ const CALLS: ReadonlyArray<BindingCall> = [
     name: 'removeMember',
     call: () =>
       webMemberBinding.removeMember({ workspaceId: 'ws_1', memberId: 'mbr_1' })
+  },
+  {
+    name: 'leave',
+    call: () => webMemberBinding.leave({ workspaceId: 'ws_1' })
   },
   {
     name: 'changeRole',

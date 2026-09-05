@@ -17,15 +17,21 @@ import {
 import { describe, expect, it } from 'vite-plus/test'
 import { Effect, Layer, Ref, type Scope } from 'effect'
 
-import { changeMemberRole, loadWorkspaceMembers } from './workspace-members'
+import {
+  changeMemberRole,
+  leaveWorkspace,
+  loadWorkspaceMembers,
+  removeMember
+} from './workspace-members'
 
 /**
- * The member-management surface below its session gate. `changeMemberRole` is
- * exported as an effect taking only the role input, so what is testable without
- * a request or an auth runtime is exactly the behaviour: the `member:update`
- * gate and the hand-off to the membership capability (whose own contract tests
- * cover the plugin binding). The fixture roster is seeded per test, which the
- * app's own layer cannot do.
+ * The member-management surface below its session gate. `changeMemberRole`,
+ * `removeMember`, and `leaveWorkspace` are exported as effects taking only
+ * their own inputs, so what is testable without a request or an auth runtime
+ * is exactly the behaviour: the `member:update` / `member:delete` gates, the
+ * ungated self-verb, and the hand-off to the membership capability (whose own
+ * contract tests cover the plugin binding). The fixture roster is seeded per
+ * test, which the app's own layer cannot do.
  *
  * Real clock on purpose: plain `it` + `Effect.runPromise`, not
  * `@effect/vitest`'s TestClock epoch.
@@ -136,6 +142,84 @@ describe('changeMemberRole', () => {
       outcome(changeMemberRole({ userId: MEMBER.userId, role: 'admin' }))
     )
     expect(result).toEqual({ tag: 'AuthorizationDenied', reason: 'no_principal' })
+  })
+})
+
+describe('removeMember', () => {
+  it('lets an owner off-board a member', async () => {
+    const { result, roster } = await run({}, () =>
+      outcome(removeMember({ userId: MEMBER.userId }))
+    )
+    expect(result).toEqual({ tag: 'ok', value: undefined })
+    expect(roster.some((candidate) => candidate.id === MEMBER.userId)).toBe(false)
+  })
+
+  it('lets an admin off-board too — the matrix grants admin member:delete', async () => {
+    const { result } = await run({ actor: ADMIN }, () =>
+      outcome(removeMember({ userId: MEMBER.userId }))
+    )
+    expect(result.tag).toBe('ok')
+  })
+
+  it('denies a member the removal', async () => {
+    const { result } = await run({ actor: MEMBER }, () =>
+      outcome(removeMember({ userId: OWNER.userId }))
+    )
+    expect(result).toEqual({
+      tag: 'AuthorizationDenied',
+      reason: 'insufficient_permission'
+    })
+  })
+
+  it('refuses to remove the sole owner with the typed reason', async () => {
+    // The fixture roster has exactly one owner; the removal must refuse
+    // before anything changes, carrying the reason the boundary words as
+    // "transfer ownership first".
+    const { result, roster } = await run({}, () =>
+      outcome(removeMember({ userId: OWNER.userId }))
+    )
+    expect(result).toEqual({
+      tag: 'MembershipChangeRejected',
+      reason: 'sole_owner'
+    })
+    expect(roster.some((candidate) => candidate.id === OWNER.userId)).toBe(true)
+  })
+})
+
+describe('leaveWorkspace', () => {
+  it('is any member’s own verb — no permission gate refuses a plain member', async () => {
+    const { result, roster } = await run({ actor: MEMBER }, () =>
+      outcome(leaveWorkspace())
+    )
+    expect(result).toEqual({ tag: 'ok', value: undefined })
+    expect(roster.some((candidate) => candidate.id === MEMBER.userId)).toBe(false)
+  })
+
+  it('refuses the sole owner with the typed reason', async () => {
+    const { result, roster } = await run({ actor: OWNER }, () =>
+      outcome(leaveWorkspace())
+    )
+    expect(result).toEqual({
+      tag: 'MembershipChangeRejected',
+      reason: 'sole_owner'
+    })
+    expect(roster.some((candidate) => candidate.id === OWNER.userId)).toBe(true)
+  })
+
+  it('lets an owner leave once another owner remains', async () => {
+    // A second owner in the roster — the transfer the refusal copy asks for
+    // — is the condition under which the leave succeeds.
+    const coowner: Actor = { userId: 'usr_coowner', role: 'owner', systemRole: 'user' }
+    const { result, roster } = await run(
+      {
+        actor: OWNER,
+        members: [memberOf(coowner), memberOf(OWNER), memberOf(MEMBER)]
+      },
+      () => outcome(leaveWorkspace())
+    )
+    expect(result).toEqual({ tag: 'ok', value: undefined })
+    expect(roster.some((candidate) => candidate.id === OWNER.userId)).toBe(false)
+    expect(roster.some((candidate) => candidate.id === coowner.userId)).toBe(true)
   })
 })
 

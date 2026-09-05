@@ -131,6 +131,24 @@ export function findWorkspaceMember(
 }
 
 /**
+ * How many owners a workspace's roster holds. The membership capability's
+ * ownership rule reads this before asking the plugin to remove or demote one,
+ * so a refusal carries a machine reason instead of the plugin's message text.
+ * Counts in memory rather than SQL dialect — the rosters are fixture-sized.
+ */
+export function countWorkspaceOwners(
+  db: EffectDatabase,
+  workspaceId: string
+): Effect.Effect<number, CapabilityUnavailable> {
+  return orUnavailable('workspace-membership')(
+    db
+      .select({ role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(eq(workspaceMembers.workspaceId, workspaceId))
+  ).pipe(Effect.map((rows) => rows.filter((row) => row.role === 'owner').length))
+}
+
+/**
  * Resolves a member's surrogate row id from `(workspaceId, userId)` — the
  * plugin addresses members by row id while capability callers speak in user
  * ids. Shared by `workspace-membership` and `platform-user-admin`, which each

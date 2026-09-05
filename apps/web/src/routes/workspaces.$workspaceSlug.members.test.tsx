@@ -69,7 +69,11 @@ const perSeat = payload({
 
 async function renderPage(data: WorkspaceMembersPayload) {
   return renderWithRouter(
-    <WorkspaceMembersPage workspaceSlug="starter-lab" data={data} />,
+    <WorkspaceMembersPage
+      workspaceSlug="starter-lab"
+      data={data}
+      actorUserId="usr_owner"
+    />,
     {
       path: '/workspaces/starter-lab/members',
       destinations: ['/workspaces/starter-lab/billing']

@@ -215,7 +215,12 @@ export class AccountLifecycle extends Context.Service<
 export type AccountLifecycleBinding = {
   readonly leaveWorkspace: (input: {
     readonly workspaceId: string
-    /** The membership row's own id — the plugin's `removeMember` addresses members by row id. */
+    /**
+     * The membership row's own id — kept for the Seed adapter, which resolves
+     * members by row id. The Live binding uses the plugin's session-resolved
+     * leave endpoint instead, so a plain member can leave while deleting
+     * their account (no `member:delete` permission applies).
+     */
     readonly memberId: string
   }) => Promise<void>
   readonly deleteWorkspace: (input: { readonly workspaceId: string }) => Promise<void>

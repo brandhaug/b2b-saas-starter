@@ -1,6 +1,7 @@
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   WorkspaceMembership,
+  type MemberRef,
   type MemberRoleInput
 } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import {
@@ -140,6 +141,82 @@ export const changeMemberRoleServerFn = createServerFn({ method: 'POST' })
       { userId: session.user.id },
       // The adapter lives server-only and rides per call — see
       // `member-binding.ts` for why it cannot sit on `starterEnv`.
+      { memberBinding: webMemberBinding }
+    )
+  })
+
+const RemoveMemberInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  userId: Schema.NonEmptyString
+})
+
+const decodeRemoveInput = Schema.decodeUnknownSync(RemoveMemberInput)
+
+/**
+ * Off-boarding a member, below the session gate: `member:delete` (owner and
+ * admin hold it in the role table) decides who may ask, and the capability's
+ * ownership rule decides what the workspace refuses — the sole owner first
+ * among them, which the boundary words as "transfer ownership first". The
+ * actor's own row is not this verb; that is `leaveWorkspace` below.
+ */
+export function removeMember(
+  input: MemberRef
+): Effect.Effect<
+  void,
+  AuthorizationDenied | CapabilityUnavailable | MembershipChangeRejected,
+  Scope.Scope | WorkspaceContext | WorkspaceMembership
+> {
+  return Effect.gen(function* () {
+    yield* requireWorkspacePermission({ member: ['delete'] })
+    const membership = yield* WorkspaceMembership
+    return yield* membership.removeMember(input)
+  })
+}
+
+export const removeMemberServerFn = createServerFn({ method: 'POST' })
+  .validator((input) => decodeRemoveInput(input))
+  .handler(async ({ data }): Promise<void> => {
+    const session = await requireRequestSession()
+    return runWorkspaceCapabilities(
+      data.workspaceSlug,
+      removeMember({ userId: data.userId }),
+      { userId: session.user.id },
+      { memberBinding: webMemberBinding }
+    )
+  })
+
+const LeaveWorkspaceInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString
+})
+
+const decodeLeaveInput = Schema.decodeUnknownSync(LeaveWorkspaceInput)
+
+/**
+ * Leaving: the actor's own membership, ended by their own hand. No permission
+ * statement gates it — the authz matrix has no self-action, and any member
+ * may leave — because `WorkspaceContext` is the proof that the membership
+ * exists, and the capability's sole-owner rule (the plugin's own) is the one
+ * refusal, worded as "transfer ownership first" at the boundary.
+ */
+export function leaveWorkspace(): Effect.Effect<
+  void,
+  CapabilityUnavailable | MembershipChangeRejected,
+  Scope.Scope | WorkspaceContext | WorkspaceMembership
+> {
+  return Effect.flatMap(WorkspaceMembership, (membership) => membership.leave)
+}
+
+export const leaveWorkspaceServerFn = createServerFn({ method: 'POST' })
+  .validator((input) => decodeLeaveInput(input))
+  .handler(async ({ data }): Promise<void> => {
+    // The input carries no identity because there is none to carry: the
+    // leaver is the session's own user, and a non-member gets the same
+    // non-disclosing 404 every workspace route gives them.
+    const session = await requireRequestSession()
+    return runWorkspaceCapabilities(
+      data.workspaceSlug,
+      leaveWorkspace(),
+      { userId: session.user.id },
       { memberBinding: webMemberBinding }
     )
   })

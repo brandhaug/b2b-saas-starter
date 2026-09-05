@@ -16,7 +16,8 @@ import { SeedWorkspaceInvitations } from './governance/workspace-invitations.see
 import { SeedSeatSyncPublisher } from './billing/seat-sync.ts'
 import {
   makeSeedRoster,
-  SeedWorkspaceMembership
+  SeedWorkspaceMembership,
+  WorkspaceMembership
 } from './governance/workspace-membership.ts'
 import { LiveApiTokenRegistry } from './developer-platform/api-token-registry.live.ts'
 import { SeedApiTokenRegistry } from './developer-platform/api-token-registry.seed.ts'
@@ -607,15 +608,103 @@ describe('workspace list projection', () => {
 // The Live half of this same list runs in the matching `*.live.test.ts`. Two adapters,
 // one contract — capabilities invariant 4.
 describe('seed workspace membership contract', () => {
+  // The contract's roster and actor differ from `seedWorkspaceLayer`'s: the
+  // ownership-rule cases need a sole owner to refuse on, and `leave` needs the
+  // actor resolved. Built below from the demo fixture; a fresh audit log lets
+  // the audit-count case read back only its own mutations.
+  const contractLayer = Layer.unwrap(
+    Effect.gen(function* () {
+      // The demo fixture minus `usr_demo`: exactly one owner (`usr_martin`,
+      // also the resolved actor — their own leave is one of the cases), so
+      // the ownership-rule cases refuse on precisely the sole-owner standing.
+      const roster = yield* makeSeedRoster(
+        seedMembers.filter((member) => member.id !== demoUserIdentity.id)
+      )
+      return Layer.mergeAll(
+        SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
+          Layer.provide(SeedSeatSyncPublisher)
+        ),
+        // A fresh log, not the fixture's: the audit-count case reads back
+        // what its own mutations recorded, unseeded. The fixture's accounts
+        // ride along so a recorded event carries its actor's name, the way
+        // the shared log in `layers.ts` does.
+        SeedAuditEventLog([], seedSystemUsers),
+        testWorkspaceContext(seedWorkspaceRecord, {
+          userId: 'usr_martin',
+          role: 'owner',
+          systemRole: 'admin'
+        })
+      )
+    })
+  )
   const cases = workspaceMembershipContractCases(
     { member: 'usr_martin', newcomer: 'usr_newcomer', stranger: 'usr_stranger' },
     expect
   )
   for (const contractCase of cases) {
     it.effect(contractCase.name, () =>
-      contractCase.assert.pipe(Effect.provide(seedWorkspaceLayer))
+      contractCase.assert.pipe(Effect.provide(contractLayer))
     )
   }
+
+  it.effect('lets an owner leave once another owner remains', () =>
+    Effect.gen(function* () {
+      const membership = yield* WorkspaceMembership
+      // The Live half of this success path runs in
+      // `workspace-membership.live.test.ts` against a second workspace: a
+      // leave ends the actor's membership, which the shared contract above
+      // cannot afford to do to its own runner's actor.
+      const added = yield* membership.addMember({
+        userId: 'usr_newcomer',
+        role: 'owner'
+      })
+      expect(added.role).toBe('owner')
+      yield* membership.leave
+
+      const members = yield* membership.listMembers
+      expect(members.some((member) => member.id === 'usr_martin')).toBe(false)
+      // The successor keeps the workspace owned, and the leave recorded the
+      // removal the audit trail shows for an admin-driven one.
+      expect(
+        members.some(
+          (member) => member.id === 'usr_newcomer' && member.role === 'owner'
+        )
+      ).toBe(true)
+      const log = yield* AuditEventLog
+      const removed = yield* log.list({ eventType: 'workspace_member.removed' })
+      expect(
+        removed.events.some(
+          (event) =>
+            event.targetId === 'usr_martin' && event.actor === 'Martin Brandhaug'
+        )
+      ).toBe(true)
+    }).pipe(Effect.provide(contractLayer))
+  )
+
+  it.effect(
+    'refuses an owner-role change from a non-owner actor with the machine reason',
+    () =>
+      Effect.gen(function* () {
+        const membership = yield* WorkspaceMembership
+        const outcome = yield* Effect.exit(
+          membership.changeRole({ userId: 'usr_martin', role: 'member' })
+        )
+        // Same rule, same reason as the Live adapter: granting or rewriting the
+        // owner role is reserved to owners.
+        expect(failureTag(outcome)).toBe('MembershipChangeRejected')
+      }).pipe(
+        Effect.provide(
+          Layer.merge(
+            contractLayer,
+            testWorkspaceContext(seedWorkspaceRecord, {
+              userId: 'usr_ops',
+              role: 'admin',
+              systemRole: 'user'
+            })
+          )
+        )
+      )
+  )
 })
 
 describe('seed platform user admin contract', () => {
