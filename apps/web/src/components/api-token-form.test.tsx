@@ -38,12 +38,12 @@ describe('ApiTokenForm', () => {
     expect(createToken).not.toHaveBeenCalled()
   })
 
-  it('shows a validation error when the name exceeds 80 characters', async () => {
+  it('shows a validation error when the name exceeds 100 characters', async () => {
     renderForm()
     fireEvent.change(screen.getByLabelText('Token name'), {
-      target: { value: 'a'.repeat(81) }
+      target: { value: 'a'.repeat(101) }
     })
-    await screen.findByText('Token name must be under 80 characters')
+    await screen.findByText('Token name must be at most 100 characters')
   })
 
   it('requires at least one scope', async () => {

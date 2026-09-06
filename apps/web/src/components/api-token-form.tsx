@@ -33,8 +33,8 @@ function validateTokenName(value: string): string | undefined {
   if (value.trim().length === 0) {
     return 'Token name is required'
   }
-  if (value.length > 80) {
-    return 'Token name must be under 80 characters'
+  if (value.length > 100) {
+    return 'Token name must be at most 100 characters'
   }
   return
 }

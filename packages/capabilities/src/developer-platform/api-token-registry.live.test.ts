@@ -1,5 +1,5 @@
-import { Effect, Exit } from 'effect'
-import { Database } from '@b2b-saas-starter/db/service'
+import { DateTime, Effect, Exit, Layer } from 'effect'
+import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { apiTokens, auditEvents } from '@b2b-saas-starter/db/schema'
 import { eq } from 'drizzle-orm'
 import { failureTag } from '../internal/failure-tag.ts'
@@ -14,6 +14,7 @@ import {
 } from '../testing/live-harness.ts'
 import { apiTokenRegistryContractCases } from './api-token-registry.contract.ts'
 import { ApiTokenRegistry } from './api-token-registry.ts'
+import { LiveApiTokenRegistry } from './api-token-registry.live.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'live api token registry',
@@ -103,6 +104,74 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           })
       )
     }
+    it.effect(
+      'a revoke after the source read prevents the replacement batch from committing',
+      () =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          const d1 = yield* RawD1
+          return yield* inWorkspace(
+            'dev-contract-lab',
+            Effect.gen(function* () {
+              const registry = yield* ApiTokenRegistry
+              const audit = yield* AuditEventLog
+              const original = yield* registry.create({
+                name: 'revoke race',
+                scopes: ['read']
+              })
+              const beforeTokens = yield* db.select().from(apiTokens)
+              const beforeAudit = yield* db.select().from(auditEvents)
+              const revokedAt = DateTime.formatIso(yield* DateTime.now)
+              // Audit preparation runs after replacement reads the source, before its
+              // atomic batch. Commit a competing revoke at that precise boundary.
+              const racingAudit = Layer.succeed(
+                AuditEventLog,
+                AuditEventLog.of({
+                  ...audit,
+                  prepareRecord: (input) =>
+                    Effect.gen(function* () {
+                      yield* db
+                        .update(apiTokens)
+                        .set({ revokedAt })
+                        .where(eq(apiTokens.id, original.id))
+                        .pipe(Effect.orDie)
+                      return yield* audit.prepareRecord(input)
+                    })
+                })
+              )
+              const result = yield* Effect.exit(
+                Effect.gen(function* () {
+                  const racingRegistry = yield* ApiTokenRegistry
+                  return yield* racingRegistry.replace({
+                    tokenId: original.id,
+                    scopes: ['read'],
+                    overlapSeconds: 0
+                  })
+                }).pipe(
+                  Effect.provide(
+                    Layer.fresh(LiveApiTokenRegistry).pipe(Layer.provide(racingAudit))
+                  ),
+                  Effect.provideService(Database, db),
+                  Effect.provideService(RawD1, d1)
+                )
+              )
+              expect(failureTag(result)).toBe('CapabilityUnavailable')
+              for (const row of beforeTokens) {
+                if (row.id === original.id) {
+                  row.revokedAt = revokedAt
+                }
+              }
+              expect(yield* db.select().from(apiTokens)).toEqual(beforeTokens)
+              expect(yield* db.select().from(auditEvents)).toEqual(beforeAudit)
+              expect(
+                failureTag(
+                  yield* Effect.exit(registry.verifyBearerToken(original.token))
+                )
+              ).toBe('AuthorizationDenied')
+            })
+          )
+        })
+    )
     it.effect(
       'racing replacements commit exactly one child and its linked audit evidence',
       () =>

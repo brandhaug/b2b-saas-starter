@@ -117,6 +117,49 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
       })
     },
     {
+      name: 'chained replacements preserve ancestor deadlines and retire each credential independently',
+      assert: Effect.gen(function* () {
+        yield* TestClock.setTime(START)
+        const registry = yield* ApiTokenRegistry
+        const original = yield* registry.create({
+          name: 'rotation chain',
+          scopes: ['read', 'write'],
+          expiresAt: HOUR
+        })
+        const first = yield* registry.replace({
+          tokenId: original.id,
+          scopes: ['read'],
+          overlapSeconds: 60
+        })
+        yield* TestClock.adjust(30_000)
+        const second = yield* registry.replace({
+          tokenId: first.id,
+          scopes: ['read'],
+          overlapSeconds: 60
+        })
+        expect(second.expiresAt).toBe(HOUR)
+        expect(
+          (yield* registry.list).find((token) => token.id === original.id)
+        ).toMatchObject({
+          expiresAt: MINUTE,
+          replacedByTokenId: first.id
+        })
+        yield* registry.verifyBearerToken(original.token)
+        yield* registry.verifyBearerToken(first.token)
+        yield* registry.verifyBearerToken(second.token)
+        yield* TestClock.adjust(30_000)
+        expect(
+          failureTag(yield* Effect.exit(registry.verifyBearerToken(original.token)))
+        ).toBe('AuthorizationDenied')
+        yield* registry.verifyBearerToken(first.token)
+        yield* registry.revoke({ tokenId: first.id })
+        expect(
+          failureTag(yield* Effect.exit(registry.verifyBearerToken(first.token)))
+        ).toBe('AuthorizationDenied')
+        yield* registry.verifyBearerToken(second.token)
+      })
+    },
+    {
       name: 'overlap never extends an earlier original expiry and replacement may shorten it',
       assert: Effect.gen(function* () {
         yield* TestClock.setTime(START)

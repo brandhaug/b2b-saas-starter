@@ -36,6 +36,10 @@ using the existing `api_token.created` event and never includes plaintext.
 Replacement transfers a plan slot, so owners can rotate at their token ceiling.
 Creation counts unrevoked, unexpired tokens that have not been replaced. Old
 credentials in the bounded overlap remain usable but occupy no additional slot.
+Chained replacements leave each ancestor's retirement deadline unchanged.
+Several ancestors can therefore remain usable during their individual overlaps;
+the plan ceiling counts current tokens, not every overlapping credential.
+Revoking one credential does not revoke its successors or ancestors.
 
 Seed stores token hashes and enforces the same creation, replacement,
 revocation, expiry, and last-use rules as Live. Fixture credentials resolve by
