@@ -1,6 +1,6 @@
 /* oxlint-disable effect/noNewPromise -- this build boundary uses Node's async filesystem and compiler APIs */
 import { readdir, readFile, mkdir, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { compile } from '@inlang/paraglide-js'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -17,22 +17,22 @@ const generatedMessagesRoot = join(packageRoot, '.generated', 'messages')
 const locales = ['en', 'nb']
 const routeConfig = JSON.parse(await readFile(join(packageRoot, 'routes.json'), 'utf8'))
 
-async function jsonFiles(directory) {
+async function filesUnder(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
   const files = await Promise.all(
     entries.map((entry) => {
       const path = join(directory, entry.name)
       if (entry.isDirectory()) {
-        return jsonFiles(path)
+        return filesUnder(path)
       }
-      return entry.isFile() && entry.name.endsWith('.json') ? [path] : []
+      return entry.isFile() ? [path] : []
     })
   )
   return files.flat().toSorted((left, right) => left.localeCompare(right))
 }
 
 async function loadLocale(locale) {
-  const allFiles = await jsonFiles(sourceRoot)
+  const allFiles = await filesUnder(sourceRoot)
   const files = allFiles.filter((file) => file.endsWith(`/${locale}.json`))
   const merged = {}
   const rawFiles = await Promise.all(files.map((file) => readFile(file, 'utf8')))
@@ -83,19 +83,21 @@ const fingerprint = createHash('sha256')
   .update(compilerInputs.join('\0'))
   .digest('hex')
 const fingerprintPath = join(packageRoot, '.generated', 'fingerprint')
+const generatedManifestPath = join(packageRoot, '.generated', 'generated-files.json')
 const previousFingerprint = await readFile(fingerprintPath, 'utf8').catch(() => null)
-const generatedFiles = [
-  'messages.js',
-  'registry.js',
-  'runtime.js',
-  'server.js',
-  'messages.d.ts',
-  'registry.d.ts',
-  'runtime.d.ts',
-  'server.d.ts'
-]
+const generatedFiles = await readFile(generatedManifestPath, 'utf8')
+  .then((raw) => {
+    const parsed = JSON.parse(raw)
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- JSON.parse returns unknown data at this I/O boundary
+    return Array.isArray(parsed) && parsed.every((file) => typeof file === 'string')
+      ? parsed
+      : null
+  })
+  .catch(() => null)
 if (
   previousFingerprint === fingerprint &&
+  generatedFiles !== null &&
+  generatedFiles.length > 0 &&
   generatedFiles.every((file) => existsSync(join(packageRoot, 'src/generated', file)))
 ) {
   process.exit(0)
@@ -175,4 +177,11 @@ await compile({
   ]
 })
 
+const outputRoot = join(packageRoot, 'src', 'generated')
+const outputFiles = await filesUnder(outputRoot)
+const emittedFiles = outputFiles.map((file) => relative(outputRoot, file))
+if (emittedFiles.length === 0) {
+  throw new Error('Compiler emitted no files under src/generated')
+}
+await writeFile(generatedManifestPath, `${JSON.stringify(emittedFiles, null, 2)}\n`)
 await writeFile(fingerprintPath, fingerprint)

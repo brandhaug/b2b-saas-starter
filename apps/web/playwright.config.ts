@@ -1,9 +1,9 @@
-import { defineConfig, devices, type PlaywrightTestConfig } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test'
 
 const port = Number(process.env.E2E_PORT ?? 3071)
 const baseURL = `http://localhost:${port}`
 
-const config: PlaywrightTestConfig = {
+export default defineConfig({
   testDir: './e2e',
   // 90s, not 30s: specs run in parallel workers, and the first ones to open
   // /sign-in pay Vite's full cold-transform bill — much heavier since React
@@ -14,9 +14,6 @@ const config: PlaywrightTestConfig = {
   // One retry in CI: the remaining variance is dev-server warm-up, not app
   // behaviour, and a rerun lands on an already-warm transform cache.
   retries: process.env.CI ? 1 : 0,
-  // The local D1 backing the E2E server is shared by every worker. Several
-  // specs update the seeded demo account, so parallel workers can observe
-  // another spec's temporary preferences or session state.
   use: {
     baseURL,
     trace: 'on-first-retry'
@@ -53,10 +50,4 @@ const config: PlaywrightTestConfig = {
       use: { ...devices['Desktop Chrome'] }
     }
   ]
-}
-
-if (process.env.CI) {
-  config.workers = 1
-}
-
-export default defineConfig(config)
+})

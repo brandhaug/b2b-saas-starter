@@ -1,5 +1,14 @@
 import { expect, test } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
+import { isolatedClientIp } from './test-isolation'
+
+const isolatedAccountPassword = 'i18n-e2e-password'
+
+test.beforeEach(async ({ context }, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    'cf-connecting-ip': isolatedClientIp(testInfo.testId)
+  })
+})
 
 test('switches public language, keeps it through navigation and refresh, and exposes alternates', async ({
   page
@@ -61,56 +70,73 @@ test('detects browser language without a cookie and keeps private routes unprefi
 
 test('saved account language and time zone override browser preferences in a new context', async ({
   page,
+  context,
   browser,
   baseURL
 }, testInfo) => {
   test.skip(!hasLocalD1State(), 'requires migrated and seeded local D1')
-  await page.goto('/sign-in?redirect=%2Faccount')
-  await page.locator('form[data-hydrated="true"]').waitFor()
-  await page.getByLabel('Email', { exact: true }).fill('demo@starter.local')
-  await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
-  await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page).toHaveURL(/\/account$/u)
-  await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
-  await page.locator('select[name="locale"]').selectOption('nb')
-  await page.locator('input[name="timeZone"]').fill('Europe/Oslo')
-  await page.getByRole('button', { name: 'Save preferences', exact: true }).click()
-  await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
-  await expect(page.locator('html')).toHaveAttribute('data-time-zone', 'Europe/Oslo')
-
-  const secondContext = await browser.newContext({
-    baseURL,
-    locale: 'en-US',
-    timezoneId: 'America/New_York'
+  const headers = { origin: baseURL ?? 'http://localhost:3071' }
+  // The request shares this browser context's cookies. Every run owns its
+  // account, including retries and runs against an already populated local D1.
+  const signup = await context.request.post('/api/auth/sign-up/email', {
+    headers,
+    data: {
+      name: 'I18n E2E',
+      email: `i18n-${crypto.randomUUID()}@example.com`,
+      password: isolatedAccountPassword
+    }
   })
-  // oxlint-disable-next-line effect/noTryCatch -- Playwright owns browser contexts; always release this one and restore the local demo preference
+  await expect(signup).toBeOK()
+  // oxlint-disable-next-line effect/noTryCatch -- Playwright owns the temporary account lifecycle; cleanup must run after any assertion failure
   try {
-    // Only the login travels. The second browser has no remembered language.
-    const cookies = await page.context().cookies()
-    await secondContext.addCookies(
-      cookies.filter((cookie) => cookie.name !== 'starter_locale')
-    )
-    const secondPage = await secondContext.newPage()
-    await secondPage.goto('/account')
-    await expect(secondPage.locator('html')).toHaveAttribute('lang', 'nb')
-    await expect(secondPage.locator('html')).toHaveAttribute(
-      'data-time-zone',
-      'Europe/Oslo'
-    )
-    await expect(secondPage.locator('select[name="locale"]')).toHaveValue('nb')
-    await expect(secondPage.locator('input[name="timeZone"]')).toHaveValue(
-      'Europe/Oslo'
-    )
-    await secondPage.screenshot({
-      path: testInfo.outputPath('account-nb.png'),
-      fullPage: true
+    await page.goto('/account')
+    await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
+    await page.locator('select[name="locale"]').selectOption('nb')
+    await page.locator('input[name="timeZone"]').fill('Europe/Oslo')
+    await page.getByRole('button', { name: 'Save preferences', exact: true }).click()
+    await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
+    await expect(page.locator('html')).toHaveAttribute('data-time-zone', 'Europe/Oslo')
+
+    const secondContext = await browser.newContext({
+      baseURL,
+      locale: 'en-US',
+      timezoneId: 'America/New_York',
+      extraHTTPHeaders: {
+        'cf-connecting-ip': isolatedClientIp(`${testInfo.testId}:second`)
+      }
     })
+    // oxlint-disable-next-line effect/noTryCatch -- Playwright owns browser contexts; always release this one and delete the temporary account
+    try {
+      // Only the login travels. The second browser has no remembered language.
+      const cookies = await page.context().cookies()
+      await secondContext.addCookies(
+        cookies.filter((cookie) => cookie.name !== 'starter_locale')
+      )
+      const secondPage = await secondContext.newPage()
+      await secondPage.goto('/account')
+      await expect(secondPage.locator('html')).toHaveAttribute('lang', 'nb')
+      await expect(secondPage.locator('html')).toHaveAttribute(
+        'data-time-zone',
+        'Europe/Oslo'
+      )
+      await expect(secondPage.locator('select[name="locale"]')).toHaveValue('nb')
+      await expect(secondPage.locator('input[name="timeZone"]')).toHaveValue(
+        'Europe/Oslo'
+      )
+      await secondPage.screenshot({
+        path: testInfo.outputPath('account-nb.png'),
+        fullPage: true
+      })
+    } finally {
+      await secondContext.close()
+    }
   } finally {
-    await secondContext.close()
-    await page.locator('select[name="locale"]').selectOption('en')
-    await page.locator('input[name="timeZone"]').fill('UTC')
-    await page.getByRole('button', { name: 'Lagre innstillinger', exact: true }).click()
-    await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+    // Cleanup must work even if the locale change or page rendering failed.
+    const deletion = await context.request.post('/api/auth/delete-user', {
+      headers,
+      data: { password: isolatedAccountPassword }
+    })
+    await expect(deletion).toBeOK()
   }
 })
 
