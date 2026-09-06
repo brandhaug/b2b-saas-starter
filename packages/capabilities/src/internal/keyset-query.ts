@@ -1,4 +1,4 @@
-import { and, eq, gt, lt, or, type Column, type SQL } from 'drizzle-orm'
+import { and, eq, gt, lt, or, sql, type Column, type SQL } from 'drizzle-orm'
 
 import { decodeKeysetCursor, type KeysetOrder } from './keyset-cursor.ts'
 
@@ -13,7 +13,7 @@ import { decodeKeysetCursor, type KeysetOrder } from './keyset-cursor.ts'
 /** The column pair a paged read orders and resumes on. */
 export type KeysetColumns = {
   /** The sort key — `createdAt` for timestamped lists, `id` otherwise. */
-  readonly key: Column
+  readonly key: Column | SQL
   /** The tie-break — always the row id. */
   readonly id: Column
 }
@@ -45,7 +45,8 @@ export function keysetResume(
   if (position === null) {
     return { kind: 'empty' }
   }
-  const { key, id } = columns
+  const key = sql`${columns.key}`
+  const { id } = columns
   let condition: SQL | undefined
   if (order === 'desc') {
     condition = or(

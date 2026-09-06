@@ -1,6 +1,7 @@
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type SystemRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type WorkspaceWithMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { type GlobalWebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WORKSPACE_ROLES } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
@@ -43,8 +44,32 @@ const ChangeWorkspaceRoleInput = Schema.Struct({
   role: Schema.Literals(WORKSPACE_ROLES)
 })
 
+/**
+ * The failed-delivery list input: the keyset cursor from a previous page's
+ * `nextCursor`, when the admin walks older rows.
+ */
+const FailedDeliveriesInput = Schema.Struct({
+  cursor: Schema.optionalKey(Schema.String)
+})
+
+const ReplayFailedDeliveryInput = Schema.Struct({
+  deliveryId: Schema.NonEmptyString
+})
+
 export type SystemUserInput = typeof SystemUserInput.Type
 export type ChangeWorkspaceRoleInput = typeof ChangeWorkspaceRoleInput.Type
+export type FailedDeliveriesInput = typeof FailedDeliveriesInput.Type
+export type ReplayFailedDeliveryInput = typeof ReplayFailedDeliveryInput.Type
+
+export type ReplayFailedDeliveryResult =
+  | { readonly status: 'queued'; readonly deliveryId: string }
+  | { readonly status: 'refused'; readonly reason: string }
+
+/** One page of terminal failures for the admin table. */
+export type FailedDeliveriesPayload = {
+  readonly items: ReadonlyArray<GlobalWebhookDelivery>
+  readonly nextCursor: string | null
+}
 
 /**
  * System-level user list for `/admin`, via the `PlatformUserAdmin`
@@ -133,3 +158,23 @@ export const stopImpersonatingServerFn = createServerFn({ method: 'POST' }).hand
     return stopImpersonatingHandler()
   }
 )
+
+/** Global terminal failures. The handler rechecks the admin session on every call. */
+export const loadFailedDeliveriesServerFn = createServerFn({ method: 'GET' })
+  .validator(Schema.decodeUnknownSync(FailedDeliveriesInput))
+  .handler(async ({ data }): Promise<FailedDeliveriesPayload> => {
+    const { loadFailedDeliveriesHandler } = await import('./admin.effects')
+    return loadFailedDeliveriesHandler(data)
+  })
+
+/**
+ * Replays one terminal delivery from `/admin`. The input names only the
+ * delivery: its workspace is resolved server-side, never taken from the
+ * client, and the handler re-verifies the admin role before dispatching.
+ */
+export const replayFailedDeliveryServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(ReplayFailedDeliveryInput))
+  .handler(async ({ data }): Promise<ReplayFailedDeliveryResult> => {
+    const { replayFailedDeliveryHandler } = await import('./admin.effects')
+    return replayFailedDeliveryHandler(data)
+  })

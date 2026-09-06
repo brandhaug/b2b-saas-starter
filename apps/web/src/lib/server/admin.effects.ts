@@ -13,10 +13,22 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { Effect } from 'effect'
+import { env } from 'cloudflare:workers'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import {
+  selectCapabilitiesLayer,
+  starterEnv
+} from '@b2b-saas-starter/capabilities/runtime'
+import { CapabilityUnavailableError } from '../capability-error'
+import { webRuntime, withWebRequestScope } from '../observability'
 
 import { runCapabilities } from '../capabilities'
 import {
   type ChangeWorkspaceRoleInput,
+  type FailedDeliveriesInput,
+  type FailedDeliveriesPayload,
+  type ReplayFailedDeliveryInput,
+  type ReplayFailedDeliveryResult,
   type SystemUser,
   type SystemUserInput
 } from './admin'
@@ -100,6 +112,62 @@ async function requireAdminSession() {
     throw new UnauthorizedError()
   }
   return session
+}
+
+export async function loadFailedDeliveriesHandler(
+  input: FailedDeliveriesInput
+): Promise<FailedDeliveriesPayload> {
+  await requireAdminSession()
+  return runCapabilities(
+    Effect.flatMap(WebhookEndpoints, (webhooks) =>
+      webhooks.listGlobalDeliveries({ ...input, limit: 20 })
+    )
+  )
+}
+
+export async function replayFailedDeliveryHandler(
+  input: ReplayFailedDeliveryInput
+): Promise<ReplayFailedDeliveryResult> {
+  const session = await requireAdminSession()
+  if (session.session.impersonatedBy) {
+    // oxlint-disable-next-line effect/noThrowStatement -- serialized server-fn refusal
+    throw new ImpersonationStateError('Stop impersonating before replaying deliveries.')
+  }
+  if (env.DB !== undefined && env.WEBHOOK_QUEUE === undefined) {
+    return {
+      status: 'refused',
+      reason: 'Webhook queue is not configured. No replay was created.'
+    }
+  }
+  // This server-only path includes WEBHOOK_QUEUE. The shared web read runner
+  // omits that binding; using it for a Live replay would never enqueue.
+  return webRuntime.runPromise(
+    withWebRequestScope(
+      { event: 'admin.webhook.replay', metadata: { actorUserId: session.user.id } },
+      Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        const result = yield* webhooks.replayDeliveryAsAdmin({
+          deliveryId: input.deliveryId,
+          actorUserId: session.user.id
+        })
+        return {
+          status: 'queued',
+          deliveryId: result.deliveryId
+        } satisfies ReplayFailedDeliveryResult
+      }).pipe(
+        Effect.catchTag('WebhookDispatchRejected', (error) =>
+          Effect.succeed({
+            status: 'refused',
+            reason: error.reason
+          } satisfies ReplayFailedDeliveryResult)
+        ),
+        Effect.mapError(
+          (error) => new CapabilityUnavailableError(error.capability, error.reason)
+        ),
+        Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
+      )
+    )
+  )
 }
 
 export async function banSystemUserHandler(input: SystemUserInput): Promise<void> {

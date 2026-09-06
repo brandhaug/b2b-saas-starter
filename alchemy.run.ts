@@ -400,6 +400,7 @@ export const Stack = Alchemy.Stack(
       rootDir: './apps/web',
       env: {
         DB: db,
+        [queueBindingKeys.webhookQueue]: webhookQueue,
         // Producer only — the background worker consumes; membership and
         // invitation mutations enqueue seat-sync messages.
         [queueBindingKeys.billingQueue]: billingQueue,

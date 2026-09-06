@@ -25,6 +25,10 @@
   "queues": {
     "producers": [
       {
+        "binding": "WEBHOOK_QUEUE",
+        "queue": "b2b-saas-starter-webhooks"
+      },
+      {
         "binding": "BILLING_QUEUE",
         "queue": "b2b-saas-starter-billing"
       },
