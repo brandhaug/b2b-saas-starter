@@ -1,6 +1,6 @@
 # B2B SaaS Starter
 
-Cloudflare-first B2B SaaS monorepo. TanStack Start, Effect v4, Drizzle on D1, Better Auth, Alchemy v2, REST + MCP, React Email, Storybook, Vitest, Playwright, oxlint, oxfmt, Vite+, pnpm.
+Cloudflare-first B2B SaaS monorepo. TanStack Start, Effect v4, Drizzle on D1, Better Auth, Alchemy v2, REST + MCP, React Email, Vitest, Playwright, oxlint, oxfmt, Vite+, pnpm.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -18,7 +18,7 @@ A starter repository for shipping a B2B SaaS on Cloudflare's platform without ma
 - **Background worker** with four queues — webhook delivery (with DLQ), workspace export builds, billing seat sync, and instant notification emails — plus a daily notification digest cron.
 - **React Email** templates wired to Cloudflare's `SendEmail` binding.
 - **Wide-event observability** via Effect's `Logger`, with `x-trace-id` propagation across services.
-- **Storybook** for UI states, **Vitest** for unit/integration, **Playwright** for E2E.
+- **Vitest** for unit/integration, **Playwright** for E2E.
 - **oxlint** (type-aware) + **oxfmt** for fast linting/formatting; **Vite+** (`vp`) is the unified toolchain and orchestrates the workspaces with Vite Task.
 - **MDX-first** public knowledge content with generated search, sitemap, and LLM-docs artifacts.
 - **Seed workspace** with deterministic data for the reference app, tests, and screenshots.

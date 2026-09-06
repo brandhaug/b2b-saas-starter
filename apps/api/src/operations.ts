@@ -89,8 +89,6 @@ export type ReadOperationParam = {
  */
 export type CollectionReadOperation = {
   readonly path: ReadOperationEndpoint
-  /** The wide-event name under `workspace.` — a key, never a URL template. */
-  readonly event: string
   readonly permission: PermissionRequest
   readonly param?: undefined
   /**
@@ -110,7 +108,6 @@ export type CollectionReadOperation = {
 
 export type ParameterizedReadOperation = {
   readonly path: 'webhooks/:endpointId/deliveries'
-  readonly event: string
   readonly permission: PermissionRequest
   readonly param: ReadOperationParam
   /**
@@ -142,14 +139,14 @@ export function mirroredRestPath(path: WorkspaceReadOperation['path']): string {
 
 /**
  * Keyed by the contract's `workspace` group endpoint name, so a handler's
- * lookup is checked against the table's actual keys at compile time. The
- * parameterized row types its own argument as required — the type is the
- * invariant the handler and the MCP callback both rely on.
+ * lookup is checked against the table's actual keys at compile time — and the
+ * key itself is the wide-event name under `workspace.`, never restated per
+ * row. The parameterized row types its own argument as required — the type is
+ * the invariant the handler and the MCP callback both rely on.
  */
 export const READ_OPERATIONS = {
   overview: {
     path: 'overview',
-    event: 'overview',
     permission: { notification: ['read'] },
     read: () => workspaceOverview,
     paged: false,
@@ -162,7 +159,6 @@ export const READ_OPERATIONS = {
   // mutations only — it has no `read` action.
   members: {
     path: 'members',
-    event: 'members',
     permission: { ac: ['read'] },
     read: (page) =>
       Effect.flatMap(WorkspaceMembership, (membership) =>
@@ -174,7 +170,6 @@ export const READ_OPERATIONS = {
   },
   notifications: {
     path: 'notifications',
-    event: 'notifications',
     permission: { notification: ['read'] },
     read: (page) => Effect.flatMap(NotificationFeed, (feed) => feed.listPage(page)),
     paged: true,
@@ -185,7 +180,6 @@ export const READ_OPERATIONS = {
   // a token is minted by an owner or admin (see `readScopeStatements`).
   'api-tokens': {
     path: 'api-tokens',
-    event: 'api-tokens',
     permission: { apiToken: ['list'] },
     read: (page) => Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.listPage(page)),
     paged: true,
@@ -194,7 +188,6 @@ export const READ_OPERATIONS = {
   },
   webhooks: {
     path: 'webhooks',
-    event: 'webhooks',
     permission: { webhook: ['list'] },
     read: (page) =>
       Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.listPage(page)),
@@ -204,7 +197,6 @@ export const READ_OPERATIONS = {
   },
   'webhook-deliveries': {
     path: 'webhooks/:endpointId/deliveries',
-    event: 'webhook-deliveries',
     permission: { webhook: ['list'] },
     param: { name: 'endpointId', sample: 'wh_release' },
     read: (_page, args) =>
@@ -217,19 +209,8 @@ export const READ_OPERATIONS = {
   },
   'audit-events': {
     path: 'audit-events',
-    event: 'audit-events',
     permission: { auditLog: ['read'] },
-    read: (page) =>
-      // The audit read names its page `events` on the capability side; the
-      // list contract's `Page` shape (`items`) is applied here, once, so the
-      // REST route and the MCP tool share it.
-      Effect.map(
-        Effect.flatMap(AuditEventLog, (log) => log.list(page)),
-        (auditPage) => ({
-          items: auditPage.events,
-          nextCursor: auditPage.nextCursor
-        })
-      ),
+    read: (page) => Effect.flatMap(AuditEventLog, (log) => log.list(page)),
     paged: true,
     toolName: 'list_audit_events',
     toolDescription: 'Read a page of the workspace audit trail.'

@@ -67,15 +67,9 @@ export function notificationPreferencesPayload(input: {
  * preference matrix. The handler the server fn delegates to; the session
  * keys the read.
  */
-export function loadNotificationPreferences(input: {
-  readonly userId: string
-}): Promise<NotificationPreferencesPayload> {
-  return runCapabilities(notificationPreferencesPayload(input))
-}
-
 export async function loadNotificationPreferencesHandler(): Promise<NotificationPreferencesPayload> {
   const session = await requireRequestSession()
-  return loadNotificationPreferences({ userId: session.user.id })
+  return runCapabilities(notificationPreferencesPayload({ userId: session.user.id }))
 }
 
 /**

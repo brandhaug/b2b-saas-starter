@@ -1,15 +1,32 @@
-import { describe, expect, it } from 'vite-plus/test'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
-  loadNotificationPreferences,
+  loadNotificationPreferencesHandler,
   toPreferenceRow
 } from './notification-preferences.effects'
 import { isNotificationKind } from './notification-preferences'
+import { fixtureSession } from '@/test/fixture-session'
+import type * as AuthModule from './auth'
 
-// The test shim leaves `DB` undefined, so the loader answers from the Seed
-// layer — the same fixture the landing demo and the D1 seed script read.
-describe('loadNotificationPreferences', () => {
+/**
+ * The loader through its handler: the session gate is answered by the mock
+ * with the fixture identity under test, and the Seed layer answers (the
+ * inert `cloudflare:workers` shim under Vitest leaves `DB` undefined) — the
+ * same fixture the landing demo and the D1 seed script read.
+ */
+const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
+
+vi.mock('./auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () => fixtureSession(actor)
+}))
+
+describe('loadNotificationPreferencesHandler', () => {
+  beforeEach(() => {
+    actor.userId = 'usr_demo'
+  })
+
   it('returns one labelled row per kind with the demo owner’s mix applied', async () => {
-    const { preferences } = await loadNotificationPreferences({ userId: 'usr_demo' })
+    const { preferences } = await loadNotificationPreferencesHandler()
     const byKind = new Map(preferences.map((row) => [row.kind, row]))
     expect(byKind.size).toBe(9)
     expect(byKind.get('api_token.created')).toMatchObject({
@@ -35,7 +52,8 @@ describe('loadNotificationPreferences', () => {
   })
 
   it('gives a user with no stored rows the defaults only', async () => {
-    const { preferences } = await loadNotificationPreferences({ userId: 'usr_dev' })
+    actor.userId = 'usr_dev'
+    const { preferences } = await loadNotificationPreferencesHandler()
     expect(preferences.every((row) => row.isDefault)).toBe(true)
     expect(
       preferences.filter((row) => row.channel === 'instant').map((row) => row.kind)

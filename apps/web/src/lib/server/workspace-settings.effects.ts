@@ -42,27 +42,11 @@ const settingsPayload: WorkspacePageFrame<WorkspaceSettingsPayload> = workspaceP
     )
 )
 
-/**
- * The loader as a plain function, so tests drive it directly with fixture
- * actors (`workspace-settings.test.ts`) — no request, no auth runtime. The
- * actor is the session's user; the layout route's gate has already proved
- * membership, and `runWorkspaceCapabilities` re-proves it server-side.
- */
-export function loadWorkspaceSettings(input: {
-  readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceSettingsPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, settingsPayload, {
-    userId: input.userId
-  })
-}
-
 export async function loadWorkspaceSettingsHandler(
   input: WorkspaceSettingsInput
 ): Promise<WorkspaceSettingsPayload> {
   const session = await requireRequestSession()
-  return loadWorkspaceSettings({
-    workspaceSlug: input.workspaceSlug,
+  return runWorkspaceCapabilities(input.workspaceSlug, settingsPayload, {
     userId: session.user.id
   })
 }

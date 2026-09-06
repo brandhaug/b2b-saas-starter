@@ -1,5 +1,5 @@
 import { Effect, Option } from 'effect'
-import { type ContractExpectMatchers } from './contract-expect.ts'
+import { type ContractExpect } from './contract-expect.ts'
 import { type CapabilityUnavailable, type MembershipChangeRejected } from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
@@ -36,11 +36,6 @@ export type SsoContractCase = {
   >
 }
 
-/** The slice of vitest's `expect` these cases use — see `workspace-membership.contract.ts`. */
-export type SsoContractExpect = <A>(
-  actual: A
-) => Pick<ContractExpectMatchers<A>, 'toBe' | 'toHaveLength'>
-
 /** The OIDC create input every case registers under its own domain. */
 function oidcCreate(domain: string): CreateSsoConnectionInput {
   return {
@@ -64,7 +59,7 @@ function oidcCreate(domain: string): CreateSsoConnectionInput {
  */
 export function workspaceSsoConnectionsContractCases(
   domainFor: (slot: string) => string,
-  expect: SsoContractExpect
+  expect: ContractExpect
 ): ReadonlyArray<SsoContractCase> {
   return [
     {
@@ -141,7 +136,7 @@ export function workspaceSsoConnectionsContractCases(
         const events = yield* audit.list({
           eventType: 'workspace_sso.connection_updated'
         })
-        expect(events.events.some((event) => event.targetId === created.id)).toBe(true)
+        expect(events.items.some((event) => event.targetId === created.id)).toBe(true)
       })
     },
     {
@@ -185,7 +180,7 @@ export function workspaceSsoConnectionsContractCases(
         const after = yield* audit.list({
           eventType: 'workspace_sso.connection_updated'
         })
-        expect(after.events).toHaveLength(before.events.length)
+        expect(after.items).toHaveLength(before.items.length)
       })
     },
     {
@@ -202,7 +197,7 @@ export function workspaceSsoConnectionsContractCases(
         const events = yield* audit.list({
           eventType: 'workspace_sso.connection_removed'
         })
-        expect(events.events.some((event) => event.targetId === created.id)).toBe(true)
+        expect(events.items.some((event) => event.targetId === created.id)).toBe(true)
 
         const listed = yield* sso.list
         expect(listed.some((connection) => connection.id === created.id)).toBe(false)

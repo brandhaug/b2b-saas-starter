@@ -53,29 +53,18 @@ export function bookkeepingRecord(name: string, sql: string): BookkeepingRecord 
   }
 }
 
-/** The tables and columns a migration's CREATE TABLE statements define. */
-export type TableDdl = {
-  readonly table: string
-  readonly columns: ReadonlyArray<string>
-}
-
-// Parses drizzle's sqlite dialect: backticked table names, tab-indented
-// columns with lowercase type words (constraints start with a keyword, not a
-// type, so they never match). Drives the baseline's existence markers and
-// the rehearsal's post-apply verification.
-export function tablesCreatedBy(sql: string): Array<TableDdl> {
-  const ddl: Array<TableDdl> = []
+// Parses drizzle's sqlite dialect: backticked table names. Drives the
+// baseline's existence markers.
+export function tablesCreatedBy(sql: string): Array<string> {
+  const tables: Array<string> = []
   for (const statement of sql.split('--> statement-breakpoint')) {
     const table = statement.match(/CREATE TABLE (?:IF NOT EXISTS )?`([^`]+)`/)?.[1]
     if (!table) {
       continue
     }
-    const columns = [
-      ...statement.matchAll(/^\s+`([^`]+)`\s+(?:blob|integer|numeric|real|text)\b/gm)
-    ].map((match) => match[1])
-    ddl.push({ table, columns })
+    tables.push(table)
   }
-  return ddl
+  return tables
 }
 
 // Wrangler's `--json` output for a row-returning statement: one batch per

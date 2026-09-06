@@ -206,7 +206,7 @@ describe('workspaceProgress', () => {
       const audit = yield* AuditEventLog
       const page = yield* audit.list({})
       expect(
-        page.events.filter(
+        page.items.filter(
           (event) => event.eventType === 'workspace.onboarding_dismissed'
         )
       ).toHaveLength(1)

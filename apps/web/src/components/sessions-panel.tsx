@@ -1,13 +1,5 @@
 import { unwrapAuthResult, type AuthResult } from '@/lib/auth-result'
-import {
-  listSessionsWithAuthClient,
-  revokeOtherSessionsWithAuthClient,
-  revokeSessionWithAuthClient,
-  type ListSessions,
-  type RevokeOtherSessions,
-  type RevokeSession,
-  type SessionRecord
-} from '@/components/auth/auth-client-ports'
+import { authClient } from '@/lib/auth-client'
 
 import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-rows'
 import { Button } from '@/components/ui/button'
@@ -25,11 +17,17 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
-export type {
-  ListSessions,
-  RevokeOtherSessions,
-  RevokeSession
-} from '@/components/auth/auth-client-ports'
+/**
+ * One Better Auth session row, narrowed to the fields this panel reads
+ * (`createdAt`/`expiresAt` are `Date`s on the client's own rows).
+ */
+type SessionRecord = {
+  readonly token: string
+  readonly createdAt: Date
+  readonly expiresAt: Date
+  readonly ipAddress?: string | null | undefined
+  readonly userAgent?: string | null | undefined
+}
 
 /**
  * One row of the panel's own view model: a Better Auth session plus the
@@ -92,19 +90,13 @@ const SESSIONS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'sessions']
 const ACTION_FAILED = 'The change could not be made'
 
 export function SessionsPanel({
-  currentSessionToken,
-  listSessions = listSessionsWithAuthClient,
-  revokeSession = revokeSessionWithAuthClient,
-  revokeOtherSessions = revokeOtherSessionsWithAuthClient
+  currentSessionToken
 }: {
   readonly currentSessionToken: string
-  readonly listSessions?: ListSessions
-  readonly revokeSession?: RevokeSession
-  readonly revokeOtherSessions?: RevokeOtherSessions
 }) {
   const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
     queryKey: SESSIONS_QUERY_KEY,
-    list: listSessions,
+    list: () => authClient.listSessions(),
     toRows: toViewModels,
     loadFailedMessage: 'Could not load sessions'
   })
@@ -136,7 +128,9 @@ export function SessionsPanel({
               </AlertDialogDescription>
               <div className="flex justify-end gap-2">
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => act.run(() => revokeOtherSessions())}>
+                <AlertDialogAction
+                  onClick={() => act.run(() => authClient.revokeOtherSessions())}
+                >
                   Sign out
                 </AlertDialogAction>
               </div>
@@ -205,7 +199,9 @@ export function SessionsPanel({
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() =>
-                            act.run(() => revokeSession({ token: row.token }))
+                            act.run(() =>
+                              authClient.revokeSession({ token: row.token })
+                            )
                           }
                         >
                           Revoke session

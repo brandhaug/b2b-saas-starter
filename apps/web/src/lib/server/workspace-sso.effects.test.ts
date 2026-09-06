@@ -1,288 +1,247 @@
-import {
-  makeSeedRoster,
-  SeedWorkspaceMembership,
-  type WorkspaceMembership
-} from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { SeedNotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed.seed'
-import {
-  SeedNotificationPreferences,
-  type NotificationPreferences
-} from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
-import { seedNotificationPreferences } from '@b2b-saas-starter/capabilities/seed-fixture'
-import { SeedSeatSyncPublisher } from '@b2b-saas-starter/capabilities/billing/seat-sync'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
-  SeedSsoConnections,
-  type SeedSsoConnection
-} from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections.seed'
-import { type SsoConnections } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
-import {
-  testWorkspaceContext,
-  type Actor,
-  type WorkspaceContext
-} from '@b2b-saas-starter/capabilities/workspace-context'
-
+  makeSeedRoster,
+  SeedWorkspaceMembership
+} from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import {
   type Member,
-  type Workspace,
-  type WorkspaceRole
+  type Workspace
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { describe, expect, it } from 'vite-plus/test'
-import { Effect, Layer, type Scope } from 'effect'
+import { SeedSeatSyncPublisher } from '@b2b-saas-starter/capabilities/billing/seat-sync'
+import { SeedNotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed.seed'
+import { SeedNotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { Effect, Layer } from 'effect'
 
+import { fixtureSession } from '@/test/fixture-session'
 import {
-  createSsoConnection,
-  removeSsoConnection,
-  testSsoConnection,
-  updateSsoConnection
+  createSsoConnectionHandler,
+  notifyOwnersOfFailedTest,
+  removeSsoConnectionHandler,
+  testSsoConnectionHandler,
+  updateSsoConnectionHandler
 } from './workspace-sso.effects'
+import type * as AuthModule from './auth'
 
 /**
- * The workspace-SSO server-function behaviour below its session gate, on the
- * `invitations.test.ts` pattern: the effects are driven directly against
- * purpose-built fixture layers, so what is under test is the permission gates
- * (the settings form's owner/admin/member matrix), the create-time IdP
- * validation, and the notify-owners-on-failed-test rule — everything the
- * handlers add on top is one session read and one binding.
+ * The workspace-SSO server functions through their handlers: the session
+ * gate is answered by the mock with the fixture identity under test, and the
+ * rest is the real path over the Seed layer (the inert `cloudflare:workers`
+ * shim under Vitest). The seed carries one disabled OIDC connection
+ * (`sso_example_oidc`, issuer `login.acme-corp.example`) — unreachable from
+ * a test run, which is exactly the failed-test state. `usr_demo` owns
+ * `starter-lab`, `usr_ops` is its admin, `usr_dev` a plain member.
  *
- * Real clock, plain `it` + `Effect.runPromise`: `@effect/vitest`'s TestClock
- * starts at epoch 0 and these effects read the wall clock through the IdP
- * fetch stub and the notification `createdAt`.
+ * Real clock, plain `it` + `await`: the effects read the wall clock through
+ * the IdP fetch.
  */
+const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-const workspace: Workspace = {
-  id: 'wrk_test',
-  slug: 'test-lab',
-  name: 'Test Lab',
-  planId: 'starter'
-}
+vi.mock('./auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () => fixtureSession(actor)
+}))
 
-function actor(role: WorkspaceRole): Actor {
-  return { userId: `usr_${role}`, role, systemRole: 'user' }
-}
+const OWNER = 'usr_demo'
+const ADMIN = 'usr_ops'
+const MEMBER = 'usr_dev'
 
-const OWNER = actor('owner')
-const ADMIN = actor('admin')
-const MEMBER = actor('member')
+describe('workspace SSO handlers — settings form permissions', () => {
+  beforeEach(() => {
+    actor.userId = OWNER
+  })
 
-/** The roster the membership capability reads owners off. */
-const members: ReadonlyArray<Member> = [
-  {
-    id: OWNER.userId,
-    name: 'Owner',
-    email: 'owner@test.local',
-    role: 'owner',
-    systemRole: 'admin'
-  },
-  {
-    id: MEMBER.userId,
-    name: 'Member',
-    email: 'member@test.local',
-    role: 'member',
-    systemRole: 'user'
-  }
-]
-
-/** A connection whose stored OIDC detail points at an unreachable issuer. */
-const brokenConnection: SeedSsoConnection = {
-  id: 'sso_broken',
-  protocol: 'oidc',
-  domain: 'broken.test',
-  issuer: 'https://login.broken.test',
-  enabled: true,
-  requireSso: false,
-  defaultWorkspaceRole: 'member',
-  clientIdLastFour: '0000',
-  createdAt: '2026-05-15T09:30:00.000Z',
-  workspaceId: workspace.id,
-  oidc: {
-    authorizationEndpoint: 'https://login.broken.test/authorize',
-    tokenEndpoint: 'https://login.broken.test/token',
-    jwksEndpoint: 'https://login.broken.test/jwks',
-    userInfoEndpoint: null
-  }
-}
-
-/** Every notification the feed was asked to record. */
-type Recorded = ReadonlyArray<{
-  readonly title: string
-  readonly message: string
-  readonly userId: string | null
-}>
-
-/** The mutable holder a test reads after running an effect. */
-type RecordedNotifications = { current: Recorded }
-
-/**
- * A seed feed that remembers what it was asked to record, built on top of the
- * plain seed feed (the tag is an Effect of its own service, so one layer can
- * wrap another's).
- */
-function recordingFeed(recorded: {
-  current: Recorded
-}): Layer.Layer<NotificationFeed, never, NotificationPreferences> {
-  return Layer.effect(NotificationFeed)(
-    Effect.map(NotificationFeed, (inner) => ({
-      ...inner,
-      record: (input: {
-        readonly title: string
-        readonly message: string
-        readonly userId: string
-      }) => {
-        recorded.current = [...recorded.current, input]
-        return inner.record(input)
-      }
-    }))
-  ).pipe(Layer.provide(SeedNotificationFeed([])))
-}
-
-function provide<A, E>(
-  effect: Effect.Effect<
-    A,
-    E,
-    | WorkspaceContext
-    | NotificationFeed
-    | SsoConnections
-    | WorkspaceMembership
-    | Scope.Scope
-  >,
-  who: Actor,
-  options: {
-    readonly connections?: ReadonlyArray<SeedSsoConnection>
-    readonly recorded?: RecordedNotifications | undefined
-  } = {}
-): Promise<A> {
-  // The feed reads the member's notification preferences, so the preferences
-  // layer rides underneath — the same wiring `layers.ts` composes.
-  const preferences = SeedNotificationPreferences(seedNotificationPreferences).pipe(
-    Layer.provide(SeedAuditEventLog([], members))
-  )
-  return Effect.runPromise(
-    Effect.scoped(effect).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          SeedSsoConnections(options.connections ?? [brokenConnection]).pipe(
-            Layer.provide(SeedAuditEventLog([], members))
-          ),
-          SeedWorkspaceMembership(
-            // The roster is an Effect; built inside `provide`, fresh per call.
-            Effect.runSync(makeSeedRoster(members)),
-            workspace
-          ),
-          options.recorded === undefined
-            ? SeedNotificationFeed([])
-            : recordingFeed(options.recorded),
-          testWorkspaceContext(workspace, who)
-        ).pipe(
-          // Membership changes trigger seat sync (ADR 0060) and the feed
-          // reads notification preferences — the same wiring `layers.ts`
-          // composes for both.
-          Layer.provide(SeedSeatSyncPublisher),
-          Layer.provide(preferences)
-        )
-      )
-    )
-  )
-}
-
-describe('workspace SSO effects — settings form permissions', () => {
   it('refuses create for a member with the guard’s denial', async () => {
-    const denial = await provide(
-      Effect.flip(
-        createSsoConnection({
-          workspaceSlug: workspace.slug,
-          protocol: 'oidc',
-          domain: 'northwind.test',
-          issuer: 'https://login.northwind.test',
-          clientId: 'client-x',
-          clientSecret: 'secret-x',
-          defaultWorkspaceRole: 'member'
-        })
-      ),
-      MEMBER
-    )
-    expect(denial).toMatchObject({ _tag: 'AuthorizationDenied' })
+    actor.userId = MEMBER
+    await expect(
+      createSsoConnectionHandler({
+        workspaceSlug: 'starter-lab',
+        protocol: 'oidc',
+        domain: 'northwind.test',
+        issuer: 'https://login.northwind.test',
+        clientId: 'client-x',
+        clientSecret: 'secret-x',
+        defaultWorkspaceRole: 'member'
+      })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
 
   it('refuses update and remove for a member', async () => {
-    const updateAttempt = await provide(
-      Effect.flip(
-        updateSsoConnection({
-          workspaceSlug: workspace.slug,
-          providerId: 'sso_broken',
-          enabled: true
-        })
-      ),
-      MEMBER
-    )
-    expect(updateAttempt).toMatchObject({ _tag: 'AuthorizationDenied' })
-
-    const removeAttempt = await provide(
-      Effect.flip(removeSsoConnection({ providerId: 'sso_broken' })),
-      MEMBER
-    )
-    expect(removeAttempt).toMatchObject({ _tag: 'AuthorizationDenied' })
+    actor.userId = MEMBER
+    await expect(
+      updateSsoConnectionHandler({
+        workspaceSlug: 'starter-lab',
+        providerId: 'sso_example_oidc',
+        enabled: true
+      })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
+    await expect(
+      removeSsoConnectionHandler({
+        workspaceSlug: 'starter-lab',
+        providerId: 'sso_example_oidc'
+      })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
 
   it('an admin may update — the matrix grants sso:update to admins', async () => {
-    const updated = await provide(
-      updateSsoConnection({
-        workspaceSlug: workspace.slug,
-        providerId: 'sso_broken',
-        enabled: false
-      }),
-      ADMIN
-    )
-    expect(updated).toMatchObject({ enabled: false })
+    actor.userId = ADMIN
+    const updated = await updateSsoConnectionHandler({
+      workspaceSlug: 'starter-lab',
+      providerId: 'sso_example_oidc',
+      enabled: true
+    })
+    expect(updated).toMatchObject({ id: 'sso_example_oidc', enabled: true })
   })
 })
 
-describe('workspace SSO effects — create-time IdP validation', () => {
+describe('workspace SSO handlers — create-time IdP validation', () => {
+  beforeEach(() => {
+    actor.userId = OWNER
+  })
+
   it('refuses an issuer whose discovery document cannot be fetched', async () => {
     // No network in tests: `login.northwind.test` does not resolve, which is
     // exactly the refused state the form should see for a typo'd issuer.
-    const failure = await provide(
-      Effect.flip(
-        createSsoConnection({
-          workspaceSlug: workspace.slug,
-          protocol: 'oidc',
-          domain: 'northwind.test',
-          issuer: 'https://login.northwind.test',
-          clientId: 'client-x',
-          clientSecret: 'secret-x',
-          defaultWorkspaceRole: 'member'
-        })
-      ),
-      OWNER
-    )
-    expect(failure).toMatchObject({ code: 'discovery_unreachable' })
+    await expect(
+      createSsoConnectionHandler({
+        workspaceSlug: 'starter-lab',
+        protocol: 'oidc',
+        domain: 'northwind.test',
+        issuer: 'https://login.northwind.test',
+        clientId: 'client-x',
+        clientSecret: 'secret-x',
+        defaultWorkspaceRole: 'member'
+      })
+    ).rejects.toMatchObject({ code: 'discovery_unreachable' })
   })
 })
 
-describe('workspace SSO effects — test step and owner notification', () => {
-  it('reports a failed test and notifies the workspace owners only', async () => {
-    const recorded: RecordedNotifications = { current: [] }
-    const result = await provide(
-      testSsoConnection({ providerId: 'sso_broken' }),
-      OWNER,
-      { recorded }
-    )
-    expect(result.outcome).toBe('failed')
-    // One notification per owner — the plain member of the workspace gets none.
-    expect(recorded.current).toHaveLength(1)
-    expect(recorded.current[0]?.userId).toBe(OWNER.userId)
-    expect(recorded.current[0]?.message).toContain('broken.test')
+describe('workspace SSO handlers — the test step', () => {
+  beforeEach(() => {
+    actor.userId = OWNER
+  })
+
+  it('reports a failed test without refusing the request', async () => {
+    const result = await testSsoConnectionHandler({
+      workspaceSlug: 'starter-lab',
+      providerId: 'sso_example_oidc'
+    })
+    // The stored issuer is unreachable from a test run — the verdict is the
+    // answer, not an error.
+    expect(result).toMatchObject({ outcome: 'failed', code: 'discovery_unreachable' })
   })
 
   it('answers "failed" for an unknown connection without refusing', async () => {
-    const result = await provide(
-      testSsoConnection({ providerId: 'sso_missing' }),
-      OWNER
-    )
+    const result = await testSsoConnectionHandler({
+      workspaceSlug: 'starter-lab',
+      providerId: 'sso_missing'
+    })
     expect(result).toMatchObject({
       outcome: 'failed',
       code: 'connection_not_found'
     })
+  })
+})
+
+describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
+  // The handler seam builds a fresh Seed layer per call, so it can neither
+  // stage a roster nor read the feed back. The rule itself — every owner
+  // hears about a failed connection, nobody else does, and the notification
+  // names the domain — is driven directly against Seed capability layers.
+  const workspace: Workspace = {
+    id: 'wrk_sso_notify',
+    slug: 'sso-lab',
+    name: 'SSO Lab',
+    planId: 'team'
+  }
+
+  const members: ReadonlyArray<Member> = [
+    {
+      id: 'usr_notify_owner',
+      name: 'Owner',
+      email: 'owner@sso.test',
+      role: 'owner',
+      systemRole: 'user'
+    },
+    {
+      id: 'usr_notify_admin',
+      name: 'Admin',
+      email: 'admin@sso.test',
+      role: 'admin',
+      systemRole: 'user'
+    },
+    {
+      id: 'usr_notify_member',
+      name: 'Member',
+      email: 'member@sso.test',
+      role: 'member',
+      systemRole: 'user'
+    }
+  ]
+
+  const connection = {
+    id: 'sso_notify_oidc',
+    protocol: 'oidc',
+    domain: 'acme.test',
+    issuer: 'https://login.acme.test',
+    enabled: true,
+    requireSso: false,
+    defaultWorkspaceRole: 'member',
+    clientIdLastFour: '-x',
+    createdAt: '2026-01-01T00:00:00.000Z'
+  } satisfies Parameters<typeof notifyOwnersOfFailedTest>[0]
+
+  const REASON = 'issuer unreachable'
+
+  it('notifies every owner, only the owners, with the domain and reason', async () => {
+    const visibleTo = await Effect.runPromise(
+      Effect.gen(function* () {
+        const roster = yield* makeSeedRoster(members)
+        const services = Layer.mergeAll(
+          SeedWorkspaceMembership(roster, workspace).pipe(
+            Layer.provide(SeedSeatSyncPublisher)
+          ),
+          SeedNotificationFeed([]).pipe(
+            Layer.provide(
+              SeedNotificationPreferences([]).pipe(Layer.provide(SeedAuditEventLog([])))
+            )
+          )
+        )
+        return yield* Effect.scoped(
+          Effect.gen(function* () {
+            yield* notifyOwnersOfFailedTest(connection, REASON).pipe(
+              Effect.provideService(WorkspaceContext, { workspace, actor: null })
+            )
+            const counts: Record<string, number> = {}
+            const samples: Record<string, string | undefined> = {}
+            for (const member of members) {
+              const rows = yield* Effect.flatMap(
+                NotificationFeed,
+                (feed) => feed.list
+              ).pipe(
+                Effect.provideService(WorkspaceContext, {
+                  workspace,
+                  actor: { userId: member.id, role: member.role, systemRole: 'user' }
+                })
+              )
+              counts[member.id] = rows.length
+              samples[member.id] = rows[0]?.message
+            }
+            return { counts, samples }
+          }).pipe(Effect.provide(services))
+        )
+      })
+    )
+    expect(visibleTo.counts).toEqual({
+      usr_notify_owner: 1,
+      usr_notify_admin: 0,
+      usr_notify_member: 0
+    })
+    expect(visibleTo.samples.usr_notify_owner).toBe(
+      'The OIDC connection for acme.test failed: issuer unreachable'
+    )
   })
 })

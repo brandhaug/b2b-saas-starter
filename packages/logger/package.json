@@ -19,7 +19,6 @@
     "posthog-node": "catalog:"
   },
   "devDependencies": {
-    "@b2b-saas-starter/config": "workspace:*",
     "@effect/vitest": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

@@ -1,4 +1,4 @@
-import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
+import { type DrizzleDatabase } from './ports.ts'
 import { passkey as passkeyTable, user } from '@b2b-saas-starter/db/schema'
 import {
   type AuthenticationResponseJSON,

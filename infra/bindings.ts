@@ -14,7 +14,7 @@ export type RateLimitBindingSpec = {
 
 /**
  * The rate-limit buckets each worker's code names. The app shims
- * (`apps/api/src/rate-limit.ts`, `apps/web/src/lib/rate-limit.ts`,
+ * (`apps/api/src/env.ts`, `apps/web/src/lib/rate-limit.ts`,
  * `apps/web/src/worker-env.d.ts`) derive their env types and resolvers from
  * these unions, so a bucket added here fails their build until its row below
  * (and the contract's bucket union) exists — the buckets cannot drift between
@@ -25,35 +25,33 @@ export type WebRateLimitBucket = 'auth_read' | 'auth_write' | 'auth_sign_in'
 
 /**
  * Bucket → binding name: the ONE place each rate-limit binding name is
- * spelled. The specs below bind these names into the generated wrangler
+ * spelled — the union types below are derived from these records, not written
+ * out again. The specs below bind these names into the generated wrangler
  * configs and Alchemy's worker envs, and the app shims resolve their env
  * through them, so renaming a binding is one row here and the whole chain
  * moves together.
  */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const apiRateLimitBindingNames = {
   rest_read: 'RATE_LIMITER_REST',
   rest_write: 'RATE_LIMITER_REST_WRITE',
   assistant: 'RATE_LIMITER_ASSISTANT',
   mcp: 'RATE_LIMITER_MCP'
-} satisfies Record<ApiRateLimitBucket, ApiRateLimitBindingName>
+} as const satisfies Record<ApiRateLimitBucket, string>
 
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const webRateLimitBindingNames = {
   auth_read: 'RATE_LIMITER_AUTH_READ',
   auth_write: 'RATE_LIMITER_AUTH_WRITE',
   auth_sign_in: 'RATE_LIMITER_AUTH_SIGN_IN'
-} satisfies Record<WebRateLimitBucket, WebRateLimitBindingName>
+} as const satisfies Record<WebRateLimitBucket, string>
 
 /** The binding names themselves, for env types keyed by binding. */
 export type ApiRateLimitBindingName =
-  | 'RATE_LIMITER_REST'
-  | 'RATE_LIMITER_REST_WRITE'
-  | 'RATE_LIMITER_ASSISTANT'
-  | 'RATE_LIMITER_MCP'
+  (typeof apiRateLimitBindingNames)[ApiRateLimitBucket]
 
 export type WebRateLimitBindingName =
-  | 'RATE_LIMITER_AUTH_READ'
-  | 'RATE_LIMITER_AUTH_WRITE'
-  | 'RATE_LIMITER_AUTH_SIGN_IN'
+  (typeof webRateLimitBindingNames)[WebRateLimitBucket]
 
 // Namespace, budget, and window per bucket — keyed by bucket like the names.
 const apiRateLimitTuning = {

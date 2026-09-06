@@ -19,10 +19,9 @@
  * map keyed off these constants and prettifies anything unknown.
  */
 
-import { literalTuple } from '../internal/literal-tuple.ts'
-
 /** Every audit event type, for UI dropdowns; the union derives from it. */
-export const AUDIT_EVENT_TYPES = literalTuple(
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const AUDIT_EVENT_TYPES = [
   // developer-platform
   'api_token.created',
   'api_token.revoked',
@@ -128,7 +127,7 @@ export const AUDIT_EVENT_TYPES = literalTuple(
   'system_admin.impersonation_stop_failed',
   'system_admin.user_session_revoked',
   'system_admin.user_session_revocation_failed'
-)
+] as const
 
 export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number]
 
@@ -136,7 +135,8 @@ export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number]
  * Every audit target type. The union is derived from this tuple, same as the
  * event vocabulary above.
  */
-export const AUDIT_TARGET_TYPES = literalTuple(
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+const AUDIT_TARGET_TYPES = [
   'user',
   'session',
   'api_token',
@@ -147,6 +147,6 @@ export const AUDIT_TARGET_TYPES = literalTuple(
   'workspace_invitation',
   'workspace_export',
   'workspace_sso_connection'
-)
+] as const
 
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number]

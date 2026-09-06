@@ -129,14 +129,10 @@ export const writeScopeRole = accessControl.newRole({
   ]
 })
 
-/**
- * The owner set, shared by reference rather than restated. A token scoped
- * `admin` can do anything a workspace owner can.
- */
-export const adminScopeRole = ownerRole
-
 export const apiTokenScopeAccess = {
   read: readScopeRole,
   write: writeScopeRole,
-  admin: adminScopeRole
+  // The owner set itself, shared by reference rather than restated: a token
+  // scoped `admin` can do anything a workspace owner can.
+  admin: ownerRole
 } satisfies Record<ApiTokenScope, StarterRole>

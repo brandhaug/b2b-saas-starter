@@ -58,7 +58,7 @@ const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspac
           auditEvents: whenPermitted(
             { auditLog: ['read'] },
             Effect.flatMap(AuditEventLog, (log) =>
-              Effect.map(log.list(), (page) => page.events.slice(0, 5))
+              Effect.map(log.list(), (page) => page.items.slice(0, 5))
             )
           ),
           progress
@@ -72,25 +72,11 @@ const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspac
     )
 )
 
-/**
- * The loader as a plain function, so tests drive it directly with fixture
- * actors (`workspace-dashboard.test.ts`) — no request, no auth runtime.
- */
-export function loadWorkspaceDashboard(input: {
-  readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceDashboardPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, dashboardPayload, {
-    userId: input.userId
-  })
-}
-
 export async function loadWorkspaceDashboardHandler(
   input: WorkspaceDashboardInput
 ): Promise<WorkspaceDashboardPayload> {
   const session = await requireRequestSession()
-  return loadWorkspaceDashboard({
-    workspaceSlug: input.workspaceSlug,
+  return runWorkspaceCapabilities(input.workspaceSlug, dashboardPayload, {
     userId: session.user.id
   })
 }

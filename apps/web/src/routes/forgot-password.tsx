@@ -4,12 +4,8 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { KeyRoundIcon, MailQuestionIcon } from 'lucide-react'
 import {
-  requestPasswordResetCodeWithAuthClient,
   requestPasswordResetWithAuthClient,
-  resetPasswordWithCodeWithAuthClient,
-  type RequestPasswordReset,
-  type RequestPasswordResetCode,
-  type ResetPasswordWithCode
+  type RequestPasswordReset
 } from '@/components/auth/auth-client-ports'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
 import { EmailCodeExchange } from '@/components/auth/email-code-exchange'
@@ -17,6 +13,7 @@ import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
+import { authClient } from '@/lib/auth-client'
 import { authErrorCopy } from '@/lib/auth-error-copy'
 
 export type { RequestPasswordReset } from '@/components/auth/auth-client-ports'
@@ -49,13 +46,10 @@ const CODE_SENT_MESSAGE =
  * URL. Neither path discloses whether the address is registered.
  */
 export function ForgotPasswordPage({
-  requestReset = requestPasswordResetWithAuthClient,
-  requestCode = requestPasswordResetCodeWithAuthClient,
-  resetWithCode = resetPasswordWithCodeWithAuthClient
+  requestReset = requestPasswordResetWithAuthClient
 }: {
+  /** The link request, injectable because the adapter composes the redirect. */
   readonly requestReset?: RequestPasswordReset
-  readonly requestCode?: RequestPasswordResetCode
-  readonly resetWithCode?: ResetPasswordWithCode
 }) {
   const router = useRouter()
   // `form` → the request form; `link-sent` → the link confirmation; `code` →
@@ -86,7 +80,7 @@ export function ForgotPasswordPage({
       await form.handleSubmit()
       return
     }
-    const result = await requestCode({ email: address })
+    const result = await authClient.emailOtp.requestPasswordReset({ email: address })
     if (result.error) {
       setSubmitError(authErrorCopy(result.error, 'Could not send the code'))
       return
@@ -108,9 +102,15 @@ export function ForgotPasswordPage({
         verifyErrorFallback="Reset failed"
         // The resend re-asks the code endpoint — it takes only the address,
         // none of the shared send's purpose.
-        send={({ email: address }) => requestCode({ email: address })}
+        send={({ email: address }) =>
+          authClient.emailOtp.requestPasswordReset({ email: address })
+        }
         verify={({ email: address, otp, password }) =>
-          resetWithCode({ email: address, otp, newPassword: password })
+          authClient.emailOtp.resetPassword({
+            email: address,
+            otp,
+            password
+          })
         }
         onVerified={() => {
           // The reset revokes every session, so a fresh sign-in is the only step.

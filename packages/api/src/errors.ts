@@ -1,14 +1,14 @@
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 
 /**
  * The contract's error half: the tagged error schemas the API worker serves,
  * the `GuardFailure` union a non-contract surface can raise before it reaches
- * its own wire format, and the annotation-derived HTTP encoding of those
- * failures. The groups, the `StarterApi` contract itself, and the gate
- * machinery (`BearerAuth`, `ApiPrincipal`, the rate-limit tables) stay in
- * `index.ts`, which re-exports everything here.
+ * its own wire format, and the HTTP encoding of those failures. The groups,
+ * the `StarterApi` contract itself, and the gate machinery (`BearerAuth`,
+ * `ApiPrincipal`, the rate-limit tables) stay in `index.ts`, which re-exports
+ * everything here.
  */
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
@@ -53,41 +53,23 @@ export type GuardFailure = typeof GuardFailure.Type
 const encodeGuardFailure = Schema.encodeSync(GuardFailure)
 
 /**
- * The annotations a guard failure must carry to be encodable: its tag (the
- * `identifier` every `Schema.TaggedError` sets) and the status
- * `HttpApiBuilder` gives it. Annotations are an open `unknown` bag, so they
- * are decoded here rather than read on faith.
+ * Status by tag: the same status each schema's `httpApiStatus` annotation
+ * gives the REST surface. Keyed by `GuardFailure`'s own tags, so a failure
+ * added to the union without a row here is a compile error, not a 500 at
+ * runtime.
  */
-const StatusAnnotations = Schema.Struct({
-  identifier: Schema.String,
-  httpApiStatus: Schema.Number
-})
-
-const decodeStatusAnnotations = Schema.decodeUnknownOption(StatusAnnotations)
-
-/**
- * Status by tag, read off the error schemas rather than restated: the
- * `httpApiStatus` annotation each class already carries is the one
- * `HttpApiBuilder` uses to encode the REST response, so there is no second
- * table for a non-contract surface to drift from. A class that somehow lost
- * its annotation gets no row, and `guardFailureResponse` answers 500 — the
- * honest status for "this failure has no declared encoding".
- */
-const GUARD_FAILURE_STATUS: ReadonlyMap<string, number> = new Map(
-  GUARD_FAILURE_SCHEMAS.flatMap((schema: Schema.Top) =>
-    Option.match(decodeStatusAnnotations(schema.ast.annotations), {
-      onNone: (): ReadonlyArray<[string, number]> => [],
-      onSome: (annotations) => [[annotations.identifier, annotations.httpApiStatus]]
-    })
-  )
-)
+const GUARD_FAILURE_STATUS = {
+  Unauthorized: 401,
+  AuthorizationDenied: 403,
+  RateLimited: 429,
+  CapabilityUnavailable: 503
+} satisfies Record<GuardFailure['_tag'], number>
 
 /**
  * The HTTP encoding of a guard failure outside the contract's error channel:
- * the status from the schema's annotation, the body from the schema's own
- * encoding. Both halves come from the same declarations `HttpApiBuilder` reads,
- * so `POST /mcp` answers a rejected request byte-for-byte the way a REST route
- * would.
+ * status by tag (the table above), body from the schema's own encoding — the
+ * same body `HttpApiBuilder` serves — so `POST /mcp` answers a rejected
+ * request byte-for-byte the way a REST route would.
  */
 export type GuardFailureResponse = {
   readonly status: number
@@ -96,7 +78,7 @@ export type GuardFailureResponse = {
 
 export function guardFailureResponse(error: GuardFailure): GuardFailureResponse {
   return {
-    status: GUARD_FAILURE_STATUS.get(error._tag) ?? 500,
+    status: GUARD_FAILURE_STATUS[error._tag],
     body: encodeGuardFailure(error)
   }
 }

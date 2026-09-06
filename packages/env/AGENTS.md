@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-`ServerEnvSchema` (`src/server.ts`) lists the server env vars; everything else derives from it. No reader lives here: workers read `cloudflareEnv.X` directly, keeping an unset optional var inactive instead of a boot failure.
+`ServerEnv` (`src/server.ts`) lists the server env vars — a plain type, since nothing decodes against it; everything else derives from it. No reader lives here: workers read `cloudflareEnv.X` directly, keeping an unset optional var inactive instead of a boot failure.
 
 ## Entry Points & Contracts
 
@@ -14,7 +14,7 @@
 
 ## Usage Patterns
 
-Adding a var: `ServerEnvSchema` first, then at most one key list if alchemy forwards it. Nothing else needs editing: `alchemy.run.ts`, worker env types and `ProviderEnvOf` slices all derive from the schema.
+Adding a var: `ServerEnv` first, then at most one key list if alchemy forwards it. Nothing else needs editing: `alchemy.run.ts`, worker env types and `ProviderEnvOf` slices all derive from the type.
 
 ## Anti-patterns
 
@@ -26,4 +26,4 @@ Adding a var: `ServerEnvSchema` first, then at most one key list if alchemy forw
 
 ## Dependencies & Edges
 
-`effect` only. ADRs 0031, 0055, 0065, 0068, 0070.
+No runtime dependencies — types and pure decisions only. ADRs 0031, 0055, 0065, 0068, 0070.

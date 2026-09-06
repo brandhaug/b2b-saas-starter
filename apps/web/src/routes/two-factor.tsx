@@ -6,11 +6,7 @@ import { ShieldCheckIcon } from 'lucide-react'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
 import {
   backupCodeValidator,
-  sixDigitCodeValidator,
-  verifyBackupCodeWithAuthClient,
-  verifyTotpWithAuthClient,
-  type VerifyBackupCode,
-  type VerifyTotpCode
+  sixDigitCodeValidator
 } from '@/components/auth/auth-client-ports'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { oauthContinuationUrl } from '@/lib/oauth-continuation'
@@ -18,6 +14,7 @@ import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
 import { authErrorCopy } from '@/lib/auth-error-copy'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
@@ -39,13 +36,9 @@ function TwoFactorRoute() {
  * the only thing that turns the challenge into one.
  */
 export function TwoFactorChallengePage({
-  redirect,
-  verifyTotp = verifyTotpWithAuthClient,
-  verifyBackupCode = verifyBackupCodeWithAuthClient
+  redirect
 }: {
   readonly redirect?: string | undefined
-  readonly verifyTotp?: VerifyTotpCode
-  readonly verifyBackupCode?: VerifyBackupCode
 }) {
   const router = useRouter()
   // The authenticator code is the default; the backup code is the escape
@@ -80,7 +73,9 @@ export function TwoFactorChallengePage({
     defaultValues: { code: '' },
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      finishChallenge(await verifyTotp({ code: value.code, trustDevice }))
+      finishChallenge(
+        await authClient.twoFactor.verifyTotp({ code: value.code, trustDevice })
+      )
     }
   })
 
@@ -88,7 +83,12 @@ export function TwoFactorChallengePage({
     defaultValues: { code: '' },
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      finishChallenge(await verifyBackupCode({ code: value.code.trim(), trustDevice }))
+      finishChallenge(
+        await authClient.twoFactor.verifyBackupCode({
+          code: value.code.trim(),
+          trustDevice
+        })
+      )
     }
   })
 

@@ -1,5 +1,3 @@
-import { literalTuple } from '../internal/literal-tuple.ts'
-
 /**
  * The webhook event vocabulary, in a dependency-free leaf so client surfaces
  * (the management UI's checkbox set) can read it without pulling the
@@ -14,11 +12,12 @@ import { literalTuple } from '../internal/literal-tuple.ts'
  * Subscriptions are free-text strings so a producer can grow without a
  * migration; this list is what the management UI offers as checkboxes.
  */
-export const WEBHOOK_EVENT_TYPES = literalTuple(
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const WEBHOOK_EVENT_TYPES = [
   'api_token.created',
   'api_token.revoked',
   'webhook_endpoint.created'
-)
+] as const
 
 /** The union of {@link WEBHOOK_EVENT_TYPES} — the vocabulary is written once. */
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number]

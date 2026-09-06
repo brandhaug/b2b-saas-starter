@@ -2,6 +2,7 @@ import {
   NotificationFeed,
   type NotificationEmailContext
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { NotificationEmailQueueMessage } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import {
   SeedNotificationPreferences,
   type SeedNotificationPreference
@@ -16,10 +17,8 @@ import { render } from '@react-email/render'
 import { describe, expect, it } from 'vite-plus/test'
 import { Effect, Layer } from 'effect'
 
-import {
-  processNotificationEmailMessage,
-  readNotificationEmailDelivery
-} from './notification-email-consumer.ts'
+import { processNotificationEmailMessage } from './notification-email-consumer.ts'
+import { readDelivery } from './queue-consumer.ts'
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
 
 const context: NotificationEmailContext = {
@@ -96,7 +95,11 @@ function run(
   const preferences = SeedNotificationPreferences(stored).pipe(Layer.provide(audit))
   return Effect.scoped(
     processNotificationEmailMessage(
-      readNotificationEmailDelivery({ id: 'q1', body, attempts: 1 }),
+      readDelivery(NotificationEmailQueueMessage, {
+        id: 'q1',
+        body,
+        attempts: 1
+      }),
       'https://app.test'
     ).pipe(
       Effect.provide(

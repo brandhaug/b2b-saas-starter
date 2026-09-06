@@ -1,22 +1,30 @@
-import { describe, expect, it } from 'vite-plus/test'
-import { loadWorkspaceSettings } from './workspace-settings.effects'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+
+import { fixtureSession } from '@/test/fixture-session'
+import { loadWorkspaceSettingsHandler } from './workspace-settings.effects'
+import type * as AuthModule from './auth'
 
 /**
- * The loader seam, driven against the Seed layer: `runWorkspaceCapabilities`
- * resolves `cloudflare:workers` to the inert shim under Vitest (vite.config.ts),
- * so `DB` is undefined and the in-memory fixture answers. Both users below are
- * seed members of `starter-lab` — `usr_demo` owns it, `usr_dev` is a plain
- * member — which is what makes the two payloads comparable.
+ * The loader through its handler: the session gate is answered by the mock
+ * with the fixture identity under test, and the rest is the real path over
+ * the Seed layer (the inert `cloudflare:workers` shim under Vitest).
+ * `usr_demo` owns `starter-lab`, `usr_dev` is a plain member, `usr_ops` is
+ * its admin — which is what makes the payloads comparable.
  */
-const OWNER = 'usr_demo'
-const MEMBER = 'usr_dev'
+const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-describe('loadWorkspaceSettings', () => {
+vi.mock('./auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () => fixtureSession(actor)
+}))
+
+describe('loadWorkspaceSettingsHandler', () => {
+  beforeEach(() => {
+    actor.userId = 'usr_demo'
+  })
+
   it('names the workspace and badges unread for an owner', async () => {
-    const payload = await loadWorkspaceSettings({
-      workspaceSlug: 'starter-lab',
-      userId: OWNER
-    })
+    const payload = await loadWorkspaceSettingsHandler({ workspaceSlug: 'starter-lab' })
     expect(payload.viewer).toEqual({ role: 'owner' })
     expect(payload.workspaceName).toBeTypeOf('string')
     expect(payload.unreadCount).toBeTypeOf('number')
@@ -44,10 +52,8 @@ describe('loadWorkspaceSettings', () => {
     // Settings carries the workspace's name and nothing permission-shaped:
     // the roster and invitations moved to the members page, so there is no
     // soft segment left to withhold and the payloads converge.
-    const payload = await loadWorkspaceSettings({
-      workspaceSlug: 'starter-lab',
-      userId: MEMBER
-    })
+    actor.userId = 'usr_dev'
+    const payload = await loadWorkspaceSettingsHandler({ workspaceSlug: 'starter-lab' })
     expect(payload.viewer).toEqual({ role: 'member' })
     expect(payload.workspaceName).toBeTypeOf('string')
     expect(payload.unreadCount).toBeTypeOf('number')
@@ -60,10 +66,8 @@ describe('loadWorkspaceSettings', () => {
   })
 
   it('withholds the export segment from an admin — it is owner-only', async () => {
-    const payload = await loadWorkspaceSettings({
-      workspaceSlug: 'starter-lab',
-      userId: 'usr_ops'
-    })
+    actor.userId = 'usr_ops'
+    const payload = await loadWorkspaceSettingsHandler({ workspaceSlug: 'starter-lab' })
     expect(payload.viewer).toEqual({ role: 'admin' })
     expect(payload.exports).toBeNull()
   })

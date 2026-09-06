@@ -81,7 +81,8 @@ describe('makeAuthOptions', () => {
     expect(twoFactorOptions.options?.skipVerificationOnEnable).toBe(false)
   })
 
-  it('sets a one-hour fresh window for sensitive actions', () => {
+  it('tightens the fresh-session window to one hour', () => {
+    // Better Auth defaults `freshAge` to 24 hours; the starter states one.
     expect(makeAuthOptions(baseConfig).session).toMatchObject({
       freshAge: 60 * 60
     })
@@ -131,13 +132,6 @@ describe('makeAuthOptions', () => {
     // value XFF resolves no IP at all in Better Auth 1.7.
     expect(makeAuthOptions(baseConfig).advanced.ipAddress).toEqual({
       ipAddressHeaders: ['cf-connecting-ip']
-    })
-  })
-
-  it('states the session lifetime instead of trusting defaults', () => {
-    expect(makeAuthOptions(baseConfig).session).toMatchObject({
-      expiresIn: 60 * 60 * 24 * 7,
-      updateAge: 60 * 60 * 24
     })
   })
 
@@ -227,9 +221,10 @@ describe('makeAuthOptions', () => {
 
   describe('email-otp knobs', () => {
     it('pins six digits, ten minutes, and three attempts', () => {
-      // Stated rather than defaulted (only the six is Better Auth's default),
-      // so a plugin default change cannot silently lengthen the brute-force
-      // window a leaked code has.
+      // Ten minutes and three attempts are stated rather than defaulted, so a
+      // plugin default change cannot silently lengthen the brute-force window
+      // a leaked code has; six digits is the default too, but "six-digit
+      // code" is copy on four screens, so it stays stated.
       const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'email-otp')
       expect(options.otpLength).toBe(6)
       expect(options.expiresIn).toBe(60 * 10)
@@ -255,9 +250,6 @@ describe('makeAuthOptions', () => {
       expect(MAGIC_LINK_EXPIRES_IN_SECONDS).toBe(60 * 10)
       expect(options.expiresIn).toBe(MAGIC_LINK_EXPIRES_IN_SECONDS)
       expect(options.storeToken).toBe('hashed')
-      // Sign-up through a link stays on: the plugin marks the new user
-      // verified, because consuming the link is the mailbox proof.
-      expect(options.disableSignUp).toBe(false)
     })
 
     it("passes the app's adapter through as the plugin's own callback", () => {
@@ -274,9 +266,10 @@ describe('makeAuthOptions', () => {
   })
 
   describe('two-factor knobs', () => {
-    it('pins the challenge-cookie and trusted-device windows', () => {
+    it('states the trusted-device window the UI copy names', () => {
+      // "Trust this device for 30 days" is the account panel's label, so the
+      // number lives in the options, not only in Better Auth's default.
       const options = pluginOptions(makeAuthOptions(baseConfig).plugins, 'two-factor')
-      expect(options.twoFactorCookieMaxAge).toBe(600)
       expect(options.trustDeviceMaxAge).toBe(60 * 60 * 24 * 30)
     })
 

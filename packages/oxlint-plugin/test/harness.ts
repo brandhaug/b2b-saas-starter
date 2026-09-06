@@ -3,7 +3,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { Schema } from 'effect'
 import { expect, it } from 'vite-plus/test'
 
 /**
@@ -27,22 +26,27 @@ const OXLINT_BIN = join(
 const PLUGIN_ENTRY = fileURLToPath(new URL('../src/index.ts', import.meta.url))
 
 /**
- * Oxlint's `--format=json` payload, narrowed to the fields the harness reads. The
- * codec is the boundary: everything past `decodeReport` is typed, so the harness
- * needs no casts or shape probing over subprocess output.
+ * Oxlint's `--format=json` payload, narrowed to the fields the harness reads.
+ * `decodeReport` is the boundary: everything past it is typed, so the rest of
+ * the harness needs no casts or shape probing over subprocess output.
  */
-const OxlintReport = Schema.Struct({
-  diagnostics: Schema.Array(
-    Schema.Struct({
-      code: Schema.String,
-      message: Schema.String,
-      filename: Schema.String
-    })
-  )
-})
+type OxlintReport = {
+  diagnostics: Array<{
+    code: string
+    message: string
+    filename: string
+  }>
+}
 
-const decodeReport = Schema.decodeUnknownSync(Schema.fromJsonString(OxlintReport))
-const encodeConfig = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown))
+function decodeReport(stdout: string): OxlintReport {
+  // The harness deliberately owns no codec: the plugin's only runtime
+  // dependency is `@oxlint/plugins`, so the boundary is the documented
+  // `--format=json` payload itself — malformed output fails on the first
+  // property read, exactly as a decode would.
+  // oxlint-disable-next-line effect/noGlobals -- plain JSON boundary; a Schema here would reintroduce the `effect` dependency the cleanup removed
+  const parsed: OxlintReport = JSON.parse(stdout)
+  return parsed
+}
 
 type Case = {
   readonly directory: string
@@ -59,7 +63,8 @@ function messagesByCase(
   try {
     writeFileSync(
       join(root, 'oxlintrc.json'),
-      encodeConfig({
+      // oxlint-disable-next-line effect/noGlobals -- fixture config is four keys of plain data; the harness owns no codec (see decodeReport)
+      JSON.stringify({
         plugins: [],
         // Without this, built-in rules report unused fixture variables alongside
         // the rule under test.

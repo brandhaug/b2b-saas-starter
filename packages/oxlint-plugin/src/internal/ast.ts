@@ -145,22 +145,3 @@ export function schemaMemberAccess(
   }
   return expression
 }
-
-/**
- * The `Schema.X` member access a `Schema.X(...)` call hangs off. Curried forms
- * nest calls (`Schema.TaggedClass<T>()('T', fields)`), so the callee chain is
- * walked down to the member access underneath it.
- */
-export function schemaCallMemberAccess(
-  node: ESTree.Node | null | undefined
-): ESTree.MemberExpression | undefined {
-  const expression = unwrapExpression(node)
-  if (expression?.type !== 'CallExpression') {
-    return undefined
-  }
-  let callee = unwrapExpression(expression.callee)
-  while (callee?.type === 'CallExpression') {
-    callee = unwrapExpression(callee.callee)
-  }
-  return schemaMemberAccess(callee)
-}

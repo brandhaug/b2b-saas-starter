@@ -34,7 +34,7 @@ Per queue the outcome table is the contract; the non-obvious parts:
 
 ## Patterns & Pitfalls
 
-- One decode per delivery: `queueDelivery` folds platform fields and the consumer's decode into one `QueueDelivery`, so malformed is a named `kind` rather than an absent value, and terminal (no trusted `endpointId` to attach a row to).
+- One decode per delivery: `readDelivery(schema, envelope)` folds the platform fields and the message-schema decode into one `QueueDelivery`, so malformed is a named `kind` rather than an absent value, and terminal (no trusted `endpointId` to attach a row to).
 - The fold sits outside `withTriggerScope`, so the wide event exits carrying the failure cause before it becomes a queue outcome. `onFailure: 'retry'` except the DLQ entry.
 - `recordDeliveryAttempt` upserts on `deliveryIdFor`: one row per message, not per attempt, `payload` and `replayedFrom` insert-only so a redelivery cannot erase a replay's provenance.
 - `signatureHeaderValue` owns the signature format: HMAC-SHA256 over `"<unix>.<rawBody>"`, one `sha256=` per active secret, current first, two only inside a rotation's grace window (ADR 0062).

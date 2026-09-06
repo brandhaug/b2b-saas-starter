@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { type ContractExpectMatchers } from './contract-expect.ts'
+import { type ContractExpect } from './contract-expect.ts'
 import { type CapabilityUnavailable, type WorkspaceChangeRejected } from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -33,11 +33,6 @@ export type LifecycleContractCase = {
     WorkspaceLifecycle | WorkspaceContext | AuditEventLog
   >
 }
-
-/** The slice of vitest's `expect` these cases use — see the membership contract. */
-export type ContractExpect = <A>(
-  actual: A
-) => Pick<ContractExpectMatchers<A>, 'toBe' | 'toContain'>
 
 export function workspaceLifecycleContractCases(
   ids: LifecycleContractIds,
@@ -123,9 +118,9 @@ export function workspaceLifecycleContractCases(
         const renamedBefore = yield* globalCountOf('workspace.renamed')
         yield* lifecycle.rename({ name: 'Audited Lab II' })
         const renamedPage = yield* log.list({ eventType: 'workspace.renamed' })
-        expect(renamedPage.events.length).toBe(renamedBefore + 1)
+        expect(renamedPage.items.length).toBe(renamedBefore + 1)
         expect(
-          renamedPage.events.some(
+          renamedPage.items.some(
             (event) =>
               event.targetId === ctx.workspace.id && event.targetType === 'workspace'
           )

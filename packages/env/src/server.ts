@@ -1,59 +1,61 @@
-import { Schema } from 'effect'
-
-const optional = Schema.optional(Schema.String)
-
 // Single source of truth for server env vars. Add a new var HERE
 // (and, when alchemy should forward it to deployed workers, to exactly one of
 // the optional-module key lists below) — everything else derives from the
-// schema: `alchemy.run.ts` builds its forwarding env from the key lists,
+// type: `alchemy.run.ts` builds its forwarding env from the key lists,
 // `apps/web/src/worker-env.d.ts` derives its string vars from `ServerEnv`, and
 // the provider env bags (`ProviderEnv` in `packages/ai`) `Pick` from it.
+//
+// A plain type, deliberately: nothing ever decodes an env bag against it
+// (there is no reader to decode it), so a schema would be restating the type
+// with runtime machinery this package never runs.
 //
 // This package is a TYPE source and a pair of pure decisions
 // (`auditRequiredEnv`, `requireEmailVerification`). It deliberately owns no
 // reader: workers read `cloudflareEnv.X` directly, which is what keeps an
 // unset provider var inactive instead of a boot failure.
-export const ServerEnvSchema = Schema.Struct({
-  BETTER_AUTH_SECRET: Schema.String,
-  BETTER_AUTH_URL: Schema.String,
-  BETTER_AUTH_TRUSTED_ORIGINS: optional,
-  STRIPE_SECRET_KEY: optional,
-  STRIPE_WEBHOOK_SECRET: optional,
-  STRIPE_PRICE_ID_TEAM: optional,
-  SENTRY_DSN: optional,
-  POSTHOG_KEY: optional,
-  POSTHOG_HOST: optional,
-  CLOUDFLARE_EMAIL_FROM: optional,
-  TURNSTILE_SITE_KEY: optional,
-  TURNSTILE_SECRET_KEY: optional,
-  WORKERS_AI_ENABLED: optional,
-  OPENAI_API_KEY: optional,
-  OPENAI_BASE_URL: optional,
-  OPENAI_MODEL_ID: optional,
-  GITHUB_CLIENT_ID: optional,
-  GITHUB_CLIENT_SECRET: optional,
-  GOOGLE_CLIENT_ID: optional,
-  GOOGLE_CLIENT_SECRET: optional,
-  OTEL_EXPORTER_OTLP_ENDPOINT: optional,
-  OTEL_EXPORTER_OTLP_HEADERS: optional,
+//
+// Optional keys are `?: string | undefined` on purpose: the repo runs with
+// `exactOptionalPropertyTypes`, and a worker env bag hands over `undefined`
+// for an unset var.
+export type ServerEnv = {
+  readonly BETTER_AUTH_SECRET: string
+  readonly BETTER_AUTH_URL: string
+  readonly BETTER_AUTH_TRUSTED_ORIGINS?: string | undefined
+  readonly STRIPE_SECRET_KEY?: string | undefined
+  readonly STRIPE_WEBHOOK_SECRET?: string | undefined
+  readonly STRIPE_PRICE_ID_TEAM?: string | undefined
+  readonly SENTRY_DSN?: string | undefined
+  readonly POSTHOG_KEY?: string | undefined
+  readonly POSTHOG_HOST?: string | undefined
+  readonly CLOUDFLARE_EMAIL_FROM?: string | undefined
+  readonly TURNSTILE_SITE_KEY?: string | undefined
+  readonly TURNSTILE_SECRET_KEY?: string | undefined
+  readonly WORKERS_AI_ENABLED?: string | undefined
+  readonly OPENAI_API_KEY?: string | undefined
+  readonly OPENAI_BASE_URL?: string | undefined
+  readonly OPENAI_MODEL_ID?: string | undefined
+  readonly GITHUB_CLIENT_ID?: string | undefined
+  readonly GITHUB_CLIENT_SECRET?: string | undefined
+  readonly GOOGLE_CLIENT_ID?: string | undefined
+  readonly GOOGLE_CLIENT_SECRET?: string | undefined
+  readonly OTEL_EXPORTER_OTLP_ENDPOINT?: string | undefined
+  readonly OTEL_EXPORTER_OTLP_HEADERS?: string | undefined
   // MCP OAuth (ADR 0068): the API worker's `/mcp` URL that access tokens are
   // audience-bound to, and the web worker's Better Auth base URL the API worker
   // trusts as token issuer. Unset on the API worker, `/mcp` accepts API Tokens
   // only; unset on the web worker, the resource defaults to the local API dev
   // server so the consent flow keeps working provider-light.
-  MCP_RESOURCE_URL: optional,
-  MCP_OAUTH_ISSUER: optional,
-  SERVICE_VERSION: optional,
-  GIT_COMMIT_SHA: optional,
-  ENVIRONMENT: optional,
+  readonly MCP_RESOURCE_URL?: string | undefined
+  readonly MCP_OAUTH_ISSUER?: string | undefined
+  readonly SERVICE_VERSION?: string | undefined
+  readonly GIT_COMMIT_SHA?: string | undefined
+  readonly ENVIRONMENT?: string | undefined
   // Workspace data export (ADR 0055): the R2 bucket name gates provisioning at
   // deploy time; the API worker's public origin is where the web app points
   // signed download links.
-  WORKSPACE_EXPORT_BUCKET: optional,
-  API_PUBLIC_URL: optional
-})
-
-export type ServerEnv = typeof ServerEnvSchema.Type
+  readonly WORKSPACE_EXPORT_BUCKET?: string | undefined
+  readonly API_PUBLIC_URL?: string | undefined
+}
 
 /**
  * A provider module's slice of the server env.
@@ -73,8 +75,8 @@ export type ProviderEnvOf<K extends keyof ServerEnv> = {
 
 // Optional provider env forwarded by alchemy to all three workers. Secret keys
 // are wrapped in `Redacted` at deploy time; plain keys are forwarded as-is.
-// `satisfies` pins both lists to schema keys, so a typo or a var that was
-// removed from the schema is a compile error.
+// `satisfies` pins both lists to the `ServerEnv` type's keys, so a typo or a
+// var that was removed from the type is a compile error.
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvSecretKeys = [
   'STRIPE_SECRET_KEY',
@@ -161,13 +163,9 @@ function isPlaceholderAuthUrl(value: string): boolean {
   if (value === 'https://b2b-saas-starter.example.com') {
     return true
   }
-  // oxlint-disable-next-line effect/noTryCatch -- `new URL` throws on a malformed value and "not a URL" is the answer, not a failure to handle; there is no Effect context here to lift it into
-  try {
-    const { hostname } = new URL(value)
-    return hostname === 'localhost' || hostname.endsWith('.example.com')
-  } catch {
-    return false
-  }
+  // An unparsable value has no hostname, and `''` matches neither check.
+  const hostname = URL.parse(value)?.hostname ?? ''
+  return hostname === 'localhost' || hostname.endsWith('.example.com')
 }
 
 /**
@@ -177,12 +175,7 @@ function isPlaceholderAuthUrl(value: string): boolean {
  * value that does not parse as a URL at all is not `https:` either.
  */
 function isHttpsAuthUrl(value: string): boolean {
-  // oxlint-disable-next-line effect/noTryCatch -- `new URL` throws on a malformed value and "not a URL" is the answer, not a failure to handle; there is no Effect context here to lift it into
-  try {
-    return new URL(value).protocol === 'https:'
-  } catch {
-    return false
-  }
+  return URL.parse(value)?.protocol === 'https:'
 }
 
 export type RequiredEnvProblem = {
@@ -317,18 +310,14 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
     for (const entry of trustedOrigins.split(',')) {
       const origin = entry.trim()
       let valid = false
-      // oxlint-disable-next-line effect/noTryCatch -- `new URL` throws on a malformed value and "not a URL" is the answer, not a failure to handle; there is no Effect context here to lift it into
-      try {
-        if (origin.startsWith('*.')) {
-          // Better Auth's scheme-less wildcard form (`*.example.com`).
-          valid = !origin.slice(2).includes('*')
-        } else {
-          const parsed = new URL(origin)
-          valid = parsed.protocol === 'https:' || parsed.protocol === 'http:'
-        }
-      } catch {
-        // A throw IS the answer here: the entry is not a URL, so it stays
-        // `valid: false` and is flagged below.
+      if (origin.startsWith('*.')) {
+        // Better Auth's scheme-less wildcard form (`*.example.com`).
+        valid = !origin.slice(2).includes('*')
+      } else {
+        // A `null` from `URL.parse` IS the answer here: the entry is not a
+        // URL, so it stays `valid: false` and is flagged below.
+        const parsed = URL.parse(origin)
+        valid = parsed?.protocol === 'https:' || parsed?.protocol === 'http:'
       }
       if (origin.length === 0 || !valid) {
         problems.push({

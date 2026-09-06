@@ -38,21 +38,6 @@ export type StarterClientOptions = {
 }
 
 /**
- * Attaches the API Token to every request the derived client sends. The
- * contract's `BearerAuth` middleware declares the security scheme; the
- * credential itself is a caller concern, so it rides on the HttpClient.
- */
-function withBearerToken(
-  apiToken: string
-): (client: HttpClient.HttpClient) => HttpClient.HttpClient {
-  return function mapRequestWithBearer(client: HttpClient.HttpClient) {
-    return HttpClient.mapRequest(client, (request) =>
-      HttpClientRequest.bearerToken(request, apiToken)
-    )
-  }
-}
-
-/**
  * The Effect-native client. Requires an `HttpClient` service in context —
  * compose `FetchHttpClient.layer` (or a custom transport) where you run it.
  */
@@ -61,7 +46,13 @@ export function makeStarterApiClient(
 ): Effect.Effect<StarterApiClient, never, HttpClient.HttpClient> {
   return HttpApiClient.make(StarterApi, {
     baseUrl: options.baseUrl,
-    transformClient: withBearerToken(options.apiToken)
+    // The contract's `BearerAuth` middleware declares the security scheme;
+    // the credential itself is a caller concern, so it rides on the
+    // HttpClient.
+    transformClient: (client) =>
+      HttpClient.mapRequest(client, (request) =>
+        HttpClientRequest.bearerToken(request, options.apiToken)
+      )
   })
 }
 

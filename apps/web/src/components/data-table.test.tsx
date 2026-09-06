@@ -31,7 +31,7 @@ describe('DataTable', () => {
       <DataTable
         columns={columns}
         data={rows}
-        filterColumnId="name"
+        filter
         filterPlaceholder="Filter modules…"
       />
     )

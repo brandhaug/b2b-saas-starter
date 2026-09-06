@@ -14,7 +14,7 @@ import {
   type WorkspaceReadOperation
 } from './operations.ts'
 import { guardFailureResponse, GuardFailure } from '@b2b-saas-starter/api/errors'
-import { type McpDiscovery } from '@b2b-saas-starter/api'
+import { RateLimiter, type McpDiscovery } from '@b2b-saas-starter/api'
 import { Context, Effect, Layer, Result, Schema, SchemaIssue, type Types } from 'effect'
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
 import {
@@ -38,7 +38,6 @@ import {
   authenticateMcpCaller,
   enforceRateLimit,
   mcpCallerActor,
-  mcpCallerWorkspaceSlug,
   observed,
   provideWorkspace,
   webRequest,
@@ -51,7 +50,6 @@ import {
   oauthChallengeHeader,
   oauthResourceConfig
 } from './oauth-access-token.ts'
-import { RateLimiter } from './rate-limit.ts'
 
 /**
  * The MCP Capability Interface: a Model Context Protocol server served at
@@ -158,19 +156,18 @@ const PAGED_INPUT_SCHEMA = advertisedInputSchema(PAGED_TOOL_INPUT)
 const ENDPOINT_ID_INPUT_SCHEMA = advertisedInputSchema(ENDPOINT_ID_TOOL_INPUT)
 
 /**
- * The tool input shapes, keyed by the row's discrimination: the JSON Schema
- * the protocol advertises and the schema a tool call decodes against (the
- * same declarations, right above) stay in one entry, so they cannot drift
- * apart.
+ * The advertised JSON Schema per row shape, keyed by the row's discrimination —
+ * each generated from the schema a tool call decodes against (the same
+ * declarations, right above), so the two cannot drift apart.
  */
 const TOOL_INPUTS = {
-  collection: { jsonSchema: NO_TOOL_INPUT_SCHEMA },
-  paged: { jsonSchema: PAGED_INPUT_SCHEMA },
-  endpointId: { jsonSchema: ENDPOINT_ID_INPUT_SCHEMA }
+  collection: NO_TOOL_INPUT_SCHEMA,
+  paged: PAGED_INPUT_SCHEMA,
+  endpointId: ENDPOINT_ID_INPUT_SCHEMA
 }
 
-/** The input entry an operation registers with, derived from its row shape. */
-function toolInput(operation: WorkspaceReadOperation) {
+/** The advertised input schema an operation registers with, derived from its row shape. */
+function toolInput(operation: WorkspaceReadOperation): ToolJsonSchema {
   if (operation.param !== undefined) {
     return TOOL_INPUTS.endpointId
   }
@@ -200,7 +197,7 @@ function toolProjection(operation: WorkspaceReadOperation) {
   return {
     name: operation.toolName,
     description: toolDescription(operation),
-    inputSchema: toolInput(operation).jsonSchema
+    inputSchema: toolInput(operation)
   }
 }
 
@@ -253,19 +250,15 @@ function failureText(error: CapabilityReadError): string {
   }
 }
 
-/** A typed capability failure as the tool channel answers it: text the model can read, `isError` set. */
-function errorToolResult(failure: CapabilityReadError): CallToolResult {
-  return new CallToolResult({
-    content: [{ type: 'text', text: failureText(failure) }],
-    isError: true
-  })
-}
-
+/** Success as JSON text; a typed failure as text the model can read, `isError` set. */
 function outcomeToToolResult(outcome: ToolOutcome): CallToolResult {
   if (Result.isSuccess(outcome)) {
     return textResult(outcome.success)
   }
-  return errorToolResult(outcome.failure)
+  return new CallToolResult({
+    content: [{ type: 'text', text: failureText(outcome.failure) }],
+    isError: true
+  })
 }
 
 /**
@@ -324,7 +317,7 @@ function bridgedRead(
   >
 ): Effect.Effect<ToolOutcome, never, CapabilityReadServices> {
   return Effect.result(
-    provideWorkspace(env, mcpCallerWorkspaceSlug(caller), body, mcpCallerActor(caller))
+    provideWorkspace(env, caller.token.workspaceSlug, body, mcpCallerActor(caller))
   )
 }
 
@@ -464,11 +457,12 @@ function registerOverviewResource(env: ApiEnv) {
 }
 
 /**
- * A guard failure, encoded the way the contract encodes it: status and body
- * both come from the error schema's own annotations (`guardFailureResponse` in
- * `packages/api`), so a rejected `/mcp` request answers exactly as a rejected
- * REST route would. Only the JSON-RPC bodies inside the protocol are this
- * surface's own shape.
+ * A guard failure, encoded the way the contract encodes it: the status from
+ * the tag→status table in `packages/api` (`errors.test.ts` pins each row to
+ * the schema's own `httpApiStatus` annotation, so REST and this surface
+ * cannot drift), and the body from the schema's own encoding — so a rejected
+ * `/mcp` request answers exactly as a rejected REST route would. Only the
+ * JSON-RPC bodies inside the protocol are this surface's own shape.
  */
 function failureResponse(
   env: ApiEnv,
@@ -587,7 +581,7 @@ export function mcpProtocolLayer(
     version: '0.1.0',
     protocols: [v2025_11_25],
     path: '/mcp'
-    // oxlint-disable-next-line starter/no-effect-escape-hatch -- the protocol layer's only build failure is an empty protocol list, and the list here is a non-empty literal; there is no runtime condition this layer could truthfully report
+    // oxlint-disable-next-line eslint/no-restricted-properties -- the protocol layer's only build failure is an empty protocol list, and the list here is a non-empty literal; there is no runtime condition this layer could truthfully report
   }).pipe(Layer.orDie)
 
   return Layer.mergeAll(

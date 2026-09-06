@@ -1,11 +1,6 @@
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import {
-  sendEmailCodeWithAuthClient,
-  signInWithEmailCodeWithAuthClient,
-  type SendEmailCode,
-  type SignInWithEmailCode
-} from '@/components/auth/auth-client-ports'
 import { EmailCodeExchange } from '@/components/auth/email-code-exchange'
+import { authClient } from '@/lib/auth-client'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 
 export const Route = createFileRoute('/sign-in_/email-code')({
@@ -30,20 +25,15 @@ function EmailCodeSignInRoute() {
  * still works.
  */
 export function EmailCodeSignInPage({
-  redirect,
-  sendCode = sendEmailCodeWithAuthClient,
-  signIn = signInWithEmailCodeWithAuthClient
+  redirect
 }: {
   readonly redirect?: string | undefined
-  readonly sendCode?: SendEmailCode
-  readonly signIn?: SignInWithEmailCode
 }) {
   const router = useRouter()
   return (
     <EmailCodeExchange
       purpose="sign-in"
-      send={sendCode}
-      verify={({ email, otp }) => signIn({ email, otp })}
+      verify={({ email, otp }) => authClient.signIn.emailOtp({ email, otp })}
       onVerified={() => {
         router.history.push(safeRedirect(redirect))
       }}

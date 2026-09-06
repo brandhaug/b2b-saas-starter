@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { SsoPanel } from '@/components/sso-panel'
-import { WorkspaceShell, type SignOut } from '@/components/workspace-shell'
+import { WorkspaceShell } from '@/components/workspace-shell'
 import {
   WorkspaceGeneralSettings,
   type DeleteWorkspace,
@@ -40,7 +40,6 @@ export function WorkspaceSettingsPage({
    * a test, where each child falls back to its production default.
    */
   readonly ports?: {
-    readonly signOut?: SignOut
     readonly renameWorkspace?: RenameWorkspace
     readonly deleteWorkspace?: DeleteWorkspace
     readonly requestExport?: RequestWorkspaceExport
@@ -57,7 +56,6 @@ export function WorkspaceSettingsPage({
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
-      {...(ports?.signOut === undefined ? {} : { signOut: ports.signOut })}
       unreadCount={unreadCount}
       viewer={viewer}
     >

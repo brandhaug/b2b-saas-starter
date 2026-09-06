@@ -4,10 +4,11 @@ import {
   starterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
-  type CapabilityUnavailable,
+  CapabilityUnavailable,
   type WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
 import { buildWorkspaceExportArchive } from '@b2b-saas-starter/capabilities/governance/workspace-export-archive'
+import { errorMessage } from '@b2b-saas-starter/failure'
 import {
   collectWorkspaceExportSnapshot,
   type WorkspaceExportSnapshotServices
@@ -17,14 +18,14 @@ import {
   WorkspaceExports
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { DateTime, Effect, type Layer, Result, Schema, type Scope } from 'effect'
+import { DateTime, Effect, type Layer, Result, type Scope } from 'effect'
 
 import { workspaceExportConsumerSettings } from '../../../infra/bindings.ts'
 import {
   consumerInvocation,
   type DeliveryOutcome,
   type Env,
-  queueDelivery,
+  readDelivery,
   type QueueDelivery,
   type QueueEnvelope
 } from './queue-consumer.ts'
@@ -36,27 +37,11 @@ import {
  * audits, and notifies the requester.
  *
  * Same boundary shape as `webhook-consumer.ts`: the untrusted body is decoded
- * once (`readExportDelivery`), a malformed body is terminal, and the
+ * once (`readDelivery`), a malformed body is terminal, and the
  * orchestration is exported with its requirements open so tests inject stub
  * layers — `processWorkspaceExportMessage` takes the workspace resolver as an
  * argument for the same reason.
  */
-
-const decodeMessage = Schema.decodeUnknownResult(WorkspaceExportQueueMessage)
-
-/** Wire shape of export queue messages — the schema is shared with the producer. */
-export type WorkspaceExportMessage = typeof WorkspaceExportQueueMessage.Type
-
-/**
- * The boundary decode: platform fields plus the message, or the terminal
- * `malformed` outcome — the same `queueDelivery` vocabulary every consumer in
- * this worker shares, so the envelope's id and attempt count ride along.
- */
-export function readExportDelivery(
-  envelope: QueueEnvelope
-): QueueDelivery<WorkspaceExportMessage> {
-  return queueDelivery(envelope, decodeMessage(envelope.body))
-}
 
 /**
  * How the consumer turns a slug into a trusted `WorkspaceContext` (no actor —
@@ -69,15 +54,6 @@ export type ResolveWorkspace = (
 ) => Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable>
 
 /**
- * Whether a store failure should be retried or is the message's last chance.
- * The queue's `maxRetries` is the source; a message on its final attempt is
- * marked failed so the requester is not left waiting on a row that never moves.
- */
-function isLastAttempt(attempts: number): boolean {
-  return attempts >= workspaceExportConsumerSettings.maxRetries
-}
-
-/**
  * Builds one export. Outcomes:
  * - archive stored, row `ready` → ack;
  * - malformed body, unknown slug, or a slug that no longer names the message's
@@ -85,7 +61,7 @@ function isLastAttempt(attempts: number): boolean {
  * - the store is unreachable → retry, or mark failed on the last attempt.
  */
 export function processWorkspaceExportMessage(
-  delivery: QueueDelivery<WorkspaceExportMessage>,
+  delivery: QueueDelivery<WorkspaceExportQueueMessage>,
   resolveWorkspace: ResolveWorkspace
 ): Effect.Effect<
   DeliveryOutcome,
@@ -120,7 +96,18 @@ export function processWorkspaceExportMessage(
         if (snapshot.workspace.id !== message.workspaceId) {
           return null
         }
-        return buildWorkspaceExportArchive(snapshot)
+        // The archive is gzipped JSON, so the builder is a promise; it folds
+        // into the effect channel with the same `CapabilityUnavailable` a
+        // failed read would surface, which the queue retries like any other
+        // store outage.
+        return yield* Effect.tryPromise({
+          try: () => buildWorkspaceExportArchive(snapshot),
+          catch: (cause) =>
+            new CapabilityUnavailable({
+              capability: 'workspace-export-archive',
+              reason: errorMessage(cause) ?? 'the archive build failed'
+            })
+        })
       }).pipe(Effect.provide(resolveWorkspace(message.workspaceSlug)))
     )
 
@@ -138,7 +125,10 @@ export function processWorkspaceExportMessage(
         })
         return 'ack' satisfies DeliveryOutcome
       }
-      if (isLastAttempt(delivery.attempts)) {
+      // The queue's `maxRetries` is the source: on the final attempt the row
+      // is marked failed rather than retried, so the requester is not left
+      // waiting on a row that never moves.
+      if (delivery.attempts >= workspaceExportConsumerSettings.maxRetries) {
         yield* exports.fail({
           exportId: message.exportId,
           workspaceId: message.workspaceId,
@@ -194,7 +184,7 @@ export function buildWorkspaceExport(
   envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
-  const delivery = readExportDelivery(envelope)
+  const delivery = readDelivery(WorkspaceExportQueueMessage, envelope)
   const capabilitiesEnv = starterEnv(env)
   return consumerInvocation(env, {
     event: 'workspace_export',

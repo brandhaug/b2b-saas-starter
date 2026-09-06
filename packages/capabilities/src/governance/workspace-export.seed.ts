@@ -2,6 +2,7 @@ import { DateTime, Effect, Layer, Option, Result } from 'effect'
 
 import { type CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { orUnavailable } from '../internal/unavailable.ts'
 import {
   NotificationFeed,
   type NotificationFeedInterface
@@ -79,9 +80,9 @@ function readyNotification(workspaceName: string, expiresAt: string) {
 }
 
 /**
- * In-memory exports, built synchronously: the Seed adapter has no queue and no
- * bucket, so `request` collects the snapshot, builds the archive, and lands the
- * row `ready` in one step. The archive is the same bytes the background worker
+ * In-memory exports: the Seed adapter has no queue and no bucket, so
+ * `request` collects the snapshot, builds the archive, and lands the row
+ * `ready` in one step. The archive is the same bytes the background worker
  * would write (same `collectWorkspaceExportSnapshot`, same builder), so a test
  * against Seed asserts the real artifact shape.
  *
@@ -106,10 +107,20 @@ export function SeedWorkspaceExports(options: {
 
       // The archive builder over the shared seed services, for the fixture
       // export (a trusted context, like the queue consumer's) and for requests
-      // (the requester's own context).
+      // (the requester's own context). The gzip is a promise, so the builder
+      // folds it into the effect channel with the same `CapabilityUnavailable`
+      // a failed read would surface.
+      const archiveUnavailable = orUnavailable('workspace-export-archive')
       function buildArchive(exportId: string, generatedAt: DateTime.Utc) {
         return collectWorkspaceExportSnapshot({ exportId, generatedAt }).pipe(
-          Effect.map(buildWorkspaceExportArchive),
+          Effect.flatMap((snapshot) =>
+            archiveUnavailable(
+              Effect.tryPromise({
+                try: () => buildWorkspaceExportArchive(snapshot),
+                catch: (cause) => cause
+              })
+            )
+          ),
           Effect.provide(snapshotServices)
         )
       }

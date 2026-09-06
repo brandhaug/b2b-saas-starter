@@ -3,7 +3,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./client": "./src/client.ts",
     "./enums": "./src/enums.ts",
     "./schema": "./src/schema.ts",
     "./service": "./src/service.ts",
@@ -24,7 +23,6 @@
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@b2b-saas-starter/config": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
     "drizzle-kit": "catalog:",
     "typescript": "catalog:",

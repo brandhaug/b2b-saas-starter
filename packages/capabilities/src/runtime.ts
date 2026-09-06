@@ -9,9 +9,7 @@ import {
 } from './governance/workspace-export.ts'
 import {
   type CapabilityBindings,
-  type LiveCapabilitiesOptions,
   makeLiveCapabilitiesLayer,
-  makeLiveLayerFromD1,
   SeedLayer,
   type CapabilitiesLayer,
   type CapabilityServices
@@ -87,7 +85,7 @@ export function starterEnv(
  * spread untouched. Only the ports whose worker env names differ have a line
  * here — that mapping is the env-name seam, not a second field list.
  */
-function liveCapabilitiesOptions(env: StarterEnv): LiveCapabilitiesOptions {
+function liveCapabilitiesOptions(env: StarterEnv): CapabilityBindings {
   const bindings: CapabilityBindings = env
   return {
     ...bindings,
@@ -105,7 +103,11 @@ export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
   if (env.DB === undefined) {
     return SeedLayer
   }
-  return makeLiveLayerFromD1(env.DB, liveCapabilitiesOptions(env))
+  // Live over D1: the capability layer, provided from the binding. What
+  // `makeLiveLayerFromD1` used to wrap — one caller, so it lives here.
+  return makeLiveCapabilitiesLayer(liveCapabilitiesOptions(env)).pipe(
+    Layer.provide(layerFromD1(env.DB))
+  )
 }
 
 /**

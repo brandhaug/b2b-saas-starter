@@ -250,10 +250,11 @@ describe('POST /mcp protocol', () => {
         )
         expect(res.status).toBe(401)
         // A guard failure is not a JSON-RPC failure: the request never reached
-        // the protocol. It is encoded from the contract's own error schema —
-        // status from the `httpApiStatus` annotation, body from the schema —
-        // so this route answers a rejected request exactly as a REST route
-        // does. Asserted against the REST answer rather than a literal, so the
+        // the protocol. It is encoded from the contract's own error schemas —
+        // status from the tag table (pinned to each schema's `httpApiStatus`
+        // by `packages/api`'s errors test), body from the schema — so this
+        // route answers a rejected request exactly as a REST route does.
+        // Asserted against the REST answer rather than a literal, so the
         // two cannot drift apart silently.
         const rest = yield* send(
           new Request('https://api.test/workspaces/acme/members')

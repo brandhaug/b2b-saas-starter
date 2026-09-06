@@ -19,7 +19,6 @@
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@b2b-saas-starter/config": "workspace:*",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",

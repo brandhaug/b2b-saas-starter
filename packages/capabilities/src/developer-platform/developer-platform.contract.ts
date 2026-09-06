@@ -1,5 +1,5 @@
 import { Effect, Exit } from 'effect'
-import { type ContractExpectMatchers } from '../governance/contract-expect.ts'
+import { type ContractExpect } from '../governance/contract-expect.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts'
 import { type InvalidWebhookUrl } from './webhook-url.ts'
@@ -49,17 +49,6 @@ export type PlanLimitContractCase = {
   >
 }
 
-/**
- * The slice of vitest's `expect` these cases use — deliberately narrow, for
- * the same reason the membership contract narrows it.
- */
-export type ContractExpect = <A>(
-  actual: A
-) => Pick<
-  ContractExpectMatchers<A>,
-  'toBe' | 'toEqual' | 'toHaveLength' | 'toMatchObject'
->
-
 export function developerPlatformContractCases(
   expect: ContractExpect
 ): ReadonlyArray<DeveloperPlatformContractCase> {
@@ -97,7 +86,7 @@ export function developerPlatformContractCases(
       assert: Effect.gen(function* () {
         const tokens = yield* ApiTokenRegistry
         const log = yield* AuditEventLog
-        const before = (yield* log.list({ eventType: 'api_token.revoked' })).events
+        const before = (yield* log.list({ eventType: 'api_token.revoked' })).items
           .length
 
         const created = yield* tokens.create({
@@ -107,11 +96,11 @@ export function developerPlatformContractCases(
         yield* tokens.revoke({ tokenId: created.id })
 
         const page = yield* log.list({ eventType: 'api_token.revoked' })
-        expect(page.events.length).toBe(before + 1)
+        expect(page.items.length).toBe(before + 1)
         // Other cases in the suite revoke too, so scope to this token rather
         // than assuming the newest event is ours.
         expect(
-          page.events.some(
+          page.items.some(
             (event) => event.targetId === created.id && event.targetType === 'api_token'
           )
         ).toBe(true)
@@ -130,9 +119,8 @@ export function developerPlatformContractCases(
         expect(listed.some((each) => each.id === endpoint.id)).toBe(true)
 
         const ctx = yield* WorkspaceContext
-        expect(
-          yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)
-        ).toMatchObject({ id: endpoint.id, url: endpoint.url })
+        const target = yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)
+        expect(target).toMatchObject({ id: endpoint.id, url: endpoint.url })
       })
     },
     {
@@ -231,7 +219,7 @@ export function developerPlatformContractCases(
         })
         // The delivery-attempt suites dead-letter their own endpoints too, so
         // scope to this one instead of assuming the newest event is ours.
-        expect(events.events.some((event) => event.targetId === endpoint.id)).toBe(true)
+        expect(events.items.some((event) => event.targetId === endpoint.id)).toBe(true)
         // The audit metadata points back at the row it committed with, and the
         // row itself is listable through the same interface.
         const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
@@ -344,7 +332,6 @@ export function developerPlatformContractCases(
 
         const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
         const copy = rows.find((row) => row.id === replayed.deliveryId)
-        expect(copy === undefined).toBe(false)
         expect(copy).toMatchObject({
           status: 'pending',
           attempts: 0,

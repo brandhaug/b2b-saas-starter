@@ -7,14 +7,9 @@ import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { passwordValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
-import {
-  resetPasswordWithAuthClient,
-  type ResetPassword
-} from '@/components/auth/auth-client-ports'
+import { authClient } from '@/lib/auth-client'
 import { pickOptionalStrings } from '@/lib/utils'
 import { authErrorCopy } from '@/lib/auth-error-copy'
-
-export type { ResetPassword } from '@/components/auth/auth-client-ports'
 
 export const Route = createFileRoute('/reset-password')({
   validateSearch: (search) => pickOptionalStrings(search, ['token', 'error']),
@@ -39,12 +34,10 @@ function ResetPasswordRoute() {
 
 export function ResetPasswordPage({
   token,
-  error,
-  resetPassword = resetPasswordWithAuthClient
+  error
 }: {
   readonly token?: string | undefined
   readonly error?: string | undefined
-  readonly resetPassword?: ResetPassword
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -52,7 +45,7 @@ export function ResetPasswordPage({
     defaultValues: { password: '', confirm: '' } satisfies ResetPasswordValues,
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      const result = await resetPassword({
+      const result = await authClient.resetPassword({
         newPassword: value.password,
         token: token ?? ''
       })

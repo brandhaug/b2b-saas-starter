@@ -1,4 +1,3 @@
-import { type Writable } from '@b2b-saas-starter/config/writable'
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 import { failureMessage } from '@b2b-saas-starter/failure'
 import { Context, Effect, Layer, Schema } from 'effect'
@@ -56,7 +55,7 @@ export const AssistantReply = Schema.Struct({
 })
 export type AssistantReply = typeof AssistantReply.Type
 
-export type AssistantInterface = {
+type AssistantInterface = {
   readonly ask: (
     prompt: AssistantPrompt
   ) => Effect.Effect<AssistantReply, AssistantUnavailable>
@@ -122,13 +121,13 @@ export const AssistantLive = Layer.effect(AssistantService)(
 
 /**
  * The assistant's slice of the worker env. Keys are `Pick`ed from
- * `ServerEnv` so the schema stays the single source of truth, and each is
- * `| undefined` so a caller may pass the whole worker env through — an
- * explicitly-undefined key is legal here and means exactly what an absent one
- * means: unconfigured. (Same shape as `EmailDispatcherEnv` in
- * `packages/email`.) A worker env may also deliver `null` for a
- * present-but-null binding; every read below is a truthiness check, so null
- * reads as unconfigured too.
+ * `ServerEnv` so the worker env's own type stays the single source of
+ * truth, and each is `| undefined` so a caller may pass the whole worker
+ * env through — an explicitly-undefined key is legal here and means
+ * exactly what an absent one means: unconfigured. (Same shape as
+ * `EmailDispatcherEnv` in `packages/email`.) A worker env may also deliver
+ * `null` for a present-but-null binding; every read below is a truthiness
+ * check, so null reads as unconfigured too.
  */
 export type ProviderEnv = ProviderEnvOf<
   'WORKERS_AI_ENABLED' | 'OPENAI_API_KEY' | 'OPENAI_BASE_URL' | 'OPENAI_MODEL_ID'
@@ -150,6 +149,9 @@ type ProviderChoice =
   | { readonly provider: 'openai-compatible'; readonly config: OpenAIConfig }
   | { readonly provider: 'mock' }
 
+/** The mutable draft of `OpenAIConfig`: same shape, mutable properties. */
+type OpenAIConfigDraft = { -readonly [K in keyof OpenAIConfig]: OpenAIConfig[K] }
+
 function selectProvider(env: ProviderEnv): ProviderChoice {
   if (env.WORKERS_AI_ENABLED === 'true' && env.AI) {
     return { provider: 'workers-ai', binding: env.AI }
@@ -157,7 +159,7 @@ function selectProvider(env: ProviderEnv): ProviderChoice {
   if (hasValue(env.OPENAI_API_KEY)) {
     // Assigned only when set so the layer's own defaults (api.openai.com,
     // gpt-4o-mini) still apply for absent vars.
-    const config: Writable<OpenAIConfig> = { apiKey: env.OPENAI_API_KEY }
+    const config: OpenAIConfigDraft = { apiKey: env.OPENAI_API_KEY }
     if (hasValue(env.OPENAI_BASE_URL)) {
       config.baseUrl = env.OPENAI_BASE_URL
     }

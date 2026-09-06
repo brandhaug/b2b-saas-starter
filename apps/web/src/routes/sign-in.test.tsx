@@ -6,27 +6,27 @@ import {
   LOCAL_D1_UNAVAILABLE_MESSAGE,
   SIGN_IN_FAILED
 } from '@/lib/auth-error-copy'
-import {
-  type SendMagicLink,
-  type SignInWithEmail,
-  type SignInWithPasskey,
-  type SignInWithSocial,
-  type SignInWithSso
-} from '@/components/auth/auth-client-ports'
+import { authClientDouble as fake } from '@/test/fake-auth-client'
+import { type SendMagicLink } from '@/components/auth/auth-client-ports'
 import { SignInPage } from '@/components/auth/sign-in-page'
 
-// The page's own `signIn` port, handed in as a prop. The router is real, so the
-// redirect assertions read the resulting location instead of asking whether a
-// `history.push` double was called.
-const signIn = vi.fn<SignInWithEmail>()
-const signInPasskey = vi.fn<SignInWithPasskey>()
+// The auth endpoints the page calls, as doubles on the (mocked) client module
+// — the page reads `authClient.signIn.email(...)` and friends directly, and
+// the shared per-file instance is bound without re-typing the module. The
+// router is real, so the redirect assertions read the resulting location
+// instead of asking whether a `history.push` double was called.
+vi.mock('@/lib/auth-client', async () => {
+  const { authClientDouble: double } = await import('@/test/fake-auth-client')
+  return { authClient: double }
+})
 
-// The social port, same treatment: a fake of the same shape, so the button
-// tests drive the real component without the Better Auth client.
-const signInSocial = vi.fn<SignInWithSocial>()
+const signIn = fake.signIn.email
+const signInPasskey = fake.signIn.passkey
+const signInSocial = fake.signIn.social
+const signInWithSso = fake.signIn.sso
 
-// The link-mode port, same contract: driven with a real function of the same
-// shape instead of replacing the auth client singleton.
+// The link-mode port stays a prop: `sendMagicLinkWithAuthClient` composes the
+// callback URLs, so the test drives the kept behaviour seam directly.
 const sendMagicLink = vi.fn<SendMagicLink>()
 
 async function renderPage(
@@ -37,9 +37,6 @@ async function renderPage(
     <SignInPage
       {...(redirect === undefined ? {} : { redirect })}
       socialProviders={socialProviders}
-      signIn={signIn}
-      signInPasskey={signInPasskey}
-      signInSocial={signInSocial}
       sendMagicLink={sendMagicLink}
     />,
     { path: '/sign-in', destinations: ['/workspaces', '/workspaces/starter-lab'] }
@@ -306,7 +303,6 @@ describe('SignInPage', () => {
   })
 
   it('routes a matched domain to its IdP instead of the password path', async () => {
-    const signInWithSso = vi.fn<SignInWithSso>()
     signInWithSso.mockResolvedValue({
       data: { url: 'https://login.acme.com/authorize?state=x', redirect: true },
       error: null
@@ -314,8 +310,6 @@ describe('SignInPage', () => {
     const assign = vi.fn()
     const { router } = await renderWithRouter(
       <SignInPage
-        signIn={signIn}
-        signInWithSso={signInWithSso}
         resolveRouting={async () => ({
           providerId: 'sso_test',
           protocol: 'oidc',
@@ -388,10 +382,10 @@ describe('SignInPage', () => {
     // browser to /sign-in?error=two_factor_required — the search param is the
     // refusal's only channel, so the page renders it as guidance naming the
     // path that still works, not a failed sign-in.
-    await renderWithRouter(
-      <SignInPage searchError="two_factor_required" signIn={signIn} />,
-      { path: '/sign-in', destinations: ['/workspaces'] }
-    )
+    await renderWithRouter(<SignInPage searchError="two_factor_required" />, {
+      path: '/sign-in',
+      destinations: ['/workspaces']
+    })
     const notice = await screen.findByRole('alert')
     expect(notice.textContent).toBe(
       'This account uses two-factor authentication. Sign in with your password and authenticator.'
@@ -402,10 +396,10 @@ describe('SignInPage', () => {
   })
 
   it('renders nothing for an unknown error search param', async () => {
-    await renderWithRouter(
-      <SignInPage searchError="something_else" signIn={signIn} />,
-      { path: '/sign-in', destinations: ['/workspaces'] }
-    )
+    await renderWithRouter(<SignInPage searchError="something_else" />, {
+      path: '/sign-in',
+      destinations: ['/workspaces']
+    })
     await screen.findByLabelText('Email')
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -471,11 +465,7 @@ describe('SignInPage link mode', () => {
 
   it('blocks submission while Turnstile is configured but unanswered', async () => {
     await renderWithRouter(
-      <SignInPage
-        signIn={signIn}
-        sendMagicLink={sendMagicLink}
-        turnstileSiteKey="site-key"
-      />,
+      <SignInPage sendMagicLink={sendMagicLink} turnstileSiteKey="site-key" />,
       { path: '/sign-in', destinations: ['/workspaces'] }
     )
     await screen.findByLabelText('Email')

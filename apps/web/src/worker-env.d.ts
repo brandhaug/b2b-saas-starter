@@ -1,7 +1,7 @@
 // The env shape is defined ONCE (`WebWorkerEnv`) and referenced by both the
 // `Cloudflare.Env` namespace augmentation and the global `Env` interface.
-// String vars derive from the `@b2b-saas-starter/env` schema —
-// adding a var to `ServerEnvSchema` updates this file automatically.
+// String vars derive from the `@b2b-saas-starter/env` `ServerEnv` type —
+// adding a var there updates this file automatically.
 
 // Optional provider env — forwarded by alchemy at deploy time.
 //

@@ -12,9 +12,21 @@
  * - `./invocation.ts` — the HTTP entry-point envelope (`withHttpInvocation`):
  *   the request scope plus its per-invocation exporters, as one call.
  */
-// oxlint-disable oxc/no-barrel-file -- package-root public entry, not an internal barrel
-export * from './trace.ts'
-export * from './wide-event.ts'
-export * from './environment.ts'
-export * from './otlp.ts'
-export * from './invocation.ts'
+export {
+  currentTraceId,
+  currentTraceparent,
+  parentSpanFromHeaders,
+  TRACE_HEADER,
+  type TraceContinuation
+} from './trace.ts'
+export {
+  WideEventLoggerLive,
+  withHttpRequestScope,
+  withRequestScope,
+  withTriggerScope,
+  type HttpRequestScopeOptions,
+  type TriggerScopeOptions,
+  type WideEventScopeOptions
+} from './wide-event.ts'
+export { makeOtlpLayer, type ObservabilityEnv } from './otlp.ts'
+export { withHttpInvocation, type HttpInvocationOptions } from './invocation.ts'

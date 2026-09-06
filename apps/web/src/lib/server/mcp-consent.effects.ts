@@ -86,26 +86,6 @@ function scopesOf(url: URL): ReadonlyArray<string> {
     .filter((scope) => scope.length > 0)
 }
 
-/** The capability half of the consent payload; the load handler adds the request-read `oauthQuery`. */
-type ConsentLoad = Omit<OAuthConsentPayload, 'oauthQuery'>
-
-export function loadOAuthConsent(input: {
-  readonly userId: string
-  readonly clientId: string
-}): Promise<ConsentLoad> {
-  return runCapabilities(
-    Effect.all(
-      {
-        client: Effect.flatMap(McpClientConnections, (connections) =>
-          connections.describeClient(input.clientId)
-        ),
-        workspaces: listWorkspacesForUser(input.userId)
-      },
-      { concurrency: 'unbounded' }
-    )
-  )
-}
-
 export async function loadOAuthConsentHandler(
   input: LoadOAuthConsentInput
 ): Promise<OAuthConsentPayload> {
@@ -115,20 +95,29 @@ export async function loadOAuthConsentHandler(
   const request = currentRequest()
   const oauthQuery =
     request === undefined ? null : signedOAuthQuery(new URL(request.url).search)
-  const payload = await loadOAuthConsent({
-    userId: session.user.id,
-    clientId: input.clientId
-  })
+  const payload = await runCapabilities(
+    Effect.all(
+      {
+        client: Effect.flatMap(McpClientConnections, (connections) =>
+          connections.describeClient(input.clientId)
+        ),
+        workspaces: listWorkspacesForUser(session.user.id)
+      },
+      { concurrency: 'unbounded' }
+    )
+  )
   return { ...payload, oauthQuery }
 }
 
-export async function grantOAuthConsent(input: {
-  readonly userId: string
-  readonly workspaceId: string
-  readonly oauthQuery: string
-}): Promise<OAuthRedirect> {
+export async function grantOAuthConsentHandler(
+  input: GrantOAuthConsentInput
+): Promise<OAuthRedirect> {
+  const session = await requireRequestSession()
   await sessionCall((api, headers) =>
-    api.setActiveOrganization({ body: { organizationId: input.workspaceId }, headers })
+    api.setActiveOrganization({
+      body: { organizationId: input.workspaceId },
+      headers
+    })
   )
   const continued = redirect(
     decodeRedirect(
@@ -157,19 +146,11 @@ export async function grantOAuthConsent(input: {
       )
     )
   )
-  await recordGrantBestEffort(input, continued.parsed)
+  await recordGrantBestEffort(
+    { userId: session.user.id, workspaceId: input.workspaceId },
+    continued.parsed
+  )
   return { url: consented.url }
-}
-
-export async function grantOAuthConsentHandler(
-  input: GrantOAuthConsentInput
-): Promise<OAuthRedirect> {
-  const session = await requireRequestSession()
-  return grantOAuthConsent({
-    userId: session.user.id,
-    workspaceId: input.workspaceId,
-    oauthQuery: input.oauthQuery
-  })
 }
 
 /**
@@ -221,9 +202,10 @@ function reportDroppedGrantAudit(message: string): void {
   void webRuntime.runPromise(Effect.logError(message))
 }
 
-export async function denyOAuthConsent(input: {
-  readonly oauthQuery: string
-}): Promise<OAuthRedirect> {
+export async function denyOAuthConsentHandler(
+  input: DenyOAuthConsentInput
+): Promise<OAuthRedirect> {
+  await requireRequestSession()
   const denied = redirect(
     decodeRedirect(
       await sessionCall((api, headers) =>
@@ -236,11 +218,4 @@ export async function denyOAuthConsent(input: {
     )
   )
   return { url: denied.url }
-}
-
-export async function denyOAuthConsentHandler(
-  input: DenyOAuthConsentInput
-): Promise<OAuthRedirect> {
-  await requireRequestSession()
-  return denyOAuthConsent({ oauthQuery: input.oauthQuery })
 }

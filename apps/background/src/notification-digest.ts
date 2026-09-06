@@ -9,7 +9,7 @@ import {
   type NotificationRecipient
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
-  describeNotificationKind,
+  NOTIFICATION_KIND_DESCRIPTIONS,
   type NotificationChannel,
   type NotificationKind
 } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
@@ -76,7 +76,7 @@ export function buildDigests(
     }
     entry.items.push({
       id: candidate.notification.id,
-      kindLabel: describeNotificationKind(kind).label,
+      kindLabel: NOTIFICATION_KIND_DESCRIPTIONS[kind].label,
       title: candidate.notification.title,
       message: candidate.notification.message,
       workspaceName: candidate.workspace?.name ?? null,

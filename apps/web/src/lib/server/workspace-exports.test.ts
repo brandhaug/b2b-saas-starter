@@ -1,60 +1,46 @@
-import { SeedLayer } from '@b2b-saas-starter/capabilities/layers'
-import {
-  demoMemberIdentity,
-  demoUserIdentity,
-  seedWorkspaceRecord
-} from '@b2b-saas-starter/capabilities/seed-fixture'
-import {
-  testWorkspaceContext,
-  type Actor
-} from '@b2b-saas-starter/capabilities/workspace-context'
-import { describe, expect, it } from 'vite-plus/test'
-import { Effect, Exit, Layer } from 'effect'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
-import { requestWorkspaceExport } from './workspace-exports.effects'
+import { fixtureSession } from '@/test/fixture-session'
+import { requestWorkspaceExportHandler } from './workspace-exports.effects'
+import type * as AuthModule from './auth'
 
 /**
- * The effect below the session gate, driven against the Seed layer with the
- * role under test injected — the same seam `invitations.test.ts` uses. Plain
- * `it` + `Effect.runPromise`: `@effect/vitest`'s TestClock would date the
+ * The export request through its handler, against the Seed layer (the inert
+ * `cloudflare:workers` shim under Vitest): `usr_demo` owns `starter-lab`,
+ * `usr_ops` is its admin, `usr_dev` a plain member — the statement is
+ * owner-only. Plain `it`: `@effect/vitest`'s TestClock would date the
  * export in 1970.
  */
-function runAs(actor: Actor) {
-  return Effect.runPromiseExit(
-    Effect.scoped(
-      requestWorkspaceExport().pipe(
-        Effect.provide(
-          Layer.merge(SeedLayer, testWorkspaceContext(seedWorkspaceRecord, actor))
-        )
-      )
-    )
-  )
-}
+const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-describe('requestWorkspaceExport', () => {
+vi.mock('./auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () => fixtureSession(actor)
+}))
+
+describe('requestWorkspaceExportHandler', () => {
+  beforeEach(() => {
+    actor.userId = 'usr_demo'
+  })
+
   it('lets an owner request an export', async () => {
-    const exit = await runAs({
-      userId: demoUserIdentity.id,
-      role: 'owner',
-      systemRole: 'admin'
+    const requested = await requestWorkspaceExportHandler({
+      workspaceSlug: 'starter-lab'
     })
-    expect(Exit.isSuccess(exit)).toBe(true)
-    if (Exit.isSuccess(exit)) {
-      expect(exit.value.status).toBe('ready')
-    }
+    expect(requested.status).toBe('ready')
   })
 
   it('refuses an admin — the statement is owner-only', async () => {
-    const exit = await runAs({ userId: 'usr_ops', role: 'admin', systemRole: 'user' })
-    expect(Exit.isFailure(exit)).toBe(true)
+    actor.userId = 'usr_ops'
+    await expect(
+      requestWorkspaceExportHandler({ workspaceSlug: 'starter-lab' })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
 
   it('refuses a member', async () => {
-    const exit = await runAs({
-      userId: demoMemberIdentity.id,
-      role: 'member',
-      systemRole: 'user'
-    })
-    expect(Exit.isFailure(exit)).toBe(true)
+    actor.userId = 'usr_dev'
+    await expect(
+      requestWorkspaceExportHandler({ workspaceSlug: 'starter-lab' })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
 })

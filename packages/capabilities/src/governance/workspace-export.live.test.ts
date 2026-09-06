@@ -52,7 +52,7 @@ function stubPorts() {
   return { sent, objects, workspaceExports: { queue, bucket } }
 }
 
-const archive = new Uint8Array([0x50, 0x4b, 3, 4, 1, 2, 3])
+const archive = new Uint8Array([0x1f, 0x8b, 8, 0, 1, 2, 3])
 
 function linkParams(path: string) {
   const url = new URL(path, 'https://api.test')
@@ -128,7 +128,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         )
         expect(completed).toBe(true)
         expect([...ports.objects.keys()]).toEqual([
-          `workspaces/wrk_live/${requested.id}.zip`
+          `workspaces/wrk_live/${requested.id}.json.gz`
         ])
         // A second completion finds no pending row and writes nothing more.
         const again = yield* inWorkspace(
@@ -190,7 +190,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         if (Option.isNone(download)) {
           expect.fail('expected the archive')
         }
-        expect(download.value.fileName).toBe(`live-lab-export-${requested.id}.zip`)
+        expect(download.value.fileName).toBe(`live-lab-export-${requested.id}.json.gz`)
         expect([...download.value.body]).toEqual([...archive])
 
         const tampered = yield* inWorkspace(
@@ -224,7 +224,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           undefined,
           bindings
         )
-        const forExport = events.events
+        const forExport = events.items
           .filter((event) => event.targetId === requested.id)
           .map((event) => event.eventType)
           .toSorted()

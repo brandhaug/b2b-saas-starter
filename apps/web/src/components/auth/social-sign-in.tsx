@@ -2,13 +2,8 @@ import { type ReactNode } from 'react'
 import { useClientValue } from '@/lib/client-only-value'
 import { safeRedirect } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import {
-  readLastLoginMethodWithAuthClient,
-  signInSocialWithAuthClient,
-  type ReadLastLoginMethod,
-  type SignInWithSocial,
-  type SocialProviderId
-} from '@/components/auth/auth-client-ports'
+import { authClient } from '@/lib/auth-client'
+import { type SocialProviderId } from '@/components/auth/auth-client-ports'
 import {
   SOCIAL_PROVIDER_LABELS,
   loginMethodLabel
@@ -59,12 +54,10 @@ const PROVIDER_ICONS = {
  */
 export function SocialSignInButtons({
   providers,
-  redirectTo,
-  signIn = signInSocialWithAuthClient
+  redirectTo
 }: {
   readonly providers: ReadonlyArray<SocialProviderId>
   readonly redirectTo?: string | undefined
-  readonly signIn?: SignInWithSocial
 }) {
   if (providers.length === 0) {
     return null
@@ -82,7 +75,7 @@ export function SocialSignInButtons({
               onClick={() => {
                 // Better Auth's client navigates to the authorize URL itself
                 // when the endpoint answers `{ url, redirect: true }`.
-                void signIn({
+                void authClient.signIn.social({
                   provider,
                   callbackURL: `${window.location.origin}${safeRedirect(redirectTo)}`
                 })
@@ -110,12 +103,8 @@ export function SocialSignInButtons({
  * when a method is remembered; the quiet aside styling keeps it a hint, not
  * an alert.
  */
-export function LastSignInMethodHint({
-  readLastLoginMethod = readLastLoginMethodWithAuthClient
-}: {
-  readonly readLastLoginMethod?: ReadLastLoginMethod
-}) {
-  const method = useClientValue(readLastLoginMethod, null)
+export function LastSignInMethodHint() {
+  const method = useClientValue(() => authClient.getLastUsedLoginMethod(), null)
   if (method === null) {
     return null
   }

@@ -1,4 +1,3 @@
-import { bytesToHex } from '@b2b-saas-starter/capabilities/crypto'
 import {
   selectCapabilitiesLayer,
   starterEnv
@@ -14,7 +13,7 @@ import { WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-pl
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { currentTraceId, TRACE_HEADER } from '@b2b-saas-starter/logger'
-import { Clock, DateTime, Effect, Result, Schema, type Scope } from 'effect'
+import { DateTime, Effect, Result, Schema, type Scope } from 'effect'
 import { HttpBody, HttpClient } from 'effect/unstable/http'
 
 import { webhookDlqConsumerSettings } from '../../../infra/bindings.ts'
@@ -22,27 +21,11 @@ import {
   consumerInvocation,
   type DeliveryOutcome,
   type Env,
-  queueDelivery,
+  readDelivery,
   type QueueDelivery,
   type QueueEnvelope
 } from './queue-consumer.ts'
 import { computeWebhookSignature, signatureHeaderValue } from './webhook-signing.ts'
-
-/** Wire shape of queue messages — the schema is shared with the producer. */
-export type WebhookMessage = typeof WebhookQueueMessage.Type
-
-const decodeWebhookQueueMessage = Schema.decodeUnknownResult(WebhookQueueMessage)
-
-/**
- * The webhook queue's boundary decode: platform fields plus the message, or
- * the terminal `malformed` outcome. One line because everything it used to
- * hand-copy is the shared queue-consumer vocabulary.
- */
-export function readQueueDelivery(
-  envelope: QueueEnvelope
-): QueueDelivery<WebhookMessage> {
-  return queueDelivery(envelope, decodeWebhookQueueMessage(envelope.body))
-}
 
 /**
  * The delivery row id for one queue message. Prefers the `deliveryId` an
@@ -51,31 +34,14 @@ export function readQueueDelivery(
  * otherwise derives deterministically from the queue's message id, so every
  * redelivery of the same message signs and persists the *same* `deliveryId` —
  * a receiver deduplicating on it collapses retries, and a crash between POST
- * and persist cannot fork identities. The random fallback only covers
- * envelopes without an id (never produced by a real queue), keeping the
- * minting path testable in isolation.
+ * and persist cannot fork identities.
  */
-function deliveryIdFor(delivery: QueueDelivery<WebhookMessage>): Effect.Effect<string> {
+function deliveryIdFor(delivery: QueueDelivery<WebhookQueueMessage>): string {
   if (delivery.kind === 'message' && delivery.message.deliveryId !== undefined) {
-    return Effect.succeed(delivery.message.deliveryId)
+    return delivery.message.deliveryId
   }
-  if (delivery.id !== undefined && delivery.id.length > 0) {
-    return Effect.succeed(`whd_${delivery.id}`)
-  }
-  return newDeliveryId
+  return `whd_${delivery.id}`
 }
-
-/**
- * Fallback id minting. The timestamp comes from `Clock` so the worker's notion
- * of now stays swappable in tests; the random suffix comes from the Workers
- * Web Crypto global, which is this runtime's only entropy source.
- */
-const newDeliveryId: Effect.Effect<string> = Effect.gen(function* () {
-  const millis = yield* Clock.currentTimeMillis
-  // oxlint-disable-next-line effect/noGlobals -- Platform edge: Workers Web Crypto. Effect's `Crypto` service has no Cloudflare Workers layer, and building one here would only wrap this same global.
-  const bytes = crypto.getRandomValues(new Uint8Array(8))
-  return `whd_${millis}_${bytesToHex(bytes.buffer)}`
-})
 
 /** Body of a delivery POST, encoded through a JSON codec rather than a
  * hand-rolled `JSON.stringify`: the signature is computed over exactly the
@@ -104,7 +70,7 @@ function annotateMalformed(outcome: string): Effect.Effect<void, never, Scope.Sc
  * outage must not turn a settled delivery into a retry loop.
  */
 function notifyDeliveryGaveUp(
-  message: WebhookMessage,
+  message: WebhookQueueMessage,
   endpointUrl: string | null,
   status: 'failed_permanent' | 'dead_lettered'
 ): Effect.Effect<void, never, NotificationFeed> {
@@ -133,7 +99,7 @@ function notifyDeliveryGaveUp(
 }
 
 /** Fields every consumer stamps onto its wide event once decoded. */
-function annotateMessageFields(message: WebhookMessage) {
+function annotateMessageFields(message: WebhookQueueMessage) {
   return Effect.annotateLogsScoped({
     endpointId: message.endpointId,
     workspaceId: message.workspaceId,
@@ -149,7 +115,7 @@ function annotateMessageFields(message: WebhookMessage) {
  * the real layers and the wide-event scope (`deliverWebhook`).
  */
 export function processWebhookMessage(
-  delivery: QueueDelivery<WebhookMessage>,
+  delivery: QueueDelivery<WebhookQueueMessage>,
   traceId: string
 ): Effect.Effect<
   DeliveryOutcome,
@@ -170,7 +136,7 @@ export function processWebhookMessage(
     // The delivery id the queue message owns — derived before anything can go
     // terminal, so a never-dispatched row still resolves this message's
     // identity (one row per message, even when it dies pre-dispatch).
-    const deliveryId = yield* deliveryIdFor(delivery)
+    const deliveryId = deliveryIdFor(delivery)
     // The workspace ID from the message is verified inside the capability:
     // a cross-workspace mismatch resolves null, same as a disabled or deleted
     // endpoint, so no signing secret leaves the workspace that enqueued it.
@@ -294,7 +260,7 @@ function deliverWebhook(
   // consumer read the same result. endpointId/eventType land on the wide event
   // via `Effect.annotateLogsScoped` inside the scope; the entry's metadata
   // carries the attempt count.
-  const delivery = readQueueDelivery(envelope)
+  const delivery = readDelivery(WebhookQueueMessage, envelope)
   return consumerInvocation(env, {
     event: 'webhook_delivery',
     delivery,
@@ -317,7 +283,7 @@ function deliverWebhook(
  * and the wide-event scope.
  */
 export function processDeadLetterMessage(
-  delivery: QueueDelivery<WebhookMessage>
+  delivery: QueueDelivery<WebhookQueueMessage>
 ): Effect.Effect<
   void,
   CapabilityUnavailable,
@@ -336,7 +302,7 @@ export function processDeadLetterMessage(
     // The same row id the message's attempts resolved on the primary queue —
     // the exhausted row goes terminal in place instead of forking a second
     // row, and its recorded payload keeps it replayable.
-    const deliveryId = yield* deliveryIdFor(delivery)
+    const deliveryId = deliveryIdFor(delivery)
     yield* webhooks.recordTerminalDeliveryAttempt({
       deliveryId,
       endpointId: message.endpointId,
@@ -368,7 +334,7 @@ function recordDeadLetter(
   envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
-  const delivery = readQueueDelivery(envelope)
+  const delivery = readDelivery(WebhookQueueMessage, envelope)
   const program: Effect.Effect<DeliveryOutcome, never, Scope.Scope> =
     processDeadLetterMessage(delivery).pipe(
       Effect.provide(selectCapabilitiesLayer(starterEnv(env))),

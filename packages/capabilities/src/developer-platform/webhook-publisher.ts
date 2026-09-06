@@ -5,6 +5,10 @@ import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { bestEffort } from '../internal/best-effort.ts'
+import {
+  makeQueuePublisher,
+  type QueueSendBinding
+} from '../internal/queue-publisher.ts'
 import { withTraceparent } from '../internal/traceparent.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -48,14 +52,13 @@ export type WebhookQueueMessage = typeof WebhookQueueMessage.Type
  * on. No worker env types its queue as workers-types' `Queue`; they all declare
  * this port, so nothing is assigned across the two shapes.
  */
-export type WebhookQueueBinding = {
-  readonly send: (message: WebhookQueueMessage) => Promise<void>
+export type WebhookQueueBinding = QueueSendBinding<WebhookQueueMessage> & {
   readonly sendBatch: (
     messages: Iterable<{ readonly body: WebhookQueueMessage }>
   ) => Promise<void>
 }
 
-export type PublishWebhookEventInput = {
+type PublishWebhookEventInput = {
   readonly eventType: string
   readonly payload: typeof Schema.Json.Type
 }
@@ -66,7 +69,7 @@ export type PublishWebhookEventInput = {
  * and payload, so there is nothing to fan out — the publisher only adds the
  * trace context and sends.
  */
-export type EnqueueWebhookMessageInput = {
+type EnqueueWebhookMessageInput = {
   readonly endpointId: string
   readonly workspaceId: string
   readonly eventType: string
@@ -74,7 +77,7 @@ export type EnqueueWebhookMessageInput = {
   readonly payload: typeof Schema.Json.Type
 }
 
-export type WebhookPublisherInterface = {
+type WebhookPublisherInterface = {
   readonly publish: (
     input: PublishWebhookEventInput
   ) => Effect.Effect<void, CapabilityUnavailable, WorkspaceContext>
@@ -123,22 +126,6 @@ export function publishWebhookEventWith(
 }
 
 const unavailable = orUnavailable('webhook-publisher')
-
-/**
- * Stamps the pre-resolved delivery row onto an operator message. Schema types
- * are readonly, so the deliveryId variant is a new object rather than a
- * mutation of the base message.
- */
-function withDeliveryId(
-  message: WebhookQueueMessage,
-  deliveryId: string | undefined,
-  traceparent: string | undefined
-): WebhookQueueMessage {
-  if (deliveryId === undefined) {
-    return withTraceparent(message, traceparent)
-  }
-  return withTraceparent({ ...message, deliveryId }, traceparent)
-}
 
 export function LiveWebhookPublisher(
   queue?: WebhookQueueBinding
@@ -200,29 +187,15 @@ export function LiveWebhookPublisher(
               })
             )
           }),
-        enqueue: (input) =>
-          Effect.gen(function* () {
-            // Same provider-light posture as `publish`: without a binding
-            // there is nothing to send to, and the caller's row (a `pending`
-            // delivery) still stands.
-            if (!queue) {
-              return
-            }
-            const traceparent = yield* currentTraceparent
-            const message: WebhookQueueMessage = {
-              endpointId: input.endpointId,
-              workspaceId: input.workspaceId,
-              eventType: input.eventType,
-              payload: input.payload
-            }
-            yield* unavailable(
-              Effect.tryPromise({
-                try: () =>
-                  queue.send(withDeliveryId(message, input.deliveryId, traceparent)),
-                catch: (cause) => cause
-              })
-            )
-          })
+        enqueue: makeQueuePublisher('webhook-publisher', queue, (input) => ({
+          endpointId: input.endpointId,
+          workspaceId: input.workspaceId,
+          eventType: input.eventType,
+          payload: input.payload,
+          // The pre-resolved delivery row rides along only when it exists —
+          // ordinary fan-out leaves it to the consumer to mint.
+          ...(input.deliveryId !== undefined && { deliveryId: input.deliveryId })
+        }))
       }
     })
   )

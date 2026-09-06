@@ -304,13 +304,6 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
     })
   )
   .add(
-    HttpApiEndpoint.post('revoke', '/workspaces/:slug/api-tokens/:tokenId/revoke', {
-      params: TokenIdParams,
-      success: RevokedResponse,
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .add(
     HttpApiEndpoint.delete('delete', '/workspaces/:slug/api-tokens/:tokenId', {
       params: TokenIdParams,
       success: RevokedResponse,

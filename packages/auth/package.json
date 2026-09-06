@@ -18,11 +18,11 @@
     "@better-auth/passkey": "catalog:",
     "@better-auth/sso": "catalog:",
     "better-auth": "catalog:",
+    "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "effectful-better-auth": "catalog:"
   },
   "devDependencies": {
-    "@b2b-saas-starter/config": "workspace:*",
     "jose": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

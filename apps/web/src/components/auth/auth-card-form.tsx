@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { useHydrated } from '@/lib/client-only-value'
+import { useClientValue } from '@/lib/client-only-value'
 import { PublicLayout } from '@/components/public-layout'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,7 +50,7 @@ export function AuthCardForm({
 }) {
   // Hydration signal for e2e: interacting before React hydrates falls through
   // to a native GET submit, so the smoke test waits for this attribute.
-  const hydrated = useHydrated()
+  const hydrated = useClientValue(() => true, false)
   const errorRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (error) {

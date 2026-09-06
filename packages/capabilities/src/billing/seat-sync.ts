@@ -1,10 +1,11 @@
-import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { Context, Effect, Layer, Schema } from 'effect'
 
 import { type CapabilityUnavailable } from '../errors.ts'
 import { bestEffort } from '../internal/best-effort.ts'
-import { withTraceparent } from '../internal/traceparent.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import {
+  makeQueuePublisher,
+  type QueueSendBinding
+} from '../internal/queue-publisher.ts'
 
 /**
  * The seat-sync half of per-seat billing: the queue message, the producer
@@ -13,7 +14,8 @@ import { orUnavailable } from '../internal/unavailable.ts'
  * `apps/background` (`seat-sync-consumer.ts`) and hands the message to
  * `Billing.syncSeats`, so a membership mutation never awaits Stripe (see
  * `billing.ts`). Sibling of `developer-platform/webhook-publisher.ts` on
- * purpose: same shape, different queue.
+ * purpose: same shape, different queue — the send itself is the shared
+ * `internal/queue-publisher.ts` recipe.
  */
 
 /**
@@ -22,7 +24,7 @@ import { orUnavailable } from '../internal/unavailable.ts'
  * tell an invitation acceptance from a removal.
  */
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
-export const SEAT_SYNC_REASONS = [
+const SEAT_SYNC_REASONS = [
   'member_added',
   'member_removed',
   'invitation_accepted'
@@ -48,15 +50,12 @@ export type SeatSyncQueueMessage = typeof SeatSyncQueueMessage.Type
 
 /**
  * Structural subset of Cloudflare's `Queue` binding so this package does not
- * depend on `@cloudflare/workers-types` — the same terms
- * `WebhookQueueBinding` is declared on. `send` only: seat sync enqueues one
+ * depend on `@cloudflare/workers-types` — `send` only: seat sync enqueues one
  * message at a time, so there is no `sendBatch` to port.
  */
-export type SeatSyncQueueBinding = {
-  readonly send: (message: SeatSyncQueueMessage) => Promise<void>
-}
+export type SeatSyncQueueBinding = QueueSendBinding<SeatSyncQueueMessage>
 
-export type SeatSyncPublisherInterface = {
+type SeatSyncPublisherInterface = {
   /**
    * Enqueues one seat sync for a workspace. Identity-keyed on the workspace
    * id rather than reading `WorkspaceContext`, because the invitation-accept
@@ -81,8 +80,6 @@ export const SeedSeatSyncPublisher: Layer.Layer<SeatSyncPublisher> = Layer.succe
   // changes in memory (`SeedBilling.syncSeats`), which tests drive directly.
   publish: () => Effect.void
 })
-
-const unavailable = orUnavailable('seat-sync-publisher')
 
 /**
  * Best-effort seat-sync trigger: a queue outage annotates the wide event but
@@ -109,30 +106,14 @@ export function LiveSeatSyncPublisher(
   queue?: SeatSyncQueueBinding
 ): Layer.Layer<SeatSyncPublisher> {
   return Layer.succeed(SeatSyncPublisher)({
-    publish: (input) =>
-      Effect.gen(function* () {
-        // Provider-light: without a queue binding the publisher no-ops
-        // instead of failing the mutation — local dev has no queue.
-        if (!queue) {
-          return
-        }
-        const traceparent = yield* currentTraceparent
-        yield* unavailable(
-          Effect.tryPromise({
-            try: () =>
-              queue.send(
-                withTraceparent(
-                  {
-                    kind: 'billing.seat_sync',
-                    workspaceId: input.workspaceId,
-                    reason: input.reason
-                  },
-                  traceparent
-                )
-              ),
-            catch: (cause) => cause
-          })
-        )
+    publish: makeQueuePublisher(
+      'seat-sync-publisher',
+      queue,
+      (input): SeatSyncQueueMessage => ({
+        kind: 'billing.seat_sync',
+        workspaceId: input.workspaceId,
+        reason: input.reason
       })
+    )
   })
 }

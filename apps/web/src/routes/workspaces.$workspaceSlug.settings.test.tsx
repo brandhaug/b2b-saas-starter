@@ -7,14 +7,12 @@ import {
   type DeleteWorkspace,
   type RenameWorkspace
 } from '@/components/workspace-general-settings'
-import { type SignOut } from '@/components/workspace-shell'
 import { type RequestWorkspaceExport } from '@/components/workspace-export-panel'
 import { WorkspaceSettingsPage } from '@/components/workspace-settings-page'
 
 // The page takes its params and loader projection as props, so the test renders
 // it directly under a real router: no route tree, no loader, and no mocked
 // module. The server calls its children make arrive as ports.
-const signOut = vi.fn<SignOut>()
 
 const settingsSummary: WorkspaceSettingsPayload = {
   viewer: { role: 'owner' },
@@ -68,11 +66,7 @@ const memberSettings: WorkspaceSettingsPayload = {
 
 async function renderPage(data: WorkspaceSettingsPayload = settingsSummary) {
   const rendered = await renderWithRouter(
-    <WorkspaceSettingsPage
-      workspaceSlug="starter-lab"
-      data={data}
-      ports={{ signOut }}
-    />,
+    <WorkspaceSettingsPage workspaceSlug="starter-lab" data={data} ports={{}} />,
     { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
   )
   await screen.findByRole('heading', { name: 'Workspace settings' })
@@ -110,7 +104,7 @@ describe('WorkspaceSettingsPage lifecycle ports', () => {
         <WorkspaceSettingsPage
           workspaceSlug="starter-lab"
           data={settingsSummary}
-          ports={{ signOut, renameWorkspace: rename }}
+          ports={{ renameWorkspace: rename }}
         />
         {/* Success is a sonner toast; it only renders where a Toaster lives. */}
         <Toaster />
@@ -143,7 +137,7 @@ describe('WorkspaceSettingsPage lifecycle ports', () => {
       <WorkspaceSettingsPage
         workspaceSlug="starter-lab"
         data={settingsSummary}
-        ports={{ signOut, deleteWorkspace: remove }}
+        ports={{ deleteWorkspace: remove }}
       />,
       { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
     )
@@ -172,7 +166,7 @@ describe('WorkspaceSettingsPage data export', () => {
     screen.getByRole('heading', { name: 'Data export' })
     screen.getByRole('button', { name: 'Request export' })
     expect(
-      screen.getByRole('link', { name: 'Download ZIP' }).getAttribute('href')
+      screen.getByRole('link', { name: 'Download archive' }).getAttribute('href')
     ).toBe('http://localhost:8787/exports/exp_1/download?expires=1&signature=abc')
   })
 
@@ -180,7 +174,7 @@ describe('WorkspaceSettingsPage data export', () => {
     await renderPage(memberSettings)
     expect(screen.queryByRole('heading', { name: 'Data export' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Request export' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Download ZIP' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Download archive' })).toBeNull()
   })
 
   it('explains an unconfigured deployment instead of offering the button', async () => {
@@ -213,7 +207,7 @@ describe('WorkspaceSettingsPage data export', () => {
       <WorkspaceSettingsPage
         workspaceSlug="starter-lab"
         data={settingsSummary}
-        ports={{ signOut, requestExport }}
+        ports={{ requestExport }}
       />,
       { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
     )

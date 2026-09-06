@@ -1,10 +1,12 @@
 import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import { loadWorkspaceMembers } from '@/lib/server/workspace-members.effects'
+import { fixtureSession } from '@/test/fixture-session'
+import { loadWorkspaceMembersHandler } from '@/lib/server/workspace-members.effects'
 import { type WorkspaceMembersPayload } from '@/lib/server/workspace-members'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { WorkspaceMembersPage } from '@/components/workspace-members-page'
+import type * as AuthModule from '@/lib/server/auth'
 
 /**
  * The members page renders its loader projection directly, so the seat
@@ -100,15 +102,19 @@ describe('WorkspaceMembersPage seat prompt', () => {
   })
 })
 
-describe('loadWorkspaceMembers seat usage', () => {
+const actor = vi.hoisted(() => ({ userId: 'usr_dev' }))
+
+vi.mock('@/lib/server/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () => fixtureSession(actor)
+}))
+
+describe('loadWorkspaceMembersHandler seat usage', () => {
   it('computes seat usage off the seed workspace’s per-seat plan', async () => {
     // Seed layer (inert `cloudflare:workers` shim): `starter-lab` sits on the
     // per-seat Team plan with four fixture members — billed per seat, never
     // over a ceiling.
-    const data = await loadWorkspaceMembers({
-      workspaceSlug: 'starter-lab',
-      userId: 'usr_dev'
-    })
+    const data = await loadWorkspaceMembersHandler({ workspaceSlug: 'starter-lab' })
     expect(data.seatUsage).toEqual({
       pricing: 'per_seat',
       included: null,

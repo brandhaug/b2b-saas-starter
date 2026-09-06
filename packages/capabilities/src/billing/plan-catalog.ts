@@ -21,7 +21,7 @@ import { WorkspaceContext } from '../workspace-context.ts'
  * per Member, so the provider subscription item's quantity mirrors the
  * workspace's member count (see `billing.ts`'s seat sync).
  */
-export type PlanPricing = 'flat' | 'per_seat'
+type PlanPricing = 'flat' | 'per_seat'
 
 /**
  * A plan in the catalog. A constant, not a service method: plans are part of
@@ -141,7 +141,7 @@ export function seatUsage(plan: Plan, memberCount: number): SeatUsage {
 }
 
 /** Entitlement resources a plan can cap. */
-export type EntitlementResource = 'api_token' | 'webhook_endpoint'
+type EntitlementResource = 'api_token' | 'webhook_endpoint'
 
 function limitFor(plan: Plan, resource: EntitlementResource): number | null {
   if (resource === 'api_token') {

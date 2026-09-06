@@ -11,7 +11,7 @@ export class InvalidWebhookUrl extends Schema.TaggedError<InvalidWebhookUrl>()(
   { httpApiStatus: 400 }
 ) {}
 
-export type WebhookUrlValidation =
+type WebhookUrlValidation =
   | { readonly valid: true }
   | { readonly valid: false; readonly reason: string }
 

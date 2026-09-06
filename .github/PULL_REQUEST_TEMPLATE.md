@@ -6,7 +6,6 @@
 
 - [ ] `pnpm run check` and `pnpm run build` pass locally
 - [ ] Tests added or updated for behavioural changes
-- [ ] Storybook stories added or updated for UI changes
 - [ ] [CONTEXT.md](../CONTEXT.md) updated if new domain language was introduced
 - [ ] ADR added under [docs/adr](../docs/adr) if this is an architectural decision
 

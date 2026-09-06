@@ -1,4 +1,4 @@
-import { type ComponentProps, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { DeleteAccountPanel } from '@/components/delete-account-panel'
 import { NotificationPreferencesPanel } from '@/components/notification-preferences-panel'
 import { TwoFactorPanel } from '@/components/two-factor-panel'
@@ -26,9 +26,9 @@ const NO_CONNECTIONS: ReadonlyArray<McpClientConnection> = []
  * its whole import graph into the route tree every page preloads.
  *
  * Rendered by the route test with the real loader payload
- * (`loadAccountPageData` against the Seed layer) and stub ports — the panels'
- * endpoints are browser-only, so the test supplies functions of the same
- * shape rather than re-creating Better Auth clients. The preferences panel
+ * (`loadAccountPageHandler` against the Seed layer). The panels call the
+ * Better Auth client directly, so their endpoints are driven by mocking
+ * `@/lib/auth-client` where a test needs them. The preferences panel
  * renders only when the loader supplied preferences, so a test asserting the
  * deletion flow need not stub the preference kinds.
  */
@@ -37,25 +37,13 @@ export function AccountPage({
   deletionPlan,
   preferences,
   connections = NO_CONNECTIONS,
-  currentSessionToken,
-  sessionsPorts
+  currentSessionToken
 }: {
   readonly session: RouteSession
   readonly deletionPlan: AccountDeletionPlan
   readonly preferences?: ReadonlyArray<NotificationPreferenceRow>
   readonly connections?: ReadonlyArray<McpClientConnection>
   readonly currentSessionToken: string
-  readonly sessionsPorts?: {
-    readonly listSessions: NonNullable<
-      ComponentProps<typeof SessionsPanel>['listSessions']
-    >
-    readonly revokeSession: NonNullable<
-      ComponentProps<typeof SessionsPanel>['revokeSession']
-    >
-    readonly revokeOtherSessions: NonNullable<
-      ComponentProps<typeof SessionsPanel>['revokeOtherSessions']
-    >
-  }
 }) {
   return (
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
@@ -105,10 +93,7 @@ export function AccountPage({
         </WhileNotImpersonating>
       </Panel>
 
-      <SessionsPanel
-        currentSessionToken={currentSessionToken}
-        {...(sessionsPorts ?? {})}
-      />
+      <SessionsPanel currentSessionToken={currentSessionToken} />
 
       {preferences === undefined ? null : (
         <Panel

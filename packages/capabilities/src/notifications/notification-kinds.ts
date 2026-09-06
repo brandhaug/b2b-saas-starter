@@ -17,7 +17,7 @@ export const NOTIFICATION_KINDS = notificationKinds
 export const NotificationKind = Schema.Literals(NOTIFICATION_KINDS)
 export type NotificationKind = StoredNotificationKind
 
-export const NOTIFICATION_CHANNELS = notificationChannels
+const NOTIFICATION_CHANNELS = notificationChannels
 export const NotificationChannel = Schema.Literals(NOTIFICATION_CHANNELS)
 export type NotificationChannel = StoredNotificationChannel
 
@@ -52,7 +52,7 @@ export function resolveChannel(
   return stored ?? defaultChannelFor(kind)
 }
 
-export type NotificationKindDescription = {
+type NotificationKindDescription = {
   readonly label: string
   readonly description: string
 }
@@ -99,9 +99,3 @@ export const NOTIFICATION_KIND_DESCRIPTIONS = {
     description: 'Workspace-wide notices from the starter or your workspace owners.'
   }
 } satisfies Readonly<Record<NotificationKind, NotificationKindDescription>>
-
-export function describeNotificationKind(
-  kind: NotificationKind
-): NotificationKindDescription {
-  return NOTIFICATION_KIND_DESCRIPTIONS[kind]
-}

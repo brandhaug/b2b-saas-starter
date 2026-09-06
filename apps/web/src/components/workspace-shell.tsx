@@ -30,10 +30,6 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet'
 import { useServerAction } from '@/hooks/use-server-action'
-import {
-  signOutWithAuthClient,
-  type SignOut
-} from '@/components/auth/auth-client-ports'
 import { authClient } from '@/lib/auth-client'
 import { SearchButton } from '@/components/command-palette'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
@@ -59,7 +55,7 @@ import {
 
 const SIGN_OUT_FAILED = 'Sign-out failed'
 
-export { type SignOut, type StopImpersonating }
+export { type StopImpersonating }
 
 export function WorkspaceShell({
   children,
@@ -67,7 +63,6 @@ export function WorkspaceShell({
   workspaceSlug,
   viewer,
   systemRole,
-  signOut = signOutWithAuthClient,
   stopImpersonating
 }: {
   readonly children: ReactNode
@@ -98,7 +93,6 @@ export function WorkspaceShell({
    * end for them.
    */
   readonly systemRole?: string | null | undefined
-  readonly signOut?: SignOut
   /** The impersonation banner's one server call, forwarded for tests. */
   readonly stopImpersonating?: StopImpersonating | undefined
 }) {
@@ -111,7 +105,7 @@ export function WorkspaceShell({
   const router = useRouter()
   const signingOut = useServerAction(
     async () => {
-      await signOut()
+      await authClient.signOut()
       // The remembered workspace is session memory: the next sign-in in this
       // tab may be someone else, and they have no business seeing which
       // workspace the last session had open.

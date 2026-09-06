@@ -11,15 +11,16 @@ import { Schema, type Types } from 'effect'
  * decode, and the derived types below type both the client stub and the
  * effects handler.
  *
- * The behaviour is tested as the plain loader function in the effects file
- * (`workspace-audit.test.ts`), driven directly with fixture actors.
+ * The behaviour is tested as the handler in the effects file
+ * (`workspace-audit.test.ts`), driven with a mocked session against the
+ * Seed layer.
  */
 
 /**
  * Server-side filters for the audit page, straight from the route's search
  * params. Dates arrive as `YYYY-MM-DD` and are widened to inclusive UTC
- * instant bounds in `loadWorkspaceAuditEvents` — the only place that knows
- * the wire contract is ISO timestamps (see `AuditEventLog.list`). Widened
+ * instant bounds in the effects handler — the only place that knows the
+ * wire contract is ISO timestamps (see `AuditEventLog.list`). Widened
  * mutable because the route stages a filter onto an empty record key by key.
  */
 const WorkspaceAuditFilters = Schema.Struct({
@@ -64,18 +65,6 @@ const WorkspaceAuditInput = Schema.Struct({
 })
 
 export type WorkspaceAuditInput = typeof WorkspaceAuditInput.Type
-
-/**
- * The loader's input: the fn's decoded input plus the acting member —
- * `userId` never rides the wire, so the handler adds it from the session.
- * Widened mutable because tests stage a cursor onto the built input
- * (`workspace-audit.test.ts`).
- */
-export type LoadWorkspaceAuditEventsInput = Types.Mutable<
-  typeof WorkspaceAuditInput.Type
-> & {
-  userId: string
-}
 
 /** The audit route's loader. */
 export const loadWorkspaceAuditEventsServerFn = createServerFn({

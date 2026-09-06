@@ -11,7 +11,6 @@
     "test": "vp test run --passWithNoTests"
   },
   "devDependencies": {
-    "@b2b-saas-starter/config": "workspace:*",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",

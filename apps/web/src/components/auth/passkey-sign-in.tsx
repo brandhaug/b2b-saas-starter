@@ -1,11 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { FingerprintIcon } from 'lucide-react'
-import {
-  signInPasskeyWithAuthClient,
-  type SignInWithPasskey
-} from '@/components/auth/auth-client-ports'
 import { Button } from '@/components/ui/button'
+import { authClient } from '@/lib/auth-client'
 import { authFailure } from '@/lib/auth-result'
 import { authErrorCopy } from '@/lib/auth-error-copy'
 import { useServerAction } from '@/hooks/use-server-action'
@@ -31,11 +28,9 @@ const PASSKEY_FAILED = 'Passkey sign-in failed'
  * 3.3.1, 4.1.3).
  */
 export function PasskeySignIn({
-  redirect,
-  signInPasskey = signInPasskeyWithAuthClient
+  redirect
 }: {
   readonly redirect?: string | undefined
-  readonly signInPasskey?: SignInWithPasskey | undefined
 }) {
   const router = useRouter()
   // Which surface started the in-flight attempt. A ref, not state: it names
@@ -45,10 +40,11 @@ export function PasskeySignIn({
 
   const passkeySignIn = useServerAction(
     async (input: { readonly autoFill?: boolean } | undefined) => {
-      const result = await signInPasskey(input)
+      const result = await authClient.signIn.passkey(input)
       if (result.error) {
         return authFailure(authErrorCopy(result.error, PASSKEY_FAILED))
       }
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- a cancelled ceremony answers a success envelope with an empty body; the probe keeps the empty case from navigating
       if (result.data !== null && result.data !== undefined) {
         // A sign-in an MCP client started resumes the authorization first:
         // `oauthProviderClient` attaches the signed OAuth query to this call

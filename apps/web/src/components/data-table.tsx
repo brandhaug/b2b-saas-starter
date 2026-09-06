@@ -97,8 +97,9 @@ function headerTitleOf(header: unknown, fallback: string): string {
 type DataTableProps<TData extends RowData> = {
   readonly columns: ReadonlyArray<DataTableColumnDef<TData>>
   readonly data: ReadonlyArray<TData>
+  /** Renders the global filter input above the table. */
+  readonly filter?: boolean
   readonly filterPlaceholder?: string
-  readonly filterColumnId?: string
   readonly pageSize?: number
   readonly emptyMessage?: string
   /** Accessible name for the underlying `<table>` element. */
@@ -110,8 +111,8 @@ type DataTableProps<TData extends RowData> = {
 export function DataTable<TData extends RowData>({
   columns,
   data,
+  filter = false,
   filterPlaceholder,
-  filterColumnId,
   pageSize = 10,
   emptyMessage = 'No results.',
   tableLabel,
@@ -138,7 +139,7 @@ export function DataTable<TData extends RowData>({
 
   return (
     <div className="grid gap-3">
-      {filterColumnId === undefined ? null : (
+      {filter ? (
         <Input
           value={globalFilter}
           onChange={(event) => setGlobalFilter(event.target.value)}
@@ -146,7 +147,7 @@ export function DataTable<TData extends RowData>({
           className="max-w-xs"
           aria-label={filterPlaceholder ?? 'Filter rows'}
         />
-      )}
+      ) : null}
       <Table aria-label={tableLabel}>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
@@ -163,11 +164,10 @@ export function DataTable<TData extends RowData>({
                 )
                 const sortState = SORT_STATE[sortDir === false ? 'false' : sortDir]
                 const isSticky = header.column.columnDef.meta?.sticky === true
-                // Placeholder headers (spanned group cells) render nothing, so
-                // they never get the sort button either.
-                const label = header.isPlaceholder
-                  ? null
-                  : flexRender(header.column.columnDef.header, header.getContext())
+                const label = flexRender(
+                  header.column.columnDef.header,
+                  header.getContext()
+                )
                 return (
                   <TableHead
                     key={header.id}

@@ -13,10 +13,10 @@ type DocFrontmatter = {
 }
 
 /**
- * Article metadata. `loadDoc` resolves the component on demand — the glob is
- * lazy, so a route importing this module does not pull seventeen compiled,
- * shiki-highlighted articles into its chunk; the article's own chunk loads
- * when its URL is opened.
+ * Article metadata. `getDocComponent` resolves the component on demand — the
+ * glob is lazy, so a route importing this module does not pull seventeen
+ * compiled, shiki-highlighted articles into its chunk; the article's own
+ * chunk loads when its URL is opened.
  */
 export type DocMeta = {
   readonly slug: string
@@ -48,6 +48,19 @@ function docPath(category: string, slug: string): string | undefined {
   return Object.hasOwn(modules, path) ? path : undefined
 }
 
+/**
+ * The lazy loader for one doc module, or `undefined` for an unknown
+ * category/slug pair — the one resolve both `loadDoc` and `getDocComponent`
+ * build on.
+ */
+function docLoader(
+  category: string,
+  slug: string
+): (() => Promise<DocModule>) | undefined {
+  const path = docPath(category, slug)
+  return path === undefined ? undefined : modules[path]
+}
+
 let metaPromise: Promise<ReadonlyArray<DocMeta>> | undefined
 
 async function loadAllDocMeta(): Promise<ReadonlyArray<DocMeta>> {
@@ -77,25 +90,20 @@ function asCategory(value: string): DocCategory {
   return isDocCategory(value) ? value : 'getting-started'
 }
 
-export type LoadedDoc = DocMeta & {
-  readonly Component: ComponentType<MdxComponentProps>
-}
-
 /**
- * One article — metadata plus the component — via a dynamic import of its
- * single module. `undefined` for an unknown category/slug pair.
+ * One article's metadata, via a dynamic import of its single module.
+ * `undefined` for an unknown category/slug pair.
  */
 export async function loadDoc(
   category: string,
   slug: string
-): Promise<LoadedDoc | undefined> {
-  const path = docPath(category, slug)
-  const load = path === undefined ? undefined : modules[path]
+): Promise<DocMeta | undefined> {
+  const load = docLoader(category, slug)
   if (load === undefined) {
     return undefined
   }
   const mod = await load()
-  return { slug, category, frontmatter: mod.frontmatter, Component: mod.default }
+  return { slug, category, frontmatter: mod.frontmatter }
 }
 
 /**
@@ -107,18 +115,17 @@ export function getDocComponent(
   category: string,
   slug: string
 ): ComponentType<MdxComponentProps> | undefined {
-  const resolved = docPath(category, slug)
-  const load = resolved === undefined ? undefined : modules[resolved]
-  if (resolved === undefined || load === undefined) {
+  const load = docLoader(category, slug)
+  if (load === undefined) {
     return undefined
   }
-  let component = componentCache.get(resolved)
+  let component = componentCache.get(`${category}/${slug}`)
   if (component === undefined) {
     component = lazy(async () => {
       const mod = await load()
       return { default: mod.default }
     })
-    componentCache.set(resolved, component)
+    componentCache.set(`${category}/${slug}`, component)
   }
   return component
 }

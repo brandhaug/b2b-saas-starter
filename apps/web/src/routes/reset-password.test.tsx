@@ -1,17 +1,24 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import { ResetPasswordPage, type ResetPassword } from './reset-password'
+import { authClient } from '@/lib/auth-client'
+import { ResetPasswordPage } from './reset-password'
 
-// The page's own `resetPassword` port, handed in as a prop. The router is
-// real, so the redirect assertion reads the resulting location.
-const resetPassword = vi.fn<ResetPassword>()
+// The page calls the client module directly, so its reset endpoint is a
+// double on the mocked module. The router is real, so the redirect
+// assertion reads the resulting location.
+vi.mock('@/lib/auth-client', async () => {
+  const { fakeAuthClient } = await import('@/test/fake-auth-client')
+  return { authClient: fakeAuthClient() }
+})
+
+const resetPassword = vi.mocked(authClient.resetPassword)
 
 async function renderPage(search: { token?: string; error?: string } = {}) {
-  const rendered = await renderWithRouter(
-    <ResetPasswordPage {...search} resetPassword={resetPassword} />,
-    { path: '/reset-password', destinations: ['/sign-in', '/forgot-password'] }
-  )
+  const rendered = await renderWithRouter(<ResetPasswordPage {...search} />, {
+    path: '/reset-password',
+    destinations: ['/sign-in', '/forgot-password']
+  })
   return rendered
 }
 

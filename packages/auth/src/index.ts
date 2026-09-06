@@ -95,28 +95,6 @@ function provisionedRoleOf(data: {
 }
 
 /**
- * The WebAuthn Relying Party id, derived from the app URL the caller already
- * supplies (`BETTER_AUTH_URL`) rather than a second env var: `localhost` in
- * local dev (a valid WebAuthn rpID — the flow works with zero configuration),
- * the hostname in production. The rpID must equal the serving host or a
- * registrable suffix of it, which the URL's hostname is by construction.
- */
-function passkeyRpID(baseURL: string): string {
-  return new URL(baseURL).hostname
-}
-
-/**
- * The origin WebAuthn ceremonies are verified against, from the same app URL.
- * `new URL(...).origin` normalizes scheme, host, and port and drops any path
- * or trailing slash — the exact shape the passkey plugin wants. A deployment
- * that serves the app on additional origins widens this; the plugin accepts
- * an array.
- */
-function passkeyOrigin(baseURL: string): string {
-  return new URL(baseURL).origin
-}
-
-/**
  * The `user` option this package builds from the hook pair. The endpoint is
  * enabled only when the app supplied the hooks: without them, deleting a user
  * would strand sole-owner workspaces and trip the restricting FKs from
@@ -262,13 +240,9 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     },
     user: userDeleteOption(options),
     session: {
-      // Same values Better Auth defaults to, stated so a default change is a
-      // visible diff rather than a silent session-lifetime shift.
-      expiresIn: 60 * 60 * 24 * 7,
-      updateAge: 60 * 60 * 24,
-      // Stated beyond the defaults so a Better Auth default change is a
-      // visible diff. The mechanism is plugin-side: Better Auth's fresh-session
-      // middleware guards session-listing and email-change endpoints, and the
+      // Tightened from Better Auth's 24-hour default to one hour. The
+      // mechanism is plugin-side: Better Auth's fresh-session middleware
+      // guards session-listing and email-change endpoints, and the
       // second-factor endpoints demand the password outright — a stronger
       // check than freshness. No app surface reads `session.fresh` today.
       freshAge: 60 * 60
@@ -301,12 +275,11 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         // a read of the `verification` table must not be enough to mint a
         // session. Better Auth hashes the incoming token before lookup.
         storeToken: 'hashed',
-        // Sign-up through a link is allowed (stated, not defaulted): the plugin
+        // Sign-up through a link rides the plugin's default (allowed): it
         // creates the user with `emailVerified: true`, because consuming the
         // link is proof of mailbox control — the same proof the verification
-        // email asks for. `requireEmailVerification` therefore has nothing
-        // left to gate for a magic-link account.
-        disableSignUp: false,
+        // email asks for, so `requireEmailVerification` has nothing left to
+        // gate for a magic-link account.
         // Same pass-through as the lifecycle callbacks above: the port carries
         // the plugin's own signature, so the app's adapter is the callback.
         sendMagicLink: options.emails.sendMagicLink
@@ -325,13 +298,13 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         // and the web auth route (`apps/web/src/routes/api.auth.$.ts`) emails
         // the user after every successful second-factor change.
         skipVerificationOnEnable: false,
-        // Both pinned to the values Better Auth defaults to, so a default
-        // change cannot silently lengthen the challenge window or the
-        // trusted-device grace period.
-        twoFactorCookieMaxAge: 600,
+        // Thirty days is Better Auth's default too, but the account panel
+        // promises "Trust this device for 30 days" — the number the UI names
+        // lives here, not only in the library.
         trustDeviceMaxAge: 60 * 60 * 24 * 30,
-        // Stated for the same reason: six digits and a thirty-second period
-        // are what every authenticator screenshot in onboarding copy assumes.
+        // Six digits and a thirty-second period are Better Auth's defaults,
+        // stated because "the six-digit code from your authenticator app" is
+        // what the sign-in copy says.
         totpOptions: {
           digits: 6,
           period: 30
@@ -340,18 +313,23 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // WebAuthn passkeys: registration demands a session, sign-in opens one
       // directly. `rpID`/`origin` derive from the app URL on the config — no
       // separate env var, and `localhost` works out of the box (ADR 0056).
+      // `hostname` is the serving host (or a registrable suffix of it) by
+      // construction, and `.origin` normalizes scheme/host/port and drops any
+      // path — the exact shapes the plugin wants.
       passkey({
-        rpID: passkeyRpID(options.baseURL),
+        rpID: new URL(options.baseURL).hostname,
         rpName: 'B2B SaaS Starter',
-        origin: passkeyOrigin(options.baseURL)
+        origin: new URL(options.baseURL).origin
       }),
       // Email one-time codes as the alternative to the emailed lifecycle
       // links: sign-in, email verification, and password reset, all through
-      // the same `sendOneTimeCode` port the lifecycle links use. Six digits,
-      // ten minutes, three attempts — stated rather than defaulted (only the
-      // six is Better Auth's default). Codes hash at rest in the `verification`
-      // table, and sign-in codes open sessions for existing accounts only:
-      // registration goes through /sign-up, where the Turnstile gate lives.
+      // the same `sendOneTimeCode` port the lifecycle links use. Ten minutes
+      // and three attempts are stated rather than defaulted; six digits is
+      // the default too, but "We emailed a six-digit code" is copy on four
+      // screens, so the number stays here. Codes hash at rest in the
+      // `verification` table, and sign-in codes open sessions for existing
+      // accounts only: registration goes through /sign-up, where the
+      // Turnstile gate lives.
       emailOTP({
         otpLength: 6,
         expiresIn: 60 * 10,
@@ -464,10 +442,10 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         loginPage: MCP_LOGIN_PAGE,
         consentPage: MCP_CONSENT_PAGE,
         scopes: MCP_OAUTH_SCOPES,
-        // One hour of access, thirty days of refresh — Better Auth's own
-        // defaults, stated so a default change is a visible diff.
+        // One hour of access — the value the MCP doc's "the token expires
+        // after an hour" names; the thirty-day refresh window is Better
+        // Auth's own default.
         accessTokenExpiresIn: 60 * 60,
-        refreshTokenExpiresIn: 60 * 60 * 24 * 30,
         // The workspace pick. The plugin's post-login hop is the one place a
         // consent can be tied to a reference id, and the consent page IS that
         // hop: it redirects there until the consent server function vouches
@@ -512,11 +490,6 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         organizationProvisioning: {
           getRole: provisionedRoleOf
         },
-        // Stated rather than left on the plugin's implicit default of 10, so a
-        // change is a visible diff. Counted per registering user; workspace
-        // connections are additionally capped by the owner/admin gate on the
-        // register endpoint itself.
-        providersLimit: 10,
         schema: {
           ssoProvider: {
             // `modelName` is the drizzle schema export key, not the SQL table

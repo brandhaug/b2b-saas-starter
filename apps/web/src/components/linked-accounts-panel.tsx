@@ -1,11 +1,5 @@
 import { unwrapAuthResult, type AuthResult } from '@/lib/auth-result'
-import {
-  listAccountsWithAuthClient,
-  unlinkAccountWithAuthClient,
-  type LinkedAccountRecord,
-  type ListLinkedAccounts,
-  type UnlinkAccount
-} from '@/components/auth/auth-client-ports'
+import { authClient } from '@/lib/auth-client'
 import { loginMethodLabel } from '@/components/auth/social-provider-labels'
 import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-rows'
 import { Button } from '@/components/ui/button'
@@ -22,13 +16,19 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
-export type {
-  ListLinkedAccounts,
-  UnlinkAccount
-} from '@/components/auth/auth-client-ports'
-
 const ACCOUNTS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'linked-providers']
 const ACTION_FAILED = 'The provider could not be unlinked'
+
+/**
+ * One linked sign-in method, narrowed to the fields the panel reads: `id` is
+ * the account row's id — the value `unlinkAccount` takes — and `providerId`
+ * is the method ('credential' for email and password).
+ */
+type LinkedAccountRecord = {
+  readonly id: string
+  readonly providerId: string
+  readonly createdAt: Date
+}
 
 /** One row of the panel's view model; dates formatted client-side only. */
 export type LinkedAccountRowView = {
@@ -59,16 +59,10 @@ function toViewModels(
  * list is this panel's own query, so actions refetch it instead of
  * invalidating the route, and every failure reads through `ActionFeedback`.
  */
-export function LinkedAccountsPanel({
-  listAccounts = listAccountsWithAuthClient,
-  unlinkAccount = unlinkAccountWithAuthClient
-}: {
-  readonly listAccounts?: ListLinkedAccounts
-  readonly unlinkAccount?: UnlinkAccount
-}) {
+export function LinkedAccountsPanel() {
   const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
     queryKey: ACCOUNTS_QUERY_KEY,
-    list: listAccounts,
+    list: () => authClient.listAccounts(),
     toRows: toViewModels,
     loadFailedMessage: 'Could not load linked providers'
   })
@@ -130,7 +124,9 @@ export function LinkedAccountsPanel({
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() =>
-                            act.run(() => unlinkAccount({ accountId: row.accountId }))
+                            act.run(() =>
+                              authClient.unlinkAccount({ accountId: row.accountId })
+                            )
                           }
                         >
                           Unlink

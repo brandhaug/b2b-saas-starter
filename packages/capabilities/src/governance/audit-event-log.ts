@@ -3,7 +3,11 @@ import { type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 
 import { type CapabilityUnavailable } from '../errors.ts'
-import { seedKeysetPage, type KeysetCursorPosition } from '../internal/keyset-cursor.ts'
+import {
+  seedKeysetPage,
+  type KeysetCursorPosition,
+  type Page
+} from '../internal/keyset-cursor.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { type AuditEventType, type AuditTargetType } from './audit-event-taxonomy.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -54,12 +58,6 @@ export type ListAuditEventsInput = {
   readonly limit?: number | undefined
 }
 
-export type AuditEventPage = {
-  readonly events: ReadonlyArray<AuditEvent>
-  /** Cursor for the next older page, or null when this page is the last. */
-  readonly nextCursor: string | null
-}
-
 /**
  * The per-workspace page size the audit read serves when the caller names
  * none: exactly 100 events, keyed on `(createdAt DESC, id DESC)`. The web
@@ -100,7 +98,7 @@ export type RecordAuditEventInput = {
 export type AuditEventLogInterface = {
   readonly list: (
     input?: ListAuditEventsInput
-  ) => Effect.Effect<AuditEventPage, CapabilityUnavailable, WorkspaceContext>
+  ) => Effect.Effect<Page<AuditEvent>, CapabilityUnavailable, WorkspaceContext>
   readonly listGlobal: Effect.Effect<ReadonlyArray<AuditEvent>, CapabilityUnavailable>
   readonly record: (
     input: RecordAuditEventInput
@@ -170,7 +168,7 @@ function pagedSeedRows(
   rows: ReadonlyArray<SeedAuditEventRow>,
   workspaceId: string | undefined,
   input: ListAuditEventsInput | undefined
-): AuditEventPage {
+): Page<AuditEvent> {
   const matched = rows.filter(
     (row) =>
       (workspaceId === undefined || (row.workspaceId ?? null) === workspaceId) &&
@@ -182,9 +180,15 @@ function pagedSeedRows(
   )
   // The cursor decode (empty page on a malformed one), the `(createdAt DESC,
   // id DESC)` ordering, and the one-past-the-cap cut all come from the shared
-  // keyset module — the same recipe Live applies in SQL.
-  const page = seedKeysetPage(matched, 'desc', auditEventPosition, input)
-  return { events: page.items.map(toSeedWire), nextCursor: page.nextCursor }
+  // keyset module — the same recipe Live applies in SQL. The wire projection
+  // happens before the cut so both adapters page the same shape. The default
+  // page names the audit read's own size (not the keyset module's generic
+  // 50), so a walk that passes no limit pages identically against Live —
+  // the export snapshot's completeness bound depends on it.
+  return seedKeysetPage(matched.map(toSeedWire), 'desc', auditEventPosition, {
+    ...input,
+    limit: input?.limit ?? AUDIT_EVENT_PAGE_SIZE
+  })
 }
 
 /**

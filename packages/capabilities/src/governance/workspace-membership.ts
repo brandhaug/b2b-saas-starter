@@ -21,7 +21,7 @@ export const WorkspaceWithMembership = Schema.Struct({
 })
 export type WorkspaceWithMembership = typeof WorkspaceWithMembership.Type
 
-export type WorkspaceMembershipInterface = {
+type WorkspaceMembershipInterface = {
   readonly listMembers: Effect.Effect<
     ReadonlyArray<Member>,
     CapabilityUnavailable,
@@ -86,11 +86,11 @@ export type WorkspaceMembershipInterface = {
   >
 }
 
-export type MemberRef = {
+type MemberRef = {
   readonly userId: string
 }
 
-export type MemberRoleInput = MemberRef & {
+type MemberRoleInput = MemberRef & {
   readonly role: WorkspaceRole
 }
 
@@ -110,10 +110,10 @@ export const MEMBERSHIP_REFUSAL_REASONS = {
   /** Granting or changing an owner's role is reserved to owners — the plugin's `creatorRole` rule. */
   ownerRequiresOwner: 'owner_requires_owner'
 } as const
-export type MembershipRefusalReason =
+type MembershipRefusalReason =
   (typeof MEMBERSHIP_REFUSAL_REASONS)[keyof typeof MEMBERSHIP_REFUSAL_REASONS]
 
-export type MembershipChangeIntent = 'remove' | 'change_role' | 'leave'
+type MembershipChangeIntent = 'remove' | 'change_role' | 'leave'
 
 /**
  * The ownership rules the organization plugin enforces on its member

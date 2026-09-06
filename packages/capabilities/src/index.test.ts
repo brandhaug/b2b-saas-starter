@@ -183,7 +183,7 @@ describe('seed mcp client connections', () => {
       expect(listed.some((row) => row.id === connection.id)).toBe(false)
       const page = yield* log.list({ eventType: 'mcp_client.consent_revoked' })
       expect(
-        page.events.some((event) => event.targetId === connection.client.clientId)
+        page.items.some((event) => event.targetId === connection.client.clientId)
       ).toBe(true)
     }).pipe(Effect.provide(layer))
   )
@@ -673,7 +673,7 @@ describe('seed workspace membership contract', () => {
       const log = yield* AuditEventLog
       const removed = yield* log.list({ eventType: 'workspace_member.removed' })
       expect(
-        removed.events.some(
+        removed.items.some(
           (event) =>
             event.targetId === 'usr_martin' && event.actor === 'Martin Brandhaug'
         )

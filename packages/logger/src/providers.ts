@@ -88,14 +88,10 @@ let wiredEnv: ProviderGlueEnv | undefined
  * requests should restart the isolate instead of re-wiring mid-flight.
  */
 export function wireWideEventProviders(env: ProviderGlueEnv): void {
-  if (wiredEnv !== undefined) {
-    if (env !== wiredEnv) {
-      wiredEnv = env
-    }
-    return
+  if (wiredEnv === undefined) {
+    addWideEventSink((record) => dispatch(record))
   }
   wiredEnv = env
-  addWideEventSink((record) => dispatch(record))
 }
 
 /** Never rejects: a vendor outage must not fail the request being reported. */
@@ -144,10 +140,7 @@ async function capturePostHogEvent(record: WideEventRecord): Promise<void> {
     return
   }
   const { PostHog } = await import('posthog-node')
-  let host = DEFAULT_POSTHOG_HOST
-  if (env.POSTHOG_HOST !== undefined && env.POSTHOG_HOST.length > 0) {
-    host = env.POSTHOG_HOST
-  }
+  const host = env.POSTHOG_HOST || DEFAULT_POSTHOG_HOST
   const client = new PostHog(env.POSTHOG_KEY, {
     host,
     // Send immediately: batched writes are async and Workers may terminate

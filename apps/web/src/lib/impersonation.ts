@@ -13,7 +13,7 @@ export type ImpersonationState = {
   readonly userEmail: string
 }
 
-/** The banner's one server call, as a port (see `auth-client-ports.ts` for the rationale). */
+/** The banner's one server call, as an injectable call. */
 export type StopImpersonating = () => Promise<void>
 
 export function stopImpersonatingWithServerFn(): Promise<void> {

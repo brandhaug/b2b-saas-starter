@@ -1,4 +1,3 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
   WorkspaceExports,
@@ -7,7 +6,7 @@ import {
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { hasValue } from '@b2b-saas-starter/env/server'
 import { env as cloudflareEnv } from 'cloudflare:workers'
-import { Effect, Option, type Scope } from 'effect'
+import { Effect, Option } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
@@ -71,28 +70,19 @@ export const workspaceExportsSegment: Effect.Effect<
   return { availability, exports: views }
 })
 
-/**
- * The effect below the session gate: proves the actor may request
- * (`workspaceExport:request`), then hands the request to the capability.
- * Exported so tests drive it against fixture layers without an auth runtime.
- */
-export function requestWorkspaceExport(): Effect.Effect<
-  WorkspaceExport,
-  AuthorizationDenied | CapabilityUnavailable,
-  Scope.Scope | WorkspaceContext | WorkspaceExports
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ workspaceExport: ['request'] })
-    const exports = yield* WorkspaceExports
-    return yield* exports.request
-  })
-}
-
 export async function requestWorkspaceExportHandler(
   input: RequestExportInput
 ): Promise<WorkspaceExport> {
   const session = await requireRequestSession()
-  return runWorkspaceCapabilities(input.workspaceSlug, requestWorkspaceExport(), {
-    userId: session.user.id
-  })
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.gen(function* () {
+      // Proves the actor may request (`workspaceExport:request`), then
+      // hands the request to the capability.
+      yield* requireWorkspacePermission({ workspaceExport: ['request'] })
+      const exports = yield* WorkspaceExports
+      return yield* exports.request
+    }),
+    { userId: session.user.id }
+  )
 }

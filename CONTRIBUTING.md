@@ -47,7 +47,7 @@ hook only formats staged files; it does not gate the commit, so run
 - Branch from `master`.
 - Ensure `pnpm run check` and `pnpm run build` pass locally.
 - Fill in the PR template.
-- Add or update tests for behavioural changes. Storybook stories for UI changes.
+- Add or update tests for behavioural changes.
 - Update [CONTEXT.md](./CONTEXT.md) if you introduce new domain language; add an ADR if you make an architectural decision.
 - Keep PRs focused — one logical change per PR.
 

@@ -1,15 +1,5 @@
 import { useState } from 'react'
-import {
-  addPasskeyWithAuthClient,
-  deletePasskeyWithAuthClient,
-  listPasskeysWithAuthClient,
-  updatePasskeyWithAuthClient,
-  type AddPasskey,
-  type DeletePasskey,
-  type ListPasskeys,
-  type PasskeyRecord,
-  type UpdatePasskeyName
-} from '@/components/auth/auth-client-ports'
+import { authClient } from '@/lib/auth-client'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,17 +19,17 @@ import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-
 import { unwrapAuthResult } from '@/lib/auth-result'
 import { formatUtc } from '@/lib/format-date'
 
-export type {
-  AddPasskey,
-  DeletePasskey,
-  ListPasskeys,
-  PasskeyRecord,
-  UpdatePasskeyName
-} from '@/components/auth/auth-client-ports'
-
 const PASSKEYS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'passkeys']
 const ACTION_FAILED = 'The change could not be made'
 const ADD_FAILED = 'Could not add the passkey'
+
+/** One Better Auth passkey row, as the panel reads it. */
+type PasskeyRecord = {
+  readonly id: string
+  readonly name?: string | null | undefined
+  readonly createdAt: Date
+  readonly backedUp: boolean
+}
 
 /** One row of the panel's own view model — dates formatted client-side only. */
 export type PasskeyRowView = {
@@ -79,20 +69,10 @@ function toViewModels(passkeys: ReadonlyArray<PasskeyRecord>): Array<PasskeyRowV
  * actions refetch it instead of invalidating the route, and every failure
  * reads through `ActionFeedback`.
  */
-export function PasskeysPanel({
-  listPasskeys = listPasskeysWithAuthClient,
-  addPasskey = addPasskeyWithAuthClient,
-  updatePasskey = updatePasskeyWithAuthClient,
-  deletePasskey = deletePasskeyWithAuthClient
-}: {
-  readonly listPasskeys?: ListPasskeys
-  readonly addPasskey?: AddPasskey
-  readonly updatePasskey?: UpdatePasskeyName
-  readonly deletePasskey?: DeletePasskey
-}) {
+export function PasskeysPanel() {
   const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
     queryKey: PASSKEYS_QUERY_KEY,
-    list: listPasskeys,
+    list: () => authClient.passkey.listUserPasskeys(),
     toRows: toViewModels,
     loadFailedMessage: 'Could not load passkeys'
   })
@@ -103,7 +83,7 @@ export function PasskeysPanel({
   const remove = useAuthClientAction({
     refetch,
     call: (input: { readonly id: string }) =>
-      unwrapAuthResult(() => deletePasskey(input), ACTION_FAILED),
+      unwrapAuthResult(() => authClient.passkey.deletePasskey(input), ACTION_FAILED),
     failureMessage: ACTION_FAILED
   })
 
@@ -144,7 +124,6 @@ export function PasskeysPanel({
               </div>
               <RenamePasskey
                 row={row}
-                updatePasskey={updatePasskey}
                 onDone={() => {
                   void refetch()
                 }}
@@ -180,7 +159,6 @@ export function PasskeysPanel({
       ) : null}
 
       <AddPasskeyForm
-        addPasskey={addPasskey}
         onDone={() => {
           void refetch()
         }}
@@ -195,10 +173,8 @@ export function PasskeysPanel({
  * kind the list can tell apart.
  */
 function AddPasskeyForm({
-  addPasskey,
   onDone
 }: {
-  readonly addPasskey: AddPasskey
   /** Signals the panel to refetch its list; the query, not local state, owns it. */
   readonly onDone: () => void
 }) {
@@ -207,7 +183,8 @@ function AddPasskeyForm({
     () => {
       const trimmed = name.trim()
       return unwrapAuthResult(
-        () => addPasskey(trimmed.length > 0 ? { name: trimmed } : {}),
+        () =>
+          authClient.passkey.addPasskey(trimmed.length > 0 ? { name: trimmed } : {}),
         ADD_FAILED
       )
     },
@@ -258,11 +235,9 @@ function AddPasskeyForm({
  */
 function RenamePasskey({
   row,
-  updatePasskey,
   onDone
 }: {
   readonly row: PasskeyRowView
-  readonly updatePasskey: UpdatePasskeyName
   /** Signals the panel to refetch its list; the query, not local state, owns it. */
   readonly onDone: () => void
 }) {
@@ -271,7 +246,7 @@ function RenamePasskey({
   const rename = useServerAction(
     () =>
       unwrapAuthResult(
-        () => updatePasskey({ id: row.id, name: name.trim() }),
+        () => authClient.passkey.updatePasskey({ id: row.id, name: name.trim() }),
         ACTION_FAILED
       ),
     {

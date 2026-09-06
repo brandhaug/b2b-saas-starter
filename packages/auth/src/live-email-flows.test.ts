@@ -1,4 +1,4 @@
-import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
+import { type DrizzleDatabase } from './ports.ts'
 import { user, verification } from '@b2b-saas-starter/db/schema'
 import { Effect, type Layer } from 'effect'
 import { type BetterAuthApiError } from 'effectful-better-auth'

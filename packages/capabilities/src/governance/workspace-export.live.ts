@@ -1,13 +1,12 @@
 import { workspaceExports, workspaces } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
-import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { DateTime, Effect, Layer, Option, Result } from 'effect'
 import { and, desc, eq } from 'drizzle-orm'
 
 import { CapabilityUnavailable } from '../errors.ts'
-import { randomHex } from '../internal/crypto.ts'
+import { randomHex } from '../crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-import { withTraceparent } from '../internal/traceparent.ts'
+import { makeQueuePublisher } from '../internal/queue-publisher.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -50,7 +49,7 @@ function toRecord(row: typeof workspaceExports.$inferSelect): WorkspaceExport {
 
 /** The R2 key: one prefix per workspace, so a bucket listing groups by owner. */
 function objectKeyFor(workspaceId: string, exportId: string): string {
-  return `workspaces/${workspaceId}/${exportId}.zip`
+  return `workspaces/${workspaceId}/${exportId}.json.gz`
 }
 
 /**
@@ -103,6 +102,19 @@ export function LiveWorkspaceExports(
         unavailable
       })
       const availability = availabilityOf(options)
+      // The shared queue-port recipe, same as the seat-sync and webhook
+      // producers. The binding is required here, not provider-light: the
+      // availability gate above already refused an unconfigured deployment,
+      // and a send that still fails is folded below into a `failed` row.
+      const enqueueExport = makeQueuePublisher(
+        CAPABILITY,
+        options.queue,
+        (input: {
+          readonly exportId: string
+          readonly workspaceId: string
+          readonly workspaceSlug: string
+        }) => input
+      )
 
       function pendingMatched(exportId: string, workspaceId: string) {
         return unavailable(
@@ -148,8 +160,7 @@ export function LiveWorkspaceExports(
           return rows.map(toRecord)
         }),
         request: Effect.gen(function* () {
-          const queue = options.queue
-          if (!availability.available || !queue) {
+          if (!availability.available) {
             return yield* new CapabilityUnavailable({
               capability: CAPABILITY,
               reason: 'not_configured'
@@ -186,24 +197,12 @@ export function LiveWorkspaceExports(
             },
             write: () => db.insert(workspaceExports).values(row)
           })
-          const traceparent = yield* currentTraceparent
           const enqueued = yield* Effect.result(
-            unavailable(
-              Effect.tryPromise({
-                try: () =>
-                  queue.send(
-                    withTraceparent(
-                      {
-                        exportId: id,
-                        workspaceId: ctx.workspace.id,
-                        workspaceSlug: ctx.workspace.slug
-                      },
-                      traceparent
-                    )
-                  ),
-                catch: (cause) => cause
-              })
-            )
+            enqueueExport({
+              exportId: id,
+              workspaceId: ctx.workspace.id,
+              workspaceSlug: ctx.workspace.slug
+            })
           )
           if (Result.isFailure(enqueued)) {
             yield* markFailed(id, ctx.workspace.id, 'enqueue_failed')
@@ -245,7 +244,7 @@ export function LiveWorkspaceExports(
               Effect.tryPromise({
                 try: () =>
                   bucket.put(objectKey, input.archive, {
-                    httpMetadata: { contentType: 'application/zip' }
+                    httpMetadata: { contentType: 'application/gzip' }
                   }),
                 catch: (cause) => cause
               })

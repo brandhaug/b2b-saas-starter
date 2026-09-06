@@ -602,18 +602,18 @@ export function SeedWebhookEndpoints(
             }
             // Same shift as Live: the replaced secret moves into the grace
             // columns and keeps signing until the window closes.
-            const expires = planSecretRotation(yield* DateTime.now)
+            const expiresAt = planSecretRotation(yield* DateTime.now)
             const replaced = endpoint.signingSecret
             endpoint.signingSecret = 'whsec_seed_rotated'
             endpoint.previousSigningSecret = replaced
-            endpoint.previousSecretExpiresAt = expires.previousSecretExpiresAt
+            endpoint.previousSecretExpiresAt = expiresAt
             yield* audit.record({
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
               eventType: 'webhook_endpoint.secret_rotated',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
-              metadata: { previousSecretExpiresAt: expires.previousSecretExpiresAt }
+              metadata: { previousSecretExpiresAt: expiresAt }
             })
             return { signingSecret: endpoint.signingSecret }
           }),

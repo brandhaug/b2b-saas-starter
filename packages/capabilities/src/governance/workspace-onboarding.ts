@@ -19,7 +19,7 @@ import { auditedMutations } from './audited-mutation.ts'
  * stores "step done" flags.
  */
 
-export type WorkspaceOnboardingInterface = {
+type WorkspaceOnboardingInterface = {
   /**
    * When an owner or admin dismissed the checklist for this workspace, as an
    * ISO string, or `null` while it is still showing.

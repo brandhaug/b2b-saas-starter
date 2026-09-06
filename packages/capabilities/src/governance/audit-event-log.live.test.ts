@@ -55,19 +55,19 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live audit event log', (it
           Effect.gen(function* () {
             const audit = yield* AuditEventLog
             const first = yield* audit.list()
-            expect(first.events).toHaveLength(AUDIT_EVENT_PAGE_SIZE)
+            expect(first.items).toHaveLength(AUDIT_EVENT_PAGE_SIZE)
             if (first.nextCursor === null) {
               throw new Error('expected a cursor on a full page')
             }
             const second = yield* audit.list({ cursor: first.nextCursor })
-            expect(second.events).toHaveLength(7)
+            expect(second.items).toHaveLength(7)
             expect(second.nextCursor).toBe(null)
             // No overlap across the page boundary.
-            const firstIds = new Set(first.events.map((event) => event.id))
-            expect(second.events.some((event) => firstIds.has(event.id))).toBe(false)
+            const firstIds = new Set(first.items.map((event) => event.id))
+            expect(second.items.some((event) => firstIds.has(event.id))).toBe(false)
             // And an empty filter result offers no cursor.
             const none = yield* audit.list({ eventType: 'no.such.event' })
-            expect(none.events).toHaveLength(0)
+            expect(none.items).toHaveLength(0)
             expect(none.nextCursor).toBe(null)
           })
         )
@@ -93,7 +93,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live audit event log', (it
           'live-lab',
           Effect.gen(function* () {
             const audit = yield* AuditEventLog
-            return (yield* audit.list()).events
+            return (yield* audit.list()).items
           })
         )
         expect(
@@ -103,7 +103,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live audit event log', (it
           'other-lab',
           Effect.gen(function* () {
             const audit = yield* AuditEventLog
-            return (yield* audit.list()).events
+            return (yield* audit.list()).items
           })
         )
         expect(

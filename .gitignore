@@ -9,7 +9,6 @@ dist
 .env.*
 !.env.example
 bun.lockb
-storybook-static
 test-results
 playwright-report
 coverage

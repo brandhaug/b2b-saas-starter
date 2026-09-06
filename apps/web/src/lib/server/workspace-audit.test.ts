@@ -1,44 +1,47 @@
-import { describe, expect, it } from 'vite-plus/test'
-import { loadWorkspaceAuditEvents } from './workspace-audit.effects'
-import {
-  type LoadWorkspaceAuditEventsInput,
-  type WorkspaceAuditFilters
-} from './workspace-audit'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+
+import { fixtureSession } from '@/test/fixture-session'
+import { loadWorkspaceAuditEventsHandler } from './workspace-audit.effects'
+import { type WorkspaceAuditFilters } from './workspace-audit'
+import type * as AuthModule from './auth'
 
 /**
- * The loader seam, driven against the Seed layer: `runWorkspaceCapabilities`
- * resolves `cloudflare:workers` to the inert shim under Vitest (vite.config.ts),
- * so `DB` is undefined and the in-memory fixture answers. The seed audit
- * fixture has one workspace-scoped event (`aud_token`, `starter-lab`) and one
- * system-level event with no workspace (`aud_admin`) — which is what makes the
- * scoping assertions below possible.
+ * The loader through its handler, against the Seed layer: the session gate
+ * is answered by the mock with the fixture identity under test. The seed
+ * audit fixture has one workspace-scoped event (`aud_token`,
+ * `starter-lab`) and one system-level event with no workspace (`aud_admin`)
+ * — which is what makes the scoping assertions below possible.
  */
-const OWNER = 'usr_demo'
-const MEMBER = 'usr_dev'
+const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
+
+vi.mock('./auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () => fixtureSession(actor)
+}))
 
 function load(overrides?: {
   readonly filters?: WorkspaceAuditFilters
   readonly cursor?: string
 }) {
-  const input: LoadWorkspaceAuditEventsInput = {
+  return loadWorkspaceAuditEventsHandler({
     workspaceSlug: 'starter-lab',
-    userId: OWNER,
-    filters: overrides?.filters ?? {}
-  }
-  if (overrides?.cursor !== undefined) {
-    input.cursor = overrides.cursor
-  }
-  return loadWorkspaceAuditEvents(input)
+    filters: overrides?.filters ?? {},
+    ...(overrides?.cursor !== undefined && { cursor: overrides.cursor })
+  })
 }
 
-describe('loadWorkspaceAuditEvents', () => {
+describe('loadWorkspaceAuditEventsHandler', () => {
+  beforeEach(() => {
+    actor.userId = 'usr_demo'
+  })
+
   it('hard-gates the page on auditLog read — a member gets no page at all', async () => {
     // The member denial leaves the boundary as ForbiddenError (403), not as an
     // empty payload: the whole page IS the audit log.
+    actor.userId = 'usr_dev'
     await expect(
-      loadWorkspaceAuditEvents({
+      loadWorkspaceAuditEventsHandler({
         workspaceSlug: 'starter-lab',
-        userId: MEMBER,
         filters: {}
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
@@ -55,7 +58,7 @@ describe('loadWorkspaceAuditEvents', () => {
     const times = payload.events.map((event) => event.createdAt)
     expect(times.toReversed()).toEqual([...times].toSorted())
     // An audit reader also holds the member list, so the actor filter keys on ids.
-    expect(payload.members.map((member) => member.id)).toContain(OWNER)
+    expect(payload.members.map((member) => member.id)).toContain('usr_demo')
   })
 
   it('filters by event type server-side', async () => {

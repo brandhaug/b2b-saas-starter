@@ -70,9 +70,10 @@ export function WorkspaceExportPanel({
   return (
     <div className="grid gap-4">
       <p className="text-sm text-muted-foreground">
-        A ZIP of members, invitations, API token metadata, webhook endpoints with their
-        deliveries, audit events, notifications, and the workspace record, with a README
-        describing every file. Archives are kept for seven days.
+        A gzipped JSON document of members, invitations, API token metadata, webhook
+        endpoints with their deliveries, audit events, notifications, and the workspace
+        record, with a README section describing every field. Archives are kept for
+        seven days.
       </p>
       {segment.availability.available ? (
         <Button
@@ -120,14 +121,18 @@ export function WorkspaceExportPanel({
               {row.downloadUrl === null ? null : (
                 <ItemActions>
                   {/* The link is signed and time-limited; the browser follows it
-                      straight to the API worker, which streams the ZIP. */}
+                      straight to the API worker, which streams the archive. */}
                   <Button
                     variant="outline"
                     render={
-                      <a href={row.downloadUrl} download aria-label="Download ZIP" />
+                      <a
+                        href={row.downloadUrl}
+                        download
+                        aria-label="Download archive"
+                      />
                     }
                   >
-                    Download ZIP
+                    Download archive
                   </Button>
                 </ItemActions>
               )}

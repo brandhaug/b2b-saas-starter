@@ -1,19 +1,21 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import {
-  PasskeysPanel,
-  type AddPasskey,
-  type DeletePasskey,
-  type ListPasskeys,
-  type PasskeyRecord,
-  type UpdatePasskeyName
-} from './passkeys-panel'
+import { PasskeysPanel } from './passkeys-panel'
 import { renderWithQueryClient } from '@/test/query-harness'
+import { authClientDouble as fake } from '@/test/fake-auth-client'
 
-const listPasskeys = vi.fn<ListPasskeys>()
-const addPasskey = vi.fn<AddPasskey>()
-const updatePasskey = vi.fn<UpdatePasskeyName>()
-const deletePasskey = vi.fn<DeletePasskey>()
+// The panel calls the client module directly, so its endpoints are doubles
+// on the mocked module — the shared per-file instance, bound without
+// re-typing the module.
+vi.mock('@/lib/auth-client', async () => {
+  const { authClientDouble: double } = await import('@/test/fake-auth-client')
+  return { authClient: double }
+})
+
+const listPasskeys = fake.passkey.listUserPasskeys
+const addPasskey = fake.passkey.addPasskey
+const updatePasskey = fake.passkey.updatePasskey
+const deletePasskey = fake.passkey.deletePasskey
 
 type PasskeyRowInput = {
   readonly id: string
@@ -22,7 +24,7 @@ type PasskeyRowInput = {
   readonly backedUp?: boolean
 }
 
-function passkey(overrides: PasskeyRowInput & { id: string }): PasskeyRecord {
+function passkey(overrides: PasskeyRowInput & { id: string }) {
   return {
     id: overrides.id,
     name: overrides.name ?? null,
@@ -49,14 +51,7 @@ describe('PasskeysPanel', () => {
         passkey({ id: 'pk_key', name: null, backedUp: false })
       ]
     })
-    renderWithQueryClient(
-      <PasskeysPanel
-        listPasskeys={listPasskeys}
-        addPasskey={addPasskey}
-        updatePasskey={updatePasskey}
-        deletePasskey={deletePasskey}
-      />
-    )
+    renderWithQueryClient(<PasskeysPanel />)
 
     expect(await screen.findByText('MacBook Touch ID')).toBeDefined()
     expect(screen.getByText('Passkey')).toBeDefined()
@@ -72,14 +67,7 @@ describe('PasskeysPanel', () => {
 
   it('shows the empty state when no passkeys exist', async () => {
     listPasskeys.mockResolvedValue({ data: [] })
-    renderWithQueryClient(
-      <PasskeysPanel
-        listPasskeys={listPasskeys}
-        addPasskey={addPasskey}
-        updatePasskey={updatePasskey}
-        deletePasskey={deletePasskey}
-      />
-    )
+    renderWithQueryClient(<PasskeysPanel />)
 
     expect(await screen.findByText(/No passkeys yet/)).toBeDefined()
   })
@@ -88,14 +76,7 @@ describe('PasskeysPanel', () => {
     listPasskeys.mockResolvedValueOnce({ data: [] }).mockResolvedValueOnce({
       data: [passkey({ id: 'pk_new', name: 'Phone' })]
     })
-    renderWithQueryClient(
-      <PasskeysPanel
-        listPasskeys={listPasskeys}
-        addPasskey={addPasskey}
-        updatePasskey={updatePasskey}
-        deletePasskey={deletePasskey}
-      />
-    )
+    renderWithQueryClient(<PasskeysPanel />)
 
     fireEvent.change(await screen.findByLabelText('Name a new passkey'), {
       target: { value: 'Phone' }
@@ -108,14 +89,7 @@ describe('PasskeysPanel', () => {
 
   it('omits the name when the field is left blank', async () => {
     listPasskeys.mockResolvedValue({ data: [] })
-    renderWithQueryClient(
-      <PasskeysPanel
-        listPasskeys={listPasskeys}
-        addPasskey={addPasskey}
-        updatePasskey={updatePasskey}
-        deletePasskey={deletePasskey}
-      />
-    )
+    renderWithQueryClient(<PasskeysPanel />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add passkey' }))
 
@@ -127,14 +101,7 @@ describe('PasskeysPanel', () => {
     // A code, not a message: the panels never render the far end's raw
     // message — the copy table maps the code (see lib/auth-error-copy.ts).
     addPasskey.mockResolvedValue({ error: { code: 'AUTH_CANCELLED' } })
-    renderWithQueryClient(
-      <PasskeysPanel
-        listPasskeys={listPasskeys}
-        addPasskey={addPasskey}
-        updatePasskey={updatePasskey}
-        deletePasskey={deletePasskey}
-      />
-    )
+    renderWithQueryClient(<PasskeysPanel />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add passkey' }))
 
@@ -146,14 +113,7 @@ describe('PasskeysPanel', () => {
     listPasskeys
       .mockResolvedValueOnce({ data: [passkey({ id: 'pk_mac', name: 'MacBook' })] })
       .mockResolvedValueOnce({ data: [passkey({ id: 'pk_mac', name: 'Tablet' })] })
-    renderWithQueryClient(
-      <PasskeysPanel
-        listPasskeys={listPasskeys}
-        addPasskey={addPasskey}
-        updatePasskey={updatePasskey}
-        deletePasskey={deletePasskey}
-      />
-    )
+    renderWithQueryClient(<PasskeysPanel />)
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Rename MacBook passkey' })
@@ -172,14 +132,7 @@ describe('PasskeysPanel', () => {
     listPasskeys
       .mockResolvedValueOnce({ data: [passkey({ id: 'pk_mac', name: 'MacBook' })] })
       .mockResolvedValueOnce({ data: [] })
-    renderWithQueryClient(
-      <PasskeysPanel
-        listPasskeys={listPasskeys}
-        addPasskey={addPasskey}
-        updatePasskey={updatePasskey}
-        deletePasskey={deletePasskey}
-      />
-    )
+    renderWithQueryClient(<PasskeysPanel />)
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Remove MacBook passkey' })
@@ -197,14 +150,7 @@ describe('PasskeysPanel', () => {
     // No code: the panel falls back to its own failure sentence rather than
     // rendering the raw message.
     deletePasskey.mockResolvedValue({ error: {} })
-    renderWithQueryClient(
-      <PasskeysPanel
-        listPasskeys={listPasskeys}
-        addPasskey={addPasskey}
-        updatePasskey={updatePasskey}
-        deletePasskey={deletePasskey}
-      />
-    )
+    renderWithQueryClient(<PasskeysPanel />)
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Remove MacBook passkey' })

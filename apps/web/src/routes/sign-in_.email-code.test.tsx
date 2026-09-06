@@ -1,24 +1,23 @@
 import { fireEvent, screen, waitFor, act } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import {
-  type SendEmailCode,
-  type SignInWithEmailCode
-} from '@/components/auth/auth-client-ports'
+import { authClient } from '@/lib/auth-client'
 import { EmailCodeSignInPage } from './sign-in_.email-code'
 
-// The page's own ports, handed in as props. The router is real, so the
-// redirect assertion reads the resulting location.
-const sendCode = vi.fn<SendEmailCode>()
-const signIn = vi.fn<SignInWithEmailCode>()
+// The page's exchange calls the client module directly, so its two hops are
+// doubles on the mocked module. The router is real, so the redirect
+// assertion reads the resulting location.
+vi.mock('@/lib/auth-client', async () => {
+  const { fakeAuthClient } = await import('@/test/fake-auth-client')
+  return { authClient: fakeAuthClient() }
+})
+
+const sendCode = vi.mocked(authClient.emailOtp.sendVerificationOtp)
+const signIn = vi.mocked(authClient.signIn.emailOtp)
 
 async function renderPage(redirect?: string) {
   const rendered = await renderWithRouter(
-    <EmailCodeSignInPage
-      {...(redirect === undefined ? {} : { redirect })}
-      sendCode={sendCode}
-      signIn={signIn}
-    />,
+    <EmailCodeSignInPage {...(redirect === undefined ? {} : { redirect })} />,
     { path: '/sign-in/email-code', destinations: ['/workspaces', '/sign-in'] }
   )
   await screen.findByLabelText('Email')
@@ -32,11 +31,7 @@ async function renderPage(redirect?: string) {
  */
 async function renderPageWithFakeTimers(redirect?: string) {
   const rendered = await renderWithRouter(
-    <EmailCodeSignInPage
-      {...(redirect === undefined ? {} : { redirect })}
-      sendCode={sendCode}
-      signIn={signIn}
-    />,
+    <EmailCodeSignInPage {...(redirect === undefined ? {} : { redirect })} />,
     { path: '/sign-in/email-code', destinations: ['/workspaces', '/sign-in'] }
   )
   screen.getByLabelText('Email')
@@ -71,7 +66,7 @@ describe('EmailCodeSignInPage', () => {
     await requestCode()
     expect(sendCode).toHaveBeenCalledWith({
       email: 'demo@starter.local',
-      purpose: 'sign-in'
+      type: 'sign-in'
     })
     expect(screen.getByText(/we emailed a six-digit code/i)).toBeDefined()
     expect(screen.queryByLabelText('Email')).toBeNull()

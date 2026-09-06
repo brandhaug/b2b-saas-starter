@@ -22,7 +22,6 @@
       "patterns": ["tailwindcss", "@tailwindcss/*", "tailwind-merge", "tw-animate-css"]
     },
     { "name": "testing-library", "patterns": ["@testing-library/*"] },
-    { "name": "zod", "patterns": ["zod"] },
     {
       "name": "mdx",
       "patterns": ["@mdx-js/*", "remark-*", "rehype-*", "@types/mdx"]

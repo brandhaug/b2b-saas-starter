@@ -33,7 +33,6 @@
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@b2b-saas-starter/config": "workspace:*",
     "@effect/vitest": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",

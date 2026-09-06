@@ -42,6 +42,7 @@ import { spawn } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseArgs } from 'node:util'
 
 // The seed writes `.context/…` and targets `packages/db/wrangler.jsonc` with
 // root-relative paths, so it pins its own cwd instead of trusting the caller's.
@@ -555,25 +556,28 @@ type SeedTarget =
   | { readonly kind: 'local' }
   | { readonly kind: 'remote'; readonly database: string }
 
-function resolveTarget(argv: ReadonlyArray<string>): SeedTarget {
-  const remote = argv.includes('--remote')
-  const database = argv
-    .find((arg) => arg.startsWith('--database='))
-    ?.slice('--database='.length)
-  if (!remote && database === undefined) {
-    return { kind: 'local' }
+// Script flags, parsed once: `--remote` with `--database=<d1 name>` targets a
+// deployed D1, `--print` writes the SQL to stdout instead of executing it.
+// parseArgs is strict, so unknown flags and a `--database` without a value
+// fail here — before the fixture is built or the SQL file is written.
+const { values: args } = parseArgs({
+  options: {
+    print: { type: 'boolean', default: false },
+    remote: { type: 'boolean', default: false },
+    database: { type: 'string' }
   }
-  if (!remote || !database) {
-    throw new Error(
-      'seed: remote seeding needs both --remote and --database=<d1 name> (e.g. b2b-saas-starter-pr-42)'
-    )
-  }
-  return { kind: 'remote', database }
-}
+})
 
-// Resolved up front so a bad flag fails before the fixture is built or the SQL
-// file is written.
-const seedTarget = resolveTarget(process.argv)
+let seedTarget: SeedTarget
+if (!args.remote && args.database === undefined) {
+  seedTarget = { kind: 'local' }
+} else if (!args.remote || !args.database) {
+  throw new Error(
+    'seed: remote seeding needs both --remote and --database=<d1 name> (e.g. b2b-saas-starter-pr-42)'
+  )
+} else {
+  seedTarget = { kind: 'remote', database: args.database }
+}
 
 function wranglerArgs(target: SeedTarget, file: string): ReadonlyArray<string> {
   if (target.kind === 'remote') {
@@ -598,7 +602,7 @@ function wranglerArgs(target: SeedTarget, file: string): ReadonlyArray<string> {
 // layer into a script whose whole output is one SQL file and one CLI call.
 function writeAndExecute(sql: string) {
   return Effect.gen(function* () {
-    if (process.argv.includes('--print')) {
+    if (args.print) {
       yield* Effect.sync(() => process.stdout.write(sql))
       return
     }

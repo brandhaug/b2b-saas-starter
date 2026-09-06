@@ -13,23 +13,13 @@ import { requireRequestSession } from './auth'
  */
 
 /**
- * The directory as a plain function, so tests drive it directly with fixture
- * users against the Seed layer — no request, no auth runtime. Possibly empty:
- * a user with no memberships gets `[]`, not an error (the projection's own
- * contract).
- */
-export function loadWorkspaceDirectory(input: {
-  readonly userId: string
-}): Promise<WorkspaceDirectory> {
-  return runCapabilities(listWorkspacesForUser(input.userId))
-}
-
-/**
  * The handler the server fn delegates to: the layout route's `requireSession`
  * gate has already proved somebody is signed in; this re-proves it
  * server-side and keys the read off the session, never off the request.
+ * Possibly empty: a user with no memberships gets `[]`, not an error (the
+ * projection's own contract).
  */
 export async function loadWorkspaceDirectoryHandler(): Promise<WorkspaceDirectory> {
   const session = await requireRequestSession()
-  return loadWorkspaceDirectory({ userId: session.user.id })
+  return runCapabilities(listWorkspacesForUser(session.user.id))
 }

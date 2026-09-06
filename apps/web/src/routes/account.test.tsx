@@ -1,30 +1,40 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { AccountPage } from '@/components/account-page'
-import { loadAccountPageData } from '@/lib/server/account.effects'
+import { loadAccountPageHandler } from '@/lib/server/account.effects'
+import { authClient } from '@/lib/auth-client'
+import { fixtureSession } from '@/test/fixture-session'
 import { type RouteSession } from '@/lib/server/auth'
-import {
-  type ListSessions,
-  type RevokeOtherSessions,
-  type RevokeSession
-} from '@/components/sessions-panel'
 import { renderWithRouter } from '@/test/router-harness'
+import type * as AuthModule from '@/lib/server/auth'
+
+// The handler's session gate, answered with the seed demo owner.
+vi.mock('@/lib/server/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () => fixtureSession({ userId: 'usr_demo' })
+}))
+
+// The sessions panel calls the client module directly, so its endpoints are
+// doubles on the mocked module.
+vi.mock('@/lib/auth-client', async () => {
+  const { fakeAuthClient } = await import('@/test/fake-auth-client')
+  return { authClient: fakeAuthClient() }
+})
 
 /**
- * The payload comes from the real loader body (`loadAccountPageData`) against
- * the Seed layer rather than a hand-written fixture, so a payload shape change
- * cannot pass here while failing in the app. The seed fixture has `usr_demo`
- * as one of two owners of `starter-lab`, so their plan is a `leave` — the
- * deletable state.
+ * The payload comes from the real loader handler (`loadAccountPageHandler`)
+ * against the Seed layer rather than a hand-written fixture, so a payload
+ * shape change cannot pass here while failing in the app. The seed fixture
+ * has `usr_demo` as one of two owners of `starter-lab`, so their plan is a
+ * `leave` — the deletable state.
  *
- * The sessions list itself is this route test's focus: the panel's endpoints
- * are browser-only (Better Auth client), so the test supplies functions of the
- * same shape through the page's ports, exactly as `sessions-panel.test.tsx`
- * does for the panel alone.
+ * The sessions list itself is this route test's focus: the panel calls the
+ * Better Auth client directly, so `@/lib/auth-client` is doubled with
+ * `fakeAuthClient()` and the endpoints are driven through `vi.mocked` — the
+ * same seam `sessions-panel.test.tsx` drives for the panel alone.
  */
-const listSessions = vi.fn<ListSessions>()
-const revokeSession = vi.fn<RevokeSession>()
-const revokeOtherSessions = vi.fn<RevokeOtherSessions>()
+const listSessions = vi.mocked(authClient.listSessions)
+const revokeSession = vi.mocked(authClient.revokeSession)
 
 function routeSession(
   overrides: Partial<Pick<RouteSession, 'impersonatedBy'>> = {}
@@ -59,7 +69,7 @@ function browserSession(overrides: {
 
 describe('/account', () => {
   it('loads the real plan for a seed member: deletable, leave step', async () => {
-    const { deletionPlan } = await loadAccountPageData({ userId: 'usr_demo' })
+    const { deletionPlan } = await loadAccountPageHandler()
     expect(deletionPlan.canDelete).toBe(true)
     expect(deletionPlan.steps).toHaveLength(1)
     expect(deletionPlan.steps[0]?.workspace.slug).toBe('starter-lab')
@@ -78,13 +88,12 @@ describe('/account', () => {
         })
       ]
     })
-    const payload = await loadAccountPageData({ userId: 'usr_demo' })
+    const payload = await loadAccountPageHandler()
     await renderWithRouter(
       <AccountPage
         session={routeSession()}
         deletionPlan={payload.deletionPlan}
         currentSessionToken="tok_current"
-        sessionsPorts={{ listSessions, revokeSession, revokeOtherSessions }}
       />,
       { path: '/account' }
     )
@@ -105,13 +114,12 @@ describe('/account', () => {
   it('shows the deletion consequences for an ordinary session', async () => {
     listSessions.mockReset()
     listSessions.mockResolvedValue({ data: [browserSession({ token: 'tok_current' })] })
-    const payload = await loadAccountPageData({ userId: 'usr_demo' })
+    const payload = await loadAccountPageHandler()
     await renderWithRouter(
       <AccountPage
         session={routeSession()}
         deletionPlan={payload.deletionPlan}
         currentSessionToken="tok_current"
-        sessionsPorts={{ listSessions, revokeSession, revokeOtherSessions }}
       />,
       { path: '/account' }
     )
@@ -126,13 +134,12 @@ describe('/account', () => {
   it('hides the account controls from an impersonation session', async () => {
     listSessions.mockReset()
     listSessions.mockResolvedValue({ data: [browserSession({ token: 'tok_current' })] })
-    const payload = await loadAccountPageData({ userId: 'usr_demo' })
+    const payload = await loadAccountPageHandler()
     await renderWithRouter(
       <AccountPage
         session={routeSession({ impersonatedBy: 'usr_admin' })}
         deletionPlan={payload.deletionPlan}
         currentSessionToken="tok_current"
-        sessionsPorts={{ listSessions, revokeSession, revokeOtherSessions }}
       />,
       { path: '/account' }
     )
@@ -146,7 +153,7 @@ describe('/account', () => {
   it('keeps the full sidebar anchored to the last visited workspace', async () => {
     listSessions.mockReset()
     listSessions.mockResolvedValue({ data: [browserSession({ token: 'tok_current' })] })
-    const payload = await loadAccountPageData({ userId: 'usr_demo' })
+    const payload = await loadAccountPageHandler()
     await renderWithRouter(
       <AccountPage
         session={routeSession()}
@@ -172,7 +179,7 @@ describe('/account', () => {
     // the column keeps its shape and points at the picker.
     listSessions.mockReset()
     listSessions.mockResolvedValue({ data: [browserSession({ token: 'tok_current' })] })
-    const payload = await loadAccountPageData({ userId: 'usr_demo' })
+    const payload = await loadAccountPageHandler()
     await renderWithRouter(
       <AccountPage
         session={routeSession()}

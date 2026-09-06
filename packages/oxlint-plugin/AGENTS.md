@@ -18,7 +18,7 @@ Nothing imports it at runtime; the root [`lint.config.ts`](../../lint.config.ts)
 2. **Path gating and exemptions live in the root config, never in a rule.** Hand-rolled gating fails open when the layout moves and the rule stops reporting silently. Exemptions belong in an `overrides` block with a reason; reading `context.filename` for the file's extension is fine.
 3. **Every rule has a test file beside it**: three `valid` near-misses, three `invalid`, one asserting text.
 4. **No rule offers a fixer**: `check:fix` runs `vp lint --fix`, so one would rewrite code unreviewed.
-5. **`@oxlint/plugins` is `src/`'s only runtime dependency**, loading inside oxlint's process; `effect` and `oxlint` are the harness's.
+5. **`@oxlint/plugins` is `src/`'s only runtime dependency**, loading inside oxlint's process; `oxlint` is the harness's.
 6. **Messages name the replacement**: a concrete symbol or file.
 
 ## Usage Patterns
@@ -30,4 +30,4 @@ Nothing imports it at runtime; the root [`lint.config.ts`](../../lint.config.ts)
 - Don't add a rule `effect/*` or `anti-slop/*` reports; probe a fixture.
 - Don't read the file from disk inside a rule (`context.sourceCode.text` is there) or walk the filesystem at load.
 - Don't read `node.parent` when walking upward, and don't believe `no-unnecessary-condition` calling that null guard redundant: `@oxlint/plugins` types `parent` as always present while oxlint passes `null` at `Program`, so the rule throws on file one. Use `parentOf` or `isCalleeOfEnclosingCall`.
-- Don't re-hand-roll the `Schema.X` walk: `schemaMemberAccess` and `schemaCallMemberAccess` leave the rule its property-name check.
+- Don't re-hand-roll the `Schema.X` walk: `schemaMemberAccess` leaves the rule its property-name check.

@@ -3,9 +3,9 @@ import { type Margin } from 'recharts'
 
 /**
  * The chart chrome every Recharts surface in the app shares: margins, tick
- * text, the tooltip card and the legend. Two copies of these constants had
- * drifted apart — different tooltip radii, backgrounds and tick colors on the
- * dashboard than in MDX content — so they live here once.
+ * text and the tooltip card. Two copies of these constants had drifted apart
+ * — different tooltip radii, backgrounds and tick colors per surface — so
+ * they live here once.
  *
  * Colors are semantic tokens, never literals, so a chart follows the theme.
  */
@@ -15,9 +15,6 @@ type AxisTickStyle = {
   readonly fontSize: string
   readonly fill: string
 }
-
-/** Charts that run the width of prose or a page section. */
-export const CHART_MARGIN: Margin = { top: 8, right: 10, bottom: 4, left: 0 }
 
 /**
  * Charts inside a dashboard card, where the negative left pulls the y-axis
@@ -37,5 +34,3 @@ export const TOOLTIP_STYLE: CSSProperties = {
   fontSize: '0.75rem', // text-xs
   color: 'var(--popover-foreground)'
 }
-
-export const LEGEND_STYLE: CSSProperties = { fontSize: '0.6875rem' }

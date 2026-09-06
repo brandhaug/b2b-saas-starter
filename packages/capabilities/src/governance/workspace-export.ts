@@ -2,13 +2,14 @@ import { workspaceExportStatuses } from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Effect, Option, Schema } from 'effect'
 
 import { type CapabilityUnavailable } from '../errors.ts'
-import { hmacSha256Hex } from '../internal/crypto.ts'
+import { hmacSha256Hex } from '../crypto.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 
 /**
- * Workspace data export (ADR 0055): an owner asks for a ZIP of everything the
- * workspace holds, a background job builds it into the export bucket, and a
- * signed, time-limited link on the API worker hands it back.
+ * Workspace data export (ADR 0055): an owner asks for a gzipped JSON document
+ * of everything the workspace holds, a background job builds it into the
+ * export bucket, and a signed, time-limited link on the API worker hands it
+ * back.
  *
  * This is the contract: the wire schemas, the queue message, the two binding
  * ports (queue and bucket), the signed-link recipe both workers agree on, and
@@ -85,7 +86,7 @@ export type WorkspaceExportBucketBinding = {
   } | null>
 }
 
-export type WorkspaceExportDownloadLink = {
+type WorkspaceExportDownloadLink = {
   /**
    * Path plus query on the API worker (`/exports/<id>/download?expires=…&signature=…`).
    * The surface that hands it out prefixes the worker origin: the web app from
@@ -95,7 +96,7 @@ export type WorkspaceExportDownloadLink = {
   readonly expiresAt: string
 }
 
-export type WorkspaceExportDownload = {
+type WorkspaceExportDownload = {
   readonly fileName: string
   readonly sizeBytes: number
   readonly body: Uint8Array
@@ -113,7 +114,7 @@ export type FailWorkspaceExportInput = {
   readonly reason: string
 }
 
-export type OpenWorkspaceExportDownloadInput = {
+type OpenWorkspaceExportDownloadInput = {
   readonly exportId: string
   /** Unix seconds the link stops working, as carried in the URL. */
   readonly expires: number
@@ -220,7 +221,7 @@ export function signWorkspaceExportDownload(
 }
 
 /** The link's path on the API worker, for a signature already computed. */
-export function workspaceExportDownloadPath(
+function workspaceExportDownloadPath(
   exportId: string,
   expires: number,
   signature: string

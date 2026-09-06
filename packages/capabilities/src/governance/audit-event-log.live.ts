@@ -7,12 +7,11 @@ import {
   auditEventPosition,
   AuditEventLog,
   type AuditEvent,
-  type AuditEventPage,
   AUDIT_EVENT_PAGE_SIZE,
   type ListAuditEventsInput,
   type RecordAuditEventInput
 } from './audit-event-log.ts'
-import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
+import { clampPageLimit, cutKeysetPage, type Page } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
@@ -46,13 +45,8 @@ function toWireRow(row: AuditRow): AuditEvent {
  * the wire shape. `nextCursor` is emitted only when the cap actually cut rows
  * off — never for an exact multiple, whose next page would be empty.
  */
-function buildPage<T>(
-  rows: ReadonlyArray<T>,
-  mapToWire: (row: T) => AuditEvent,
-  limit: number
-): AuditEventPage {
-  const page = cutKeysetPage(rows.map(mapToWire), limit, auditEventPosition)
-  return { events: page.items, nextCursor: page.nextCursor }
+function buildPage(rows: ReadonlyArray<AuditRow>, limit: number): Page<AuditEvent> {
+  return cutKeysetPage(rows.map(toWireRow), limit, auditEventPosition)
 }
 
 export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
@@ -139,7 +133,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
             const rows = yield* pagedRows(ctx.workspace.id, input)
-            return buildPage(rows, toWireRow, pageLimit(input))
+            return buildPage(rows, pageLimit(input))
           }),
         listGlobal: globalRows,
         record: (input) =>

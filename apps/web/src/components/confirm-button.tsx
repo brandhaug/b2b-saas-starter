@@ -12,13 +12,9 @@ import { Spinner } from '@/components/ui/spinner'
 export function ConfirmButton({
   label,
   confirmLabel,
-  cancelLabel = 'Cancel',
   onConfirm,
   busy = false,
   variant = 'ghost',
-  size,
-  cancelVariant = 'ghost',
-  className,
   target,
   armed,
   onArm,
@@ -26,13 +22,9 @@ export function ConfirmButton({
 }: {
   readonly label: string
   readonly confirmLabel: string
-  readonly cancelLabel?: string
   readonly onConfirm: () => void
   readonly busy?: boolean
   readonly variant?: React.ComponentProps<typeof Button>['variant']
-  readonly size?: React.ComponentProps<typeof Button>['size']
-  readonly cancelVariant?: React.ComponentProps<typeof Button>['variant']
-  readonly className?: string
   readonly target?: string
   readonly armed?: boolean
   readonly onArm?: () => void
@@ -79,8 +71,6 @@ export function ConfirmButton({
       <Button
         ref={idleRef}
         variant={variant}
-        size={size}
-        className={className}
         aria-label={`${label}${row}`}
         onClick={() => {
           setArmedHere(true)
@@ -99,7 +89,6 @@ export function ConfirmButton({
       <Button
         ref={confirmRef}
         variant="destructive"
-        size={size}
         disabled={busy}
         aria-label={`${confirmLabel}${row}`}
         onClick={() => {
@@ -112,15 +101,14 @@ export function ConfirmButton({
         {confirmLabel}
       </Button>
       <Button
-        variant={cancelVariant}
-        size={size}
-        aria-label={`${cancelLabel}${row}`}
+        variant="ghost"
+        aria-label={`Cancel${row}`}
         onClick={() => {
           setArmedHere(false)
           onCancel?.()
         }}
       >
-        {cancelLabel}
+        Cancel
       </Button>
     </>
   )

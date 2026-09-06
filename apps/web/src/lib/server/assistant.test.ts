@@ -1,38 +1,68 @@
-import { Effect } from 'effect'
-import { MockAssistantLayer, type ProviderEnv } from '@b2b-saas-starter/ai'
-import { describe, expect, it } from 'vite-plus/test'
+import {
+  MockAssistantLayer,
+  type AssistantService,
+  type ProviderEnv
+} from '@b2b-saas-starter/ai'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { type Layer } from 'effect'
+
+import { fixtureSession } from '@/test/fixture-session'
 import { ASSISTANT_UNCONFIGURED_MESSAGE } from '../assistant-copy'
-import { askAssistantEffect, loadAssistantPage } from './assistant.effects'
-import { runWorkspaceCapabilities } from '../capabilities'
+import { askAssistantHandler, loadAssistantPageHandler } from './assistant.effects'
+import type * as AiModule from '@b2b-saas-starter/ai'
+import type * as AuthModule from './auth'
 
 /**
- * The loader and the ask effect, driven against the Seed layer: under Vitest
- * `cloudflare:workers` resolves to the inert shim, so `DB` is undefined and
- * the in-memory fixture answers. `usr_demo` owns the seed workspace
- * (`starter-lab`) — which is what makes a member-level assertion possible.
+ * The assistant surface through its handlers. The session gate is answered
+ * by the mock; everything else is the real path over the Seed layer (the
+ * inert `cloudflare:workers` shim under Vitest, whose env bag carries no
+ * provider keys — the honest not-enabled state is what ships). `usr_demo`
+ * owns `starter-lab`, `usr_dev` is a plain member.
  *
- * The provider env is an explicit argument to `askAssistantEffect`, so tests
- * pin it instead of reading the shim's env; `MockAssistantLayer` stands in for
- * whatever layer `selectAssistantLayer` would pick in production, keeping the
- * network out of the test.
+ * The configured path stands on two env-derived decisions the worker makes
+ * — "is a provider configured" and "which layer serves it" — so each is a
+ * passthrough mock the configured cases re-point, with `MockAssistantLayer`
+ * standing in for the layer the deployment would select (keeping the
+ * network out of the test).
  */
-const OWNER = 'usr_demo'
-const MEMBER = 'usr_dev'
+const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-function ask(question: string, provider: ProviderEnv, userId = OWNER) {
-  return runWorkspaceCapabilities(
-    'starter-lab',
-    askAssistantEffect(question, provider).pipe(Effect.provide(MockAssistantLayer)),
-    { userId }
-  )
+vi.mock('./auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () => fixtureSession(actor)
+}))
+
+/** The deployment's two assistant decisions, mutable per test. */
+type AssistantDeployment = {
+  configured: boolean | null
+  layer: Layer.Layer<AssistantService> | null
 }
 
-describe('assistant', () => {
+const deployment = vi.hoisted((): AssistantDeployment => ({
+  configured: null,
+  layer: null
+}))
+
+vi.mock('@b2b-saas-starter/ai', async (importOriginal) => {
+  const actual = await importOriginal<typeof AiModule>()
+  return {
+    ...actual,
+    isAssistantConfigured: (provider: ProviderEnv) =>
+      deployment.configured ?? actual.isAssistantConfigured(provider),
+    selectAssistantLayer: (provider: ProviderEnv) =>
+      deployment.layer ?? actual.selectAssistantLayer(provider)
+  }
+})
+
+describe('assistant handlers', () => {
+  beforeEach(() => {
+    actor.userId = 'usr_demo'
+    deployment.configured = null
+    deployment.layer = null
+  })
+
   it('loads the page payload with configured false on an unconfigured deployment', async () => {
-    const payload = await loadAssistantPage({
-      workspaceSlug: 'starter-lab',
-      userId: OWNER
-    })
+    const payload = await loadAssistantPageHandler({ workspaceSlug: 'starter-lab' })
     expect(payload.viewer).toEqual({ role: 'owner' })
     // The shim carries no WORKERS_AI_ENABLED / OPENAI_API_KEY, so the honest
     // not-enabled state is exactly what ships.
@@ -40,7 +70,10 @@ describe('assistant', () => {
   })
 
   it('answers honestly that it is unconfigured when no provider env is set', async () => {
-    const outcome = await ask('What changed?', {})
+    const outcome = await askAssistantHandler({
+      workspaceSlug: 'starter-lab',
+      question: 'What changed?'
+    })
     expect(outcome).toEqual({
       ok: false,
       reason: 'unconfigured',
@@ -49,7 +82,12 @@ describe('assistant', () => {
   })
 
   it('asks through AssistantService when the deployment is configured', async () => {
-    const outcome = await ask('What changed?', { OPENAI_API_KEY: 'test-key' })
+    deployment.configured = true
+    deployment.layer = MockAssistantLayer
+    const outcome = await askAssistantHandler({
+      workspaceSlug: 'starter-lab',
+      question: 'What changed?'
+    })
     expect(outcome.ok).toBe(true)
     if (outcome.ok) {
       // The mock service answered — proof the question reached the capability.
@@ -58,7 +96,13 @@ describe('assistant', () => {
   })
 
   it('lets a plain member ask — every role holds assistant:read', async () => {
-    const outcome = await ask('Hello', { OPENAI_API_KEY: 'test-key' }, MEMBER)
+    deployment.configured = true
+    deployment.layer = MockAssistantLayer
+    actor.userId = 'usr_dev'
+    const outcome = await askAssistantHandler({
+      workspaceSlug: 'starter-lab',
+      question: 'Hello'
+    })
     expect(outcome.ok).toBe(true)
   })
 })

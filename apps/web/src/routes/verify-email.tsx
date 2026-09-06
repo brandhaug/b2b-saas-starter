@@ -1,14 +1,9 @@
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { CheckCircle2Icon, CircleAlertIcon } from 'lucide-react'
-import {
-  sendEmailCodeWithAuthClient,
-  verifyEmailWithCodeWithAuthClient,
-  type SendEmailCode,
-  type VerifyEmailWithCode
-} from '@/components/auth/auth-client-ports'
 import { EmailCodeExchange } from '@/components/auth/email-code-exchange'
 import { PublicLayout } from '@/components/public-layout'
+import { authClient } from '@/lib/auth-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { pickOptionalStrings } from '@/lib/utils'
 
@@ -30,15 +25,7 @@ function VerifyEmailRoute() {
   return <VerifyEmailPage error={error} />
 }
 
-export function VerifyEmailPage({
-  error,
-  sendCode = sendEmailCodeWithAuthClient,
-  verifyCode = verifyEmailWithCodeWithAuthClient
-}: {
-  readonly error?: string | undefined
-  readonly sendCode?: SendEmailCode
-  readonly verifyCode?: VerifyEmailWithCode
-}) {
+export function VerifyEmailPage({ error }: { readonly error?: string | undefined }) {
   const router = useRouter()
   return (
     <PublicLayout>
@@ -94,8 +81,7 @@ export function VerifyEmailPage({
             layout="card"
             title="Or verify with a code"
             purpose="email-verification"
-            send={sendCode}
-            verify={({ email, otp }) => verifyCode({ email, otp })}
+            verify={({ email, otp }) => authClient.emailOtp.verifyEmail({ email, otp })}
             onVerified={() => {
               // autoSignInAfterVerification means the verify response carries
               // the session cookie; a reload picks it up. The workspaces index

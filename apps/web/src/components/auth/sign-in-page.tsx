@@ -14,21 +14,15 @@ import {
 } from '@/components/auth/social-sign-in'
 import {
   sendMagicLinkWithAuthClient,
-  signInSocialWithAuthClient,
-  signInWithAuthClient,
-  signInWithSsoAuthClient,
   TWO_FACTOR_REQUIRED_ERROR_CODE,
   TWO_FACTOR_REQUIRED_MESSAGE,
   type SendMagicLink,
-  type SignInWithEmail,
-  type SignInWithPasskey,
-  type SignInWithSocial,
-  type SignInWithSso,
   type SocialProviderId
 } from '@/components/auth/auth-client-ports'
 import { FormTextField } from '@/components/form-text-field'
 import { TurnstileWidget } from '@/components/auth/turnstile-widget'
 import { Button } from '@/components/ui/button'
+import { authClient } from '@/lib/auth-client'
 import { authErrorCopy, SIGN_IN_FAILED } from '@/lib/auth-error-copy'
 import { carriedOAuthSearch, oauthContinuationUrl } from '@/lib/oauth-continuation'
 import { resolveSsoRoutingServerFn } from '@/lib/server/workspace-sso'
@@ -124,8 +118,6 @@ async function applySignInOutcome({
   password,
   redirect,
   resolveRouting,
-  signInWithSso,
-  signIn,
   push,
   onSubmitError,
   onSsoNotice
@@ -134,8 +126,6 @@ async function applySignInOutcome({
   readonly password: string
   readonly redirect?: string | undefined
   readonly resolveRouting: ResolveSsoRouting
-  readonly signInWithSso: SignInWithSso
-  readonly signIn: SignInWithEmail
   /** Client-side navigation, for the in-app hops. */
   readonly push: (target: string) => void
   readonly onSubmitError: (message: string) => void
@@ -147,7 +137,7 @@ async function applySignInOutcome({
   // a direct POST cannot sidestep the rule.
   const routing = await resolveRouting(email)
   if (routing !== null) {
-    const sso = await signInWithSso({
+    const sso = await authClient.signIn.sso({
       email,
       // Absolute like every other callback hop in the flow: Better Auth
       // validates `callbackURL` against trusted origins, and a bare path is
@@ -158,6 +148,7 @@ async function applySignInOutcome({
       onSubmitError(authErrorCopy(sso.error, SSO_FAILED))
       return
     }
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- a routing match without a URL is the plugin's own degenerate answer; the explicit failure below beats a silent password retry
     if (sso.data?.url) {
       window.location.assign(sso.data.url)
       return
@@ -168,7 +159,7 @@ async function applySignInOutcome({
     onSubmitError(SSO_FAILED)
     return
   }
-  const result = await signIn({ email, password })
+  const result = await authClient.signIn.email({ email, password })
   if (result.error) {
     // The server-side gate answers a require-SSO domain with this code;
     // surface it as guidance rather than a bare failed sign-in.
@@ -181,10 +172,10 @@ async function applySignInOutcome({
     onSubmitError(authErrorCopy(result.error, SIGN_IN_FAILED))
     return
   }
-  const twoFactorRedirect =
-    result.data !== null &&
-    result.data !== undefined &&
-    wantsTwoFactorRedirect(result.data)
+  // The two-factor marker rides the body as untyped JSON; the probe itself
+  // is the parse step (and handles a body the typed `data` claims cannot
+  // happen — the wire answers less than the type promises).
+  const twoFactorRedirect = wantsTwoFactorRedirect(result.data)
   if (twoFactorRedirect) {
     // Two-factor is enabled: the credentials set a short-lived challenge
     // cookie, not a session. The code lands on the challenge page, which
@@ -223,10 +214,6 @@ export function SignInPage({
   redirect,
   searchError,
   socialProviders = NO_SOCIAL_PROVIDERS,
-  signIn = signInWithAuthClient,
-  signInPasskey,
-  signInSocial = signInSocialWithAuthClient,
-  signInWithSso = signInWithSsoAuthClient,
   resolveRouting = resolveSsoRouting,
   sendMagicLink = sendMagicLinkWithAuthClient,
   turnstileSiteKey = null
@@ -241,10 +228,6 @@ export function SignInPage({
   readonly searchError?: string | undefined
   /** Active provider ids from the loader; empty renders no provider buttons. */
   readonly socialProviders?: ReadonlyArray<SocialProviderId>
-  readonly signIn?: SignInWithEmail
-  readonly signInPasskey?: SignInWithPasskey
-  readonly signInSocial?: SignInWithSocial
-  readonly signInWithSso?: SignInWithSso
   readonly resolveRouting?: ResolveSsoRouting
   readonly sendMagicLink?: SendMagicLink
   /** Server-provided Turnstile site key; `null` renders no widget (provider-light). */
@@ -277,8 +260,6 @@ export function SignInPage({
         password: value.password,
         redirect,
         resolveRouting,
-        signInWithSso,
-        signIn,
         push: (target) => {
           router.history.push(target)
         },
@@ -335,8 +316,7 @@ export function SignInPage({
         footer={signInFooter({
           mode,
           redirect,
-          socialProviders,
-          signInPasskey
+          socialProviders
         })}
       >
         {linkSent ? (
@@ -400,16 +380,11 @@ export function SignInPage({
       footer={signInFooter({
         mode,
         redirect,
-        socialProviders,
-        signInPasskey
+        socialProviders
       })}
     >
       <LastSignInMethodHint />
-      <SocialSignInButtons
-        providers={socialProviders}
-        redirectTo={redirect}
-        signIn={signInSocial}
-      />
+      <SocialSignInButtons providers={socialProviders} redirectTo={redirect} />
 
       <passwordForm.Field name="email" validators={{ onChange: emailValidator }}>
         {(field) => (
@@ -471,13 +446,11 @@ export function SignInPage({
 function signInFooter({
   mode,
   redirect,
-  socialProviders,
-  signInPasskey
+  socialProviders
 }: {
   mode: 'password' | 'link'
   redirect?: string | undefined
   socialProviders: ReadonlyArray<SocialProviderId>
-  signInPasskey: SignInWithPasskey | undefined
 }) {
   return (
     <>
@@ -486,7 +459,7 @@ function signInFooter({
           {/* The passkey block sits at the point of action, after the form:
               same destination, different credential. Conditional-UI browsers
               also offer passkeys straight from the email field above. */}
-          <PasskeySignIn redirect={redirect} signInPasskey={signInPasskey} />
+          <PasskeySignIn redirect={redirect} />
           {socialProviders.length > 0 ? (
             <p className="text-xs text-muted-foreground">
               The provider buttons sign you in through GitHub or Google; an account with

@@ -25,7 +25,7 @@ function footerYear(): number {
   return new Date().getFullYear()
 }
 
-export type EmailLayoutProps = {
+type EmailLayoutProps = {
   readonly preview: string
   readonly heading: ReactNode
   readonly children: ReactNode
@@ -70,7 +70,7 @@ export function EmailLayout({ preview, heading, children }: EmailLayoutProps) {
   )
 }
 
-export type ActionLinkProps = {
+type ActionLinkProps = {
   readonly href: string
   readonly label: string
 }

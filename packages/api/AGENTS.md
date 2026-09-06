@@ -10,7 +10,7 @@ The HTTP contract and nothing that serves it: paths, payloads, statuses, error u
 - `BearerAuth` proves _who_; `requirePermission` in the worker decides _what_ (ADR 0026). Handlers read `ApiPrincipal`, never the header.
 - `rateLimitBucketFor` declares the gate; the worker keeps the mechanism (ADR 0030). `apps/api/src/permission-matrix.test.ts` asserts every `BearerAuth` group has a `GROUP_BUCKETS` row.
 - `ListPageQuery` / `PageDto` are the paging vocabulary (ADR 0057). The capability layer clamps the limit; the contract accepts any number rather than answering 400.
-- `guardFailureResponse` (`./errors`) serves surfaces owning their wire format, today only `POST /mcp`, reading each schema's `httpApiStatus` annotation so no second status table can drift.
+- `guardFailureResponse` (`./errors`) serves surfaces owning their wire format, today only `POST /mcp`: one tag→status table (401/403/429/503) matching each schema's `httpApiStatus`.
 
 ## Usage Patterns
 
@@ -21,7 +21,7 @@ The HTTP contract and nothing that serves it: paths, payloads, statuses, error u
 
 - Never append an endpoint after a group's `.middleware(BearerAuth)` call. It compiles and ships ungated.
 - Never add a group without `BearerAuth` and a `GROUP_BUCKETS` row. `health` alone is public.
-- Never re-declare a capability schema, or restate a status outside `httpApiStatus`.
+- Never re-declare a capability schema. A status may be restated outside `httpApiStatus` in exactly one place: the `guardFailureResponse` tag table, whose rows `errors.test.ts` pins to the annotations.
 - No versioning of the surface (ADR 0048).
 
 ## Dependencies & Edges

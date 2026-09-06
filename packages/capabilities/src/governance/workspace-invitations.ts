@@ -30,12 +30,12 @@ export const Invitation = Schema.Struct({
 })
 export type Invitation = typeof Invitation.Type
 
-export type CreateInvitationInput = {
+type CreateInvitationInput = {
   readonly email: string
   readonly role: WorkspaceRole
 }
 
-export type InvitationRef = {
+type InvitationRef = {
   readonly invitationId: string
 }
 
@@ -56,12 +56,12 @@ export type AcceptInvitationInput = InvitationRef & {
  * allowed to look one up until the invitation makes it a member — so the
  * workspace's public fields ride along with the read.
  */
-export const InvitationDetail = Schema.Struct({
+const InvitationDetail = Schema.Struct({
   ...Invitation.fields,
   workspaceSlug: Schema.String,
   workspaceName: Schema.String
 })
-export type InvitationDetail = typeof InvitationDetail.Type
+type InvitationDetail = typeof InvitationDetail.Type
 
 /** What the accept route needs to send the new member on their way. */
 export const AcceptedInvitation = Schema.Struct({
@@ -71,7 +71,7 @@ export const AcceptedInvitation = Schema.Struct({
 })
 export type AcceptedInvitation = typeof AcceptedInvitation.Type
 
-export type WorkspaceInvitationsInterface = {
+type WorkspaceInvitationsInterface = {
   /** Every invitation of the current workspace, newest first. */
   readonly list: Effect.Effect<
     ReadonlyArray<Invitation>,
@@ -101,9 +101,9 @@ export type WorkspaceInvitationsInterface = {
    * read the accept page makes before anyone is a member.
    *
    * It discloses the invited address to whoever holds the id. Callers decide
-   * what to show: `invitationPreview` in `apps/web` reveals the workspace only
-   * once {@link requirePending} and {@link requireRecipient} both pass, and
-   * collapses every other outcome to one opaque answer.
+   * what to show: `invitationPreviewHandler` in `apps/web` reveals the
+   * workspace only once {@link requirePending} and {@link requireRecipient}
+   * both pass, and collapses every other outcome to one opaque answer.
    */
   readonly find: (
     invitationId: string

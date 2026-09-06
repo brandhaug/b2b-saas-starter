@@ -47,6 +47,6 @@ The Better Auth instance and nothing else: options, plugin list, plugin↔schema
 
 ## Dependencies & Edges
 
-`auth` and [`capabilities`](../capabilities/AGENTS.md) are **siblings**: neither imports the other, and both import [`authz`](../authz/AGENTS.md) below them. `db` comes in twice: `db/client` for the promise drizzle client `drizzleAdapter` requires, and `db/schema` for the mapping.
+`auth` and [`capabilities`](../capabilities/AGENTS.md) are **siblings**: neither imports the other, and both import [`authz`](../authz/AGENTS.md) below them. `db` supplies `db/schema` for the model mapping; the promise drizzle client `drizzleAdapter` requires is built inline from `drizzle-orm/d1` (its type, `DrizzleDatabase`, lives in `ports.ts`).
 
 ADRs 0051, 0054, 0056, 0059, 0064, 0067, 0068, 0069, 0070; [`ARCHITECTURE.md`](../../ARCHITECTURE.md#security); table shapes in [`db`](../db/AGENTS.md).

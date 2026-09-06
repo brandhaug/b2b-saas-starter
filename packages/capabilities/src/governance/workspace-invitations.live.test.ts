@@ -84,7 +84,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const events = yield* inWorkspace(
             'live-lab',
             Effect.flatMap(AuditEventLog, (audit) =>
-              Effect.map(audit.list(), (page) => page.events)
+              Effect.map(audit.list(), (page) => page.items)
             ),
             { userId: 'usr_owner' }
           )

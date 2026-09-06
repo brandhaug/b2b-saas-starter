@@ -11,11 +11,9 @@
     "test": "vp test run --passWithNoTests"
   },
   "dependencies": {
-    "@oxlint/plugins": "catalog:",
-    "effect": "catalog:"
+    "@oxlint/plugins": "catalog:"
   },
   "devDependencies": {
-    "@b2b-saas-starter/config": "workspace:*",
     "oxlint": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

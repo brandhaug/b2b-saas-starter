@@ -193,15 +193,99 @@ const ANTI_SLOP = `
 `
 
 const STARTER = `
-  no-deep-workspace-imports no-effect-escape-hatch no-effect-internal-tags
-  no-inline-schema-compile no-interface-merge-outside-dts
-  no-mismatched-augmentation-context no-schema-class no-unknown-error-message
-  no-unsupported-effect-api prefer-effect-predicate
+  no-effect-internal-tags no-inline-schema-compile
+  no-interface-merge-outside-dts no-mismatched-augmentation-context
+  no-unknown-error-message prefer-effect-predicate
 `
 
 const VITE_PLUS = `
   prefer-vite-plus-imports
 `
+
+// --- Restricted members and imports ----------------------------------------
+// Four starter plugin rules (no-schema-class, no-unsupported-effect-api,
+// no-effect-escape-hatch, no-deep-workspace-imports) enforced nothing oxlint's
+// own no-restricted-* rules cannot express, so the plugin rules are gone and
+// the behavior lives here as configuration. The constants are shared with the
+// overrides below, because an override replaces the base value of every rule
+// it names.
+
+// `Schema.Class` and `Schema.TaggedClass` encode a runtime instanceof check
+// that a plain object fails even though TypeScript's structural typing accepts
+// it, and the starter passes decoded values across worker, queue and HTTP
+// boundaries as plain objects. `ErrorClass` and `TaggedError` stay allowed:
+// they are how Effect models typed errors.
+const SCHEMA_CLASS_MESSAGE =
+  'Avoid Schema.Class and Schema.TaggedClass. Encoding them runs an instanceof check that a plain object fails, so use Schema.Struct or Schema.TaggedStruct with Schema.is for runtime checks.'
+
+const RESTRICTED_SCHEMA_PROPERTIES = [
+  { object: 'Schema', property: 'Class', message: SCHEMA_CLASS_MESSAGE },
+  { object: 'Schema', property: 'TaggedClass', message: SCHEMA_CLASS_MESSAGE }
+]
+
+// Effect v2 and v3 combinators Effect v4 renamed. They fail as a missing
+// export at runtime rather than at the call site, so each message names the
+// replacement.
+const RESTRICTED_EFFECT_PROPERTIES = [
+  {
+    object: 'Effect',
+    property: 'async',
+    message:
+      'Effect.async does not exist in Effect v4. Use Effect.callback to adapt a callback API.'
+  },
+  {
+    object: 'Effect',
+    property: 'zipRight',
+    message:
+      'Effect.zipRight does not exist in Effect v4. Use Effect.andThen, or sequence the steps in Effect.gen.'
+  },
+  {
+    object: 'Effect',
+    property: 'timeoutFail',
+    message:
+      'Effect.timeoutFail does not exist in Effect v4. Use Effect.timeoutOrElse and fail with a tagged error in the fallback.'
+  }
+]
+
+// `die` and its siblings move a failure out of the typed error channel and
+// into a defect, so callers lose what the error channel is for and the failure
+// surfaces as an opaque 500. Property-only entries: any object's `.die`
+// counts, as the deleted rule read it. Test files drop this half in an
+// override below.
+const RESTRICTED_ESCAPE_HATCH_PROPERTIES = [
+  {
+    property: 'die',
+    message:
+      'Avoid die. It turns a typed failure into a defect, so fail with a tagged error and let the caller match on it.'
+  },
+  {
+    property: 'dieMessage',
+    message:
+      'Avoid dieMessage. It turns a typed failure into a defect, so fail with a tagged error and let the caller match on it.'
+  },
+  {
+    property: 'orDie',
+    message:
+      'Avoid orDie. It turns a typed failure into a defect, so fail with a tagged error and let the caller match on it.'
+  },
+  {
+    property: 'orDieWith',
+    message:
+      'Avoid orDieWith. It turns a typed failure into a defect, so fail with a tagged error and let the caller match on it.'
+  }
+]
+
+// Imports that reach through a workspace package's src/ tree instead of its
+// curated exports subpaths, e.g. `@b2b-saas-starter/db/src/schema.ts` instead
+// of `@b2b-saas-starter/db/schema`. The curated subpaths are the packages'
+// real interfaces — they keep the browser-safe client and the testing-only
+// module out of application code — and the export maps already refuse these
+// at runtime; this surfaces the violation at lint time.
+const DEEP_WORKSPACE_SRC_IMPORT = {
+  group: ['@b2b-saas-starter/*/src', '@b2b-saas-starter/*/src/**'],
+  message:
+    "Import through a workspace package's src/ tree. Use the package's curated exports subpath instead (e.g. '@b2b-saas-starter/db/schema', or add the subpath to the package's exports map if it is missing)."
+}
 
 // --- react-doctor ----------------------------------------------------------
 // react-doctor ships 884 rules for a dozen React ecosystems, which is why this
@@ -224,8 +308,7 @@ const STACK: ReadonlySet<Capability> = new Set<Capability>([
   'tailwind:3.4',
   'tailwind:4',
   'tanstack-query',
-  'tanstack-start',
-  'zod:4'
+  'tanstack-start'
 ])
 
 // Already reported by an enabled Rust plugin (react, jsx-a11y, react-hooks).
@@ -456,6 +539,13 @@ const { lint = {} } = defineConfig({
       'import/no-unassigned-import': ['error', { allow: ['**/*.css'] }],
       'no-console': ['error', { allow: ['warn', 'error'] }],
       'no-else-return': ['error', { allowElseIf: false }],
+      'no-restricted-imports': ['error', { patterns: [DEEP_WORKSPACE_SRC_IMPORT] }],
+      'no-restricted-properties': [
+        'error',
+        ...RESTRICTED_SCHEMA_PROPERTIES,
+        ...RESTRICTED_EFFECT_PROPERTIES,
+        ...RESTRICTED_ESCAPE_HATCH_PROPERTIES
+      ],
       'no-underscore-dangle': ['error', { allow: ['_tag'] }],
       'no-unused-vars': [
         'error',
@@ -600,10 +690,7 @@ const { lint = {} } = defineConfig({
         }
       },
       {
-        files: [
-          'apps/web/src/components/mdx-chart.tsx',
-          'apps/web/src/components/charts/**'
-        ],
+        files: ['apps/web/src/components/charts/**'],
         rules: {
           // The chart components re-export third-party diagram types verbatim, so a
           // deprecated member there is part of the library's shape, not this repo's call.
@@ -617,17 +704,18 @@ const { lint = {} } = defineConfig({
         }
       },
       {
-        files: [
-          '**/test/**',
-          '**/*.test.ts',
-          '**/*.test.tsx',
-          '**/*.stories.tsx',
-          '**/vitest.setup.ts'
-        ],
+        files: ['**/test/**', '**/*.test.ts', '**/*.test.tsx', '**/vitest.setup.ts'],
         rules: {
           'no-empty-function': 'off',
           'unicorn/consistent-function-scoping': 'off',
-          'starter/no-effect-escape-hatch': 'off',
+          // Tests keep the escape hatches (forcing a defect is a legitimate
+          // assertion), so this repeats the base no-restricted-properties list
+          // minus the die/orDie half. Schema and Effect members stay restricted.
+          'no-restricted-properties': [
+            'error',
+            ...RESTRICTED_SCHEMA_PROPERTIES,
+            ...RESTRICTED_EFFECT_PROPERTIES
+          ],
           'no-await-in-loop': 'off',
           'no-console': 'off',
           'no-script-url': 'off',
@@ -738,7 +826,10 @@ const { lint = {} } = defineConfig({
                   ],
                   message:
                     'UI code must not reach the database. Call a capability through runWorkspaceCapabilities or a server function instead.'
-                }
+                },
+                // Overrides replace the base rule value, so the workspace src/
+                // pattern from the deviations block is repeated here.
+                DEEP_WORKSPACE_SRC_IMPORT
               ]
             }
           ]

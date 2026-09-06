@@ -43,11 +43,6 @@ const applyMigrationsEffect = Effect.fn('TestD1.applyMigrations')(function* (
   }
 })
 
-/** Applies every committed migration, in name order, to the given D1. */
-export function applyMigrations(d1: D1Database): Promise<void> {
-  return Effect.runPromise(applyMigrationsEffect(d1))
-}
-
 const provisionTestD1Effect = Effect.gen(function* () {
   const proxy = yield* Effect.promise(() =>
     getPlatformProxy<{ DB: D1Database }>({

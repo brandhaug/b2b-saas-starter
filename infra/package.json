@@ -10,7 +10,6 @@
     "test": "vp test run --passWithNoTests"
   },
   "devDependencies": {
-    "@b2b-saas-starter/config": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

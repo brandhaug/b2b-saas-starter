@@ -1,9 +1,0 @@
-{
-  "name": "@b2b-saas-starter/config",
-  "private": true,
-  "type": "module",
-  "exports": {
-    "./tsconfig.base": "./tsconfig.base.json",
-    "./writable": "./src/writable.ts"
-  }
-}

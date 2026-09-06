@@ -5,7 +5,7 @@ import { and, desc, eq, isNull, type SQL } from 'drizzle-orm'
 
 import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
 import { AuthorizationDenied } from '../errors.ts'
-import { randomHex } from '../internal/crypto.ts'
+import { randomHex } from '../crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'

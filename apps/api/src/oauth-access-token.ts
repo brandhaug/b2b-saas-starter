@@ -102,9 +102,6 @@ function rejectionReason(cause: unknown): string {
   if (cause instanceof errors.JWTClaimValidationFailed) {
     return `access_token_${cause.claim}_mismatch`
   }
-  if (cause instanceof errors.JOSEError) {
-    return 'invalid_access_token'
-  }
   return 'invalid_access_token'
 }
 
@@ -144,21 +141,6 @@ const inactiveVerifier: OAuthTokenVerifierInterface = {
 }
 
 /**
- * Raised at layer construction when a production deployment points the JWKS
- * trust root at a plaintext origin — a misconfiguration worth refusing the
- * worker over. There is no Effect channel during layer build, so the throw is
- * the gate (the same stance `apps/web`'s env gate takes).
- */
-export class InsecureOAuthIssuerError extends Error {
-  constructor(jwksUrl: string) {
-    super(
-      `Refusing to start: MCP_OAUTH_ISSUER must be https in production (got ${jwksUrl})`
-    )
-    this.name = 'InsecureOAuthIssuerError'
-  }
-}
-
-/**
  * Built once per isolate (it rides the isolate-level capability layer in
  * `http.ts`), so jose's remote key set — which caches keys and refetches only
  * on an unknown `kid`, at most every thirty seconds — lives as long as the
@@ -166,8 +148,8 @@ export class InsecureOAuthIssuerError extends Error {
  * API Tokens alone (CLAUDE.md rule 3).
  *
  * A production issuer must be `https:` — the JWKS fetch is the trust root, and
- * a plaintext one would downgrade a misconfiguration into token forgery. Local
- * dev's `http://localhost` issuer is the sanctioned exception.
+ * a plaintext one would downgrade a misconfiguration into token forgery.
+ * Local dev's `http://localhost` issuer is the sanctioned exception.
  */
 export function makeOAuthTokenVerifierLayer(
   env: ApiEnv
@@ -177,8 +159,13 @@ export function makeOAuthTokenVerifierLayer(
     return Layer.succeed(OAuthTokenVerifier)(inactiveVerifier)
   }
   if (env.ENVIRONMENT === 'production' && !config.jwksUrl.startsWith('https:')) {
-    // oxlint-disable-next-line effect/noThrowStatement -- layer construction has no Effect channel; this throw IS the production gate
-    throw new InsecureOAuthIssuerError(config.jwksUrl)
+    // No Effect channel exists during layer build, so the throw is the gate
+    // (the same stance `apps/web`'s env gate takes); a misconfiguration worth
+    // refusing the worker over is a defect, not a typed failure.
+    // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- see above
+    throw new Error(
+      `Refusing to start: MCP_OAUTH_ISSUER must be https in production (got ${config.jwksUrl})`
+    )
   }
   const keySet = createRemoteJWKSet(new URL(config.jwksUrl), {
     cooldownDuration: 30_000,

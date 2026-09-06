@@ -1,18 +1,20 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import { type VerifyTotpCode } from './auth/auth-client-ports'
-import {
-  TwoFactorPanel,
-  type DisableTwoFactor,
-  type EnableTwoFactor,
-  type GenerateBackupCodes
-} from './two-factor-panel'
+import { TwoFactorPanel } from './two-factor-panel'
 import { renderWithQueryClient } from '@/test/query-harness'
+import { authClient } from '@/lib/auth-client'
 
-const enableTwoFactor = vi.fn<EnableTwoFactor>()
-const verifyTotp = vi.fn<VerifyTotpCode>()
-const disableTwoFactor = vi.fn<DisableTwoFactor>()
-const generateBackupCodes = vi.fn<GenerateBackupCodes>()
+// The flows call the client module directly, so their endpoints are doubles
+// on the mocked module.
+vi.mock('@/lib/auth-client', async () => {
+  const { fakeAuthClient } = await import('@/test/fake-auth-client')
+  return { authClient: fakeAuthClient() }
+})
+
+const enableTwoFactor = vi.mocked(authClient.twoFactor.enable)
+const verifyTotp = vi.mocked(authClient.twoFactor.verifyTotp)
+const disableTwoFactor = vi.mocked(authClient.twoFactor.disable)
+const generateBackupCodes = vi.mocked(authClient.twoFactor.generateBackupCodes)
 
 const TOTP_URI =
   'otpauth://totp/B2B%20SaaS%20Starter:demo%40starter.local?secret=JBSWY3DPEHPK3PXP&issuer=B2B%2BSaaS%20Starter'
@@ -31,28 +33,14 @@ describe('TwoFactorPanel', () => {
   })
 
   it('offers to enable when two-factor is off', () => {
-    renderWithQueryClient(
-      <TwoFactorPanel
-        twoFactorEnabled={false}
-        enableTwoFactor={enableTwoFactor}
-        verifyTotp={verifyTotp}
-        disableTwoFactor={disableTwoFactor}
-      />
-    )
+    renderWithQueryClient(<TwoFactorPanel twoFactorEnabled={false} />)
     screen.getByText(/Off\. Add an authenticator-app code to sign-in/)
     expect(screen.getByLabelText('Password')).toBeDefined()
     expect(screen.getByRole('button', { name: 'Start setup' })).toBeDefined()
   })
 
   it('reveals the QR and secret once, then verifies the first code', async () => {
-    renderWithQueryClient(
-      <TwoFactorPanel
-        twoFactorEnabled={false}
-        enableTwoFactor={enableTwoFactor}
-        verifyTotp={verifyTotp}
-        disableTwoFactor={disableTwoFactor}
-      />
-    )
+    renderWithQueryClient(<TwoFactorPanel twoFactorEnabled={false} />)
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'correct-horse-battery-staple' }
     })
@@ -80,14 +68,7 @@ describe('TwoFactorPanel', () => {
     enableTwoFactor.mockResolvedValue({
       data: { totpURI: TOTP_URI, backupCodes: ['abcd-1234', 'efgh-5678'] }
     })
-    renderWithQueryClient(
-      <TwoFactorPanel
-        twoFactorEnabled={false}
-        enableTwoFactor={enableTwoFactor}
-        verifyTotp={verifyTotp}
-        disableTwoFactor={disableTwoFactor}
-      />
-    )
+    renderWithQueryClient(<TwoFactorPanel twoFactorEnabled={false} />)
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'correct-horse-battery-staple' }
     })
@@ -107,14 +88,7 @@ describe('TwoFactorPanel', () => {
 
   it('surfaces an invalid verification code and stays on the setup step', async () => {
     verifyTotp.mockResolvedValue({ error: { code: 'INVALID_CODE' } })
-    renderWithQueryClient(
-      <TwoFactorPanel
-        twoFactorEnabled={false}
-        enableTwoFactor={enableTwoFactor}
-        verifyTotp={verifyTotp}
-        disableTwoFactor={disableTwoFactor}
-      />
-    )
+    renderWithQueryClient(<TwoFactorPanel twoFactorEnabled={false} />)
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'correct-horse-battery-staple' }
     })
@@ -134,14 +108,7 @@ describe('TwoFactorPanel', () => {
   })
 
   it('asks for the password to turn two-factor off when enabled', async () => {
-    renderWithQueryClient(
-      <TwoFactorPanel
-        twoFactorEnabled
-        enableTwoFactor={enableTwoFactor}
-        verifyTotp={verifyTotp}
-        disableTwoFactor={disableTwoFactor}
-      />
-    )
+    renderWithQueryClient(<TwoFactorPanel twoFactorEnabled />)
     screen.getByText(/On\. Codes are required at sign-in/)
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'correct-horse-battery-staple' }
@@ -158,14 +125,7 @@ describe('TwoFactorPanel', () => {
 
   it('surfaces a wrong-password failure without flipping state', async () => {
     disableTwoFactor.mockResolvedValue({ error: { code: 'INVALID_PASSWORD' } })
-    renderWithQueryClient(
-      <TwoFactorPanel
-        twoFactorEnabled
-        enableTwoFactor={enableTwoFactor}
-        verifyTotp={verifyTotp}
-        disableTwoFactor={disableTwoFactor}
-      />
-    )
+    renderWithQueryClient(<TwoFactorPanel twoFactorEnabled />)
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'wrong-password' }
     })
@@ -180,15 +140,7 @@ describe('TwoFactorPanel', () => {
     generateBackupCodes.mockResolvedValue({
       data: { backupCodes: ['new-1111', 'new-2222'] }
     })
-    renderWithQueryClient(
-      <TwoFactorPanel
-        twoFactorEnabled
-        enableTwoFactor={enableTwoFactor}
-        verifyTotp={verifyTotp}
-        disableTwoFactor={disableTwoFactor}
-        generateBackupCodes={generateBackupCodes}
-      />
-    )
+    renderWithQueryClient(<TwoFactorPanel twoFactorEnabled />)
     fireEvent.change(screen.getByLabelText('Confirm password'), {
       target: { value: 'correct-horse-battery-staple' }
     })
@@ -209,15 +161,7 @@ describe('TwoFactorPanel', () => {
 
   it('surfaces a failed backup-code regeneration without clearing the password state flip', async () => {
     generateBackupCodes.mockResolvedValue({ error: { code: 'INVALID_PASSWORD' } })
-    renderWithQueryClient(
-      <TwoFactorPanel
-        twoFactorEnabled
-        enableTwoFactor={enableTwoFactor}
-        verifyTotp={verifyTotp}
-        disableTwoFactor={disableTwoFactor}
-        generateBackupCodes={generateBackupCodes}
-      />
-    )
+    renderWithQueryClient(<TwoFactorPanel twoFactorEnabled />)
     fireEvent.change(screen.getByLabelText('Confirm password'), {
       target: { value: 'wrong-password' }
     })
@@ -229,15 +173,7 @@ describe('TwoFactorPanel', () => {
 
   it('treats an incomplete regeneration response as a failure', async () => {
     generateBackupCodes.mockResolvedValue({ data: {} })
-    renderWithQueryClient(
-      <TwoFactorPanel
-        twoFactorEnabled
-        enableTwoFactor={enableTwoFactor}
-        verifyTotp={verifyTotp}
-        disableTwoFactor={disableTwoFactor}
-        generateBackupCodes={generateBackupCodes}
-      />
-    )
+    renderWithQueryClient(<TwoFactorPanel twoFactorEnabled />)
     fireEvent.change(screen.getByLabelText('Confirm password'), {
       target: { value: 'correct-horse-battery-staple' }
     })

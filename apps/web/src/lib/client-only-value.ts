@@ -10,26 +10,14 @@ function subscribeToNothing(): () => void {
 }
 
 /**
- * True only after hydration, without a mount effect: the server (and
- * hydration) snapshot is `false` and the client snapshot is `true`, so the
- * value flips in the same commit that hydrates instead of after a paint.
- */
-function useHydrated(): boolean {
-  return useSyncExternalStore(
-    subscribeToNothing,
-    () => true,
-    () => false
-  )
-}
-
-/**
  * Reads a browser-only fact through `useSyncExternalStore`: `client` runs only
  * after hydration, `server` is the render-safe value used on the server and
- * during hydration. `client` must be referentially stable and cheap — it is
- * called on every render.
+ * during hydration, so the value flips in the same commit that hydrates
+ * instead of after a paint. `client` must be cheap — it is called on every
+ * render.
  */
 function useClientValue<T>(client: () => T, server: T): T {
   return useSyncExternalStore(subscribeToNothing, client, () => server)
 }
 
-export { useClientValue, useHydrated }
+export { useClientValue }

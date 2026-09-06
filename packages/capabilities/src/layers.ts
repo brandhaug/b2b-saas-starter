@@ -1,4 +1,4 @@
-import { type Database, type RawD1, layerFromD1 } from '@b2b-saas-starter/db/service'
+import { type Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect, Layer } from 'effect'
 
 // developer-platform
@@ -230,9 +230,9 @@ export const SeedLayer: CapabilitiesLayer = Layer.merge(SeedCore, SeedExports)
 /**
  * The optional provider ports and option bags `makeLiveCapabilitiesLayer`
  * consumes, declared once. Adding an optional binding means adding one field
- * here; `LiveCapabilitiesOptions` is this record, `StarterEnv` composes it
- * beside its worker-binding names, and the live-harness bag passes it straight
- * through — no per-site field list to keep in step.
+ * here; `StarterEnv` composes this record beside its worker-binding names, and
+ * the live-harness bag passes it straight through — no per-site field list to
+ * keep in step.
  *
  * Every field is optional and explicitly `| undefined` (the repo runs with
  * `exactOptionalPropertyTypes`, so a bare `?:` would forbid passing a key
@@ -307,11 +307,8 @@ export type CapabilityBindings = {
   readonly ssoBinding?: WorkspaceSsoBinding | undefined
 }
 
-/** The env fields `makeLiveCapabilitiesLayer` consumes — see {@link CapabilityBindings}. */
-export type LiveCapabilitiesOptions = CapabilityBindings
-
 export function makeLiveCapabilitiesLayer(
-  options: LiveCapabilitiesOptions = {}
+  options: CapabilityBindings = {}
 ): Layer.Layer<CapabilityServices, never, Database | RawD1> {
   // One instance each: `LiveWebhookPublisher(options.webhookQueue)` called at
   // each use site would build distinct layers (Effect does not unify them), so
@@ -356,16 +353,4 @@ export function makeLiveCapabilitiesLayer(
     Layer.provide(publisher),
     Layer.provide(seatSyncPublisher)
   )
-}
-
-/**
- * Exported at module level for `runtime.ts` only — not re-exported from the
- * package index. Consumers select layers through `selectCapabilitiesLayer` /
- * `selectWorkspaceLayer`.
- */
-export function makeLiveLayerFromD1(
-  d1: Parameters<typeof layerFromD1>[0],
-  options?: LiveCapabilitiesOptions
-) {
-  return makeLiveCapabilitiesLayer(options).pipe(Layer.provide(layerFromD1(d1)))
 }

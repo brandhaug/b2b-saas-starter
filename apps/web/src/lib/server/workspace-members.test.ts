@@ -1,241 +1,46 @@
-import {
-  SeedWorkspaceMembership,
-  makeSeedRoster,
-  type WorkspaceMembership
-} from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import { SeedSeatSyncPublisher } from '@b2b-saas-starter/capabilities/billing/seat-sync'
-import {
-  testWorkspaceContext,
-  type Actor,
-  type WorkspaceContext
-} from '@b2b-saas-starter/capabilities/workspace-context'
-import {
-  type Member,
-  type Workspace,
-  type WorkspaceRole
-} from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { describe, expect, it } from 'vite-plus/test'
-import { Effect, Layer, Ref, type Scope } from 'effect'
+import { describe, expect, it, vi, beforeEach } from 'vite-plus/test'
 
+import { fixtureSession } from '@/test/fixture-session'
 import {
-  changeMemberRole,
-  leaveWorkspace,
-  loadWorkspaceMembers,
-  removeMember
+  changeMemberRoleHandler,
+  leaveWorkspaceHandler,
+  loadWorkspaceMembersHandler,
+  removeMemberHandler
 } from './workspace-members.effects'
+import type * as AuthModule from './auth'
 
 /**
- * The member-management surface below its session gate. `changeMemberRole`,
- * `removeMember`, and `leaveWorkspace` are exported as effects taking only
- * their own inputs, so what is testable without a request or an auth runtime
- * is exactly the behaviour: the `member:update` / `member:delete` gates, the
- * ungated self-verb, and the hand-off to the membership capability (whose own
- * contract tests cover the plugin binding). The fixture roster is seeded per
- * test, which the app's own layer cannot do.
+ * The member-management surface, driven through its handlers. The session
+ * gate is the one thing a request would add, so the mock answers
+ * `requireRequestSession` with the fixture identity under test and
+ * everything else is the real path: `runWorkspaceCapabilities` resolves the
+ * inert `cloudflare:workers` shim under Vitest (vite.config.ts), so `DB` is
+ * undefined and the in-memory Seed roster answers. The seed workspace
+ * `starter-lab` has two owners (`usr_demo`, `usr_martin`), an admin
+ * (`usr_ops`), and a plain member (`usr_dev`) — the matrix's member verbs
+ * read exactly off those roles.
  *
- * Real clock on purpose: plain `it` + `Effect.runPromise`, not
- * `@effect/vitest`'s TestClock epoch.
+ * Each call builds its own Seed layer, so a mutation asserts its own call's
+ * outcome (the returned member, the resolved void) rather than a follow-up
+ * read. The ownership refusals (sole owner) stay where the roster shape can
+ * be staged for them: the membership capability's contract tests.
+ *
+ * Real clock on purpose: plain `it`, not `it.effect`.
  */
+const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-const workspace: Workspace = {
-  id: 'wrk_test',
-  slug: 'test-lab',
-  name: 'Test Lab',
-  planId: 'starter'
+vi.mock('./auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () => fixtureSession(actor)
+}))
+
+function actingAs(userId: string): void {
+  actor.userId = userId
 }
 
-function actor(role: WorkspaceRole): Actor {
-  return { userId: `usr_${role}`, role, systemRole: 'user' }
-}
-
-const OWNER = actor('owner')
-const ADMIN = actor('admin')
-const MEMBER = actor('member')
-
-function memberOf(a: Actor): Member {
-  return {
-    id: a.userId,
-    name: a.userId,
-    email: `${a.userId}@example.com`,
-    role: a.role,
-    systemRole: 'user'
-  }
-}
-
-type Harness = {
-  readonly actor?: Actor | null
-  readonly members?: ReadonlyArray<Member>
-}
-
-/**
- * Runs one effect against a fresh fixture. `roster` comes back so a test can
- * assert on what the run changed outside its return value.
- */
-function run<A, E>(
-  harness: Harness,
-  body: () => Effect.Effect<A, E, Scope.Scope | WorkspaceContext | WorkspaceMembership>
-): Promise<{ readonly result: A; readonly roster: ReadonlyArray<Member> }> {
-  const members = harness.members ?? [memberOf(OWNER), memberOf(MEMBER)]
-  return Effect.runPromise(
-    Effect.gen(function* () {
-      const roster = yield* makeSeedRoster(members)
-      const layer = Layer.mergeAll(
-        SeedWorkspaceMembership(roster, workspace).pipe(
-          Layer.provide(SeedSeatSyncPublisher)
-        ),
-        // `in` rather than `??`: a test that passes `actor: null` is asserting
-        // what the guard does with no principal, not asking for the default.
-        testWorkspaceContext(
-          workspace,
-          'actor' in harness ? (harness.actor ?? null) : OWNER
-        )
-      )
-      const result = yield* Effect.scoped(body().pipe(Effect.provide(layer)))
-      return { result, roster: yield* Ref.get(roster) }
-    })
-  )
-}
-
-/** Turns a typed failure into a value, so a denial is asserted not thrown. */
-function outcome<A, E extends { readonly _tag: string; readonly reason?: string }, R>(
-  effect: Effect.Effect<A, E, R>
-) {
-  return Effect.match(effect, {
-    onSuccess: (value) => ({ tag: 'ok', value }),
-    onFailure: (failure) => ({ tag: failure._tag, reason: failure.reason })
-  })
-}
-
-describe('changeMemberRole', () => {
-  it('lets an owner re-role another member', async () => {
-    const { result, roster } = await run({}, () =>
-      outcome(changeMemberRole({ userId: MEMBER.userId, role: 'admin' }))
-    )
-    expect(result).toEqual({
-      tag: 'ok',
-      value: expect.objectContaining({ id: MEMBER.userId, role: 'admin' })
-    })
-    expect(roster.find((candidate) => candidate.id === MEMBER.userId)?.role).toBe(
-      'admin'
-    )
-  })
-
-  it('lets an admin promote a member too — the matrix grants admin member:update', async () => {
-    const { result } = await run({ actor: ADMIN }, () =>
-      outcome(changeMemberRole({ userId: MEMBER.userId, role: 'member' }))
-    )
-    expect(result.tag).toBe('ok')
-  })
-
-  it('denies a member the change', async () => {
-    const { result } = await run({ actor: MEMBER }, () =>
-      outcome(changeMemberRole({ userId: OWNER.userId, role: 'member' }))
-    )
-    expect(result).toEqual({
-      tag: 'AuthorizationDenied',
-      reason: 'insufficient_permission'
-    })
-  })
-
-  it('fails closed with no resolved actor', async () => {
-    const { result } = await run({ actor: null }, () =>
-      outcome(changeMemberRole({ userId: MEMBER.userId, role: 'admin' }))
-    )
-    expect(result).toEqual({ tag: 'AuthorizationDenied', reason: 'no_principal' })
-  })
-})
-
-describe('removeMember', () => {
-  it('lets an owner off-board a member', async () => {
-    const { result, roster } = await run({}, () =>
-      outcome(removeMember({ userId: MEMBER.userId }))
-    )
-    expect(result).toEqual({ tag: 'ok', value: undefined })
-    expect(roster.some((candidate) => candidate.id === MEMBER.userId)).toBe(false)
-  })
-
-  it('lets an admin off-board too — the matrix grants admin member:delete', async () => {
-    const { result } = await run({ actor: ADMIN }, () =>
-      outcome(removeMember({ userId: MEMBER.userId }))
-    )
-    expect(result.tag).toBe('ok')
-  })
-
-  it('denies a member the removal', async () => {
-    const { result } = await run({ actor: MEMBER }, () =>
-      outcome(removeMember({ userId: OWNER.userId }))
-    )
-    expect(result).toEqual({
-      tag: 'AuthorizationDenied',
-      reason: 'insufficient_permission'
-    })
-  })
-
-  it('refuses to remove the sole owner with the typed reason', async () => {
-    // The fixture roster has exactly one owner; the removal must refuse
-    // before anything changes, carrying the reason the boundary words as
-    // "transfer ownership first".
-    const { result, roster } = await run({}, () =>
-      outcome(removeMember({ userId: OWNER.userId }))
-    )
-    expect(result).toEqual({
-      tag: 'MembershipChangeRejected',
-      reason: 'sole_owner'
-    })
-    expect(roster.some((candidate) => candidate.id === OWNER.userId)).toBe(true)
-  })
-})
-
-describe('leaveWorkspace', () => {
-  it('is any member’s own verb — no permission gate refuses a plain member', async () => {
-    const { result, roster } = await run({ actor: MEMBER }, () =>
-      outcome(leaveWorkspace())
-    )
-    expect(result).toEqual({ tag: 'ok', value: undefined })
-    expect(roster.some((candidate) => candidate.id === MEMBER.userId)).toBe(false)
-  })
-
-  it('refuses the sole owner with the typed reason', async () => {
-    const { result, roster } = await run({ actor: OWNER }, () =>
-      outcome(leaveWorkspace())
-    )
-    expect(result).toEqual({
-      tag: 'MembershipChangeRejected',
-      reason: 'sole_owner'
-    })
-    expect(roster.some((candidate) => candidate.id === OWNER.userId)).toBe(true)
-  })
-
-  it('lets an owner leave once another owner remains', async () => {
-    // A second owner in the roster — the transfer the refusal copy asks for
-    // — is the condition under which the leave succeeds.
-    const coowner: Actor = { userId: 'usr_coowner', role: 'owner', systemRole: 'user' }
-    const { result, roster } = await run(
-      {
-        actor: OWNER,
-        members: [memberOf(coowner), memberOf(OWNER), memberOf(MEMBER)]
-      },
-      () => outcome(leaveWorkspace())
-    )
-    expect(result).toEqual({ tag: 'ok', value: undefined })
-    expect(roster.some((candidate) => candidate.id === OWNER.userId)).toBe(false)
-    expect(roster.some((candidate) => candidate.id === coowner.userId)).toBe(true)
-  })
-})
-
-/**
- * The loader seam, driven against the Seed layer: `runWorkspaceCapabilities`
- * resolves `cloudflare:workers` to the inert shim under Vitest (vite.config.ts),
- * so `DB` is undefined and the in-memory fixture answers. Both users below are
- * seed members of `starter-lab` — `usr_demo` owns it, `usr_dev` is a plain
- * member.
- */
-describe('loadWorkspaceMembers', () => {
+describe('loadWorkspaceMembersHandler', () => {
   it('lists the roster plus the invitation segment for an owner', async () => {
-    const payload = await loadWorkspaceMembers({
-      workspaceSlug: 'starter-lab',
-      userId: 'usr_demo'
-    })
+    const payload = await loadWorkspaceMembersHandler({ workspaceSlug: 'starter-lab' })
     expect(payload.viewer).toEqual({ role: 'owner' })
     expect(payload.unreadCount).toBeTypeOf('number')
     expect(payload.members.length).toBeGreaterThan(0)
@@ -245,14 +50,72 @@ describe('loadWorkspaceMembers', () => {
   })
 
   it('shows a plain member the roster but withholds the invitations', async () => {
-    const payload = await loadWorkspaceMembers({
-      workspaceSlug: 'starter-lab',
-      userId: 'usr_dev'
-    })
+    actingAs('usr_dev')
+    const payload = await loadWorkspaceMembersHandler({ workspaceSlug: 'starter-lab' })
     expect(payload.viewer).toEqual({ role: 'member' })
     expect(payload.members.length).toBeGreaterThan(0)
     // Denied by the matrix — and denied server-side, so the invitation list
     // never reaches the serialized loader payload at all.
     expect(payload.invitations).toBeNull()
+  })
+})
+
+describe('changeMemberRoleHandler', () => {
+  beforeEach(() => actingAs('usr_demo'))
+
+  it('denies a member the change', async () => {
+    actingAs('usr_dev')
+    await expect(
+      changeMemberRoleHandler({
+        workspaceSlug: 'starter-lab',
+        userId: 'usr_martin',
+        role: 'member'
+      })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
+  })
+
+  it('lets an admin re-role too — the matrix grants admin member:update', async () => {
+    actingAs('usr_ops')
+    const member = await changeMemberRoleHandler({
+      workspaceSlug: 'starter-lab',
+      userId: 'usr_dev',
+      role: 'member'
+    })
+    expect(member).toMatchObject({ id: 'usr_dev', role: 'member' })
+  })
+
+  it('lets an owner re-role, and answers with the changed member', async () => {
+    const member = await changeMemberRoleHandler({
+      workspaceSlug: 'starter-lab',
+      userId: 'usr_ops',
+      role: 'member'
+    })
+    expect(member).toMatchObject({ id: 'usr_ops', role: 'member' })
+  })
+})
+
+describe('removeMemberHandler', () => {
+  beforeEach(() => actingAs('usr_demo'))
+
+  it('denies a member the removal', async () => {
+    actingAs('usr_dev')
+    await expect(
+      removeMemberHandler({ workspaceSlug: 'starter-lab', userId: 'usr_martin' })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
+  })
+
+  it('lets an owner off-board a member', async () => {
+    await expect(
+      removeMemberHandler({ workspaceSlug: 'starter-lab', userId: 'usr_ops' })
+    ).resolves.toBeUndefined()
+  })
+})
+
+describe('leaveWorkspaceHandler', () => {
+  it('is any member’s own verb — no permission gate refuses a plain member', async () => {
+    actingAs('usr_dev')
+    await expect(
+      leaveWorkspaceHandler({ workspaceSlug: 'starter-lab' })
+    ).resolves.toBeUndefined()
   })
 })

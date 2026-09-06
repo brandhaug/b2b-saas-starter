@@ -13,7 +13,6 @@
     "@b2b-saas-starter/api": "workspace:*",
     "@b2b-saas-starter/authz": "workspace:*",
     "@b2b-saas-starter/capabilities": "workspace:*",
-    "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/infra": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
@@ -23,7 +22,6 @@
     "jose": "catalog:"
   },
   "devDependencies": {
-    "@b2b-saas-starter/config": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

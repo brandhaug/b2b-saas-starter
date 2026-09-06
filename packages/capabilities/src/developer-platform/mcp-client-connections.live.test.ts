@@ -175,7 +175,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               'live-lab',
               Effect.flatMap(AuditEventLog, (log) => log.list())
             )
-            const revokedEvent = events.events.find(
+            const revokedEvent = events.items.find(
               (event) => event.eventType === 'mcp_client.consent_revoked'
             )
             expect(revokedEvent?.targetType).toBe('mcp_client')
@@ -213,7 +213,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             Effect.flatMap(AuditEventLog, (log) => log.list())
           )
-          const granted = events.events.find(
+          const granted = events.items.find(
             (event) => event.eventType === 'mcp_client.consent_granted'
           )
           expect(granted?.targetId).toBe(CLIENT_ID)

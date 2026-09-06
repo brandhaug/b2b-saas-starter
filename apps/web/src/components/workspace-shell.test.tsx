@@ -1,20 +1,20 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import { WorkspaceShell, type SignOut, type StopImpersonating } from './workspace-shell'
+import { authClientDouble } from '@/test/fake-auth-client'
+import { WorkspaceShell, type StopImpersonating } from './workspace-shell'
 
 // The identity line reads the live Better Auth client, whose session hook
-// fetches a relative URL no jsdom test can answer — stub it to the
-// pre-hydration shape the shell must render anyway.
-vi.mock('@/lib/auth-client', () => ({
-  authClient: {
-    useSession: () => ({ data: null, error: null, isPending: false })
-  }
-}))
+// fetches a relative URL no jsdom test can answer — the shared double's
+// `useSession` answers the pre-hydration shape the shell must render anyway.
+// The sign-out endpoint is the shell's own server call, read straight off
+// the client module.
+vi.mock('@/lib/auth-client', async () => {
+  const { authClientDouble: double } = await import('@/test/fake-auth-client')
+  return { authClient: double }
+})
 
-// The shell's own `signOut` port, handed in as a prop. Everything else — the
-// router, `Link`, `useRouter` — is the real TanStack implementation.
-const signOut = vi.fn<SignOut>()
+const signOut = authClientDouble.signOut
 const stopImpersonating = vi.fn<StopImpersonating>()
 
 /** What a gated route's `beforeLoad` puts on the context: the projected session. */
@@ -54,7 +54,6 @@ async function renderShell(props?: {
       }
       viewer={props?.workspaceSlug === null ? null : { role: props?.role ?? 'member' }}
       {...(props?.systemRole === undefined ? {} : { systemRole: props.systemRole })}
-      signOut={signOut}
       {...(props?.unreadCount === undefined ? {} : { unreadCount: props.unreadCount })}
     >
       <p>Dashboard content</p>
@@ -77,8 +76,7 @@ function renderOptions(
 
 describe('WorkspaceShell', () => {
   beforeEach(() => {
-    signOut.mockReset()
-    signOut.mockResolvedValue(undefined)
+    signOut.mockClear()
     stopImpersonating.mockReset()
     stopImpersonating.mockResolvedValue(undefined)
   })

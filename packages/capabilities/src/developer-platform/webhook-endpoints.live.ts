@@ -40,7 +40,7 @@ import {
   WebhookEndpoints,
   type WebhookEndpoint
 } from './webhook-endpoints.ts'
-import { randomHex } from '../internal/crypto.ts'
+import { randomHex } from '../crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
@@ -731,7 +731,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             )
           }
           const rotatedAt = yield* DateTime.now
-          const expires = planSecretRotation(rotatedAt)
+          const expiresAt = planSecretRotation(rotatedAt)
           // The replacement secret is minted inside `write`, so a zero-match
           // mutation still mints nothing.
           let signingSecret = ''
@@ -743,7 +743,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
               eventType: 'webhook_endpoint.secret_rotated',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,
-              metadata: { previousSecretExpiresAt: expires.previousSecretExpiresAt }
+              metadata: { previousSecretExpiresAt: expiresAt }
             },
             write: () => {
               signingSecret = randomSecret()
@@ -752,7 +752,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
                 .set({
                   signingSecret,
                   previousSigningSecret: endpoint.signingSecret,
-                  previousSecretExpiresAt: expires.previousSecretExpiresAt
+                  previousSecretExpiresAt: expiresAt
                 })
                 .where(scopedEndpointWhere(input.endpointId, ctx.workspace.id))
             }
@@ -792,7 +792,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
 )
 
 /** The wire projection assembled once for both the fan-out payload and the return value. */
-export function toEndpointProjection(endpoint: {
+function toEndpointProjection(endpoint: {
   readonly id: string
   readonly url: string
   readonly enabled: boolean

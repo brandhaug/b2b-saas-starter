@@ -1,7 +1,7 @@
 import { failureMessage } from '@b2b-saas-starter/failure'
 import { Effect, Layer, Option, Redacted, Schema } from 'effect'
 import { AiError, LanguageModel, Model, type Response } from 'effect/unstable/ai'
-import { ChatMessage, plainChat, unsupportedStream } from './text-model.ts'
+import { plainChat, unsupportedStream } from './text-model.ts'
 
 // The single platform adapter: any OpenAI-compatible `/chat/completions`
 // endpoint, called with one outbound POST. Config resolution happens once,
@@ -29,14 +29,6 @@ function finishReason(
   }
   return reason
 }
-
-const OpenAIChatRequest = Schema.Struct({
-  model: Schema.String,
-  messages: Schema.Array(ChatMessage)
-})
-
-/** Schema JSON codec for the request body — no hand-rolled `JSON.stringify`. */
-const encodeChatRequest = Schema.encodeSync(Schema.fromJsonString(OpenAIChatRequest))
 
 const OpenAIChatResponse = Schema.Struct({
   choices: Schema.Array(
@@ -99,7 +91,8 @@ export function makeOpenAIModel(config: OpenAIConfig) {
           postJson(
             chatUrl,
             headers,
-            encodeChatRequest({ model: modelId, messages: plain.messages }),
+            // oxlint-disable-next-line effect/noGlobals -- outbound request body, deliberately unvalidated: the wire shape is exactly these two fields, and a codec would decode what we just built
+            JSON.stringify({ model: modelId, messages: plain.messages }),
             signal
           ),
         catch: (cause) =>

@@ -84,7 +84,7 @@ export async function runBaseline(target: Target): Promise<Array<string>> {
     if (recorded.has(name)) {
       continue
     }
-    const tables = tablesCreatedBy(sql).map(({ table }) => table)
+    const tables = tablesCreatedBy(sql)
     if (tables.length === 0) {
       continue
     }
