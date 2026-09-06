@@ -13,6 +13,7 @@
     "@b2b-saas-starter/email": "workspace:*",
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/failure": "workspace:*",
+    "@b2b-saas-starter/infra": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
     "@sentry/cloudflare": "catalog:",
     "effect": "catalog:"
