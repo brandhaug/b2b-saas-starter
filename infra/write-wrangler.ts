@@ -172,9 +172,11 @@ export const wranglerConfigs: ReadonlyArray<{
       // Producers only: membership and invitation mutations enqueue seat-sync
       // messages the background worker consumes (`Billing.syncSeats`),
       // workspace settings enqueues export jobs, and every surface that
-      // creates a Notification enqueues its instant email.
+      // creates a Notification enqueues its instant email. Admin webhook
+      // replay uses the existing webhook queue.
       queues: {
         producers: [
+          { binding: queueBindingKeys.webhookQueue, queue: webhookQueueName },
           billingQueueProducer,
           workspaceExportProducer,
           {

@@ -3,6 +3,8 @@ import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute } from '@tanstack/react-router'
 
 import { AdminUserActions } from '@/components/admin-user-actions'
+import { AdminFailedDeliveries } from '@/components/admin-failed-deliveries'
+import { loadAdminPage } from '@/lib/server/admin-loader'
 import { BanUserAction } from '@/components/ban-user-action'
 import { ImpersonateUserAction } from '@/components/impersonate-user-action'
 import { DataTable, type DataTableColumnDef } from '@/components/data-table'
@@ -14,11 +16,7 @@ import { RoutePending } from '@/components/route-pending'
 import { formatDateTime } from '@/lib/format-date'
 import { auditActorTypeLabel } from '@/lib/audit-labels'
 import { auditActorTypeVariant } from '@/lib/badge-variants'
-import {
-  listSystemUsersServerFn,
-  loadAdminAuditEventsServerFn,
-  type SystemUser
-} from '@/lib/server/admin'
+import { type SystemUser } from '@/lib/server/admin'
 import { requireAdmin } from '@/lib/server/auth'
 
 // Column definitions are static — module scope keeps the cell renderers out of
@@ -100,29 +98,22 @@ export const Route = createFileRoute('/admin')({
     const session = await requireAdmin(location.href)
     return { session }
   },
-  // System-level reads only — no workspace is borrowed: users come from the
-  // PlatformUserAdmin capability, audit events from the global log, both via
-  // the non-workspace server fns in lib/server/admin. Both reads are started
-  // before either is awaited, so they still overlap.
-  loader: async () => {
-    const usersRead = listSystemUsersServerFn()
-    const eventsRead = loadAdminAuditEventsServerFn()
-    return { users: await usersRead, events: await eventsRead }
-  },
+  // Parallel system-level reads; no workspace context is borrowed.
+  loader: loadAdminPage,
   pendingComponent: RoutePending,
   component: AdminPage,
   head: () => ({ meta: [{ title: pageTitle('System admin') }] })
 })
 
 function AdminPage() {
-  const { users, events } = Route.useLoaderData()
+  const { users, events, failedDeliveries } = Route.useLoaderData()
   const { session } = Route.useRouteContext()
 
   return (
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
       <PageHeader
         title="System admin"
-        description="Users, impersonation, and the global audit trail."
+        description="Users, failed webhook deliveries, and the global audit trail."
       />
       <Panel title="Users">
         <DataTable
@@ -136,6 +127,8 @@ function AdminPage() {
         />
         <AdminUserActions users={users} />
       </Panel>
+
+      <AdminFailedDeliveries initialPage={failedDeliveries} />
 
       <Panel title="Audit events">
         <DataTable

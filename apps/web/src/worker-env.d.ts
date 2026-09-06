@@ -38,6 +38,8 @@ type WebBindingTypes = {
   // Optional so the local workers shim (no D1) satisfies the same type;
   // consumers must handle the missing binding (Seed layer fallback).
   readonly DB: D1Database
+  // Admin replay produces onto the existing background webhook queue.
+  readonly WEBHOOK_QUEUE: import('@b2b-saas-starter/capabilities/developer-platform/webhook-publisher').WebhookQueueBinding
   // Producer port for instant notification emails (consumed by the background
   // worker). Optional: without it Notifications persist and no instant email
   // is enqueued — the digest cron still covers them (CLAUDE.md rule 3).

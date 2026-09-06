@@ -471,6 +471,91 @@ export function developerPlatformContractCases(
       })
     },
     {
+      name: 'terminal deliveries list globally, newest first, with endpoint and workspace',
+      assert: Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        const ctx = yield* WorkspaceContext
+        const { endpoint: healthy } = yield* webhooks.create({
+          url: 'https://example.com/global-deliveries-hook',
+          events: ['demo.event']
+        })
+        const { endpoint: turnedOff } = yield* webhooks.create({
+          url: 'https://example.com/global-disabled-hook',
+          events: ['demo.event']
+        })
+        yield* webhooks.update({ endpointId: turnedOff.id, enabled: false })
+
+        // Fixed ids break timestamp ties in the same order in both adapters.
+        yield* webhooks.recordDeliveryAttempt({
+          id: 'whd_contract_global_za',
+          endpointId: turnedOff.id,
+          workspaceId: ctx.workspace.id,
+          eventType: 'demo.event',
+          attempts: 1,
+          status: 'failed_permanent',
+          responseStatus: 410,
+          nextAttemptAt: null,
+          payload: { rung: 'za' }
+        })
+        yield* webhooks.recordDeliveryAttempt({
+          id: 'whd_contract_global_zb',
+          endpointId: healthy.id,
+          workspaceId: ctx.workspace.id,
+          eventType: 'demo.event',
+          attempts: 5,
+          status: 'dead_lettered',
+          responseStatus: 503,
+          nextAttemptAt: null,
+          payload: { rung: 'zb' }
+        })
+        // A delivered row is not terminal — the global read must not serve it.
+        yield* webhooks.recordDeliveryAttempt({
+          id: 'whd_contract_global_ok',
+          endpointId: healthy.id,
+          workspaceId: ctx.workspace.id,
+          eventType: 'demo.event',
+          status: 'delivered',
+          attempts: 1,
+          responseStatus: 200,
+          nextAttemptAt: null,
+          payload: { rung: 'ok' }
+        })
+
+        const walk = yield* walkKeysetPages(
+          (input) => webhooks.listGlobalDeliveries(input),
+          { limit: 1 }
+        )
+        expect(walk.exhausted).toBe(true)
+        const ids = walk.items.map((row) => row.id)
+        // Both terminal rows exactly once, newest of the two first. Other
+        // cases terminal-deliver their own endpoints into this workspace, so
+        // the assertions stay relative — never positional.
+        const newest = ids.indexOf('whd_contract_global_zb')
+        const older = ids.indexOf('whd_contract_global_za')
+        expect(newest !== -1).toBe(true)
+        expect(older !== -1).toBe(true)
+        expect(newest < older).toBe(true)
+        expect(ids.filter((id) => id === 'whd_contract_global_zb')).toHaveLength(1)
+        expect(ids.includes('whd_contract_global_ok')).toBe(false)
+
+        // The rows carry the columns the admin replay decision reads: the
+        // endpoint's URL and enabled state, and the owning workspace.
+        expect(walk.items[newest]).toMatchObject({
+          endpointId: healthy.id,
+          endpointUrl: 'https://example.com/global-deliveries-hook',
+          endpointEnabled: true,
+          status: 'dead_lettered',
+          attempts: 5,
+          workspace: ctx.workspace
+        })
+        expect(walk.items[older]).toMatchObject({
+          endpointUrl: 'https://example.com/global-disabled-hook',
+          endpointEnabled: false,
+          status: 'failed_permanent'
+        })
+      })
+    },
+    {
       name: 'replay creates a pending copy with attempts reset and a replayedFrom link',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints

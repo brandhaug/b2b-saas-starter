@@ -1,12 +1,17 @@
 import { Context, Effect, Schema } from 'effect'
 
 import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts'
+import { Workspace } from '../governance/workspace-identity.ts'
+import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
+import { newCapabilityId } from '../internal/ids.ts'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import {
+  planReplayedDelivery,
   type Json,
   type ListWebhookDeliveriesInput,
   type WebhookDelivery,
-  type WebhookDeliveryAttemptInput
+  type WebhookDeliveryAttemptInput,
+  type WebhookDeliveryStatus
 } from './webhook-delivery-plan.ts'
 import { validateWebhookUrl, InvalidWebhookUrl } from './webhook-url.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
@@ -119,6 +124,101 @@ type DeleteWebhookEndpointInput = {
   readonly endpointId: string
 }
 
+/**
+ * The delivery outcomes that never retry — what the admin dead-letter read
+ * serves. `failed` is deliberately absent: a retryable failure is still in
+ * flight, and the queue, not an operator, will redeliver it.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const TERMINAL_DELIVERY_STATUSES = [
+  'failed_permanent',
+  'dead_lettered'
+] as const satisfies ReadonlyArray<WebhookDeliveryStatus>
+
+/** Terminal delivery and current endpoint state for the global operator list.
+ * No payload or signing secrets are exposed. Replay re-reads the source.
+ */
+export const GlobalWebhookDelivery = Schema.Struct({
+  id: Schema.String,
+  endpointId: Schema.String,
+  endpointUrl: Schema.String,
+  endpointEnabled: Schema.Boolean,
+  endpointConsecutiveFailures: Schema.Number,
+  endpointFailureLimitReached: Schema.Boolean,
+  eventType: Schema.String,
+  status: Schema.String,
+  attempts: Schema.Number,
+  lastAttemptAt: Schema.NullOr(Schema.String),
+  responseStatus: Schema.NullOr(Schema.Number),
+  workspace: Workspace
+})
+export type GlobalWebhookDelivery = typeof GlobalWebhookDelivery.Type
+
+export type AdminReplaySource = {
+  readonly id: string
+  readonly endpointId: string
+  readonly workspaceId: string
+  readonly eventType: string
+  readonly status: WebhookDeliveryStatus
+  readonly enabled: boolean
+  readonly payload: Json | undefined
+}
+
+/** Shared replay policy and audit attribution; adapters only persist and enqueue. */
+export const planAdminReplay = Effect.fn('WebhookEndpoints.planAdminReplay')(function* (
+  source: AdminReplaySource | undefined,
+  actorUserId: string
+) {
+  if (source === undefined) {
+    return yield* Effect.fail(
+      new WebhookDispatchRejected({
+        reason: 'delivery or endpoint no longer exists'
+      })
+    )
+  }
+  if (!TERMINAL_DELIVERY_STATUSES.some((status) => status === source.status)) {
+    return yield* Effect.fail(
+      new WebhookDispatchRejected({
+        reason: `delivery is ${source.status}, only terminal deliveries replay from admin`
+      })
+    )
+  }
+  if (!source.enabled) {
+    return yield* Effect.fail(
+      new WebhookDispatchRejected({
+        reason:
+          'endpoint is disabled; a workspace operator must re-enable it before replay'
+      })
+    )
+  }
+  if (source.payload === undefined) {
+    return yield* Effect.fail(
+      new WebhookDispatchRejected({
+        reason: 'delivery payload is missing; replay cannot reconstruct it'
+      })
+    )
+  }
+  const deliveryId = yield* newCapabilityId('whd')
+  return {
+    deliveryId,
+    workspaceId: source.workspaceId,
+    plan: planReplayedDelivery({ ...source, payload: source.payload }),
+    auditEvent: {
+      workspaceId: source.workspaceId,
+      actorUserId,
+      eventType: 'webhook.delivery_replayed',
+      targetType: 'webhook_endpoint',
+      targetId: source.endpointId,
+      metadata: {
+        deliveryId,
+        replayedFrom: source.id,
+        eventType: source.eventType,
+        scope: 'system_admin'
+      }
+    } satisfies RecordAuditEventInput
+  }
+})
+
 type ReplayWebhookDeliveryInput = {
   readonly deliveryId: string
 }
@@ -209,6 +309,13 @@ type WebhookEndpointsInterface = {
     WorkspaceContext
   >
 
+  /** Like AuditEventLog.listGlobal, this read requires boundary authorization,
+   * not WorkspaceContext. Pages newest-first by (lastAttemptAt, id), nulls last.
+   */
+  readonly listGlobalDeliveries: (
+    input?: ListPageInput
+  ) => Effect.Effect<Page<GlobalWebhookDelivery>, CapabilityUnavailable>
+
   /**
    * Updates the mutable endpoint fields — URL, event subscriptions, and the
    * enabled flag: disabling is `update { enabled: false }`, re-enabling is
@@ -252,6 +359,18 @@ type WebhookEndpointsInterface = {
     DispatchedDelivery,
     CapabilityUnavailable | WebhookDeliveryNotFound | WebhookDispatchRejected,
     WorkspaceContext
+  >
+
+  /** System-admin operation. The boundary authorizes the session; the service
+   * resolves the delivery's workspace and records the real admin actor.
+   * This grants no workspace membership and never provides WorkspaceContext.
+   */
+  readonly replayDeliveryAsAdmin: (input: {
+    readonly deliveryId: string
+    readonly actorUserId: string
+  }) => Effect.Effect<
+    DispatchedDelivery,
+    CapabilityUnavailable | WebhookDispatchRejected
   >
 
   /**

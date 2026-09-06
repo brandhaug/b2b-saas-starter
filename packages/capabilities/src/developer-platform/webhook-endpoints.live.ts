@@ -3,10 +3,11 @@ import {
   type JsonObject,
   type JsonValue,
   webhookDeliveries,
-  webhookEndpoints
+  webhookEndpoints,
+  workspaces
 } from '@b2b-saas-starter/db/schema'
 import { DateTime, Effect, Layer } from 'effect'
-import { and, asc, count, desc, eq, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
 
 import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
@@ -26,6 +27,7 @@ import {
   planReplayedDelivery,
   planSecretRotation,
   terminalDeliveryAuditEventType,
+  WEBHOOK_FAILURE_AUTO_DISABLE_AT,
   type Json,
   type PendingDispatchPlan,
   type WebhookDeliveryStatus
@@ -33,6 +35,8 @@ import {
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   ensureValidWebhookUrl,
+  planAdminReplay,
+  TERMINAL_DELIVERY_STATUSES,
   type UpdateWebhookEndpointInput,
   WEBHOOK_TEST_EVENT_TYPE,
   WebhookDispatchRejected,
@@ -557,6 +561,71 @@ export const LiveWebhookEndpoints: Layer.Layer<
               .limit(DELIVERIES_PAGE_SIZE)
           )
         }),
+      listGlobalDeliveries: Effect.fn('WebhookEndpoints.listGlobalDeliveries')(
+        function* (input) {
+          const limit = clampPageLimit(input?.limit)
+          const conditions: Array<SQL> = [
+            inArray(webhookDeliveries.status, [...TERMINAL_DELIVERY_STATUSES])
+          ]
+          // Nullable attempt times sort last. Use a nonempty sentinel below
+          // ISO dates so the shared cursor codec can page through nulls too.
+          const attemptKey = sql`coalesce(${webhookDeliveries.lastAttemptAt}, '!')`
+          const resume = keysetResume(
+            'desc',
+            {
+              key: attemptKey,
+              id: webhookDeliveries.id
+            },
+            input?.cursor
+          )
+          if (resume.kind === 'empty') {
+            return { items: [], nextCursor: null }
+          }
+          if (resume.kind === 'resume') {
+            conditions.push(resume.condition)
+          }
+          // One row past the page cap, so `cutKeysetPage` can see whether the
+          // cap actually cut rows off before offering a cursor.
+          const rows = yield* unavailable(
+            db
+              .select({
+                id: webhookDeliveries.id,
+                endpointId: webhookDeliveries.endpointId,
+                eventType: webhookDeliveries.eventType,
+                status: webhookDeliveries.status,
+                attempts: webhookDeliveries.attempts,
+                lastAttemptAt: webhookDeliveries.lastAttemptAt,
+                responseStatus: webhookDeliveries.responseStatus,
+                endpointUrl: webhookEndpoints.url,
+                endpointEnabled: webhookEndpoints.enabled,
+                endpointConsecutiveFailures: webhookEndpoints.consecutiveFailures,
+                endpointFailureLimitReached:
+                  sql<boolean>`${webhookEndpoints.consecutiveFailures} >= ${WEBHOOK_FAILURE_AUTO_DISABLE_AT}`.mapWith(
+                    Boolean
+                  ),
+                workspace: {
+                  id: workspaces.id,
+                  slug: workspaces.slug,
+                  name: workspaces.name,
+                  planId: workspaces.planId
+                }
+              })
+              .from(webhookDeliveries)
+              .innerJoin(
+                webhookEndpoints,
+                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
+              )
+              .innerJoin(workspaces, eq(workspaces.id, webhookEndpoints.workspaceId))
+              .where(and(...conditions))
+              .orderBy(sql`${attemptKey} desc`, desc(webhookDeliveries.id))
+              .limit(limit + 1)
+          )
+          return cutKeysetPage(rows, limit, (row) => ({
+            key: row.lastAttemptAt ?? '!',
+            id: row.id
+          }))
+        }
+      ),
       update: (input) =>
         Effect.gen(function* () {
           if (input.url !== undefined) {
@@ -639,6 +708,39 @@ export const LiveWebhookEndpoints: Layer.Layer<
                 .where(scopedEndpointWhere(input.endpointId, ctx.workspace.id))
           })
         }),
+      replayDeliveryAsAdmin: Effect.fn('WebhookEndpoints.replayDeliveryAsAdmin')(
+        function* (input) {
+          const rows = yield* unavailable(
+            db
+              .select({
+                id: webhookDeliveries.id,
+                endpointId: webhookDeliveries.endpointId,
+                eventType: webhookDeliveries.eventType,
+                status: webhookDeliveries.status,
+                payload: webhookDeliveries.payload,
+                enabled: webhookEndpoints.enabled,
+                workspaceId: webhookEndpoints.workspaceId
+              })
+              .from(webhookDeliveries)
+              .innerJoin(
+                webhookEndpoints,
+                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
+              )
+              .where(eq(webhookDeliveries.id, input.deliveryId))
+              .limit(1)
+          )
+          const replay = yield* planAdminReplay(rows[0], input.actorUserId)
+          yield* recordOperatorDispatch(replay)
+          yield* publisher.enqueue({
+            endpointId: replay.plan.endpointId,
+            workspaceId: replay.workspaceId,
+            eventType: replay.plan.eventType,
+            deliveryId: replay.deliveryId,
+            payload: replay.plan.payload
+          })
+          return { deliveryId: replay.deliveryId }
+        }
+      ),
       replayDelivery: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext

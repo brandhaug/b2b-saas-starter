@@ -17,6 +17,7 @@ import {
   planReplayedDelivery,
   planSecretRotation,
   terminalDeliveryAuditEventType,
+  WEBHOOK_FAILURE_AUTO_DISABLE_AT,
   type Json,
   type PendingDispatchPlan,
   type SeedWebhookDeliveryFixture,
@@ -24,16 +25,21 @@ import {
 } from './webhook-delivery-plan.ts'
 import {
   ensureValidWebhookUrl,
+  planAdminReplay,
+  type AdminReplaySource,
+  TERMINAL_DELIVERY_STATUSES,
   WEBHOOK_TEST_EVENT_TYPE,
   WebhookDispatchRejected,
   WebhookEndpointNotFound,
   WebhookDeliveryNotFound,
   WebhookEndpoints,
+  type GlobalWebhookDelivery,
   type WebhookEndpoint
 } from './webhook-endpoints.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { seedWorkspaceRecord } from '../seed-fixture.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
+import { type Workspace } from '../governance/workspace-identity.ts'
 
 /**
  * A Seed fixture row: the wire projection plus the storage columns the
@@ -49,6 +55,11 @@ export type SeedWebhookEndpointFixture = {
   readonly events: ReadonlyArray<string>
   readonly signingSecret?: string
   readonly workspaceId?: string
+}
+
+/** Persisted deliveries may lack an attempt time, including terminal rows. */
+export type SeedDeliveryFixture = Omit<SeedWebhookDeliveryFixture, 'lastAttemptAt'> & {
+  readonly lastAttemptAt: string | null
 }
 
 type SeedEndpointRow = {
@@ -74,7 +85,7 @@ type SeedDeliveryRow = {
   readonly eventType: string
   readonly status: WebhookDeliveryStatus
   readonly attempts: number
-  readonly lastAttemptAt: string
+  readonly lastAttemptAt: string | null
   readonly nextAttemptAt: string | null
   readonly responseStatus: number | null
   readonly payload: Json
@@ -99,7 +110,7 @@ type SeedAttemptUpdate = {
 }
 
 function toDeliveryRow(
-  fixture: SeedWebhookDeliveryFixture,
+  fixture: SeedDeliveryFixture,
   fallbackWorkspaceId: string
 ): SeedDeliveryRow {
   return {
@@ -137,9 +148,15 @@ function toProjection(
   }
 }
 
+/** The terminal statuses as a lookup set — the global read's filter. */
+const TERMINAL_STATUSES: ReadonlySet<WebhookDeliveryStatus> = new Set(
+  TERMINAL_DELIVERY_STATUSES
+)
+
 export function SeedWebhookEndpoints(
   seedFixtures: ReadonlyArray<SeedWebhookEndpointFixture>,
-  seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = []
+  seedDeliveries: ReadonlyArray<SeedDeliveryFixture> = [],
+  seedWorkspaces: ReadonlyArray<Workspace> = [seedWorkspaceRecord]
 ): Layer.Layer<
   WebhookEndpoints,
   never,
@@ -182,6 +199,45 @@ export function SeedWebhookEndpoints(
         return Effect.map(WorkspaceContext, (ctx) =>
           endpointFor(endpointId, ctx.workspace.id)
         )
+      }
+
+      /** Mirror the Live join against the fixture's workspace catalog. */
+      function globalDeliveryRow(row: SeedDeliveryRow): GlobalWebhookDelivery | null {
+        const endpoint = endpoints.find((candidate) => candidate.id === row.endpointId)
+        const workspace = seedWorkspaces.find(
+          (candidate) => candidate.id === endpoint?.workspaceId
+        )
+        if (endpoint === undefined || workspace === undefined) {
+          return null
+        }
+        return {
+          id: row.id,
+          endpointId: row.endpointId,
+          endpointUrl: endpoint.url,
+          endpointEnabled: endpoint.enabled,
+          endpointConsecutiveFailures: endpoint.consecutiveFailures,
+          endpointFailureLimitReached:
+            endpoint.consecutiveFailures >= WEBHOOK_FAILURE_AUTO_DISABLE_AT,
+          eventType: row.eventType,
+          status: row.status,
+          attempts: row.attempts,
+          lastAttemptAt: row.lastAttemptAt,
+          responseStatus: row.responseStatus,
+          workspace
+        }
+      }
+
+      function globalDeliveries(): Array<GlobalWebhookDelivery> {
+        const rows: Array<GlobalWebhookDelivery> = []
+        for (const delivery of deliveries) {
+          if (TERMINAL_STATUSES.has(delivery.status)) {
+            const row = globalDeliveryRow(delivery)
+            if (row !== null) {
+              rows.push(row)
+            }
+          }
+        }
+        return rows
       }
 
       /** Shared persistence for both attempt surfaces, terminal audits included. */
@@ -440,10 +496,10 @@ export function SeedWebhookEndpoints(
             // order, mirroring Live's orderBy so the shared contract can
             // assert the sequence on both adapters.
             matched.sort((a, b) => {
-              if (a.lastAttemptAt > b.lastAttemptAt) {
+              if ((a.lastAttemptAt ?? '') > (b.lastAttemptAt ?? '')) {
                 return -1
               }
-              if (a.lastAttemptAt < b.lastAttemptAt) {
+              if ((a.lastAttemptAt ?? '') < (b.lastAttemptAt ?? '')) {
                 return 1
               }
               if (a.id > b.id) {
@@ -458,6 +514,17 @@ export function SeedWebhookEndpoints(
               .slice(0, DELIVERIES_PAGE_SIZE)
               .map(({ workspaceId: _ws, ...row }) => row)
           }),
+        listGlobalDeliveries: (input) =>
+          Effect.sync(() =>
+            // Newest first on `(lastAttemptAt DESC, id DESC)` — the same
+            // order Live's orderBy keeps, cut by the shared keyset recipe.
+            seedKeysetPage(
+              globalDeliveries(),
+              'desc',
+              (row) => ({ key: row.lastAttemptAt ?? '!', id: row.id }),
+              input
+            )
+          ),
         update: (input) =>
           Effect.gen(function* () {
             if (input.url !== undefined) {
@@ -526,6 +593,39 @@ export function SeedWebhookEndpoints(
               metadata: { url: endpoint.url }
             })
           }),
+        replayDeliveryAsAdmin: Effect.fn('WebhookEndpoints.replayDeliveryAsAdmin')(
+          function* (input) {
+            const source = deliveries.find((row) => row.id === input.deliveryId)
+            const endpoint = endpoints.find((row) => row.id === source?.endpointId)
+            let replaySource: AdminReplaySource | undefined
+            if (source && endpoint) {
+              replaySource = {
+                ...source,
+                workspaceId: endpoint.workspaceId,
+                enabled: endpoint.enabled
+              }
+            }
+            const replay = yield* planAdminReplay(replaySource, input.actorUserId)
+            // No ambient workspace identity: this is an explicitly attributed admin write.
+            deliveries.push({
+              ...replay.plan,
+              id: replay.deliveryId,
+              workspaceId: replay.workspaceId,
+              lastAttemptAt: DateTime.formatIso(yield* DateTime.now),
+              requestHeaders: null,
+              responseBody: null
+            })
+            yield* audit.record(replay.auditEvent)
+            yield* publisher.enqueue({
+              endpointId: replay.plan.endpointId,
+              workspaceId: replay.workspaceId,
+              eventType: replay.plan.eventType,
+              deliveryId: replay.deliveryId,
+              payload: replay.plan.payload
+            })
+            return { deliveryId: replay.deliveryId }
+          }
+        ),
         replayDelivery: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext

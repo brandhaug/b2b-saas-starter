@@ -2,22 +2,22 @@
 
 ## Purpose & Scope
 
-Outbound webhook destinations and the operator surface over them. Dispatch belongs to the background worker, through `WEBHOOK_QUEUE` and [`webhook-publisher`](./webhook-publisher.AGENTS.md).
+Webhook destinations and tooling; background dispatch uses [`webhook-publisher`](./webhook-publisher.AGENTS.md).
 
 ## Entry Points & Contracts
 
-- `create` gates on the plan ceiling via `assertWithinPlanLimitFor` (billing owns it) and fans out a best-effort projection that omits the secret.
-- Audits `webhook_endpoint.created` / `.updated` / `.deleted` and `webhook.delivery_replayed`. `sendTestEvent` audits nothing; its row is the record.
-- `replayDelivery` writes a new `pending` row linked by `replayedFrom`, never touching the source (ADR 0062). `WebhookDispatchRejected` (409) is a non-failed source or disabled endpoint.
-- `rotateSecret` shifts the replaced secret into the grace columns, where it signs another 24h. Expired values are filtered lazily by `activeSigningSecrets`, so no sweep exists.
-- Background methods take the workspace id off the queue message; every lookup is `(endpointId, workspaceId)`. `getDispatchTarget` returns `signingSecrets` plural, for the grace window.
-- A `dead_lettered` attempt also records a broadcast `NotificationFeed` row, its copy owned by `deadLetterNotification`.
-- The failure ladder (ADR 0062 addendum): `recordDeliveryAttempt` / `recordTerminalDeliveryAttempt` move `consecutive_failures` in the same batched write as the delivery row and return the streak; `autoDisableEndpoint` sets `enabled = false` and batches the `webhook_endpoint.auto_disabled` audit event (zero-match — disabled, deleted, foreign — writes and audits nothing). The counter transition, the reaction (`failureLadderAction`), and the rung copy are pure exports of the delivery plan; the consumer only executes them.
+- Creation applies billing's plan ceiling and publishes a best-effort projection without the secret.
+- Replay creates an audited `pending` copy linked by `replayedFrom`; the source stays untouched (ADR 0062). Test sends use their delivery row as the record.
+- `/admin` calls `listGlobalDeliveries` and `replayDeliveryAsAdmin` without `WorkspaceContext`. Its boundary rechecks the system-admin session; replay resolves the workspace internally and audits the actual actor with `scope: system_admin`. Never fabricate membership. Workspace replay keeps its membership and permission gates.
+- Rotation keeps the replaced secret signing for 24h; `activeSigningSecrets` filters expiry lazily.
+- Background lookups use `(endpointId, workspaceId)` from the queue. Dispatch targets return all active signing secrets.
+- Dead letters record broadcast notifications, worded by `deadLetterNotification`.
+- Failure attempts batch the streak with the delivery; auto-disable batches its audit and skips zero matches. The delivery plan owns the counter transition, reaction, and notification copy; the consumer executes them.
 
 ## Patterns & Pitfalls
 
-- The delivery state machine lives in storage-free `webhook-delivery-plan.ts`, not the worker. `recordDeliveryAttempt` upserts on the row id, one row per queue message. Its `set` clause is attempt state only: `payload` and `replayedFrom` are insert-only, and evidence absent from the input stays as recorded, else a terminal write erases the previous attempt's.
-- `webhook_deliveries.payload` is NOT NULL so a terminal row stays replayable.
+- The state machine lives in `webhook-delivery-plan.ts`. Attempt upserts change attempt state only: payload and replay provenance are insert-only; absent evidence preserves the previous attempt's evidence.
+- Global paging uses `(lastAttemptAt DESC, id DESC)`, with null times last in both adapters. Admin replay requires a terminal source and enabled endpoint. Queue failures remain visible after the pending copy commits.
 - Signing secrets are plaintext in D1 by design (HMAC needs them back); only `rotateSecret` and `getDispatchTarget` return them.
 
 ## Anti-patterns

@@ -190,10 +190,11 @@ function seedDeliveryRequestHeaders(eventType: string) {
 }
 
 /**
- * The operator tooling's fixture history: one delivered attempt and one
- * retryable failure (with its payload and response evidence recorded), so the
- * deliveries drawer, the attempt timeline, and the replay button all have a
- * real story to show in the Seed workspace — on the landing demo and in
+ * The operator tooling's fixture history: one delivered attempt, one
+ * retryable failure (with its payload and response evidence recorded), and
+ * the two terminal outcomes — so the deliveries drawer, the attempt
+ * timeline, the replay button, and `/admin`'s failed-delivery list all have
+ * a real story to show in the Seed workspace — on the landing demo and in
  * tests. The endpoint's projected success rate derives from these rows.
  */
 export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
@@ -221,6 +222,37 @@ export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
     payload: { tokenId: 'tok_docs', name: 'Docs automation' },
     requestHeaders: seedDeliveryRequestHeaders('api_token.created'),
     responseBody: 'upstream connect error'
+  },
+  {
+    // The dead-letter rung on the enabled endpoint: the receiver gave up
+    // after six attempts, matching the fixture notification's story. This is
+    // the row `/admin` can replay.
+    id: 'whd_seed_dead_lettered',
+    endpointId: 'wh_release',
+    eventType: 'api_token.created',
+    status: 'dead_lettered',
+    attempts: 6,
+    lastAttemptAt: '2026-05-16T09:12:00.000Z',
+    responseStatus: 503,
+    payload: { tokenId: 'tok_docs', name: 'Docs automation' },
+    requestHeaders: seedDeliveryRequestHeaders('api_token.created'),
+    responseBody: 'service unavailable'
+  },
+  {
+    // The permanent rung on the disabled endpoint: the receiver answered
+    // 410 once and the endpoint has since been turned off, so `/admin`'s
+    // replay affordance refuses with the reason — the state an operator
+    // must resolve in the workspace before this row can move again.
+    id: 'whd_seed_perm_failed',
+    endpointId: 'wh_billing',
+    eventType: 'webhook_endpoint.created',
+    status: 'failed_permanent',
+    attempts: 1,
+    lastAttemptAt: '2026-05-16T08:55:00.000Z',
+    responseStatus: 410,
+    payload: { url: 'https://billing.example.com/hooks/starter' },
+    requestHeaders: seedDeliveryRequestHeaders('webhook_endpoint.created'),
+    responseBody: 'gone'
   }
 ]
 
