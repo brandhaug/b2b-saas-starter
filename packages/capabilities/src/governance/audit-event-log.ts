@@ -3,7 +3,7 @@ import { auditActorTypes, type AuditActorTypeValue } from '@b2b-saas-starter/db/
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 
-import { permittedAuditMetadata } from './audit-event-metadata.ts'
+import { AuditEventMetadata, decodeAuditEventMetadata } from './audit-event-metadata.ts'
 
 import { type CapabilityUnavailable } from '../errors.ts'
 import {
@@ -31,7 +31,7 @@ export type AuditEvent = typeof AuditEvent.Type
 export const AuditEventDetail = Schema.Struct({
   ...AuditEvent.fields,
   actorUserId: Schema.NullOr(Schema.String),
-  metadata: Schema.JsonObject
+  metadata: AuditEventMetadata
 })
 export type AuditEventDetail = typeof AuditEventDetail.Type
 
@@ -263,7 +263,7 @@ export function SeedAuditEventLog(
   // A private copy: `record` appends without mutating the caller's fixture
   // array. Sharing state across adapters happens by providing one instance of
   // this layer (see layers.ts), not by sharing the fixture array.
-  const rows: Array<SeedAuditEventRow> = [...seed]
+  const rows: Array<SeedAuditEventRow> = structuredClone([...seed])
   return Layer.succeed(AuditEventLog)({
     get: Effect.fn('AuditEventLog.get')(function* (id: string) {
       const ctx = yield* WorkspaceContext
@@ -276,7 +276,7 @@ export function SeedAuditEventLog(
       return {
         ...toSeedWire(row),
         actorUserId: row.actorUserId ?? null,
-        metadata: permittedAuditMetadata(row.metadata ?? {})
+        metadata: decodeAuditEventMetadata(row.metadata ?? {})
       }
     }),
     // Same scoping as Live: the per-workspace read filters on the resolved
@@ -306,7 +306,7 @@ export function SeedAuditEventLog(
           actorType: input.actorType,
           actorUserId: input.actorUserId ?? null,
           workspaceId: input.workspaceId ?? null,
-          metadata: input.metadata ?? {},
+          metadata: structuredClone(input.metadata ?? {}),
           createdAt: DateTime.formatIso(yield* DateTime.now)
         }
         rows.push(row)

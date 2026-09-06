@@ -1,9 +1,8 @@
-import { type JsonObject } from '@b2b-saas-starter/db/schema'
 import { Option, Schema } from 'effect'
 
 // A positive allowlist: new producer fields remain private until reviewed here.
 // Never expose names, emails, IPs, URLs, scopes, credentials, or nested payloads.
-const PermittedMetadata = Schema.Struct({
+export const AuditEventMetadata = Schema.Struct({
   role: Schema.optionalKey(Schema.Literals(['owner', 'admin', 'member'])),
   protocol: Schema.optionalKey(Schema.Literals(['saml', 'oidc'])),
   attempts: Schema.optionalKey(
@@ -22,8 +21,11 @@ const PermittedMetadata = Schema.Struct({
   )
 })
 
-const decodePermittedMetadata = Schema.decodeUnknownOption(PermittedMetadata)
+const decodePermittedMetadata = Schema.decodeUnknownOption(AuditEventMetadata)
 
-export function permittedAuditMetadata(metadata: JsonObject): JsonObject {
+export function decodeAuditEventMetadata(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- this decoder is the boundary for untrusted persisted JSON, including malformed non-object values
+  metadata: unknown
+): typeof AuditEventMetadata.Type {
   return Option.getOrElse(decodePermittedMetadata(metadata), () => ({}))
 }

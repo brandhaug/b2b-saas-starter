@@ -16,7 +16,7 @@ import { clampPageLimit, cutKeysetPage, type Page } from '../internal/keyset-cur
 import { keysetResume } from '../internal/keyset-query.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
-import { permittedAuditMetadata } from './audit-event-metadata.ts'
+import { decodeAuditEventMetadata } from './audit-event-metadata.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 function pageLimit(input: ListAuditEventsInput | undefined): number {
@@ -156,7 +156,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           return {
             ...toWireRow(row),
             actorUserId: row.event.actorUserId,
-            metadata: permittedAuditMetadata(row.event.metadata)
+            metadata: decodeAuditEventMetadata(row.event.metadata)
           }
         }),
         list: (input) =>

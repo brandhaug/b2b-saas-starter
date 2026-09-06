@@ -325,6 +325,11 @@ export function auditEventLogContractCases(
             .pipe(Effect.provideService(WorkspaceContext, ctxOther))
         ).toBe(null)
         expect('metadata' in (recorded ?? {})).toBe(false)
+        const globalEvent = (yield* audit.listGlobal).find(
+          (event) => event.id === recorded?.id
+        )
+        expect(globalEvent?.id).toBe(recorded?.id)
+        expect('metadata' in (globalEvent ?? {})).toBe(false)
         expect(
           page.items.find((event) => event.targetId === 'automated_workspace')
             ?.actorType
@@ -333,6 +338,30 @@ export function auditEventLogContractCases(
           page.items.find((event) => event.targetId === 'interactive_workspace')
             ?.actorType
         ).toBe('user')
+      })
+    },
+    {
+      name: 'snapshots recorded metadata so callers cannot rewrite an audit event',
+      assert: Effect.gen(function* () {
+        const audit = yield* AuditEventLog
+        const ctx = yield* WorkspaceContext
+        const metadata = { attempts: 2 }
+        yield* audit.record({
+          workspaceId: ctx.workspace.id,
+          actorType: 'system',
+          eventType: 'webhook.delivery_failed',
+          targetType: 'webhook_endpoint',
+          targetId: 'metadata-snapshot',
+          metadata
+        })
+        metadata.attempts = 99
+        const page = yield* audit.list({ eventType: 'webhook.delivery_failed' })
+        const recorded = page.items.find(
+          (event) => event.targetId === 'metadata-snapshot'
+        )
+        expect((yield* audit.get(recorded?.id ?? ''))?.metadata).toEqual({
+          attempts: 2
+        })
       })
     }
   ]

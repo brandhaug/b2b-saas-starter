@@ -18,7 +18,10 @@ Only validated role, SSO protocol, delivery attempt count, HTTP response status,
 and export size fields may cross this boundary. Unknown fields, nested payloads,
 emails, names, IPs, URLs, scopes, and credentials remain private. Invalid approved
 fields yield no metadata. Seed retains recorded metadata and applies the same
-projection as Live; list and global reads continue to omit metadata entirely.
+projection as Live. Seed snapshots metadata on ingestion so a caller cannot
+rewrite a recorded event by mutating its input. The detail contract derives its
+metadata shape from the same allowlist schema; list and global reads continue
+to omit metadata entirely.
 This is a web inspection feature, so it adds no REST endpoint or MCP catalog row.
 
 The table follows the deterministic collection order from ADR 0057. Local column

@@ -52,8 +52,11 @@ test('event links preserve filters, keyboard focus, and back/forward history', a
   await expect(link).toBeFocused()
   await link.click()
   await expect(dialog).toBeVisible()
+  await page.reload()
+  await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(page).toHaveURL(`${auditPath}?actor=usr_ops`)
+  await expect(link).toBeFocused()
 })
 
 test('a direct link resolves outside the visible list and closes in place on mobile', async ({
@@ -125,4 +128,9 @@ test('a failed detail request shows a retryable error instead of a missing event
   await page.unroute(auditRequest)
   await page.getByRole('button', { name: 'Try again', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Audit event' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page).toHaveURL(auditPath)
+  await expect(
+    page.getByRole('link', { name: /^Inspect API token created/ })
+  ).toBeFocused()
 })
