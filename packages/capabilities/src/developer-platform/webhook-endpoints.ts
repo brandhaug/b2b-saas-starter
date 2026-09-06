@@ -206,6 +206,7 @@ export const planAdminReplay = Effect.fn('WebhookEndpoints.planAdminReplay')(fun
     auditEvent: {
       workspaceId: source.workspaceId,
       actorUserId,
+      actorType: 'user',
       eventType: 'webhook.delivery_replayed',
       targetType: 'webhook_endpoint',
       targetId: source.endpointId,

@@ -241,6 +241,7 @@ const backgroundBindingNames = {
 const webBindingNames = {
   database: resourceBindingNames.database,
   workersAi: resourceBindingNames.workersAi,
+  webhookQueue: queueBindingKeys.webhookQueue,
   billingQueue: queueBindingKeys.billingQueue,
   notificationEmailQueue: queueBindingKeys.notificationEmailQueue,
   workspaceExportQueue: queueBindingKeys.workspaceExportQueue,

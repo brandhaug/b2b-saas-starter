@@ -132,13 +132,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.provide(
               makeLiveCapabilitiesLayer({
                 webhookQueue: {
-                  send: (message) =>
-                    Effect.runPromise(
-                      Effect.sync(() => {
-                        messages.push(message)
-                      })
-                    ),
-                  sendBatch: () => Effect.runPromise(Effect.void)
+                  send: (message) => {
+                    messages.push(message)
+                    return Promise.resolve()
+                  },
+                  sendBatch: () => Promise.resolve()
                 }
               })
             )
@@ -172,6 +170,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(audits).toHaveLength(1)
           expect(audits[0]).toMatchObject({
             actorUserId: 'usr_sysadmin',
+            actorType: 'user',
             workspaceId: 'wrk_live',
             metadata: {
               scope: 'system_admin',
@@ -231,8 +230,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.provide(
               makeLiveCapabilitiesLayer({
                 webhookQueue: {
-                  send: () => Effect.runPromise(Effect.fail('queue unavailable')),
-                  sendBatch: () => Effect.runPromise(Effect.void)
+                  send: () => Promise.reject(new Error('queue unavailable')),
+                  sendBatch: () => Promise.resolve()
                 }
               })
             )
@@ -256,6 +255,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         expect(audits).toHaveLength(1)
         expect(audits[0]).toMatchObject({
           actorUserId: 'usr_sysadmin',
+          actorType: 'user',
           eventType: 'webhook.delivery_replayed'
         })
       })

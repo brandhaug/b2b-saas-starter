@@ -125,6 +125,9 @@ export function adminWebhookContract(expect: ContractExpect) {
     expect(
       audits.filter((row) => row.eventType === 'webhook.delivery_replayed')
     ).toHaveLength(1)
+    expect(
+      audits.find((row) => row.eventType === 'webhook.delivery_replayed')?.actorType
+    ).toBe('user')
 
     for (const deliveryId of [
       'missing',
