@@ -523,7 +523,18 @@ describe('entitlement gate', () => {
 })
 
 describe('stripe signature verification', () => {
-  /* oxlint-disable effect/noAsyncFunction, effect/noGlobals -- these tests exercise the real Web Crypto and wall-clock behavior the verifier depends on; faking either would prove nothing */
+  /* oxlint-disable effect/noAsyncFunction -- these tests exercise the real Web Crypto the verifier depends on; faking it would prove nothing */
+
+  /**
+   * The fixed clock injected as the verifier's `now`: no real-time
+   * dependence, so the tolerance boundary is asserted exactly rather than
+   * raced against wall time.
+   */
+  const nowSeconds = 1_700_000_000
+
+  function fixedNow(): number {
+    return nowSeconds * 1000
+  }
 
   async function signedHeader(secret: string, payload: string, timestamp: number) {
     const key = await crypto.subtle.importKey(
@@ -546,34 +557,24 @@ describe('stripe signature verification', () => {
 
   it('accepts a fresh valid signature and rejects tampering', async () => {
     const payload = '{"type":"checkout.session.completed"}'
-    const header = await signedHeader(
-      'whsec_test',
-      payload,
-      Math.floor(Date.now() / 1000)
-    )
+    const header = await signedHeader('whsec_test', payload, nowSeconds)
     expect(
-      await verifyStripeSignature({
-        secret: 'whsec_test',
-        payload,
-        header
-      })
+      await verifyStripeSignature({ secret: 'whsec_test', payload, header }, fixedNow)
     ).toBe(true)
     expect(
-      await verifyStripeSignature({
-        secret: 'whsec_other',
-        payload,
-        header
-      })
+      await verifyStripeSignature({ secret: 'whsec_other', payload, header }, fixedNow)
     ).toBe(false)
     expect(
-      await verifyStripeSignature({
-        secret: 'whsec_test',
-        payload: '{"type":"tampered"}',
-        header
-      })
+      await verifyStripeSignature(
+        { secret: 'whsec_test', payload: '{"type":"tampered"}', header },
+        fixedNow
+      )
     ).toBe(false)
     expect(
-      await verifyStripeSignature({ secret: 'whsec_test', payload, header: null })
+      await verifyStripeSignature(
+        { secret: 'whsec_test', payload, header: null },
+        fixedNow
+      )
     ).toBe(false)
   })
 
@@ -586,13 +587,22 @@ describe('stripe signature verification', () => {
     }
   })
 
-  it('rejects stale timestamps beyond tolerance', async () => {
+  it('accepts a timestamp 300s old and rejects one 301s old', async () => {
     const payload = 'p'
-    const stale = Math.floor(Date.now() / 1000) - 3600
-    const header = await signedHeader('whsec_test', payload, stale)
-    expect(await verifyStripeSignature({ secret: 'whsec_test', payload, header })).toBe(
-      false
-    )
+    const atTolerance = await signedHeader('whsec_test', payload, nowSeconds - 300)
+    expect(
+      await verifyStripeSignature(
+        { secret: 'whsec_test', payload, header: atTolerance },
+        fixedNow
+      )
+    ).toBe(true)
+    const pastTolerance = await signedHeader('whsec_test', payload, nowSeconds - 301)
+    expect(
+      await verifyStripeSignature(
+        { secret: 'whsec_test', payload, header: pastTolerance },
+        fixedNow
+      )
+    ).toBe(false)
   })
-  /* oxlint-enable effect/noAsyncFunction, effect/noGlobals */
+  /* oxlint-enable effect/noAsyncFunction */
 })
