@@ -2,7 +2,7 @@ import { notificationKinds } from '@b2b-saas-starter/db/enums'
 import { render } from '@react-email/render'
 import { Effect } from 'effect'
 import { type ReactElement } from 'react'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 import {
   NOTIFICATION_EMAIL_TEMPLATES,
   NotificationDigestEmail,
@@ -36,61 +36,56 @@ describe('notification email templates', () => {
     }
   })
 
-  it.each(notificationKinds)(
-    'renders %s with the notification copy and the unsubscribe link',
-    (kind) =>
-      Effect.runPromise(
-        Effect.gen(function* () {
-          const { html, text } = yield* rendered(notificationEmailFor(kind, props))
-          // The heading is the kind's shared label, not bespoke template copy.
-          expect(html).toContain(`>${props.kindLabel}</`)
-          expect(html).toContain('Webhook delivery gave up')
-          expect(html).toContain('Starter Lab')
-          expect(html).toContain(props.openUrl)
-          expect(html).toContain(props.preferencesUrl)
-          expect(text.toLowerCase()).toContain('unsubscribe')
-        })
+  describe.each(notificationKinds)('the %s notification', (kind) => {
+    it.effect('renders with the notification copy and the unsubscribe link', () =>
+      Effect.gen(function* () {
+        const { html, text } = yield* rendered(notificationEmailFor(kind, props))
+        // The heading is the kind's shared label, not bespoke template copy.
+        expect(html).toContain(`>${props.kindLabel}</`)
+        expect(html).toContain('Webhook delivery gave up')
+        expect(html).toContain('Starter Lab')
+        expect(html).toContain(props.openUrl)
+        expect(html).toContain(props.preferencesUrl)
+        expect(text.toLowerCase()).toContain('unsubscribe')
+      })
+    )
+  })
+
+  it.effect('omits the workspace line for an account-level notification', () =>
+    Effect.gen(function* () {
+      const { html } = yield* rendered(
+        notificationEmailFor('two_factor.changed', { ...props, workspaceName: null })
       )
+      expect(html).not.toContain('Workspace:')
+    })
   )
 
-  it('omits the workspace line for an account-level notification', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { html } = yield* rendered(
-          notificationEmailFor('two_factor.changed', { ...props, workspaceName: null })
-        )
-        expect(html).not.toContain('Workspace:')
-      })
-    ))
+  it.effect('renders the digest with one row per item and the unsubscribe link', () =>
+    Effect.gen(function* () {
+      const { html } = yield* rendered(
+        NotificationDigestEmail(NotificationDigestEmail.PreviewProps)
+      )
+      expect(html).toContain('Your daily notification digest')
+      expect(html).toContain('2 unread notifications')
+      expect(html).toContain('Webhook delivery gave up')
+      expect(html).toContain('Cloudflare Email needs configuration')
+      expect(html).toContain(NotificationDigestEmail.PreviewProps.preferencesUrl)
+    })
+  )
 
-  it('renders the digest with one row per item and the unsubscribe link', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { html } = yield* rendered(
-          NotificationDigestEmail(NotificationDigestEmail.PreviewProps)
-        )
-        expect(html).toContain('Your daily notification digest')
-        expect(html).toContain('2 unread notifications')
-        expect(html).toContain('Webhook delivery gave up')
-        expect(html).toContain('Cloudflare Email needs configuration')
-        expect(html).toContain(NotificationDigestEmail.PreviewProps.preferencesUrl)
-      })
-    ))
-
-  it('renders the digest for a single item with singular copy', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const [first] = NotificationDigestEmail.PreviewProps.items
-        if (first === undefined) {
-          return yield* Effect.die('preview props need at least one item')
-        }
-        const { html } = yield* rendered(
-          NotificationDigestEmail({
-            ...NotificationDigestEmail.PreviewProps,
-            items: [first]
-          })
-        )
-        expect(html).toContain('One unread notification')
-      })
-    ))
+  it.effect('renders the digest for a single item with singular copy', () =>
+    Effect.gen(function* () {
+      const [first] = NotificationDigestEmail.PreviewProps.items
+      if (first === undefined) {
+        return yield* Effect.die('preview props need at least one item')
+      }
+      const { html } = yield* rendered(
+        NotificationDigestEmail({
+          ...NotificationDigestEmail.PreviewProps,
+          items: [first]
+        })
+      )
+      expect(html).toContain('One unread notification')
+    })
+  )
 })

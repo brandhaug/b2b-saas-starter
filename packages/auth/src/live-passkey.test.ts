@@ -13,7 +13,7 @@ import {
   mergeCookiePairs
 } from 'effectful-better-auth'
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
+import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { Auth } from './index.ts'
 import {
   buildAuthLayer,
@@ -52,6 +52,7 @@ let authLayer: Layer.Layer<AuthService>
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
   () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the hook is the port: layer() suites expose no live tester for a real-clock suite, and a memoized fixture could not dispose its workerd process
     Effect.runPromise(
       Effect.gen(function* () {
         provisioned = yield* Effect.promise(() => provisionAuthD1())
@@ -66,7 +67,7 @@ beforeAll(
 afterAll(() => provisioned.dispose())
 
 function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
-  return Effect.runPromise(Effect.provide(effect, authLayer))
+  return Effect.provide(effect, authLayer)
 }
 
 /* -------------------------------------------------------------------------- */
@@ -402,7 +403,7 @@ function signInWithPasskey(authenticator: ReturnType<typeof makeAuthenticator>) 
 /* -------------------------------------------------------------------------- */
 
 describe('passkey plugin', () => {
-  it('registers a passkey under a user-chosen name against the mapped table', () =>
+  it.live('registers a passkey under a user-chosen name against the mapped table', () =>
     run(
       Effect.gen(function* () {
         const { cookieHeader } = yield* signUpSession('passkey@owner.test')
@@ -422,9 +423,10 @@ describe('passkey plugin', () => {
         expect(rows[0]?.name).toBe('MacBook Touch ID')
         expect(rows[0]?.credentialID).toBe(created.credentialID)
       })
-    ))
+    )
+  )
 
-  it('lists, renames, and removes the signed-in user passkeys', () =>
+  it.live('lists, renames, and removes the signed-in user passkeys', () =>
     run(
       Effect.gen(function* () {
         const { cookieHeader } = yield* signUpSession('passkey@manage.test')
@@ -451,9 +453,10 @@ describe('passkey plugin', () => {
         const after = yield* auth.api.listPasskeys({ headers })
         expect(after).toHaveLength(0)
       })
-    ))
+    )
+  )
 
-  it('signs in with a passkey and opens a working session', () =>
+  it.live('signs in with a passkey and opens a working session', () =>
     run(
       Effect.gen(function* () {
         const { cookieHeader } = yield* signUpSession('passkey@signin.test')
@@ -473,9 +476,10 @@ describe('passkey plugin', () => {
         expect(listed).toHaveLength(1)
         expect(listed[0]?.name).toBe('Key')
       })
-    ))
+    )
+  )
 
-  it('rejects an assertion whose challenge does not match the issued one', () =>
+  it.live('rejects an assertion whose challenge does not match the issued one', () =>
     run(
       Effect.gen(function* () {
         const { cookieHeader } = yield* signUpSession('passkey@tamper.test')
@@ -504,33 +508,37 @@ describe('passkey plugin', () => {
           )
         expect(attempt.refused).toBe(true)
       })
-    ))
+    )
+  )
 
-  it('satisfies the two-factor requirement: TOTP-enabled users sign in without a code', () =>
-    run(
-      Effect.gen(function* () {
-        const session = yield* signUpSession('passkey@twofactor.test')
-        const authenticator = makeAuthenticator()
+  it.live(
+    'satisfies the two-factor requirement: TOTP-enabled users sign in without a code',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const session = yield* signUpSession('passkey@twofactor.test')
+          const authenticator = makeAuthenticator()
 
-        // Enable TOTP the way the account panel does — the shared ceremony's
-        // returned cookie carries the session through every rotation.
-        const { freshCookieHeader } = yield* enableTotp(session)
+          // Enable TOTP the way the account panel does — the shared ceremony's
+          // returned cookie carries the session through every rotation.
+          const { freshCookieHeader } = yield* enableTotp(session)
 
-        // The passkey ceremony opens a session DIRECTLY — no twoFactorRedirect
-        // hop exists on this path (ADR 0056): the two-factor plugin's after
-        // hook matches the credential sign-in endpoints only.
-        yield* registerPasskey(freshCookieHeader, authenticator, 'Key')
-        const { verification, cookies } = yield* signInWithPasskey(authenticator)
-        expect(verification.response.session).toBeDefined()
+          // The passkey ceremony opens a session DIRECTLY — no twoFactorRedirect
+          // hop exists on this path (ADR 0056): the two-factor plugin's after
+          // hook matches the credential sign-in endpoints only.
+          yield* registerPasskey(freshCookieHeader, authenticator, 'Key')
+          const { verification, cookies } = yield* signInWithPasskey(authenticator)
+          expect(verification.response.session).toBeDefined()
 
-        const rows = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.email, 'passkey@twofactor.test'))
-        )
-        expect(rows[0]?.twoFactorEnabled).toBe(true)
+          const rows = yield* Effect.promise(() =>
+            db.select().from(user).where(eq(user.email, 'passkey@twofactor.test'))
+          )
+          expect(rows[0]?.twoFactorEnabled).toBe(true)
 
-        // The challenge cookie is not a session: only the ceremony's session
-        // cookie opens one (the set above proves it).
-        expect(cookies).toContain('better-auth.session_token=')
-      })
-    ))
+          // The challenge cookie is not a session: only the ceremony's session
+          // cookie opens one (the set above proves it).
+          expect(cookies).toContain('better-auth.session_token=')
+        })
+      )
+  )
 })

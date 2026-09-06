@@ -89,6 +89,7 @@ function planFor(): AccountDeletionPlan {
 }
 
 function makeRunner(layer: Layer.Layer<AccountLifecycle>): AccountLifecycleRunner {
+  // oxlint-disable-next-line starter/no-run-promise-in-tests -- the AccountLifecycleRunner port must return a Promise — Better Auth invokes it outside any runtime
   return async (effect) => Effect.runPromise(Effect.provide(effect, layer))
 }
 

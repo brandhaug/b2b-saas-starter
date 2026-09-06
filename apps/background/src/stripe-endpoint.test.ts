@@ -3,7 +3,7 @@ import {
   type ApplySubscriptionEventInput
 } from '@b2b-saas-starter/capabilities/billing/billing'
 import { Effect, Layer } from 'effect'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 
 import checkoutCompleted from './fixtures/stripe/checkout.session.completed.json'
 import subscriptionCreated from './fixtures/stripe/customer.subscription.created.json'
@@ -57,131 +57,122 @@ function payloadOf(fixture: unknown): string {
 function run(fixture: unknown) {
   const calls: RecordedCalls = { plans: [], subscriptions: [] }
   return Effect.map(
-    Effect.scoped(
-      processStripeEvent(payloadOf(fixture)).pipe(
-        Effect.provide(recordingBilling(calls))
-      )
+    processStripeEvent(payloadOf(fixture)).pipe(
+      Effect.provide(recordingBilling(calls))
     ),
     () => calls
   )
 }
 
 describe('processStripeEvent', () => {
-  it('maps checkout completion to a plan change plus a subscription link', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const calls = yield* run(checkoutCompleted)
-        expect(calls.plans).toEqual([
-          {
-            workspaceId: 'wrk_starter',
-            planId: 'team',
-            detail: { source: 'checkout.session.completed' }
-          }
-        ])
-        expect(calls.subscriptions).toEqual([
-          {
-            workspaceId: 'wrk_starter',
-            customerId: 'cus_seed_starter_lab',
-            subscriptionId: 'sub_seed_starter_lab',
-            subscriptionItemId: undefined,
-            quantity: undefined,
-            deleted: undefined,
-            detail: { source: 'checkout.session.completed' }
-          }
-        ])
-      })
-    ))
-
-  it('reconciles the seat quantity from a subscription update', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const calls = yield* run(subscriptionUpdated)
-        // No plan change rides a quantity update — the checkout already set it.
-        expect(calls.plans).toEqual([])
-        expect(calls.subscriptions).toEqual([
-          {
-            workspaceId: 'wrk_starter',
-            customerId: 'cus_seed_starter_lab',
-            subscriptionId: 'sub_seed_starter_lab',
-            subscriptionItemId: 'si_seed_starter_lab',
-            quantity: 6,
-            deleted: undefined,
-            detail: { source: 'customer.subscription.updated' }
-          }
-        ])
-      })
-    ))
-
-  it('maps deletion to the downgrade plus a seat-item detach', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const calls = yield* run(subscriptionDeleted)
-        expect(calls.plans).toEqual([
-          {
-            workspaceId: 'wrk_starter',
-            planId: 'starter',
-            detail: { source: 'customer.subscription.deleted' }
-          }
-        ])
-        expect(calls.subscriptions).toEqual([
-          {
-            workspaceId: 'wrk_starter',
-            customerId: undefined,
-            subscriptionId: undefined,
-            subscriptionItemId: undefined,
-            quantity: undefined,
-            deleted: true,
-            detail: { source: 'customer.subscription.deleted' }
-          }
-        ])
-      })
-    ))
-
-  it('records the first subscription state without a plan change', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const calls = yield* run(subscriptionCreated)
-        expect(calls.plans).toEqual([])
-        expect(calls.subscriptions[0]).toMatchObject({
+  it.effect('maps checkout completion to a plan change plus a subscription link', () =>
+    Effect.gen(function* () {
+      const calls = yield* run(checkoutCompleted)
+      expect(calls.plans).toEqual([
+        {
           workspaceId: 'wrk_starter',
+          planId: 'team',
+          detail: { source: 'checkout.session.completed' }
+        }
+      ])
+      expect(calls.subscriptions).toEqual([
+        {
+          workspaceId: 'wrk_starter',
+          customerId: 'cus_seed_starter_lab',
+          subscriptionId: 'sub_seed_starter_lab',
+          subscriptionItemId: undefined,
+          quantity: undefined,
+          deleted: undefined,
+          detail: { source: 'checkout.session.completed' }
+        }
+      ])
+    })
+  )
+
+  it.effect('reconciles the seat quantity from a subscription update', () =>
+    Effect.gen(function* () {
+      const calls = yield* run(subscriptionUpdated)
+      // No plan change rides a quantity update — the checkout already set it.
+      expect(calls.plans).toEqual([])
+      expect(calls.subscriptions).toEqual([
+        {
+          workspaceId: 'wrk_starter',
+          customerId: 'cus_seed_starter_lab',
+          subscriptionId: 'sub_seed_starter_lab',
           subscriptionItemId: 'si_seed_starter_lab',
-          quantity: 4
-        })
-      })
-    ))
+          quantity: 6,
+          deleted: undefined,
+          detail: { source: 'customer.subscription.updated' }
+        }
+      ])
+    })
+  )
 
-  it('ignores unhandled event types without calling the capability', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const calls = yield* run({
-          type: 'invoice.paid',
-          data: { object: { customer: 'cus_seed_starter_lab' } }
-        })
-        expect(calls.plans).toEqual([])
-        expect(calls.subscriptions).toEqual([])
-      })
-    ))
+  it.effect('maps deletion to the downgrade plus a seat-item detach', () =>
+    Effect.gen(function* () {
+      const calls = yield* run(subscriptionDeleted)
+      expect(calls.plans).toEqual([
+        {
+          workspaceId: 'wrk_starter',
+          planId: 'starter',
+          detail: { source: 'customer.subscription.deleted' }
+        }
+      ])
+      expect(calls.subscriptions).toEqual([
+        {
+          workspaceId: 'wrk_starter',
+          customerId: undefined,
+          subscriptionId: undefined,
+          subscriptionItemId: undefined,
+          quantity: undefined,
+          deleted: true,
+          detail: { source: 'customer.subscription.deleted' }
+        }
+      ])
+    })
+  )
 
-  it('skips a handled event that names no workspace', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const calls = yield* run({
-          type: 'customer.subscription.updated',
-          data: {
-            object: { id: 'sub_x', items: { data: [{ id: 'si_x', quantity: 2 }] } }
-          }
-        })
-        expect(calls.plans).toEqual([])
-        expect(calls.subscriptions).toEqual([])
+  it.effect('records the first subscription state without a plan change', () =>
+    Effect.gen(function* () {
+      const calls = yield* run(subscriptionCreated)
+      expect(calls.plans).toEqual([])
+      expect(calls.subscriptions[0]).toMatchObject({
+        workspaceId: 'wrk_starter',
+        subscriptionItemId: 'si_seed_starter_lab',
+        quantity: 4
       })
-    ))
+    })
+  )
 
-  it('tolerates a malformed body as a skip, not a failure', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const calls = yield* run({ type: 'checkout.session.completed', data: 'nope' })
-        expect(calls.plans).toEqual([])
-        expect(calls.subscriptions).toEqual([])
+  it.effect('ignores unhandled event types without calling the capability', () =>
+    Effect.gen(function* () {
+      const calls = yield* run({
+        type: 'invoice.paid',
+        data: { object: { customer: 'cus_seed_starter_lab' } }
       })
-    ))
+      expect(calls.plans).toEqual([])
+      expect(calls.subscriptions).toEqual([])
+    })
+  )
+
+  it.effect('skips a handled event that names no workspace', () =>
+    Effect.gen(function* () {
+      const calls = yield* run({
+        type: 'customer.subscription.updated',
+        data: {
+          object: { id: 'sub_x', items: { data: [{ id: 'si_x', quantity: 2 }] } }
+        }
+      })
+      expect(calls.plans).toEqual([])
+      expect(calls.subscriptions).toEqual([])
+    })
+  )
+
+  it.effect('tolerates a malformed body as a skip, not a failure', () =>
+    Effect.gen(function* () {
+      const calls = yield* run({ type: 'checkout.session.completed', data: 'nope' })
+      expect(calls.plans).toEqual([])
+      expect(calls.subscriptions).toEqual([])
+    })
+  )
 })

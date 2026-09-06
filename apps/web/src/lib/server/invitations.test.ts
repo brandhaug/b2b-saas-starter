@@ -212,6 +212,7 @@ describe('previewInvitation — the non-disclosure collapse', () => {
   }
 
   it('describes a pending invitation to its recipient', async () => {
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- server-fn handler pattern per apps/web/AGENTS.md keeps plain it (TestClock epoch 0 vs session-expiry fixtures)
     const preview = await Effect.runPromise(previewInvitation(invitation(), INVITEE))
     expect(preview).toEqual({
       state: 'pending',
@@ -223,6 +224,7 @@ describe('previewInvitation — the non-disclosure collapse', () => {
   })
 
   it('answers a wrong-recipient viewer with the same opaque answer as an unknown id', async () => {
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- server-fn handler pattern per apps/web/AGENTS.md keeps plain it (TestClock epoch 0 vs session-expiry fixtures)
     const preview = await Effect.runPromise(
       previewInvitation(invitation(), 'someone-else@example.com')
     )
@@ -230,6 +232,7 @@ describe('previewInvitation — the non-disclosure collapse', () => {
   })
 
   it('answers an expired invitation with the same opaque answer', async () => {
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- server-fn handler pattern per apps/web/AGENTS.md keeps plain it (TestClock epoch 0 vs session-expiry fixtures)
     const preview = await Effect.runPromise(
       previewInvitation(invitation({ expiresAt: PAST }), INVITEE)
     )
@@ -237,6 +240,7 @@ describe('previewInvitation — the non-disclosure collapse', () => {
   })
 
   it('answers an already-settled invitation with the same opaque answer', async () => {
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- server-fn handler pattern per apps/web/AGENTS.md keeps plain it (TestClock epoch 0 vs session-expiry fixtures)
     const preview = await Effect.runPromise(
       previewInvitation(invitation({ status: 'accepted' }), INVITEE)
     )

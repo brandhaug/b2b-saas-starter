@@ -706,6 +706,13 @@ const { lint = {} } = defineConfig({
       {
         files: ['**/test/**', '**/*.test.ts', '**/*.test.tsx', '**/vitest.setup.ts'],
         rules: {
+          // A test that hand-starts a runtime with Effect.runPromise swaps
+          // TestContext for a bare one: no Scope from the runner, failures
+          // outside the fiber, and time reads that leave the TestClock — the
+          // exact hazards the it.effect migration removed. Interop sites (a
+          // runner port a non-Effect framework calls) keep the call behind a
+          // per-site disable naming the port.
+          'starter/no-run-promise-in-tests': 'error',
           'no-empty-function': 'off',
           'unicorn/consistent-function-scoping': 'off',
           // Tests keep the escape hatches (forcing a defect is a legitimate

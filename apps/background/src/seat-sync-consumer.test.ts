@@ -5,7 +5,7 @@ import {
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { SeatSyncQueueMessage } from '@b2b-saas-starter/capabilities/billing/seat-sync'
 import { Effect, Layer } from 'effect'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 
 import { processSeatSyncMessage } from './seat-sync-consumer.ts'
 import {
@@ -42,11 +42,9 @@ function stubBilling(
 
 function run(body: unknown, billing: Layer.Layer<Billing>) {
   return Effect.map(
-    Effect.scoped(
-      processSeatSyncMessage(
-        readDelivery(SeatSyncQueueMessage, { id: 'qmsg_seat', body, attempts: 0 })
-      ).pipe(Effect.provide(billing))
-    ),
+    processSeatSyncMessage(
+      readDelivery(SeatSyncQueueMessage, { id: 'qmsg_seat', body, attempts: 0 })
+    ).pipe(Effect.provide(billing)),
     (outcome) => ({ outcome })
   )
 }
@@ -91,94 +89,87 @@ describe('readDelivery', () => {
 })
 
 describe('processSeatSyncMessage', () => {
-  it('acks an honest no-op outcome', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const calls: Array<SyncCall> = []
-        const { outcome } = yield* run(
+  it.effect('acks an honest no-op outcome', () =>
+    Effect.gen(function* () {
+      const calls: Array<SyncCall> = []
+      const { outcome } = yield* run(
+        message,
+        stubBilling(calls, () =>
+          Effect.succeed({ outcome: 'no_subscription', quantity: null })
+        )
+      )
+      expect(outcome).toBe<DeliveryOutcome>('ack')
+      expect(calls).toEqual([{ workspaceId: 'wrk_starter', reason: 'member_added' }])
+    })
+  )
+
+  it.effect('acks a synced outcome', () =>
+    Effect.gen(function* () {
+      const { outcome } = yield* run(
+        message,
+        stubBilling([], () => Effect.succeed({ outcome: 'synced', quantity: 5 }))
+      )
+      expect(outcome).toBe<DeliveryOutcome>('ack')
+    })
+  )
+
+  it.effect('acks a malformed message without calling the capability', () =>
+    Effect.gen(function* () {
+      const calls: Array<SyncCall> = []
+      const { outcome } = yield* run(
+        { nope: true },
+        stubBilling(calls, () => Effect.die('not reached'))
+      )
+      expect(outcome).toBe<DeliveryOutcome>('ack')
+      expect(calls).toEqual([])
+    })
+  )
+
+  it.effect('propagates a provider failure for the consumer entry to fold', () =>
+    Effect.gen(function* () {
+      const error = yield* Effect.flip(
+        run(
           message,
-          stubBilling(calls, () =>
-            Effect.succeed({ outcome: 'no_subscription', quantity: null })
-          )
-        )
-        expect(outcome).toBe<DeliveryOutcome>('ack')
-        expect(calls).toEqual([{ workspaceId: 'wrk_starter', reason: 'member_added' }])
-      })
-    ))
-
-  it('acks a synced outcome', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { outcome } = yield* run(
-          message,
-          stubBilling([], () => Effect.succeed({ outcome: 'synced', quantity: 5 }))
-        )
-        expect(outcome).toBe<DeliveryOutcome>('ack')
-      })
-    ))
-
-  it('acks a malformed message without calling the capability', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const calls: Array<SyncCall> = []
-        const { outcome } = yield* run(
-          { nope: true },
-          stubBilling(calls, () => Effect.die('not reached'))
-        )
-        expect(outcome).toBe<DeliveryOutcome>('ack')
-        expect(calls).toEqual([])
-      })
-    ))
-
-  it('propagates a provider failure for the consumer entry to fold', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const error = yield* Effect.flip(
-          run(
-            message,
-            stubBilling([], () =>
-              Effect.fail(
-                new CapabilityUnavailable({
-                  capability: 'billing',
-                  reason: 'stripe request failed'
-                })
-              )
+          stubBilling([], () =>
+            Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'billing',
+                reason: 'stripe request failed'
+              })
             )
           )
         )
-        expect(error._tag).toBe('CapabilityUnavailable')
-      })
-    ))
+      )
+      expect(error._tag).toBe('CapabilityUnavailable')
+    })
+  )
 
-  it("folds an escaped provider failure into the entry's retry outcome", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        // The fold in `consumerInvocation` — outside `withTriggerScope`, so
-        // the wide event exits with the cause before it becomes an outcome —
-        // went from dead code to the load-bearing path for every retryable
-        // consumer when the per-consumer wrapper was deleted. Drive it
-        // directly: a program that fails must answer `retry`.
-        const outcome = yield* Effect.scoped(
-          consumerInvocation(
-            {},
-            {
-              event: 'seat_sync',
-              delivery: readDelivery(SeatSyncQueueMessage, {
-                id: 'qmsg_fold',
-                body: message,
-                attempts: 1
-              }),
-              program: Effect.fail(
-                new CapabilityUnavailable({
-                  capability: 'billing',
-                  reason: 'stripe request failed'
-                })
-              ),
-              onFailure: 'retry'
-            }
-          )
-        )
-        expect(outcome).toBe<DeliveryOutcome>('retry')
-      })
-    ))
+  it.effect("folds an escaped provider failure into the entry's retry outcome", () =>
+    Effect.gen(function* () {
+      // The fold in `consumerInvocation` — outside `withTriggerScope`, so
+      // the wide event exits with the cause before it becomes an outcome —
+      // went from dead code to the load-bearing path for every retryable
+      // consumer when the per-consumer wrapper was deleted. Drive it
+      // directly: a program that fails must answer `retry`.
+      const outcome = yield* consumerInvocation(
+        {},
+        {
+          event: 'seat_sync',
+          delivery: readDelivery(SeatSyncQueueMessage, {
+            id: 'qmsg_fold',
+            body: message,
+            attempts: 1
+          }),
+          program: Effect.fail(
+            new CapabilityUnavailable({
+              capability: 'billing',
+              reason: 'stripe request failed'
+            })
+          ),
+          onFailure: 'retry'
+        }
+      )
+      expect(outcome).toBe<DeliveryOutcome>('retry')
+    })
+  )
 })

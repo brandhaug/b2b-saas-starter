@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 import { count, eq, getTableName, is, Table } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
+import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { provisionTestD1, type TestD1 } from './testing.ts'
 import { Database, layerFromD1, type RawD1, batch, DbBatchError } from './service.ts'
 import * as schema from './schema.ts'
@@ -23,12 +23,14 @@ let test: TestD1
 let dbLayer: ReturnType<typeof layerFromD1>
 
 // getPlatformProxy boots a workerd process (~seconds) that the whole suite
-// shares and must dispose afterwards. Expressing that as a scoped Layer needs
-// `@effect/vitest`'s `it.layer(...)`, which this package does not depend on, so
-// vitest's own suite lifecycle owns the process instead.
+// shares and must dispose afterwards. The suite lifecycle stays vitest's:
+// `@effect/vitest`'s `layer(...)` would own the process as a scoped Layer,
+// but it hands its callback a tester with no `live` (`MethodsNonLive`), and
+// these tests read the real clock over workerd — so the hook is the port.
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
   () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the hook is the port: layer() suites expose no live tester for a real-clock suite, and a memoized fixture could not dispose its workerd process
     Effect.runPromise(
       Effect.gen(function* () {
         test = yield* Effect.promise(() => provisionTestD1())
@@ -42,7 +44,7 @@ beforeAll(
 afterAll(() => test.dispose())
 
 function run<A, E>(effect: Effect.Effect<A, E, Database | RawD1>) {
-  return Effect.runPromise(Effect.provide(effect, dbLayer))
+  return Effect.provide(effect, dbLayer)
 }
 
 // Derived from the schema module, not hand-listed: a table added to
@@ -63,26 +65,25 @@ const createdAtFixture = new Date('2026-08-15T09:00:00.000Z')
 const expiresAtFixture = new Date('2026-08-17T09:00:00.000Z')
 
 describe('migrations', () => {
-  it('create every table the schema declares', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const rows = yield* Effect.promise(() =>
-          test.d1
-            .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-            .all<{ name: string }>()
-        )
-        const tables = new Set(rows.results.map((row) => row.name))
-        expect(schemaTableNames.length).toBeGreaterThan(0)
-        for (const table of schemaTableNames) {
-          expect(tables, `missing table ${table}`).toContain(table)
-        }
-      })
-    ))
+  it.live('create every table the schema declares', () =>
+    Effect.gen(function* () {
+      const rows = yield* Effect.promise(() =>
+        test.d1
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+          .all<{ name: string }>()
+      )
+      const tables = new Set(rows.results.map((row) => row.name))
+      expect(schemaTableNames.length).toBeGreaterThan(0)
+      for (const table of schemaTableNames) {
+        expect(tables, `missing table ${table}`).toContain(table)
+      }
+    })
+  )
 
   // The organization plugin reads these tables by its own field names. A
   // column the plugin expects but the migration never created is invisible
   // until a plugin endpoint runs, so assert the contract here instead.
-  it.each([
+  describe.each([
     {
       table: 'workspaces',
       columns: [
@@ -115,8 +116,8 @@ describe('migrations', () => {
     },
     // The plugin declares this field on `session` unconditionally.
     { table: 'session', columns: ['activeOrganizationId'] }
-  ])('give $table the columns the organization plugin expects', ({ table, columns }) =>
-    Effect.runPromise(
+  ])('$table', ({ table, columns }) => {
+    it.live('has the columns the organization plugin expects', () =>
       Effect.gen(function* () {
         const rows = yield* Effect.promise(() =>
           test.d1.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>()
@@ -127,11 +128,11 @@ describe('migrations', () => {
         }
       })
     )
-  )
+  })
 })
 
 describe('column modes over live D1', () => {
-  it('round-trips JSON-mode text columns as parsed values', () =>
+  it.live('round-trips JSON-mode text columns as parsed values', () =>
     run(
       Effect.gen(function* () {
         const database = yield* Database
@@ -155,14 +156,15 @@ describe('column modes over live D1', () => {
           .where(eq(apiTokens.id, 'tok_json_check'))
         expect(rows[0]?.scopes).toEqual(['read', 'write'])
       })
-    ))
+    )
+  )
 })
 
 // Workspace timestamps moved from ISO text to Better Auth's epoch integers.
 // The column has to be an integer for the plugin's date handling to work, and
 // a `Date` on the way back out for the starter's — assert both halves.
 describe('workspace timestamps over live D1', () => {
-  it('stores epoch integers and reads them back as Dates', () =>
+  it.live('stores epoch integers and reads them back as Dates', () =>
     run(
       Effect.gen(function* () {
         const database = yield* Database
@@ -192,9 +194,10 @@ describe('workspace timestamps over live D1', () => {
         expect(raw?.kind).toBe('integer')
         expect(raw?.createdAt).toBe(Math.floor(createdAt.getTime() / 1000))
       })
-    ))
+    )
+  )
 
-  it('defaults planId and stamps timestamps when the plugin omits them', () =>
+  it.live('defaults planId and stamps timestamps when the plugin omits them', () =>
     run(
       Effect.gen(function* () {
         const database = yield* Database
@@ -208,11 +211,12 @@ describe('workspace timestamps over live D1', () => {
         expect(rows[0]?.planId).toBe('starter')
         expect(rows[0]?.createdAt).toBeInstanceOf(Date)
       })
-    ))
+    )
+  )
 })
 
 describe('referential integrity over live D1', () => {
-  it('cascade-deletes workspace children when the workspace is removed', () =>
+  it.live('cascade-deletes workspace children when the workspace is removed', () =>
     run(
       Effect.gen(function* () {
         const database = yield* Database
@@ -280,14 +284,15 @@ describe('referential integrity over live D1', () => {
           invitations: invitations[0]?.value
         }).toEqual({ tokens: 0, notifications: 0, members: 0, invitations: 0 })
       })
-    ))
+    )
+  )
 })
 
 describe('workspace membership over live D1', () => {
   // The plugin addresses members by a surrogate id, so `workspace_members` no
   // longer has a composite primary key. One membership per user per workspace
   // is the invariant that key used to carry, and it must survive the swap.
-  it('refuses a second membership row for the same user and workspace', () =>
+  it.live('refuses a second membership row for the same user and workspace', () =>
     run(
       Effect.gen(function* () {
         const database = yield* Database
@@ -319,14 +324,15 @@ describe('workspace membership over live D1', () => {
         expect(error).toBeDefined()
         expect(rows[0]?.value).toBe(1)
       })
-    ))
+    )
+  )
 })
 
 describe('workspace invitations over live D1', () => {
   // `workspace_invitations` was a dead table before this migration. It now
   // carries the plugin's state machine, so a row must be storable with the
   // status left to its default — that is how the plugin creates one.
-  it('defaults a new invitation to pending', () =>
+  it.live('defaults a new invitation to pending', () =>
     run(
       Effect.gen(function* () {
         const database = yield* Database
@@ -352,9 +358,10 @@ describe('workspace invitations over live D1', () => {
         expect(rows[0]?.status).toBe('pending')
         expect(rows[0]?.expiresAt).toEqual(expiresAt)
       })
-    ))
+    )
+  )
 
-  it('cascade-deletes an invitation when its inviter is removed', () =>
+  it.live('cascade-deletes an invitation when its inviter is removed', () =>
     run(
       Effect.gen(function* () {
         const database = yield* Database
@@ -379,11 +386,12 @@ describe('workspace invitations over live D1', () => {
           .where(eq(workspaceInvitations.id, 'inv_orphan'))
         expect(rows[0]?.value).toBe(0)
       })
-    ))
+    )
+  )
 })
 
 describe('batch atomicity over live D1', () => {
-  it('rolls back every statement when one fails', () =>
+  it.live('rolls back every statement when one fails', () =>
     run(
       Effect.gen(function* () {
         const database = yield* Database
@@ -415,5 +423,6 @@ describe('batch atomicity over live D1', () => {
         expect(error).toBeInstanceOf(DbBatchError)
         expect(rows).toHaveLength(0)
       })
-    ))
+    )
+  )
 })

@@ -1,5 +1,5 @@
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { describe, expect, test } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
 import { PAGED_TOOL_INPUT, mcpDiscoveryDocument } from './mcp.ts'
@@ -14,13 +14,13 @@ import { jsonBody, mcpClient } from './test-utils.ts'
  * which would resurrect a surface REST never advertised, has nowhere to hide.
  */
 describe('mcp ↔ rest operation mirror', () => {
-  test('discovery advertises exactly the shared read operations, in order', () => {
+  it('discovery advertises exactly the shared read operations, in order', () => {
     expect(mcpDiscoveryDocument().tools.map((tool) => tool.name)).toEqual(
       readOperations().map((op) => op.toolName)
     )
   })
 
-  test('every advertised tool names the REST operation it mirrors', () => {
+  it('every advertised tool names the REST operation it mirrors', () => {
     for (const [index, operation] of readOperations().entries()) {
       const tool = mcpDiscoveryDocument().tools[index]
       expect(tool?.description).toContain(
@@ -29,7 +29,7 @@ describe('mcp ↔ rest operation mirror', () => {
     }
   })
 
-  test('list tools advertise the paging input; non-list tools take none', () => {
+  it('list tools advertise the paging input; non-list tools take none', () => {
     const AdvertisedInput = Schema.Struct({
       properties: Schema.Record(Schema.String, Schema.Unknown)
     })
@@ -60,7 +60,7 @@ describe('mcp ↔ rest operation mirror', () => {
     }
   })
 
-  test('the paged tool input names the same paging vocabulary as the REST query', () => {
+  it('the paged tool input names the same paging vocabulary as the REST query', () => {
     // `ListPageQuery` (packages/api) owns this vocabulary for REST — optional
     // `cursor` string, optional `limit` number (ADR 0057). Pinning the Effect
     // schema's advertised shape here keeps the two surfaces from drifting on
@@ -138,186 +138,175 @@ const GuardFailureBody = Schema.Struct({
 })
 
 describe('POST /mcp protocol', () => {
-  test('a session-initialized client lists tools and calls them', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const client = mcpClient(handler, bearer.authorization)
-        yield* Effect.promise(() => client.initialize())
+  it.effect('a session-initialized client lists tools and calls them', () =>
+    Effect.gen(function* () {
+      const client = mcpClient(handler, bearer.authorization)
+      yield* Effect.promise(() => client.initialize())
 
-        const listed = yield* Effect.promise(() => client.rpc('tools/list', {}))
-        expect(listed.status).toBe(200)
-        const body = yield* jsonBody(listed, Ok(ToolListResult))
-        // `tools/list` and the discovery document are both projected from the
-        // shared operation table, so both surfaces answer with one list.
-        expect(body.result.tools.map((tool) => tool.name)).toEqual(
-          readOperations().map((op) => op.toolName)
-        )
-        expect(mcpDiscoveryDocument().tools).toHaveLength(readOperations().length)
+      const listed = yield* Effect.promise(() => client.rpc('tools/list', {}))
+      expect(listed.status).toBe(200)
+      const body = yield* jsonBody(listed, Ok(ToolListResult))
+      // `tools/list` and the discovery document are both projected from the
+      // shared operation table, so both surfaces answer with one list.
+      expect(body.result.tools.map((tool) => tool.name)).toEqual(
+        readOperations().map((op) => op.toolName)
+      )
+      expect(mcpDiscoveryDocument().tools).toHaveLength(readOperations().length)
 
-        const called = yield* Effect.promise(() =>
-          client.rpc('tools/call', {
-            name: 'list_notifications',
-            arguments: {}
-          })
-        )
-        expect(called.status).toBe(200)
-        const result = yield* jsonBody(called, Ok(CallToolResult))
-        expect(result.result.isError).not.toBe(true)
-        expect(result.result.content[0]?.text).toContain('not_email')
-      })
-    ))
+      const called = yield* Effect.promise(() =>
+        client.rpc('tools/call', {
+          name: 'list_notifications',
+          arguments: {}
+        })
+      )
+      expect(called.status).toBe(200)
+      const result = yield* jsonBody(called, Ok(CallToolResult))
+      expect(result.result.isError).not.toBe(true)
+      expect(result.result.content[0]?.text).toContain('not_email')
+    })
+  )
 
-  test('initialize answers an unknown offered revision with the served one', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const client = mcpClient(handler, bearer.authorization)
-        const res = yield* Effect.promise(() =>
-          client.rpc('initialize', {
-            protocolVersion: '2026-07-28',
-            capabilities: {},
-            clientInfo: { name: 'client-from-the-future', version: '1.0.0' }
-          })
-        )
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, Ok(InitializeResult))
-        expect(body.result.serverInfo.name).toBe('b2b-saas-starter-mcp')
-      })
-    ))
+  it.effect('initialize answers an unknown offered revision with the served one', () =>
+    Effect.gen(function* () {
+      const client = mcpClient(handler, bearer.authorization)
+      const res = yield* Effect.promise(() =>
+        client.rpc('initialize', {
+          protocolVersion: '2026-07-28',
+          capabilities: {},
+          clientInfo: { name: 'client-from-the-future', version: '1.0.0' }
+        })
+      )
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(res, Ok(InitializeResult))
+      expect(body.result.serverInfo.name).toBe('b2b-saas-starter-mcp')
+    })
+  )
 
-  test('a request without a session is refused, not served statelessly', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          new Request('https://api.test/mcp', {
-            method: 'POST',
-            headers: bearer,
-            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
-          })
-        )
-        // The transport is sessionful: only initialize opens a session, and
-        // everything else must carry the one it minted.
-        expect(res.status).toBe(400)
-      })
-    ))
+  it.effect('a request without a session is refused, not served statelessly', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        new Request('https://api.test/mcp', {
+          method: 'POST',
+          headers: bearer,
+          body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+        })
+      )
+      // The transport is sessionful: only initialize opens a session, and
+      // everything else must carry the one it minted.
+      expect(res.status).toBe(400)
+    })
+  )
 
-  test('tools/call list_notifications honors the paging input like REST', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const client = mcpClient(handler, bearer.authorization)
-        yield* Effect.promise(() => client.initialize())
-        const res = yield* Effect.promise(() =>
-          client.rpc('tools/call', {
-            name: 'list_notifications',
-            arguments: { limit: 2, cursor: 'not-a-cursor' }
-          })
-        )
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, Ok(CallToolResult))
-        expect(body.result.isError).not.toBe(true)
-        // An undecodable cursor addresses no position — the empty page the
-        // REST route serves for the same input.
-        expect(body.result.content[0]?.text).toContain('[]')
-      })
-    ))
+  it.effect('tools/call list_notifications honors the paging input like REST', () =>
+    Effect.gen(function* () {
+      const client = mcpClient(handler, bearer.authorization)
+      yield* Effect.promise(() => client.initialize())
+      const res = yield* Effect.promise(() =>
+        client.rpc('tools/call', {
+          name: 'list_notifications',
+          arguments: { limit: 2, cursor: 'not-a-cursor' }
+        })
+      )
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(res, Ok(CallToolResult))
+      expect(body.result.isError).not.toBe(true)
+      // An undecodable cursor addresses no position — the empty page the
+      // REST route serves for the same input.
+      expect(body.result.content[0]?.text).toContain('[]')
+    })
+  )
 
-  test('resources/read serves the workspace overview resource', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const client = mcpClient(handler, bearer.authorization)
-        yield* Effect.promise(() => client.initialize())
-        const res = yield* Effect.promise(() =>
-          client.rpc('resources/read', { uri: 'workspace://overview' })
-        )
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, Ok(ResourceReadResult))
-        expect(body.result.contents[0]?.uri).toBe('workspace://overview')
-        expect(body.result.contents[0]?.text).toContain('starter-lab')
-      })
-    ))
+  it.effect('resources/read serves the workspace overview resource', () =>
+    Effect.gen(function* () {
+      const client = mcpClient(handler, bearer.authorization)
+      yield* Effect.promise(() => client.initialize())
+      const res = yield* Effect.promise(() =>
+        client.rpc('resources/read', { uri: 'workspace://overview' })
+      )
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(res, Ok(ResourceReadResult))
+      expect(body.result.contents[0]?.uri).toBe('workspace://overview')
+      expect(body.result.contents[0]?.text).toContain('starter-lab')
+    })
+  )
 
-  test('POST /mcp requires a bearer token, and rejects it the way REST does', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          new Request('https://api.test/mcp', {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              accept: 'application/json, text/event-stream'
-            },
-            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'initialize' })
-          })
-        )
-        expect(res.status).toBe(401)
-        // A guard failure is not a JSON-RPC failure: the request never reached
-        // the protocol. It is encoded from the contract's own error schemas —
-        // status from the tag table (pinned to each schema's `httpApiStatus`
-        // by `packages/api`'s errors test), body from the schema — so this
-        // route answers a rejected request exactly as a REST route does.
-        // Asserted against the REST answer rather than a literal, so the
-        // two cannot drift apart silently.
-        const rest = yield* send(
-          new Request('https://api.test/workspaces/acme/members')
-        )
-        expect(rest.status).toBe(res.status)
-        expect(yield* jsonBody(res, GuardFailureBody)).toEqual(
-          yield* jsonBody(rest, GuardFailureBody)
-        )
-      })
-    ))
+  it.effect('POST /mcp requires a bearer token, and rejects it the way REST does', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        new Request('https://api.test/mcp', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream'
+          },
+          body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'initialize' })
+        })
+      )
+      expect(res.status).toBe(401)
+      // A guard failure is not a JSON-RPC failure: the request never reached
+      // the protocol. It is encoded from the contract's own error schemas —
+      // status from the tag table (pinned to each schema's `httpApiStatus`
+      // by `packages/api`'s errors test), body from the schema — so this
+      // route answers a rejected request exactly as a REST route does.
+      // Asserted against the REST answer rather than a literal, so the
+      // two cannot drift apart silently.
+      const rest = yield* send(new Request('https://api.test/workspaces/acme/members'))
+      expect(rest.status).toBe(res.status)
+      expect(yield* jsonBody(res, GuardFailureBody)).toEqual(
+        yield* jsonBody(rest, GuardFailureBody)
+      )
+    })
+  )
 
-  test('an unknown token is an authentication failure, not a denial', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          new Request('https://api.test/mcp', {
-            method: 'POST',
-            headers: {
-              authorization: 'Bearer bsk_live_bogus',
-              'content-type': 'application/json',
-              accept: 'application/json, text/event-stream'
-            },
-            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'initialize' })
-          })
-        )
-        expect(res.status).toBe(401)
-      })
-    ))
+  it.effect('an unknown token is an authentication failure, not a denial', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        new Request('https://api.test/mcp', {
+          method: 'POST',
+          headers: {
+            authorization: 'Bearer bsk_live_bogus',
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream'
+          },
+          body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'initialize' })
+        })
+      )
+      expect(res.status).toBe(401)
+    })
+  )
 
-  test('malformed JSON is a JSON-RPC parse error, not a crash', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          new Request('https://api.test/mcp', {
-            method: 'POST',
-            headers: bearer,
-            body: '{not json'
-          })
-        )
-        // The transport carries the protocol error in a well-formed JSON-RPC
-        // body rather than an HTTP error status.
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(
-          res,
-          Schema.Struct({
-            jsonrpc: Schema.Literal('2.0'),
-            id: Schema.NullOr(Schema.Unknown),
-            error: Schema.Struct({ code: Schema.Number })
-          })
-        )
-        expect(body.error.code).toBe(-32_700)
-      })
-    ))
+  it.effect('malformed JSON is a JSON-RPC parse error, not a crash', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        new Request('https://api.test/mcp', {
+          method: 'POST',
+          headers: bearer,
+          body: '{not json'
+        })
+      )
+      // The transport carries the protocol error in a well-formed JSON-RPC
+      // body rather than an HTTP error status.
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(
+        res,
+        Schema.Struct({
+          jsonrpc: Schema.Literal('2.0'),
+          id: Schema.NullOr(Schema.Unknown),
+          error: Schema.Struct({ code: Schema.Number })
+        })
+      )
+      expect(body.error.code).toBe(-32_700)
+    })
+  )
 
-  test('a notification is accepted with no reply body', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const client = mcpClient(handler, bearer.authorization)
-        yield* Effect.promise(() => client.initialize())
-        const res = yield* Effect.promise(() =>
-          client.notify('notifications/initialized')
-        )
-        expect(res.status).toBe(202)
-      })
-    ))
+  it.effect('a notification is accepted with no reply body', () =>
+    Effect.gen(function* () {
+      const client = mcpClient(handler, bearer.authorization)
+      yield* Effect.promise(() => client.initialize())
+      const res = yield* Effect.promise(() =>
+        client.notify('notifications/initialized')
+      )
+      expect(res.status).toBe(202)
+    })
+  )
 })

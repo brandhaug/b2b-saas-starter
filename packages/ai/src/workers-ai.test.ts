@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 import { LanguageModel, Prompt } from 'effect/unstable/ai'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 import { ask, askFails, assistantOn } from './test-ask.ts'
 import { makeWorkersAIModel, type WorkersAIBinding } from './workers-ai.ts'
 
@@ -40,25 +40,24 @@ describe('workers-ai model', () => {
       }
     ))
 
-  it('refuses a prompt carrying a message it cannot send as plain chat', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const model = yield* LanguageModel.LanguageModel
-        const error = yield* Effect.flip(
-          model.generateText({
-            prompt: Prompt.make([
-              { role: 'assistant', content: [{ type: 'text', text: 'a prior turn' }] }
-            ])
-          })
-        )
-        expect(error._tag).toBe('AiError')
-        expect(error.reason._tag).toBe('InvalidUserInputError')
-      }).pipe(
-        Effect.provide(
-          makeWorkersAIModel({ run: () => Promise.resolve({ response: 'x' }) })
-        )
+  it.effect('refuses a prompt carrying a message it cannot send as plain chat', () =>
+    Effect.gen(function* () {
+      const model = yield* LanguageModel.LanguageModel
+      const error = yield* Effect.flip(
+        model.generateText({
+          prompt: Prompt.make([
+            { role: 'assistant', content: [{ type: 'text', text: 'a prior turn' }] }
+          ])
+        })
       )
-    ))
+      expect(error._tag).toBe('AiError')
+      expect(error.reason._tag).toBe('InvalidUserInputError')
+    }).pipe(
+      Effect.provide(
+        makeWorkersAIModel({ run: () => Promise.resolve({ response: 'x' }) })
+      )
+    )
+  )
 
   it('fails unavailable when the binding returns no response', () =>
     askFails(

@@ -20,7 +20,7 @@ import {
   testWorkspaceContext,
   WorkspaceContext
 } from '@b2b-saas-starter/capabilities/workspace-context'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 
 import {
@@ -157,68 +157,61 @@ function run(
   } = {}
 ) {
   const recorded: Recorded = { completed: [], failed: [] }
-  // The stubs never fail, so the error channel is eliminated with orDie
-  // instead of a cast — the same shape the webhook consumer tests use.
-  return Effect.scoped(
-    Effect.orDie(
-      processWorkspaceExportMessage(
-        readDelivery(WorkspaceExportQueueMessage, {
-          id: 'qmsg_export',
-          body,
-          attempts: options.attempts ?? 1
-        }),
-        options.resolve ?? resolveLab
-      ).pipe(
-        Effect.provide(
-          Layer.mergeAll(stubExports(recorded), stubReads(options.failing ?? false))
-        )
-      )
-    )
-  ).pipe(Effect.map((outcome) => ({ outcome, recorded })))
+  return processWorkspaceExportMessage(
+    readDelivery(WorkspaceExportQueueMessage, {
+      id: 'qmsg_export',
+      body,
+      attempts: options.attempts ?? 1
+    }),
+    options.resolve ?? resolveLab
+  ).pipe(
+    Effect.provide(
+      Layer.mergeAll(stubExports(recorded), stubReads(options.failing ?? false))
+    ),
+    Effect.map((outcome) => ({ outcome, recorded }))
+  )
 }
 
 describe('processWorkspaceExportMessage', () => {
-  it('builds the archive and completes the export', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { outcome, recorded } = yield* run(message)
-        expect(outcome).toBe('ack')
-        expect(recorded.failed).toHaveLength(0)
-        expect(recorded.completed).toHaveLength(1)
-        const completed = recorded.completed[0]
-        expect(completed).toMatchObject({ exportId: 'exp_1', workspaceId: 'wrk_1' })
-        // A real gzip container: magic bytes first.
-        expect([...(completed?.archive.subarray(0, 2) ?? [])]).toEqual([0x1f, 0x8b])
-        expect(completed?.archive.length).toBeGreaterThan(22)
-      })
-    ))
+  it.effect('builds the archive and completes the export', () =>
+    Effect.gen(function* () {
+      const { outcome, recorded } = yield* run(message)
+      expect(outcome).toBe('ack')
+      expect(recorded.failed).toHaveLength(0)
+      expect(recorded.completed).toHaveLength(1)
+      const completed = recorded.completed[0]
+      expect(completed).toMatchObject({ exportId: 'exp_1', workspaceId: 'wrk_1' })
+      // A real gzip container: magic bytes first.
+      expect([...(completed?.archive.subarray(0, 2) ?? [])]).toEqual([0x1f, 0x8b])
+      expect(completed?.archive.length).toBeGreaterThan(22)
+    })
+  )
 
-  it('acks a malformed message without touching any row', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { outcome, recorded } = yield* run({ exportId: 42 })
-        expect(outcome).toBe('ack')
-        expect(recorded.completed).toHaveLength(0)
-        expect(recorded.failed).toHaveLength(0)
-      })
-    ))
+  it.effect('acks a malformed message without touching any row', () =>
+    Effect.gen(function* () {
+      const { outcome, recorded } = yield* run({ exportId: 42 })
+      expect(outcome).toBe('ack')
+      expect(recorded.completed).toHaveLength(0)
+      expect(recorded.failed).toHaveLength(0)
+    })
+  )
 
-  it('marks the export failed when the slug no longer resolves', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { outcome, recorded } = yield* run({ ...message, workspaceSlug: 'gone' })
-        expect(outcome).toBe('ack')
-        expect(recorded.completed).toHaveLength(0)
-        expect(recorded.failed[0]).toMatchObject({
-          exportId: 'exp_1',
-          workspaceId: 'wrk_1',
-          reason: 'workspace_not_found'
-        })
+  it.effect('marks the export failed when the slug no longer resolves', () =>
+    Effect.gen(function* () {
+      const { outcome, recorded } = yield* run({ ...message, workspaceSlug: 'gone' })
+      expect(outcome).toBe('ack')
+      expect(recorded.completed).toHaveLength(0)
+      expect(recorded.failed[0]).toMatchObject({
+        exportId: 'exp_1',
+        workspaceId: 'wrk_1',
+        reason: 'workspace_not_found'
       })
-    ))
+    })
+  )
 
-  it('marks the export failed when the slug resolves to a different workspace', () =>
-    Effect.runPromise(
+  it.effect(
+    'marks the export failed when the slug resolves to a different workspace',
+    () =>
       Effect.gen(function* () {
         const { outcome, recorded } = yield* run({ ...message, workspaceId: 'wrk_old' })
         expect(outcome).toBe('ack')
@@ -228,23 +221,23 @@ describe('processWorkspaceExportMessage', () => {
           reason: 'workspace_mismatch'
         })
       })
-    ))
+  )
 
-  it('retries a store outage while attempts remain', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { outcome, recorded } = yield* run(message, {
-          failing: true,
-          attempts: 1
-        })
-        expect(outcome).toBe('retry')
-        expect(recorded.failed).toHaveLength(0)
-        expect(recorded.completed).toHaveLength(0)
+  it.effect('retries a store outage while attempts remain', () =>
+    Effect.gen(function* () {
+      const { outcome, recorded } = yield* run(message, {
+        failing: true,
+        attempts: 1
       })
-    ))
+      expect(outcome).toBe('retry')
+      expect(recorded.failed).toHaveLength(0)
+      expect(recorded.completed).toHaveLength(0)
+    })
+  )
 
-  it('marks the export failed on the last attempt instead of retrying forever', () =>
-    Effect.runPromise(
+  it.effect(
+    'marks the export failed on the last attempt instead of retrying forever',
+    () =>
       Effect.gen(function* () {
         const { outcome, recorded } = yield* run(message, {
           failing: true,
@@ -253,7 +246,7 @@ describe('processWorkspaceExportMessage', () => {
         expect(outcome).toBe('ack')
         expect(recorded.failed[0]?.reason).toMatch(/^unavailable: /)
       })
-    ))
+  )
 })
 
 describe('readDelivery', () => {

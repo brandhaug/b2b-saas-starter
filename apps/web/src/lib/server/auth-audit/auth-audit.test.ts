@@ -33,6 +33,7 @@ function runRecordAuthAudit(
   request: Request,
   response: Response
 ): Promise<AuthAuditOutcome> {
+  // oxlint-disable-next-line starter/no-run-promise-in-tests -- the suite asserts through await expect(...).resolves over these promises across dozens of sites; folding every body would grow arms and legs
   return Effect.runPromise(
     Effect.scoped(recordAuthAudit(exchangeOf(request), response, runCapabilities))
   )
@@ -583,6 +584,7 @@ describe('recordAuthAudit', () => {
     })
     const clone = vi.spyOn(response, 'clone')
     const json = vi.spyOn(response, 'json')
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the suite asserts through await expect(...).resolves over these promises across dozens of sites; folding every body would grow arms and legs
     const outcome = await Effect.runPromise(
       Effect.scoped(
         recordAuthAudit(exchangeOf(request), response, runCapabilities, {
@@ -972,6 +974,7 @@ describe('recordAuthAudit with a pre-handler context', () => {
     response: Response,
     context: AuthAuditContext
   ): Promise<AuthAuditOutcome> {
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the suite asserts through await expect(...).resolves over these promises across dozens of sites; folding every body would grow arms and legs
     return Effect.runPromise(
       Effect.scoped(
         recordAuthAudit(exchangeOf(request), response, runCapabilities, context)
