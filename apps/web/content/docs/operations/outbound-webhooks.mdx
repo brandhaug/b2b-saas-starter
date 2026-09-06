@@ -19,7 +19,15 @@ A Webhook Endpoint is a workspace-owned outbound event delivery target. The star
 
 ## Delivery
 
-When a domain event matching an endpoint's subscriptions occurs, a message is enqueued on the `b2b-saas-starter-webhooks` Cloudflare Queue. The background Worker consumes the queue, signs the payload, posts it with a 10-second timeout, and calls `WebhookEndpoints.recordDeliveryAttempt` to persist the attempt to `webhook_deliveries` with `status`, `attempts`, `lastAttemptAt`, `nextAttemptAt`, `responseStatus`, plus the operator evidence: the `payload` that was sent, the `requestHeaders` block, a truncated `responseBody` from the receiver, and the `replayedFrom` link on replays. Every redelivery of the same queue message resolves the same row, so the history is one row per message, not one row per attempt.
+When a domain event matches an endpoint's subscriptions, the publisher queues one
+message for that endpoint. The background Worker signs and posts it with a
+10-second request deadline, then reads at most a 2 KiB response prefix with a
+separate two-second body-read deadline. An unreadable or timed-out body is stored
+as absent; the HTTP status still determines delivery success or retry.
+
+Each delivery has a summary and immutable individual attempt evidence. A later
+successful retry preserves earlier failures. The complete event payload stays on
+the summary for replay.
 
 Each request body is `{"deliveryId": "whd_…", "eventType": "…", "payload": …}`.
 The producer assigns `deliveryId` before enqueueing. It is also the persisted
@@ -79,6 +87,33 @@ The webhooks page and the REST surface share one operator toolkit:
 - **Replay**: re-enqueues a _failed_ delivery (`failed`, `failed_permanent`, or `dead_lettered`) verbatim: a new `pending` row with attempts reset to 0, carrying the original payload and a `replayedFrom` link to the source row, which is never modified. The replay writes a `webhook.delivery_replayed` Audit Event. REST: `POST /workspaces/:slug/webhooks/deliveries/:deliveryId/replay`. Anything on a disabled endpoint refuses with 409. Every delivery row records its payload (terminal rows included), so there is always something honest to re-send.
 - **Test send**: queues a synthetic `webhook.test_event` delivery to one enabled endpoint so an operator can prove a receiver's configuration end to end. REST: `POST /workspaces/:slug/webhooks/:endpointId/test-event`.
 - **Rotate secret**: mints a new signing secret shown once. See below for the receiver contract. REST: `POST /workspaces/:slug/webhooks/:endpointId/rotate-secret`.
+
+## Attempt history and retention
+
+Expand **View attempt history** in the deliveries drawer to load the timeline.
+Each HTTP attempt shows its ordinal, status, timestamp, duration, failure reason,
+request headers, and bounded response body when available. Terminal bookkeeping
+has no HTTP duration and preserves the last HTTP evidence on the summary.
+
+REST exposes `GET /workspaces/:slug/webhooks/deliveries/:deliveryId/attempts`.
+The read-only MCP tool is `list_webhook_delivery_attempts`. Both require
+`webhook:list` and restrict results to the owning workspace.
+
+The first stored observation wins. Duplicate and late observations cannot regress
+the summary or repeat streak changes and audits. Accepted failures update the
+endpoint's streak; success resets it. At 20 consecutive failures the endpoint is
+disabled atomically with the attempt and its audit. Terminal bookkeeping after an
+HTTP attempt does not count another failure or undo an operator's re-enable.
+Notifications are best-effort after persistence.
+
+Network delivery remains at-least-once. A crash or concurrent processing can POST
+twice even though stored evidence is duplicate-safe. Receivers must deduplicate
+`webhook-id` durably.
+
+The existing daily schedule deletes at most 100 summaries older than 30 days per
+pass, cascading their attempts. A large backlog takes multiple passes to drain.
+Digest delivery and history cleanup settle independently. Replay provenance keeps
+the source ID even after the source expires.
 
 ## Secret rotation
 

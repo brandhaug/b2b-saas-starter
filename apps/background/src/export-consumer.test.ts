@@ -123,8 +123,7 @@ function stubReads(failing = false) {
       rotateSecret: () => unused,
       getDispatchTarget: () => unused,
       recordDeliveryAttempt: () => unused,
-      recordTerminalDeliveryAttempt: () => unused,
-      autoDisableEndpoint: () => unused
+      recordTerminalDeliveryAttempt: () => unused
     }),
     Layer.succeed(AuditEventLog)({
       list: () => list({ items: [], nextCursor: null }),

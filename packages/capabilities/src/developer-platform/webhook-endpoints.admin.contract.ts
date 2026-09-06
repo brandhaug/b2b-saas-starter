@@ -140,11 +140,19 @@ export function adminWebhookContract(expect: ContractExpect) {
       )
       expect(failureTag(refused)).toBe('WebhookDispatchRejected')
     }
-    yield* webhooks.autoDisableEndpoint({
-      endpointId: 'wh_admin_b',
-      workspaceId: 'wrk_other',
-      consecutiveFailures: 20
-    })
+    yield* Effect.forEach(
+      Array.from({ length: 20 }, (_, index) => index),
+      (index) =>
+        webhooks.recordDeliveryAttempt({
+          id: `whd_admin_disable_${index}`,
+          endpointId: 'wh_admin_b',
+          workspaceId: 'wrk_other',
+          eventType: 'demo.event',
+          status: 'failed',
+          attempts: 1,
+          payload: {}
+        })
+    )
     const disabled = yield* Effect.exit(
       webhooks.replayDeliveryAsAdmin({
         deliveryId: 'whd_admin_y',

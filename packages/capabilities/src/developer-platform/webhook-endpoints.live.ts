@@ -752,37 +752,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
           id: input.deliveryId,
           phase: 'terminal',
           nextAttemptAt: null
-        }),
-      autoDisableEndpoint: (input) =>
-        Effect.gen(function* () {
-          // Read first so the audit metadata can name the endpoint; the row
-          // is the same one the streak climbed against. An endpoint already
-          // disabled, deleted, or foreign to the workspace matches nothing:
-          // no write, no audit event — the audited-mutation zero-match skip.
-          const endpoint = yield* endpointRow(input.endpointId, input.workspaceId)
-          if (!endpoint || !endpoint.enabled) {
-            return
-          }
-          yield* auditedMutation({
-            matched: Effect.succeed(true),
-            auditEvent: {
-              workspaceId: input.workspaceId,
-              actorUserId: null,
-              actorType: 'system',
-              eventType: 'webhook_endpoint.auto_disabled',
-              targetType: 'webhook_endpoint',
-              targetId: input.endpointId,
-              metadata: {
-                url: endpoint.url,
-                consecutiveFailures: input.consecutiveFailures
-              }
-            },
-            write: () =>
-              db
-                .update(webhookEndpoints)
-                .set({ enabled: false })
-                .where(scopedEndpointWhere(input.endpointId, input.workspaceId))
-          })
         })
     }
   })

@@ -186,6 +186,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
     const disable = and(
       endpointScope,
       accepted,
+      countsFailure,
       eq(webhookEndpoints.enabled, true),
       sql`${webhookEndpoints.consecutiveFailures} >= ${WEBHOOK_FAILURE_AUTO_DISABLE_AT}`
     )

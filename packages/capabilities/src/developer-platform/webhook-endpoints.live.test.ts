@@ -315,62 +315,6 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       )
 
       it.effect(
-        'autoDisableEndpoint flips the row and batches its audit event with the write',
-        () =>
-          Effect.gen(function* () {
-            const db = yield* Database
-            // Direct row, like the harness fixture's `wh_live`: live-lab sits
-            // on the capped starter plan, so a second endpoint through the
-            // interface would hit the plan gate before the rung under test.
-            yield* db.insert(webhookEndpoints).values({
-              id: 'wh_live_auto_disabled',
-              workspaceId: 'wrk_live',
-              url: 'https://example.com/auto-disable-hook',
-              signingSecret: 'whsec_live_auto_disable',
-              enabled: true,
-              events: ['demo.event'],
-              createdAt: '2026-07-03T09:00:00.000Z'
-            })
-            yield* inWorkspace(
-              'live-lab',
-              Effect.flatMap(WebhookEndpoints, (webhooks) =>
-                webhooks.autoDisableEndpoint({
-                  endpointId: 'wh_live_auto_disabled',
-                  workspaceId: 'wrk_live',
-                  consecutiveFailures: 20
-                })
-              )
-            )
-
-            const rows = yield* db
-              .select()
-              .from(webhookEndpoints)
-              .where(eq(webhookEndpoints.id, 'wh_live_auto_disabled'))
-            expect(rows[0]?.enabled).toBe(false)
-
-            const audit = yield* db
-              .select()
-              .from(auditEvents)
-              .where(
-                and(
-                  eq(auditEvents.eventType, 'webhook_endpoint.auto_disabled'),
-                  eq(auditEvents.targetId, 'wh_live_auto_disabled')
-                )
-              )
-            expect(audit).toHaveLength(1)
-            expect(audit[0]).toMatchObject({
-              workspaceId: 'wrk_live',
-              actorUserId: null,
-              targetType: 'webhook_endpoint'
-            })
-            expect(audit[0]?.metadata).toMatchObject({
-              url: 'https://example.com/auto-disable-hook',
-              consecutiveFailures: 20
-            })
-          })
-      )
-
-      it.effect(
         'rotation keeps the replaced secret signing through the grace window',
         () =>
           inWorkspace(

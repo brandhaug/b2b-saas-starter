@@ -260,17 +260,6 @@ export type RecordedWebhookAttempt = {
   readonly consecutiveFailures: number
 }
 
-type AutoDisableWebhookEndpointInput = {
-  readonly endpointId: string
-  readonly workspaceId: string
-  /**
-   * The streak that triggered the disable, recorded verbatim in the audit
-   * event's metadata — the governance log names the ladder's reading, not
-   * just the outcome.
-   */
-  readonly consecutiveFailures: number
-}
-
 type WebhookEndpointsInterface = {
   readonly list: Effect.Effect<
     ReadonlyArray<WebhookEndpoint>,
@@ -456,20 +445,6 @@ type WebhookEndpointsInterface = {
     { readonly deliveryId: string } & RecordedWebhookAttempt,
     CapabilityUnavailable
   >
-
-  /**
-   * Background-worker surface — the auto-disable rung of the failure ladder
-   * (ADR 0062 addendum). Sets `enabled = false` and batches the
-   * `webhook_endpoint.auto_disabled` audit event with the write, scoped to
-   * `(endpointId, workspaceId)` like every background lookup. An endpoint
-   * that is already disabled, deleted, or foreign to the workspace matches
-   * nothing: no write, no audit event. Re-enabling is the operator's one
-   * path, `update { enabled: true }` — there deliberately is no second way
-   * back from either kind of disable.
-   */
-  readonly autoDisableEndpoint: (
-    input: AutoDisableWebhookEndpointInput
-  ) => Effect.Effect<void, CapabilityUnavailable>
 }
 
 export class WebhookEndpoints extends Context.Service<

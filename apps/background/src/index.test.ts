@@ -130,8 +130,7 @@ function stubEndpoints(
           status: input.status,
           consecutiveFailures: streak.current
         }
-      }),
-    autoDisableEndpoint: () => Effect.die('auto-disable belongs to attempt persistence')
+      })
   })
 }
 

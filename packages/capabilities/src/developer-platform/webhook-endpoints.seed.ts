@@ -308,6 +308,12 @@ export function SeedWebhookEndpoints(
           requestHeaders = previous?.requestHeaders ?? null
           responseBody = previous?.responseBody ?? null
         }
+        let payload = input.payload
+        let replayedFrom = input.replayedFrom ?? null
+        if (previous) {
+          payload = previous.payload
+          replayedFrom = previous.replayedFrom
+        }
         const row: SeedDeliveryRow = {
           id: deliveryId,
           endpointId: input.endpointId,
@@ -320,8 +326,8 @@ export function SeedWebhookEndpoints(
           responseStatus,
           requestHeaders,
           responseBody,
-          payload: previous?.payload ?? input.payload,
-          replayedFrom: previous?.replayedFrom ?? input.replayedFrom ?? null
+          payload,
+          replayedFrom
         }
         if (index === -1) {
           deliveries.push(row)
@@ -341,6 +347,7 @@ export function SeedWebhookEndpoints(
         }
         const consecutiveFailures = endpoint.consecutiveFailures
         const disabled =
+          countsFailure &&
           endpoint.enabled &&
           endpoint.consecutiveFailures >= WEBHOOK_FAILURE_AUTO_DISABLE_AT
         if (disabled) {
@@ -848,29 +855,6 @@ export function SeedWebhookEndpoints(
             id: input.deliveryId,
             phase: 'terminal',
             nextAttemptAt: null
-          }),
-        autoDisableEndpoint: (input) =>
-          Effect.gen(function* () {
-            // Zero-match — already disabled, deleted, or foreign to the
-            // workspace — writes and audits nothing, mirroring the Live
-            // audited mutation's skip.
-            const endpoint = endpointFor(input.endpointId, input.workspaceId)
-            if (!endpoint || !endpoint.enabled) {
-              return
-            }
-            endpoint.enabled = false
-            yield* audit.record({
-              workspaceId: input.workspaceId,
-              actorUserId: null,
-              actorType: 'system',
-              eventType: 'webhook_endpoint.auto_disabled',
-              targetType: 'webhook_endpoint',
-              targetId: endpoint.id,
-              metadata: {
-                url: endpoint.url,
-                consecutiveFailures: input.consecutiveFailures
-              }
-            })
           })
       }
     })

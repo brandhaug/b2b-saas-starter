@@ -56,6 +56,22 @@ export function webhookAttemptHistoryCases(
         expect(
           (yield* service.getDispatchTarget(endpoint.id, ctx.workspace.id)) !== null
         ).toBe(true)
+        const terminal = yield* service.recordTerminalDeliveryAttempt({
+          ...base,
+          deliveryId: 'whd_atomic_19',
+          status: 'dead_lettered'
+        })
+        expect(terminal.recorded).toBe(true)
+        expect(terminal.failureAction).toBe('silent')
+        expect(terminal.consecutiveFailures).toBe(20)
+        expect(
+          (yield* service.getDispatchTarget(endpoint.id, ctx.workspace.id)) !== null
+        ).toBe(true)
+        expect(
+          (yield* audit.list({
+            eventType: 'webhook_endpoint.auto_disabled'
+          })).items.filter((row) => row.targetId === endpoint.id)
+        ).toHaveLength(1)
         yield* service.recordDeliveryAttempt({
           ...base,
           id: 'whd_atomic_after_reenable'
@@ -68,6 +84,80 @@ export function webhookAttemptHistoryCases(
             eventType: 'webhook_endpoint.auto_disabled'
           })).items.filter((row) => row.targetId === endpoint.id)
         ).toHaveLength(2)
+      })
+    },
+    {
+      name: 'independent success and failure update the streak in commit order',
+      assert: Effect.gen(function* () {
+        const service = yield* WebhookEndpoints
+        const ctx = yield* WorkspaceContext
+        const { endpoint } = yield* service.create({
+          url: 'https://example.com/mixed-results',
+          events: ['demo.event']
+        })
+        const base: WebhookDeliveryAttemptInput = {
+          endpointId: endpoint.id,
+          workspaceId: ctx.workspace.id,
+          eventType: 'demo.event',
+          status: 'failed',
+          attempts: 1,
+          payload: {}
+        }
+        yield* service.recordDeliveryAttempt({ ...base, id: 'whd_mixed_prime' })
+        const [success, failure] = yield* Effect.all(
+          [
+            service.recordDeliveryAttempt({
+              ...base,
+              id: 'whd_mixed_ok',
+              status: 'delivered'
+            }),
+            service.recordDeliveryAttempt({ ...base, id: 'whd_mixed_fail' })
+          ],
+          { concurrency: 'unbounded' }
+        )
+        expect(success.consecutiveFailures).toBe(0)
+        expect([1, 2].includes(failure.consecutiveFailures)).toBe(true)
+        const unchanged = yield* service.recordDeliveryAttempt({
+          ...base,
+          id: 'whd_mixed_fail'
+        })
+        expect(unchanged.recorded).toBe(false)
+        // A failure returning one committed after the reset. Returning two
+        // means it committed first, and the success left the streak at zero.
+        expect(unchanged.consecutiveFailures).toBe(2 - failure.consecutiveFailures)
+      })
+    },
+    {
+      name: 'retry preserves an original null payload and absent replay provenance',
+      assert: Effect.gen(function* () {
+        const service = yield* WebhookEndpoints
+        const ctx = yield* WorkspaceContext
+        const { endpoint } = yield* service.create({
+          url: 'https://example.com/null-payload',
+          events: ['demo.event']
+        })
+        const base = {
+          id: 'whd_null_payload',
+          endpointId: endpoint.id,
+          workspaceId: ctx.workspace.id,
+          eventType: 'demo.event'
+        }
+        yield* service.recordDeliveryAttempt({
+          ...base,
+          status: 'failed',
+          attempts: 1,
+          payload: null
+        })
+        yield* service.recordDeliveryAttempt({
+          ...base,
+          status: 'delivered',
+          attempts: 2,
+          payload: { changed: true },
+          replayedFrom: 'unrelated'
+        })
+        const rows = yield* service.listDeliveries({ endpointId: endpoint.id })
+        expect(rows[0]?.payload).toBe(null)
+        expect(rows[0]?.replayedFrom).toBe(null)
       })
     },
     {

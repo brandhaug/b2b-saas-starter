@@ -261,7 +261,7 @@ export function deliverySuccessRate(total: number, delivered: number): number {
  * recorded failure climbs it; a delivered attempt resets it to zero. The
  * queue consumer reacts to the streak this module names: the workspace
  * owners are warned at each rung below, and at the threshold the endpoint is
- * auto-disabled (`WebhookEndpoints.autoDisableEndpoint`) and warned once
+ * auto-disabled atomically with the accepted failure and warned once
  * more. Rungs are exact so each fires once per climb; the threshold is a
  * floor so an endpoint re-enabled mid-streak without a success disables
  * again on its next failure instead of sailing past the rung.
