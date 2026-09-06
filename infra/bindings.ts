@@ -163,14 +163,17 @@ export const notificationDigestCron = '0 8 * * *'
  * queue names above are single-sourced already; these keys are the other
  * half a rename could desynchronize between Alchemy's worker `env` objects
  * and the generated wrangler configs, so both emitters read them from this
- * record instead of inlining the strings.
+ * record instead of inlining the strings. `as const` keeps each value a
+ * literal type so the per-worker binding-name unions below can derive from
+ * them instead of re-spelling the strings.
  */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const queueBindingKeys = {
   webhookQueue: 'WEBHOOK_QUEUE',
   billingQueue: 'BILLING_QUEUE',
   notificationEmailQueue: 'NOTIFICATION_EMAIL_QUEUE',
   workspaceExportQueue: 'WORKSPACE_EXPORT_QUEUE'
-} satisfies Record<QueueBindingKey, string>
+} as const satisfies Record<QueueBindingKey, string>
 
 /** The queue bindings a worker's env may carry, by role. */
 export type QueueBindingKey =
@@ -178,6 +181,90 @@ export type QueueBindingKey =
   | 'billingQueue'
   | 'notificationEmailQueue'
   | 'workspaceExportQueue'
+
+/**
+ * The binding names that are neither queues nor rate limits: the D1 database
+ * every worker shares, the Workers AI binding the assistant surfaces read,
+ * the Cloudflare Email send binding, and the workspace-export R2 bucket
+ * (ADR 0055). `alchemy.run.ts` and `infra/write-wrangler.ts` still spell
+ * these values inline — the one duplication left in the chain — while the
+ * per-worker records below read them from here, so the exported unions have
+ * a single home per name.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+const resourceBindingNames = {
+  database: 'DB',
+  workersAi: 'AI',
+  email: 'EMAIL',
+  workspaceExportBucket: 'WORKSPACE_EXPORT_BUCKET'
+} as const
+
+/**
+ * Per-worker binding-name records: the env-type-facing mirror of the `env`
+ * blocks `alchemy.run.ts` binds (`infra/write-wrangler.ts` generates the
+ * same sets minus EMAIL — miniflare cannot simulate SendEmail, so local
+ * dev never binds it). Values come only from the records above and
+ * `queueBindingKeys` — never re-spelled — so a rename there moves the
+ * exported `…BindingName` unions, and the worker env types keyed by them
+ * (`apps/api/src/env.ts`, `apps/background/src/queue-consumer.ts`,
+ * `apps/web/src/worker-env.d.ts`), in one edit. A row added here grows its
+ * union, and that env type then fails its typecheck until a binding-type
+ * row exists — the keys can no longer drift from the deploy silently. A row
+ * says the key EXISTS when the deploy binds it, never that it is present:
+ * the env types keep every key optional, because a provider-gated binding
+ * (EMAIL, the workspace-export pair) is deliberately absent while its
+ * provider is unset. The API worker carries no EMAIL row on purpose — it
+ * wires no email dispatcher (apps/api/AGENTS.md), so the binding alchemy
+ * spreads into its env simply has no reader there.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+const apiBindingNames = {
+  database: resourceBindingNames.database,
+  workersAi: resourceBindingNames.workersAi,
+  webhookQueue: queueBindingKeys.webhookQueue,
+  notificationEmailQueue: queueBindingKeys.notificationEmailQueue,
+  workspaceExportQueue: queueBindingKeys.workspaceExportQueue,
+  workspaceExportBucket: resourceBindingNames.workspaceExportBucket
+} as const
+
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+const backgroundBindingNames = {
+  database: resourceBindingNames.database,
+  webhookQueue: queueBindingKeys.webhookQueue,
+  notificationEmailQueue: queueBindingKeys.notificationEmailQueue,
+  workspaceExportQueue: queueBindingKeys.workspaceExportQueue,
+  workspaceExportBucket: resourceBindingNames.workspaceExportBucket,
+  email: resourceBindingNames.email
+} as const
+
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+const webBindingNames = {
+  database: resourceBindingNames.database,
+  workersAi: resourceBindingNames.workersAi,
+  billingQueue: queueBindingKeys.billingQueue,
+  notificationEmailQueue: queueBindingKeys.notificationEmailQueue,
+  workspaceExportQueue: queueBindingKeys.workspaceExportQueue,
+  workspaceExportBucket: resourceBindingNames.workspaceExportBucket,
+  email: resourceBindingNames.email
+} as const
+
+/**
+ * Every binding name each worker's env may carry. Rate limits join through
+ * their own name unions, so a bucket added to a rate-limit name record is
+ * picked up without a second row here. Import these into the worker env
+ * types as `Partial<Record<…>>`-style keys — never as a claim that any key
+ * is present (see the records above).
+ */
+export type ApiBindingName =
+  | ApiRateLimitBindingName
+  | (typeof apiBindingNames)[keyof typeof apiBindingNames]
+
+export type BackgroundBindingName =
+  (typeof backgroundBindingNames)[keyof typeof backgroundBindingNames]
+
+export type WebBindingName =
+  | WebRateLimitBindingName
+  | (typeof webBindingNames)[keyof typeof webBindingNames]
 
 /**
  * One compatibility date and flag set for every worker — production

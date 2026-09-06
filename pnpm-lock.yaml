@@ -419,6 +419,9 @@ importers:
       '@b2b-saas-starter/failure':
         specifier: workspace:*
         version: link:../../packages/failure
+      '@b2b-saas-starter/infra':
+        specifier: workspace:*
+        version: link:../../infra
       '@b2b-saas-starter/logger':
         specifier: workspace:*
         version: link:../../packages/logger
