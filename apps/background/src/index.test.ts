@@ -196,7 +196,7 @@ describe('processWebhookMessage', () => {
     status: number,
     attempts = 1,
     input: unknown = message,
-    messageId?: string
+    messageId = 'qmsg_test'
   ) {
     const recorded: Array<WebhookDeliveryAttemptInput> = []
     const created: Array<CreateNotificationInput> = []

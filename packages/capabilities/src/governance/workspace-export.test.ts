@@ -10,7 +10,11 @@ import {
   seedWorkspaceRecord
 } from '../seed-fixture.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
-import { testWorkspaceContext, type Actor } from '../workspace-context.ts'
+import {
+  testWorkspaceContext,
+  type WorkspaceContext,
+  type Actor
+} from '../workspace-context.ts'
 import {
   AUDIT_EVENT_PAGE_SIZE,
   AuditEventLog,
@@ -26,7 +30,10 @@ import { SeedSeatSyncPublisher } from '../billing/seat-sync.ts'
 import { makeSeedRoster, SeedWorkspaceMembership } from './workspace-membership.ts'
 import { SeedWorkspaceInvitations } from './workspace-invitations.seed.ts'
 import { failureTag } from '../internal/failure-tag.ts'
-import { collectWorkspaceExportSnapshot } from './workspace-export-snapshot.ts'
+import {
+  collectWorkspaceExportSnapshot,
+  type WorkspaceExportSnapshotServices
+} from './workspace-export-snapshot.ts'
 import {
   issueWorkspaceExportDownloadLink,
   signWorkspaceExportDownload,
@@ -343,7 +350,7 @@ describe('collectWorkspaceExportSnapshot — the audit walk bound', () => {
   /** The snapshot's service requirements over one staged audit log. */
   function layerOver(
     audit: Layer.Layer<AuditEventLog>
-  ): Effect.Effect<Layer.Layer<never>> {
+  ): Effect.Effect<Layer.Layer<WorkspaceContext | WorkspaceExportSnapshotServices>> {
     return Effect.map(makeSeedRoster(seedMembers), (roster) => {
       const feed = SeedNotificationFeed([]).pipe(
         Layer.provide(SeedNotificationPreferences([]).pipe(Layer.provide(audit)))

@@ -98,10 +98,10 @@ export function auditEventLabel(eventType: string): string {
   // `hasOwn`, not a bare index: a bare index walks the prototype chain and
   // would happily return `Object.prototype.toString` for the event type
   // "toString".
-  if (Object.hasOwn(EVENT_LABELS, eventType)) {
-    return EVENT_LABELS[eventType]
-  }
-  return prettify(eventType)
+  const known = Object.hasOwn(EVENT_LABELS, eventType)
+    ? EVENT_LABELS[eventType]
+    : undefined
+  return known ?? prettify(eventType)
 }
 
 /**
