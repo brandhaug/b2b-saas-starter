@@ -119,12 +119,15 @@ describe('the request wrappers against the Seed layer', () => {
         gateRequest('/sign-in/sso', { email: 'someone@acme-corp.example' }),
         { method: 'POST', pathname: '/api/auth/sign-in/sso' }
       )
-      expect(response?.status).toBe(403)
-      expect(
-        decodeRefusal(yield* Effect.promise(() => response!.json()))
-      ).toMatchObject({
-        code: 'sso_connection_disabled'
-      })
+      if (response === null) {
+        return yield* Effect.fail('the gate must answer a disabled connection')
+      }
+      expect(response.status).toBe(403)
+      expect(decodeRefusal(yield* Effect.promise(() => response.json()))).toMatchObject(
+        {
+          code: 'sso_connection_disabled'
+        }
+      )
     })
   )
 

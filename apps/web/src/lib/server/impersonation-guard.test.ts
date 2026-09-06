@@ -66,8 +66,11 @@ describe('impersonationGuardResponse', () => {
         post('/api/auth/change-password'),
         impersonated
       )
-      expect(response?.status).toBe(403)
-      expect(yield* Effect.promise(() => response!.json())).toEqual({
+      if (response === null) {
+        return yield* Effect.fail('the guard must answer a forbidden action')
+      }
+      expect(response.status).toBe(403)
+      expect(yield* Effect.promise(() => response.json())).toEqual({
         code: 'forbidden_while_impersonating',
         action: 'change_password'
       })
