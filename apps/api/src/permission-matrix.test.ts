@@ -1,9 +1,15 @@
 import { SEED_READONLY_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { authorize, tokenPrincipal } from '@b2b-saas-starter/authz/client'
 import { BearerAuth, rateLimitBucketFor, StarterApi } from '@b2b-saas-starter/api'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
-import { mirroredRestPath, permissionLabel, readOperations } from './operations.ts'
+import {
+  mirroredRestPath,
+  mutationOperations,
+  permissionLabel,
+  readOperations
+} from './operations.ts'
 
 /**
  * The route-to-permission table of `handlers.ts`, asserted end to end.
@@ -82,100 +88,31 @@ const SLUG = 'starter-lab'
  * Parameterized rows build their request with the row's own sample value.
  */
 const READ_ROWS: ReadonlyArray<GatedOperation> = readOperations().map((op) => ({
-  operation: `GET /${mirroredRestPath(op.path)}`,
+  operation: `GET /${mirroredRestPath(op.endpoint.path)}`,
   permission: permissionLabel(op.permission),
   expected: 200,
   request: makeRequest(
     'GET',
-    `/workspaces/${SLUG}/${op.path.replaceAll(':endpointId', op.param?.sample ?? '')}`
+    op.endpoint.path
+      .replace(':slug', SLUG)
+      .replaceAll(':endpointId', op.param?.sample ?? '')
   )
 }))
 
 const MATRIX: ReadonlyArray<GatedOperation> = [
   ...READ_ROWS,
-
-  // Minting is the one mutation a `write` token is refused as well: a token
-  // allowed to create tokens could issue itself an `admin` one.
-  {
-    operation: 'POST /workspaces/{slug}/api-tokens',
-    permission: 'apiToken:create',
-    expected: 403,
-    request: makeRequest('POST', `/workspaces/${SLUG}/api-tokens`, {
-      name: 'CI token',
-      scopes: ['read']
-    })
-  },
-  {
-    operation: 'DELETE /workspaces/{slug}/api-tokens/{tokenId}',
-    permission: 'apiToken:revoke',
-    expected: 403,
-    request: makeRequest('DELETE', `/workspaces/${SLUG}/api-tokens/tok_seed`)
-  },
-  {
-    operation: 'POST /workspaces/{slug}/webhooks',
-    permission: 'webhook:create',
-    expected: 403,
-    request: makeRequest('POST', `/workspaces/${SLUG}/webhooks`, {
-      url: 'https://hooks.example.com/x',
-      events: ['api_token.created']
-    })
-  },
-  {
-    operation: 'PATCH /workspaces/{slug}/webhooks/{endpointId}',
-    permission: 'webhook:update',
-    expected: 403,
-    request: makeRequest('PATCH', `/workspaces/${SLUG}/webhooks/wh_release`, {
-      enabled: true
-    })
-  },
-  {
-    operation: 'DELETE /workspaces/{slug}/webhooks/{endpointId}',
-    permission: 'webhook:delete',
-    expected: 403,
-    request: makeRequest('DELETE', `/workspaces/${SLUG}/webhooks/wh_release`)
-  },
-  {
-    operation: 'POST /workspaces/{slug}/webhooks/{endpointId}/rotate-secret',
-    permission: 'webhook:rotateSecret',
+  ...mutationOperations().map((op): GatedOperation => ({
+    operation: `${op.endpoint.method} /${mirroredRestPath(op.endpoint.path)}`,
+    permission: permissionLabel(op.permission),
     expected: 403,
     request: makeRequest(
-      'POST',
-      `/workspaces/${SLUG}/webhooks/wh_release/rotate-secret`
+      op.endpoint.method,
+      op.endpoint.path
+        .replace(':slug', SLUG)
+        .replaceAll(/:\w+/g, op.param?.sample ?? ''),
+      op.samplePayload
     )
-  },
-  {
-    operation: 'POST /workspaces/{slug}/webhooks/{endpointId}/test-event',
-    permission: 'webhook:test',
-    expected: 403,
-    request: makeRequest('POST', `/workspaces/${SLUG}/webhooks/wh_release/test-event`)
-  },
-  {
-    operation: 'POST /workspaces/{slug}/webhooks/deliveries/{deliveryId}/replay',
-    permission: 'webhook:replay',
-    expected: 403,
-    request: makeRequest(
-      'POST',
-      `/workspaces/${SLUG}/webhooks/deliveries/whd_seed_failed/replay`
-    )
-  },
-
-  // Workspace export is owner-only: `workspaceExport:*` sits outside both the
-  // read and the write scope, so only an `admin`-scoped token reaches it.
-  {
-    operation: 'POST /workspaces/{slug}/exports',
-    permission: 'workspaceExport:request',
-    expected: 403,
-    request: makeRequest('POST', `/workspaces/${SLUG}/exports`)
-  },
-  {
-    operation: 'POST /workspaces/{slug}/exports/{exportId}/download-link',
-    permission: 'workspaceExport:download',
-    expected: 403,
-    request: makeRequest(
-      'POST',
-      `/workspaces/${SLUG}/exports/exp_seed_ready/download-link`
-    )
-  },
+  })),
 
   // The assistant and MCP surfaces each carry their own statement now.
   {
@@ -209,6 +146,59 @@ const HTTP_METHODS = new Set([
 ])
 
 describe('permission matrix', () => {
+  it('write scope permits webhook operations but cannot manage tokens or export data', () => {
+    expect(
+      mutationOperations()
+        .filter((op) => authorize(tokenPrincipal(['write']), op.permission).success)
+        .map((op) => `${op.endpoint.method} ${op.endpoint.path}`)
+        .toSorted()
+    ).toEqual([
+      'DELETE /workspaces/:slug/webhooks/:endpointId',
+      'PATCH /workspaces/:slug/webhooks/:endpointId',
+      'POST /workspaces/:slug/webhooks',
+      'POST /workspaces/:slug/webhooks/:endpointId/rotate-secret',
+      'POST /workspaces/:slug/webhooks/:endpointId/test-event',
+      'POST /workspaces/:slug/webhooks/deliveries/:deliveryId/replay'
+    ])
+  })
+
+  it('pins endpoint permissions to the reviewed authorization policy', () => {
+    // Independent policy oracle: changing a catalog permission must not change
+    // the expected answer. Full objects also catch extra required permissions.
+    expect(
+      Object.fromEntries(
+        [...readOperations(), ...mutationOperations()].map((op) => [
+          `${op.endpoint.method} /${mirroredRestPath(op.endpoint.path)}`,
+          op.permission
+        ])
+      )
+    ).toEqual({
+      'GET /workspaces/{slug}/overview': { notification: ['read'] },
+      'GET /workspaces/{slug}/members': { ac: ['read'] },
+      'GET /workspaces/{slug}/notifications': { notification: ['read'] },
+      'GET /workspaces/{slug}/api-tokens': { apiToken: ['list'] },
+      'GET /workspaces/{slug}/webhooks': { webhook: ['list'] },
+      'GET /workspaces/{slug}/webhooks/{endpointId}/deliveries': { webhook: ['list'] },
+      'GET /workspaces/{slug}/audit-events': { auditLog: ['read'] },
+      'POST /workspaces/{slug}/api-tokens': { apiToken: ['create'] },
+      'DELETE /workspaces/{slug}/api-tokens/{tokenId}': { apiToken: ['revoke'] },
+      'POST /workspaces/{slug}/webhooks': { webhook: ['create'] },
+      'PATCH /workspaces/{slug}/webhooks/{endpointId}': { webhook: ['update'] },
+      'DELETE /workspaces/{slug}/webhooks/{endpointId}': { webhook: ['delete'] },
+      'POST /workspaces/{slug}/webhooks/{endpointId}/rotate-secret': {
+        webhook: ['rotateSecret']
+      },
+      'POST /workspaces/{slug}/webhooks/{endpointId}/test-event': { webhook: ['test'] },
+      'POST /workspaces/{slug}/webhooks/deliveries/{deliveryId}/replay': {
+        webhook: ['replay']
+      },
+      'POST /workspaces/{slug}/exports': { workspaceExport: ['request'] },
+      'POST /workspaces/{slug}/exports/{exportId}/download-link': {
+        workspaceExport: ['download']
+      }
+    })
+  })
+
   it.effect('covers every gated operation the served contract advertises', () =>
     Effect.gen(function* () {
       const res = yield* send(new Request('https://api.test/openapi.json'))

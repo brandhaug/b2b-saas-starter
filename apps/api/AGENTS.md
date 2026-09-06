@@ -6,21 +6,23 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 
 ## Entry Points & Contracts
 
-- `src/operations.ts` is the one table of workspace reads: REST handlers, MCP tools, the discovery document and the permission matrix derive from it.
+- `src/operations.ts` catalogs workspace reads and mutations. REST handlers and the permission matrix use both; MCP tools and discovery use explicitly opted-in rows (ADR 0072).
 - `src/request-guards.ts` holds every guard; compose these instead of a second auth path.
 
 ## Usage Patterns
 
 - Change the contract in `packages/api` first, then the handler. An endpoint's error channel stays a subset of its contract errors.
+- Yield stable capability services once in the handler layer. Resolve `WorkspaceContext`, actor, request origin, and log scope per request. Translate expected domain errors at the route boundary; let contract schemas encode declared failures.
 - A handler is `observed(...)` around `enforcePermission(permission, slug)` plus one capability call. Auth and the bucket come from `BearerAuth`, so no handler reads `Authorization`.
 - Endpoints name permissions, never scopes. [`authz`](../../packages/authz/AGENTS.md) owns the scope-to-permission map, so a token and a web session resolve through one `authorize()`.
 - `provideWorkspace` builds the only request-scoped service, `WorkspaceContext`; the rest are isolate-level, reached through `HttpRouter.provideRequest`.
-- Two credentials open `/mcp` (ADR 0068): a JWT goes to the OAuth verifier, anything else to the API Token path. A token authorizes as its scopes, an OAuth caller as the Member re-resolved per call, so removals and role changes apply at once. Both draw the `mcp` bucket and reject via `guardFailureResponse`. The gate is route-scoped router middleware around Effect `McpServer.layerHttp`'s routes (`mcp.ts`), because the transport owns the handlers; the verified caller travels to tool handlers as the `CurrentMcpCaller` reference, which Effect's RPC plumbing merges into every invocation from the request fiber.
+- MCP JWTs use OAuth verification; other credentials use API Token verification (ADR 0068). Tokens authorize by scopes, OAuth by Member re-resolved per call. Both use the `mcp` bucket and `guardFailureResponse`. Router middleware gates the transport; `CurrentMcpCaller` travels through Effect RPC request-fiber context to each tool. Preserve `api_token` versus OAuth `user` audit provenance.
 
 ## Anti-patterns
 
 - No hand-rolled validation; tighten the schema. No minted trace ids; read `currentTraceId`.
 - Do not accept a JWT on a REST route; OAuth is the interactive surface only.
+- A mutation's presence in the catalog never exposes an MCP tool. Opt-in requires reviewed input/output schemas, per-tool permission enforcement, and truthful read-only, destructive, idempotent, and open-world annotations (ADR 0072).
 - Do not add a membership or invitation endpoint: Better Auth `organization` writes are `requireHeaders: true` and a bearer token is no session (ARCHITECTURE.md, #64). That surface stays in `apps/web`, so this worker wires no `EmailDispatcher` and no `EMAIL` binding.
 - No OTLP exporter at isolate level (ADR 0050): a Worker may not do I/O for a request that already ended. `withHttpInvocation` builds it per request; only `WideEventLoggerLive` is isolate-level.
 
@@ -31,9 +33,9 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 
 ## Patterns & Pitfalls
 
-- The capability layer value is `HttpRouter.provideRequest`ed **and** `Layer.provide`d to the api layer, because `BearerAuth` resolves services from the group layers' build context. One value, one build, one shared instance. The gate runs before the handler body, so rejections emit their own wide event.
+- Provide the same capability layer through both `HttpRouter.provideRequest` and `Layer.provide`: `BearerAuth` and handler construction need the build context. Gate rejections emit their own wide event before the handler runs.
 - A gated group with no bucket row fails closed with 503; `permission-matrix.test.ts` asserts none is missing.
-- `POST /mcp` has no route-level permission check by design: every minted credential clears `mcp:read`, so a gate could never deny. Enforcement is per tool. The transport is sessionful (initialize mints an `mcp-session-id`; sessions live in isolate memory), `GET /mcp` answers 405, and the REST discovery document the contract serves is at `GET /mcp/discovery`.
+- `POST /mcp` has no route permission: every credential clears `mcp:read`; enforce per tool. Keep sessions in isolate memory, initialization's `mcp-session-id`, `GET /mcp` 405, and discovery at `GET /mcp/discovery`.
 - `CurrentMcpCaller` is a `Context.Reference` with an `undefined` default, not a required service: absence is caught by `requireCaller` and answered with `InternalError`, so a gate-ordering mistake is a typed failure, not a defect on the model-facing surface.
 - `makeOAuthTokenVerifierLayer` throws before returning its error-free layer for a non-`https:` production JWKS URL; this synchronous factory has no typed error channel, so it refuses initialization on the first request, matching `apps/web`'s env gate. Unset OAuth env leaves the verifier inactive.
 - Export-download refusals are all one 404 (ADR 0055), rate-limited by client IP so signatures cannot be brute-forced.

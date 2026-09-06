@@ -219,6 +219,72 @@ describe('contract-served routes', () => {
     })
   )
 
+  it.effect(
+    'revoking removes the token projection and repeated revocation still succeeds',
+    () =>
+      Effect.gen(function* () {
+        const created = yield* send(
+          post(
+            '/workspaces/starter-lab/api-tokens',
+            {
+              name: 'Revocation test',
+              scopes: ['read']
+            },
+            bearer
+          )
+        )
+        expect(created.status).toBe(201)
+        const token = yield* jsonBody(created, CreatedTokenBody)
+        const TokenPage = Schema.Struct({
+          items: Schema.Array(Schema.Struct({ id: Schema.String }))
+        })
+        const before = yield* send(get('/workspaces/starter-lab/api-tokens', bearer))
+        expect(
+          (yield* jsonBody(before, TokenPage)).items.some(
+            (item) => item.id === token.id
+          )
+        ).toBe(true)
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const revoked = yield* send(
+            new Request(
+              `https://api.test/workspaces/starter-lab/api-tokens/${token.id}`,
+              {
+                method: 'DELETE',
+                headers: bearer
+              }
+            )
+          )
+          expect(revoked.status).toBe(200)
+          expect(
+            yield* jsonBody(
+              revoked,
+              Schema.Struct({ status: Schema.Literal('revoked') })
+            )
+          ).toEqual({ status: 'revoked' })
+        }
+        const after = yield* send(get('/workspaces/starter-lab/api-tokens', bearer))
+        expect(
+          (yield* jsonBody(after, TokenPage)).items.some((item) => item.id === token.id)
+        ).toBe(false)
+      })
+  )
+
+  for (const route of [
+    { path: 'webhooks/wh_absent/rotate-secret', tag: 'WebhookEndpointNotFound' },
+    { path: 'webhooks/wh_absent/test-event', tag: 'WebhookEndpointNotFound' },
+    { path: 'webhooks/deliveries/whd_absent/replay', tag: 'WebhookDeliveryNotFound' }
+  ]) {
+    it.effect(`${route.path} preserves the typed 404`, () =>
+      Effect.gen(function* () {
+        const response = yield* send(
+          post(`/workspaces/starter-lab/${route.path}`, {}, bearer)
+        )
+        expect(response.status).toBe(404)
+        expect((yield* jsonBody(response, ErrorBody))._tag).toBe(route.tag)
+      })
+    )
+  }
+
   it.effect('POST create webhook rejects invalid destinations', () =>
     Effect.gen(function* () {
       const res = yield* send(
@@ -610,6 +676,22 @@ describe('workspace exports (ADR 0055)', () => {
       const bytes = new Uint8Array(yield* Effect.promise(() => download.arrayBuffer()))
       // Gzip magic bytes: 0x1f 0x8b.
       expect([...bytes.subarray(0, 2)]).toEqual([0x1f, 0x8b])
+    })
+  )
+
+  it.effect('download-link resolves origin per request on the same handler', () =>
+    Effect.gen(function* () {
+      for (const origin of ['https://first.api.test', 'https://second.api.test']) {
+        const response = yield* send(
+          new Request(
+            `${origin}/workspaces/starter-lab/exports/${seedWorkspaceExportFixture.id}/download-link`,
+            { method: 'POST', headers: bearer }
+          )
+        )
+        expect(response.status).toBe(200)
+        const link = yield* jsonBody(response, DownloadLinkBody)
+        expect(new URL(link.url).origin).toBe(origin)
+      }
     })
   )
 
