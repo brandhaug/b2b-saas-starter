@@ -29,7 +29,7 @@ describe('AuditEventSheet', () => {
     expect(screen.getByText(/"attempts": 3/)).toBeTruthy()
     expect(screen.getByText(/"responseStatus": 503/)).toBeTruthy()
     expect(document.querySelector('script')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Close', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(close).toHaveBeenCalledOnce()
   })
 })
