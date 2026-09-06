@@ -235,6 +235,61 @@ export function deliverySuccessRate(total: number, delivered: number): number {
   return Math.round((delivered / total) * 100)
 }
 
+/**
+ * The failure ladder (ADR 0062 addendum): the streak of consecutive failed
+ * delivery attempts one endpoint carries in `consecutive_failures`. Each
+ * recorded failure climbs it; a delivered attempt resets it to zero. The
+ * queue consumer reacts to the streak this module names: the workspace
+ * owners are warned at each rung below, and at the threshold the endpoint is
+ * auto-disabled (`WebhookEndpoints.autoDisableEndpoint`) and warned once
+ * more. Rungs are exact so each fires once per climb; the threshold is a
+ * floor so an endpoint re-enabled mid-streak without a success disables
+ * again on its next failure instead of sailing past the rung.
+ */
+const WEBHOOK_FAILURE_NOTIFY_RUNGS: ReadonlySet<number> = new Set([5, 10, 15])
+
+/** The streak length at which the ladder auto-disables the endpoint. */
+export const WEBHOOK_FAILURE_AUTO_DISABLE_AT = 20
+
+/**
+ * The streak after an attempt writes: every failure — retryable, permanent,
+ * or dead-lettered — climbs; only a delivered attempt resets. Pure, so the
+ * Seed and Live adapters move the stored counter identically.
+ */
+export function nextConsecutiveFailures(
+  current: number,
+  status: WebhookDeliveryStatus
+): number {
+  if (status === 'delivered') {
+    return 0
+  }
+  return current + 1
+}
+
+/** What the ladder does at a streak value. */
+export type FailureLadderAction = 'silent' | 'warn' | 'disable'
+
+/**
+ * The ladder's reaction to the streak a recorded attempt left, pure so the
+ * queue consumer only executes it: nothing between rungs, an owner warning
+ * at each rung, and from the threshold on the disable plus the warning that
+ * names it.
+ */
+export function failureLadderAction(consecutiveFailures: number): FailureLadderAction {
+  if (reachedWebhookFailureThreshold(consecutiveFailures)) {
+    return 'disable'
+  }
+  if (WEBHOOK_FAILURE_NOTIFY_RUNGS.has(consecutiveFailures)) {
+    return 'warn'
+  }
+  return 'silent'
+}
+
+/** Whether a streak has reached the auto-disable threshold. */
+function reachedWebhookFailureThreshold(consecutiveFailures: number): boolean {
+  return consecutiveFailures >= WEBHOOK_FAILURE_AUTO_DISABLE_AT
+}
+
 /** Everything a dispatch needs to persist its attempt row and answer the queue. */
 type DeliveryAttemptPlan = {
   readonly status: 'delivered' | 'failed_permanent' | 'failed'
@@ -367,7 +422,7 @@ export const terminalDeliveryAuditEventType = new Map<
  * actionable without a query. Owned here so the Seed and Live adapters emit
  * byte-identical copy.
  */
-type DeadLetterNotification = {
+type NotificationCopy = {
   readonly title: string
   readonly message: string
 }
@@ -376,9 +431,32 @@ export function deadLetterNotification(input: {
   readonly eventType: string
   readonly url: string
   readonly attempts: number
-}): DeadLetterNotification {
+}): NotificationCopy {
   return {
     title: 'Webhook delivery dead-lettered',
     message: `${input.eventType} to ${input.url} failed ${input.attempts} attempts and was moved to the dead-letter queue. Replay it from the workspace webhooks page.`
+  }
+}
+
+/**
+ * The workspace-owner notice a ladder rung raises, owned here so the
+ * consumer's in-app copy stays identical across environments. A rung notice
+ * names the streak and what is coming; the threshold notice names what
+ * already happened and the one way back (`update { enabled: true }`).
+ */
+export function failureLadderNotification(input: {
+  readonly url: string | null
+  readonly consecutiveFailures: number
+}): NotificationCopy {
+  const target = input.url ?? 'A webhook endpoint'
+  if (reachedWebhookFailureThreshold(input.consecutiveFailures)) {
+    return {
+      title: 'Webhook endpoint auto-disabled',
+      message: `${target} was disabled after ${input.consecutiveFailures} consecutive failed deliveries. Re-enable it from the workspace webhooks page once the receiver is fixed.`
+    }
+  }
+  return {
+    title: 'Webhook endpoint failing',
+    message: `${target} has failed ${input.consecutiveFailures} deliveries in a row and will be disabled automatically after ${WEBHOOK_FAILURE_AUTO_DISABLE_AT} consecutive failures.`
   }
 }

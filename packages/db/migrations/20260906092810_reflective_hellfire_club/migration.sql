@@ -1,0 +1,1 @@
+ALTER TABLE `webhook_endpoints` ADD `consecutive_failures` integer DEFAULT 0 NOT NULL;

@@ -43,6 +43,7 @@ function stubFeed(
     unreadCount: Effect.die('unused'),
     markRead: () => Effect.die('unused'),
     notifyUser: () => Effect.die('unused'),
+    notifyWorkspaceOwners: () => Effect.die('unused'),
     create: () => Effect.die('unused'),
     loadForEmail: () => Effect.succeed(found),
     record: () => Effect.die('unused'),

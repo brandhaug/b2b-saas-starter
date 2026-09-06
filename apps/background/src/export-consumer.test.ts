@@ -119,7 +119,8 @@ function stubReads(failing = false) {
       rotateSecret: () => unused,
       getDispatchTarget: () => unused,
       recordDeliveryAttempt: () => unused,
-      recordTerminalDeliveryAttempt: () => unused
+      recordTerminalDeliveryAttempt: () => unused,
+      autoDisableEndpoint: () => unused
     }),
     Layer.succeed(AuditEventLog)({
       list: () => list({ items: [], nextCursor: null }),
@@ -133,6 +134,7 @@ function stubReads(failing = false) {
       unreadCount: list(0),
       markRead: () => unused,
       notifyUser: () => unused,
+      notifyWorkspaceOwners: () => unused,
       create: () => unused,
       loadForEmail: () => unused,
       listDigestCandidates: () => unused,

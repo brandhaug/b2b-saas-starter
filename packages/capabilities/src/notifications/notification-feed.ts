@@ -69,6 +69,17 @@ export type NotifyUserInput = {
   readonly message: string
 }
 
+/**
+ * What a producer hands `notifyWorkspaceOwners`: one message for every owner
+ * of a workspace, keyed by the workspace id the background producers hold.
+ */
+export type NotifyWorkspaceOwnersInput = {
+  readonly workspaceId: string
+  readonly kind: NotificationKind
+  readonly title: string
+  readonly message: string
+}
+
 /** Who an email about a Notification goes to. */
 export type NotificationRecipient = {
   readonly userId: string
@@ -172,6 +183,18 @@ export type NotificationFeedInterface = {
    */
   readonly notifyUser: (
     input: NotifyUserInput
+  ) => Effect.Effect<void, CapabilityUnavailable>
+
+  /**
+   * Workspace-keyed, owner-targeted: one unread row per owner of the
+   * workspace (visible only to them), then the same instant-email fan-out
+   * `create` runs per recipient. The webhook failure ladder is the first
+   * producer (ADR 0062 addendum): the owner is the actor who can fix or
+   * replace the endpoint, so its rungs target them instead of broadcasting.
+   * A workspace with no owner rows records nothing.
+   */
+  readonly notifyWorkspaceOwners: (
+    input: NotifyWorkspaceOwnersInput
   ) => Effect.Effect<void, CapabilityUnavailable>
 
   /** The instant-email consumer's read. */

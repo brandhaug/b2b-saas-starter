@@ -12,6 +12,7 @@ Outbound webhook destinations and the operator surface over them. Dispatch belon
 - `rotateSecret` shifts the replaced secret into the grace columns, where it signs another 24h. Expired values are filtered lazily by `activeSigningSecrets`, so no sweep exists.
 - Background methods take the workspace id off the queue message; every lookup is `(endpointId, workspaceId)`. `getDispatchTarget` returns `signingSecrets` plural, for the grace window.
 - A `dead_lettered` attempt also records a broadcast `NotificationFeed` row, its copy owned by `deadLetterNotification`.
+- The failure ladder (ADR 0062 addendum): `recordDeliveryAttempt` / `recordTerminalDeliveryAttempt` move `consecutive_failures` in the same batched write as the delivery row and return the streak; `autoDisableEndpoint` sets `enabled = false` and batches the `webhook_endpoint.auto_disabled` audit event (zero-match — disabled, deleted, foreign — writes and audits nothing). The counter transition, the reaction (`failureLadderAction`), and the rung copy are pure exports of the delivery plan; the consumer only executes them.
 
 ## Patterns & Pitfalls
 

@@ -14,6 +14,7 @@ import {
 } from './webhook-endpoints.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
+import { WEBHOOK_FAILURE_AUTO_DISABLE_AT } from './webhook-delivery-plan.ts'
 
 /**
  * The developer-platform mutation contract, written once and run against both
@@ -25,6 +26,14 @@ import { walkKeysetPages } from '../internal/keyset-cursor.ts'
  * the same interface, so drift was invisible until someone read both files.
  * Every case asserts only what both adapters can honestly promise.
  */
+
+/** The HTTP status a ladder-contract climb records for its attempt status. */
+function climbResponseStatus(status: 'failed' | 'delivered'): number {
+  if (status === 'failed') {
+    return 500
+  }
+  return 200
+}
 
 export type DeveloperPlatformContractCase = {
   readonly name: string
@@ -224,6 +233,124 @@ export function developerPlatformContractCases(
         // row itself is listable through the same interface.
         const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
         expect(rows.some((row) => row.id === deliveryId)).toBe(true)
+      })
+    },
+    {
+      name: 'recorded failures climb the endpoint streak and a delivered attempt resets it',
+      assert: Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        const ctx = yield* WorkspaceContext
+        const { endpoint } = yield* webhooks.create({
+          url: 'https://example.com/ladder-hook',
+          events: ['demo.event']
+        })
+
+        // Each recorded failure climbs; the returned streak is what the
+        // queue consumer reacts to (ADR 0062 addendum's failure ladder).
+        function attempt(status: 'failed' | 'delivered', index: number) {
+          return webhooks.recordDeliveryAttempt({
+            id: `whd_contract_ladder_${index}`,
+            endpointId: endpoint.id,
+            workspaceId: ctx.workspace.id,
+            eventType: 'demo.event',
+            status,
+            attempts: 1,
+            responseStatus: climbResponseStatus(status),
+            nextAttemptAt: null,
+            payload: { rung: index }
+          })
+        }
+
+        expect((yield* attempt('failed', 1)).consecutiveFailures).toBe(1)
+        expect((yield* attempt('failed', 2)).consecutiveFailures).toBe(2)
+        expect((yield* attempt('failed', 3)).consecutiveFailures).toBe(3)
+        // One delivered attempt resets the streak to zero — and the next
+        // failure starts a fresh climb from there.
+        expect((yield* attempt('delivered', 4)).consecutiveFailures).toBe(0)
+        expect((yield* attempt('failed', 5)).consecutiveFailures).toBe(1)
+        // A climb alone never disables: the dispatch target still resolves.
+        expect(
+          (yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)) !== null
+        ).toBe(true)
+      })
+    },
+    {
+      name: 'the disable rung auto-disables the endpoint, audits it, and update re-enables',
+      assert: Effect.gen(function* () {
+        const webhooks = yield* WebhookEndpoints
+        const log = yield* AuditEventLog
+        const ctx = yield* WorkspaceContext
+        const { endpoint } = yield* webhooks.create({
+          url: 'https://example.com/disable-rung-hook',
+          events: ['demo.event']
+        })
+
+        // Climb to the threshold exactly as the queue consumer would: nineteen
+        // retryable failures, then the twentieth — a terminal failure — whose
+        // returned streak is what trips the rung the consumer reacts to.
+        let streak = 0
+        for (let index = 1; index < WEBHOOK_FAILURE_AUTO_DISABLE_AT; index++) {
+          streak = (yield* webhooks.recordDeliveryAttempt({
+            id: `whd_contract_disable_${index}`,
+            endpointId: endpoint.id,
+            workspaceId: ctx.workspace.id,
+            eventType: 'demo.event',
+            status: 'failed',
+            attempts: 1,
+            responseStatus: 500,
+            nextAttemptAt: null,
+            payload: { rung: index }
+          })).consecutiveFailures
+        }
+        expect(streak).toBe(WEBHOOK_FAILURE_AUTO_DISABLE_AT - 1)
+        const twentieth = yield* webhooks.recordTerminalDeliveryAttempt({
+          deliveryId: 'whd_contract_disable_20',
+          endpointId: endpoint.id,
+          workspaceId: ctx.workspace.id,
+          eventType: 'demo.event',
+          attempts: 1,
+          status: 'failed_permanent',
+          payload: { rung: WEBHOOK_FAILURE_AUTO_DISABLE_AT }
+        })
+        expect(twentieth.consecutiveFailures).toBe(WEBHOOK_FAILURE_AUTO_DISABLE_AT)
+
+        yield* webhooks.autoDisableEndpoint({
+          endpointId: endpoint.id,
+          workspaceId: ctx.workspace.id,
+          consecutiveFailures: twentieth.consecutiveFailures
+        })
+
+        // Disabled: no dispatch target, and the governance log says why.
+        expect(
+          (yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)) === null
+        ).toBe(true)
+        const events = yield* log.list({
+          eventType: 'webhook_endpoint.auto_disabled'
+        })
+        expect(events.items.some((event) => event.targetId === endpoint.id)).toBe(true)
+
+        // Already disabled matches nothing: no second write, no phantom audit.
+        yield* webhooks.autoDisableEndpoint({
+          endpointId: endpoint.id,
+          workspaceId: ctx.workspace.id,
+          consecutiveFailures: WEBHOOK_FAILURE_AUTO_DISABLE_AT + 1
+        })
+        const rerun = yield* log.list({
+          eventType: 'webhook_endpoint.auto_disabled'
+        })
+        expect(
+          rerun.items.filter((event) => event.targetId === endpoint.id)
+        ).toHaveLength(1)
+
+        // The one way back is the operator's own path.
+        const reEnabled = yield* webhooks.update({
+          endpointId: endpoint.id,
+          enabled: true
+        })
+        expect(reEnabled.enabled).toBe(true)
+        expect(
+          (yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)) !== null
+        ).toBe(true)
       })
     },
     {

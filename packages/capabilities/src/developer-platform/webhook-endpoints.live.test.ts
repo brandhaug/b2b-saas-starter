@@ -1,4 +1,8 @@
-import { auditEvents, webhookDeliveries } from '@b2b-saas-starter/db/schema'
+import {
+  auditEvents,
+  webhookDeliveries,
+  webhookEndpoints
+} from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
@@ -248,6 +252,118 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               })
             )
           )
+      )
+
+      it.effect(
+        'a failed attempt climbs the endpoint streak and a delivered attempt resets it',
+        () =>
+          Effect.gen(function* () {
+            const db = yield* Database
+            // Reset first so the case is independent of the attempts the
+            // sibling cases already recorded against this shared endpoint.
+            yield* recordAttempt({
+              id: 'whd_live_ladder_reset',
+              endpointId: 'wh_live',
+              workspaceId: 'wrk_live',
+              eventType: 'demo.ladder',
+              status: 'delivered',
+              attempts: 1,
+              responseStatus: 200,
+              nextAttemptAt: null,
+              payload: { event: 'demo.ladder' }
+            })
+            const climb = yield* recordAttempt({
+              id: 'whd_live_ladder_climb',
+              endpointId: 'wh_live',
+              workspaceId: 'wrk_live',
+              eventType: 'demo.ladder',
+              status: 'failed',
+              attempts: 1,
+              responseStatus: 500,
+              nextAttemptAt: null,
+              payload: { event: 'demo.ladder' }
+            })
+            expect(climb.consecutiveFailures).toBe(1)
+            const endpointRows = yield* db
+              .select()
+              .from(webhookEndpoints)
+              .where(eq(webhookEndpoints.id, 'wh_live'))
+            // The counter column moved in the same batch as the delivery row.
+            expect(endpointRows[0]?.consecutiveFailures).toBe(1)
+            const reset = yield* recordAttempt({
+              id: 'whd_live_ladder_delivered',
+              endpointId: 'wh_live',
+              workspaceId: 'wrk_live',
+              eventType: 'demo.ladder',
+              status: 'delivered',
+              attempts: 1,
+              responseStatus: 200,
+              nextAttemptAt: null,
+              payload: { event: 'demo.ladder' }
+            })
+            expect(reset.consecutiveFailures).toBe(0)
+            const afterReset = yield* db
+              .select()
+              .from(webhookEndpoints)
+              .where(eq(webhookEndpoints.id, 'wh_live'))
+            expect(afterReset[0]?.consecutiveFailures).toBe(0)
+          })
+      )
+
+      it.effect(
+        'autoDisableEndpoint flips the row and batches its audit event with the write',
+        () =>
+          Effect.gen(function* () {
+            const db = yield* Database
+            // Direct row, like the harness fixture's `wh_live`: live-lab sits
+            // on the capped starter plan, so a second endpoint through the
+            // interface would hit the plan gate before the rung under test.
+            yield* db.insert(webhookEndpoints).values({
+              id: 'wh_live_auto_disabled',
+              workspaceId: 'wrk_live',
+              url: 'https://example.com/auto-disable-hook',
+              signingSecret: 'whsec_live_auto_disable',
+              enabled: true,
+              events: ['demo.event'],
+              createdAt: '2026-07-03T09:00:00.000Z'
+            })
+            yield* inWorkspace(
+              'live-lab',
+              Effect.flatMap(WebhookEndpoints, (webhooks) =>
+                webhooks.autoDisableEndpoint({
+                  endpointId: 'wh_live_auto_disabled',
+                  workspaceId: 'wrk_live',
+                  consecutiveFailures: 20
+                })
+              )
+            )
+
+            const rows = yield* db
+              .select()
+              .from(webhookEndpoints)
+              .where(eq(webhookEndpoints.id, 'wh_live_auto_disabled'))
+            expect(rows[0]?.enabled).toBe(false)
+
+            const audit = yield* db
+              .select()
+              .from(auditEvents)
+              .where(
+                and(
+                  eq(auditEvents.eventType, 'webhook_endpoint.auto_disabled'),
+                  eq(auditEvents.targetId, 'wh_live_auto_disabled')
+                )
+              )
+            expect(audit).toHaveLength(1)
+            expect(audit[0]).toMatchObject({
+              workspaceId: 'wrk_live',
+              actorUserId: null,
+              targetType: 'webhook_endpoint'
+            })
+            expect(audit[0]?.metadata).toMatchObject({
+              url: 'https://example.com/auto-disable-hook',
+              consecutiveFailures: 20
+            })
+          })
       )
 
       it.effect(

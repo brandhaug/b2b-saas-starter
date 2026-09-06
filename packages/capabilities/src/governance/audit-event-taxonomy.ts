@@ -29,6 +29,9 @@ export const AUDIT_EVENT_TYPES = [
   'webhook_endpoint.updated',
   'webhook_endpoint.deleted',
   'webhook_endpoint.secret_rotated',
+  // The failure ladder's terminal rung (ADR 0062 addendum): the background
+  // worker disabled the endpoint after 20 consecutive failed deliveries.
+  'webhook_endpoint.auto_disabled',
   'webhook.delivery_failed',
   'webhook.delivery_dead_lettered',
   'webhook.delivery_replayed',
