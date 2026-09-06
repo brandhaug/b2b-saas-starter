@@ -1,4 +1,5 @@
 import {
+  type JsonObject,
   workspaceMembers,
   workspaces,
   workspaceSubscriptions
@@ -21,6 +22,7 @@ import {
   seatChangeMetadata,
   seatQuantityMoved,
   type ApplySubscriptionEventInput,
+  type CheckoutInput,
   type SubscriptionState
 } from './billing.ts'
 import {
@@ -139,8 +141,10 @@ export function LiveBilling(
       })
 
       return {
-        configured: Effect.succeed(billingConfigured(options)),
-        currentPlan: Effect.gen(function* () {
+        configured: Effect.fn('Billing.configured')(() =>
+          Effect.succeed(billingConfigured(options))
+        )(),
+        currentPlan: Effect.fn('Billing.currentPlan')(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -150,227 +154,235 @@ export function LiveBilling(
               .limit(1)
           )
           return planById(rows[0]?.planId ?? ctx.workspace.planId)
+        })(),
+        startCheckout: Effect.fn('Billing.startCheckout')(function* (
+          input: CheckoutInput
+        ) {
+          const ctx = yield* WorkspaceContext
+          const secretKey = options.secretKey
+          if (secretKey === undefined || secretKey.length === 0) {
+            return yield* Effect.fail(providerNotConfigured())
+          }
+          const plan = planById(input.planId)
+          let priceId: string | undefined
+          if (plan.stripePriceEnv !== null) {
+            priceId = options.priceIds?.[input.planId]
+          }
+          if (priceId === undefined || priceId.length === 0) {
+            return yield* Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'billing',
+                reason: `price_not_configured:${plan.stripePriceEnv ?? input.planId}`
+              })
+            )
+          }
+          let quantity = 1
+          if (plan.pricing === 'per_seat') {
+            quantity = yield* countMembers(ctx.workspace.id)
+          }
+          const session = yield* createStripeCheckoutSession({
+            secretKey,
+            priceId,
+            quantity,
+            workspaceId: ctx.workspace.id,
+            planId: input.planId,
+            successUrl: input.successUrl,
+            cancelUrl: input.cancelUrl
+          })
+          yield* audit.record({
+            workspaceId: ctx.workspace.id,
+            actorUserId: ctx.actor?.userId ?? null,
+            eventType: 'billing.checkout_started',
+            targetType: 'workspace',
+            targetId: ctx.workspace.id,
+            metadata: { planId: input.planId, quantity }
+          })
+          return session
         }),
-        startCheckout: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const secretKey = options.secretKey
-            if (secretKey === undefined || secretKey.length === 0) {
-              return yield* Effect.fail(providerNotConfigured())
-            }
-            const plan = planById(input.planId)
-            let priceId: string | undefined
-            if (plan.stripePriceEnv !== null) {
-              priceId = options.priceIds?.[input.planId]
-            }
-            if (priceId === undefined || priceId.length === 0) {
-              return yield* Effect.fail(
-                new CapabilityUnavailable({
-                  capability: 'billing',
-                  reason: `price_not_configured:${plan.stripePriceEnv ?? input.planId}`
-                })
-              )
-            }
-            let quantity = 1
-            if (plan.pricing === 'per_seat') {
-              quantity = yield* countMembers(ctx.workspace.id)
-            }
-            const session = yield* createStripeCheckoutSession({
-              secretKey,
-              priceId,
-              quantity,
-              workspaceId: ctx.workspace.id,
-              planId: input.planId,
-              successUrl: input.successUrl,
-              cancelUrl: input.cancelUrl
-            })
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              eventType: 'billing.checkout_started',
-              targetType: 'workspace',
-              targetId: ctx.workspace.id,
-              metadata: { planId: input.planId, quantity }
-            })
-            return session
-          }),
-        startPortalSession: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const secretKey = options.secretKey
-            if (secretKey === undefined || secretKey.length === 0) {
-              return yield* Effect.fail(providerNotConfigured())
-            }
-            const row = yield* readSubscription(ctx.workspace.id)
-            if (row === undefined) {
-              return yield* Effect.fail(
-                new CapabilityUnavailable({
-                  capability: 'billing',
-                  reason: 'no_billing_profile'
-                })
-              )
-            }
-            const session = yield* createStripeBillingPortalSession({
-              secretKey,
-              customerId: row.stripeCustomerId,
-              returnUrl: input.returnUrl
-            })
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              eventType: 'billing.portal_opened',
-              targetType: 'workspace',
-              targetId: ctx.workspace.id,
-              metadata: {}
-            })
-            return session
-          }),
-        applyProviderEvent: (input) =>
-          Effect.gen(function* () {
-            if (!PLANS.some((plan) => plan.id === input.planId)) {
-              return false
-            }
-            // Resolve first, then write: an unknown workspace id yields `false`
-            // without writing a system audit event for a row that does not
-            // exist. That pre-check is the combinator's `matched`, so the
-            // update and its audit insert commit or roll back as one.
-            return yield* auditedMutation({
-              matched: unavailable(
-                db
-                  .select({ id: workspaces.id })
-                  .from(workspaces)
-                  .where(eq(workspaces.id, input.workspaceId))
-                  .limit(1)
-              ).pipe(Effect.map((rows) => rows.length > 0)),
-              auditEvent: {
-                // A system event: the actor is the provider webhook, not a user.
-                workspaceId: input.workspaceId,
-                actorUserId: null,
-                eventType: 'billing.plan_changed',
-                targetType: 'workspace',
-                targetId: input.workspaceId,
-                metadata: planChangeMetadata(input.planId, input.detail)
-              },
-              write: () =>
-                db
-                  .update(workspaces)
-                  .set({ planId: input.planId })
-                  .where(eq(workspaces.id, input.workspaceId))
-            })
-          }),
-        applySubscriptionEvent: (input: ApplySubscriptionEventInput) =>
-          Effect.gen(function* () {
-            const known = yield* unavailable(
+        startPortalSession: Effect.fn('Billing.startPortalSession')(function* (input: {
+          readonly returnUrl: string
+        }) {
+          const ctx = yield* WorkspaceContext
+          const secretKey = options.secretKey
+          if (secretKey === undefined || secretKey.length === 0) {
+            return yield* Effect.fail(providerNotConfigured())
+          }
+          const row = yield* readSubscription(ctx.workspace.id)
+          if (row === undefined) {
+            return yield* Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'billing',
+                reason: 'no_billing_profile'
+              })
+            )
+          }
+          const session = yield* createStripeBillingPortalSession({
+            secretKey,
+            customerId: row.stripeCustomerId,
+            returnUrl: input.returnUrl
+          })
+          yield* audit.record({
+            workspaceId: ctx.workspace.id,
+            actorUserId: ctx.actor?.userId ?? null,
+            eventType: 'billing.portal_opened',
+            targetType: 'workspace',
+            targetId: ctx.workspace.id,
+            metadata: {}
+          })
+          return session
+        }),
+        applyProviderEvent: Effect.fn('Billing.applyProviderEvent')(function* (input: {
+          readonly workspaceId: string
+          readonly planId: string
+          readonly detail?: JsonObject | undefined
+        }) {
+          if (!PLANS.some((plan) => plan.id === input.planId)) {
+            return false
+          }
+          // Resolve first, then write: an unknown workspace id yields `false`
+          // without writing a system audit event for a row that does not
+          // exist. That pre-check is the combinator's `matched`, so the
+          // update and its audit insert commit or roll back as one.
+          return yield* auditedMutation({
+            matched: unavailable(
               db
                 .select({ id: workspaces.id })
                 .from(workspaces)
                 .where(eq(workspaces.id, input.workspaceId))
                 .limit(1)
-            )
-            if (known.length === 0) {
-              return false
-            }
-            const row = yield* readSubscription(input.workspaceId)
-            let existing: SubscriptionState | undefined
-            if (row !== undefined) {
-              existing = {
-                customerId: row.stripeCustomerId,
-                subscriptionId: row.stripeSubscriptionId,
-                subscriptionItemId: row.stripeSubscriptionItemId,
-                seatQuantity: row.seatQuantity
-              }
-            }
-            // The shared reduction (`billing.ts`) both adapters enforce:
-            // `null` means the event carries no customer and no row holds one.
-            const next = nextSubscriptionState(input, existing)
-            if (next === null) {
-              return false
-            }
-            const values = {
-              stripeCustomerId: next.customerId,
-              stripeSubscriptionId: next.subscriptionId,
-              stripeSubscriptionItemId: next.subscriptionItemId,
-              seatQuantity: next.seatQuantity,
-              updatedAt: DateTime.formatIso(yield* DateTime.now)
-            }
-            function write() {
-              if (row === undefined) {
-                return db
-                  .insert(workspaceSubscriptions)
-                  .values({ workspaceId: input.workspaceId, ...values })
-              }
-              return db
-                .update(workspaceSubscriptions)
-                .set(values)
-                .where(eq(workspaceSubscriptions.workspaceId, input.workspaceId))
-            }
-            // The audit rides only a quantity that actually moved — a link
-            // refresh or an item id arriving late is not a seat change.
-            if (!seatQuantityMoved(input, next, existing)) {
-              yield* unavailable(write())
-              return true
-            }
-            return yield* auditedMutation({
-              matched: Effect.succeed(row !== undefined),
-              auditEvent: {
-                workspaceId: input.workspaceId,
-                actorUserId: null,
-                eventType: 'billing.seats_changed',
-                targetType: 'workspace',
-                targetId: input.workspaceId,
-                metadata: seatChangeMetadata(next.seatQuantity, input.detail)
-              },
-              write
-            })
-          }),
-        syncSeats: (input) =>
-          Effect.gen(function* () {
-            // Workspace state is checked before the provider gate, so a
-            // workspace that never checked out answers `no_subscription`
-            // whether or not Stripe is configured on this deployment.
-            const row = yield* readSubscription(input.workspaceId)
-            if (row === undefined) {
-              return { outcome: 'no_subscription', quantity: null }
-            }
-            if (row.stripeSubscriptionItemId === null) {
-              return { outcome: 'no_seat_item', quantity: null }
-            }
-            const members = yield* countMembers(input.workspaceId)
-            if (row.seatQuantity === members) {
-              return { outcome: 'quantity_unchanged', quantity: members }
-            }
-            const secretKey = options.secretKey
-            if (secretKey === undefined || secretKey.length === 0) {
-              return { outcome: 'provider_not_configured', quantity: null }
-            }
-            // The provider call stands outside the batch on purpose: the
-            // stored quantity records what Stripe acknowledged, so a failed
-            // update leaves both the row and the audit unwritten and the
-            // queue retries the whole message.
-            yield* updateStripeSubscriptionItemQuantity({
-              secretKey,
-              subscriptionItemId: row.stripeSubscriptionItemId,
-              quantity: members
-            })
-            const updatedAt = DateTime.formatIso(yield* DateTime.now)
-            yield* auditedMutation({
-              matched: Effect.succeed(true),
-              auditEvent: {
-                workspaceId: input.workspaceId,
-                actorUserId: null,
-                eventType: 'billing.seats_changed',
-                targetType: 'workspace',
-                targetId: input.workspaceId,
-                metadata: seatChangeMetadata(members, { reason: input.reason })
-              },
-              write: () =>
-                db
-                  .update(workspaceSubscriptions)
-                  .set({ seatQuantity: members, updatedAt })
-                  .where(eq(workspaceSubscriptions.workspaceId, input.workspaceId))
-            })
-            return { outcome: 'synced', quantity: members }
+            ).pipe(Effect.map((rows) => rows.length > 0)),
+            auditEvent: {
+              // A system event: the actor is the provider webhook, not a user.
+              workspaceId: input.workspaceId,
+              actorUserId: null,
+              eventType: 'billing.plan_changed',
+              targetType: 'workspace',
+              targetId: input.workspaceId,
+              metadata: planChangeMetadata(input.planId, input.detail)
+            },
+            write: () =>
+              db
+                .update(workspaces)
+                .set({ planId: input.planId })
+                .where(eq(workspaces.id, input.workspaceId))
           })
+        }),
+        applySubscriptionEvent: Effect.fn('Billing.applySubscriptionEvent')(function* (
+          input: ApplySubscriptionEventInput
+        ) {
+          const known = yield* unavailable(
+            db
+              .select({ id: workspaces.id })
+              .from(workspaces)
+              .where(eq(workspaces.id, input.workspaceId))
+              .limit(1)
+          )
+          if (known.length === 0) {
+            return false
+          }
+          const row = yield* readSubscription(input.workspaceId)
+          let existing: SubscriptionState | undefined
+          if (row !== undefined) {
+            existing = {
+              customerId: row.stripeCustomerId,
+              subscriptionId: row.stripeSubscriptionId,
+              subscriptionItemId: row.stripeSubscriptionItemId,
+              seatQuantity: row.seatQuantity
+            }
+          }
+          // The shared reduction (`billing.ts`) both adapters enforce:
+          // `null` means the event carries no customer and no row holds one.
+          const next = nextSubscriptionState(input, existing)
+          if (next === null) {
+            return false
+          }
+          const values = {
+            stripeCustomerId: next.customerId,
+            stripeSubscriptionId: next.subscriptionId,
+            stripeSubscriptionItemId: next.subscriptionItemId,
+            seatQuantity: next.seatQuantity,
+            updatedAt: DateTime.formatIso(yield* DateTime.now)
+          }
+          function write() {
+            if (row === undefined) {
+              return db
+                .insert(workspaceSubscriptions)
+                .values({ workspaceId: input.workspaceId, ...values })
+            }
+            return db
+              .update(workspaceSubscriptions)
+              .set(values)
+              .where(eq(workspaceSubscriptions.workspaceId, input.workspaceId))
+          }
+          // The audit rides only a quantity that actually moved — a link
+          // refresh or an item id arriving late is not a seat change.
+          if (!seatQuantityMoved(input, next, existing)) {
+            yield* unavailable(write())
+            return true
+          }
+          return yield* auditedMutation({
+            matched: Effect.succeed(row !== undefined),
+            auditEvent: {
+              workspaceId: input.workspaceId,
+              actorUserId: null,
+              eventType: 'billing.seats_changed',
+              targetType: 'workspace',
+              targetId: input.workspaceId,
+              metadata: seatChangeMetadata(next.seatQuantity, input.detail)
+            },
+            write
+          })
+        }),
+        syncSeats: Effect.fn('Billing.syncSeats')(function* (input: {
+          readonly workspaceId: string
+          readonly reason: string
+        }) {
+          // Workspace state is checked before the provider gate, so a
+          // workspace that never checked out answers `no_subscription`
+          // whether or not Stripe is configured on this deployment.
+          const row = yield* readSubscription(input.workspaceId)
+          if (row === undefined) {
+            return { outcome: 'no_subscription', quantity: null }
+          }
+          if (row.stripeSubscriptionItemId === null) {
+            return { outcome: 'no_seat_item', quantity: null }
+          }
+          const members = yield* countMembers(input.workspaceId)
+          if (row.seatQuantity === members) {
+            return { outcome: 'quantity_unchanged', quantity: members }
+          }
+          const secretKey = options.secretKey
+          if (secretKey === undefined || secretKey.length === 0) {
+            return { outcome: 'provider_not_configured', quantity: null }
+          }
+          // The provider call stands outside the batch on purpose: the
+          // stored quantity records what Stripe acknowledged, so a failed
+          // update leaves both the row and the audit unwritten and the
+          // queue retries the whole message.
+          yield* updateStripeSubscriptionItemQuantity({
+            secretKey,
+            subscriptionItemId: row.stripeSubscriptionItemId,
+            quantity: members
+          })
+          const updatedAt = DateTime.formatIso(yield* DateTime.now)
+          yield* auditedMutation({
+            matched: Effect.succeed(true),
+            auditEvent: {
+              workspaceId: input.workspaceId,
+              actorUserId: null,
+              eventType: 'billing.seats_changed',
+              targetType: 'workspace',
+              targetId: input.workspaceId,
+              metadata: seatChangeMetadata(members, { reason: input.reason })
+            },
+            write: () =>
+              db
+                .update(workspaceSubscriptions)
+                .set({ seatQuantity: members, updatedAt })
+                .where(eq(workspaceSubscriptions.workspaceId, input.workspaceId))
+          })
+          return { outcome: 'synced', quantity: members }
+        })
       }
     })
   )

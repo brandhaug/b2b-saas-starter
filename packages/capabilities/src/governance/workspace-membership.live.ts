@@ -4,7 +4,11 @@ import { Effect, Layer } from 'effect'
 import { and, asc, eq, type SQL } from 'drizzle-orm'
 
 import { MembershipChangeRejected } from '../errors.ts'
-import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
+import {
+  clampPageLimit,
+  cutKeysetPage,
+  type ListPageInput
+} from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -12,6 +16,8 @@ import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
+  type MemberRef,
+  type MemberRoleInput,
   type WorkspaceMemberBinding,
   WorkspaceMembership,
   MEMBERSHIP_REFUSAL_REASONS,
@@ -92,7 +98,7 @@ export function LiveWorkspaceMembership(
       })
 
       return {
-        listMembers: Effect.gen(function* () {
+        listMembers: Effect.fn('WorkspaceMembership.listMembers')(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -102,112 +108,115 @@ export function LiveWorkspaceMembership(
               .where(eq(workspaceMembers.workspaceId, ctx.workspace.id))
           )
           return rows.map(toMember)
-        }),
-        listMembersPage: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const conditions: Array<SQL> = [
-              eq(workspaceMembers.workspaceId, ctx.workspace.id)
-            ]
-            // Forward on user `id ASC` — no timestamp on the wire shape, so a
-            // cursor is every member with a strictly greater id. The SQL
-            // resume comes from `keyset-query.ts`, like every paged read.
-            const resume = keysetResume(
-              'asc',
-              { key: workspaceMembers.userId, id: workspaceMembers.userId },
-              input?.cursor
-            )
-            if (resume.kind === 'empty') {
-              return { items: [], nextCursor: null }
-            }
-            if (resume.kind === 'resume') {
-              conditions.push(resume.condition)
-            }
-            const rows = yield* unavailable(
-              db
-                .select({ member: workspaceMembers, user })
-                .from(workspaceMembers)
-                .innerJoin(user, eq(user.id, workspaceMembers.userId))
-                .where(and(...conditions))
-                .orderBy(asc(workspaceMembers.userId))
-                .limit(clampPageLimit(input?.limit) + 1)
-            )
-            return cutKeysetPage(
-              rows.map(toMember),
-              clampPageLimit(input?.limit),
-              (member) => ({ key: member.id, id: member.id })
-            )
-          }),
-        listWorkspacesForUser: (userId) =>
-          unavailable(
+        })(),
+        listMembersPage: Effect.fn('WorkspaceMembership.listMembersPage')(function* (
+          input?: ListPageInput
+        ) {
+          const ctx = yield* WorkspaceContext
+          const conditions: Array<SQL> = [
+            eq(workspaceMembers.workspaceId, ctx.workspace.id)
+          ]
+          // Forward on user `id ASC` — no timestamp on the wire shape, so a
+          // cursor is every member with a strictly greater id. The SQL
+          // resume comes from `keyset-query.ts`, like every paged read.
+          const resume = keysetResume(
+            'asc',
+            { key: workspaceMembers.userId, id: workspaceMembers.userId },
+            input?.cursor
+          )
+          if (resume.kind === 'empty') {
+            return { items: [], nextCursor: null }
+          }
+          if (resume.kind === 'resume') {
+            conditions.push(resume.condition)
+          }
+          const rows = yield* unavailable(
             db
-              .select({ workspace: workspaces, member: workspaceMembers, user })
+              .select({ member: workspaceMembers, user })
               .from(workspaceMembers)
-              .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
               .innerJoin(user, eq(user.id, workspaceMembers.userId))
-              .where(eq(workspaceMembers.userId, userId))
-          ).pipe(
-            Effect.map((rows) =>
-              rows.map((row) => ({
-                workspace: toWorkspace(row.workspace),
-                member: toMember(row)
-              }))
-            )
-          ),
-        addMember: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            yield* callBinding(binding, (bound) =>
-              bound.addMember({
-                workspaceId: ctx.workspace.id,
-                userId: input.userId,
-                role: input.role
-              })
-            )
-            const member = yield* readMember(ctx.workspace.id, input.userId)
-            yield* recordInWorkspace(audit, {
-              eventType: 'workspace_member.added',
-              targetType: 'workspace_member',
-              targetId: input.userId,
-              metadata: { role: input.role }
-            })
-            // Seat sync rides a queue the background worker consumes, so this
-            // mutation never awaits Stripe — best-effort, after the audit.
-            yield* publishSeatSyncWith(seatSync, {
-              workspaceId: ctx.workspace.id,
-              reason: 'member_added'
-            })
-            return member
-          }),
-        removeMember: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const facts = yield* rosterFacts(ctx.workspace.id, input.userId)
-            const refusal = refuseMembershipChange('remove', {
-              actorRole: ctx.actor?.role ?? null,
-              targetRole: facts.targetRole,
-              ownerCount: facts.ownerCount
-            })
-            if (refusal !== null) {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: refusal })
+              .where(and(...conditions))
+              .orderBy(asc(workspaceMembers.userId))
+              .limit(clampPageLimit(input?.limit) + 1)
+          )
+          return cutKeysetPage(
+            rows.map(toMember),
+            clampPageLimit(input?.limit),
+            (member) => ({ key: member.id, id: member.id })
+          )
+        }),
+        listWorkspacesForUser: Effect.fn('WorkspaceMembership.listWorkspacesForUser')(
+          (userId: string) =>
+            unavailable(
+              db
+                .select({ workspace: workspaces, member: workspaceMembers, user })
+                .from(workspaceMembers)
+                .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+                .innerJoin(user, eq(user.id, workspaceMembers.userId))
+                .where(eq(workspaceMembers.userId, userId))
+            ).pipe(
+              Effect.map((rows) =>
+                rows.map((row) => ({
+                  workspace: toWorkspace(row.workspace),
+                  member: toMember(row)
+                }))
               )
-            }
-            const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
-            yield* callBinding(binding, (bound) =>
-              bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
             )
-            yield* recordInWorkspace(audit, {
-              eventType: 'workspace_member.removed',
-              targetType: 'workspace_member',
-              targetId: input.userId
-            })
-            yield* publishSeatSyncWith(seatSync, {
+        ),
+        addMember: Effect.fn('WorkspaceMembership.addMember')(function* (
+          input: MemberRoleInput
+        ) {
+          const ctx = yield* WorkspaceContext
+          yield* callBinding(binding, (bound) =>
+            bound.addMember({
               workspaceId: ctx.workspace.id,
-              reason: 'member_removed'
+              userId: input.userId,
+              role: input.role
             })
-          }),
-        leave: Effect.gen(function* () {
+          )
+          const member = yield* readMember(ctx.workspace.id, input.userId)
+          yield* recordInWorkspace(audit, {
+            eventType: 'workspace_member.added',
+            targetType: 'workspace_member',
+            targetId: input.userId,
+            metadata: { role: input.role }
+          })
+          // Seat sync rides a queue the background worker consumes, so this
+          // mutation never awaits Stripe — best-effort, after the audit.
+          yield* publishSeatSyncWith(seatSync, {
+            workspaceId: ctx.workspace.id,
+            reason: 'member_added'
+          })
+          return member
+        }),
+        removeMember: Effect.fn('WorkspaceMembership.removeMember')(function* (
+          input: MemberRef
+        ) {
+          const ctx = yield* WorkspaceContext
+          const facts = yield* rosterFacts(ctx.workspace.id, input.userId)
+          const refusal = refuseMembershipChange('remove', {
+            actorRole: ctx.actor?.role ?? null,
+            targetRole: facts.targetRole,
+            ownerCount: facts.ownerCount
+          })
+          if (refusal !== null) {
+            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+          }
+          const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
+          yield* callBinding(binding, (bound) =>
+            bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
+          )
+          yield* recordInWorkspace(audit, {
+            eventType: 'workspace_member.removed',
+            targetType: 'workspace_member',
+            targetId: input.userId
+          })
+          yield* publishSeatSyncWith(seatSync, {
+            workspaceId: ctx.workspace.id,
+            reason: 'member_removed'
+          })
+        }),
+        leave: Effect.fn('WorkspaceMembership.leave')(function* () {
           const ctx = yield* WorkspaceContext
           const actor = ctx.actor
           if (actor === null) {
@@ -246,39 +255,38 @@ export function LiveWorkspaceMembership(
             workspaceId: ctx.workspace.id,
             reason: 'member_removed'
           })
-        }),
-        changeRole: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const facts = yield* rosterFacts(ctx.workspace.id, input.userId)
-            const refusal = refuseMembershipChange('change_role', {
-              actorRole: ctx.actor?.role ?? null,
-              targetRole: facts.targetRole,
-              ownerCount: facts.ownerCount,
-              nextRole: input.role
-            })
-            if (refusal !== null) {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: refusal })
-              )
-            }
-            const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
-            yield* callBinding(binding, (bound) =>
-              bound.changeRole({
-                workspaceId: ctx.workspace.id,
-                memberId,
-                role: input.role
-              })
-            )
-            const member = yield* readMember(ctx.workspace.id, input.userId)
-            yield* recordInWorkspace(audit, {
-              eventType: 'workspace_member.role_changed',
-              targetType: 'workspace_member',
-              targetId: input.userId,
-              metadata: { role: input.role }
-            })
-            return member
+        })(),
+        changeRole: Effect.fn('WorkspaceMembership.changeRole')(function* (
+          input: MemberRoleInput
+        ) {
+          const ctx = yield* WorkspaceContext
+          const facts = yield* rosterFacts(ctx.workspace.id, input.userId)
+          const refusal = refuseMembershipChange('change_role', {
+            actorRole: ctx.actor?.role ?? null,
+            targetRole: facts.targetRole,
+            ownerCount: facts.ownerCount,
+            nextRole: input.role
           })
+          if (refusal !== null) {
+            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+          }
+          const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
+          yield* callBinding(binding, (bound) =>
+            bound.changeRole({
+              workspaceId: ctx.workspace.id,
+              memberId,
+              role: input.role
+            })
+          )
+          const member = yield* readMember(ctx.workspace.id, input.userId)
+          yield* recordInWorkspace(audit, {
+            eventType: 'workspace_member.role_changed',
+            targetType: 'workspace_member',
+            targetId: input.userId,
+            metadata: { role: input.role }
+          })
+          return member
+        })
       }
     })
   )

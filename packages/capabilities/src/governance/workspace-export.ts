@@ -114,7 +114,7 @@ export type FailWorkspaceExportInput = {
   readonly reason: string
 }
 
-type OpenWorkspaceExportDownloadInput = {
+export type OpenWorkspaceExportDownloadInput = {
   readonly exportId: string
   /** Unix seconds the link stops working, as carried in the URL. */
   readonly expires: number

@@ -30,12 +30,12 @@ export const Invitation = Schema.Struct({
 })
 export type Invitation = typeof Invitation.Type
 
-type CreateInvitationInput = {
+export type CreateInvitationInput = {
   readonly email: string
   readonly role: WorkspaceRole
 }
 
-type InvitationRef = {
+export type InvitationRef = {
   readonly invitationId: string
 }
 

@@ -86,11 +86,11 @@ type WorkspaceMembershipInterface = {
   >
 }
 
-type MemberRef = {
+export type MemberRef = {
   readonly userId: string
 }
 
-type MemberRoleInput = MemberRef & {
+export type MemberRoleInput = MemberRef & {
   readonly role: WorkspaceRole
 }
 
@@ -223,88 +223,94 @@ export function SeedWorkspaceMembership(
       const seatSync = yield* SeatSyncPublisher
 
       return {
-        listMembers: Ref.get(roster),
-        listMembersPage: (input) =>
-          Effect.map(
-            Ref.get(roster),
-            // Forward on `id ASC` (user id) — the member wire shape carries no
-            // timestamp, so the id is the one stable order a page can resume.
-            (members) =>
-              seedKeysetPage(
-                members,
-                'asc',
-                (member) => ({ key: member.id, id: member.id }),
-                input
-              )
-          ),
-        listWorkspacesForUser: (userId) =>
-          Ref.get(roster).pipe(
-            Effect.map((current) => {
-              const member = current.find((candidate) => candidate.id === userId)
-              if (!member) {
-                return []
-              }
-              return [{ workspace, member }]
-            })
-          ),
-        addMember: (input) =>
-          Effect.gen(function* () {
-            // No `user` table to join, so the fixture fabricates the identity
-            // fields the way `SeedApiTokenRegistry.create` fabricates a token.
-            const added = fabricateSeedMember(input.userId, input.role)
-            yield* Ref.update(roster, (current) => [...current, added])
-            // Same event, same target, same metadata as the Live adapter.
-            const audit = yield* Effect.serviceOption(AuditEventLog)
-            if (Option.isSome(audit)) {
-              yield* recordInWorkspace(audit.value, {
-                eventType: 'workspace_member.added',
-                targetType: 'workspace_member',
-                targetId: input.userId,
-                metadata: { role: input.role }
-              })
-            }
-            yield* publishSeatSyncWith(seatSync, {
-              workspaceId: workspace.id,
-              reason: 'member_added'
-            })
-            return added
-          }),
-        removeMember: (input) =>
-          Effect.gen(function* () {
-            // The ownership rule runs against the roster this adapter owns,
-            // refusing with a machine reason where the plugin would refuse
-            // with message text (and where the plugin never gets a say, since
-            // the binding here is a stand-in).
-            const ctx = yield* WorkspaceContext
-            const current = yield* Ref.get(roster)
-            const target = current.find((candidate) => candidate.id === input.userId)
-            const refusal = refuseMembershipChange('remove', {
-              actorRole: ctx.actor?.role ?? null,
-              targetRole: target?.role ?? null,
-              ownerCount: ownerCountOf(current)
-            })
-            if (refusal !== null) {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: refusal })
-              )
-            }
-            yield* Ref.update(roster, (rows) =>
-              rows.filter((candidate) => candidate.id !== input.userId)
+        listMembers: Effect.fn('WorkspaceMembership.listMembers')(() =>
+          Ref.get(roster)
+        )(),
+        listMembersPage: Effect.fn('WorkspaceMembership.listMembersPage')(
+          (input?: ListPageInput) =>
+            Effect.map(
+              Ref.get(roster),
+              // Forward on `id ASC` (user id) — the member wire shape carries no
+              // timestamp, so the id is the one stable order a page can resume.
+              (members) =>
+                seedKeysetPage(
+                  members,
+                  'asc',
+                  (member) => ({ key: member.id, id: member.id }),
+                  input
+                )
             )
-            const audit = yield* Effect.serviceOption(AuditEventLog)
-            if (Option.isSome(audit)) {
-              yield* recordInWorkspace(audit.value, {
-                eventType: 'workspace_member.removed',
-                targetType: 'workspace_member',
-                targetId: input.userId
+        ),
+        listWorkspacesForUser: Effect.fn('WorkspaceMembership.listWorkspacesForUser')(
+          (userId: string) =>
+            Ref.get(roster).pipe(
+              Effect.map((current) => {
+                const member = current.find((candidate) => candidate.id === userId)
+                if (!member) {
+                  return []
+                }
+                return [{ workspace, member }]
               })
-            }
-            yield* publishSeatSyncWith(seatSync, {
-              workspaceId: workspace.id,
-              reason: 'member_removed'
+            )
+        ),
+        addMember: Effect.fn('WorkspaceMembership.addMember')(function* (
+          input: MemberRoleInput
+        ) {
+          // No `user` table to join, so the fixture fabricates the identity
+          // fields the way `SeedApiTokenRegistry.create` fabricates a token.
+          const added = fabricateSeedMember(input.userId, input.role)
+          yield* Ref.update(roster, (current) => [...current, added])
+          // Same event, same target, same metadata as the Live adapter.
+          const audit = yield* Effect.serviceOption(AuditEventLog)
+          if (Option.isSome(audit)) {
+            yield* recordInWorkspace(audit.value, {
+              eventType: 'workspace_member.added',
+              targetType: 'workspace_member',
+              targetId: input.userId,
+              metadata: { role: input.role }
             })
-          }),
-        leave: Effect.gen(function* () {
+          }
+          yield* publishSeatSyncWith(seatSync, {
+            workspaceId: workspace.id,
+            reason: 'member_added'
+          })
+          return added
+        }),
+        removeMember: Effect.fn('WorkspaceMembership.removeMember')(function* (
+          input: MemberRef
+        ) {
+          // The ownership rule runs against the roster this adapter owns,
+          // refusing with a machine reason where the plugin would refuse
+          // with message text (and where the plugin never gets a say, since
+          // the binding here is a stand-in).
+          const ctx = yield* WorkspaceContext
+          const current = yield* Ref.get(roster)
+          const target = current.find((candidate) => candidate.id === input.userId)
+          const refusal = refuseMembershipChange('remove', {
+            actorRole: ctx.actor?.role ?? null,
+            targetRole: target?.role ?? null,
+            ownerCount: ownerCountOf(current)
+          })
+          if (refusal !== null) {
+            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+          }
+          yield* Ref.update(roster, (rows) =>
+            rows.filter((candidate) => candidate.id !== input.userId)
+          )
+          const audit = yield* Effect.serviceOption(AuditEventLog)
+          if (Option.isSome(audit)) {
+            yield* recordInWorkspace(audit.value, {
+              eventType: 'workspace_member.removed',
+              targetType: 'workspace_member',
+              targetId: input.userId
+            })
+          }
+          yield* publishSeatSyncWith(seatSync, {
+            workspaceId: workspace.id,
+            reason: 'member_removed'
+          })
+        }),
+        leave: Effect.fn('WorkspaceMembership.leave')(function* () {
           const ctx = yield* WorkspaceContext
           const current = yield* Ref.get(roster)
           // The actor's own row — no actor, or an actor the roster no longer
@@ -343,52 +349,51 @@ export function SeedWorkspaceMembership(
             workspaceId: workspace.id,
             reason: 'member_removed'
           })
-        }),
-        changeRole: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            // One roster read serves both halves: the target row to rewrite
-            // and the owner count the rule refuses on.
-            const current = yield* Ref.get(roster)
-            const member = current.find((candidate) => candidate.id === input.userId)
-            if (member === undefined) {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({
-                  reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
-                })
-              )
-            }
-            const refusal = refuseMembershipChange('change_role', {
-              actorRole: ctx.actor?.role ?? null,
-              targetRole: member.role,
-              ownerCount: ownerCountOf(current),
-              nextRole: input.role
-            })
-            if (refusal !== null) {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: refusal })
-              )
-            }
-            const promoted: Member = { ...member, role: input.role }
-            yield* Ref.update(roster, (rows) =>
-              rows.map((candidate) => {
-                if (candidate.id === input.userId) {
-                  return promoted
-                }
-                return candidate
+        })(),
+        changeRole: Effect.fn('WorkspaceMembership.changeRole')(function* (
+          input: MemberRoleInput
+        ) {
+          const ctx = yield* WorkspaceContext
+          // One roster read serves both halves: the target row to rewrite
+          // and the owner count the rule refuses on.
+          const current = yield* Ref.get(roster)
+          const member = current.find((candidate) => candidate.id === input.userId)
+          if (member === undefined) {
+            return yield* Effect.fail(
+              new MembershipChangeRejected({
+                reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
               })
             )
-            const audit = yield* Effect.serviceOption(AuditEventLog)
-            if (Option.isSome(audit)) {
-              yield* recordInWorkspace(audit.value, {
-                eventType: 'workspace_member.role_changed',
-                targetType: 'workspace_member',
-                targetId: input.userId,
-                metadata: { role: input.role }
-              })
-            }
-            return promoted
+          }
+          const refusal = refuseMembershipChange('change_role', {
+            actorRole: ctx.actor?.role ?? null,
+            targetRole: member.role,
+            ownerCount: ownerCountOf(current),
+            nextRole: input.role
           })
+          if (refusal !== null) {
+            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+          }
+          const promoted: Member = { ...member, role: input.role }
+          yield* Ref.update(roster, (rows) =>
+            rows.map((candidate) => {
+              if (candidate.id === input.userId) {
+                return promoted
+              }
+              return candidate
+            })
+          )
+          const audit = yield* Effect.serviceOption(AuditEventLog)
+          if (Option.isSome(audit)) {
+            yield* recordInWorkspace(audit.value, {
+              eventType: 'workspace_member.role_changed',
+              targetType: 'workspace_member',
+              targetId: input.userId,
+              metadata: { role: input.role }
+            })
+          }
+          return promoted
+        })
       }
     })
   )

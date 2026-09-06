@@ -19,6 +19,9 @@ import {
   verifyWorkspaceExportDownload,
   workspaceExportExpiresAt,
   WorkspaceExports,
+  type CompleteWorkspaceExportInput,
+  type FailWorkspaceExportInput,
+  type OpenWorkspaceExportDownloadInput,
   type WorkspaceExport,
   type WorkspaceExportAvailability,
   type WorkspaceExportBucketBinding,
@@ -147,8 +150,10 @@ export function LiveWorkspaceExports(
       }
 
       return {
-        availability: Effect.succeed(availability),
-        list: Effect.gen(function* () {
+        availability: Effect.fn('WorkspaceExports.availability')(() =>
+          Effect.succeed(availability)
+        )(),
+        list: Effect.fn('WorkspaceExports.list')(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -158,8 +163,8 @@ export function LiveWorkspaceExports(
               .orderBy(desc(workspaceExports.createdAt), desc(workspaceExports.id))
           )
           return rows.map(toRecord)
-        }),
-        request: Effect.gen(function* () {
+        })(),
+        request: Effect.fn('WorkspaceExports.request')(function* () {
           if (!availability.available) {
             return yield* new CapabilityUnavailable({
               capability: CAPABILITY,
@@ -209,9 +214,9 @@ export function LiveWorkspaceExports(
             return yield* enqueued.failure
           }
           return toRecord(row)
-        }),
-        issueDownloadLink: (input) =>
-          Effect.gen(function* () {
+        })(),
+        issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(
+          function* (input: { readonly exportId: string }) {
             const ctx = yield* WorkspaceContext
             const found = yield* findRow(input.exportId)
             if (!found || found.row.workspaceId !== ctx.workspace.id) {
@@ -222,135 +227,139 @@ export function LiveWorkspaceExports(
               record: toRecord(found.row),
               now: yield* DateTime.now
             })
-          }),
-        complete: (input) =>
-          Effect.gen(function* () {
-            const bucket = options.bucket
-            if (!bucket) {
-              return yield* new CapabilityUnavailable({
-                capability: CAPABILITY,
-                reason: 'not_configured'
-              })
-            }
-            const found = yield* findRow(input.exportId)
-            if (!found || found.row.workspaceId !== input.workspaceId) {
-              return false
-            }
-            const objectKey = objectKeyFor(input.workspaceId, input.exportId)
-            // The object first: a row marked `ready` must point at bytes that
-            // exist. A crash between the two leaves an orphan object the
-            // lifecycle rule collects and a pending row the retry completes.
-            yield* unavailable(
-              Effect.tryPromise({
-                try: () =>
-                  bucket.put(objectKey, input.archive, {
-                    httpMetadata: { contentType: 'application/gzip' }
-                  }),
-                catch: (cause) => cause
-              })
-            )
-            const completedAt = yield* DateTime.now
-            const expiresAt = workspaceExportExpiresAt(completedAt)
-            const applied = yield* auditedMutation({
-              matched: pendingMatched(input.exportId, input.workspaceId),
-              auditEvent: {
-                workspaceId: input.workspaceId,
-                actorUserId: null,
-                eventType: 'workspace.export_completed',
-                targetType: 'workspace_export',
-                targetId: input.exportId,
-                metadata: { sizeBytes: input.archive.length }
-              },
-              write: () =>
-                db
-                  .update(workspaceExports)
-                  .set({
-                    status: 'ready',
-                    objectKey,
-                    sizeBytes: input.archive.length,
-                    completedAt: DateTime.formatIso(completedAt),
-                    expiresAt
-                  })
-                  .where(pendingWhere(input.exportId, input.workspaceId))
+          }
+        ),
+        complete: Effect.fn('WorkspaceExports.complete')(function* (
+          input: CompleteWorkspaceExportInput
+        ) {
+          const bucket = options.bucket
+          if (!bucket) {
+            return yield* new CapabilityUnavailable({
+              capability: CAPABILITY,
+              reason: 'not_configured'
             })
-            if (!applied) {
-              return false
-            }
-            yield* feed.create({
+          }
+          const found = yield* findRow(input.exportId)
+          if (!found || found.row.workspaceId !== input.workspaceId) {
+            return false
+          }
+          const objectKey = objectKeyFor(input.workspaceId, input.exportId)
+          // The object first: a row marked `ready` must point at bytes that
+          // exist. A crash between the two leaves an orphan object the
+          // lifecycle rule collects and a pending row the retry completes.
+          yield* unavailable(
+            Effect.tryPromise({
+              try: () =>
+                bucket.put(objectKey, input.archive, {
+                  httpMetadata: { contentType: 'application/gzip' }
+                }),
+              catch: (cause) => cause
+            })
+          )
+          const completedAt = yield* DateTime.now
+          const expiresAt = workspaceExportExpiresAt(completedAt)
+          const applied = yield* auditedMutation({
+            matched: pendingMatched(input.exportId, input.workspaceId),
+            auditEvent: {
               workspaceId: input.workspaceId,
-              userId: found.row.requestedByUserId,
-              kind: 'announcement',
-              title: 'Workspace export ready',
-              message: `Your export of ${found.workspace.name} is ready to download from workspace settings until ${expiresAt}.`
-            })
-            return true
-          }),
-        fail: (input) =>
-          Effect.gen(function* () {
-            const matched = yield* pendingMatched(input.exportId, input.workspaceId)
-            if (!matched) {
-              return false
-            }
-            yield* markFailed(input.exportId, input.workspaceId, input.reason)
-            return true
-          }),
-        openDownload: (input) =>
-          Effect.gen(function* () {
-            const bucket = options.bucket
-            if (!bucket) {
-              return Option.none()
-            }
-            const now = yield* DateTime.now
-            const found = yield* findRow(input.exportId)
-            if (!found) {
-              return Option.none()
-            }
-            const objectKey = found.row.objectKey
-            if (
-              objectKey === null ||
-              !isWorkspaceExportDownloadable(toRecord(found.row), now)
-            ) {
-              return Option.none()
-            }
-            const valid = yield* verifyWorkspaceExportDownload({
-              downloadSecret: found.row.downloadSecret,
-              exportId: input.exportId,
-              expires: input.expires,
-              signature: input.signature,
-              now
-            })
-            if (!valid) {
-              return Option.none()
-            }
-            const object = yield* unavailable(
-              Effect.tryPromise({
-                try: () => bucket.get(objectKey),
-                catch: (cause) => cause
-              })
-            )
-            if (object === null) {
-              return Option.none()
-            }
-            const body = yield* unavailable(
-              Effect.tryPromise({
-                try: () => object.arrayBuffer(),
-                catch: (cause) => cause
-              })
-            )
-            yield* audit.record({
-              workspaceId: found.row.workspaceId,
               actorUserId: null,
-              eventType: 'workspace.export_downloaded',
+              eventType: 'workspace.export_completed',
               targetType: 'workspace_export',
-              targetId: found.row.id,
-              metadata: {}
-            })
-            return Option.some({
-              fileName: workspaceExportFileName(found.workspace.slug, found.row.id),
-              sizeBytes: object.size,
-              body: new Uint8Array(body)
-            })
+              targetId: input.exportId,
+              metadata: { sizeBytes: input.archive.length }
+            },
+            write: () =>
+              db
+                .update(workspaceExports)
+                .set({
+                  status: 'ready',
+                  objectKey,
+                  sizeBytes: input.archive.length,
+                  completedAt: DateTime.formatIso(completedAt),
+                  expiresAt
+                })
+                .where(pendingWhere(input.exportId, input.workspaceId))
           })
+          if (!applied) {
+            return false
+          }
+          yield* feed.create({
+            workspaceId: input.workspaceId,
+            userId: found.row.requestedByUserId,
+            kind: 'announcement',
+            title: 'Workspace export ready',
+            message: `Your export of ${found.workspace.name} is ready to download from workspace settings until ${expiresAt}.`
+          })
+          return true
+        }),
+        fail: Effect.fn('WorkspaceExports.fail')(function* (
+          input: FailWorkspaceExportInput
+        ) {
+          const matched = yield* pendingMatched(input.exportId, input.workspaceId)
+          if (!matched) {
+            return false
+          }
+          yield* markFailed(input.exportId, input.workspaceId, input.reason)
+          return true
+        }),
+        openDownload: Effect.fn('WorkspaceExports.openDownload')(function* (
+          input: OpenWorkspaceExportDownloadInput
+        ) {
+          const bucket = options.bucket
+          if (!bucket) {
+            return Option.none()
+          }
+          const now = yield* DateTime.now
+          const found = yield* findRow(input.exportId)
+          if (!found) {
+            return Option.none()
+          }
+          const objectKey = found.row.objectKey
+          if (
+            objectKey === null ||
+            !isWorkspaceExportDownloadable(toRecord(found.row), now)
+          ) {
+            return Option.none()
+          }
+          const valid = yield* verifyWorkspaceExportDownload({
+            downloadSecret: found.row.downloadSecret,
+            exportId: input.exportId,
+            expires: input.expires,
+            signature: input.signature,
+            now
+          })
+          if (!valid) {
+            return Option.none()
+          }
+          const object = yield* unavailable(
+            Effect.tryPromise({
+              try: () => bucket.get(objectKey),
+              catch: (cause) => cause
+            })
+          )
+          if (object === null) {
+            return Option.none()
+          }
+          const body = yield* unavailable(
+            Effect.tryPromise({
+              try: () => object.arrayBuffer(),
+              catch: (cause) => cause
+            })
+          )
+          yield* audit.record({
+            workspaceId: found.row.workspaceId,
+            actorUserId: null,
+            eventType: 'workspace.export_downloaded',
+            targetType: 'workspace_export',
+            targetId: found.row.id,
+            metadata: {}
+          })
+          return Option.some({
+            fileName: workspaceExportFileName(found.workspace.slug, found.row.id),
+            sizeBytes: object.size,
+            body: new Uint8Array(body)
+          })
+        })
       }
     })
   )
