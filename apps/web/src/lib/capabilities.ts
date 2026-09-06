@@ -9,7 +9,7 @@ import {
 import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing.live'
 import {
   selectCapabilitiesLayer,
-  selectWorkspaceLayer,
+  selectWorkspaceContextLayer,
   type StarterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
@@ -19,7 +19,7 @@ import {
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { notFound } from '@tanstack/react-router'
-import { Cause, Effect, Exit, Option, type Scope } from 'effect'
+import { type Context, Cause, Effect, Exit, Layer, Option, type Scope } from 'effect'
 
 import {
   CapabilityUnavailableError,
@@ -28,7 +28,7 @@ import {
   PlanLimitError,
   UserAdminRefusedError
 } from './capability-error'
-import { webRuntime, withWebRequestScope } from './observability'
+import { memoizePerRequest, webRuntime, withWebRequestScope } from './observability'
 
 export type { CapabilityServices }
 
@@ -41,6 +41,10 @@ export type { CapabilityServices }
  * Better Auth server instance into the client bundle. Server functions — which
  * only ever run on the server — pass one in when they need a mutation. See
  * `server/invitation-binding.ts`.
+ *
+ * Per call also means per memo slot: {@link capabilitiesServices} keys the
+ * per-request build on which adapters were passed, so a mutation never reuses
+ * the shared read-only services, and vice versa.
  */
 export type CapabilityBindings = Pick<
   StarterEnv,
@@ -68,6 +72,97 @@ const starterEnv: StarterEnv = {
   WORKSPACE_EXPORT_BUCKET: cloudflareEnv.WORKSPACE_EXPORT_BUCKET,
   NOTIFICATION_EMAIL_QUEUE: cloudflareEnv.NOTIFICATION_EMAIL_QUEUE,
   billing: billingOptionsFromEnv(cloudflareEnv)
+}
+
+/**
+ * The binding fields a caller may pass per call, declared once so the memo key
+ * below cannot drift from {@link CapabilityBindings}: a field added there
+ * without a row here would silently fold two different adapters onto one
+ * per-request slot.
+ */
+const BINDING_FIELDS = [
+  'memberBinding',
+  'invitationBinding',
+  'lifecycleBinding',
+  'userAdminBinding',
+  'ssoBinding',
+  'accountLifecycleBinding'
+] satisfies ReadonlyArray<keyof CapabilityBindings>
+
+/**
+ * Stable per-object ids for that key. A binding is an opaque bag of plugin
+ * call closures, so object identity — not structure — is the honest
+ * discriminator: two calls passing the same adapter (every server fn imports
+ * its binding from a module, so this is the norm) share one slot, while two
+ * different adapters never share a layer. The map names objects; it holds no
+ * services, so nothing here outlives a request.
+ */
+type AnyCapabilityBinding = NonNullable<CapabilityBindings[keyof CapabilityBindings]>
+
+const bindingSlotIds = new WeakMap<AnyCapabilityBinding, number>()
+let nextBindingSlotId = 1
+
+function bindingSlotId(binding: AnyCapabilityBinding): number {
+  const known = bindingSlotIds.get(binding)
+  if (known !== undefined) {
+    return known
+  }
+  const id = nextBindingSlotId
+  nextBindingSlotId += 1
+  bindingSlotIds.set(binding, id)
+  return id
+}
+
+/**
+ * One memo slot name per distinct set of plugin bindings. Read-only calls —
+ * every loader — pass none and land on one shared slot; a mutation selects its
+ * own, so the layer built around one call's adapters is never reused for
+ * another's.
+ */
+function capabilitiesMemoKey(bindings: CapabilityBindings | undefined): string {
+  if (bindings === undefined) {
+    return 'capabilities.services:none'
+  }
+  const slots = BINDING_FIELDS.flatMap((field) => {
+    const binding = bindings[field]
+    return binding === undefined ? [] : [`${field}:${bindingSlotId(binding)}`]
+  })
+  return slots.length === 0
+    ? 'capabilities.services:none'
+    : `capabilities.services:${slots.join('+')}`
+}
+
+/**
+ * The selected capability services, built once per request and shared by every
+ * Effect run in it: the merged live graph is 17 layers plus a drizzle client,
+ * and one page load fans out into several loader runs that all need the same
+ * one. `memoizePerRequest` is the sanctioned home — slots live on the
+ * request's telemetry, so concurrent requests on one isolate never share a
+ * build. That is deliberately not the API worker's isolate-level layer
+ * (`apps/api/src/http.ts`): these services cannot be hoisted out of the
+ * request, because their plugin-backed adapters arrive per call.
+ *
+ * What is memoized is the built `Context`, not the `Layer` value — Effect
+ * memoizes layer construction per memo map, and sibling runs each bring their
+ * own, so only a shared context actually crosses the run boundary. The scope
+ * the build runs in closes when the build completes; no layer in this graph
+ * registers finalizers (plain constructors across `capabilities`,
+ * `db/service`, and the drizzle D1 drivers), so the services outlive that
+ * close for the rest of the request. A layer that needs `acquireRelease` must
+ * not join this context without revisiting that. Outside a request — unit
+ * tests, scripts, client-side navigations — there is no slot to dedupe
+ * against, so every call builds its own, exactly as before.
+ */
+function capabilitiesServices(
+  bindings?: CapabilityBindings
+): Promise<Context.Context<CapabilityServices>> {
+  return memoizePerRequest(capabilitiesMemoKey(bindings), () =>
+    webRuntime.runPromise(
+      Effect.scoped(
+        Layer.build(selectCapabilitiesLayer({ ...starterEnv, ...bindings }))
+      )
+    )
+  )
 }
 
 // The Effect → TanStack boundary. Loaders and server functions are Promise
@@ -114,6 +209,10 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
  * Runs a workspace-scoped capability effect for a route loader or server
  * function.
  *
+ * - The capability services come from the once-per-request build ({@link
+ *   capabilitiesServices}); the `WorkspaceContext` layer is provided per
+ *   call, because it is the one service that depends on this request's slug
+ *   and actor — the same split `selectWorkspaceContextLayer` documents.
  * - `actor` is the signed-in user (from `requireSession`); the capabilities
  *   layer verifies workspace membership and fails with `WorkspaceNotFound`
  *   for non-members (non-disclosing). Omit it only for trusted server-side
@@ -135,6 +234,7 @@ export async function runWorkspaceCapabilities<A, E>(
   actor?: ActorRef,
   bindings?: CapabilityBindings
 ): Promise<A> {
+  const services = await capabilitiesServices(bindings)
   const exit = await webRuntime.runPromiseExit(
     withWebRequestScope(
       {
@@ -142,8 +242,15 @@ export async function runWorkspaceCapabilities<A, E>(
         metadata: { workspaceSlug, actorUserId: actor?.userId }
       },
       Effect.provide(
-        effect,
-        selectWorkspaceLayer({ ...starterEnv, ...bindings }, workspaceSlug, actor)
+        Effect.provide(
+          effect,
+          selectWorkspaceContextLayer(
+            { ...starterEnv, ...bindings },
+            workspaceSlug,
+            actor
+          )
+        ),
+        services
       )
     )
   )
@@ -157,17 +264,19 @@ export async function runWorkspaceCapabilities<A, E>(
  * Runs a capability effect that is not scoped to a single workspace — system
  * surfaces (`/admin`'s global audit log) and cross-workspace projections
  * (`listWorkspacesForUser`). Provides the capability services WITHOUT
- * `WorkspaceContext`; `CapabilityUnavailable` maps to
+ * `WorkspaceContext`, from the same once-per-request build
+ * {@link runWorkspaceCapabilities} rides on; `CapabilityUnavailable` maps to
  * `CapabilityUnavailableError` exactly like `runWorkspaceCapabilities`.
  */
 export async function runCapabilities<A, E>(
   effect: Effect.Effect<A, E, CapabilityServices>,
   bindings?: CapabilityBindings
 ): Promise<A> {
+  const services = await capabilitiesServices(bindings)
   const exit = await webRuntime.runPromiseExit(
     withWebRequestScope(
       { event: 'capability.global' },
-      Effect.provide(effect, selectCapabilitiesLayer({ ...starterEnv, ...bindings }))
+      Effect.provide(effect, services)
     )
   )
   if (Exit.isSuccess(exit)) {
