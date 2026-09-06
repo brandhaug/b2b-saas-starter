@@ -2,6 +2,7 @@ import { AccountPreferencesService } from '@b2b-saas-starter/capabilities/govern
 import { paraglideMiddleware } from '@b2b-saas-starter/i18n/server'
 import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import { DEFAULT_LOCALE, localeFromLanguage } from '@b2b-saas-starter/i18n/locale'
+import routeConfig from '@b2b-saas-starter/i18n/routes'
 import { Effect } from 'effect'
 import { runCapabilities } from '../capabilities'
 import { readOptionalSession } from './auth'
@@ -9,49 +10,18 @@ import { withPresentation } from './i18n-context'
 
 function isUnlocalizedPath(pathname: string): boolean {
   return (
-    pathname === '/api' ||
-    pathname.startsWith('/api/') ||
-    pathname === '/.well-known' ||
-    pathname.startsWith('/.well-known/') ||
-    pathname === '/assets' ||
-    pathname.startsWith('/assets/') ||
-    pathname === '/favicon.svg' ||
-    pathname === '/llms.txt' ||
-    pathname === '/llms-full.txt' ||
-    pathname === '/robots.txt'
+    routeConfig.unlocalizedPaths.some((path) => isPathOrDescendant(pathname, path)) ||
+    routeConfig.unlocalizedExactPaths.includes(pathname)
   )
 }
 
+function isPathOrDescendant(pathname: string, path: string): boolean {
+  return pathname === path || pathname.startsWith(`${path}/`)
+}
+
 function needsAccountPresentation(pathname: string): boolean {
-  return (
-    pathname === '/_serverFn' ||
-    pathname.startsWith('/_serverFn/') ||
-    pathname === '/sign-in' ||
-    pathname.startsWith('/sign-in/') ||
-    pathname === '/sign-up' ||
-    pathname.startsWith('/sign-up/') ||
-    pathname === '/forgot-password' ||
-    pathname.startsWith('/forgot-password/') ||
-    pathname === '/reset-password' ||
-    pathname.startsWith('/reset-password/') ||
-    pathname === '/two-factor' ||
-    pathname.startsWith('/two-factor/') ||
-    pathname === '/verify-email' ||
-    pathname.startsWith('/verify-email/') ||
-    pathname === '/magic-link' ||
-    pathname.startsWith('/magic-link/') ||
-    pathname === '/invitations' ||
-    pathname.startsWith('/invitations/') ||
-    pathname === '/oauth' ||
-    pathname.startsWith('/oauth/') ||
-    pathname === '/account' ||
-    pathname.startsWith('/account/') ||
-    pathname === '/admin' ||
-    pathname.startsWith('/admin/') ||
-    pathname === '/workspaces' ||
-    pathname.startsWith('/workspaces/') ||
-    pathname === '/demo' ||
-    pathname.startsWith('/demo/')
+  return routeConfig.accountPresentationPaths.some((path) =>
+    isPathOrDescendant(pathname, path)
   )
 }
 

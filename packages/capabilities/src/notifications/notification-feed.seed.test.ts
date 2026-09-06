@@ -89,14 +89,15 @@ function feedFor(
     readonly channel: 'off' | 'instant' | 'digest'
   }> = []
 ) {
-  const prefs = SeedNotificationPreferences(preferences).pipe(
-    Layer.provide(SeedAuditEventLog([]))
-  )
+  const audit = SeedAuditEventLog([])
+  const prefs = SeedNotificationPreferences(preferences).pipe(Layer.provide(audit))
+  const accountPreferences = SeedAccountPreferences([]).pipe(Layer.provide(audit))
   return Layer.mergeAll(
     prefs,
+    accountPreferences,
     SeedNotificationFeed(seeded, fixture, {
       emailQueue: capturingQueue(enqueued)
-    }).pipe(Layer.provide(prefs))
+    }).pipe(Layer.provide(Layer.merge(prefs, accountPreferences)))
   )
 }
 

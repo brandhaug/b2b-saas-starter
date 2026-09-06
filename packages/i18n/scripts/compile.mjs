@@ -15,6 +15,7 @@ const sourceRoot = join(packageRoot, 'messages')
 const generatedMessagesRoot = join(packageRoot, '.generated', 'messages')
 
 const locales = ['en', 'nb']
+const routeConfig = JSON.parse(await readFile(join(packageRoot, 'routes.json'), 'utf8'))
 
 async function jsonFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
@@ -74,7 +75,8 @@ const compilerInputs = await Promise.all([
   readFile(join(packageRoot, 'project.inlang/settings.json'), 'utf8'),
   readFile(join(packageRoot, 'package.json'), 'utf8'),
   readFile(join(packageRoot, 'plugin-message-format.js'), 'utf8'),
-  readFile(join(packageRoot, 'scripts/catalog-validation.mjs'), 'utf8')
+  readFile(join(packageRoot, 'scripts/catalog-validation.mjs'), 'utf8'),
+  readFile(join(packageRoot, 'routes.json'), 'utf8')
 ])
 const fingerprint = createHash('sha256')
   .update(JSON.stringify(catalogs))
@@ -82,9 +84,19 @@ const fingerprint = createHash('sha256')
   .digest('hex')
 const fingerprintPath = join(packageRoot, '.generated', 'fingerprint')
 const previousFingerprint = await readFile(fingerprintPath, 'utf8').catch(() => null)
+const generatedFiles = [
+  'messages.js',
+  'registry.js',
+  'runtime.js',
+  'server.js',
+  'messages.d.ts',
+  'registry.d.ts',
+  'runtime.d.ts',
+  'server.d.ts'
+]
 if (
   previousFingerprint === fingerprint &&
-  existsSync(join(packageRoot, 'src/generated/runtime.js'))
+  generatedFiles.every((file) => existsSync(join(packageRoot, 'src/generated', file)))
 ) {
   process.exit(0)
 }
@@ -148,65 +160,18 @@ await compile({
     }))
   ],
   routeStrategies: [
-    { match: '/api/:path(.*)?', exclude: true },
-    { match: '/.well-known/:path(.*)?', exclude: true },
-    { match: '/assets/:path(.*)?', exclude: true },
-    { match: '/favicon.svg', exclude: true },
-    { match: '/llms.txt', exclude: true },
-    { match: '/llms-full.txt', exclude: true },
-    { match: '/robots.txt', exclude: true },
-    {
-      match: '/sign-in/:path(.*)?',
+    ...routeConfig.unlocalizedPaths.map((path) => ({
+      match: `${path}/:path(.*)?`,
+      exclude: true
+    })),
+    ...routeConfig.unlocalizedExactPaths.map((path) => ({
+      match: path,
+      exclude: true
+    })),
+    ...routeConfig.accountPresentationPaths.map((path) => ({
+      match: `${path}/:path(.*)?`,
       strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/sign-up/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/forgot-password/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/reset-password/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/two-factor/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/verify-email/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/magic-link/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/invitations/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/oauth/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/account/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/admin/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/workspaces/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    },
-    {
-      match: '/demo/:path(.*)?',
-      strategy: ['cookie', 'preferredLanguage', 'baseLocale']
-    }
+    }))
   ]
 })
 

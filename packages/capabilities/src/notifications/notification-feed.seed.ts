@@ -1,6 +1,6 @@
 import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
-import { DateTime, Effect, Layer, Option, Ref } from 'effect'
+import { DateTime, Effect, Layer, Ref } from 'effect'
 
 import { type Member, type Workspace } from '../governance/workspace-identity.ts'
 import { AccountPreferencesService } from '../governance/account-preferences.ts'
@@ -73,11 +73,15 @@ export function SeedNotificationFeed(
   seed: ReadonlyArray<SeedNotification>,
   fixture: SeedNotificationFeedFixture = defaultFixture,
   options: NotificationFeedOptions = {}
-): Layer.Layer<NotificationFeed, never, NotificationPreferences> {
+): Layer.Layer<
+  NotificationFeed,
+  never,
+  NotificationPreferences | AccountPreferencesService
+> {
   return Layer.effect(NotificationFeed)(
     Effect.gen(function* () {
       const preferences = yield* NotificationPreferences
-      const accountPreferences = yield* Effect.serviceOption(AccountPreferencesService)
+      const accountPreferences = yield* AccountPreferencesService
       const rows = yield* Ref.make<ReadonlyArray<SeedRow>>([...seed])
 
       // Who a row reaches: its target user, or every member for a broadcast.
@@ -86,16 +90,7 @@ export function SeedNotificationFeed(
       function recipientOf(
         member: Member
       ): Effect.Effect<EmailQueueRecipient, CapabilityUnavailable> {
-        if (Option.isNone(accountPreferences)) {
-          return Effect.succeed({
-            userId: member.id,
-            email: member.email,
-            name: member.name,
-            locale: null,
-            timeZone: null
-          })
-        }
-        return Effect.map(accountPreferences.value.get(member.id), (account) => ({
+        return Effect.map(accountPreferences.get(member.id), (account) => ({
           userId: member.id,
           email: member.email,
           name: member.name,

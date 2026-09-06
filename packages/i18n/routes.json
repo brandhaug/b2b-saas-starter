@@ -1,0 +1,25 @@
+{
+  "unlocalizedPaths": ["/api", "/.well-known", "/assets"],
+  "unlocalizedExactPaths": [
+    "/favicon.svg",
+    "/llms.txt",
+    "/llms-full.txt",
+    "/robots.txt"
+  ],
+  "accountPresentationPaths": [
+    "/_serverFn",
+    "/sign-in",
+    "/sign-up",
+    "/forgot-password",
+    "/reset-password",
+    "/two-factor",
+    "/verify-email",
+    "/magic-link",
+    "/invitations",
+    "/oauth",
+    "/account",
+    "/admin",
+    "/workspaces",
+    "/demo"
+  ]
+}

@@ -8,6 +8,7 @@ import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
 import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
 import { SeedWebhookPublisher } from './developer-platform/webhook-publisher.ts'
 import { AuditEventLog, SeedAuditEventLog } from './governance/audit-event-log.ts'
+import { SeedAccountPreferences } from './governance/account-preferences.ts'
 import {
   makeSeedRoster,
   SeedWorkspaceMembership
@@ -80,8 +81,11 @@ function fixtureLayer(fixture: Fixture) {
           Layer.provide(
             SeedNotificationFeed([]).pipe(
               Layer.provide(
-                SeedNotificationPreferences(seedNotificationPreferences).pipe(
-                  Layer.provide(audit)
+                Layer.merge(
+                  SeedNotificationPreferences(seedNotificationPreferences).pipe(
+                    Layer.provide(audit)
+                  ),
+                  SeedAccountPreferences([]).pipe(Layer.provide(audit))
                 )
               )
             )
