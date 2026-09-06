@@ -197,7 +197,7 @@ const SeedNotifications = Layer.merge(
   SeedNotificationFeed(seedNotifications, {
     workspace: seedWorkspaceRecord,
     members: seedMembers
-  }).pipe(Layer.provide(SeedPreferences))
+  }).pipe(Layer.provide(Layer.merge(SeedPreferences, SeedAccountPrefs)))
 )
 
 const SeedCore = Layer.mergeAll(

@@ -1,8 +1,10 @@
 import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
-import { DateTime, Effect, Layer, Ref } from 'effect'
+import { DateTime, Effect, Layer, Option, Ref } from 'effect'
 
 import { type Member, type Workspace } from '../governance/workspace-identity.ts'
+import { AccountPreferencesService } from '../governance/account-preferences.ts'
+import { type CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { seedMembers, seedWorkspaceRecord } from '../seed-fixture.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -52,10 +54,6 @@ function inWorkspace(row: SeedRow, workspaceId: string): boolean {
   return row.workspaceId === undefined || row.workspaceId === workspaceId
 }
 
-function toRecipient(member: Member): EmailQueueRecipient {
-  return { userId: member.id, email: member.email, name: member.name }
-}
-
 function stripStorage(row: SeedRow): Notification {
   const base = {
     id: row.id,
@@ -79,23 +77,47 @@ export function SeedNotificationFeed(
   return Layer.effect(NotificationFeed)(
     Effect.gen(function* () {
       const preferences = yield* NotificationPreferences
+      const accountPreferences = yield* Effect.serviceOption(AccountPreferencesService)
       const rows = yield* Ref.make<ReadonlyArray<SeedRow>>([...seed])
 
       // Who a row reaches: its target user, or every member for a broadcast.
       // Unknown ids (a targeted user outside the roster, another workspace)
       // resolve to nobody, mirroring the Live joins.
-      function recipientsOf(row: SeedRow): ReadonlyArray<EmailQueueRecipient> {
+      function recipientOf(
+        member: Member
+      ): Effect.Effect<EmailQueueRecipient, CapabilityUnavailable> {
+        if (Option.isNone(accountPreferences)) {
+          return Effect.succeed({
+            userId: member.id,
+            email: member.email,
+            name: member.name,
+            locale: null,
+            timeZone: null
+          })
+        }
+        return Effect.map(accountPreferences.value.get(member.id), (account) => ({
+          userId: member.id,
+          email: member.email,
+          name: member.name,
+          locale: account.locale,
+          timeZone: account.timeZone
+        }))
+      }
+
+      function recipientsOf(
+        row: SeedRow
+      ): Effect.Effect<ReadonlyArray<EmailQueueRecipient>, CapabilityUnavailable> {
         if (!inWorkspace(row, fixture.workspace.id)) {
-          return []
+          return Effect.succeed([])
         }
         if (row.userId === undefined || row.userId === null) {
-          return fixture.members.map(toRecipient)
+          return Effect.all(fixture.members.map(recipientOf))
         }
         const member = fixture.members.find((candidate) => candidate.id === row.userId)
         if (member === undefined) {
-          return []
+          return Effect.succeed([])
         }
-        return [toRecipient(member)]
+        return Effect.map(recipientOf(member), (recipient) => [recipient])
       }
 
       function workspaceOf(row: SeedRow) {
@@ -207,7 +229,7 @@ export function SeedNotificationFeed(
             yield* enqueueInstantEmails(options.emailQueue, preferences, {
               notificationId: id,
               kind: input.kind,
-              recipients: recipientsOf(row),
+              recipients: yield* recipientsOf(row),
               traceparent
             })
             return stripStorage(row)
@@ -258,7 +280,7 @@ export function SeedNotificationFeed(
             yield* enqueueInstantEmails(options.emailQueue, preferences, {
               notificationId: row.id,
               kind: input.kind,
-              recipients: [toRecipient(member)],
+              recipients: [yield* recipientOf(member)],
               traceparent
             })
           }),
@@ -279,7 +301,7 @@ export function SeedNotificationFeed(
             const created: Array<{ row: SeedRow; owner: EmailQueueRecipient }> = []
             for (const owner of owners) {
               created.push({
-                owner: toRecipient(owner),
+                owner: yield* recipientOf(owner),
                 row: {
                   id: yield* newCapabilityId('not'),
                   workspaceId: input.workspaceId,
@@ -314,7 +336,8 @@ export function SeedNotificationFeed(
             if (row === undefined || row.read) {
               return null
             }
-            const recipient = recipientsOf(row).find(
+            const recipients = yield* recipientsOf(row)
+            const recipient = recipients.find(
               (candidate) => candidate.userId === recipientUserId
             )
             if (recipient === undefined) {
@@ -330,7 +353,7 @@ export function SeedNotificationFeed(
               if (row.read || !inDigestWindow(row.createdAt, window)) {
                 continue
               }
-              for (const recipient of recipientsOf(row)) {
+              for (const recipient of yield* recipientsOf(row)) {
                 candidates.push(contextFor(row, recipient))
               }
             }

@@ -14,6 +14,10 @@ export default defineConfig({
   // One retry in CI: the remaining variance is dev-server warm-up, not app
   // behaviour, and a rerun lands on an already-warm transform cache.
   retries: process.env.CI ? 1 : 0,
+  // The local D1 backing the E2E server is shared by every worker. Several
+  // specs update the seeded demo account, so parallel workers can observe
+  // another spec's temporary preferences or session state.
+  workers: process.env.CI ? 1 : undefined,
   use: {
     baseURL,
     trace: 'on-first-retry'

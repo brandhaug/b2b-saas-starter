@@ -9,10 +9,11 @@ import {
   type NotificationRecipient
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
+  notificationKindLabel,
   type NotificationChannel,
   type NotificationKind
 } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
-import { renderNotificationEvent } from '@b2b-saas-starter/capabilities/notifications/notification-events'
+import { renderNotificationCopy } from '@b2b-saas-starter/capabilities/notifications/notification-events'
 import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
@@ -34,54 +35,6 @@ export const DIGEST_WINDOW = Duration.hours(24)
 export type RecipientDigest = {
   readonly recipient: NotificationRecipient
   readonly items: ReadonlyArray<DigestItem>
-}
-
-function localizedKindLabel(kind: string, locale: Locale): string {
-  const options = { locale }
-  switch (kind) {
-    case 'api_token.created': {
-      return m.backend_email_notification_kind_api_token_created({}, options)
-    }
-    case 'api_token.revoked': {
-      return m.backend_email_notification_kind_api_token_revoked({}, options)
-    }
-    case 'workspace_member.role_changed': {
-      return m.backend_email_notification_kind_role_changed({}, options)
-    }
-    case 'two_factor.changed': {
-      return m.backend_email_notification_kind_two_factor_changed({}, options)
-    }
-    case 'webhook.delivery_failed': {
-      return m.backend_email_notification_kind_webhook_failed({}, options)
-    }
-    case 'workspace_member.joined': {
-      return m.backend_email_notification_kind_member_joined({}, options)
-    }
-    case 'billing.plan_changed': {
-      return m.backend_email_notification_kind_plan_changed({}, options)
-    }
-    case 'account.impersonated': {
-      return m.backend_email_notification_kind_impersonated({}, options)
-    }
-    default: {
-      return m.backend_email_notification_kind_announcement({}, options)
-    }
-  }
-}
-
-function notificationCopy(
-  notification: {
-    readonly title: string
-    readonly message: string
-    readonly event?: Parameters<typeof renderNotificationEvent>[0] | undefined
-  },
-  locale: Locale,
-  timeZone = 'UTC'
-) {
-  if (notification.event === undefined) {
-    return { title: notification.title, message: notification.message }
-  }
-  return renderNotificationEvent(notification.event, locale, timeZone)
 }
 
 /** Resolves a recipient's channel for a kind — the digest's one policy input. */
@@ -123,14 +76,16 @@ export function buildDigests(
     string,
     { recipient: NotificationRecipient; items: Array<DigestItem> }
   >()
-  for (const candidate of candidates) {
+  for (const candidate of candidates.toSorted((a, b) =>
+    b.notification.createdAt.localeCompare(a.notification.createdAt)
+  )) {
     const kind = candidate.notification.kind
     const { recipient } = candidate
     if (channelFor(recipient.userId, kind) !== 'digest') {
       continue
     }
     const locale = recipient.locale ?? DEFAULT_LOCALE
-    const copy = notificationCopy(
+    const copy = renderNotificationCopy(
       candidate.notification,
       locale,
       recipient.timeZone ?? 'UTC'
@@ -142,7 +97,7 @@ export function buildDigests(
     }
     entry.items.push({
       id: candidate.notification.id,
-      kindLabel: localizedKindLabel(kind, locale),
+      kindLabel: notificationKindLabel(kind, locale),
       title: copy.title,
       message: copy.message,
       workspaceName: candidate.workspace?.name ?? null,
@@ -156,7 +111,7 @@ export function buildDigests(
   return [...byRecipient.values()]
     .map((entry) => ({
       recipient: entry.recipient,
-      items: entry.items.toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
+      items: entry.items
     }))
     .toSorted((a, b) => a.recipient.email.localeCompare(b.recipient.email))
 }

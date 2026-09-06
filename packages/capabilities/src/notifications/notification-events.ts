@@ -84,6 +84,24 @@ export type RenderedNotificationEvent = {
   readonly message: string
 }
 
+export type NotificationCopyInput = {
+  readonly title: string
+  readonly message: string
+  readonly event?: SystemNotificationEvent | undefined
+}
+
+/** Render stored user copy or the current localized copy for a system event. */
+export function renderNotificationCopy(
+  notification: NotificationCopyInput,
+  locale: Locale = DEFAULT_LOCALE,
+  timeZone = 'UTC'
+): RenderedNotificationEvent {
+  if (notification.event === undefined) {
+    return { title: notification.title, message: notification.message }
+  }
+  return renderNotificationEvent(notification.event, locale, timeZone)
+}
+
 /** Render an event with the recipient's current locale, including old rows. */
 export function renderNotificationEvent(
   event: SystemNotificationEvent,

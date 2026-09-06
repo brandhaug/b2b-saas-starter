@@ -22,6 +22,39 @@ function isUnlocalizedPath(pathname: string): boolean {
   )
 }
 
+function needsAccountPresentation(pathname: string): boolean {
+  return (
+    pathname === '/_serverFn' ||
+    pathname.startsWith('/_serverFn/') ||
+    pathname === '/sign-in' ||
+    pathname.startsWith('/sign-in/') ||
+    pathname === '/sign-up' ||
+    pathname.startsWith('/sign-up/') ||
+    pathname === '/forgot-password' ||
+    pathname.startsWith('/forgot-password/') ||
+    pathname === '/reset-password' ||
+    pathname.startsWith('/reset-password/') ||
+    pathname === '/two-factor' ||
+    pathname.startsWith('/two-factor/') ||
+    pathname === '/verify-email' ||
+    pathname.startsWith('/verify-email/') ||
+    pathname === '/magic-link' ||
+    pathname.startsWith('/magic-link/') ||
+    pathname === '/invitations' ||
+    pathname.startsWith('/invitations/') ||
+    pathname === '/oauth' ||
+    pathname.startsWith('/oauth/') ||
+    pathname === '/account' ||
+    pathname.startsWith('/account/') ||
+    pathname === '/admin' ||
+    pathname.startsWith('/admin/') ||
+    pathname === '/workspaces' ||
+    pathname.startsWith('/workspaces/') ||
+    pathname === '/demo' ||
+    pathname.startsWith('/demo/')
+  )
+}
+
 /** Auth/API callbacks keep their original request body, headers, and URL. */
 export async function localizeRequest(
   request: Request,
@@ -32,7 +65,9 @@ export async function localizeRequest(
     return next()
   }
 
-  const session = await readOptionalSession()
+  const session = needsAccountPresentation(pathname)
+    ? await readOptionalSession()
+    : null
   const preferences = session
     ? await runCapabilities(
         Effect.flatMap(AccountPreferencesService, (service) =>
