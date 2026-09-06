@@ -2,23 +2,25 @@
 
 ## Purpose & Scope
 
-TanStack Start app on a Cloudflare Worker. Owns the public showcase, the auth screens, the workspace reference app, `/admin` and `/account`. It never calls `apps/api`, only [`capabilities`](../../packages/capabilities/AGENTS.md) in-process.
+TanStack Start Worker for the public site, auth, workspaces, `/admin` and `/account`. Calls [`capabilities`](../../packages/capabilities/AGENTS.md) in-process, never `apps/api`.
 
 ## Entry Points & Contracts
 
-- `src/start.ts` registers the config gate before the observability middleware scoping every SSR render and server-fn call; that order is load-bearing, and nested work joins that scope.
-- The Better Auth catchall parses the URL once into an `AuthExchange` shared by rate limit, Turnstile, the SSO gate, the impersonation guard and the audit recorder (one `ExchangeRow` per endpoint), on one session read.
+- `src/start.ts` runs the config gate before observability scopes SSR and server-fn calls; nested work joins that scope.
+- The Better Auth catchall shares one `AuthExchange` URL parse and session read across rate limit, Turnstile, SSO, impersonation and audit.
 - Gates live in `server/auth.ts`: `requireSession` runs once, in the `routes/workspaces.tsx` `beforeLoad`, children read `context.session`, and every server fn calls `requireRequestSession()`.
 - `lib/capabilities.ts` maps capability errors to `notFound()` or `capability-error.ts` discriminants. Loaders catch nothing.
 
 ## Usage Patterns
 
-- Loader modules, not inline loaders. `workspacePage(gate, segment)` hard-gates the read permission, resolves `WorkspaceContext` once and wraps a second permission in `whenPermitted`. Payload types belong here, not in `capabilities`: segment shape is an authorization call.
-- A server fn holds the gate; its behavior is an exported handler in a sibling `.effects.ts` — the session read, the permission gates, and the capability effect in one function, with no separate exported effect between them — reached by dynamic `import()` because the route tree ships to the browser (`assert-client-boundary.mjs` checks this). Input constraints live in one Effect Schema per input, declared in the client-safe module: `.validator(Schema.decodeUnknownSync(X))` runs on the server only — the TanStack compiler strips `.validator()` from the client build and tree-shaking drops the schema and its `effect` import, and the guard's Schema markers turn any regression of that strip into a build failure. The derived `typeof X.Type` types both the client stub and the effects handler; the effects file never re-decodes. Each fn re-reads the session (`requireRequestSession`) so it fails closed on its own: a loader composing N fns pays N+1 session reads beside the layout gate — a known trade, kept parallel. Decodes that run _in the browser_ (route-context shapes, search params — `pickOptionalStrings`, `impersonation.ts`) stay plain shape probes: a Schema construct there would ship unconditionally.
-- Server-only API routes (`api.auth.$.ts`) may import `.effects.ts` modules directly — a component-less route never ships a client chunk. Any route with a component may not.
+- Loader modules use `workspacePage(gate, segment)` to gate reads, resolve `WorkspaceContext` once and wrap secondary permissions in `whenPermitted`. Payload types belong here: segment shape is authorization.
+- Server fns dynamically import sibling `.effects.ts` handlers combining session read, permissions and capability call, without an intermediate exported effect. The route tree ships to browsers; `assert-client-boundary.mjs` guards this split.
+- Declare one input Effect Schema in the client-safe module. TanStack strips `.validator(Schema.decodeUnknownSync(X))`; tree-shaking removes Schema and `effect`, checked by the bundle guard's Schema markers. `typeof X.Type` types stub and handler; handlers never re-decode.
+- Each fn re-reads the session to fail closed independently. N parallel fns cost N+1 reads including the layout gate.
+- Component-less API routes (`api.auth.$.ts`) may import `.effects.ts` directly; routes with components may not.
 - Organization-plugin mutations pass a `CapabilityBindings` binding per call, never module env.
 - The UI gates by permission, never role name (`viewerCan`): an unreadable section is absent, an unpermitted action shows a reason, and the server re-checks.
-- Auth-flow routes validate search params with `pickOptionalStrings`; `effect/Schema` there would pin the Effect runtime onto pages that run no capability.
+- Browser decodes stay plain shape probes (`pickOptionalStrings`, `impersonation.ts`); Effect Schema would ship unconditionally.
 
 ## Anti-patterns
 
@@ -31,14 +33,14 @@ TanStack Start app on a Cloudflare Worker. Owns the public showcase, the auth sc
 
 ## Dependencies & Edges
 
-- Bindings come from `cloudflare:workers`: a real `DB` activates Live, its absence Seed, and an empty env must never be hardcoded (`vite dev` aliases a shim, ADR 0049).
+- Read `cloudflare:workers` bindings, never hardcode empty env. `DB` selects Live, absence Seed; dev uses persisted local D1 (ADR 0049). Browser navigation needs fixture parity (root rule 8).
 - Two runtimes. `webRuntime` runs every server-side Effect, with isolate-level `WideEventLoggerLive` and OTLP per invocation (ADR 0050). `authRuntime` holds only `Auth`: merging `AuthLive` in drags the Better Auth server into the browser bundle.
-- Optional providers stay absent until configured: Turnstile (ADR 0031), social (ADR 0070), Stripe (ADR 0060), OTLP, MCP OAuth (ADR 0068). `lib/rate-limit.ts` trusts only `cf-connecting-ip`; OTP, magic-link, and reset sends share the `auth_sign_in` bucket (ADR 0030).
+- `lib/rate-limit.ts` trusts only `cf-connecting-ip`; email-OTP, magic-link and reset sends share sign-in's `auth_sign_in` bucket (ADR 0030). Optional providers follow root rule 3.
 - Two `RateLimiter` tags (`packages/api`'s and this one) are intentional: the mechanism is single-sourced in `packages/rate-limit`; each owns a distinct bucket vocabulary and gate.
 
 ## Patterns & Pitfalls
 
 - Non-disclosure is a rule: constant responses on `/forgot-password`, `disableSignUp` on email-OTP, one opaque failure on `/invitations/accept` and link landings.
-- Loaders run without a worker against Seed: call the handler directly and assert the payload. `usr_demo` owns the seed workspace, `usr_dev` is a plain member, enabling owner/member comparison.
-- Test a server fn as its exported handler with plain `it`: `vi.mock('./auth')` answers `requireRequestSession` with `fixtureSession(actor)` (`src/test/fixture-session.ts`), and the test flips `actor.userId` between fixture identities. Client-side auth surfaces mock `@/lib/auth-client` with `fakeAuthClient()` (`src/test/fake-auth-client.ts`) instead. No `it.effect` anywhere near these: its `TestClock` starts at epoch 0, putting a post-1970 expiry fixture in the future.
+- Test loader handlers against Seed without a worker; compare owner `usr_demo` with member `usr_dev`.
+- Test server-fn handlers with plain `it`, mocking `./auth` with `fixtureSession(actor)` from `src/test/fixture-session.ts`. Switch fixture identities for authorization checks. Client auth tests use `fakeAuthClient()` from `src/test/fake-auth-client.ts`. Avoid `it.effect`: its epoch-zero `TestClock` makes post-1970 expiry fixtures future-dated.
 - `build: { minify: true }` seeds every environment because rolldown-vite's ssr env does not minify by default (#241); a local build understates the upload against the 10 MiB limit.
