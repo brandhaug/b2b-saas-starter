@@ -8,8 +8,10 @@ import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import {
   planReplayedDelivery,
   type Json,
+  type FailureLadderAction,
   type ListWebhookDeliveriesInput,
   type WebhookDelivery,
+  type WebhookDeliveryAttempt,
   type WebhookDeliveryAttemptInput,
   type WebhookDeliveryStatus
 } from './webhook-delivery-plan.ts'
@@ -249,15 +251,12 @@ type RotateWebhookSecretInput = {
   readonly endpointId: string
 }
 
-/**
- * The failure-ladder half of a recorded attempt: the endpoint's consecutive
- * failure streak as this attempt left it — every failure climbs, a delivered
- * attempt resets to zero. The queue consumer reads this to execute the
- * ladder's reaction (`failureLadderAction` in the delivery plan); `0` also
- * covers an attempt recorded against an endpoint that no longer resolves,
- * where there is no streak left to react to.
- */
+/** Accepted-summary result. The worker follows the persisted status for queue
+ * disposition and sends only the failure reaction named by persistence. */
 export type RecordedWebhookAttempt = {
+  readonly recorded: boolean
+  readonly failureAction: FailureLadderAction
+  readonly status: WebhookDeliveryStatus
   readonly consecutiveFailures: number
 }
 
@@ -302,6 +301,15 @@ type WebhookEndpointsInterface = {
    * first. Workspace scoping comes from `WorkspaceContext`; an endpoint id
    * from another workspace yields an empty list, never its deliveries.
    */
+  readonly listDeliveryAttempts: (input: {
+    readonly deliveryId: string
+  }) => Effect.Effect<
+    ReadonlyArray<WebhookDeliveryAttempt>,
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
+  readonly cleanupDeliveryHistory: () => Effect.Effect<number, CapabilityUnavailable>
+
   readonly listDeliveries: (
     input: ListWebhookDeliveriesInput
   ) => Effect.Effect<
@@ -426,32 +434,15 @@ type WebhookEndpointsInterface = {
     CapabilityUnavailable
   >
 
-  /**
-   * One delivery attempt from the queue consumer, upserted on the delivery
-   * row id. The endpoint's consecutive-failure counter moves in the same
-   * batched write as the delivery row (ADR 0062 addendum's failure ladder):
-   * a failure climbs the streak, a delivered attempt resets it to zero, and
-   * the streak this attempt left is the return value the consumer reacts to.
-   */
+  /** Atomically records immutable HTTP evidence and advances summary, streak,
+   * terminal audit, and automatic disable only for an accepted observation. */
   readonly recordDeliveryAttempt: (
     input: WebhookDeliveryAttemptInput
   ) => Effect.Effect<RecordedWebhookAttempt, CapabilityUnavailable>
 
-  /**
-   * Terminal delivery rows for outcomes that never dispatched (the SSRF guard
-   * rejected the endpoint URL at dispatch time) or exhausted the queue (dead
-   * letter). The capability owns the row — the timestamp, and the terminal
-   * audit event batched with it — so callers hand over only what the queue
-   * message carries and cannot assemble a half-shaped attempt input. The
-   * delivery id and payload travel in the queue message: the id resolves the
-   * message's existing attempt row (one row per message, same as the retry
-   * path), and the recorded payload is what makes a terminal row replayable.
-   *
-   * A terminal status is a failure like any other, so it climbs the endpoint's
-   * consecutive-failure streak the same way a retryable one does — the ladder
-   * (ADR 0062 addendum) must react to the streak's every step, including the
-   * one that ends a message.
-   */
+  /** One terminal observation per delivery, including never-dispatched outcomes.
+   * DLQ retries cannot create extra observations or increment the HTTP count.
+   * Existing HTTP evidence and replay provenance remain on the summary. */
   readonly recordTerminalDeliveryAttempt: (input: {
     readonly deliveryId: string
     readonly endpointId: string
@@ -459,6 +450,7 @@ type WebhookEndpointsInterface = {
     readonly eventType: string
     readonly attempts: number
     readonly status: 'failed_permanent' | 'dead_lettered'
+    readonly failureReason?: string | null
     readonly payload: Json
   }) => Effect.Effect<
     { readonly deliveryId: string } & RecordedWebhookAttempt,

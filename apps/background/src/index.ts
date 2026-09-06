@@ -3,7 +3,7 @@ import {
   wireWideEventProviders
 } from '@b2b-saas-starter/logger/providers'
 import * as Sentry from '@sentry/cloudflare'
-import { Effect } from 'effect'
+import { Effect, Result } from 'effect'
 // The queue names are single-sourced in `infra/bindings.ts`, which alchemy and
 // the wrangler generator read too — the consumer branch must key off the same
 // literal the consumer is bound to.
@@ -19,6 +19,7 @@ import { sendNotificationEmail } from './notification-email-consumer.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
 import { deliverSeatSync } from './seat-sync-consumer.ts'
 import { deliverWebhook, recordDeadLetter } from './webhook-consumer.ts'
+import { cleanWebhookHistory } from './webhook-retention.ts'
 import { consumeBatch, runInvocation, type Env } from './queue-consumer.ts'
 
 export default Sentry.withSentry((env: Env) => makeSentryOptions('background', env), {
@@ -64,7 +65,21 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
     wireWideEventProviders(env)
     return runInvocation(
       env,
-      Effect.asVoid(sendDailyDigest(env, controller.scheduledTime))
+      Effect.all(
+        [
+          Effect.asVoid(sendDailyDigest(env, controller.scheduledTime)),
+          cleanWebhookHistory(env, controller.scheduledTime)
+        ],
+        { concurrency: 'unbounded', mode: 'result' }
+      ).pipe(
+        Effect.flatMap((results) => {
+          const failed = results.find(Result.isFailure)
+          if (failed) {
+            return Effect.fail(failed.failure)
+          }
+          return Effect.void
+        })
+      )
     )
   }
 })

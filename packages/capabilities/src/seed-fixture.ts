@@ -1,3 +1,4 @@
+import { DateTime, Duration } from 'effect'
 import { type ApiToken } from './developer-platform/api-token-registry.ts'
 import {
   type McpClientConnection,
@@ -9,6 +10,7 @@ import { type SeedNotificationPreference } from './notifications/notification-pr
 import { type SeedWebhookEndpointFixture } from './developer-platform/webhook-endpoints.seed.ts'
 import {
   type SeedWebhookDeliveryFixture,
+  type WebhookDeliveryAttempt,
   WEBHOOK_USER_AGENT
 } from './developer-platform/webhook-delivery-plan.ts'
 import { type Member, type Workspace } from './governance/workspace-identity.ts'
@@ -178,14 +180,13 @@ export const seedWebhookEndpoints: ReadonlyArray<SeedWebhookEndpointFixture> = [
  * own `WEBHOOK_USER_AGENT`. Fixture helper so the seeded history reads like
  * the real thing.
  */
-function seedDeliveryRequestHeaders(eventType: string) {
+function seedDeliveryRequestHeaders(deliveryId: string) {
   return {
     'content-type': 'application/json',
     'user-agent': WEBHOOK_USER_AGENT,
-    'x-b2b-starter-event': eventType,
-    'x-b2b-starter-timestamp': '1779501690',
-    'x-b2b-starter-signature':
-      't=1779501690,sha256=1f4ab6d2b8bb43f1f59a2c8e70e5b52c1f39f0c46d2a8f34c47e6e2ef8c61e96'
+    'webhook-id': deliveryId,
+    'webhook-timestamp': '1779501690',
+    'webhook-signature': 'v1,fx9hFAmfEFgE6yiLjzfNkPFg70ScsuSWDiWh/XAZCZg='
   }
 }
 
@@ -203,11 +204,11 @@ export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
     endpointId: 'wh_release',
     eventType: 'api_token.created',
     status: 'delivered',
-    attempts: 1,
+    attempts: 2,
     lastAttemptAt: '2026-05-16T07:02:00.000Z',
     responseStatus: 200,
     payload: { tokenId: 'tok_mcp', name: 'MCP local client' },
-    requestHeaders: seedDeliveryRequestHeaders('api_token.created'),
+    requestHeaders: seedDeliveryRequestHeaders('whd_seed_delivered_1'),
     responseBody: ''
   },
   {
@@ -220,7 +221,7 @@ export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
     responseStatus: 500,
     nextAttemptAt: '2026-05-16T08:42:00.000Z',
     payload: { tokenId: 'tok_docs', name: 'Docs automation' },
-    requestHeaders: seedDeliveryRequestHeaders('api_token.created'),
+    requestHeaders: seedDeliveryRequestHeaders('whd_seed_failed'),
     responseBody: 'upstream connect error'
   },
   {
@@ -235,7 +236,7 @@ export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
     lastAttemptAt: '2026-05-16T09:12:00.000Z',
     responseStatus: 503,
     payload: { tokenId: 'tok_docs', name: 'Docs automation' },
-    requestHeaders: seedDeliveryRequestHeaders('api_token.created'),
+    requestHeaders: seedDeliveryRequestHeaders('whd_seed_dead_lettered'),
     responseBody: 'service unavailable'
   },
   {
@@ -251,10 +252,72 @@ export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
     lastAttemptAt: '2026-05-16T08:55:00.000Z',
     responseStatus: 410,
     payload: { url: 'https://billing.example.com/hooks/starter' },
-    requestHeaders: seedDeliveryRequestHeaders('webhook_endpoint.created'),
+    requestHeaders: seedDeliveryRequestHeaders('whd_seed_perm_failed'),
     responseBody: 'gone'
   }
 ]
+
+/** Coherent retry histories shared by the in-memory adapter and D1 seed. */
+export const seedDeliveryAttempts: ReadonlyArray<WebhookDeliveryAttempt> =
+  seedDeliveries.flatMap((delivery) => {
+    const history: Array<WebhookDeliveryAttempt> = Array.from(
+      { length: delivery.attempts },
+      (_, index) => {
+        const attempts = index + 1
+        const final = attempts === delivery.attempts
+        let status = 'failed'
+        let responseStatus: number | null = 503
+        let responseBody: string | null = 'service unavailable'
+        let durationMs = 180
+        if (final) {
+          if (delivery.status !== 'dead_lettered') {
+            status = delivery.status
+          }
+          responseStatus = delivery.responseStatus ?? null
+          responseBody = delivery.responseBody ?? null
+        }
+        let failureReason: string | null = `http_${responseStatus ?? 503}`
+        if (status === 'delivered') {
+          durationMs = 42
+          failureReason = null
+        }
+        return {
+          id: `${delivery.id}_http_${attempts}`,
+          deliveryId: delivery.id,
+          attempts,
+          phase: 'http',
+          status,
+          attemptedAt: DateTime.formatIso(
+            DateTime.subtractDuration(
+              DateTime.makeUnsafe(delivery.lastAttemptAt),
+              Duration.seconds((delivery.attempts - attempts) * 30)
+            )
+          ),
+          durationMs,
+          failureReason,
+          responseStatus,
+          requestHeaders: delivery.requestHeaders ?? null,
+          responseBody
+        }
+      }
+    )
+    if (delivery.status === 'dead_lettered') {
+      history.push({
+        id: `${delivery.id}_terminal`,
+        deliveryId: delivery.id,
+        attempts: delivery.attempts,
+        phase: 'terminal',
+        status: 'dead_lettered',
+        attemptedAt: delivery.lastAttemptAt,
+        durationMs: null,
+        failureReason: 'retries_exhausted',
+        responseStatus: null,
+        requestHeaders: null,
+        responseBody: null
+      })
+    }
+    return history
+  })
 
 export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   {

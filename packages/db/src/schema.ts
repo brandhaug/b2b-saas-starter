@@ -1,6 +1,7 @@
 import {
   auditActorTypes,
   deliveryStatuses,
+  deliveryAttemptPhases,
   invitationStatuses,
   notificationChannels,
   notificationKinds,
@@ -25,6 +26,7 @@ export {
   apiTokenScopes,
   auditActorTypes,
   deliveryStatuses,
+  deliveryAttemptPhases,
   invitationStatuses,
   notificationChannels,
   notificationKinds,
@@ -466,9 +468,44 @@ export const webhookDeliveries = sqliteTable(
       Record<string, string>
     >(),
     responseBody: text('response_body'),
-    replayedFrom: text('replayed_from')
+    replayedFrom: text('replayed_from'),
+    lastAttemptToken: text('last_attempt_token')
   },
-  (table) => [index('webhook_deliveries_endpoint_id_idx').on(table.endpointId)]
+  (table) => [
+    index('webhook_deliveries_endpoint_id_idx').on(table.endpointId),
+    index('webhook_deliveries_retention_idx').on(table.lastAttemptAt, table.id)
+  ]
+)
+
+export const webhookDeliveryAttempts = sqliteTable(
+  'webhook_delivery_attempts',
+  {
+    id: id(),
+    deliveryId: text('delivery_id')
+      .notNull()
+      .references(() => webhookDeliveries.id, { onDelete: 'cascade' }),
+    attempts: integer('attempts').notNull(),
+    phase: text('phase', { enum: deliveryAttemptPhases }).notNull(),
+    status: text('status', { enum: deliveryStatuses }).notNull(),
+    attemptedAt: text('attempted_at').notNull(),
+    durationMs: integer('duration_ms'),
+    failureReason: text('failure_reason'),
+    responseStatus: integer('response_status'),
+    requestHeaders: text('request_headers', { mode: 'json' }).$type<
+      Record<string, string>
+    >(),
+    responseBody: text('response_body')
+  },
+  (table) => [
+    uniqueIndex('webhook_delivery_attempt_identity_idx').on(
+      table.deliveryId,
+      table.attempts,
+      table.phase
+    ),
+    uniqueIndex('webhook_delivery_terminal_identity_idx')
+      .on(table.deliveryId)
+      .where(sql`${table.phase} = 'terminal'`)
+  ]
 )
 
 export const notifications = sqliteTable(

@@ -1,5 +1,6 @@
 import { type JsonObject } from '@b2b-saas-starter/db/schema'
 import { auditActorTypes, type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
+import { type SQL } from 'drizzle-orm'
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 
@@ -136,7 +137,8 @@ export type AuditEventLogInterface = {
    * clock — yield it, then pass the statement to `batch`.
    */
   readonly prepareRecord: (
-    input: RecordAuditEventInput
+    input: RecordAuditEventInput,
+    condition?: SQL
   ) => Effect.Effect<BatchStatement>
 }
 

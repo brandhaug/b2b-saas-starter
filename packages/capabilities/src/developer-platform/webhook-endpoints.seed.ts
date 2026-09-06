@@ -1,4 +1,7 @@
-import { DateTime, Effect, Layer } from 'effect'
+import { bestEffort } from '../internal/best-effort.ts'
+import { attemptEvidence } from './webhook-attempt-history.ts'
+import { DateTime, Duration, Effect, Layer } from 'effect'
+import { randomWebhookSecret } from '../crypto.ts'
 
 import { assertWithinPlanLimit } from '../billing/plan-catalog.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -8,7 +11,12 @@ import { type JsonValue } from '@b2b-saas-starter/db/schema'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   activeSigningSecrets,
+  DELIVERY_HISTORY_CLEANUP_LIMIT,
+  DELIVERY_HISTORY_RETENTION_DAYS,
+  type WebhookDeliveryAttempt,
+  type WebhookDeliveryAttemptInput,
   deadLetterNotification,
+  failureLadderAction,
   DELIVERIES_PAGE_SIZE,
   deliverySuccessRate,
   isReplayableDeliveryStatus,
@@ -34,7 +42,8 @@ import {
   WebhookDeliveryNotFound,
   WebhookEndpoints,
   type GlobalWebhookDelivery,
-  type WebhookEndpoint
+  type WebhookEndpoint,
+  type RecordedWebhookAttempt
 } from './webhook-endpoints.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { seedWorkspaceRecord } from '../seed-fixture.ts'
@@ -94,21 +103,6 @@ type SeedDeliveryRow = {
   readonly replayedFrom: string | null
 }
 
-/**
- * The attempt state an update carries onto an existing row, mirroring Live's
- * `onConflictDoUpdate` set clause. Mutable fields — the object is built with
- * statements and merged over the stored row.
- */
-type SeedAttemptUpdate = {
-  status: WebhookDeliveryStatus
-  attempts: number
-  lastAttemptAt: string
-  responseStatus?: number | null
-  nextAttemptAt?: string | null
-  requestHeaders?: Record<string, string> | null
-  responseBody?: string | null
-}
-
 function toDeliveryRow(
   fixture: SeedDeliveryFixture,
   fallbackWorkspaceId: string
@@ -156,7 +150,8 @@ const TERMINAL_STATUSES: ReadonlySet<WebhookDeliveryStatus> = new Set(
 export function SeedWebhookEndpoints(
   seedFixtures: ReadonlyArray<SeedWebhookEndpointFixture>,
   seedDeliveries: ReadonlyArray<SeedDeliveryFixture> = [],
-  seedWorkspaces: ReadonlyArray<Workspace> = [seedWorkspaceRecord]
+  seedWorkspaces: ReadonlyArray<Workspace> = [seedWorkspaceRecord],
+  seedAttempts: ReadonlyArray<WebhookDeliveryAttempt> = []
 ): Layer.Layer<
   WebhookEndpoints,
   never,
@@ -177,7 +172,8 @@ export function SeedWebhookEndpoints(
         url: fixture.url,
         enabled: fixture.enabled,
         events: [...fixture.events],
-        signingSecret: fixture.signingSecret ?? 'whsec_seed_fixture',
+        signingSecret:
+          fixture.signingSecret ?? 'whsec_c2VlZF9maXh0dXJlX3NlY3JldF8zMl9ieXRlc19sbmc=',
         previousSigningSecret: null,
         previousSecretExpiresAt: null,
         consecutiveFailures: 0
@@ -240,126 +236,168 @@ export function SeedWebhookEndpoints(
         return rows
       }
 
-      /** Shared persistence for both attempt surfaces, terminal audits included. */
-      const persistAttempt = Effect.fnUntraced(function* (
-        row: SeedDeliveryRow,
-        attemptUpdate: SeedAttemptUpdate
+      const attempts: Array<WebhookDeliveryAttempt> = [...seedAttempts]
+
+      const recordAttempt = Effect.fn('WebhookEndpoints.recordAttempt')(function* (
+        input: WebhookDeliveryAttemptInput
       ) {
-        // Upsert on the row id, mirroring Live's `onConflictDoUpdate`: every
-        // redelivery of the same message resolves the same row. The update
-        // carries attempt state alone — a field absent from `attemptUpdate`
-        // (a terminal write's response evidence, say) stays as recorded.
-        const existing = deliveries.findIndex((candidate) => candidate.id === row.id)
-        const existingRow = deliveries[existing]
-        if (existing === -1 || existingRow === undefined) {
+        const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
+        const attemptedAt = DateTime.formatIso(yield* DateTime.now)
+        const id = yield* newCapabilityId('wha')
+        const evidence = attemptEvidence(input)
+        const endpoint = endpointFor(input.endpointId, input.workspaceId)
+        if (!endpoint) {
+          return {
+            deliveryId,
+            recorded: false,
+            failureAction: 'silent',
+            status: 'failed_permanent',
+            consecutiveFailures: 0
+          } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+        }
+        const index = deliveries.findIndex((row) => row.id === deliveryId)
+        const previous = deliveries[index]
+        if (
+          (previous && previous.endpointId !== input.endpointId) ||
+          attempts.some(
+            (row) =>
+              row.deliveryId === deliveryId &&
+              row.phase === evidence.phase &&
+              (evidence.phase === 'terminal' || row.attempts === input.attempts)
+          )
+        ) {
+          return {
+            deliveryId,
+            recorded: false,
+            failureAction: 'silent',
+            status: previous?.status ?? 'failed_permanent',
+            consecutiveFailures: endpoint.consecutiveFailures
+          } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+        }
+        let ordinal = input.attempts
+        if (evidence.phase === 'terminal') {
+          ordinal = Math.max(ordinal, previous?.attempts ?? 0)
+        }
+        attempts.push({
+          id,
+          deliveryId,
+          attempts: ordinal,
+          status: input.status,
+          attemptedAt,
+          ...evidence
+        })
+        const advances =
+          !previous ||
+          previous.status === 'pending' ||
+          (previous.status === 'failed' &&
+            (evidence.phase === 'terminal' || previous.attempts < input.attempts))
+        if (!advances) {
+          return {
+            deliveryId,
+            recorded: false,
+            failureAction: 'silent',
+            status: previous.status,
+            consecutiveFailures: endpoint.consecutiveFailures
+          } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+        }
+        let responseStatus = evidence.responseStatus
+        let requestHeaders = evidence.requestHeaders
+        let responseBody = evidence.responseBody
+        if (evidence.phase === 'terminal') {
+          responseStatus = previous?.responseStatus ?? null
+          requestHeaders = previous?.requestHeaders ?? null
+          responseBody = previous?.responseBody ?? null
+        }
+        const row: SeedDeliveryRow = {
+          id: deliveryId,
+          endpointId: input.endpointId,
+          workspaceId: input.workspaceId,
+          eventType: previous?.eventType ?? input.eventType,
+          status: input.status,
+          attempts: ordinal,
+          lastAttemptAt: attemptedAt,
+          nextAttemptAt: input.nextAttemptAt ?? null,
+          responseStatus,
+          requestHeaders,
+          responseBody,
+          payload: previous?.payload ?? input.payload,
+          replayedFrom: previous?.replayedFrom ?? input.replayedFrom ?? null
+        }
+        if (index === -1) {
           deliveries.push(row)
         } else {
-          deliveries[existing] = { ...existingRow, ...attemptUpdate }
+          deliveries[index] = row
         }
-        const auditEventType = terminalDeliveryAuditEventType.get(row.status)
-        if (auditEventType !== undefined) {
-          yield* audit.record({
-            workspaceId: row.workspaceId,
-            actorUserId: null,
-            actorType: 'system',
-            eventType: auditEventType,
-            targetType: 'webhook_endpoint',
-            targetId: row.endpointId,
-            metadata: {
-              deliveryId: row.id,
-              eventType: row.eventType,
-              attempts: row.attempts,
-              responseStatus: row.responseStatus
-            }
-          })
-        }
-        // Same user-facing half of a dead letter as Live: a broadcast
-        // notification naming the endpoint URL.
-        if (row.status === 'dead_lettered') {
-          const endpoint = endpointFor(row.endpointId, row.workspaceId)
-          if (endpoint) {
-            yield* notificationFeed.create({
-              workspaceId: row.workspaceId,
-              userId: null,
-              kind: 'webhook.delivery_failed',
-              ...deadLetterNotification({
-                eventType: row.eventType,
-                url: endpoint.url,
-                attempts: row.attempts
-              })
-            })
-          }
-        }
-      })
-
-      /** One attempt row; terminal statuses audit below their interface — mirrors Live's `recordAttempt`. */
-      const recordAttempt = Effect.fnUntraced(function* (input: {
-        readonly id?: string
-        readonly endpointId: string
-        readonly workspaceId: string
-        readonly eventType: string
-        readonly status: WebhookDeliveryStatus
-        readonly attempts: number
-        readonly responseStatus?: number | null
-        readonly nextAttemptAt?: string | null
-        readonly payload: Json
-        readonly requestHeaders?: Record<string, string> | null
-        readonly responseBody?: string | null
-        readonly replayedFrom?: string | null
-      }) {
-        const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
-        const lastAttemptAt = DateTime.formatIso(yield* DateTime.now)
-        // Built as statements, not a conditional spread: a missing field is
-        // *absent* from the update, not laundered into a null.
-        const attemptUpdate: SeedAttemptUpdate = {
-          status: input.status,
-          attempts: input.attempts,
-          lastAttemptAt
-        }
-        if (input.responseStatus !== undefined) {
-          attemptUpdate.responseStatus = input.responseStatus ?? null
-        }
-        if (input.nextAttemptAt !== undefined) {
-          attemptUpdate.nextAttemptAt = input.nextAttemptAt ?? null
-        }
-        if (input.requestHeaders !== undefined) {
-          attemptUpdate.requestHeaders = input.requestHeaders ?? null
-        }
-        if (input.responseBody !== undefined) {
-          attemptUpdate.responseBody = input.responseBody ?? null
-        }
-        // The failure ladder's streak moves with the row, mirroring the
-        // counter update Live batches beside the delivery write. An endpoint
-        // that no longer resolves (deleted, or a foreign workspace) has no
-        // streak to move; the row still records the attempt.
-        const endpoint = endpointFor(input.endpointId, input.workspaceId)
-        let consecutiveFailures = 0
-        if (endpoint) {
-          consecutiveFailures = nextConsecutiveFailures(
+        const countsFailure =
+          evidence.phase === 'http' ||
+          !attempts.some(
+            (attempt) => attempt.deliveryId === deliveryId && attempt.phase === 'http'
+          )
+        if (countsFailure) {
+          endpoint.consecutiveFailures = nextConsecutiveFailures(
             endpoint.consecutiveFailures,
             input.status
           )
-          endpoint.consecutiveFailures = consecutiveFailures
         }
-        yield* persistAttempt(
-          {
-            id: deliveryId,
-            endpointId: input.endpointId,
+        const consecutiveFailures = endpoint.consecutiveFailures
+        const disabled =
+          endpoint.enabled &&
+          endpoint.consecutiveFailures >= WEBHOOK_FAILURE_AUTO_DISABLE_AT
+        if (disabled) {
+          endpoint.enabled = false
+        }
+        const eventType = terminalDeliveryAuditEventType.get(input.status)
+        if (eventType !== undefined) {
+          yield* audit.record({
             workspaceId: input.workspaceId,
-            eventType: input.eventType,
-            status: input.status,
-            attempts: input.attempts,
-            lastAttemptAt,
-            nextAttemptAt: input.nextAttemptAt ?? null,
-            responseStatus: input.responseStatus ?? null,
-            payload: input.payload,
-            requestHeaders: input.requestHeaders ?? null,
-            responseBody: input.responseBody ?? null,
-            replayedFrom: input.replayedFrom ?? null
-          },
-          attemptUpdate
-        )
-        return { deliveryId, consecutiveFailures }
+            actorType: 'system',
+            eventType,
+            targetType: 'webhook_endpoint',
+            targetId: input.endpointId,
+            metadata: {
+              deliveryId,
+              eventType: input.eventType,
+              queueAttempts: input.attempts,
+              responseStatus: evidence.responseStatus
+            }
+          })
+        }
+        if (disabled) {
+          yield* audit.record({
+            workspaceId: input.workspaceId,
+            actorType: 'system',
+            eventType: 'webhook_endpoint.auto_disabled',
+            targetType: 'webhook_endpoint',
+            targetId: input.endpointId,
+            metadata: { deliveryId }
+          })
+        }
+        if (input.status === 'dead_lettered') {
+          yield* bestEffort(
+            notificationFeed.create({
+              workspaceId: input.workspaceId,
+              userId: null,
+              kind: 'webhook.delivery_failed',
+              ...deadLetterNotification({
+                eventType: input.eventType,
+                attempts: ordinal,
+                url: endpoint.url
+              })
+            }),
+            () => ({ webhookDeadLetterNotification: 'failed', deliveryId })
+          )
+        }
+        let failureAction: 'silent' | 'warn' | 'disable' = 'silent'
+        if (countsFailure) {
+          failureAction = failureLadderAction(consecutiveFailures)
+        }
+        return {
+          deliveryId,
+          recorded: true,
+          failureAction,
+          status: input.status,
+          consecutiveFailures
+        } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
       })
 
       /**
@@ -406,6 +444,52 @@ export function SeedWebhookEndpoints(
       })
 
       return {
+        listDeliveryAttempts: Effect.fn('WebhookEndpoints.listDeliveryAttempts')(
+          function* (input) {
+            const ctx = yield* WorkspaceContext
+            const delivery = deliveries.find((row) => row.id === input.deliveryId)
+            if (!delivery || !endpointFor(delivery.endpointId, ctx.workspace.id)) {
+              return []
+            }
+            return attempts
+              .filter((row) => row.deliveryId === delivery.id)
+              .toSorted(
+                (a, b) => a.attempts - b.attempts || a.phase.localeCompare(b.phase)
+              )
+          }
+        ),
+        cleanupDeliveryHistory: Effect.fn('WebhookEndpoints.cleanupDeliveryHistory')(
+          function* () {
+            const cutoff = DateTime.formatIso(
+              DateTime.subtractDuration(
+                yield* DateTime.now,
+                Duration.days(DELIVERY_HISTORY_RETENTION_DAYS)
+              )
+            )
+            const expired = new Set(
+              deliveries
+                .filter(
+                  (row) => row.lastAttemptAt !== null && row.lastAttemptAt < cutoff
+                )
+                .toSorted((a, b) =>
+                  (a.lastAttemptAt ?? '').localeCompare(b.lastAttemptAt ?? '')
+                )
+                .slice(0, DELIVERY_HISTORY_CLEANUP_LIMIT)
+                .map((row) => row.id)
+            )
+            for (let i = deliveries.length - 1; i >= 0; i--) {
+              if (expired.has(deliveries[i]?.id ?? '')) {
+                deliveries.splice(i, 1)
+              }
+            }
+            for (let i = attempts.length - 1; i >= 0; i--) {
+              if (expired.has(attempts[i]?.deliveryId ?? '')) {
+                attempts.splice(i, 1)
+              }
+            }
+            return expired.size
+          }
+        ),
         list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const projections: Array<WebhookEndpoint> = []
@@ -453,7 +537,7 @@ export function SeedWebhookEndpoints(
             url: input.url,
             enabled: true,
             events: [...input.events],
-            signingSecret: 'whsec_seed_created',
+            signingSecret: randomWebhookSecret(),
             previousSigningSecret: null,
             previousSecretExpiresAt: null,
             consecutiveFailures: 0
@@ -495,7 +579,7 @@ export function SeedWebhookEndpoints(
             // `lastAttemptAt` DESC, row id DESC as the tie-break — a total
             // order, mirroring Live's orderBy so the shared contract can
             // assert the sequence on both adapters.
-            matched.sort((a, b) => {
+            const sorted = matched.toSorted((a, b) => {
               if ((a.lastAttemptAt ?? '') > (b.lastAttemptAt ?? '')) {
                 return -1
               }
@@ -510,7 +594,7 @@ export function SeedWebhookEndpoints(
               }
               return 0
             })
-            return matched
+            return sorted
               .slice(0, DELIVERIES_PAGE_SIZE)
               .map(({ workspaceId: _ws, ...row }) => row)
           }),
@@ -728,7 +812,7 @@ export function SeedWebhookEndpoints(
             // columns and keeps signing until the window closes.
             const expiresAt = planSecretRotation(yield* DateTime.now)
             const replaced = endpoint.signingSecret
-            endpoint.signingSecret = 'whsec_seed_rotated'
+            endpoint.signingSecret = randomWebhookSecret()
             endpoint.previousSigningSecret = replaced
             endpoint.previousSecretExpiresAt = expiresAt
             yield* audit.record({
@@ -754,15 +838,17 @@ export function SeedWebhookEndpoints(
               signingSecrets: activeSigningSecrets(endpoint, yield* DateTime.now)
             }
           }),
-        recordDeliveryAttempt: (input) =>
-          Effect.map(recordAttempt(input), ({ consecutiveFailures }) => ({
-            consecutiveFailures
-          })),
+        recordDeliveryAttempt: (input) => recordAttempt(input),
         recordTerminalDeliveryAttempt: (input) =>
           // Same row identity and evidence as Live: the id from the queue
           // message, the payload recorded so the row stays replayable. The
           // retry schedule clears; response evidence already on the row stays.
-          recordAttempt({ ...input, nextAttemptAt: null }),
+          recordAttempt({
+            ...input,
+            id: input.deliveryId,
+            phase: 'terminal',
+            nextAttemptAt: null
+          }),
         autoDisableEndpoint: (input) =>
           Effect.gen(function* () {
             // Zero-match — already disabled, deleted, or foreign to the

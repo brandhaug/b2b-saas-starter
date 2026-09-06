@@ -27,10 +27,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     // The Seed half of this same list runs in index.test.ts.
     describe('live developer-platform contract', () => {
       for (const contractCase of developerPlatformContractCases(expect)) {
-        it.effect(contractCase.name, () =>
-          inWorkspace('dev-contract-lab', contractCase.assert, {
-            userId: 'usr_owner'
-          })
+        // Retention exercises more than one cleanup batch against real D1.
+        it.effect(
+          contractCase.name,
+          () =>
+            inWorkspace('dev-contract-lab', contractCase.assert, {
+              userId: 'usr_owner'
+            }),
+          30_000
         )
       }
     })
@@ -151,7 +155,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               targetType: 'webhook_endpoint',
               targetId: 'wh_live'
             })
-            expect(rows[0]?.metadata).toMatchObject({ attempts: 5 })
+            expect(rows[0]?.metadata).toMatchObject({ queueAttempts: 5 })
           })
       )
 

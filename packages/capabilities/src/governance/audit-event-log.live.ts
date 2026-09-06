@@ -1,7 +1,8 @@
+// oxlint-disable effect/noGlobals -- D1 SQL parameters require serialized typed JSON at this adapter boundary.
 import { auditEvents, user } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
-import { and, desc, eq, gte, lte, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, sql, type SQL } from 'drizzle-orm'
 
 import {
   auditEventPosition,
@@ -115,21 +116,33 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           .limit(100)
       ).pipe(Effect.map((rows) => rows.map(toWireRow)))
 
-      const insertFor = Effect.fnUntraced(function* (input: RecordAuditEventInput) {
+      const insertFor = Effect.fnUntraced(function* (
+        input: RecordAuditEventInput,
+        condition?: SQL
+      ) {
         yield* assertAuditActorType(input)
         const id = yield* newCapabilityId('aud')
         const createdAt = yield* DateTime.now
-        return db.insert(auditEvents).values({
-          id,
-          workspaceId: input.workspaceId ?? null,
-          actorUserId: input.actorUserId ?? null,
-          actorType: input.actorType,
-          eventType: input.eventType,
-          targetType: input.targetType,
-          targetId: input.targetId ?? null,
-          metadata: input.metadata ?? {},
-          createdAt: DateTime.formatIso(createdAt)
-        })
+        return db.insert(auditEvents).select(
+          db
+            .select({
+              id: sql<string>`${id}`.as('id'),
+              workspaceId: sql<string | null>`${input.workspaceId ?? null}`.as(
+                'workspaceId'
+              ),
+              actorUserId: sql<string | null>`${input.actorUserId ?? null}`.as(
+                'actorUserId'
+              ),
+              actorType: sql`${input.actorType}`.as('actorType'),
+              eventType: sql`${input.eventType}`.as('eventType'),
+              targetType: sql`${input.targetType}`.as('targetType'),
+              targetId: sql<string | null>`${input.targetId ?? null}`.as('targetId'),
+              metadata: sql`${JSON.stringify(input.metadata ?? {})}`.as('metadata'),
+              createdAt: sql<string>`${DateTime.formatIso(createdAt)}`.as('createdAt')
+            })
+            .from(sql`(select 1)`)
+            .where(condition)
+        )
       })
 
       return {
@@ -145,7 +158,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
             Effect.flatMap(orUnavailable('audit-event-log')),
             Effect.asVoid
           ),
-        prepareRecord: (input) => insertFor(input)
+        prepareRecord: (input, condition) => insertFor(input, condition)
       }
     })
   )

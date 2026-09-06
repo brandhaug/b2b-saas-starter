@@ -23,6 +23,7 @@
     "@cloudflare/workers-types": "catalog:",
     "@effect/vitest": "catalog:",
     "@react-email/render": "catalog:",
+    "standardwebhooks": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",

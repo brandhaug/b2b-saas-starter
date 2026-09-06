@@ -1,6 +1,7 @@
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { Fragment } from 'react'
+import { WebhookDeliveryTimeline } from './webhook-delivery-timeline'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -45,63 +46,6 @@ export type SendTestEvent = (input: {
 const REPLAY_FAILED = 'Failed to queue the replay'
 const TEST_FAILED = 'Failed to queue the test event'
 
-function EvidenceRow({
-  label,
-  children
-}: {
-  readonly label: string
-  readonly children: React.ReactNode
-}) {
-  return (
-    <div className="grid gap-1">
-      <dt className="text-3xs text-muted-foreground">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
-    </div>
-  )
-}
-
-function DeliveryEvidence({ delivery }: { readonly delivery: WebhookDelivery }) {
-  if (delivery.requestHeaders === null && delivery.responseBody === null) {
-    return null
-  }
-  return (
-    <dl className="grid gap-2">
-      <EvidenceRow label="Payload">
-        <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-3xs break-all whitespace-pre-wrap">
-          {JSON.stringify(delivery.payload, null, 2)}
-        </pre>
-      </EvidenceRow>
-      {delivery.requestHeaders === null ? null : (
-        <EvidenceRow label="Request headers">
-          <ul className="grid gap-0.5 font-mono text-3xs">
-            {Object.entries(delivery.requestHeaders).map(([name, value]) => (
-              <li key={name} className="min-w-0 break-all">
-                <span className="text-muted-foreground">{name}:</span> {value}
-              </li>
-            ))}
-          </ul>
-        </EvidenceRow>
-      )}
-      {delivery.responseBody === null ? null : (
-        <EvidenceRow label="Response body">
-          <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-3xs break-all whitespace-pre-wrap">
-            {delivery.responseBody === '' ? '(empty)' : delivery.responseBody}
-          </pre>
-        </EvidenceRow>
-      )}
-    </dl>
-  )
-}
-
-/**
- * The per-endpoint deliveries drawer: one row per delivery attempt, newest
- * first, with the recorded evidence (payload, request headers, truncated
- * response body) and the operator actions — replay on failed rows, a test
- * send for the whole endpoint. The server fns re-check the permission; the
- * buttons here only hide what the role cannot do. Each action is a
- * `useServerAction`: busy flag, failure copy, and the loader refresh that
- * resolves the replayed row into the list.
- */
 export function WebhookDeliveriesDrawer({
   workspaceSlug,
   endpoint,
@@ -137,11 +81,11 @@ export function WebhookDeliveriesDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-full flex-col gap-0 sm:max-w-md"
+        className="flex flex-col gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md"
         data-testid="deliveries-drawer"
       >
         <SheetHeader>
-          <SheetTitle className="break-all">Delivery attempts</SheetTitle>
+          <SheetTitle className="break-all">Deliveries</SheetTitle>
           <SheetDescription className="break-all">{endpoint.url}</SheetDescription>
         </SheetHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4">
@@ -167,7 +111,7 @@ export function WebhookDeliveriesDrawer({
           ) : null}
           {endpoint.deliveries.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No delivery attempts yet. Events enqueue when something in the workspace
+              No deliveries yet. Events enqueue when something in the workspace
               subscribes.
             </p>
           ) : (
@@ -206,7 +150,10 @@ export function WebhookDeliveriesDrawer({
                           <span className="font-mono">{delivery.replayedFrom}</span>
                         </p>
                       )}
-                      <DeliveryEvidence delivery={delivery} />
+                      <WebhookDeliveryTimeline
+                        workspaceSlug={workspaceSlug}
+                        delivery={delivery}
+                      />
                       {replayable ? (
                         <div>
                           <Button

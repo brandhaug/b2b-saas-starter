@@ -55,7 +55,7 @@ describe('mcp ↔ rest operation mirror', () => {
       } else {
         // The one parameterized read takes exactly its declared path
         // parameter, nothing else.
-        expect(Object.keys(properties)).toEqual(['endpointId'])
+        expect(Object.keys(properties)).toEqual([operation.input])
       }
     }
   })
@@ -159,6 +159,7 @@ describe('POST /mcp protocol', () => {
           'list_members',
           'list_notifications',
           'list_webhook_deliveries',
+          'list_webhook_delivery_attempts',
           'list_webhooks'
         ])
         expect(body.result.tools.every((tool) => tool.annotations.readOnlyHint)).toBe(

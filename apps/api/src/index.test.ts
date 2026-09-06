@@ -1,3 +1,4 @@
+import { WebhookDeliveryAttempt } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { signWorkspaceExportDownload } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { seedWorkspaceExportFixture } from '@b2b-saas-starter/capabilities/seed-fixture'
@@ -500,9 +501,38 @@ describe('contract-served routes', () => {
         responseStatus: 500,
         replayedFrom: null
       })
-      expect(failed?.requestHeaders?.['x-b2b-starter-event']).toBe('api_token.created')
+      expect(failed?.requestHeaders?.['webhook-id']).toBe('whd_seed_failed')
       expect(failed?.responseBody).toContain('upstream')
     })
+  )
+
+  it.effect(
+    'GET attempt history returns retained evidence and hides missing deliveries',
+    () =>
+      Effect.gen(function* () {
+        const response = yield* send(
+          get(
+            '/workspaces/starter-lab/webhooks/deliveries/whd_seed_failed/attempts',
+            bearer
+          )
+        )
+        expect(response.status).toBe(200)
+        const attempts = yield* jsonBody(response, Schema.Array(WebhookDeliveryAttempt))
+        expect(attempts.length).toBeGreaterThan(0)
+        expect(
+          attempts.every((attempt) => attempt.deliveryId === 'whd_seed_failed')
+        ).toBe(true)
+        const missing = yield* send(
+          get(
+            '/workspaces/starter-lab/webhooks/deliveries/whd_foreign/attempts',
+            bearer
+          )
+        )
+        expect(missing.status).toBe(200)
+        expect(yield* jsonBody(missing, Schema.Array(WebhookDeliveryAttempt))).toEqual(
+          []
+        )
+      })
   )
 
   // Issue #64: the worker has no session to offer Better Auth's organization

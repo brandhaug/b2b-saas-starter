@@ -73,6 +73,7 @@ catalog:
   cmdk: 1.1.1
   drizzle-kit: 1.0.0-rc.5-ab785fc
   drizzle-orm: 1.0.0-rc.5-ab785fc
+  standardwebhooks: 1.1.1
   effect: 4.0.0-rc.112
   effectful-better-auth: 1.0.0
   eslint-plugin-better-tailwindcss: 4.7.0

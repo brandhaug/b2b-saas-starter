@@ -5,6 +5,7 @@ import {
   webhookQueueName
 } from '../../../infra/bindings.ts'
 import { DateTime, Effect, Schema } from 'effect'
+import { Webhook } from 'standardwebhooks'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vite-plus/test'
 
 import {
@@ -32,7 +33,7 @@ import {
 const WORKSPACE_ID = 'ws_pool'
 const ENDPOINT_ID = 'wh_pool'
 const ENDPOINT_URL = 'https://receiver.example.test/hook'
-const SIGNING_SECRET = 'whsec_pool'
+const SIGNING_SECRET = 'whsec_cG9vbF90ZXN0X3NlY3JldA=='
 
 /** A `mode: 'json'` text column, parsed; a null column stays null. */
 const JsonColumn = Schema.NullOr(Schema.fromJsonString(Schema.Json))
@@ -98,6 +99,7 @@ function webhookMessage(
     timestamp: new Date(1000),
     attempts,
     body: {
+      deliveryId: `whd_${id}`,
       endpointId: ENDPOINT_ID,
       workspaceId: WORKSPACE_ID,
       eventType: 'api_token.created',
@@ -204,12 +206,22 @@ describe('webhook consumer (workers pool)', () => {
         // The POST the runtime delivered was the signed one for that row.
         expect(outbound).toHaveLength(1)
         expect(outbound[0]?.url).toBe(ENDPOINT_URL)
-        expect(outbound[0]?.headers['x-b2b-starter-event']).toBe('api_token.created')
-        expect(outbound[0]?.headers['x-b2b-starter-signature']).toMatch(
-          /^t=\d+,sha256=[0-9a-f]{64}$/
+        const posted = outbound[0]
+        if (!posted) {
+          throw new Error('Receiver did not receive the webhook')
+        }
+        expect(
+          new Webhook(SIGNING_SECRET).verify(posted.body, posted.headers)
+        ).toMatchObject({
+          deliveryId: 'whd_qmsg_ok',
+          payload: { hello: 'world' }
+        })
+        expect(outbound[0]?.headers['webhook-id']).toBe('whd_qmsg_ok')
+        expect(outbound[0]?.headers['webhook-signature']).toMatch(
+          /^v1,[A-Za-z0-9+/]{43}=$/
         )
         expect(readJsonColumn(delivery?.request_headers)).toMatchObject({
-          'x-b2b-starter-signature': outbound[0]?.headers['x-b2b-starter-signature']
+          'webhook-signature': outbound[0]?.headers['webhook-signature']
         })
         expect(readJsonColumn(outbound[0]?.body)).toMatchObject({
           deliveryId: 'whd_qmsg_ok'
@@ -304,7 +316,7 @@ describe('webhook consumer (workers pool)', () => {
         expect(readJsonColumn(audit[0]?.metadata)).toMatchObject({
           deliveryId: 'whd_qmsg_4xx',
           eventType: 'api_token.created',
-          attempts: 1
+          queueAttempts: 1
         })
         // And tells the workspace: one broadcast notification.
         const notified = yield* Effect.promise(() =>
@@ -329,17 +341,11 @@ describe('webhook consumer (workers pool)', () => {
         expect(result.explicitAcks).toStrictEqual(['qmsg_dead'])
         expect(result.retryMessages).toStrictEqual([])
         expect(outbound).toHaveLength(0)
-        // The terminal row cannot be addressed by `whd_qmsg_dead` today:
-        // `recordTerminalDeliveryAttempt` receives `deliveryId` (its own
-        // interface documents it resolving the message's row) but both
-        // adapters spread it into internal `recordAttempt`, which reads
-        // `id` — so the row is written under a freshly minted id. Asserted
-        // by its terminal status until that mismatch is fixed; its recorded
-        // payload keeps it replayable either way.
         const terminal = yield* Effect.promise(() =>
           rows('select * from webhook_deliveries where status = ?', 'dead_lettered')
         )
         expect(terminal).toHaveLength(1)
+        expect(terminal[0]?.id).toBe('whd_qmsg_dead')
         expect(terminal[0]?.endpoint_id).toBe(ENDPOINT_ID)
         expect(terminal[0]?.event_type).toBe('api_token.created')
         expect(terminal[0]?.attempts).toBe(7)
@@ -355,20 +361,101 @@ describe('webhook consumer (workers pool)', () => {
         expect(audit).toHaveLength(1)
         expect(audit[0]?.workspace_id).toBe(WORKSPACE_ID)
         expect(audit[0]?.target_id).toBe(ENDPOINT_ID)
-        // The dead letter tells the workspace twice today — once from the
-        // capability's `notifyDeadLetter` (endpoint URL in the message) and
-        // once from the consumer's `notifyDeliveryGaveUp` — both kind
-        // `webhook.delivery_failed`. The duplicate is a defect in the
-        // existing capability/consumer pair, named in this item's review;
-        // this pins the current shape so the fix has to update it.
         const notified = yield* Effect.promise(() =>
           rows('select * from notifications where kind = ?', 'webhook.delivery_failed')
         )
-        expect(notified).toHaveLength(2)
+        expect(notified).toHaveLength(1)
         expect(notified[0]?.workspace_id).toBe(WORKSPACE_ID)
-        expect(notified[1]?.workspace_id).toBe(WORKSPACE_ID)
         expect(notified[0]?.user_id).toBeNull()
-        expect(notified[1]?.user_id).toBeNull()
+      })
+    ))
+
+  it('preserves failures before success and ignores late duplicate results', () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- worker queue/D1 promise boundary
+    Effect.runPromise(
+      Effect.gen(function* () {
+        stubReceiver(() => new Response('retry later', { status: 503 }))
+        yield* Effect.promise(() =>
+          consume(webhookQueueName, [webhookMessage('history', 1)])
+        )
+        stubReceiver(okAnswer)
+        yield* Effect.promise(() =>
+          consume(webhookQueueName, [webhookMessage('history', 2)])
+        )
+        stubReceiver(() => new Response('late failure', { status: 503 }))
+        const late = yield* Effect.promise(() =>
+          consume(webhookQueueName, [webhookMessage('history', 1)])
+        )
+        expect(late.explicitAcks).toEqual(['history'])
+        const attempts = yield* Effect.promise(() =>
+          rows(
+            'select * from webhook_delivery_attempts where delivery_id = ? order by attempts',
+            'whd_history'
+          )
+        )
+        expect(attempts).toHaveLength(2)
+        expect(attempts[0]?.status).toBe('failed')
+        expect(attempts[0]?.response_body).toBe('retry later')
+        expect(attempts[0]?.failure_reason).toBe('Receiver returned HTTP 503')
+        expect(attempts[0]?.duration_ms).toBeTypeOf('number')
+        expect(attempts[1]?.status).toBe('delivered')
+        const summary = yield* Effect.promise(() =>
+          row('select * from webhook_deliveries where id = ?', 'whd_history')
+        )
+        expect(summary?.status).toBe('delivered')
+        expect(summary?.attempts).toBe(2)
+        const endpoint = yield* Effect.promise(() =>
+          row(
+            'select consecutive_failures from webhook_endpoints where id = ?',
+            ENDPOINT_ID
+          )
+        )
+        expect(endpoint?.consecutive_failures).toBe(0)
+      })
+    ))
+
+  it('records one terminal audit and notification for concurrent duplicate processing', () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- worker queue/D1 promise boundary
+    Effect.runPromise(
+      Effect.gen(function* () {
+        stubReceiver(() => new Response('rejected', { status: 400 }))
+        yield* Effect.promise(() =>
+          Promise.all([
+            consume(webhookQueueName, [webhookMessage('duplicate', 1)]),
+            consume(webhookQueueName, [webhookMessage('duplicate', 1)])
+          ])
+        )
+        expect(
+          yield* Effect.promise(() =>
+            rows(
+              'select * from webhook_delivery_attempts where delivery_id = ?',
+              'whd_duplicate'
+            )
+          )
+        ).toHaveLength(1)
+        expect(
+          yield* Effect.promise(() =>
+            rows(
+              'select * from audit_events where event_type = ?',
+              'webhook.delivery_failed'
+            )
+          )
+        ).toHaveLength(1)
+        expect(
+          yield* Effect.promise(() =>
+            rows(
+              'select * from notifications where kind = ?',
+              'webhook.delivery_failed'
+            )
+          )
+        ).toHaveLength(1)
+        const endpoint = yield* Effect.promise(() =>
+          row(
+            'select consecutive_failures from webhook_endpoints where id = ?',
+            ENDPOINT_ID
+          )
+        )
+        expect(endpoint?.consecutive_failures).toBe(1)
       })
     ))
 })

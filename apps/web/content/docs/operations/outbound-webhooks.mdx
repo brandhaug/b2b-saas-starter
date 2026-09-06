@@ -21,19 +21,49 @@ A Webhook Endpoint is a workspace-owned outbound event delivery target. The star
 
 When a domain event matching an endpoint's subscriptions occurs, a message is enqueued on the `b2b-saas-starter-webhooks` Cloudflare Queue. The background Worker consumes the queue, signs the payload, posts it with a 10-second timeout, and calls `WebhookEndpoints.recordDeliveryAttempt` to persist the attempt to `webhook_deliveries` with `status`, `attempts`, `lastAttemptAt`, `nextAttemptAt`, `responseStatus`, plus the operator evidence: the `payload` that was sent, the `requestHeaders` block, a truncated `responseBody` from the receiver, and the `replayedFrom` link on replays. Every redelivery of the same queue message resolves the same row, so the history is one row per message, not one row per attempt.
 
-Each request body is `{"deliveryId": "whd_…", "eventType": "…", "payload": …}`, where `deliveryId` equals the persisted delivery row id (so you can deduplicate redeliveries), and carries these headers:
+Each request body is `{"deliveryId": "whd_…", "eventType": "…", "payload": …}`.
+The producer assigns `deliveryId` before enqueueing. It is also the persisted
+summary ID and `webhook-id`, and stays unchanged across automatic retries and
+transfer to the dead-letter queue. A manual replay creates a new message ID and
+links its summary to the source through `replayedFrom`. The event type and payload
+stay unchanged, so receivers can distinguish a requested replay from a retry.
 
-- `x-b2b-starter-event`: the event type
-- `x-b2b-starter-timestamp`: unix seconds at signing time
-- `x-b2b-starter-signature`: `t=<unix>` followed by one or more `sha256=<hex>` entries, each an HMAC-SHA256 over `"<unix>.<rawBody>"` with one of the endpoint's active signing secrets (see [Secret rotation](#secret-rotation))
-- `x-trace-id`: the trace id a receiver can quote back in support requests
+Requests follow [Standard Webhooks](https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md),
+using the same signature format as [Outpost's Standard Webhooks mode](https://hookdeck.com/docs/outpost/destinations/webhook):
 
-To verify a delivery:
+- `webhook-id`: the delivery ID
+- `webhook-timestamp`: Unix seconds at signing time, refreshed for every attempt
+- `webhook-signature`: space-separated `v1,<base64>` signatures, current key first
+- `x-trace-id`: the trace ID you can quote in a support request
 
-1. Parse `t` and every `sha256` entry from `x-b2b-starter-signature`
-2. Reject if `|now − t|` exceeds your tolerance window (e.g. 5 minutes). This is the replay guard.
-3. For each secret your receiver holds, compute HMAC-SHA256 over `` `${t}.${rawBody}` `` and constant-time-compare the hex digest against **each** `sha256` entry; a match on any one verifies the delivery
-4. Deduplicate on `deliveryId`
+Signing secrets use `whsec_<base64>`, encoding 32 random bytes. Decode the base64
+part to obtain the HMAC key. The signed bytes are the UTF-8 encoding of
+`` `${webhookId}.${timestamp}.${rawBody}` ``. The digest is HMAC-SHA256, encoded as
+standard base64. Verify the raw body before parsing JSON; reformatting changes the
+signature. There is no custom signature protocol or compatibility mode.
+
+For a receiver, use the independent `standardwebhooks` package:
+
+```ts
+import { Webhook } from 'standardwebhooks'
+
+export async function receive(request: Request, signingSecret: string) {
+  const rawBody = await request.text()
+  const event = new Webhook(signingSecret).verify(rawBody, {
+    'webhook-id': request.headers.get('webhook-id') ?? '',
+    'webhook-timestamp': request.headers.get('webhook-timestamp') ?? '',
+    'webhook-signature': request.headers.get('webhook-signature') ?? ''
+  })
+  // Verification throws for invalid signatures or timestamps outside five minutes.
+  // Atomically deduplicate webhook-id in your durable event handler before effects.
+  return event
+}
+```
+
+The verifier tries all signatures, so a receiver with either active key works
+during rotation. Deduplicate automatic retries on `webhook-id`; retain your
+processed IDs for at least your retry and operational recovery window. A manual
+replay deliberately has a new ID and can run your handler again.
 
 ## Retries and delivery statuses
 
@@ -52,11 +82,12 @@ The webhooks page and the REST surface share one operator toolkit:
 
 ## Secret rotation
 
-Rotating an endpoint's secret is a **shift, not a cutover**: the replaced secret moves into a 24-hour grace window and keeps signing deliveries alongside the new one.
+Rotating an endpoint's secret starts a 24-hour grace window. During that window,
+the replaced secret signs deliveries alongside the new one.
 
 For receivers this means:
 
-1. **During the grace window**, `x-b2b-starter-signature` carries **two** `sha256` entries: the first computed with the new secret, the second with the old one. A receiver still holding the old secret keeps verifying deliveries while its operator installs the new one. Verify against every entry (step 3 above), not just the first.
+1. **During the grace window**, `webhook-signature` carries **two** space-separated `v1,<base64>` entries: the first computed with the new secret, the second with the old one. A receiver still holding the old secret keeps verifying deliveries while its operator installs the new one. Verify against every entry.
 2. **Install the new secret as soon as you can** (within 24 hours). After the window closes, deliveries are signed with the new secret only, and a receiver still on the old secret starts failing verification.
 3. Rotating again inside the window drops the original secret entirely: only the last two secrets are ever active.
 4. The new secret is displayed **once** at rotation (web UI and REST response); store it immediately.

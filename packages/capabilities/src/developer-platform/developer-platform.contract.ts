@@ -1,3 +1,4 @@
+import { webhookAttemptHistoryCases } from './webhook-attempt-history.contract.ts'
 import { Effect, Exit } from 'effect'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type ContractExpect } from '../governance/contract-expect.ts'
@@ -63,6 +64,7 @@ export function developerPlatformContractCases(
   expect: ContractExpect
 ): ReadonlyArray<DeveloperPlatformContractCase> {
   return [
+    ...webhookAttemptHistoryCases(expect),
     {
       name: 'the same token mutation records the invocation actor in both adapters',
       assert: Effect.gen(function* () {
@@ -201,7 +203,7 @@ export function developerPlatformContractCases(
         yield* webhooks.recordDeliveryAttempt({
           id: 'whd_contract_first',
           endpointId: endpoint.id,
-          workspaceId: 'irrelevant-to-list-scoping',
+          workspaceId: (yield* WorkspaceContext).workspace.id,
           eventType: 'demo.event',
           status: 'delivered',
           attempts: 1,
@@ -212,7 +214,7 @@ export function developerPlatformContractCases(
         yield* webhooks.recordDeliveryAttempt({
           id: 'whd_contract_second',
           endpointId: endpoint.id,
-          workspaceId: 'irrelevant-to-list-scoping',
+          workspaceId: (yield* WorkspaceContext).workspace.id,
           eventType: 'demo.event',
           status: 'failed',
           attempts: 2,

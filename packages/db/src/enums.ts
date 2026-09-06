@@ -150,3 +150,6 @@ export type AuditActorTypeValue = (typeof auditActorTypes)[number]
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const notificationChannels = ['off', 'instant', 'digest'] as const
 export type NotificationChannel = (typeof notificationChannels)[number]
+
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const deliveryAttemptPhases = ['http', 'terminal'] as const

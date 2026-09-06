@@ -157,6 +157,8 @@ const NO_TOOL_INPUT_SCHEMA: ToolJsonSchema = decodeToolJsonSchema({
   properties: {}
 })
 const PAGED_INPUT_SCHEMA = advertisedInputSchema(PAGED_TOOL_INPUT)
+const DELIVERY_ID_TOOL_INPUT = Schema.Struct({ deliveryId: Schema.NonEmptyString })
+const DELIVERY_ID_INPUT_SCHEMA = advertisedInputSchema(DELIVERY_ID_TOOL_INPUT)
 const ENDPOINT_ID_INPUT_SCHEMA = advertisedInputSchema(ENDPOINT_ID_TOOL_INPUT)
 
 /**
@@ -167,13 +169,14 @@ const ENDPOINT_ID_INPUT_SCHEMA = advertisedInputSchema(ENDPOINT_ID_TOOL_INPUT)
 const TOOL_INPUTS = {
   collection: NO_TOOL_INPUT_SCHEMA,
   paged: PAGED_INPUT_SCHEMA,
+  deliveryId: DELIVERY_ID_INPUT_SCHEMA,
   endpointId: ENDPOINT_ID_INPUT_SCHEMA
 }
 
 /** The advertised input schema an operation registers with, derived from its row shape. */
 function toolInput(operation: WorkspaceReadOperation): ToolJsonSchema {
   if (operation.param !== undefined) {
-    return TOOL_INPUTS.endpointId
+    return TOOL_INPUTS[operation.input]
   }
   if (operation.paged) {
     return TOOL_INPUTS.paged
@@ -340,6 +343,7 @@ const invalidParams = Effect.mapError(
     new InvalidParams({ message: formatIssue(error.issue) })
 )
 const decodePagedInput = Schema.decodeUnknownEffect(PAGED_TOOL_INPUT)
+const decodeDeliveryIdInput = Schema.decodeUnknownEffect(DELIVERY_ID_TOOL_INPUT)
 const decodeEndpointIdInput = Schema.decodeUnknownEffect(ENDPOINT_ID_TOOL_INPUT)
 
 /**
@@ -357,6 +361,10 @@ function decodeOperationInput(
 ): Effect.Effect<CapabilityRead, InvalidParams> {
   return Effect.gen(function* () {
     if (operation.param !== undefined) {
+      if (operation.input === 'deliveryId') {
+        const args = yield* decodeDeliveryIdInput(payload ?? {}).pipe(invalidParams)
+        return Effect.suspend(() => operation.read(undefined, args))
+      }
       const args = yield* decodeEndpointIdInput(payload ?? {}).pipe(invalidParams)
       return Effect.suspend(() => operation.read(undefined, args))
     }
