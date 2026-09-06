@@ -14,6 +14,7 @@ import { renderWithRouter } from '@/test/router-harness'
 const applySearch = vi.fn<ApplyWorkspaceAuditSearch>()
 
 const payload: WorkspaceAuditPayload = {
+  selectedEvent: null,
   viewer: { role: 'owner' },
   events: [
     {
@@ -39,6 +40,8 @@ async function renderPage(overrides: Partial<WorkspaceAuditPayload> = {}) {
       workspaceSlug="starter-lab"
       data={{ ...payload, ...overrides }}
       applySearch={applySearch}
+      selectedEventId={null}
+      closeEvent={vi.fn()}
     />,
     { path: '/workspaces/starter-lab/audit' }
   )
@@ -60,10 +63,10 @@ describe('WorkspaceAuditPage', () => {
     expect(applySearch).toHaveBeenCalledWith({ actor: 'usr_demo', cursor: 'cur_2' })
   })
 
-  it('drops the cursor but keeps the actor when a filter changes', async () => {
+  it('clears all filters and the cursor', async () => {
     await renderPage({ filters: { actorUserId: 'usr_demo' }, nextCursor: 'cur_2' })
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
-    expect(applySearch).toHaveBeenCalledWith({ actor: 'usr_demo' })
+    expect(applySearch).toHaveBeenCalledWith({})
   })
 
   it('drops empty values so cleared controls disappear from the URL', () => {

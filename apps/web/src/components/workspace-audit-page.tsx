@@ -1,3 +1,4 @@
+import { AuditEventLink, AuditEventSheet } from './audit-event-sheet'
 import { FilterXIcon, HistoryIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,11 +24,7 @@ import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { Badge } from '@/components/ui/badge'
 import { DataTable, type DataTableColumnDef } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import {
-  AUDIT_EVENT_FILTER_OPTIONS,
-  auditActorTypeLabel,
-  auditEventLabel
-} from '@/lib/audit-labels'
+import { AUDIT_EVENT_FILTER_OPTIONS, auditActorTypeLabel } from '@/lib/audit-labels'
 import { auditActorTypeVariant } from '@/lib/badge-variants'
 import {
   auditSearchFromFilters,
@@ -54,13 +51,12 @@ import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit
 const SELECT_CLASSES = 'max-w-52'
 
 // Column definitions are static — module scope keeps the cell renderers out of
-// the render body (they would remount every render). Sorting reorders the
-// loaded page locally; the server's own order stays newest-first.
+// the render body. The server owns collection order: newest first.
 const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
   {
     accessorKey: 'createdAt',
     header: 'When',
-    enableSorting: true,
+    enableSorting: false,
     // The shared table timestamp, identical to the admin dashboard's.
     cell: ({ row }) => (
       <span className="font-mono text-muted-foreground whitespace-nowrap tabular-nums">
@@ -71,13 +67,13 @@ const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
   {
     accessorKey: 'eventType',
     header: 'Event',
-    enableSorting: true,
-    cell: ({ row }) => auditEventLabel(row.original.eventType)
+    enableSorting: false,
+    cell: ({ row }) => <AuditEventLink event={row.original} />
   },
   {
     accessorKey: 'targetType',
     header: 'Target',
-    enableSorting: true,
+    enableSorting: false,
     // Target ids are the long values — this wraps instead of forcing the
     // table out to 700px on a phone, where the other columns clip.
     cell: ({ row }) => (
@@ -90,7 +86,7 @@ const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
   {
     accessorKey: 'actor',
     header: 'Actor',
-    enableSorting: true,
+    enableSorting: false,
     // The joined display name alone cannot tell "the platform did this"
     // from "an API token did" — both render as `system` when no user row
     // joins — so the actor type rides beside it as a badge.
@@ -109,8 +105,12 @@ export function WorkspaceAuditPage({
   workspaceSlug,
   data,
   applySearch,
-  systemRole
+  systemRole,
+  selectedEventId,
+  closeEvent
 }: {
+  readonly selectedEventId: string | null
+  readonly closeEvent: () => void
   readonly workspaceSlug: string
   readonly data: WorkspaceAuditPayload
   readonly applySearch: ApplyWorkspaceAuditSearch
@@ -156,7 +156,7 @@ export function WorkspaceAuditPage({
         description="Newest first, up to 100 events per server page."
         actions={
           hasFilters ? (
-            <Button variant="ghost" onClick={() => withFilter({})}>
+            <Button variant="ghost" onClick={() => applySearch({})}>
               <FilterXIcon aria-hidden className="size-4" />
               Clear
             </Button>
@@ -179,7 +179,11 @@ export function WorkspaceAuditPage({
               }))
             ]}
           >
-            <SelectTrigger aria-label="Filter by actor" className={SELECT_CLASSES}>
+            <SelectTrigger
+              id="audit-actor-filter"
+              aria-label="Filter by actor"
+              className={SELECT_CLASSES}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -287,6 +291,11 @@ export function WorkspaceAuditPage({
           </>
         )}
       </Panel>
+      <AuditEventSheet
+        eventId={selectedEventId}
+        event={data.selectedEvent}
+        onClose={closeEvent}
+      />
     </WorkspaceShell>
   )
 }

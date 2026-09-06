@@ -9,6 +9,9 @@
 import  { type getRouter } from './router'
 
 declare module '@tanstack/react-router' {
+  interface HistoryState {
+    auditEventOpened?: boolean
+  }
   interface Register {
     router: ReturnType<typeof getRouter>
   }
