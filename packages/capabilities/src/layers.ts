@@ -96,6 +96,7 @@ import {
   seedApiTokens,
   seedAuditEvents,
   seedDeliveries,
+  seedDeliveryAttempts,
   seedMcpClientConnections,
   seedMcpClients,
   seedMembers,
@@ -202,7 +203,12 @@ const SeedCore = Layer.mergeAll(
   SeedNotifications,
   SeedSeatSyncPublisher,
   SeedSsoConnections(seedSsoConnections),
-  SeedWebhookEndpoints(seedWebhookEndpoints, seedDeliveries),
+  SeedWebhookEndpoints(
+    seedWebhookEndpoints,
+    seedDeliveries,
+    undefined,
+    seedDeliveryAttempts
+  ),
   SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships),

@@ -1,3 +1,4 @@
+import { deliveryAttemptPhases } from '@b2b-saas-starter/db/enums'
 import { DateTime, Duration, Option, Schema } from 'effect'
 
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
@@ -28,6 +29,25 @@ export const WebhookDelivery = Schema.Struct({
   replayedFrom: Schema.NullOr(Schema.String)
 })
 export type WebhookDelivery = typeof WebhookDelivery.Type
+
+/** Immutable evidence for one queue dispatch or its terminal disposition. */
+export const WebhookDeliveryAttempt = Schema.Struct({
+  id: Schema.String,
+  deliveryId: Schema.String,
+  attempts: Schema.Number,
+  phase: Schema.Literals(deliveryAttemptPhases),
+  status: Schema.String,
+  attemptedAt: Schema.String,
+  durationMs: Schema.NullOr(Schema.Number),
+  failureReason: Schema.NullOr(Schema.String),
+  responseStatus: Schema.NullOr(Schema.Number),
+  requestHeaders: Schema.NullOr(Schema.Record(Schema.String, Schema.String)),
+  responseBody: Schema.NullOr(Schema.String)
+})
+export type WebhookDeliveryAttempt = typeof WebhookDeliveryAttempt.Type
+
+export const DELIVERY_HISTORY_RETENTION_DAYS = 30
+export const DELIVERY_HISTORY_CLEANUP_LIMIT = 100
 
 export type ListWebhookDeliveriesInput = {
   readonly endpointId: string
@@ -241,7 +261,7 @@ export function deliverySuccessRate(total: number, delivered: number): number {
  * recorded failure climbs it; a delivered attempt resets it to zero. The
  * queue consumer reacts to the streak this module names: the workspace
  * owners are warned at each rung below, and at the threshold the endpoint is
- * auto-disabled (`WebhookEndpoints.autoDisableEndpoint`) and warned once
+ * auto-disabled atomically with the accepted failure and warned once
  * more. Rungs are exact so each fires once per climb; the threshold is a
  * floor so an endpoint re-enabled mid-streak without a success disables
  * again on its next failure instead of sailing past the rung.
@@ -340,6 +360,9 @@ export type WebhookDeliveryAttemptInput = {
   readonly attempts: number
   readonly responseStatus?: number | null
   readonly nextAttemptAt?: string | null
+  readonly durationMs?: number | null
+  readonly failureReason?: string | null
+  readonly phase?: 'http' | 'terminal'
   /** Operator evidence columns, recorded from the latest attempt. */
   readonly payload: Json
   readonly requestHeaders?: Record<string, string> | null

@@ -93,9 +93,7 @@ const READ_ROWS: ReadonlyArray<GatedOperation> = readOperations().map((op) => ({
   expected: 200,
   request: makeRequest(
     'GET',
-    op.endpoint.path
-      .replace(':slug', SLUG)
-      .replaceAll(':endpointId', op.param?.sample ?? '')
+    op.endpoint.path.replace(':slug', SLUG).replaceAll(/:\w+/g, op.param?.sample ?? '')
   )
 }))
 
@@ -179,6 +177,9 @@ describe('permission matrix', () => {
       'GET /workspaces/{slug}/api-tokens': { apiToken: ['list'] },
       'GET /workspaces/{slug}/webhooks': { webhook: ['list'] },
       'GET /workspaces/{slug}/webhooks/{endpointId}/deliveries': { webhook: ['list'] },
+      'GET /workspaces/{slug}/webhooks/deliveries/{deliveryId}/attempts': {
+        webhook: ['list']
+      },
       'GET /workspaces/{slug}/audit-events': { auditLog: ['read'] },
       'POST /workspaces/{slug}/api-tokens': { apiToken: ['create'] },
       'POST /workspaces/{slug}/api-tokens/{tokenId}/replace': { apiToken: ['create'] },

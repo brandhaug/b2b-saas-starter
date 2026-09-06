@@ -1,3 +1,4 @@
+import { webhookAttemptHistoryCases } from './webhook-attempt-history.contract.ts'
 import { Effect, Exit } from 'effect'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type ContractExpect } from '../governance/contract-expect.ts'
@@ -68,6 +69,7 @@ export function developerPlatformContractCases(
   expect: ContractExpect
 ): ReadonlyArray<DeveloperPlatformContractCase> {
   return [
+    ...webhookAttemptHistoryCases(expect),
     {
       name: 'the same token mutation records the invocation actor in both adapters',
       assert: Effect.gen(function* () {
@@ -206,7 +208,7 @@ export function developerPlatformContractCases(
         yield* webhooks.recordDeliveryAttempt({
           id: 'whd_contract_first',
           endpointId: endpoint.id,
-          workspaceId: 'irrelevant-to-list-scoping',
+          workspaceId: (yield* WorkspaceContext).workspace.id,
           eventType: 'demo.event',
           status: 'delivered',
           attempts: 1,
@@ -217,7 +219,7 @@ export function developerPlatformContractCases(
         yield* webhooks.recordDeliveryAttempt({
           id: 'whd_contract_second',
           endpointId: endpoint.id,
-          workspaceId: 'irrelevant-to-list-scoping',
+          workspaceId: (yield* WorkspaceContext).workspace.id,
           eventType: 'demo.event',
           status: 'failed',
           attempts: 2,
@@ -359,12 +361,6 @@ export function developerPlatformContractCases(
         })
         expect(twentieth.consecutiveFailures).toBe(WEBHOOK_FAILURE_AUTO_DISABLE_AT)
 
-        yield* webhooks.autoDisableEndpoint({
-          endpointId: endpoint.id,
-          workspaceId: ctx.workspace.id,
-          consecutiveFailures: twentieth.consecutiveFailures
-        })
-
         // Disabled: no dispatch target, and the governance log says why.
         expect(
           (yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)) === null
@@ -377,11 +373,15 @@ export function developerPlatformContractCases(
           events.items.find((event) => event.targetId === endpoint.id)?.actorType
         ).toBe('system')
 
-        // Already disabled matches nothing: no second write, no phantom audit.
-        yield* webhooks.autoDisableEndpoint({
+        // A duplicate terminal observation creates no phantom audit.
+        yield* webhooks.recordTerminalDeliveryAttempt({
+          deliveryId: 'whd_contract_disable_20',
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
-          consecutiveFailures: WEBHOOK_FAILURE_AUTO_DISABLE_AT + 1
+          eventType: 'demo.event',
+          attempts: 2,
+          status: 'failed_permanent',
+          payload: { rung: WEBHOOK_FAILURE_AUTO_DISABLE_AT }
         })
         const rerun = yield* log.list({
           eventType: 'webhook_endpoint.auto_disabled'

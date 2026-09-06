@@ -1,4 +1,5 @@
-import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
+import { makeLiveAttemptHistory } from './webhook-attempt-history.live.ts'
+import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import {
   type JsonObject,
   type JsonValue,
@@ -18,21 +19,16 @@ import {
 import { type CapabilityUnavailable } from '../errors.ts'
 import {
   activeSigningSecrets,
-  deadLetterNotification,
   DELIVERIES_PAGE_SIZE,
   deliverySuccessRate,
   isReplayableDeliveryStatus,
-  nextConsecutiveFailures,
   planPendingDispatch,
   planReplayedDelivery,
   planSecretRotation,
-  terminalDeliveryAuditEventType,
   WEBHOOK_FAILURE_AUTO_DISABLE_AT,
-  type Json,
-  type PendingDispatchPlan,
-  type WebhookDeliveryStatus
+  type PendingDispatchPlan
 } from './webhook-delivery-plan.ts'
-import { NotificationFeed } from '../notifications/notification-feed.ts'
+import { type NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   ensureValidWebhookUrl,
   planAdminReplay,
@@ -45,17 +41,13 @@ import {
   WebhookEndpoints,
   type WebhookEndpoint
 } from './webhook-endpoints.ts'
-import { randomHex } from '../crypto.ts'
+import { randomWebhookSecret } from '../crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
-
-function randomSecret(): string {
-  return `whsec_${randomHex(24)}`
-}
 
 const unavailable = orUnavailable('webhook-endpoints')
 
@@ -127,12 +119,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
     const db = yield* Database
     const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
-    const notificationFeed = yield* NotificationFeed
-
-    // The raw binding `batch` needs for the one attempt write below that
-    // carries no audit row beside it, resolved once at construction — the
-    // same pattern `auditedMutations` resolves its own binding with.
-    const rawD1 = yield* RawD1
+    const history = yield* makeLiveAttemptHistory
 
     // The shared mutate+audit combinator — one implementation of the batched
     // write, its zero-match skip, and the phantom-audit caveat (see
@@ -211,176 +198,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
     }
 
     /**
-     * The user-facing half of a dead-letter outcome: a broadcast notification
-     * so every member's bell sees that an endpoint stopped receiving. Best
-     * effort after the row + audit batch — a notification outage surfaces as
-     * `CapabilityUnavailable` and the DLQ consumer acks anyway.
-     */
-    function notifyDeadLetter(input: {
-      readonly endpointId: string
-      readonly workspaceId: string
-      readonly eventType: string
-      readonly attempts: number
-      readonly url: string
-    }) {
-      return notificationFeed.create({
-        workspaceId: input.workspaceId,
-        userId: null,
-        kind: 'webhook.delivery_failed',
-        ...deadLetterNotification({
-          eventType: input.eventType,
-          url: input.url,
-          attempts: input.attempts
-        })
-      })
-    }
-
-    /**
-     * One attempt row, upserted on its id so every redelivery of the same
-     * queue message resolves the *same* row instead of forking identities (or
-     * dying on the primary key): a replay's `pending` row, created before the
-     * message was enqueued, is the row the consumer's first attempt updates.
-     * Evidence columns (`payload`, `replayedFrom`) are insert-only — the set
-     * clause carries attempt state alone, so a redelivery cannot erase the
-     * link back to the row a replay came from. The same discipline protects
-     * the response evidence on an update: a field left out of the input
-     * (a terminal write, say) leaves the recorded value in place rather than
-     * nulling it.
-     *
-     * The endpoint's consecutive-failure counter (ADR 0062 addendum's ladder)
-     * moves in the same D1 batch as the delivery row: a failure climbs the
-     * streak, a delivered attempt resets it, and the streak this attempt left
-     * is returned for the consumer to react to. Check-then-act like every
-     * audited mutation — two concurrent attempts on one endpoint can read the
-     * same streak; the accepted trade, with the disable threshold a floor so
-     * a skipped increment cannot skip the disable.
-     */
-    function recordAttempt(input: {
-      readonly id?: string
-      readonly endpointId: string
-      readonly workspaceId: string
-      readonly eventType: string
-      readonly status: WebhookDeliveryStatus
-      readonly attempts: number
-      readonly responseStatus?: number | null
-      readonly nextAttemptAt?: string | null
-      readonly payload: Json
-      readonly requestHeaders?: Record<string, string> | null
-      readonly responseBody?: string | null
-      readonly replayedFrom?: string | null
-    }) {
-      return Effect.gen(function* () {
-        const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
-        const lastAttemptAt = yield* DateTime.now
-        // Built as statements, not a conditional spread: a missing field is
-        // *absent* from the set clause, not laundered into a null.
-        const attemptUpdate: Partial<typeof webhookDeliveries.$inferInsert> = {
-          status: input.status,
-          attempts: input.attempts,
-          lastAttemptAt: DateTime.formatIso(lastAttemptAt)
-        }
-        if (input.responseStatus !== undefined) {
-          attemptUpdate.responseStatus = input.responseStatus ?? null
-        }
-        if (input.nextAttemptAt !== undefined) {
-          attemptUpdate.nextAttemptAt = input.nextAttemptAt ?? null
-        }
-        if (input.requestHeaders !== undefined) {
-          attemptUpdate.requestHeaders = input.requestHeaders ?? null
-        }
-        if (input.responseBody !== undefined) {
-          attemptUpdate.responseBody = input.responseBody ?? null
-        }
-        // Read once, used twice: the streak this attempt leaves, and the
-        // endpoint URL a dead-letter notification names. An endpoint that no
-        // longer resolves (deleted, or a foreign workspace) has no streak to
-        // move — the counter statement below then matches zero rows and the
-        // delivery row still records the attempt.
-        const endpoint = yield* endpointRow(input.endpointId, input.workspaceId)
-        let consecutiveFailures = 0
-        if (endpoint !== null) {
-          consecutiveFailures = nextConsecutiveFailures(
-            endpoint.consecutiveFailures,
-            input.status
-          )
-        }
-        const counterUpdate = db
-          .update(webhookEndpoints)
-          .set({ consecutiveFailures })
-          .where(scopedEndpointWhere(input.endpointId, input.workspaceId))
-        const deliveryInsert = db
-          .insert(webhookDeliveries)
-          .values({
-            id: deliveryId,
-            endpointId: input.endpointId,
-            eventType: input.eventType,
-            status: input.status,
-            attempts: input.attempts,
-            lastAttemptAt: DateTime.formatIso(lastAttemptAt),
-            nextAttemptAt: input.nextAttemptAt ?? null,
-            responseStatus: input.responseStatus ?? null,
-            payload: input.payload,
-            requestHeaders: input.requestHeaders ?? null,
-            responseBody: input.responseBody ?? null,
-            replayedFrom: input.replayedFrom ?? null
-          })
-          .onConflictDoUpdate({
-            target: webhookDeliveries.id,
-            set: attemptUpdate
-          })
-        const auditEventType = terminalDeliveryAuditEventType.get(input.status)
-        if (auditEventType === undefined) {
-          // No audit row to batch beside: delivery row and counter still
-          // commit as one D1 batch — several statements, one implicit
-          // transaction — never one after the other.
-          yield* unavailable(
-            batch([deliveryInsert, counterUpdate]).pipe(
-              Effect.provideService(RawD1, rawD1)
-            )
-          )
-          return { deliveryId, consecutiveFailures }
-        }
-        // Terminal outcome: the attempt row, its audit event, and the counter
-        // move commit or roll back together — the shared audited-mutation
-        // shape with the write list carrying both statements. `workspaceId`
-        // comes from the queue message — verified against the endpoint by
-        // `getDispatchTarget` on the delivery path, trusted as stamped by our
-        // own publisher on the dead-letter path.
-        yield* auditedMutation({
-          matched: Effect.succeed(true),
-          auditEvent: {
-            workspaceId: input.workspaceId,
-            actorUserId: null,
-            actorType: 'system',
-            eventType: auditEventType,
-            targetType: 'webhook_endpoint',
-            targetId: input.endpointId,
-            metadata: {
-              deliveryId,
-              eventType: input.eventType,
-              attempts: input.attempts,
-              responseStatus: input.responseStatus ?? null
-            }
-          },
-          write: () => [deliveryInsert, counterUpdate]
-        })
-        // The dead-letter outcome additionally tells the workspace: the
-        // notification names the endpoint URL so the message is actionable
-        // without a query.
-        if (input.status === 'dead_lettered' && endpoint) {
-          yield* notifyDeadLetter({
-            endpointId: endpoint.id,
-            workspaceId: input.workspaceId,
-            eventType: input.eventType,
-            attempts: input.attempts,
-            url: endpoint.url
-          })
-        }
-        return { deliveryId, consecutiveFailures }
-      })
-    }
-
-    /**
      * Creates the `pending` row an operator dispatch (replay, test send)
      * starts from, batching its audit event when there is one. The row shape
      * is the caller's plan (`planReplayedDelivery` / `planPendingDispatch`),
@@ -422,6 +239,8 @@ export const LiveWebhookEndpoints: Layer.Layer<
     }
 
     return {
+      listDeliveryAttempts: history.listDeliveryAttempts,
+      cleanupDeliveryHistory: history.cleanupDeliveryHistory,
       list: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
         const rows = yield* unavailable(
@@ -479,7 +298,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             table: webhookEndpoints,
             where: eq(webhookEndpoints.workspaceId, ctx.workspace.id)
           })
-          const signingSecret = randomSecret()
+          const signingSecret = randomWebhookSecret()
           const createdAt = yield* DateTime.now
           const endpoint = {
             id: yield* newCapabilityId('wh'),
@@ -890,7 +709,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
               metadata: { previousSecretExpiresAt: expiresAt }
             },
             write: () => {
-              signingSecret = randomSecret()
+              signingSecret = randomWebhookSecret()
               return db
                 .update(webhookEndpoints)
                 .set({
@@ -922,46 +741,17 @@ export const LiveWebhookEndpoints: Layer.Layer<
             )
           }
         }),
-      recordDeliveryAttempt: (input) =>
-        Effect.map(recordAttempt(input), ({ consecutiveFailures }) => ({
-          consecutiveFailures
-        })),
+      recordDeliveryAttempt: (input) => history.recordAttempt(input),
       recordTerminalDeliveryAttempt: (input) =>
         // The row id and payload travel in the queue message: the id resolves
         // the message's own attempt row (one row per message), and the
         // recorded payload is what makes a terminal row replayable. The
         // retry schedule clears; response evidence already on the row stays.
-        recordAttempt({ ...input, nextAttemptAt: null }),
-      autoDisableEndpoint: (input) =>
-        Effect.gen(function* () {
-          // Read first so the audit metadata can name the endpoint; the row
-          // is the same one the streak climbed against. An endpoint already
-          // disabled, deleted, or foreign to the workspace matches nothing:
-          // no write, no audit event — the audited-mutation zero-match skip.
-          const endpoint = yield* endpointRow(input.endpointId, input.workspaceId)
-          if (!endpoint || !endpoint.enabled) {
-            return
-          }
-          yield* auditedMutation({
-            matched: Effect.succeed(true),
-            auditEvent: {
-              workspaceId: input.workspaceId,
-              actorUserId: null,
-              actorType: 'system',
-              eventType: 'webhook_endpoint.auto_disabled',
-              targetType: 'webhook_endpoint',
-              targetId: input.endpointId,
-              metadata: {
-                url: endpoint.url,
-                consecutiveFailures: input.consecutiveFailures
-              }
-            },
-            write: () =>
-              db
-                .update(webhookEndpoints)
-                .set({ enabled: false })
-                .where(scopedEndpointWhere(input.endpointId, input.workspaceId))
-          })
+        history.recordAttempt({
+          ...input,
+          id: input.deliveryId,
+          phase: 'terminal',
+          nextAttemptAt: null
         })
     }
   })

@@ -9,7 +9,7 @@ Decides which endpoints receive a domain event and puts one queue message per en
 - `publish` selects the workspace's enabled endpoints whose `events` array contains the `eventType` and sends them in one `sendBatch`; zero subscribers means no send.
 - `enqueue` is the pre-addressed single send for replay and test send: no subscription filter, no workspace resolution, every id from the caller. Seed no-ops.
 - `WebhookQueueMessage` is owned here; the background consumer imports it rather than keeping a parallel shape. `workspaceId` is stamped from the producer's `WorkspaceContext` and re-verified by `getDispatchTarget` before secrets are released.
-- `deliveryId` is present only when the row exists already (replay or test send made it `pending`); otherwise the consumer derives `whd_<message id>`.
+- `deliveryId` is required and minted before enqueueing. It stays stable across retries and dead-letter queue transfer. Replay and test send use their pre-created pending row ID.
 - `WebhookQueueBinding` is structural `{ send, sendBatch }`, so this package never depends on `@cloudflare/workers-types`.
 - With no queue binding, Live no-ops rather than failing (CLAUDE.md rule 3).
 

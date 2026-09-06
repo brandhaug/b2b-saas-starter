@@ -112,6 +112,8 @@ function stubReads(failing = false) {
       list: list([]),
       listPage: () => unused,
       create: () => unused,
+      listDeliveryAttempts: () => Effect.die('unused in delivery tests'),
+      cleanupDeliveryHistory: () => Effect.die('unused in delivery tests'),
       listDeliveries: () => unused,
       listGlobalDeliveries: () => unused,
       replayDeliveryAsAdmin: () => unused,
@@ -122,8 +124,7 @@ function stubReads(failing = false) {
       rotateSecret: () => unused,
       getDispatchTarget: () => unused,
       recordDeliveryAttempt: () => unused,
-      recordTerminalDeliveryAttempt: () => unused,
-      autoDisableEndpoint: () => unused
+      recordTerminalDeliveryAttempt: () => unused
     }),
     Layer.succeed(AuditEventLog)({
       get: () => unused,

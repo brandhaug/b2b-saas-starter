@@ -158,3 +158,16 @@ export async function sendTestEventHandler(
     { userId: session.user.id }
   )
 }
+
+export async function listWebhookDeliveryAttemptsHandler(input: ReplayDeliveryInput) {
+  const session = await requireRequestSession()
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ webhook: ['list'] })
+      const webhooks = yield* WebhookEndpoints
+      return yield* webhooks.listDeliveryAttempts({ deliveryId: input.deliveryId })
+    }),
+    { userId: session.user.id }
+  )
+}

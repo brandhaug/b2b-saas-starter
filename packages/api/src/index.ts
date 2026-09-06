@@ -23,7 +23,10 @@ import {
   WebhookEndpointNotFound,
   WebhookDeliveryNotFound
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import {
+  WebhookDelivery,
+  WebhookDeliveryAttempt
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import { WorkspaceExport } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import {
@@ -267,6 +270,17 @@ export const WorkspaceApi = HttpApiGroup.make('workspace')
       {
         params: EndpointParams,
         success: Schema.Array(WebhookDelivery),
+        error: WORKSPACE_ERRORS
+      }
+    )
+  )
+  .add(
+    HttpApiEndpoint.get(
+      'webhook-delivery-attempts',
+      '/workspaces/:slug/webhooks/deliveries/:deliveryId/attempts',
+      {
+        params: DeliveryParams,
+        success: Schema.Array(WebhookDeliveryAttempt),
         error: WORKSPACE_ERRORS
       }
     )

@@ -41,3 +41,39 @@ export function randomHex(byteLength: number): string {
   crypto.getRandomValues(bytes)
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
+
+/** Standard Webhooks uses a base64-encoded 256-bit key with a whsec_ prefix. */
+export function randomWebhookSecret(): string {
+  const bytes = new Uint8Array(32)
+  // oxlint-disable-next-line effect/noGlobals -- platform adapter: webhook signing keys require a CSPRNG.
+  crypto.getRandomValues(bytes)
+  // oxlint-disable-next-line effect/noGlobals -- base64 encoding at the Web Crypto platform boundary.
+  return `whsec_${btoa(String.fromCharCode(...bytes))}`
+}
+
+// oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto's HMAC API is promise-based at this platform boundary.
+export async function hmacSha256Base64(
+  secret: string,
+  payload: string
+): Promise<string> {
+  // oxlint-disable-next-line effect/noGlobals -- base64 decoding at the Web Crypto platform boundary.
+  const bytes = Uint8Array.from(atob(secret.slice('whsec_'.length)), (char) =>
+    char.charCodeAt(0)
+  )
+  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto promise boundary.
+  const key = await crypto.subtle.importKey(
+    'raw',
+    bytes,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto promise boundary.
+  const signed = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(payload)
+  )
+  // oxlint-disable-next-line effect/noGlobals -- base64 encoding at the Web Crypto platform boundary.
+  return btoa(String.fromCharCode(...new Uint8Array(signed)))
+}

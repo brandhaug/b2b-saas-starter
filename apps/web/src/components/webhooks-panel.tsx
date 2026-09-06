@@ -78,16 +78,16 @@ function Deliveries({
         variant="ghost"
         size="xs"
         onClick={onOpenDrawer}
-        aria-label={`Delivery attempts (${deliveries.length})`}
+        aria-label={`Deliveries (${deliveries.length})`}
       >
-        Delivery attempts ({deliveries.length})
+        Deliveries ({deliveries.length})
       </Button>
       {deliveries.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No delivery attempts yet.</p>
+        <p className="text-xs text-muted-foreground">No deliveries yet.</p>
       ) : (
         <ul className="grid gap-1">
           {deliveries.slice(0, 3).map((delivery) => (
-            <li key={delivery.id} className="flex items-center gap-2 text-xs">
+            <li key={delivery.id} className="flex flex-wrap items-center gap-2 text-xs">
               <Badge variant={webhookDeliveryStatusVariant(delivery.status)}>
                 {delivery.status}
               </Badge>

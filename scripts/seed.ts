@@ -8,6 +8,7 @@ import {
   oauthConsent,
   user,
   webhookDeliveries,
+  webhookDeliveryAttempts,
   webhookEndpoints,
   workspaceMembers,
   workspaceSsoConnections,
@@ -22,6 +23,7 @@ import {
   demoMemberIdentity,
   demoUserIdentity,
   seedAuditEvents,
+  seedDeliveryAttempts,
   seedApiTokenValue,
   seedMcpClientConnections,
   seedMcpClients,
@@ -34,6 +36,8 @@ import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+
+import { randomWebhookSecret } from '@b2b-saas-starter/capabilities/crypto'
 
 import { getColumns, getTableName, type Table } from 'drizzle-orm'
 import { Effect, Option, Schema } from 'effect'
@@ -316,7 +320,7 @@ function webhookRows(fixture: Fixture): ReadonlyArray<string> {
       workspaceId: fixture.workspace.id,
       url: endpoint.url,
       description: 'Seed workspace webhook endpoint',
-      signingSecret: `whsec_seed_${endpoint.id}`,
+      signingSecret: randomWebhookSecret(),
       enabled: endpoint.enabled,
       events: endpoint.events,
       createdAt: now
@@ -531,6 +535,7 @@ function buildStatements(fixture: Fixture, hashes: Hashes): string {
     ...ssoConnectionRows(fixture),
     ...subscriptionRows(fixture),
     ...webhookDeliveryRows(fixture),
+    ...seedDeliveryAttempts.map((attempt) => insert(webhookDeliveryAttempts, attempt)),
     ...mcpClientRows(),
     ...auditRows(),
     ...notificationRows(fixture),

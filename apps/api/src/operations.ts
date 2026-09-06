@@ -79,7 +79,7 @@ type ReadOperationEndpoint = keyof typeof WorkspaceApi.endpoints
 
 /**
  * The one path parameter an operation can take besides `:slug`: a whole-
- * collection read takes none, the deliveries read addresses one endpoint, and
+ * collection read takes none, delivery reads address an endpoint or a delivery, and
  * a mutation addresses the row its path names (`tokenId`, `endpointId`,
  * `deliveryId`, `exportId`).
  */
@@ -118,7 +118,10 @@ export type CollectionReadOperation = {
   readonly toolDescription: string
 }
 
-export type ParameterizedReadOperation = {
+export type ParameterizedReadOperation<
+  Key extends 'endpointId' | 'deliveryId' = 'endpointId'
+> = {
+  readonly input: Key
   readonly mcpTool: true
   readonly endpoint: HttpApiEndpoint.Top
   readonly permission: PermissionRequest
@@ -126,12 +129,12 @@ export type ParameterizedReadOperation = {
   /**
    * The page input rides along for a uniform call shape; the deliveries read
    * is capped by the capability (the 20 newest), not paged, and ignores it.
-   * The endpoint id is required — a missing value is a caller bug, not an
+   * The path id is required — a missing value is a caller bug, not an
    * empty string to query with.
    */
   readonly read: (
     page: ListPageInput | undefined,
-    args: { readonly endpointId: string }
+    args: Readonly<Record<Key, string>>
   ) => CapabilityRead
   readonly toolName: string
   readonly toolDescription: string
@@ -140,6 +143,7 @@ export type ParameterizedReadOperation = {
 export type WorkspaceReadOperation =
   | CollectionReadOperation
   | ParameterizedReadOperation
+  | ParameterizedReadOperation<'deliveryId'>
 
 /**
  * The OpenAPI-style path of the mirrored REST route — `:endpointId` becomes
@@ -218,6 +222,7 @@ export const READ_OPERATIONS = {
     mcpTool: true,
     endpoint: WorkspaceApi.endpoints['webhook-deliveries'],
     permission: { webhook: ['list'] },
+    input: 'endpointId',
     param: { sample: 'wh_release' },
     read: (_page, args) =>
       Effect.flatMap(WebhookEndpoints, (webhooks) =>
@@ -226,6 +231,20 @@ export const READ_OPERATIONS = {
     toolName: 'list_webhook_deliveries',
     toolDescription:
       'List recent deliveries for one webhook endpoint, newest first, with response status and recorded evidence.'
+  },
+  'webhook-delivery-attempts': {
+    mcpTool: true,
+    endpoint: WorkspaceApi.endpoints['webhook-delivery-attempts'],
+    permission: { webhook: ['list'] },
+    input: 'deliveryId',
+    param: { sample: 'whd_seed_failed' },
+    read: (_page, args) =>
+      Effect.flatMap(WebhookEndpoints, (webhooks) =>
+        webhooks.listDeliveryAttempts({ deliveryId: args.deliveryId })
+      ),
+    toolName: 'list_webhook_delivery_attempts',
+    toolDescription:
+      'Read retained attempts for one delivery, in attempt order, with bounded request and response evidence.'
   },
   'audit-events': {
     mcpTool: true,
