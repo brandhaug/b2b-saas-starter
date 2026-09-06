@@ -1,6 +1,8 @@
+import { UiError } from './ui-error'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   CapabilityUnavailable,
+  AccountPreferencesRejected,
   MembershipChangeRejected,
   PlanLimitExceeded,
   UserAdminRejected,
@@ -82,6 +84,14 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
     if (error instanceof WorkspaceNotFound) {
       // oxlint-disable-next-line effect/noThrowStatement -- `throw notFound()` is TanStack Router's 404 control-flow API
       throw notFound()
+    }
+    if (error instanceof AccountPreferencesRejected) {
+      // oxlint-disable-next-line effect/noThrowStatement -- serialize the known preference refusal for the client translator
+      throw new UiError(
+        error.reason === 'invalid_locale' ? 'invalid_locale' : 'invalid_timezone',
+        {},
+        'Invalid presentation preference'
+      )
     }
     if (error instanceof CapabilityUnavailable) {
       // oxlint-disable-next-line effect/noThrowStatement -- rejects the loader promise so router.tsx's defaultErrorComponent renders the degraded state

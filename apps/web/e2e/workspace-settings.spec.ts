@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
+import { isolatedClientIp } from './test-isolation'
 
 // Sign-in is the only way into the authenticated area — the /workspaces subtree
 // gate redirects anonymous visitors — so every test here starts with a real
@@ -13,13 +14,18 @@ async function signIn(page: Page, email: string, redirect: string): Promise<void
   await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.waitForURL((url) => url.pathname === redirect)
+  await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
+  await expect(page.locator('header select')).toBeEnabled()
 }
 
-test.beforeEach(() => {
+test.beforeEach(async ({ context }, testInfo) => {
   test.skip(
     !hasLocalD1State(),
     'requires a migrated + seeded local D1 (pnpm run db:migrate:local && pnpm run db:seed)'
   )
+  await context.setExtraHTTPHeaders({
+    'cf-connecting-ip': isolatedClientIp(testInfo.testId)
+  })
 })
 
 test('an owner opening workspace settings gets the settings page', async ({ page }) => {

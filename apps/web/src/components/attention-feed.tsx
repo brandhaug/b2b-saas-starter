@@ -3,12 +3,17 @@ import { ArrowRightIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Panel } from '@/components/page/panel'
 import { type AttentionItem } from '@/lib/attention'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The dashboard's attention feed panel: the ordered items the loader's
  * derivation produced, each with a severity badge from the status hues and a
  * link to the page that resolves it.
  */
+function severityLabel(severity: AttentionItem['severity']): string {
+  return severity === 'warn' ? m.attention_warning() : m.attention_information()
+}
+
 export function AttentionFeed({
   workspaceSlug,
   items
@@ -20,7 +25,7 @@ export function AttentionFeed({
     return null
   }
   return (
-    <Panel title="Needs attention">
+    <Panel title={m.needs_attention()}>
       <ol className="grid gap-2">
         {items.map((item) => (
           <li
@@ -32,7 +37,7 @@ export function AttentionFeed({
                 {/* One status hue per state: warn needs attention, info is
                     informational. Never the mauve `default` — that means
                     current/selected. */}
-                <Badge variant={item.severity}>{item.severity}</Badge>
+                <Badge variant={item.severity}>{severityLabel(item.severity)}</Badge>
                 <span className="min-w-0 truncate" title={item.title}>
                   {item.title}
                 </span>

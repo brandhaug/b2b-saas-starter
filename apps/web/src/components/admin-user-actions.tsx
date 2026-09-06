@@ -1,3 +1,4 @@
+import { roleLabel } from '@/lib/value-labels'
 import {
   type Member,
   type WorkspaceRole
@@ -18,6 +19,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { RoleChangeButtons } from '@/components/role-change-buttons'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import { roleVariant } from '@/lib/badge-variants'
 import {
   changeUserWorkspaceRoleServerFn,
@@ -76,7 +78,7 @@ export function AdminUserActions({
 
   // A read, so there is no loader to re-run — it just refills the editor.
   const loadWorkspaces = useServerAction(readMemberships, {
-    failureMessage: 'Failed to load workspaces',
+    failureMessage: m.load_workspaces_failed(),
     invalidate: false,
     onSuccess: setMemberships
   })
@@ -95,7 +97,7 @@ export function AdminUserActions({
       })
       return readMemberships(change.member.id)
     },
-    { failureMessage: 'Role change failed', onSuccess: setMemberships }
+    { failureMessage: m.role_change_failed(), onSuccess: setMemberships }
   )
 
   function selectUser(userId: string) {
@@ -111,7 +113,7 @@ export function AdminUserActions({
   return (
     <div className="grid gap-4">
       <div className="grid gap-2 rounded-none bg-muted p-3">
-        <p className="text-xs text-muted-foreground">Workspace roles</p>
+        <p className="text-xs text-muted-foreground">{m.workspace_roles()}</p>
         <Select
           value={selectedId}
           onValueChange={(value) => selectUser(String(value))}
@@ -120,7 +122,11 @@ export function AdminUserActions({
             label: `${user.name} (${user.email})`
           }))}
         >
-          <SelectTrigger aria-label="Select a user" className="w-full" disabled={busy}>
+          <SelectTrigger
+            aria-label={m.select_user()}
+            className="w-full"
+            disabled={busy}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -138,7 +144,7 @@ export function AdminUserActions({
           disabled={busy || !selectedId}
           onClick={() => selectUser(selectedId)}
         >
-          Load workspaces
+          {m.admin_load_workspaces()}
           {loadWorkspaces.pending ? <Spinner data-icon="inline-end" /> : null}
         </Button>
         {memberships === null ? null : (
@@ -184,10 +190,15 @@ function MembershipList({
         >
           <span className="min-w-0 text-sm break-words">{workspace.name}</span>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={roleVariant(member.role)}>{member.role}</Badge>
+            <Badge variant={roleVariant(member.role)}>{roleLabel(member.role)}</Badge>
             <RoleChangeButtons
               currentRole={member.role}
-              labelFor={(role) => `Make ${workspace.name} role ${role}`}
+              labelFor={(role) =>
+                m.shell_workspace_role({
+                  workspace: workspace.name,
+                  role: roleLabel(role)
+                })
+              }
               disabled={busy}
               onChange={(role) =>
                 onChangeRole({ workspaceId: workspace.id, member, role })

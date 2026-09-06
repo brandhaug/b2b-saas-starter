@@ -19,6 +19,11 @@ export const workspaceRoles = ['owner', 'admin', 'member'] as const
 export const systemRoles = ['admin', 'user'] as const
 export type SystemRoleValue = (typeof systemRoles)[number]
 
+/** Supported account interface and email locales. */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const accountLocales = ['en', 'nb'] as const
+export type AccountLocale = (typeof accountLocales)[number]
+
 /**
  * The one system role the admin plugin treats as privileged — its `adminRoles`
  * option reads this rather than restating the literal, so the plugin gate and

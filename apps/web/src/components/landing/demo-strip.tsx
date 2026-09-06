@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
 import { type DemoShowcase } from '@/lib/server/demo-showcase'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The landing page's live-numbers band, read actorless by the route's loader
@@ -13,10 +14,10 @@ import { type DemoShowcase } from '@/lib/server/demo-showcase'
  */
 export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
   const stats: ReadonlyArray<{ readonly label: string; readonly value: string }> = [
-    { label: 'Members', value: String(demo.memberCount) },
-    { label: 'Workspace roles', value: String(demo.roleCount) },
-    { label: 'Audit event types', value: String(demo.auditEventTypeCount) },
-    { label: 'Notifications', value: String(demo.notificationCount) }
+    { label: m.public_demo_members(), value: String(demo.memberCount) },
+    { label: m.public_demo_roles(), value: String(demo.roleCount) },
+    { label: m.public_demo_audit_events(), value: String(demo.auditEventTypeCount) },
+    { label: m.public_demo_notifications(), value: String(demo.notificationCount) }
   ]
   return (
     <section className="border-b border-border bg-muted/40">
@@ -35,7 +36,7 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
           to="/demo"
           className="inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-4 hover:no-underline"
         >
-          Open the live demo
+          {m.public_demo_open()}
           <ArrowRightIcon aria-hidden className="size-3.5" />
         </Link>
       </div>

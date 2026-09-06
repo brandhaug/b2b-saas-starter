@@ -12,6 +12,7 @@ import {
   WebhookIcon
 } from 'lucide-react'
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type WorkspaceNavTarget =
   | '/workspaces/$workspaceSlug'
@@ -34,7 +35,7 @@ export type YouNavTarget = '/account' | '/admin'
  * optional because the command palette defends on `row.group === undefined`;
  * every row below declares one.
  */
-export type WorkspaceNavGroup = 'Workspace' | 'Developer' | 'You'
+export type WorkspaceNavGroup = string
 
 /** Fields shared by every nav row, whichever surface it targets. */
 type NavRow = {
@@ -76,62 +77,64 @@ export function isWorkspaceNavTarget(to: ShellNavRow['to']): to is WorkspaceNavT
  * palette generate its workspace entries from this same table instead of a
  * second hand-kept list.
  */
-export const WORKSPACE_NAV: ReadonlyArray<WorkspaceNavRow> = [
-  {
-    to: '/workspaces/$workspaceSlug',
-    label: 'Overview',
-    group: 'Workspace',
-    icon: <LayoutDashboardIcon className="size-4" />,
-    exact: true
-  },
-  {
-    // Members owns the roster and, since the settings page stopped carrying
-    // it, the invitation flow too — both are membership concerns.
-    to: '/workspaces/$workspaceSlug/members',
-    label: 'Members',
-    group: 'Workspace',
-    icon: <UsersIcon className="size-4" />
-  },
-  {
-    to: '/workspaces/$workspaceSlug/assistant',
-    label: 'Assistant',
-    group: 'Workspace',
-    icon: <SparklesIcon className="size-4" />
-  },
-  {
-    to: '/workspaces/$workspaceSlug/settings',
-    label: 'General',
-    group: 'Workspace',
-    icon: <SettingsIcon className="size-4" />
-  },
-  {
-    to: '/workspaces/$workspaceSlug/billing',
-    label: 'Billing',
-    group: 'Workspace',
-    icon: <CreditCardIcon className="size-4" />
-  },
-  {
-    to: '/workspaces/$workspaceSlug/audit',
-    label: 'Audit trail',
-    group: 'Workspace',
-    icon: <HistoryIcon className="size-4" />,
-    permission: { auditLog: ['read'] }
-  },
-  {
-    to: '/workspaces/$workspaceSlug/api-tokens',
-    label: 'API tokens',
-    group: 'Developer',
-    icon: <KeyRoundIcon className="size-4" />,
-    permission: { apiToken: ['list'] }
-  },
-  {
-    to: '/workspaces/$workspaceSlug/webhooks',
-    label: 'Webhook endpoints',
-    group: 'Developer',
-    icon: <WebhookIcon className="size-4" />,
-    permission: { webhook: ['list'] }
-  }
-]
+export function workspaceNav(): ReadonlyArray<WorkspaceNavRow> {
+  return [
+    {
+      to: '/workspaces/$workspaceSlug',
+      label: m.nav_overview(),
+      group: m.nav_workspace_group(),
+      icon: <LayoutDashboardIcon className="size-4" />,
+      exact: true
+    },
+    {
+      // Members owns the roster and, since the settings page stopped carrying
+      // it, the invitation flow too — both are membership concerns.
+      to: '/workspaces/$workspaceSlug/members',
+      label: m.nav_members(),
+      group: m.nav_workspace_group(),
+      icon: <UsersIcon className="size-4" />
+    },
+    {
+      to: '/workspaces/$workspaceSlug/assistant',
+      label: m.nav_assistant(),
+      group: m.nav_workspace_group(),
+      icon: <SparklesIcon className="size-4" />
+    },
+    {
+      to: '/workspaces/$workspaceSlug/settings',
+      label: m.nav_general(),
+      group: m.nav_workspace_group(),
+      icon: <SettingsIcon className="size-4" />
+    },
+    {
+      to: '/workspaces/$workspaceSlug/billing',
+      label: m.nav_billing(),
+      group: m.nav_workspace_group(),
+      icon: <CreditCardIcon className="size-4" />
+    },
+    {
+      to: '/workspaces/$workspaceSlug/audit',
+      label: m.nav_audit_trail(),
+      group: m.nav_workspace_group(),
+      icon: <HistoryIcon className="size-4" />,
+      permission: { auditLog: ['read'] }
+    },
+    {
+      to: '/workspaces/$workspaceSlug/api-tokens',
+      label: m.nav_api_tokens(),
+      group: m.nav_developer_group(),
+      icon: <KeyRoundIcon className="size-4" />,
+      permission: { apiToken: ['list'] }
+    },
+    {
+      to: '/workspaces/$workspaceSlug/webhooks',
+      label: m.nav_webhook_endpoints(),
+      group: m.nav_developer_group(),
+      icon: <WebhookIcon className="size-4" />,
+      permission: { webhook: ['list'] }
+    }
+  ]
+}
 
 /**
  * The user-level rows that close the sidebar under their own "You" label.
@@ -141,23 +144,25 @@ export const WORKSPACE_NAV: ReadonlyArray<WorkspaceNavRow> = [
  * generates its Account and System admin entries from the same rows, so the
  * two surfaces cannot drift on label, target, or the admin gate.
  */
-export const YOU_NAV: ReadonlyArray<YouNavRow> = [
-  {
-    to: '/account',
-    label: 'Account',
-    group: 'You',
-    icon: <UserRoundIcon className="size-4" />,
-    exact: true
-  },
-  {
-    to: '/admin',
-    label: 'System admin',
-    group: 'You',
-    icon: <ShieldIcon className="size-4" />,
-    exact: true,
-    adminOnly: true
-  }
-]
+export function youNav(): ReadonlyArray<YouNavRow> {
+  return [
+    {
+      to: '/account',
+      label: m.nav_account(),
+      group: m.nav_you_group(),
+      icon: <UserRoundIcon className="size-4" />,
+      exact: true
+    },
+    {
+      to: '/admin',
+      label: m.nav_system_admin(),
+      group: m.nav_you_group(),
+      icon: <ShieldIcon className="size-4" />,
+      exact: true,
+      adminOnly: true
+    }
+  ]
+}
 
 /**
  * The sidebar's one nav table: the workspace rows in table order, closed by
@@ -165,4 +170,6 @@ export const YOU_NAV: ReadonlyArray<YouNavRow> = [
  * from `WORKSPACE_NAV` and its user-level entries from `YOU_NAV`, so both
  * surfaces read the same tables.
  */
-export const SHELL_NAV: ReadonlyArray<ShellNavRow> = [...WORKSPACE_NAV, ...YOU_NAV]
+export function shellNav(): ReadonlyArray<ShellNavRow> {
+  return [...workspaceNav(), ...youNav()]
+}

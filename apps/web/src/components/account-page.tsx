@@ -1,3 +1,4 @@
+import { LocalePreferences } from '@/components/locale-preferences'
 import { type ReactNode } from 'react'
 import { DeleteAccountPanel } from '@/components/delete-account-panel'
 import { NotificationPreferencesPanel } from '@/components/notification-preferences-panel'
@@ -15,6 +16,7 @@ import { type RouteSession } from '@/lib/server/auth'
 import { type AccountDeletionPlan } from '@/lib/server/account'
 import { type NotificationPreferenceRow } from '@/lib/server/notification-preferences'
 import { revokeMcpClientServerFn } from '@/lib/server/mcp-clients'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** Module-level so the `connections` default keeps a stable reference. */
 const NO_CONNECTIONS: ReadonlyArray<McpClientConnection> = []
@@ -47,82 +49,79 @@ export function AccountPage({
 }) {
   return (
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
-      <PageHeader
-        title="Account"
-        description="Sign-in security for your account, not any one workspace."
-      />
+      <PageHeader title={m.page_account()} description={m.page_account_description()} />
       <Panel
-        title="Sign-in methods"
-        description="Every way this account can sign in. A provider can be unlinked once another method remains."
+        title={m.panel_sign_in_methods()}
+        description={m.panel_sign_in_methods_description()}
       >
         {/* Unlinking a provider while impersonating would change the user's
             sign-in surface from an admin session — same refusal stance as the
             two-factor panel below (ADR 0054). */}
         <WhileNotImpersonating
           impersonatedBy={session.impersonatedBy}
-          what="Sign-in methods"
+          message={m.shell_impersonated_sign_in()}
         >
           <LinkedAccountsPanel />
         </WhileNotImpersonating>
       </Panel>
 
       <Panel
-        title="Two-factor authentication"
-        description="Require a time-based one-time code from an authenticator app at every sign-in."
+        title={m.panel_two_factor()}
+        description={m.panel_two_factor_description()}
       >
         {/* Hidden, not merely disabled, for an impersonation session (ADR
             0054): the catchall refuses the endpoints anyway, so a control
             that always fails would only teach the admin to ignore errors. */}
         <WhileNotImpersonating
           impersonatedBy={session.impersonatedBy}
-          what="Two-factor settings"
+          message={m.shell_impersonated_two_factor()}
         >
           <TwoFactorPanel twoFactorEnabled={session.user.twoFactorEnabled} />
         </WhileNotImpersonating>
       </Panel>
 
-      <Panel
-        title="Passkeys"
-        description="Sign-in credentials bound to this account: a fingerprint, face, PIN, or security key. A passkey sign-in counts as two-factor, so no code is asked for."
-      >
+      <Panel title={m.panel_passkeys()} description={m.panel_passkeys_description()}>
         {/* Hidden, not merely disabled, for an impersonation session: the
             catchall refuses the endpoints anyway (ADR 0056), so a control
             that always fails would only teach the admin to ignore errors. */}
-        <WhileNotImpersonating impersonatedBy={session.impersonatedBy} what="Passkeys">
+        <WhileNotImpersonating
+          impersonatedBy={session.impersonatedBy}
+          message={m.shell_impersonated_passkeys()}
+        >
           <PasskeysPanel />
         </WhileNotImpersonating>
       </Panel>
 
+      <LocalePreferences />
       <SessionsPanel currentSessionToken={currentSessionToken} />
 
       {preferences === undefined ? null : (
         <Panel
-          title="Email notifications"
-          description="How each kind of notification reaches you by email: not at all, one email per event, or the daily digest. Security kinds default to instant."
+          title={m.panel_email_notifications()}
+          description={m.panel_email_notifications_description()}
         >
           <NotificationPreferencesPanel preferences={preferences} />
         </Panel>
       )}
 
       <Panel
-        title="Delete account"
-        description="Permanent, and confirmed with your password. Workspaces you are the only owner of must hand ownership to someone else first."
+        title={m.panel_delete_account()}
+        description={m.panel_delete_account_description()}
       >
         {/* Hidden, not merely disabled, for an impersonation session (ADR
             0059): the catchall refuses the endpoint anyway, so a control
             that always fails would only teach the admin to ignore errors. */}
         <WhileNotImpersonating
           impersonatedBy={session.impersonatedBy}
-          what="The account"
-          action="deleted"
+          message={m.shell_impersonated_deletion()}
         >
           <DeleteAccountPanel plan={deletionPlan} />
         </WhileNotImpersonating>
       </Panel>
 
       <Panel
-        title="MCP clients"
-        description="AI clients you connected through OAuth. Each one reaches exactly one workspace, with what your role there allows."
+        title={m.panel_mcp_clients()}
+        description={m.panel_mcp_clients_description()}
       >
         <McpClientsPanel connections={connections} revoke={revokeMcpClientServerFn} />
       </Panel>
@@ -138,15 +137,11 @@ export function AccountPage({
  */
 function WhileNotImpersonating({
   impersonatedBy,
-  what,
-  action = 'changed',
+  message,
   children
 }: {
   readonly impersonatedBy: string | null
-  /** The noun phrase the reason sentence is built around. */
-  readonly what: string
-  /** The sentence's verb — settings are "changed", the account is "deleted". */
-  readonly action?: string
+  readonly message: string
   readonly children: ReactNode
 }) {
   if (impersonatedBy === null) {
@@ -155,9 +150,7 @@ function WhileNotImpersonating({
   return (
     // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- on the page from first paint; an assertive alert would interrupt on load
     <Alert role="status">
-      <AlertDescription>
-        {`${what} cannot be ${action} while impersonating this user.`}
-      </AlertDescription>
+      <AlertDescription>{message}</AlertDescription>
     </Alert>
   )
 }

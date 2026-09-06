@@ -1,10 +1,11 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import {
   LOCAL_D1_UNAVAILABLE_ERROR_CODE,
-  LOCAL_D1_UNAVAILABLE_MESSAGE,
-  SIGN_IN_FAILED
+  localD1UnavailableMessage,
+  signInFailed
 } from '@/lib/auth-error-copy'
 import { authClientDouble as fake } from '@/test/fake-auth-client'
 import { type SendMagicLink } from '@/components/auth/auth-client-ports'
@@ -71,11 +72,11 @@ describe('SignInPage', () => {
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'not-an-email' }
     })
-    await screen.findByText('Enter a valid email')
+    await screen.findByText(m.public_auth_valid_email())
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'short' }
     })
-    await screen.findByText('Password must be at least 12 characters')
+    await screen.findByText(m.public_auth_password_min())
     const submit = screen.getByRole<HTMLButtonElement>('button', { name: 'Continue' })
     expect(submit.disabled).toBe(true)
     expect(signIn).not.toHaveBeenCalled()
@@ -115,7 +116,7 @@ describe('SignInPage', () => {
     fillValidCredentials()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe(SIGN_IN_FAILED)
+    expect(alert.textContent).toBe(signInFailed())
     expect(router.state.location.pathname).toBe('/sign-in')
   })
 
@@ -128,7 +129,7 @@ describe('SignInPage', () => {
     fillValidCredentials()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe(SIGN_IN_FAILED)
+    expect(alert.textContent).toBe(signInFailed())
     expect(alert.textContent).not.toContain('HTTPError')
   })
 
@@ -138,7 +139,7 @@ describe('SignInPage', () => {
     fillValidCredentials()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe(LOCAL_D1_UNAVAILABLE_MESSAGE)
+    expect(alert.textContent).toBe(localD1UnavailableMessage())
     expect(router.state.location.pathname).toBe('/sign-in')
   })
 
@@ -247,7 +248,7 @@ describe('SignInPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with a passkey' }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe(LOCAL_D1_UNAVAILABLE_MESSAGE)
+    expect(alert.textContent).toBe(localD1UnavailableMessage())
   })
 
   it('does not preload conditional UI where the browser lacks support', async () => {
@@ -271,7 +272,7 @@ describe('SignInPage', () => {
     it('renders no provider buttons and no divider when none are configured', async () => {
       await renderPage()
       expect(screen.queryByRole('button', { name: 'Continue with GitHub' })).toBeNull()
-      expect(screen.queryByText('or continue with email')).toBeNull()
+      expect(screen.queryByText(m.or_continue_with_email())).toBeNull()
       // The email form is exactly the page that existed before social.
       expect(screen.getByLabelText('Email')).toBeDefined()
       expect(screen.getByLabelText('Password')).toBeDefined()
@@ -281,7 +282,7 @@ describe('SignInPage', () => {
       await renderPage(undefined, ['github', 'google'])
       const github = screen.getByRole('button', { name: 'Continue with GitHub' })
       expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeDefined()
-      expect(screen.getByText('or continue with email')).toBeDefined()
+      expect(screen.getByText(m.or_continue_with_email())).toBeDefined()
 
       fireEvent.click(github)
       await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(1))
@@ -330,8 +331,9 @@ describe('SignInPage', () => {
     // SAFETY: jsdom forbids assigning `window.location`; the page's redirect
     // target is exactly what this assertion needs, so `location` is replaced
     // with a double whose `assign` records the target.
+    const origin = window.location.origin
     Object.defineProperty(window, 'location', {
-      value: { assign },
+      value: { assign, href: `${origin}/sign-in`, origin },
       writable: true
     })
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
@@ -406,7 +408,7 @@ describe('SignInPage', () => {
 
   it('offers the email-code path without touching the credential form', async () => {
     await renderPage('/workspaces')
-    const entry = screen.getByRole('link', { name: 'Email me a code instead' })
+    const entry = screen.getByRole('link', { name: m.email_code_instead() })
     expect(entry.getAttribute('href')).toBe(
       '/sign-in/email-code?redirect=%2Fworkspaces'
     )
@@ -426,7 +428,7 @@ describe('SignInPage link mode', () => {
   })
 
   async function switchToLinkMode() {
-    fireEvent.click(screen.getByRole('button', { name: 'Email me a sign-in link' }))
+    fireEvent.click(screen.getByRole('button', { name: m.email_me_sign_in_link() }))
     await screen.findByText('Sign in with password instead')
   }
 
@@ -457,8 +459,7 @@ describe('SignInPage link mode', () => {
       turnstileToken: undefined
     })
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('check your inbox for a sign-in link')
-    expect(alert.textContent).toContain('ten minutes')
+    expect(alert.textContent).toContain(m.sign_in_link_sent_notice())
     // The password path stays untouched by a link request.
     expect(signIn).not.toHaveBeenCalled()
   })

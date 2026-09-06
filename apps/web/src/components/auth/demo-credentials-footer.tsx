@@ -4,6 +4,7 @@ import {
   DEMO_MEMBER_CREDENTIALS,
   DEMO_WORKSPACE_SLUG
 } from '@/lib/demo-workspace'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The seeded-credential hints, rendered in both sign-in modes: the seed
@@ -18,7 +19,7 @@ export function DemoCredentialsFooter() {
   return (
     <>
       <p className="text-xs text-muted-foreground">
-        Seeded the local database? Sign in with{' '}
+        {m.public_auth_seeded_database_hint()}{' '}
         <code className="rounded-sm bg-muted px-1 py-0.5">
           {DEMO_CREDENTIALS.email}
         </code>{' '}
@@ -29,7 +30,7 @@ export function DemoCredentialsFooter() {
         .
       </p>
       <p className="text-xs text-muted-foreground">
-        Or as a plain member, to see the role-gated view:{' '}
+        {m.public_auth_member_hint()}{' '}
         <code className="rounded-sm bg-muted px-1 py-0.5">
           {DEMO_MEMBER_CREDENTIALS.email}
         </code>{' '}
@@ -44,7 +45,7 @@ export function DemoCredentialsFooter() {
         params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
         className="text-center text-sm text-primary underline underline-offset-4"
       >
-        Open seeded workspace instead
+        {m.public_auth_open_seeded_workspace()}
       </Link>
     </>
   )

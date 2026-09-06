@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { findWorkspace, useWorkspaceDirectory } from '@/lib/workspace-directory'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The workspace switcher at the top of the sidebar: the current workspace's
@@ -53,7 +54,7 @@ export function WorkspaceSwitcher({
           <Button
             variant="outline"
             className="w-full justify-between gap-2 border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            aria-label="Switch workspace"
+            aria-label={m.common_switch_workspace()}
           />
         }
       >
@@ -62,7 +63,7 @@ export function WorkspaceSwitcher({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-(--anchor-width)">
         <DropdownMenuGroup>
-          <DropdownMenuGroupLabel>Workspaces</DropdownMenuGroupLabel>
+          <DropdownMenuGroupLabel>{m.common_workspaces()}</DropdownMenuGroupLabel>
           {directory.map(({ workspace }) => (
             <DropdownMenuItem
               key={workspace.id}

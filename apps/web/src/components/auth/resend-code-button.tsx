@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The resend control shared by every one-time-code surface (code sign-in,
@@ -21,7 +22,9 @@ export function ResendCodeButton({
         void onResend()
       }}
     >
-      {cooldownSeconds > 0 ? `Resend code (${cooldownSeconds}s)` : 'Resend code'}
+      {cooldownSeconds > 0
+        ? m.resend_code_in_seconds({ count: cooldownSeconds })
+        : m.resend_code()}
     </Button>
   )
 }

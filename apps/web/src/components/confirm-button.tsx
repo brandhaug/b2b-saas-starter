@@ -1,3 +1,4 @@
+import { m } from '@b2b-saas-starter/i18n/messages'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -64,14 +65,14 @@ export function ConfirmButton({
     return () => document.removeEventListener('keydown', disarm)
   }, [isArmed, onCancel])
 
-  const row = target ? ` ${target}` : ''
+  const cancelLabel = target ? m.shell_cancel_target({ target }) : m.shell_cancel()
 
   if (!isArmed) {
     return (
       <Button
         ref={idleRef}
         variant={variant}
-        aria-label={`${label}${row}`}
+        aria-label={target ? m.shell_action_target({ action: label, target }) : label}
         onClick={() => {
           setArmedHere(true)
           onArm?.()
@@ -84,13 +85,17 @@ export function ConfirmButton({
   return (
     <>
       <span className="sr-only" role="alert">
-        Press again to confirm{target ? ` ${target}` : ''}
+        {target ? m.shell_confirm_target({ target }) : m.shell_confirm_again()}
       </span>
       <Button
         ref={confirmRef}
         variant="destructive"
         disabled={busy}
-        aria-label={`${confirmLabel}${row}`}
+        aria-label={
+          target
+            ? m.shell_action_target({ action: confirmLabel, target })
+            : confirmLabel
+        }
         onClick={() => {
           setArmedHere(false)
           onCancel?.()
@@ -102,13 +107,13 @@ export function ConfirmButton({
       </Button>
       <Button
         variant="ghost"
-        aria-label={`Cancel${row}`}
+        aria-label={cancelLabel}
         onClick={() => {
           setArmedHere(false)
           onCancel?.()
         }}
       >
-        Cancel
+        {m.shell_cancel()}
       </Button>
     </>
   )

@@ -1,3 +1,5 @@
+import { formatNumber } from '@b2b-saas-starter/i18n/format'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints' // oxlint-disable-next-line react-doctor/prefer-dynamic-import -- TanStack Start's autoCodeSplitting (default on) puts this module in the dashboard route's chunk, so recharts never loads outside this route. Lazy-loading inside the page would trade an SSR'd card flash for bytes on the app's main screen.
 import {
   Bar,
@@ -10,6 +12,7 @@ import {
   YAxis
 } from 'recharts'
 import { AXIS_TICK, COMPACT_CHART_MARGIN, TOOLTIP_STYLE } from '../chart-defaults'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** Below this many endpoints a sentence says more than a chart does. */
 const MIN_ENDPOINTS_FOR_CHART = 3
@@ -25,11 +28,7 @@ export function WebhookSuccessChart({
   }))
 
   if (webhooks.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No webhook endpoints configured yet.
-      </p>
-    )
+    return <p className="text-sm text-muted-foreground">{m.shell_chart_empty()}</p>
   }
 
   // One or two endpoints are a fact, not a distribution — a single slab
@@ -40,9 +39,15 @@ export function WebhookSuccessChart({
         {webhooks.map((endpoint) => (
           <li key={endpoint.id} className="flex flex-wrap items-baseline gap-x-2">
             <span className="font-mono text-xs">{new URL(endpoint.url).host}</span>
-            <span className="font-medium">{endpoint.successRate}% delivered</span>
+            <span className="font-medium">
+              {m.shell_chart_delivered({
+                percent: formatPercent(endpoint.successRate)
+              })}
+            </span>
             {endpoint.enabled ? null : (
-              <span className="text-xs text-muted-foreground">disabled</span>
+              <span className="text-xs text-muted-foreground">
+                {m.common_disabled()}
+              </span>
             )}
           </li>
         ))}
@@ -55,7 +60,10 @@ export function WebhookSuccessChart({
       <ul className="sr-only">
         {data.map((entry) => (
           <li key={entry.label}>
-            {entry.label}: {entry.successRate}% success rate
+            {m.shell_chart_success_rate({
+              endpoint: entry.label,
+              percent: formatPercent(entry.successRate)
+            })}
           </li>
         ))}
       </ul>
@@ -74,7 +82,10 @@ export function WebhookSuccessChart({
           <Tooltip
             cursor={{ fill: 'var(--muted)' }}
             contentStyle={TOOLTIP_STYLE}
-            formatter={(value) => [`${String(value)}%`, 'Success']}
+            formatter={(value) => [
+              formatPercent(Number(value)),
+              m.shell_chart_success()
+            ]}
           />
 
           <Bar dataKey="successRate" radius={4} isAnimationActive={false}>
@@ -95,4 +106,11 @@ export function WebhookSuccessChart({
       </ResponsiveContainer>
     </div>
   )
+}
+
+function formatPercent(value: number): string {
+  return formatNumber(value / 100, getLocale(), {
+    style: 'percent',
+    maximumFractionDigits: 2
+  })
 }

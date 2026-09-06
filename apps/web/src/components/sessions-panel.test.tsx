@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { SessionsPanel } from './sessions-panel'
 import { renderWithQueryClient } from '@/test/query-harness'
 import { authClient } from '@/lib/auth-client'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The panel calls the client module directly, so its endpoints are doubles
 // on the mocked module.
@@ -58,12 +59,16 @@ describe('SessionsPanel', () => {
     await screen.findByText('· This device')
     expect(screen.getByText(/Mobile browser/)).toBeDefined()
     expect(
-      screen.getByRole('button', { name: 'Sign out everywhere else' })
+      screen.getByRole('button', { name: m.auth_sign_out_everywhere() })
     ).toBeDefined()
     // The current session has no per-row revoke button.
-    expect(screen.queryByRole('button', { name: 'Revoke Mac session' })).toBeNull()
     expect(
-      screen.getByRole('button', { name: 'Revoke Mobile browser session' })
+      screen.queryByRole('button', { name: m.revoke_session_named({ name: 'Mac' }) })
+    ).toBeNull()
+    expect(
+      screen.getByRole('button', {
+        name: m.revoke_session_named({ name: m.mobile_browser() })
+      })
     ).toBeDefined()
   })
 
@@ -80,7 +85,7 @@ describe('SessionsPanel', () => {
 
     fireEvent.click(
       await screen.findByRole('button', {
-        name: 'Revoke Mobile browser session'
+        name: m.revoke_session_named({ name: m.mobile_browser() })
       })
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Revoke session' }))
@@ -101,7 +106,7 @@ describe('SessionsPanel', () => {
     })
     renderWithQueryClient(<SessionsPanel currentSessionToken="tok_current" />)
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Sign out everywhere else' })
+      await screen.findByRole('button', { name: m.auth_sign_out_everywhere() })
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
     await waitFor(() => expect(revokeOtherSessions).toHaveBeenCalledTimes(1))
@@ -119,10 +124,10 @@ describe('SessionsPanel', () => {
     })
     renderWithQueryClient(<SessionsPanel currentSessionToken="tok_current" />)
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Sign out everywhere else' })
+      await screen.findByRole('button', { name: m.auth_sign_out_everywhere() })
     )
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('The change could not be made')
+    expect(alert.textContent).toContain(m.session_action_failed())
   })
 })

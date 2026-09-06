@@ -6,11 +6,12 @@ import { PublicLayout } from '@/components/public-layout'
 import { authClient } from '@/lib/auth-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { pickOptionalStrings } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/verify-email')({
   validateSearch: (search) => pickOptionalStrings(search, ['error']),
   component: VerifyEmailRoute,
-  head: () => ({ meta: [{ title: pageTitle('Verify email') }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_verify_email()) }] })
 })
 
 /**
@@ -39,12 +40,12 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
               {error ? (
                 <span className="flex items-center gap-2">
                   <CircleAlertIcon className="size-5 text-destructive" />
-                  Verification failed
+                  {m.email_verification_failed()}
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
                   <CheckCircle2Icon className="size-5 text-primary" />
-                  Email verified
+                  {m.email_verified()}
                 </span>
               )}
             </CardTitle>
@@ -53,17 +54,15 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
             {error ? (
               <>
                 <p className="text-sm text-muted-foreground">
-                  This verification link is invalid or has expired. Links work once and
-                  expire after an hour.
+                  {m.email_verification_invalid()}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Still signed in? The banner on your workspaces page can send a fresh
-                  link.
+                  {m.email_verification_still_signed_in()}
                 </p>
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Your email address is verified. You are signed in and ready to go.
+                {m.email_verified_ready()}
               </p>
             )}
             <p className="text-center text-sm text-muted-foreground">
@@ -71,7 +70,7 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
                 to="/workspaces"
                 className="text-primary underline underline-offset-4"
               >
-                Go to your workspaces
+                {m.go_to_workspaces()}
               </Link>
             </p>
           </CardContent>
@@ -79,7 +78,7 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
         {error ? (
           <EmailCodeExchange
             layout="card"
-            title="Or verify with a code"
+            title={m.verify_with_code()}
             purpose="email-verification"
             verify={({ email, otp }) => authClient.emailOtp.verifyEmail({ email, otp })}
             onVerified={() => {
@@ -88,9 +87,9 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
               // is where the session lands everywhere else.
               router.history.push('/workspaces')
             }}
-            codeSentNotice="We emailed a six-digit code. It expires in ten minutes."
-            codeSubmitLabel="Verify email"
-            codeSubmittingLabel="Verifying…"
+            codeSentNotice={m.email_code_sent_notice()}
+            codeSubmitLabel={m.verify_email()}
+            codeSubmittingLabel={m.verifying()}
           />
         ) : null}
       </main>

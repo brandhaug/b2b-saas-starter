@@ -1,3 +1,5 @@
+import { localizeRequest } from '@/lib/server/i18n-middleware'
+import { uiErrorAdapter } from '@/lib/ui-error'
 import { createMiddleware, createStart } from '@tanstack/react-start'
 import { runWebRequestScope } from '@/lib/observability'
 import { enforceRequiredEnvOnce } from '@/lib/server/env-gate'
@@ -32,6 +34,15 @@ const configGateMiddleware = createMiddleware({ type: 'request' }).server(
   }
 )
 
+const localeMiddleware = createMiddleware({ type: 'request' }).server(
+  ({ request, next }) =>
+    localizeRequest(request, async () => {
+      const result = await next()
+      return result.response
+    })
+)
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [configGateMiddleware, observabilityMiddleware]
+  serializationAdapters: [uiErrorAdapter],
+  requestMiddleware: [configGateMiddleware, observabilityMiddleware, localeMiddleware]
 }))

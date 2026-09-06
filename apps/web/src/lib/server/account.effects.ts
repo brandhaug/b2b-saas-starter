@@ -1,4 +1,5 @@
 import { Effect } from 'effect'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import {
   AccountLifecycle,
   type AccountDeletionPlan
@@ -46,7 +47,10 @@ export async function loadAccountPageHandler(): Promise<
             lifecycle.planDeletion(session.user.id)
           ),
           preferenceRows: Effect.map(
-            notificationPreferencesPayload({ userId: session.user.id }),
+            notificationPreferencesPayload({
+              userId: session.user.id,
+              locale: getLocale()
+            }),
             (payload) => payload.preferences
           )
         },

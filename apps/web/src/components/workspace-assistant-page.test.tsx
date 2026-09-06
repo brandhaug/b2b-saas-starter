@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { WorkspaceAssistantPage, type AskAssistant } from './workspace-assistant-page'
 import { type AssistantPagePayload } from '@/lib/server/assistant'
-import { ASSISTANT_UNCONFIGURED_MESSAGE } from '@/lib/assistant-copy'
+import { assistantUnconfiguredMessage } from '@/lib/assistant-copy'
 import { renderWithRouter } from '@/test/router-harness'
 
 // The page's one server call, as a port — a real function of the declared
@@ -32,7 +32,7 @@ describe('WorkspaceAssistantPage', () => {
   it('hides the form and shows honest copy when no provider is configured', async () => {
     ask.mockReturnValue(new Promise(() => {}))
     await renderPage(unconfigured)
-    screen.getByText(ASSISTANT_UNCONFIGURED_MESSAGE)
+    screen.getByText(assistantUnconfiguredMessage())
     expect(screen.queryByLabelText('Your question')).toBeNull()
     expect(ask).not.toHaveBeenCalled()
   })

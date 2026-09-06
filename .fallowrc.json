@@ -3,10 +3,12 @@
   "rules": {
     "circular-dependencies": "error"
   },
-  "entry": ["alchemy.run.ts"],
+  "entry": ["alchemy.run.ts", "packages/i18n/scripts/catalog-validation.test.mjs"],
   "ignoreExportsUsedInFile": true,
   "ignoreDependencies": [
     "@b2b-saas-starter/db",
+    // The inlang SDK loads this through the local data-URL plugin bridge.
+    "@inlang/plugin-message-format",
     "@base-ui/react",
     // Satisfies alchemy's peer dependency: alchemy's static imports resolve it
     // eagerly at deploy time, so no first-party source file imports it.
@@ -35,9 +37,12 @@
   "ignorePatterns": [
     "apps/web/src/index.css",
     "apps/web/src/components/ui/**",
-    "scripts/seed.ts"
+    "scripts/seed.ts",
+    "packages/i18n/src/generated/**",
+    "packages/i18n/.generated/**"
   ],
   "dynamicallyLoaded": [
+    "packages/i18n/plugin-message-format.js",
     "apps/web/content/blog/*.mdx",
     "apps/web/content/docs/**/*.mdx",
     "apps/web/src/lib/cloudflare-workers-shim.ts",

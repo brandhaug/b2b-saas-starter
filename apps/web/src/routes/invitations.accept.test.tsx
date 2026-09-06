@@ -2,6 +2,7 @@ import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/governan
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import { type InvitationPreview } from '@/lib/server/invitations'
 import { AcceptInvitationPage, type AcceptInvitation } from './invitations.accept'
 
@@ -39,7 +40,12 @@ describe('AcceptInvitationPage', () => {
   it('offers the addressee the workspace and the role', async () => {
     await renderPage(pending, vi.fn<AcceptInvitation>())
     await screen.findByRole('heading', { name: /Join Test Lab/ })
-    screen.getByText('admin')
+    screen.getByText(
+      m.invitation_accept_description({
+        workspace: 'Test Lab',
+        role: m.shell_role_admin()
+      })
+    )
     expect(acceptButton().hasAttribute('disabled')).toBe(false)
   })
 
@@ -63,7 +69,7 @@ describe('AcceptInvitationPage', () => {
     const { router } = await renderPage(pending, accept)
     fireEvent.click(acceptButton())
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('invitation_expired')
+    expect(alert.textContent).toContain(m.accept_invitation_failed())
     expect(router.state.location.pathname).toBe('/invitations/accept')
     // Re-enabled, so a refusal the inviter can fix is retryable.
     expect(acceptButton().hasAttribute('disabled')).toBe(false)
@@ -78,7 +84,7 @@ describe('AcceptInvitationPage', () => {
     expect(screen.queryByText(/Test Lab/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Accept invitation' })).toBeNull()
     expect(
-      screen.getByRole('link', { name: 'Go to your workspaces' }).getAttribute('href')
+      screen.getByRole('link', { name: m.go_to_workspaces() }).getAttribute('href')
     ).toBe('/workspaces')
     expect(accept).not.toHaveBeenCalled()
   })

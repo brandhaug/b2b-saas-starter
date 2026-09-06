@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
+import * as m from '@b2b-saas-starter/i18n/messages'
 import { SignUpPage, type SignUpWithEmail } from './sign-up'
 
 // The page's own `signUp` port, handed in as a prop. The router is real, so
@@ -40,15 +41,15 @@ describe('SignUpPage', () => {
     fireEvent.change(screen.getByLabelText('Name'), {
       target: { value: '   ' }
     })
-    await screen.findByText('Name is required')
+    await screen.findByText(m.name_required())
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'not-an-email' }
     })
-    await screen.findByText('Enter a valid email')
+    await screen.findByText(m.public_auth_valid_email())
     fireEvent.change(screen.getByLabelText('Password'), {
       target: { value: 'short' }
     })
-    await screen.findByText('Password must be at least 12 characters')
+    await screen.findByText(m.public_auth_password_min())
     const submit = screen.getByRole<HTMLButtonElement>('button', {
       name: 'Create account'
     })
@@ -86,9 +87,7 @@ describe('SignUpPage', () => {
     fillValidValues()
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe(
-      'An account with that email already exists. Sign in instead.'
-    )
+    expect(alert.textContent).toBe(m.public_auth_account_exists())
     expect(router.state.location.pathname).toBe('/sign-up')
   })
 

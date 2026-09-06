@@ -76,7 +76,7 @@ describe('ApiTokensPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm revoke' }))
     await waitFor(() => {
-      expect(screen.getByText('Token already revoked')).toBeTruthy()
+      expect(screen.getByText('Failed to revoke token')).toBeTruthy()
     })
     expect(revokeToken).toHaveBeenCalledWith({
       data: { workspaceSlug: 'starter-lab', tokenId: 'tok_ci' }

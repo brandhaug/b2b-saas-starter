@@ -10,11 +10,12 @@ import { FormTextField } from '@/components/form-text-field'
 import { authClient } from '@/lib/auth-client'
 import { pickOptionalStrings } from '@/lib/utils'
 import { authErrorCopy } from '@/lib/auth-error-copy'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/reset-password')({
   validateSearch: (search) => pickOptionalStrings(search, ['token', 'error']),
   component: ResetPasswordRoute,
-  head: () => ({ meta: [{ title: pageTitle('Reset password') }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_reset_password()) }] })
 })
 
 type ResetPasswordValues = {
@@ -50,7 +51,7 @@ export function ResetPasswordPage({
         token: token ?? ''
       })
       if (result.error) {
-        setSubmitError(authErrorCopy(result.error, 'Reset failed'))
+        setSubmitError(authErrorCopy(result.error, m.public_auth_reset_failed()))
         return
       }
       // The reset revokes every session (revokeSessionsOnPasswordReset), so
@@ -64,7 +65,7 @@ export function ResetPasswordPage({
   if (!token || error) {
     return (
       <AuthCardForm
-        title="This link cannot be used"
+        title={m.reset_link_unusable()}
         form={null}
         footer={
           <p className="text-center text-sm text-muted-foreground">
@@ -72,30 +73,27 @@ export function ResetPasswordPage({
               to="/forgot-password"
               className="text-primary underline underline-offset-4"
             >
-              Request a new reset link
+              {m.request_new_reset_link()}
             </Link>
           </p>
         }
       >
-        <p className="text-sm text-muted-foreground">
-          The password reset link is invalid or has expired. Links work once and expire
-          after thirty minutes.
-        </p>
+        <p className="text-sm text-muted-foreground">{m.reset_link_invalid()}</p>
       </AuthCardForm>
     )
   }
 
   return (
     <AuthCardForm
-      title="Choose a new password"
-      description="Every session signed in before this reset will be signed out."
+      title={m.choose_new_password()}
+      description={m.reset_sessions_description()}
       form={form}
       submit={
         <AuthSubmitButton
           form={form}
           icon={<KeyRoundIcon className="size-4" />}
-          label="Reset password"
-          submittingLabel="Resetting…"
+          label={m.form_reset_password()}
+          submittingLabel={m.resetting()}
         />
       }
       error={submitError}
@@ -104,7 +102,7 @@ export function ResetPasswordPage({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="New password"
+            label={m.form_new_password()}
             type="password"
             autoComplete="new-password"
             value={field.state.value}
@@ -121,10 +119,10 @@ export function ResetPasswordPage({
         validators={{
           onChange: ({ value, fieldApi }) => {
             if (value.length === 0) {
-              return 'Confirm your password'
+              return m.form_confirm_password()
             }
             if (value !== fieldApi.form.getFieldValue('password')) {
-              return 'Passwords do not match'
+              return m.passwords_do_not_match()
             }
             return null
           }
@@ -133,7 +131,7 @@ export function ResetPasswordPage({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Confirm password"
+            label={m.form_confirm_password()}
             type="password"
             autoComplete="new-password"
             value={field.state.value}

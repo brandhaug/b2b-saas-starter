@@ -290,7 +290,12 @@ export function LiveWorkspaceExports(
             userId: found.row.requestedByUserId,
             kind: 'announcement',
             title: 'Workspace export ready',
-            message: `Your export of ${found.workspace.name} is ready to download from workspace settings until ${expiresAt}.`
+            message: `Your export of ${found.workspace.name} is ready to download from workspace settings until ${expiresAt}.`,
+            event: {
+              type: 'workspace.export_ready',
+              workspaceName: found.workspace.name,
+              expiresAt
+            }
           })
           return true
         }),

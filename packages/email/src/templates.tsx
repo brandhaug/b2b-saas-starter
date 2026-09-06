@@ -14,6 +14,8 @@ import {
   Text
 } from '@react-email/components'
 import { type ReactNode } from 'react'
+import { DEFAULT_LOCALE, intlLocale, type Locale } from '@b2b-saas-starter/i18n/locale'
+import * as m from '@b2b-saas-starter/i18n/messages'
 
 /**
  * A React Email template renders synchronously through `@react-email/render`,
@@ -29,6 +31,7 @@ type EmailLayoutProps = {
   readonly preview: string
   readonly heading: ReactNode
   readonly children: ReactNode
+  readonly locale?: Locale | undefined
 }
 
 /**
@@ -36,9 +39,14 @@ type EmailLayoutProps = {
  * heading, body copy, and the footer rule. A template supplies its preview
  * text, its heading and its copy; everything else is this layout.
  */
-export function EmailLayout({ preview, heading, children }: EmailLayoutProps) {
+export function EmailLayout({
+  preview,
+  heading,
+  children,
+  locale = DEFAULT_LOCALE
+}: EmailLayoutProps) {
   return (
-    <Html lang="en">
+    <Html lang={intlLocale(locale)}>
       <Tailwind
         config={{
           presets: [pixelBasedPreset],
@@ -73,13 +81,14 @@ export function EmailLayout({ preview, heading, children }: EmailLayoutProps) {
 type ActionLinkProps = {
   readonly href: string
   readonly label: string
+  readonly locale?: Locale | undefined
 }
 
 /**
  * The call to action and its fallback URL. Email clients that strip or fail to
  * render the button still leave the recipient a copyable link.
  */
-export function ActionLink({ href, label }: ActionLinkProps) {
+export function ActionLink({ href, label, locale = DEFAULT_LOCALE }: ActionLinkProps) {
   return (
     <>
       <Section className="mt-6">
@@ -91,7 +100,7 @@ export function ActionLink({ href, label }: ActionLinkProps) {
         </Button>
       </Section>
       <Text className="text-sm text-gray-500 mt-6">
-        If the button does not work, copy this URL into your browser:{' '}
+        {m.backend_email_auth_action_fallback({}, { locale })}{' '}
         <Link href={href} className="text-brand underline">
           {href}
         </Link>
@@ -103,22 +112,28 @@ export function ActionLink({ href, label }: ActionLinkProps) {
 type WorkspaceInvitationEmailProps = {
   readonly workspaceName: string
   readonly inviteUrl: string
+  readonly locale?: Locale | undefined
 }
 
 export function WorkspaceInvitationEmail({
   workspaceName,
-  inviteUrl
+  inviteUrl,
+  locale = DEFAULT_LOCALE
 }: WorkspaceInvitationEmailProps) {
   return (
     <EmailLayout
-      preview={`You have been invited to ${workspaceName}`}
-      heading={<>Join {workspaceName}</>}
+      preview={m.backend_email_auth_invitation_preview({ workspaceName }, { locale })}
+      heading={m.backend_email_auth_invitation_heading({ workspaceName }, { locale })}
+      locale={locale}
     >
       <Text className="text-base text-gray-700 mt-4">
-        You have been invited to a B2B SaaS Starter workspace. Accept the invitation to
-        review reports, tokens, and settings.
+        {m.backend_email_auth_invitation_body({}, { locale })}
       </Text>
-      <ActionLink href={inviteUrl} label="Accept invitation" />
+      <ActionLink
+        href={inviteUrl}
+        label={m.backend_email_auth_invitation_action({}, { locale })}
+        locale={locale}
+      />
     </EmailLayout>
   )
 }
@@ -132,6 +147,7 @@ export default WorkspaceInvitationEmail
 
 type PasswordResetEmailProps = {
   readonly url: string
+  readonly locale?: Locale | undefined
 }
 
 /**
@@ -139,18 +155,26 @@ type PasswordResetEmailProps = {
  * handler's token-exchange route, which validates the token and redirects to
  * the app's `/reset-password` page — the template never learns the token.
  */
-export function PasswordResetEmail({ url }: PasswordResetEmailProps) {
+export function PasswordResetEmail({
+  url,
+  locale = DEFAULT_LOCALE
+}: PasswordResetEmailProps) {
   return (
-    <EmailLayout preview="Reset your password" heading="Reset your password">
+    <EmailLayout
+      preview={m.backend_email_subject_reset_password({}, { locale })}
+      heading={m.backend_email_subject_reset_password({}, { locale })}
+      locale={locale}
+    >
       <Text className="text-base text-gray-700 mt-4">
-        Somebody asked to reset the password for your B2B SaaS Starter account. If that
-        was you, choose a new password within thirty minutes; the link works once and
-        then expires.
+        {m.backend_email_auth_reset_description({}, { locale })}
       </Text>
-      <ActionLink href={url} label="Choose a new password" />
+      <ActionLink
+        href={url}
+        label={m.backend_email_auth_reset_action({}, { locale })}
+        locale={locale}
+      />
       <Text className="text-sm text-gray-500 mt-4">
-        If you did not ask for a reset, you can ignore this email; your password stays
-        unchanged.
+        {m.backend_email_auth_reset_ignore({}, { locale })}
       </Text>
     </EmailLayout>
   )
@@ -162,6 +186,7 @@ PasswordResetEmail.PreviewProps = {
 
 type EmailVerificationEmailProps = {
   readonly url: string
+  readonly locale?: Locale | undefined
 }
 
 /**
@@ -169,17 +194,24 @@ type EmailVerificationEmailProps = {
  * at the auth handler, which verifies the token and redirects to the app's
  * `/verify-email` page.
  */
-export function EmailVerificationEmail({ url }: EmailVerificationEmailProps) {
+export function EmailVerificationEmail({
+  url,
+  locale = DEFAULT_LOCALE
+}: EmailVerificationEmailProps) {
   return (
     <EmailLayout
-      preview="Verify your email address"
-      heading="Verify your email address"
+      preview={m.backend_email_subject_verify_email({}, { locale })}
+      heading={m.backend_email_subject_verify_email({}, { locale })}
+      locale={locale}
     >
       <Text className="text-base text-gray-700 mt-4">
-        Confirm your email address to finish setting up your B2B SaaS Starter account.
-        The link works once and expires in an hour.
+        {m.backend_email_auth_verify_description({}, { locale })}
       </Text>
-      <ActionLink href={url} label="Verify my email" />
+      <ActionLink
+        href={url}
+        label={m.backend_email_auth_verify_action({}, { locale })}
+        locale={locale}
+      />
     </EmailLayout>
   )
 }
@@ -194,42 +226,10 @@ type OneTimeCodePurpose =
   | 'forget-password'
   | 'change-email'
 
-type OneTimeCodeCopy = {
-  readonly preview: string
-  readonly heading: string
-  readonly body: string
-}
-
-/**
- * Per-purpose wording, stated as a lookup so the four flows sit side by side.
- * The keys are Better Auth's own OTP type names.
- */
-const ONE_TIME_CODE_COPY = {
-  'sign-in': {
-    preview: 'Your sign-in code',
-    heading: 'Sign in to B2B SaaS Starter',
-    body: 'Use the code below to finish signing in to your B2B SaaS Starter account.'
-  },
-  'email-verification': {
-    preview: 'Your verification code',
-    heading: 'Verify your email address',
-    body: 'Use the code below to confirm your email address.'
-  },
-  'forget-password': {
-    preview: 'Your password reset code',
-    heading: 'Reset your password',
-    body: 'Use the code below to choose a new password for your B2B SaaS Starter account.'
-  },
-  'change-email': {
-    preview: 'Your email change code',
-    heading: 'Confirm your new email address',
-    body: 'Use the code below to confirm your new email address.'
-  }
-} satisfies Record<OneTimeCodePurpose, OneTimeCodeCopy>
-
 type OneTimeCodeEmailProps = {
   readonly code: string
   readonly purpose: OneTimeCodePurpose
+  readonly locale?: Locale | undefined
 }
 
 /**
@@ -238,23 +238,38 @@ type OneTimeCodeEmailProps = {
  * secret itself, so the template renders it and nothing else clickable: no
  * action link on purpose, there is nothing to click through to.
  */
-export function OneTimeCodeEmail({ code, purpose }: OneTimeCodeEmailProps) {
-  const copy = ONE_TIME_CODE_COPY[purpose]
+export function OneTimeCodeEmail({
+  code,
+  purpose,
+  locale = DEFAULT_LOCALE
+}: OneTimeCodeEmailProps) {
+  let subject = m.backend_email_subject_change_email_code({}, { locale })
+  let heading = m.backend_email_auth_one_time_code_heading({}, { locale })
+  if (purpose === 'sign-in') {
+    subject = m.backend_email_subject_sign_in_code({}, { locale })
+    heading = m.backend_email_auth_sign_in_code_heading({}, { locale })
+  } else if (purpose === 'email-verification') {
+    subject = m.backend_email_subject_email_verification_code({}, { locale })
+    heading = m.backend_email_auth_verification_heading({}, { locale })
+  } else if (purpose === 'forget-password') {
+    subject = m.backend_email_subject_password_reset_code({}, { locale })
+    heading = m.backend_email_auth_reset_heading({}, { locale })
+  }
   return (
-    <EmailLayout preview={copy.preview} heading={copy.heading}>
-      <Text className="text-base text-gray-700 mt-4">{copy.body}</Text>
+    <EmailLayout preview={subject} heading={heading} locale={locale}>
+      <Text className="text-base text-gray-700 mt-4">
+        {m.backend_email_auth_otp_description({}, { locale })}
+      </Text>
       <Section className="mt-6">
         <Text className="text-4xl font-bold tracking-[0.3em] text-gray-900 m-0 font-mono">
           {code}
         </Text>
       </Section>
       <Text className="text-sm text-gray-500 mt-6">
-        The code works once, expires in ten minutes, and stops working after three
-        failed attempts.
+        {m.backend_email_auth_otp_expiry({}, { locale })}
       </Text>
       <Text className="text-sm text-gray-500 mt-4">
-        If you did not request this code, you can ignore this email; your account is
-        unchanged.
+        {m.backend_email_auth_otp_ignore({}, { locale })}
       </Text>
     </EmailLayout>
   )
@@ -262,6 +277,7 @@ export function OneTimeCodeEmail({ code, purpose }: OneTimeCodeEmailProps) {
 
 type MagicLinkEmailProps = {
   readonly url: string
+  readonly locale?: Locale | undefined
 }
 
 /**
@@ -273,18 +289,23 @@ type MagicLinkEmailProps = {
  * (`MAGIC_LINK_EXPIRES_IN_SECONDS`), stated here rather than imported so the
  * two packages stay siblings.
  */
-export function MagicLinkEmail({ url }: MagicLinkEmailProps) {
+export function MagicLinkEmail({ url, locale = DEFAULT_LOCALE }: MagicLinkEmailProps) {
   return (
-    <EmailLayout preview="Your sign-in link" heading="Sign in to B2B SaaS Starter">
+    <EmailLayout
+      preview={m.backend_email_subject_sign_in_link({}, { locale })}
+      heading={m.backend_email_auth_magic_link_heading({}, { locale })}
+      locale={locale}
+    >
       <Text className="text-base text-gray-700 mt-4">
-        Somebody asked for a sign-in link for this email address. If that was you, open
-        the link to sign in without a password. It works once and expires in ten
-        minutes.
+        {m.backend_email_auth_magic_description({}, { locale })}
       </Text>
-      <ActionLink href={url} label="Sign in" />
+      <ActionLink
+        href={url}
+        label={m.backend_email_auth_magic_action({}, { locale })}
+        locale={locale}
+      />
       <Text className="text-sm text-gray-500 mt-4">
-        If you did not ask for the link, you can ignore this email; opening it is the
-        only thing the link can do.
+        {m.backend_email_auth_magic_ignore({}, { locale })}
       </Text>
     </EmailLayout>
   )
@@ -301,6 +322,7 @@ MagicLinkEmail.PreviewProps = {
 
 type TwoFactorChangedEmailProps = {
   readonly enabled: boolean
+  readonly locale?: Locale | undefined
 }
 
 /**
@@ -308,24 +330,37 @@ type TwoFactorChangedEmailProps = {
  * action link on purpose: the recipient secures their account from the app's
  * `/account` page, and the email must not become a clickable attack surface.
  */
-export function TwoFactorChangedEmail({ enabled }: TwoFactorChangedEmailProps) {
+export function TwoFactorChangedEmail({ enabled, locale }: TwoFactorChangedEmailProps) {
   // The rule against ternaries applies here too; plain branches keep the
   // two wordings next to each other.
-  let verb = 'enabled'
-  let preview = 'Two-factor authentication enabled'
+  const activeLocale = locale ?? DEFAULT_LOCALE
+  let preview = m.backend_email_auth_two_factor_enabled_preview(
+    {},
+    { locale: activeLocale }
+  )
   if (!enabled) {
-    verb = 'disabled'
-    preview = 'Two-factor authentication disabled'
+    preview = m.backend_email_auth_two_factor_disabled_preview(
+      {},
+      { locale: activeLocale }
+    )
+  }
+  let stateCopy = m.backend_email_auth_two_factor_enabled({}, { locale: activeLocale })
+  let heading = m.backend_email_auth_two_factor_enabled_heading(
+    {},
+    { locale: activeLocale }
+  )
+  if (!enabled) {
+    stateCopy = m.backend_email_auth_two_factor_disabled({}, { locale: activeLocale })
+    heading = m.backend_email_auth_two_factor_disabled_heading(
+      {},
+      { locale: activeLocale }
+    )
   }
   return (
-    <EmailLayout preview={preview} heading={<>Two-factor authentication {verb}</>}>
-      <Text className="text-base text-gray-700 mt-4">
-        Two-factor authentication was just {verb} for your B2B SaaS Starter account. If
-        that was you, no action is needed.
-      </Text>
+    <EmailLayout preview={preview} heading={heading} locale={activeLocale}>
+      <Text className="text-base text-gray-700 mt-4">{stateCopy}</Text>
       <Text className="text-sm text-gray-500 mt-4">
-        If you did not make this change, reset your password immediately and review your
-        account security settings.
+        {m.backend_email_auth_security_warning({}, { locale: activeLocale })}
       </Text>
     </EmailLayout>
   )
@@ -337,6 +372,7 @@ TwoFactorChangedEmail.PreviewProps = {
 
 type PasskeyChangedEmailProps = {
   readonly added: boolean
+  readonly locale?: Locale | undefined
 }
 
 /**
@@ -345,24 +381,25 @@ type PasskeyChangedEmailProps = {
  * manages passkeys from the app's `/account` page, and the email must not
  * become a clickable attack surface.
  */
-export function PasskeyChangedEmail({ added }: PasskeyChangedEmailProps) {
+export function PasskeyChangedEmail({ added, locale }: PasskeyChangedEmailProps) {
   // The rule against ternaries applies here too; plain branches keep the
   // two wordings next to each other.
-  let verb = 'added'
-  let preview = 'A passkey was added to your account'
+  const activeLocale = locale ?? DEFAULT_LOCALE
+  let preview = m.backend_email_auth_passkey_added_preview({}, { locale: activeLocale })
   if (!added) {
-    verb = 'removed'
-    preview = 'A passkey was removed from your account'
+    preview = m.backend_email_auth_passkey_removed_preview({}, { locale: activeLocale })
+  }
+  let stateCopy = m.backend_email_auth_passkey_added({}, { locale: activeLocale })
+  let heading = m.backend_email_auth_passkey_added_heading({}, { locale: activeLocale })
+  if (!added) {
+    stateCopy = m.backend_email_auth_passkey_removed({}, { locale: activeLocale })
+    heading = m.backend_email_auth_passkey_removed_heading({}, { locale: activeLocale })
   }
   return (
-    <EmailLayout preview={preview} heading={<>Passkey {verb}</>}>
-      <Text className="text-base text-gray-700 mt-4">
-        A passkey was just {verb} for your B2B SaaS Starter account. If that was you, no
-        action is needed.
-      </Text>
+    <EmailLayout preview={preview} heading={heading} locale={activeLocale}>
+      <Text className="text-base text-gray-700 mt-4">{stateCopy}</Text>
       <Text className="text-sm text-gray-500 mt-4">
-        If you did not make this change, reset your password immediately and review your
-        account security settings.
+        {m.backend_email_auth_security_warning({}, { locale: activeLocale })}
       </Text>
     </EmailLayout>
   )
@@ -380,6 +417,7 @@ type PasswordChangedEmailProps = {
    * the sentence naming the flow differs.
    */
   readonly via: 'reset' | 'password-change'
+  readonly locale?: Locale | undefined
 }
 
 /**
@@ -390,26 +428,40 @@ type PasswordChangedEmailProps = {
  * email the true owner did not ask for is a phishing assist, and the copy
  * only needs to say what happened and what to do about it.
  */
-export function PasswordChangedEmail({ via }: PasswordChangedEmailProps) {
+export function PasswordChangedEmail({ via, locale }: PasswordChangedEmailProps) {
   // Plain branches keep the two wordings next to each other, per the rule
   // TwoFactorChangedEmail follows.
-  let flow = 'reset through the link we emailed you'
-  let preview = 'Your password was reset'
-  let heading = 'Your password was reset'
+  const activeLocale = locale ?? DEFAULT_LOCALE
+  let flow = m.backend_email_auth_password_reset_via({}, { locale: activeLocale })
+  let preview = m.backend_email_auth_password_reset_preview(
+    {},
+    { locale: activeLocale }
+  )
+  let heading = m.backend_email_auth_password_reset_heading(
+    {},
+    { locale: activeLocale }
+  )
   if (via === 'password-change') {
-    flow = 'changed from your account settings'
-    preview = 'Your password was changed'
-    heading = 'Your password was changed'
+    flow = m.backend_email_auth_password_changed_via({}, { locale: activeLocale })
+    preview = m.backend_email_auth_password_changed_preview(
+      {},
+      { locale: activeLocale }
+    )
+    heading = m.backend_email_auth_password_changed_heading(
+      {},
+      { locale: activeLocale }
+    )
   }
   return (
-    <EmailLayout preview={preview} heading={heading}>
+    <EmailLayout preview={preview} heading={heading} locale={locale}>
       <Text className="text-base text-gray-700 mt-4">
-        The password for your B2B SaaS Starter account was just {flow}. If that was you,
-        sign in with the new password the next time you need it.
+        {m.backend_email_auth_password_changed_body(
+          { via: flow },
+          { locale: activeLocale }
+        )}
       </Text>
       <Text className="text-sm text-gray-500 mt-4">
-        If you did not make this change, reset your password immediately and review your
-        account security settings.
+        {m.backend_email_auth_security_warning({}, { locale: activeLocale })}
       </Text>
     </EmailLayout>
   )
@@ -428,20 +480,21 @@ PasswordChangedEmail.PreviewProps = {
  * and no props: like its siblings, everything it says is flow state, not
  * per-recipient data (the address rides the envelope, not the template).
  */
-export function BackupCodesRotatedEmail() {
+export function BackupCodesRotatedEmail({
+  locale
+}: { readonly locale?: Locale | undefined } = {}) {
+  const activeLocale = locale ?? DEFAULT_LOCALE
   return (
     <EmailLayout
-      preview="Your two-factor recovery codes were replaced"
-      heading="Recovery codes replaced"
+      preview={m.backend_email_auth_backup_codes_preview({}, { locale: activeLocale })}
+      heading={m.backend_email_auth_backup_codes_heading({}, { locale: activeLocale })}
+      locale={locale}
     >
       <Text className="text-base text-gray-700 mt-4">
-        New two-factor recovery codes were just generated for your B2B SaaS Starter
-        account. Every code you saved before this change has stopped working.
+        {m.backend_email_auth_backup_codes({}, { locale: activeLocale })}
       </Text>
       <Text className="text-sm text-gray-500 mt-4">
-        If that was you, store the new codes somewhere safe. If you did not make this
-        change, reset your password immediately and review your account security
-        settings.
+        {m.backend_email_auth_backup_codes_warning({}, { locale: activeLocale })}
       </Text>
     </EmailLayout>
   )
@@ -454,6 +507,7 @@ type AccountDeletedEmailProps = {
   readonly workspacesLeft: number
   /** Workspaces deleted with the account because the user was their only member. */
   readonly workspacesDeleted: number
+  readonly locale?: Locale | undefined
 }
 
 /**
@@ -465,38 +519,33 @@ type AccountDeletedEmailProps = {
  */
 export function AccountDeletedEmail({
   workspacesLeft,
-  workspacesDeleted
+  workspacesDeleted,
+  locale
 }: AccountDeletedEmailProps) {
-  // Plain branches keep the four wordings next to each other, per the rule
-  // TwoFactorChangedEmail follows.
-  let deletedSentence = 'No workspace was deleted with your account.'
-  if (workspacesDeleted === 1) {
-    deletedSentence = '1 workspace was deleted because you were the only member.'
-  } else if (workspacesDeleted > 1) {
-    deletedSentence = `${workspacesDeleted} workspaces were deleted because you were the only member.`
-  }
-  let leftSentence = ''
-  if (workspacesLeft === 1) {
-    leftSentence = ' You were removed from 1 workspace where other owners remain.'
-  } else if (workspacesLeft > 1) {
-    leftSentence = ` You were removed from ${workspacesLeft} workspaces where other owners remain.`
-  }
+  const activeLocale = locale ?? DEFAULT_LOCALE
   return (
     <EmailLayout
-      preview="Your B2B SaaS Starter account was deleted"
-      heading="Your account was deleted"
+      preview={m.backend_email_auth_account_deleted_preview(
+        {},
+        { locale: activeLocale }
+      )}
+      heading={m.backend_email_auth_account_deleted_heading(
+        {},
+        { locale: activeLocale }
+      )}
+      locale={locale}
     >
       <Text className="text-base text-gray-700 mt-4">
-        Your B2B SaaS Starter account has been permanently deleted, along with every
-        session signed in as you.
+        {m.backend_email_auth_account_deleted_body({}, { locale: activeLocale })}
       </Text>
       <Text className="text-base text-gray-700 mt-4">
-        {deletedSentence}
-        {leftSentence}
+        {m.backend_email_auth_account_deleted(
+          { workspacesDeleted, workspacesLeft },
+          { locale: activeLocale }
+        )}
       </Text>
       <Text className="text-sm text-gray-500 mt-4">
-        If you did not delete this account, reset the password of any account that
-        shares this password and contact support immediately.
+        {m.backend_email_auth_account_deleted_warning({}, { locale: activeLocale })}
       </Text>
     </EmailLayout>
   )

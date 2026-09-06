@@ -8,9 +8,11 @@ import {
   NotificationPreferencesPanel,
   type SetNotificationPreference
 } from './notification-preferences-panel'
+import type * as RouterModule from '@tanstack/react-router'
 import type * as AuthModule from '@/lib/server/auth'
 
-vi.mock('@tanstack/react-router', () => ({
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof RouterModule>()),
   useRouter: () => ({ invalidate: () => Promise.resolve() })
 }))
 

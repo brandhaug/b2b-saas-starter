@@ -1,4 +1,5 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- inline SVG can't be an <img>; role="img" + aria-label is the canonical pattern */
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The schematic's addressable nodes: the stage a narrative scroll is on can
@@ -60,9 +61,6 @@ export function ArchitectureSchematic({
   )
 }
 
-const SCHEMATIC_ARIA =
-  'Schematic of the starter architecture: browser, REST and MCP clients, and queue jobs flow into the web, api, and background Workers, through the shared capabilities package, to D1, Queues, and Email.'
-
 function FullSchematic({
   activeNodes,
   className
@@ -75,10 +73,10 @@ function FullSchematic({
     <svg
       viewBox="0 0 560 460"
       role="img"
-      aria-label={SCHEMATIC_ARIA}
+      aria-label={m.public_architecture_aria()}
       className={className}
     >
-      <title>Request topology of the B2B SaaS Starter</title>
+      <title>{m.public_architecture_title()}</title>
 
       {/* wire routes (also used as pulse motion paths) — strokes at /60 clear
           the 3:1 non-text contrast bar against the card surface; /45 did not */}
@@ -105,10 +103,25 @@ function FullSchematic({
 
       {/* clients (external world: dashed) */}
       <g>
-        <ClientNode x={16} y={48} label="browser" active={active.has('browser')} />
+        <ClientNode
+          x={16}
+          y={48}
+          label={m.shell_diagram_browser()}
+          active={active.has('browser')}
+        />
         <ClientNode x={16} y={128} label="curl / SDK" active={active.has('curl')} />
-        <ClientNode x={16} y={188} label="MCP client" active={active.has('mcp')} />
-        <ClientNode x={16} y={294} label="queue jobs" active={active.has('queue')} />
+        <ClientNode
+          x={16}
+          y={188}
+          label={m.shell_diagram_mcp_client()}
+          active={active.has('mcp')}
+        />
+        <ClientNode
+          x={16}
+          y={294}
+          label={m.shell_diagram_queue_jobs()}
+          active={active.has('queue')}
+        />
       </g>
 
       {/* workers */}
@@ -220,7 +233,7 @@ function FullSchematic({
           className="fill-muted-foreground text-4xs"
           dominantBaseline="middle"
         >
-          B2B-SAAS-STARTER · REQUEST TOPOLOGY
+          {m.shell_diagram_topology()}
         </text>
         <text
           x="344"
@@ -228,7 +241,7 @@ function FullSchematic({
           className="fill-muted-foreground text-4xs"
           dominantBaseline="middle"
         >
-          CLOUDFLARE-FIRST · ALCHEMY v2 · SHEET 1/1
+          {m.shell_diagram_sheet()}
         </text>
       </g>
     </svg>
@@ -404,10 +417,10 @@ function DenseSchematic({
     <svg
       viewBox="0 0 368 278"
       role="img"
-      aria-label={SCHEMATIC_ARIA}
+      aria-label={m.public_architecture_aria()}
       className={className}
     >
-      <title>Request topology of the B2B SaaS Starter</title>
+      <title>{m.public_architecture_title()}</title>
 
       <g className="stroke-muted-foreground/60" fill="none" strokeWidth="1">
         <path d="M84 25 H132" strokeDasharray="4 3" />
@@ -436,7 +449,7 @@ function DenseSchematic({
           x={0}
           y={12}
           w={84}
-          label="browser"
+          label={m.shell_diagram_browser()}
           dashed
           active={active.has('browser')}
         />
@@ -452,7 +465,7 @@ function DenseSchematic({
           x={0}
           y={148}
           w={84}
-          label="MCP client"
+          label={m.shell_diagram_mcp_client()}
           dashed
           active={active.has('mcp')}
         />
@@ -460,7 +473,7 @@ function DenseSchematic({
           x={0}
           y={232}
           w={84}
-          label="queue jobs"
+          label={m.shell_diagram_queue_jobs()}
           dashed
           active={active.has('queue')}
         />

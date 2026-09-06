@@ -7,12 +7,16 @@ import {
   type NotificationEmailQueueMessage
 } from './notification-email-queue.ts'
 import { type NotificationKind } from './notification-kinds.ts'
+import { type Locale } from '@b2b-saas-starter/i18n/locale'
 import { type NotificationPreferencesInterface } from './notification-preferences.ts'
 
 export type EmailQueueRecipient = {
   readonly userId: string
   readonly email: string
   readonly name: string
+  /** Saved account locale, when the recipient has selected one. */
+  readonly locale?: Locale | null | undefined
+  readonly timeZone?: string | null | undefined
 }
 
 type InstantFanOutInput = {

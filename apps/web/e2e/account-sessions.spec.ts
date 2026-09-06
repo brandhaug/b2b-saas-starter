@@ -15,6 +15,8 @@ async function signIn(page: Page, email: string, redirect: string): Promise<void
   await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.waitForURL((url) => url.pathname === redirect)
+  await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
+  await expect(page.locator('header select')).toBeEnabled()
 }
 
 /**
@@ -67,11 +69,12 @@ test('revoking the other session signs that device out', async ({ browser }) => 
   await here.reload()
 
   await expect(here.getByRole('heading', { name: 'Active sessions' })).toBeVisible()
+  await expect(here.locator('header select')).toBeEnabled()
   await here.getByText('· This device').waitFor()
 
   // The other device is the newest session with its distinctive label, and
   // the list sorts newest first — so the first match is this test's session.
-  await here.getByRole('button', { name: 'Revoke Browser session' }).first().click()
+  await here.getByRole('button', { name: 'Revoke session on Browser' }).first().click()
   // Base UI's AlertDialog exposes `alertdialog`, per the ARIA pattern.
   const revokeDone = here.waitForResponse(
     (response) =>

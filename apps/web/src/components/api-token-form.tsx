@@ -14,8 +14,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { SecretReveal } from '@/components/secret-reveal'
 import { createApiTokenServerFn } from '@/lib/server/api-tokens'
 import { callServerFn } from '@/lib/server-call'
-
-const CREATE_TOKEN_FAILED = 'Failed to create token'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 type ApiTokenValues = {
   name: string
@@ -31,10 +30,10 @@ const DEFAULT_TOKEN_VALUES: ApiTokenValues = {
 
 function validateTokenName(value: string): string | undefined {
   if (value.trim().length === 0) {
-    return 'Token name is required'
+    return m.token_name_required()
   }
   if (value.length > 100) {
-    return 'Token name must be at most 100 characters'
+    return m.token_name_maximum()
   }
   return
 }
@@ -85,7 +84,7 @@ export function ApiTokenForm({
         : data
       const outcome = await callServerFn(
         () => createToken({ data: request }),
-        CREATE_TOKEN_FAILED
+        m.api_token_create_failed()
       )
 
       if (!outcome.ok) {
@@ -120,12 +119,12 @@ export function ApiTokenForm({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Token name"
+            label={m.form_token_name()}
             value={field.state.value}
             errors={field.state.meta.errors}
             onBlur={field.handleBlur}
             onChange={field.handleChange}
-            placeholder="MCP local client"
+            placeholder={m.form_token_placeholder()}
           />
         )}
       </form.Field>
@@ -133,14 +132,13 @@ export function ApiTokenForm({
       <form.Field
         name="scopes"
         validators={{
-          onChange: ({ value }) =>
-            value.length === 0 ? 'Pick at least one scope' : undefined
+          onChange: ({ value }) => (value.length === 0 ? m.scope_required() : undefined)
         }}
       >
         {(field) => (
           <CheckboxSetField
             name={field.name}
-            legend="Scopes"
+            legend={m.scopes()}
             options={API_TOKEN_SCOPES}
             value={field.state.value}
             errors={field.state.meta.errors}
@@ -154,14 +152,14 @@ export function ApiTokenForm({
         validators={{
           onChange: ({ value }) =>
             value && !(Date.parse(`${value}Z`) > Date.now())
-              ? 'Choose an expiry in the future'
+              ? m.expiry_future_required()
               : undefined
         }}
       >
         {(field) => (
           <FormTextField
             name="create-token-expiry"
-            label="Expiry (UTC, optional)"
+            label={m.form_expiry()}
             type="datetime-local"
             value={field.state.value}
             errors={field.state.meta.errors}
@@ -170,9 +168,7 @@ export function ApiTokenForm({
           />
         )}
       </form.Field>
-      <p className="text-xs text-muted-foreground">
-        Leave expiry empty for a token that does not expire.
-      </p>
+      <p className="text-xs text-muted-foreground">{m.form_expiry_hint()}</p>
 
       <form.Subscribe
         selector={(state): readonly [boolean, boolean] => [
@@ -187,7 +183,7 @@ export function ApiTokenForm({
             className="justify-self-start"
           >
             {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-            Create token
+            {m.form_create_token()}
           </Button>
         )}
       </form.Subscribe>
@@ -197,18 +193,14 @@ export function ApiTokenForm({
         // from every neutral box on the page, and the title carries the copy
         // guidance — this is the only chance to take the token.
         <Alert variant="ok" className="justify-self-start">
-          <AlertTitle>
-            Token created. Copy it now, it will not be shown again.
-          </AlertTitle>
+          <AlertTitle>{m.token_created_copy_now()}</AlertTitle>
           <AlertDescription>
             <SecretReveal
               secret={created.token}
-              label="API token"
+              label={m.form_api_token()}
               className="flex items-center gap-2"
             />
-            <p className="mt-2 text-xs">
-              Store it in your secret manager before leaving this page.
-            </p>
+            <p className="mt-2 text-xs">{m.token_store_secret()}</p>
           </AlertDescription>
         </Alert>
       ) : null}

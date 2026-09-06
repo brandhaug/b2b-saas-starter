@@ -4,6 +4,7 @@ import { renderWithRouter } from '@/test/router-harness'
 import { authClient } from '@/lib/auth-client'
 import { type RequestPasswordReset } from '@/components/auth/auth-client-ports'
 import { ForgotPasswordPage } from './forgot-password'
+import * as m from '@b2b-saas-starter/i18n/messages'
 
 // The link request stays a prop: `requestPasswordResetWithAuthClient`
 // composes the redirect, so the test drives the kept behaviour seam
@@ -42,7 +43,7 @@ describe('ForgotPasswordPage', () => {
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'not-an-email' }
     })
-    await screen.findByText('Enter a valid email')
+    await screen.findByText(m.public_auth_valid_email())
     const submit = screen.getByRole<HTMLButtonElement>('button', {
       name: 'Send reset link'
     })
@@ -58,7 +59,7 @@ describe('ForgotPasswordPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
     await waitFor(() => expect(requestReset).toHaveBeenCalledTimes(1))
     expect(requestReset).toHaveBeenCalledWith({ email: 'demo@starter.local' })
-    await screen.findByText(/check your inbox for a reset link/i)
+    await screen.findByText(m.reset_link_sent_notice())
     expect(screen.queryByLabelText('Email')).toBeNull()
   })
 
@@ -71,7 +72,7 @@ describe('ForgotPasswordPage', () => {
       target: { value: 'nobody@nowhere.test' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
-    const message = await screen.findByText(/check your inbox for a reset link/i)
+    const message = await screen.findByText(m.reset_link_sent_notice())
     expect(message.textContent).not.toContain('nobody@nowhere.test')
   })
 
@@ -105,14 +106,14 @@ describe('ForgotPasswordPage', () => {
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'demo@starter.local' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
+    fireEvent.click(screen.getByRole('button', { name: m.email_code_instead() }))
     await waitFor(() =>
       expect(requestCode).toHaveBeenCalledWith({ email: 'demo@starter.local' })
     )
     await screen.findByText('Enter your code')
     // The non-disclosure rule holds on the code path too: the confirmation
     // never echoes the address.
-    const step = screen.getByText(/six-digit code/i)
+    const step = screen.getByText(m.reset_code_sent_notice())
     expect(step.textContent).not.toContain('demo@starter.local')
   })
 
@@ -121,8 +122,8 @@ describe('ForgotPasswordPage', () => {
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'not-an-email' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
-    await screen.findByText('Enter a valid email')
+    fireEvent.click(screen.getByRole('button', { name: m.email_code_instead() }))
+    await screen.findByText(m.public_auth_valid_email())
     expect(requestCode).not.toHaveBeenCalled()
   })
 
@@ -131,7 +132,7 @@ describe('ForgotPasswordPage', () => {
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'demo@starter.local' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
+    fireEvent.click(screen.getByRole('button', { name: m.email_code_instead() }))
     await screen.findByText('Enter your code')
     fireEvent.change(screen.getByLabelText('Digit 1 of 6'), {
       target: { value: '246813' }
@@ -158,7 +159,7 @@ describe('ForgotPasswordPage', () => {
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'demo@starter.local' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
+    fireEvent.click(screen.getByRole('button', { name: m.email_code_instead() }))
     await screen.findByText('Enter your code')
     // The reset rides the email-OTP plugin, whose wrong-code answer is
     // `INVALID_OTP` (not the two-factor plugin's `INVALID_CODE`) — the code
@@ -186,9 +187,9 @@ describe('ForgotPasswordPage', () => {
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'demo@starter.local' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Email me a code instead' }))
+    fireEvent.click(screen.getByRole('button', { name: m.email_code_instead() }))
     await screen.findByText('Enter your code')
-    fireEvent.click(screen.getByText('Use the link instead'))
+    fireEvent.click(screen.getByText(m.use_link_instead()))
     expect(await screen.findByLabelText('Email')).toBeDefined()
     expect(screen.getByRole('button', { name: 'Send reset link' })).toBeDefined()
   })

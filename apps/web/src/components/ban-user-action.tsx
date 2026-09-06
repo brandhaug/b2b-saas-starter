@@ -17,6 +17,7 @@ import {
   type SystemUser
 } from '@/lib/server/admin'
 import { useServerAction } from '@/hooks/use-server-action'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * Row-level ban/unban for `/admin`'s users table: a confirmed destructive
@@ -27,14 +28,17 @@ import { useServerAction } from '@/hooks/use-server-action'
 export function BanUserAction({ user }: { readonly user: SystemUser }) {
   const [open, setOpen] = useState(false)
   const banned = user.banned
-  const verb = banned ? 'Unban' : 'Ban'
+  const verb = banned ? m.admin_user_unban() : m.admin_user_ban()
 
   const confirm = useServerAction(
     () =>
       banned
         ? unbanSystemUserServerFn({ data: { userId: user.id } })
         : banSystemUserServerFn({ data: { userId: user.id } }),
-    { failureMessage: `${verb} failed`, onSuccess: () => setOpen(false) }
+    {
+      failureMessage: m.admin_ban_failed({ action: verb }),
+      onSuccess: () => setOpen(false)
+    }
   )
 
   return (
@@ -49,16 +53,16 @@ export function BanUserAction({ user }: { readonly user: SystemUser }) {
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogTitle>
-            {verb} {user.email}?
+            {m.admin_user_ban_title({ action: verb, email: user.email })}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {banned
-              ? 'The user will be able to sign in again.'
-              : 'The user will be signed out and blocked from signing in.'}
+            {banned ? m.admin_user_unban_description() : m.admin_user_ban_description()}
           </AlertDialogDescription>
           {confirm.error === null ? null : <ActionFeedback error={confirm.error} />}
           <div className="flex justify-end gap-2">
-            <AlertDialogCancel disabled={confirm.pending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={confirm.pending}>
+              {m.common_cancel()}
+            </AlertDialogCancel>
             <AlertDialogAction
               variant={banned ? 'default' : 'destructive'}
               disabled={confirm.pending}

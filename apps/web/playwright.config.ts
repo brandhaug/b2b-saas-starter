@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const port = Number(process.env.E2E_PORT ?? 3071)
+const baseURL = `http://localhost:${port}`
+
 export default defineConfig({
   testDir: './e2e',
   // 90s, not 30s: specs run in parallel workers, and the first ones to open
@@ -12,7 +15,7 @@ export default defineConfig({
   // behaviour, and a rerun lands on an already-warm transform cache.
   retries: process.env.CI ? 1 : 0,
   use: {
-    baseURL: 'http://localhost:3071',
+    baseURL,
     trace: 'on-first-retry'
   },
   webServer: {
@@ -20,8 +23,12 @@ export default defineConfig({
     // taken, and the readiness probe below polls :3071 until the webServer
     // timeout — a three-minute hang whose only symptom is a missing banner.
     // Fail fast instead so the cause is visible.
-    command: 'pnpm run dev -- --strictPort',
-    url: 'http://localhost:3071',
+    command: `pnpm run dev --port ${port} --strictPort`,
+    url: baseURL,
+    env: {
+      BETTER_AUTH_URL: baseURL,
+      BETTER_AUTH_TRUSTED_ORIGINS: baseURL
+    },
     // Locally a dev server on :3071 is usually already running and reusing it
     // saves a cold start. CI always starts its own: a process still holding
     // the port there is a leak from an earlier step, and silently testing

@@ -4,6 +4,7 @@ import { SignInPage } from '@/components/auth/sign-in-page'
 import { getSocialProviderIds } from '@/lib/server/social-providers'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { pickOptionalStrings } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The page itself (card contents, outcome ladder, footer) lives in
 // `components/auth/sign-in-page.tsx`, beside the other auth components; this
@@ -25,7 +26,7 @@ export const Route = createFileRoute('/sign-in')({
     turnstileSiteKey: await getTurnstileSiteKey()
   }),
   component: SignInRoute,
-  head: () => ({ meta: [{ title: pageTitle('Sign in') }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_sign_in()) }] })
 })
 
 /**

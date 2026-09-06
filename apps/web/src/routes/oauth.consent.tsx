@@ -19,6 +19,7 @@ import {
 } from '@/lib/server/mcp-consent'
 import { callServerFn } from '@/lib/server-call'
 import { pickOptionalStrings } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The OAuth consent page (ADR 0068): an MCP client has asked to connect, the
@@ -44,7 +45,7 @@ export const Route = createFileRoute('/oauth/consent')({
   },
   loader: ({ deps }) => loadOAuthConsentServerFn({ data: { clientId: deps.clientId } }),
   component: OAuthConsentRoute,
-  head: () => ({ meta: [{ title: pageTitle('Connect an MCP client') }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_oauth_consent()) }] })
 })
 /** The page's two server calls, as ports — a test drives the page with plain functions. */
 export type GrantConsent = (input: {
@@ -66,9 +67,6 @@ function OAuthConsentRoute() {
     />
   )
 }
-
-const GRANT_FAILED = 'The connection could not be authorized'
-const DENY_FAILED = 'The request could not be declined'
 
 /** What `callServerFn` folds a server call into — restated so `grantPicked`'s refusal shares the shape without a promise wrapper. */
 type ConsentOutcome =
@@ -106,19 +104,23 @@ export function OAuthConsentPage({
   const [pending, setPending] = useState<'grant' | 'deny' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const clientName = payload.client?.name ?? request?.clientId ?? 'An MCP client'
+  const clientName =
+    payload.client?.name ?? request?.clientId ?? m.oauth_unnamed_client()
   const canGrant = request !== null && oauthQuery !== null && workspaceId !== null
 
   async function decide(action: 'grant' | 'deny') {
     if (oauthQuery === null) {
-      setError('This page was opened without an authorization request.')
+      setError(m.oauth_request_missing())
       return
     }
     setPending(action)
     setError(null)
     const outcome =
       action === 'deny'
-        ? await callServerFn(() => deny({ data: { oauthQuery } }), DENY_FAILED)
+        ? await callServerFn(
+            () => deny({ data: { oauthQuery } }),
+            m.oauth_deny_failed()
+          )
         : await grantPicked(oauthQuery)
     if (!outcome.ok) {
       setPending(null)
@@ -137,48 +139,40 @@ export function OAuthConsentPage({
     if (workspaceId === null) {
       // The Allow control is disabled without a pick; this is the honest
       // answer if one ever gets through.
-      return { ok: false, message: 'Pick the workspace to connect first.' }
+      return { ok: false, message: m.oauth_pick_workspace() }
     }
     return callServerFn(
       () => grant({ data: { workspaceId, oauthQuery: query } }),
-      GRANT_FAILED
+      m.oauth_grant_failed()
     )
   }
 
   return (
     <AuthCardForm
-      title={`Connect ${clientName}`}
+      title={m.oauth_connect_title({ client: clientName })}
       description={
-        payload.client?.uri ? (
-          <>
-            <span className="font-mono text-xs">{payload.client.uri}</span> wants to
-            connect to one of your workspaces through the MCP server.
-          </>
-        ) : (
-          'An MCP client wants to connect to one of your workspaces through the MCP server.'
-        )
+        payload.client?.uri
+          ? m.oauth_connect_with_uri({ uri: payload.client.uri })
+          : m.oauth_connect_without_uri()
       }
       form={null}
       error={error}
     >
       {request === null ? (
-        <ActionFeedback error="This page was opened without an authorization request. Start the connection from your MCP client again." />
+        <ActionFeedback error={m.oauth_request_missing()} />
       ) : (
         <>
           <section className="grid gap-2" aria-labelledby="consent-workspace">
             <h2 id="consent-workspace" className="text-sm font-semibold">
-              Workspace
+              {m.oauth_workspace()}
             </h2>
             {payload.workspaces.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Your account is not a member of any workspace yet. Create or join one,
-                then start the connection again.
-              </p>
+              <p className="text-sm text-muted-foreground">{m.oauth_no_membership()}</p>
             ) : (
               <RadioGroup
                 value={workspaceId}
                 onValueChange={(value) => setWorkspaceId(String(value))}
-                aria-label="Workspace to connect"
+                aria-label={m.oauth_workspace()}
               >
                 {payload.workspaces.map(({ workspace, memberCount }) => (
                   <Label
@@ -191,22 +185,19 @@ export function OAuthConsentPage({
                       <span className="text-xs text-muted-foreground">
                         {workspace.slug} ·{' '}
                         <span className="font-mono tabular-nums">{memberCount}</span>{' '}
-                        {memberCount === 1 ? 'member' : 'members'}
+                        {m.oauth_member_count({ count: memberCount })}
                       </span>
                     </span>
                   </Label>
                 ))}
               </RadioGroup>
             )}
-            <p className="text-xs text-muted-foreground">
-              The client sees exactly one workspace, with what your role there allows.
-              Nothing else on your account.
-            </p>
+            <p className="text-xs text-muted-foreground">{m.oauth_role_scope()}</p>
           </section>
 
           <section className="grid gap-2" aria-labelledby="consent-scopes">
             <h2 id="consent-scopes" className="text-sm font-semibold">
-              The client asks to
+              {m.oauth_client_asks()}
             </h2>
             <ul className="grid gap-1 text-sm">
               {request.scopes.map((scope) => (
@@ -231,7 +222,7 @@ export function OAuthConsentPage({
               onClick={() => void decide('deny')}
             >
               {pending === 'deny' ? <Spinner /> : null}
-              Decline
+              {m.oauth_decline()}
             </Button>
             <Button
               type="button"
@@ -239,7 +230,7 @@ export function OAuthConsentPage({
               onClick={() => void decide('grant')}
             >
               {pending === 'grant' ? <Spinner /> : null}
-              Allow access
+              {m.oauth_allow()}
             </Button>
           </div>
         </>

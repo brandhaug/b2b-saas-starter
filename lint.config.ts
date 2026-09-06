@@ -492,7 +492,9 @@ const { lint = {} } = defineConfig({
       '.context/**',
       'dist/**',
       '.output/**',
-      'apps/web/src/routeTree.gen.ts'
+      'apps/web/src/routeTree.gen.ts',
+      'packages/i18n/src/generated/**',
+      'packages/i18n/.generated/**'
     ],
     rules: {
       ...enable('', CORE),

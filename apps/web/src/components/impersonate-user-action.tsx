@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { impersonateUserServerFn, type SystemUser } from '@/lib/server/admin'
 import { useServerAction } from '@/hooks/use-server-action'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** The one server call this action makes, as a port. */
 export type ImpersonateUser = (input: {
@@ -43,7 +44,7 @@ export function ImpersonateUserAction({
       await router.invalidate()
       await router.navigate({ to: '/workspaces' })
     },
-    { failureMessage: 'Impersonation failed', invalidate: false }
+    { failureMessage: m.impersonation_failed(), invalidate: false }
   )
 
   if (user.role === 'admin') {
@@ -54,19 +55,18 @@ export function ImpersonateUserAction({
     <>
       <Button
         variant="ghost"
-        aria-label={`Impersonate ${user.email}`}
+        aria-label={m.impersonate_title({ email: user.email })}
         onClick={() => setOpen(true)}
       >
-        Impersonate
+        {m.impersonate_action()}
       </Button>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
-          <AlertDialogTitle>Impersonate {user.email}?</AlertDialogTitle>
+          <AlertDialogTitle>
+            {m.impersonate_title({ email: user.email })}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            You will browse as {user.name} for up to an hour, or until you stop. The
-            session cannot change their password, two-factor settings, or email, or
-            delete the account. The user is notified and the audit trail records both of
-            you.
+            {m.impersonate_description({ name: user.name })}
           </AlertDialogDescription>
           {confirm.error === null ? null : (
             <p role="alert" className="text-xs text-destructive">
@@ -74,10 +74,12 @@ export function ImpersonateUserAction({
             </p>
           )}
           <div className="flex justify-end gap-2">
-            <AlertDialogCancel disabled={confirm.pending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={confirm.pending}>
+              {m.common_cancel()}
+            </AlertDialogCancel>
             <AlertDialogAction disabled={confirm.pending} onClick={() => confirm.run()}>
               {confirm.pending ? <Spinner data-icon="inline-start" /> : null}
-              Impersonate
+              {m.impersonate_action()}
             </AlertDialogAction>
           </div>
         </AlertDialogContent>

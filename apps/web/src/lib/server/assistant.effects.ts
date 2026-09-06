@@ -1,3 +1,4 @@
+import { m } from '@b2b-saas-starter/i18n/messages'
 import {
   AssistantService,
   isAssistantConfigured,
@@ -20,7 +21,7 @@ import {
   type AskAssistantOutcome,
   type AssistantRefused
 } from './assistant'
-import { ASSISTANT_UNCONFIGURED_MESSAGE } from '../assistant-copy'
+import { assistantUnconfiguredMessage } from '../assistant-copy'
 
 /**
  * The assistant effects and their server-only wiring, reached only through
@@ -60,7 +61,7 @@ export async function askAssistantHandler(
         return {
           ok: false,
           reason: 'unconfigured',
-          message: ASSISTANT_UNCONFIGURED_MESSAGE
+          message: assistantUnconfiguredMessage()
         } satisfies AssistantRefused
       }
       const service = yield* AssistantService
@@ -75,11 +76,11 @@ export async function askAssistantHandler(
             provider: reply.provider,
             modelId: reply.modelId
           })),
-          Effect.catchTag('AssistantUnavailable', (error) =>
+          Effect.catchTag('AssistantUnavailable', () =>
             Effect.succeed<AssistantRefused>({
               ok: false,
               reason: 'unavailable',
-              message: `The assistant could not answer right now (${error.reason}).`
+              message: m.server_assistant_unavailable()
             })
           )
         )

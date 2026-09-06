@@ -4,7 +4,7 @@ import { Effect } from 'effect'
 import { authRuntime } from '../auth-runtime'
 import {
   TWO_FACTOR_REQUIRED_ERROR_CODE,
-  TWO_FACTOR_REQUIRED_MESSAGE
+  twoFactorRequiredMessage
 } from '../two-factor-refusal'
 import { withWebRequestScope } from '../observability'
 import { type AuthExchange } from './auth-audit/exchanges'
@@ -113,7 +113,7 @@ export function twoFactorRefusal(exchange: {
     return new Response(
       JSON.stringify({
         code: TWO_FACTOR_REQUIRED_ERROR_CODE,
-        message: TWO_FACTOR_REQUIRED_MESSAGE
+        message: twoFactorRequiredMessage()
       }),
       { status: 403, headers: { 'content-type': 'application/json; charset=utf-8' } }
     )

@@ -1,3 +1,5 @@
+import { m } from '@b2b-saas-starter/i18n/messages'
+import { roleLabel } from '@/lib/value-labels'
 import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { WORKSPACE_ROLES } from '@/lib/permissions'
 
@@ -54,7 +56,7 @@ export function RoleChangeButtons({
       onClick={() => onChange(role)}
     >
       {busy ? <Spinner data-icon="inline-start" /> : null}
-      Make {role}
+      {m.shell_make_role({ role: roleLabel(role) })}
     </Button>
   ))
 }

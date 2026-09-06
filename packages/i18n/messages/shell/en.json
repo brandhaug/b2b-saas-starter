@@ -1,0 +1,158 @@
+{
+  "shell_demo_read_only": "The live demo is read-only. Clone the starter and sign in as demo@starter.local to interact.",
+  "shell_description": "Cloudflare-first B2B SaaS starter with TanStack Start, Effect v4, Drizzle D1, Better Auth, REST, MCP, email, and tests.",
+  "shell_not_found": "Page not found",
+  "shell_not_found_description": "The page you are looking for does not exist.",
+  "shell_home": "Go home",
+  "shell_unavailable": "Temporarily unavailable",
+  "shell_unavailable_description": "This service is temporarily unavailable. Please try again later.",
+  "shell_error": "Something went wrong",
+  "shell_error_description": "An unexpected error occurred. Try again.",
+  "shell_language": "Language",
+  "shell_preferences": "Language and region",
+  "shell_preferences_description": "Your language applies across devices and to emails. Choose the time zone used to display dates and times.",
+  "shell_time_zone": "Time zone",
+  "shell_time_zone_hint": "Use an IANA time zone, such as Europe/Oslo or America/New_York.",
+  "shell_save": "Save preferences",
+  "shell_saving": "Saving…",
+  "shell_save_error": "Could not save your preferences. Try again.",
+  "shell_invalid_zone": "Enter a valid time zone, such as Europe/Oslo.",
+  "shell_unsaved_title": "Switch language and reload?",
+  "shell_unsaved_description": "You have edited a form on this page. Switching language reloads the page and may discard unfinished changes.",
+  "shell_cancel": "Cancel",
+  "shell_switch": "Switch language",
+  "shell_unauthorized": "Your session has expired. Sign in again and retry.",
+  "shell_forbidden": "You do not have permission to do this in this workspace. Ask a workspace owner or admin.",
+  "shell_no_principal": "You are not signed in to this workspace. Sign in again and retry.",
+  "shell_plan_limit": "Your workspace's {planId} plan allows at most {limit} of this resource. Upgrade the plan on the Billing page to create more.",
+  "shell_not_member": "That person is not a member of this workspace.",
+  "shell_sole_owner": "The workspace must keep an owner: transfer ownership to another member first.",
+  "shell_owner_required": "Only a workspace owner can grant or change an owner's role.",
+  "shell_membership_refused": "The workspace refused this membership change.",
+  "shell_unknown_user": "That account does not exist.",
+  "shell_impersonate_self": "A System Admin cannot impersonate themself.",
+  "shell_impersonate_admin": "A System Admin cannot impersonate another admin.",
+  "shell_not_impersonating": "This session is not impersonating anyone.",
+  "shell_admin_refused": "The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner. The system role confers nothing inside a workspace.",
+  "shell_preferences_reload_title": "Save preferences and reload?",
+  "shell_preferences_reload_description": "Other forms on this page have been edited. Saving these preferences reloads the page and may discard unfinished changes.",
+  "shell_invalid_locale": "Choose a supported language.",
+  "shell_plan_starter_description": "Local development and reference implementation review.",
+  "shell_plan_team_description": "The shape most B2B SaaS products adapt first.",
+  "shell_plan_enterprise_description": "SAML, procurement, custom compliance, and support patterns.",
+  "shell_plan_custom": "Custom",
+  "shell_plan_seat_price": "{amount}/seat/mo",
+  "shell_plan_month_price": "{amount}/mo",
+  "shell_plan_upgrade": "Upgrade to {name}",
+  "shell_plan_contact": "Contact sales to move to {name}.",
+  "shell_plan_downgrade": "Downgrades are handled by the provider subscription flow.",
+  "shell_plan_entitlements": "{name} allows {seats}, {tokens} and {webhooks}.",
+  "shell_plan_seat_per_member": "one seat per member",
+  "shell_plan_unlimited_seats": "unlimited seats",
+  "shell_plan_unlimited_tokens": "unlimited API tokens",
+  "shell_plan_unlimited_webhooks": "unlimited webhook endpoints",
+  "shell_plan_billed_member": "Billed per member",
+  "shell_plan_unlimited_label": "Unlimited {label}",
+  "shell_plan_limit_label": "{label}: up to {limit}",
+  "shell_plan_seats": [
+    {
+      "declarations": [
+        "input count",
+        "input formattedCount",
+        "local category = count: plural"
+      ],
+      "selectors": ["category"],
+      "match": {
+        "category=one": "up to {formattedCount} seat",
+        "category=other": "up to {formattedCount} seats"
+      }
+    }
+  ],
+  "shell_plan_tokens": [
+    {
+      "declarations": [
+        "input count",
+        "input formattedCount",
+        "local category = count: plural"
+      ],
+      "selectors": ["category"],
+      "match": {
+        "category=one": "{formattedCount} API token",
+        "category=other": "up to {formattedCount} API tokens"
+      }
+    }
+  ],
+  "shell_plan_webhooks": [
+    {
+      "declarations": [
+        "input count",
+        "input formattedCount",
+        "local category = count: plural"
+      ],
+      "selectors": ["category"],
+      "match": {
+        "category=one": "{formattedCount} webhook endpoint",
+        "category=other": "up to {formattedCount} webhook endpoints"
+      }
+    }
+  ],
+  "shell_table_sort_asc": "Sort by {column}, currently ascending",
+  "shell_table_sort_desc": "Sort by {column}, currently descending",
+  "shell_table_sort": "Sort by {column}",
+  "shell_table_empty": "No results.",
+  "shell_table_filter": "Filter…",
+  "shell_table_filter_rows": "Filter rows",
+  "shell_table_previous": "Previous",
+  "shell_table_next": "Next",
+  "shell_chart_empty": "No webhook endpoints configured yet.",
+  "shell_chart_delivered": "{percent} delivered",
+  "shell_chart_success_rate": "{endpoint}: {percent} success rate",
+  "shell_chart_success": "Success",
+  "shell_table_page": [
+    {
+      "declarations": [
+        "input count",
+        "input rows",
+        "input page",
+        "input pages",
+        "local category = count: plural"
+      ],
+      "selectors": ["category"],
+      "match": {
+        "category=one": "Page {page} of {pages} · {rows} row",
+        "category=other": "Page {page} of {pages} · {rows} rows"
+      }
+    }
+  ],
+  "shell_confirm_again": "Press again to confirm",
+  "shell_confirm_target": "Press again to confirm {target}",
+  "shell_cancel_target": "Cancel {target}",
+  "shell_action_target": "{action} {target}",
+  "shell_role_owner": "owner",
+  "shell_role_admin": "admin",
+  "shell_role_member": "member",
+  "shell_role_user": "user",
+  "shell_status_pending": "pending",
+  "shell_status_accepted": "accepted",
+  "shell_status_rejected": "rejected",
+  "shell_status_canceled": "canceled",
+  "shell_status_delivered": "delivered",
+  "shell_status_failed": "failed",
+  "shell_status_failed_permanent": "failed_permanent",
+  "shell_status_dead_lettered": "dead_lettered",
+  "shell_status_ready": "ready",
+  "shell_make_role": "Make {role}",
+  "shell_workspace_role": "Make {workspace} role {role}",
+  "shell_command_menu": "Command menu",
+  "shell_impersonated_sign_in": "Sign-in methods cannot be changed while impersonating this user.",
+  "shell_impersonated_two_factor": "Two-factor settings cannot be changed while impersonating this user.",
+  "shell_impersonated_passkeys": "Passkeys cannot be changed while impersonating this user.",
+  "shell_impersonated_deletion": "The account cannot be deleted while impersonating this user.",
+  "shell_diagram_browser": "browser",
+  "shell_diagram_mcp_client": "MCP client",
+  "shell_diagram_queue_jobs": "queue jobs",
+  "shell_diagram_topology": "B2B-SAAS-STARTER · REQUEST TOPOLOGY",
+  "shell_diagram_sheet": "CLOUDFLARE-FIRST · ALCHEMY v2 · SHEET 1/1",
+  "shell_trace_workspace_group": "HttpApiEndpoint · the workspace group",
+  "shell_trace_overview": "Effect · the overview projection"
+}

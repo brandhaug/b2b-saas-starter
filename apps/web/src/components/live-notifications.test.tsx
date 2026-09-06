@@ -99,7 +99,7 @@ describe('LiveNotifications', () => {
     listNotifications.mockRejectedValue(new Error('Session expired'))
     renderCard(fallback)
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain('Session expired')
+    expect(alert.textContent).toContain('Could not refresh notifications.')
     screen.getByText('Webhook delivered')
   })
 
@@ -112,9 +112,9 @@ describe('LiveNotifications', () => {
     )
     // The failure renders inside the row that produced it, not at the panel
     // foot far below the button.
-    await screen.findByText(/Write refused/)
+    await screen.findByText(/Could not mark the notification read/)
     const row = screen.getByText('Webhook delivered').closest('[role="listitem"]')
-    expect(row?.textContent).toContain('Write refused')
+    expect(row?.textContent).toContain('Could not mark the notification read.')
   })
 
   it('shows a mark-all failure once, outside the rows', async () => {
@@ -123,8 +123,12 @@ describe('LiveNotifications', () => {
     renderCard(allUnread)
     fireEvent.click(screen.getByRole('button', { name: /Mark all read/ }))
     // One alert for the bulk action — it is not repeated on every row.
-    await screen.findByText(/Write refused/)
-    expect(screen.getAllByText(/Write refused/)).toHaveLength(1)
-    expect(screen.getByText(/Write refused/).closest('[role="listitem"]')).toBeNull()
+    await screen.findByText(/Could not mark the notification read/)
+    expect(screen.getAllByText(/Could not mark the notification read/)).toHaveLength(1)
+    expect(
+      screen
+        .getByText(/Could not mark the notification read/)
+        .closest('[role="listitem"]')
+    ).toBeNull()
   })
 })

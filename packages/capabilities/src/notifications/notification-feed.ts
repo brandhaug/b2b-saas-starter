@@ -4,6 +4,11 @@ import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext, type Actor } from '../workspace-context.ts'
 import { type NotificationEmailQueueBinding } from './notification-email-queue.ts'
 import { NotificationKind } from './notification-kinds.ts'
+import { type Locale } from '@b2b-saas-starter/i18n/locale'
+import {
+  NotificationEventSchema,
+  type NotificationEvent
+} from './notification-events.ts'
 
 export const Notification = Schema.Struct({
   id: Schema.String,
@@ -11,9 +16,13 @@ export const Notification = Schema.Struct({
   title: Schema.String,
   message: Schema.String,
   createdAt: Schema.String,
-  read: Schema.Boolean
+  read: Schema.Boolean,
+  event: Schema.optional(NotificationEventSchema)
 })
-export type Notification = typeof Notification.Type
+type NotificationSchemaType = typeof Notification.Type
+export type Notification = Omit<NotificationSchemaType, 'event'> & {
+  readonly event?: NotificationEvent | undefined
+}
 
 /** The wire input of `markRead`: the unread ids the actor is marking read. */
 export const MarkNotificationsReadInput = Schema.Struct({
@@ -27,6 +36,7 @@ export type MarkNotificationsReadInput = typeof MarkNotificationsReadInput.Type
  */
 export type SeedNotification = Notification & {
   readonly userId?: string | null
+  readonly event?: NotificationEvent | undefined
 }
 
 /**
@@ -43,12 +53,14 @@ export type CreateNotificationInput = {
   readonly kind: NotificationKind
   readonly title: string
   readonly message: string
+  readonly event?: NotificationEvent | undefined
 }
 
 /** What a producer hands `record` — the feed-only workspace message. */
 type RecordNotificationInput = {
   readonly title: string
   readonly message: string
+  readonly event?: NotificationEvent | undefined
   /** The member the message is for. */
   readonly userId: string
 }
@@ -67,6 +79,7 @@ export type NotifyUserInput = {
   readonly kind: NotificationKind
   readonly title: string
   readonly message: string
+  readonly event?: NotificationEvent | undefined
 }
 
 /**
@@ -78,6 +91,7 @@ export type NotifyWorkspaceOwnersInput = {
   readonly kind: NotificationKind
   readonly title: string
   readonly message: string
+  readonly event?: NotificationEvent | undefined
 }
 
 /** Who an email about a Notification goes to. */
@@ -85,6 +99,8 @@ export type NotificationRecipient = {
   readonly userId: string
   readonly email: string
   readonly name: string
+  readonly locale?: Locale | null | undefined
+  readonly timeZone?: string | null | undefined
 }
 
 export type NotificationWorkspace = {

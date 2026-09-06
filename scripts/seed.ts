@@ -23,6 +23,7 @@ import {
   demoMemberIdentity,
   demoUserIdentity,
   seedAuditEvents,
+  seedAccountPreferences,
   seedDeliveryAttempts,
   seedApiTokenValue,
   seedMcpClientConnections,
@@ -117,6 +118,9 @@ function insert<T extends Table>(
 
 const now = '2026-05-16T09:00:00.000Z'
 const workspaceSlug = 'starter-lab'
+const accountPreferencesById = new Map(
+  seedAccountPreferences.map((preference) => [preference.userId, preference])
+)
 
 /**
  * Membership rows now carry a surrogate id (the organization plugin addresses
@@ -190,16 +194,21 @@ function workspaceRows(fixture: Fixture): ReadonlyArray<string> {
 /** One `user` row per account the Seed layer knows, membership or not. */
 function userRows(fixture: Fixture): ReadonlyArray<string> {
   return fixture.accounts.map((identity) =>
-    insert(user, {
-      id: identity.id,
-      email: identity.email,
-      name: identity.name,
-      role: identity.systemRole,
-      banned: identity.banned,
-      emailVerified: true,
-      createdAt: 1_778_918_400,
-      updatedAt: 1_778_918_400
-    })
+    (() => {
+      const preferences = accountPreferencesById.get(identity.id)
+      return insert(user, {
+        id: identity.id,
+        email: identity.email,
+        name: identity.name,
+        role: identity.systemRole,
+        banned: identity.banned,
+        emailVerified: true,
+        locale: preferences?.locale ?? null,
+        timeZone: preferences?.timeZone ?? null,
+        createdAt: 1_778_918_400,
+        updatedAt: 1_778_918_400
+      })
+    })()
   )
 }
 
@@ -478,6 +487,7 @@ function notificationRows(fixture: Fixture): ReadonlyArray<string> {
       kind: notification.kind,
       title: notification.title,
       message: notification.message,
+      event: notification.event ?? null,
       readAt: readAt(notification.read),
       createdAt: notification.createdAt
     })

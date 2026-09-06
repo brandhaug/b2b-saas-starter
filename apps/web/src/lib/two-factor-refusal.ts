@@ -10,7 +10,9 @@
  * server gate and the client ports without dragging the auth client into a
  * server bundle.
  */
+import { m } from '@b2b-saas-starter/i18n/messages'
 export const TWO_FACTOR_REQUIRED_ERROR_CODE = 'two_factor_required'
 
-export const TWO_FACTOR_REQUIRED_MESSAGE =
-  'This account uses two-factor authentication. Sign in with your password and authenticator.'
+export function twoFactorRequiredMessage(): string {
+  return m.two_factor_required_message()
+}

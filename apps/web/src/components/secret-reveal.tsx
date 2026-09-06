@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Identifier } from '@/components/page/identifier'
 import { cn } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 function maskSecret(secret: string) {
   if (secret.length <= 8) {
@@ -44,13 +45,15 @@ export function SecretReveal({
         type="button"
         variant="ghost"
         className="shrink-0"
-        aria-label={revealed ? `Hide ${label}` : `Show ${label}`}
+        aria-label={
+          revealed ? m.action_hide_named({ label }) : m.action_show_named({ label })
+        }
         aria-pressed={revealed}
         onClick={() => {
           setRevealed((r) => !r)
         }}
       >
-        {revealed ? 'Hide' : 'Show'}
+        {revealed ? m.hide_action() : m.action_show()}
       </Button>
       <Button
         type="button"
@@ -58,7 +61,7 @@ export function SecretReveal({
         className="shrink-0"
         onClick={() => void copy()}
       >
-        Copy
+        {m.action_copy()}
         <span className="sr-only"> {label}</span>
       </Button>
       {/* Always mounted, content swapped: a live region must exist before the
@@ -67,7 +70,7 @@ export function SecretReveal({
           a toast per copy would be spam. It is the last flex child, so
           appearing shifts nothing to its left. */}
       <output className="shrink-0 text-xs font-medium text-status-ok">
-        {copied ? 'Copied' : ''}
+        {copied ? m.copy_success() : ''}
       </output>
     </span>
   )

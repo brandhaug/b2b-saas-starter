@@ -67,7 +67,12 @@ function notifyPermanentFailure(
       userId: null,
       kind: 'webhook.delivery_failed',
       title: 'Webhook delivery failed',
-      message: `${endpointUrl}: ${detail}`
+      message: `${endpointUrl}: ${detail}`,
+      event: {
+        type: 'webhook.permanent',
+        endpointUrl,
+        eventType: message.eventType
+      }
     })
   }).pipe(
     // The cause goes on the log record whole; the wide event keeps the flag.

@@ -9,6 +9,7 @@ import { PublicLayout } from '@/components/public-layout'
 import { getAllPostMeta } from '@/lib/blog'
 import { getAllDocMeta } from '@/lib/docs'
 import { loadDemoShowcaseServerFn } from '@/lib/server/demo-showcase'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/')({
   // The knowledge section lists recent content: metadata resolves here, so
@@ -34,17 +35,15 @@ export const Route = createFileRoute('/')({
   component: HomePage,
   head: () => ({
     meta: [
-      { title: 'B2B SaaS Starter: Cloudflare-first production starter' },
+      { title: m.landing_tagline() },
       {
         name: 'description',
-        content:
-          'A reference B2B SaaS starter with TanStack Start, Effect v4, Drizzle D1, Better Auth, REST and MCP, Cloudflare Email, Stripe-ready billing, and audit events.'
+        content: m.landing_description()
       },
-      { property: 'og:title', content: 'B2B SaaS Starter' },
+      { property: 'og:title', content: m.landing_tagline() },
       {
         property: 'og:description',
-        content:
-          'A reference B2B SaaS starter with TanStack Start, Effect v4, Drizzle D1, Better Auth, REST and MCP, Cloudflare Email, Stripe-ready billing, and audit events.'
+        content: m.landing_description()
       }
     ]
   })

@@ -4,7 +4,7 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { Effect, Result, Schema, type Scope } from 'effect'
-import { causeMessage } from '@/lib/cause-message'
+import { errorMessage } from '@b2b-saas-starter/failure'
 
 export type AuthAuditOutcome = 'skipped' | 'recorded' | 'dropped'
 
@@ -55,7 +55,7 @@ export function readResponseUserId(
     },
     catch: (cause) =>
       new AuthAuditBodyUnreadable({
-        reason: causeMessage(cause, RESPONSE_BODY_UNREADABLE_REASON)
+        reason: errorMessage(cause) ?? RESPONSE_BODY_UNREADABLE_REASON
       })
   })
 }
@@ -84,7 +84,7 @@ export function readRequestUserId(request: {
     },
     catch: (cause) =>
       new AuthAuditBodyUnreadable({
-        reason: causeMessage(cause, REQUEST_BODY_UNREADABLE_REASON)
+        reason: errorMessage(cause) ?? REQUEST_BODY_UNREADABLE_REASON
       })
   })
 }
@@ -112,7 +112,7 @@ function writeAuditEvent(
         })
       ),
     catch: (cause) =>
-      new AuthAuditWriteFailed({ reason: causeMessage(cause, WRITE_FAILED_REASON) })
+      new AuthAuditWriteFailed({ reason: errorMessage(cause) ?? WRITE_FAILED_REASON })
   })
 }
 

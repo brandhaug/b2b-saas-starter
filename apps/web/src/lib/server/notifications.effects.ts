@@ -11,6 +11,7 @@ import {
   type ListNotificationsInput,
   type MarkNotificationsReadInput
 } from './notifications'
+import { presentNotifications } from './notification-presentation'
 
 /**
  * The notification-feed reads and their server-only wiring, reached only
@@ -25,7 +26,9 @@ export async function listNotificationsHandler(
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
-    Effect.flatMap(NotificationFeed, (feed) => feed.list),
+    Effect.flatMap(NotificationFeed, (feed) =>
+      Effect.map(feed.list, presentNotifications)
+    ),
     { userId: session.user.id }
   )
 }

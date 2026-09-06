@@ -57,7 +57,7 @@ function toRecipient(member: Member): EmailQueueRecipient {
 }
 
 function stripStorage(row: SeedRow): Notification {
-  return {
+  const base = {
     id: row.id,
     kind: row.kind,
     title: row.title,
@@ -65,6 +65,10 @@ function stripStorage(row: SeedRow): Notification {
     createdAt: row.createdAt,
     read: row.read
   }
+  if (row.event !== undefined) {
+    return { ...base, event: row.event }
+  }
+  return base
 }
 
 export function SeedNotificationFeed(
@@ -194,6 +198,7 @@ export function SeedNotificationFeed(
               kind: input.kind,
               title: input.title,
               message: input.message,
+              event: input.event,
               createdAt,
               read: false
             }
@@ -218,6 +223,7 @@ export function SeedNotificationFeed(
               kind: 'announcement',
               title: input.title,
               message: input.message,
+              event: input.event,
               createdAt: DateTime.formatIso(yield* DateTime.now),
               read: false,
               userId: input.userId
@@ -243,6 +249,7 @@ export function SeedNotificationFeed(
               kind: input.kind,
               title: input.title,
               message: input.message,
+              event: input.event,
               createdAt: DateTime.formatIso(yield* DateTime.now),
               read: false
             }
@@ -280,6 +287,7 @@ export function SeedNotificationFeed(
                   kind: input.kind,
                   title: input.title,
                   message: input.message,
+                  event: input.event,
                   createdAt,
                   read: false
                 }

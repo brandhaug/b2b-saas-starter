@@ -12,7 +12,7 @@ import {
 import { env } from 'cloudflare:workers'
 import { drizzle } from 'drizzle-orm/d1'
 import { Effect, Layer, ManagedRuntime } from 'effect'
-import { causeMessage } from './cause-message'
+import { errorMessage } from '@b2b-saas-starter/failure'
 import { MissingD1Binding, localD1UnavailableResponse } from './server/auth-local-d1'
 import { defaultUserDeleteHooks } from './server/account-delete-hooks'
 import { makeAuthEmailSender } from './server/auth-emails'
@@ -76,7 +76,7 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => {
       Effect.runFork(
         Effect.tryPromise({
           try: () => promise,
-          catch: (thrown) => causeMessage(thrown, 'no reason given')
+          catch: (thrown) => errorMessage(thrown) ?? 'no reason given'
         }).pipe(
           Effect.catch((error: string) =>
             Effect.logError(`auth background task failed: ${error}`)

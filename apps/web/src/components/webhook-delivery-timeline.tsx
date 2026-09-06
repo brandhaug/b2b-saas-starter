@@ -1,3 +1,4 @@
+import { statusLabel } from '@/lib/value-labels'
 import {
   type WebhookDelivery,
   type WebhookDeliveryAttempt
@@ -8,8 +9,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
-import { formatUtcOr } from '@/lib/format-date'
+import { formatTimestampOr } from '@/lib/format-date'
 import { listWebhookDeliveryAttemptsServerFn } from '@/lib/server/webhooks'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type ListDeliveryAttempts = (input: {
   readonly data: { readonly workspaceSlug: string; readonly deliveryId: string }
@@ -48,42 +50,40 @@ export function WebhookDeliveryTimeline({
         aria-controls={historyId}
         onClick={() => setExpanded(!expanded)}
       >
-        {expanded ? 'Hide' : 'View'} attempt history
+        {expanded ? m.hide_attempt_history() : m.view_attempt_history()}
       </Button>
       {expanded ? (
         <div id={historyId} className="grid min-w-0 gap-3">
           <div>
-            <p className="mb-1 text-xs font-medium">Payload</p>
+            <p className="mb-1 text-xs font-medium">{m.webhook_payload()}</p>
             <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs break-all whitespace-pre-wrap">
               {JSON.stringify(delivery.payload, null, 2)}
             </pre>
           </div>
           {attempts.isPending ? (
             <output className="text-xs text-muted-foreground">
-              Loading attempt history…
+              {m.loading_attempt_history()}
             </output>
           ) : null}
           {attempts.isError ? (
             <div>
-              <ActionFeedback error="Could not load attempt history." />
+              <ActionFeedback error={m.load_attempt_history_failed()} />
               <Button
                 variant="outline"
                 size="xs"
                 disabled={attempts.isFetching}
                 onClick={() => void attempts.refetch()}
               >
-                Retry
+                {m.retry_action()}
               </Button>
             </div>
           ) : null}
           {attempts.data?.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No retained attempts. Delivery evidence is kept for 30 days.
-            </p>
+            <p className="text-xs text-muted-foreground">{m.no_retained_attempts()}</p>
           ) : null}
           {attempts.data ? (
             <ol
-              aria-label="Attempt history"
+              aria-label={m.attempt_history()}
               className="grid gap-3 border-l border-border pl-3"
             >
               {attempts.data.map((attempt) => (
@@ -91,11 +91,11 @@ export function WebhookDeliveryTimeline({
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-medium">
                       {attempt.phase === 'terminal'
-                        ? 'Terminal outcome'
-                        : `Attempt ${attempt.attempts}`}
+                        ? m.terminal_outcome()
+                        : m.attempt_count({ count: attempt.attempts })}
                     </span>
                     <Badge variant={webhookDeliveryStatusVariant(attempt.status)}>
-                      {attempt.status}
+                      {statusLabel(attempt.status)}
                     </Badge>
                     {attempt.responseStatus === null ? null : (
                       <span className="font-mono">HTTP {attempt.responseStatus}</span>
@@ -105,7 +105,7 @@ export function WebhookDeliveryTimeline({
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {formatUtcOr(attempt.attemptedAt, '')}
+                    {formatTimestampOr(attempt.attemptedAt, '')}
                   </p>
                   {attempt.failureReason === null ? null : (
                     <p className="text-xs break-words">{attempt.failureReason}</p>
@@ -126,7 +126,7 @@ function AttemptEvidence({ attempt }: { readonly attempt: WebhookDeliveryAttempt
     <dl className="grid min-w-0 gap-2 text-xs">
       {attempt.requestHeaders === null ? null : (
         <div>
-          <dt className="mb-1 font-medium">Request headers</dt>
+          <dt className="mb-1 font-medium">{m.webhook_request_headers()}</dt>
           <dd>
             <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono break-all whitespace-pre-wrap">
               {Object.entries(attempt.requestHeaders)
@@ -139,12 +139,14 @@ function AttemptEvidence({ attempt }: { readonly attempt: WebhookDeliveryAttempt
       {attempt.responseBody === null ? null : (
         <div>
           <dt className="mb-1 font-medium">
-            Response body{' '}
-            <span className="font-normal text-muted-foreground">(bounded excerpt)</span>
+            {m.response_body()}{' '}
+            <span className="font-normal text-muted-foreground">
+              {m.webhook_bounded_excerpt()}
+            </span>
           </dt>
           <dd>
             <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono break-all whitespace-pre-wrap">
-              {attempt.responseBody === '' ? '(empty)' : attempt.responseBody}
+              {attempt.responseBody === '' ? m.empty_value() : attempt.responseBody}
             </pre>
           </dd>
         </div>

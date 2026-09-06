@@ -1,3 +1,8 @@
+import { localeLinks } from '@/lib/i18n-seo'
+import * as m from '@b2b-saas-starter/i18n/messages'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
+import { LocaleBootstrap } from '@/components/locale-preferences'
+import { presentationSettings } from '@/lib/i18n'
 import '@fontsource-variable/geist/index.css'
 import '@fontsource-variable/geist-mono/index.css'
 import '@fontsource-variable/newsreader/opsz.css'
@@ -62,16 +67,16 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   // route the code splitter cannot split, so a static import of the reader
   // would ride the entry chunk every page preloads, pinning `env/server`'s
   // Effect Schema chunk with it.
+  beforeLoad: ({ location }) => ({ canonicalPath: location.pathname }),
   loader: async () => clientTelemetryConfigServerFn(),
-  head: () => ({
+  head: ({ match }) => ({
     meta: [
       { charSet: 'utf8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'B2B SaaS Starter' },
       {
         name: 'description',
-        content:
-          'Cloudflare-first B2B SaaS starter with TanStack Start, Effect v4, Drizzle D1, Better Auth, REST, MCP, email, and tests.'
+        content: m.shell_description()
       },
       { name: 'theme-color', content: THEME_COLOR },
       { property: 'og:type', content: 'website' },
@@ -79,6 +84,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       { name: 'twitter:card', content: 'summary' }
     ],
     links: [
+      ...localeLinks(match.context.canonicalPath),
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
       /* Preload the latin variable woff2 for the text faces: the family
@@ -116,15 +122,22 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: { readonly children: ReactNode }) {
+  const settings = presentationSettings()
   return (
     // Catppuccin Mocha is the only scheme, painted from `:root` tokens in
     // index.css — there is no `dark` class to toggle.
-    <html lang="en">
+    <html
+      lang={getLocale()}
+      data-time-zone={settings.timeZone}
+      data-authenticated={String(settings.authenticated)}
+      data-needs-time-zone={String(settings.needsTimeZone)}
+    >
       <head>
         <HeadContent />
       </head>
       <body>
         <CommandPaletteProvider>
+          <LocaleBootstrap />
           {children}
           {/* No `richColors`: success/warning paint from the same status tokens
               as badges and alerts (see ui/sonner.tsx), not Sonner's own hex. */}

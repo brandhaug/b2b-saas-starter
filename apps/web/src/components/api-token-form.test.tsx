@@ -79,7 +79,7 @@ describe('ApiTokenForm', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create token' }))
     await screen.findByRole('alert')
-    expect(screen.getByRole('alert').textContent).toContain('nope')
+    expect(screen.getByRole('alert').textContent).toContain('Failed to create token')
   })
 })
 

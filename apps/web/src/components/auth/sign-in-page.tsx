@@ -15,7 +15,7 @@ import {
 import {
   sendMagicLinkWithAuthClient,
   TWO_FACTOR_REQUIRED_ERROR_CODE,
-  TWO_FACTOR_REQUIRED_MESSAGE,
+  twoFactorRequiredMessage,
   type SendMagicLink,
   type SocialProviderId
 } from '@/components/auth/auth-client-ports'
@@ -23,10 +23,11 @@ import { FormTextField } from '@/components/form-text-field'
 import { TurnstileWidget } from '@/components/auth/turnstile-widget'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
-import { authErrorCopy, SIGN_IN_FAILED } from '@/lib/auth-error-copy'
+import { authErrorCopy, signInFailed } from '@/lib/auth-error-copy'
 import { carriedOAuthSearch, oauthContinuationUrl } from '@/lib/oauth-continuation'
 import { resolveSsoRoutingServerFn } from '@/lib/server/workspace-sso'
 import { safeRedirect } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The sign-in page, extracted from `routes/sign-in.tsx` so the route file is
@@ -63,8 +64,12 @@ type SignInValues = {
 /** Stable empty default: a fresh `[]` literal per render would defeat memoing. */
 const NO_SOCIAL_PROVIDERS: ReadonlyArray<SocialProviderId> = []
 
-const SSO_FAILED = 'Single sign-in failed'
-const LINK_SEND_FAILED = 'Could not send the link'
+function ssoFailedMessage() {
+  return m.sso_failed()
+}
+function linkSendFailedMessage() {
+  return m.auth_send_link_failed()
+}
 
 /**
  * Whether the sign-in response asks for the two-factor hop. A plain field
@@ -100,8 +105,9 @@ function wasRefusedForSso(error: unknown): boolean {
 // One message for every outcome, by design: the send endpoint answers
 // identically whether or not the email exists (account enumeration defense),
 // and the screen must not know more than the endpoint does.
-const LINK_SENT_MESSAGE =
-  'If this email exists in our system, check your inbox for a sign-in link. It works once and expires in ten minutes.'
+function linkSentMessage() {
+  return m.sign_in_link_sent_notice()
+}
 
 /**
  * The credential sign-in's outcome ladder, in the one order the hops chain:
@@ -145,7 +151,7 @@ async function applySignInOutcome({
       callbackURL: `${window.location.origin}${safeRedirect(redirect)}`
     })
     if (sso.error) {
-      onSubmitError(authErrorCopy(sso.error, SSO_FAILED))
+      onSubmitError(authErrorCopy(sso.error, ssoFailedMessage()))
       return
     }
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- a routing match without a URL is the plugin's own degenerate answer; the explicit failure below beats a silent password retry
@@ -156,7 +162,7 @@ async function applySignInOutcome({
     // Unreachable while the plugin answers a routing match with a URL, but an
     // explicit failure beats silently attempting the password path the
     // routing decision just refused.
-    onSubmitError(SSO_FAILED)
+    onSubmitError(ssoFailedMessage())
     return
   }
   const result = await authClient.signIn.email({ email, password })
@@ -164,12 +170,10 @@ async function applySignInOutcome({
     // The server-side gate answers a require-SSO domain with this code;
     // surface it as guidance rather than a bare failed sign-in.
     if (wasRefusedForSso(result.error)) {
-      onSsoNotice(
-        'This workspace requires single sign-on for your email domain. Sign in with your identity provider.'
-      )
+      onSsoNotice(m.auth_sso_required())
       return
     }
-    onSubmitError(authErrorCopy(result.error, SIGN_IN_FAILED))
+    onSubmitError(authErrorCopy(result.error, signInFailed()))
     return
   }
   // The two-factor marker rides the body as untyped JSON; the probe itself
@@ -248,7 +252,7 @@ export function SignInPage({
   // arrived, and a submit's own notice (fresher, from something the visitor
   // just did) supersedes it.
   const twoFactorNotice =
-    searchError === TWO_FACTOR_REQUIRED_ERROR_CODE ? TWO_FACTOR_REQUIRED_MESSAGE : null
+    searchError === TWO_FACTOR_REQUIRED_ERROR_CODE ? twoFactorRequiredMessage() : null
 
   const passwordForm = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
@@ -274,7 +278,7 @@ export function SignInPage({
     onSubmit: async ({ value }) => {
       setSubmitError(null)
       if (turnstileSiteKey !== null && turnstileToken === null) {
-        setSubmitError('Complete the bot check before requesting a link.')
+        setSubmitError(m.complete_bot_check_link())
         return
       }
       const result = await sendMagicLink({
@@ -286,7 +290,7 @@ export function SignInPage({
         // are codes in the shared table, so the challenge-reset below is the
         // only thing this branch adds to the mapped copy.
         setTurnstileToken(null)
-        setSubmitError(authErrorCopy(result.error, LINK_SEND_FAILED))
+        setSubmitError(authErrorCopy(result.error, linkSendFailedMessage()))
         return
       }
       setLinkSent(true)
@@ -296,8 +300,8 @@ export function SignInPage({
   if (mode === 'link') {
     return (
       <AuthCardForm
-        title="Sign in with an email link"
-        description="We will email you a link that signs you in without a password."
+        title={m.sign_in_with_email_link()}
+        description={m.email_link_description()}
         // The sent state is a confirmation, not a form — no wrapper, no
         // hydration signal needed.
         form={linkSent ? null : linkForm}
@@ -306,8 +310,8 @@ export function SignInPage({
             <AuthSubmitButton
               form={linkForm}
               icon={<MailIcon className="size-4" />}
-              label="Email me a sign-in link"
-              submittingLabel="Sending…"
+              label={m.email_me_sign_in_link()}
+              submittingLabel={m.sending()}
             />
           )
         }
@@ -321,7 +325,7 @@ export function SignInPage({
       >
         {linkSent ? (
           <p role="alert" className="text-sm text-muted-foreground">
-            {LINK_SENT_MESSAGE}
+            {linkSentMessage()}
           </p>
         ) : (
           <>
@@ -329,7 +333,7 @@ export function SignInPage({
               {(field) => (
                 <FormTextField
                   name={field.name}
-                  label="Email"
+                  label={m.form_email()}
                   type="email"
                   placeholder="you@example.com"
                   autoComplete="email"
@@ -354,7 +358,7 @@ export function SignInPage({
               }}
               className="justify-start p-0 text-sm"
             >
-              Sign in with password instead
+              {m.public_auth_sign_in_with_password_instead()}
             </Button>
           </>
         )}
@@ -364,15 +368,15 @@ export function SignInPage({
 
   return (
     <AuthCardForm
-      title="Sign in"
-      description="Sign in with your email and password."
+      title={m.form_sign_in()}
+      description={m.sign_in_description()}
       form={passwordForm}
       submit={
         <AuthSubmitButton
           form={passwordForm}
           icon={<KeyRoundIcon className="size-4" />}
-          label="Continue"
-          submittingLabel="Signing in…"
+          label={m.continue_action()}
+          submittingLabel={m.signing_in()}
         />
       }
       error={submitError}
@@ -390,7 +394,7 @@ export function SignInPage({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Email"
+            label={m.form_email()}
             type="email"
             placeholder="you@example.com"
             // `webauthn` must be the LAST autocomplete token for the
@@ -409,7 +413,7 @@ export function SignInPage({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Password"
+            label={m.form_password()}
             type="password"
             autoComplete="current-password"
             value={field.state.value}
@@ -430,7 +434,7 @@ export function SignInPage({
         }}
         className="justify-start p-0 text-sm"
       >
-        Email me a sign-in link
+        {m.email_me_sign_in_link()}
       </Button>
     </AuthCardForm>
   )
@@ -462,8 +466,7 @@ function signInFooter({
           <PasskeySignIn redirect={redirect} />
           {socialProviders.length > 0 ? (
             <p className="text-xs text-muted-foreground">
-              The provider buttons sign you in through GitHub or Google; an account with
-              a matching verified email is linked automatically.
+              {m.social_sign_in_description()}
             </p>
           ) : null}
           <p className="text-right">
@@ -472,7 +475,7 @@ function signInFooter({
               search={redirect ? { redirect } : {}}
               className="text-sm text-primary underline underline-offset-4"
             >
-              Email me a code instead
+              {m.email_code_instead()}
             </Link>
           </p>
           <p className="text-right">
@@ -481,20 +484,20 @@ function signInFooter({
               search={{}}
               className="text-sm text-primary underline underline-offset-4"
             >
-              Forgot your password?
+              {m.forgot_password()}
             </Link>
           </p>
         </>
       ) : null}
       <DemoCredentialsFooter />
       <p className="text-center text-sm text-muted-foreground">
-        No account yet?{' '}
+        {m.no_account_yet()}{' '}
         <Link
           to="/sign-up"
           search={{}}
           className="text-primary underline underline-offset-4"
         >
-          Create one
+          {m.create_one()}
         </Link>
       </p>
     </>

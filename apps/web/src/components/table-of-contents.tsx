@@ -2,6 +2,7 @@ import { type RefObject } from 'react'
 
 import { useHeadingObserver } from '@/hooks/use-heading-observer'
 import { cn } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export function TableOfContents({
   containerRef
@@ -15,8 +16,10 @@ export function TableOfContents({
   }
 
   return (
-    <nav aria-label="Table of contents" className="sticky top-18">
-      <p className="mb-3 text-xs font-medium text-foreground">On this page</p>
+    <nav aria-label={m.public_knowledge_on_page()} className="sticky top-18">
+      <p className="mb-3 text-xs font-medium text-foreground">
+        {m.public_knowledge_on_page()}
+      </p>
       <ul className="flex flex-col gap-1">
         {headings.map((heading) => {
           const isActive = activeIds.has(heading.id)

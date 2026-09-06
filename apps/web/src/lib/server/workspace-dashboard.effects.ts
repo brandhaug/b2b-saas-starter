@@ -16,6 +16,7 @@ import {
   type WorkspaceDashboardInput,
   type WorkspaceDashboardPayload
 } from './workspace-dashboard'
+import { presentNotifications } from './notification-presentation'
 
 /**
  * The dashboard payload assembly and its server-only wiring, reached only
@@ -67,7 +68,11 @@ const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspac
       ),
       (segments) => {
         const { core, ...soft } = segments
-        return { ...core, ...soft }
+        return {
+          ...core,
+          notifications: presentNotifications(core.notifications),
+          ...soft
+        }
       }
     )
 )

@@ -8,6 +8,7 @@ import {
 import { CommandPaletteContext } from '@/lib/command-palette-context'
 import { useClientValue } from '@/lib/client-only-value'
 import { type Viewer } from '@/lib/permissions'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export function CommandPaletteProvider({ children }: { readonly children: ReactNode }) {
   const [open, setOpen] = useState(false)
@@ -79,7 +80,7 @@ export function SearchButton() {
         onClick={() => value?.setOpen(true)}
         onMouseEnter={preloadCommandPalette}
         onFocus={preloadCommandPalette}
-        aria-label="Search"
+        aria-label={m.common_search()}
         className="md:hidden"
       >
         <SearchIcon className="size-4" />
@@ -89,11 +90,11 @@ export function SearchButton() {
         onClick={() => value?.setOpen(true)}
         onMouseEnter={preloadCommandPalette}
         onFocus={preloadCommandPalette}
-        aria-label="Search"
+        aria-label={m.common_search()}
         className="hidden h-9 w-56 gap-2 rounded-md px-3 text-sm text-muted-foreground md:flex"
       >
         <SearchIcon className="size-4" />
-        <span className="flex-1 text-left">Search…</span>
+        <span className="flex-1 text-left">{m.common_search_placeholder()}</span>
         <kbd className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs">
           {isMac ? '⌘K' : 'Ctrl K'}
         </kbd>

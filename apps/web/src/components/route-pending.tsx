@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * Shared `pendingComponent` for capability-backed routes: a skeleton in the
@@ -9,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 export function RoutePending() {
   return (
     <output className="grid w-full gap-6" aria-live="polite">
-      <span className="sr-only">Loading…</span>
+      <span className="sr-only">{m.common_loading()}</span>
       <div className="grid gap-2">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-7 w-56" />

@@ -15,6 +15,7 @@ import {
   AlertDialogDescription,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** The stable module-scope adapter the panel defaults its port to. */
 function runDeleteAccount(input: { readonly password: string }) {
@@ -47,7 +48,7 @@ export function DeleteAccountPanel({
   const remove = useServerAction(
     (input: { readonly password: string }) => deleteAccount(input),
     {
-      failureMessage: 'Could not delete the account',
+      failureMessage: m.delete_account_failed(),
       describeFailure: describeDeleteFailure,
       // The next view of this account belongs to `/sign-in`, loaded fresh.
       invalidate: false,
@@ -60,7 +61,7 @@ export function DeleteAccountPanel({
   if (!plan.canDelete) {
     const blocked = plan.steps.filter((step) => step.action === 'blocked_sole_owner')
     return (
-      <section className="grid gap-4" aria-label="Delete account">
+      <section className="grid gap-4" aria-label={m.panel_delete_account()}>
         <div
           role="alert"
           className="flex items-start gap-2 rounded-none border border-border bg-muted/40 px-4 py-3"
@@ -70,11 +71,7 @@ export function DeleteAccountPanel({
             aria-hidden
           />
           <div className="grid gap-1 text-sm">
-            <p>
-              Your account is the only owner of{' '}
-              {blocked.length === 1 ? 'a workspace' : `${blocked.length} workspaces`}{' '}
-              with other members. Transfer ownership first.
-            </p>
+            <p>{m.account_only_owner_warning({ count: blocked.length })}</p>
             <ul className="grid gap-1">
               {blocked.map((step) => (
                 <li key={step.workspace.id}>
@@ -98,28 +95,27 @@ export function DeleteAccountPanel({
   const deleting = plan.steps.filter((step) => step.action === 'delete_workspace')
 
   return (
-    <section className="grid gap-4" aria-label="Delete account">
-      <p className="text-sm text-muted-foreground">
-        Deleting your account is permanent. Every session is signed out, and:
-      </p>
+    <section className="grid gap-4" aria-label={m.panel_delete_account()}>
+      <p className="text-sm text-muted-foreground">{m.delete_account_permanent()}</p>
       <ul className="grid gap-1 text-sm text-muted-foreground">
         {leaving.length > 0 ? (
           <li>
-            You leave{' '}
-            {leaving.length === 1 ? 'workspace' : `${leaving.length} workspaces`}{' '}
-            {leaving.map((step) => step.workspace.name).join(', ')}. Other owners keep
-            it.
+            {m.account_leave_workspaces({
+              count: leaving.length,
+              names: leaving.map((step) => step.workspace.name).join(', ')
+            })}
           </li>
         ) : null}
         {deleting.length > 0 ? (
           <li>
-            {deleting.length === 1 ? 'Workspace' : `${deleting.length} workspaces`}{' '}
-            {deleting.map((step) => step.workspace.name).join(', ')}{' '}
-            {deleting.length === 1 ? 'is' : 'are'} deleted with the account.
+            {m.account_delete_workspaces({
+              count: deleting.length,
+              names: deleting.map((step) => step.workspace.name).join(', ')
+            })}
           </li>
         ) : null}
         {leaving.length === 0 && deleting.length === 0 ? (
-          <li>No workspace is affected.</li>
+          <li>{m.workspace_delete_none_affected()}</li>
         ) : null}
       </ul>
       <form
@@ -130,7 +126,7 @@ export function DeleteAccountPanel({
         className="grid gap-3"
       >
         <div className="grid gap-1.5">
-          <Label htmlFor="delete-account-password">Password</Label>
+          <Label htmlFor="delete-account-password">{m.form_password()}</Label>
           <Input
             id="delete-account-password"
             type="password"
@@ -146,7 +142,7 @@ export function DeleteAccountPanel({
           className="w-fit"
           disabled={remove.pending}
         >
-          Delete account
+          {m.panel_delete_account()}
         </Button>
       </form>
       {remove.error === null ? null : (
@@ -161,13 +157,12 @@ export function DeleteAccountPanel({
         }}
       >
         <AlertDialogContent>
-          <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+          <AlertDialogTitle>{m.delete_your_account()}?</AlertDialogTitle>
           <AlertDialogDescription>
-            This cannot be undone. Your sessions end and the workspaces listed above are
-            left or deleted as described.
+            {m.delete_account_confirm_description()}
           </AlertDialogDescription>
           <div className="flex justify-end gap-2">
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 setConfirming(false)
@@ -175,7 +170,7 @@ export function DeleteAccountPanel({
                 setPassword('')
               }}
             >
-              Yes, delete my account
+              {m.confirm_delete_account()}
             </AlertDialogAction>
           </div>
         </AlertDialogContent>

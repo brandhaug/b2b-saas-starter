@@ -1,7 +1,9 @@
 import { Auth, type Session } from '@b2b-saas-starter/auth'
 import { isRedirect } from '@tanstack/react-router'
 import { Effect } from 'effect'
-import { describe, expect, it } from 'vite-plus/test'
+import { beforeAll, describe, expect, it } from 'vite-plus/test'
+import { authRuntime } from './auth-runtime'
+import { requireSession } from './server/auth'
 
 /** A request carrying Better Auth's default session cookie, so a working layer would have a session to answer with. */
 const SESSION_COOKIE = new Headers({
@@ -21,12 +23,23 @@ const SESSION_COOKIE = new Headers({
  * does there.
  */
 describe('authRuntime without a D1 binding', () => {
+  beforeAll(async () => {
+    // The first runtime call constructs the full server-side auth graph,
+    // including the email sender and capability layers. Warm it once so each
+    // behavior assertion keeps the normal test timeout.
+    await authRuntime.runPromise(
+      Effect.gen(function* () {
+        const auth = yield* Auth.Tag
+        return yield* auth.api.getSession({ headers: SESSION_COOKIE })
+      })
+    )
+  }, 30_000)
+
   it('resolves getSession as null', async () => {
     // The cookie makes this discriminate: a session-bearing request is the
     // one a working layer could answer with a session, so the null is the
     // degraded service's own answer, not what any layer says to an empty
     // header set.
-    const { authRuntime } = await import('./auth-runtime')
     const session = await authRuntime.runPromise(
       Effect.gen(function* () {
         const auth = yield* Auth.Tag
@@ -39,8 +52,6 @@ describe('authRuntime without a D1 binding', () => {
   it('turns the degraded layer into the sign-in redirect (requireSession)', async () => {
     // The real gate over the real degraded runtime: the sentinel must not
     // escape through a route gate — null becomes the redirect.
-    const { authRuntime } = await import('./auth-runtime')
-    const { requireSession } = await import('./server/auth')
     function readOnDegradedRuntime(): Promise<Session | null> {
       return authRuntime.runPromise(
         Effect.gen(function* () {
@@ -61,7 +72,6 @@ describe('authRuntime without a D1 binding', () => {
   })
 
   it('still refuses the rest of the api surface', async () => {
-    const { authRuntime } = await import('./auth-runtime')
     // Reaching past `getSession` on purpose: the property access itself must
     // throw the sentinel (naming the property), not return a half-working
     // surface. The refusal escapes as a rejected promise here — the same

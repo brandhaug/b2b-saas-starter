@@ -19,13 +19,14 @@ import {
   useWorkspaceDirectory,
   type WorkspaceDirectory
 } from '@/lib/workspace-directory'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/workspaces/')({
   // The list itself is the layout route's directory load — possibly empty,
   // never a 404; an empty array renders the empty state below.
   pendingComponent: RoutePending,
   component: WorkspacesPage,
-  head: () => ({ meta: [{ title: pageTitle('Your workspaces') }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_workspaces()) }] })
 })
 
 function WorkspacesPage() {
@@ -36,23 +37,22 @@ function WorkspacesPage() {
   return (
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
       <PageHeader
-        title="Your workspaces"
-        description="Every workspace your account is a member of."
+        title={m.page_workspaces()}
+        description={m.page_workspaces_description()}
       />
       {/* The unverified state surfaces here rather than gating anything:
           verification is encouraged, not enforced (provider-light rule). */}
       {session.user.emailVerified ? null : (
         <EmailVerificationBanner email={session.user.email} />
       )}
-      <Panel title="Your workspaces">
+      <Panel title={m.page_workspaces()}>
         {workspaces.length === 0 ? (
           <div className="grid gap-5">
             {/* Creating is the way in: the creator becomes the workspace's
               first owner, so a fresh account never needs a seed script or
               an existing owner to let them in. */}
             <p className="text-sm text-muted-foreground">
-              Your account is not a member of any workspace. Create one below and you
-              will be its first owner, or ask a workspace owner to add you.
+              {m.empty_no_workspace_membership()}
             </p>
             <CreateWorkspaceForm
               onCreated={(workspace) =>
@@ -80,11 +80,11 @@ function WorkspacesPage() {
                     <ItemTitle>{workspace.name}</ItemTitle>
                     <ItemDescription>
                       <span className="font-mono tabular-nums">{memberCount}</span>{' '}
-                      members,{' '}
+                      {m.members_count_label()},{' '}
                       <span className="font-mono tabular-nums">
                         {notificationCount}
                       </span>{' '}
-                      notifications
+                      {m.notifications_count_label()}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>

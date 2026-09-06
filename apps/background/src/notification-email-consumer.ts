@@ -5,8 +5,10 @@ import {
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { NotificationEmailQueueMessage } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { NOTIFICATION_KIND_DESCRIPTIONS } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
+import { renderNotificationEvent } from '@b2b-saas-starter/capabilities/notifications/notification-events'
 import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
+import * as m from '@b2b-saas-starter/i18n/messages'
+import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import {
   EmailDispatcher,
   selectEmailDispatcherLayer,
@@ -26,6 +28,54 @@ import {
 } from './queue-consumer.ts'
 
 const ack: DeliveryOutcome = 'ack'
+
+function localizedKindLabel(kind: string, locale: Locale): string {
+  const options = { locale }
+  switch (kind) {
+    case 'api_token.created': {
+      return m.backend_email_notification_kind_api_token_created({}, options)
+    }
+    case 'api_token.revoked': {
+      return m.backend_email_notification_kind_api_token_revoked({}, options)
+    }
+    case 'workspace_member.role_changed': {
+      return m.backend_email_notification_kind_role_changed({}, options)
+    }
+    case 'two_factor.changed': {
+      return m.backend_email_notification_kind_two_factor_changed({}, options)
+    }
+    case 'webhook.delivery_failed': {
+      return m.backend_email_notification_kind_webhook_failed({}, options)
+    }
+    case 'workspace_member.joined': {
+      return m.backend_email_notification_kind_member_joined({}, options)
+    }
+    case 'billing.plan_changed': {
+      return m.backend_email_notification_kind_plan_changed({}, options)
+    }
+    case 'account.impersonated': {
+      return m.backend_email_notification_kind_impersonated({}, options)
+    }
+    default: {
+      return m.backend_email_notification_kind_announcement({}, options)
+    }
+  }
+}
+
+function notificationCopy(
+  notification: {
+    readonly title: string
+    readonly message: string
+    readonly event?: Parameters<typeof renderNotificationEvent>[0] | undefined
+  },
+  locale: Locale,
+  timeZone = 'UTC'
+) {
+  if (notification.event === undefined) {
+    return { title: notification.title, message: notification.message }
+  }
+  return renderNotificationEvent(notification.event, locale, timeZone)
+}
 
 /**
  * Sends one instant notification email. Re-reads everything at send time: the
@@ -77,19 +127,29 @@ export function processNotificationEmailMessage(
       return ack
     }
     const dispatcher = yield* EmailDispatcher
-    const kindLabel = NOTIFICATION_KIND_DESCRIPTIONS[kind].label
+    const locale: Locale = context.recipient.locale ?? DEFAULT_LOCALE
+    const kindLabel = localizedKindLabel(kind, locale)
+    const copy = notificationCopy(
+      context.notification,
+      locale,
+      context.recipient.timeZone ?? 'UTC'
+    )
     const workspaceName = context.workspace?.name ?? null
     yield* dispatcher
       .send({
         to: context.recipient.email,
-        subject: `[B2B SaaS Starter] ${kindLabel}: ${context.notification.title}`,
+        subject: m.backend_email_subject_notification(
+          { kindLabel, title: copy.title },
+          { locale }
+        ),
         element: notificationEmailFor(kind, {
           kindLabel,
-          title: context.notification.title,
-          message: context.notification.message,
+          title: copy.title,
+          message: copy.message,
           workspaceName,
           openUrl: openUrlFor(appUrl, context),
-          preferencesUrl: preferencesUrl(appUrl, kind)
+          preferencesUrl: preferencesUrl(appUrl, kind),
+          locale
         })
       })
       .pipe(

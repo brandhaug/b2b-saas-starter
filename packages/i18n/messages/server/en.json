@@ -1,0 +1,16 @@
+{
+  "server_assistant_unconfigured": "The AI assistant is not enabled on this deployment. Set WORKERS_AI_ENABLED=true with the AI binding, or OPENAI_API_KEY, to turn it on.",
+  "server_assistant_unavailable": "The assistant could not answer right now. Try again later.",
+  "server_discovery_unreachable": "The discovery document could not be fetched. Check the issuer URL and try again.",
+  "server_discovery_invalid": "The discovery document is invalid or does not match the issuer.",
+  "server_discovery_endpoints_missing": "The discovery document is missing required endpoints",
+  "server_metadata_invalid": "The identity provider metadata could not be read. Check the XML and try again.",
+  "server_metadata_binding_missing": "The metadata declares no HTTP-Redirect SingleSignOnService binding",
+  "server_metadata_fetch_failed": "The metadata could not be fetched",
+  "server_metadata_status": "The metadata URL answered {status}",
+  "server_sso_missing": "No such connection in this workspace",
+  "server_sso_endpoints_missing": "The stored connection has no resolved endpoints",
+  "server_sso_metadata_missing": "The stored connection has no IdP metadata",
+  "server_replay_queue_unconfigured": "Webhook queue is not configured. No replay was created.",
+  "server_replay_refused": "This delivery could not be replayed. Check that the endpoint is enabled and the event is still available."
+}

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { authClient } from '@/lib/auth-client'
 import { ResetPasswordPage } from './reset-password'
+import * as m from '@b2b-saas-starter/i18n/messages'
 
 // The page calls the client module directly, so its reset endpoint is a
 // double on the mocked module. The router is real, so the redirect
@@ -39,14 +40,14 @@ describe('ResetPasswordPage', () => {
 
   it('shows the single opaque failure state without a token', async () => {
     await renderPage()
-    screen.getByText('This link cannot be used')
+    screen.getByText(m.reset_link_unusable())
     expect(screen.getByRole('link', { name: 'Request a new reset link' })).toBeDefined()
     expect(screen.queryByLabelText('New password')).toBeNull()
   })
 
   it('shows the same failure state when the token exchange rejected the link', async () => {
     await renderPage({ error: 'INVALID_TOKEN' })
-    screen.getByText('This link cannot be used')
+    screen.getByText(m.reset_link_unusable())
     expect(screen.queryByLabelText('New password')).toBeNull()
   })
 

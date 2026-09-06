@@ -5,7 +5,7 @@ import { getAllPostMeta } from '@/lib/blog'
 import { getAllDocMeta } from '@/lib/docs'
 import { publicLinks } from '@/lib/content'
 import { viewerCan } from '@/lib/permissions'
-import { WORKSPACE_NAV, YOU_NAV } from '@/lib/workspace-nav'
+import { workspaceNav, youNav } from '@/lib/workspace-nav'
 import { CommandPaletteContext } from '@/lib/command-palette-context'
 import {
   CommandDialog,
@@ -15,6 +15,7 @@ import {
   CommandItem,
   CommandList
 } from '@/components/ui/command'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The knowledge index the palette searches: both meta loaders are cached
 // promises (lib/docs.ts, lib/blog.ts), so this starts once when the lazy
@@ -40,7 +41,7 @@ function KnowledgeEntries({ close }: { readonly close: () => void }) {
   const navigate = useNavigate()
   const [docs, posts] = use(knowledgeMeta)
   return (
-    <CommandGroup heading="Knowledge">
+    <CommandGroup heading={m.knowledge()}>
       {docs.map((doc) => (
         <CommandItem
           key={`docs/${doc.category}/${doc.slug}`}
@@ -108,7 +109,7 @@ export default function CommandPaletteDialog({
 
   const rows: Array<ReactNode> = []
   if (workspaceSlug !== undefined && viewer !== null) {
-    for (const row of WORKSPACE_NAV) {
+    for (const row of workspaceNav()) {
       if (row.permission !== undefined && !viewerCan(viewer, row.permission)) {
         continue
       }
@@ -137,13 +138,13 @@ export default function CommandPaletteDialog({
           void navigate({ to: '/workspaces' })
         }}
       >
-        Open workspaces
+        {m.open_workspaces()}
       </CommandItem>
     )
   }
   // The user-level rows from the same `YOU_NAV` table the sidebar renders:
   // label, target, and the admin-only gate cannot drift between the two.
-  for (const row of YOU_NAV) {
+  for (const row of youNav()) {
     if (row.adminOnly === true && systemRole !== 'admin') {
       continue
     }
@@ -165,13 +166,13 @@ export default function CommandPaletteDialog({
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput
-        placeholder="Search docs, pages, and actions…"
-        aria-label="Search docs, pages, and actions"
+        placeholder={m.command_search_placeholder()}
+        aria-label={m.command_search_label()}
       />
       <CommandList>
-        <CommandEmpty>No result found.</CommandEmpty>
-        <CommandGroup heading="Public pages">
-          {publicLinks.map((link) => (
+        <CommandEmpty>{m.command_no_results()}</CommandEmpty>
+        <CommandGroup heading={m.command_public_pages()}>
+          {publicLinks().map((link) => (
             <CommandItem
               key={link.to}
               onSelect={() => {
@@ -186,7 +187,7 @@ export default function CommandPaletteDialog({
         {/* Suspends on the cached meta index the first time it opens — the
             provider already wraps the dialog in a Suspense boundary. */}
         <KnowledgeEntries close={close} />
-        <CommandGroup heading="Workspace">{rows}</CommandGroup>
+        <CommandGroup heading={m.nav_workspace_group()}>{rows}</CommandGroup>
       </CommandList>
     </CommandDialog>
   )

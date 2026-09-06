@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import { OtpCodeInput } from './otp-code-input'
 
 function Harness({ onChange }: { readonly onChange?: (value: string) => void }) {
@@ -18,7 +19,9 @@ function Harness({ onChange }: { readonly onChange?: (value: string) => void }) 
 }
 
 function cell(index: number): HTMLInputElement {
-  return screen.getByLabelText<HTMLInputElement>(`Digit ${index + 1} of 6`)
+  return screen.getByLabelText<HTMLInputElement>(
+    m.public_auth_otp_digit({ index: index + 1, length: 6 })
+  )
 }
 
 describe('OtpCodeInput', () => {

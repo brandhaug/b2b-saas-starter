@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { type WorkspaceDashboardPayload } from '@/lib/server/workspace-dashboard'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // Lazy: recharts (and its d3 dependencies) is the heaviest module on this
 // route, and the chart is below-fold secondary content — it must not sit in
@@ -66,7 +67,7 @@ export function WorkspaceDashboardPage({
     >
       <PageHeader
         title={workspace.name}
-        description="What needs your attention, then what changed."
+        description={m.dashboard_attention_description()}
       />
       {/* Derived from live state on every load; renders nothing once an
           owner or admin dismissed it for the workspace. */}
@@ -101,7 +102,7 @@ export function WorkspaceDashboardPage({
       {/* `null` means the actor holds no `webhook:list`, so the loader never
           read the endpoints — there is nothing to chart and nothing to hide. */}
       {webhooks === null ? null : (
-        <Panel title="Webhook delivery">
+        <Panel title={m.webhook_delivery()}>
           <Suspense fallback={null}>
             <WebhookSuccessChart webhooks={webhooks} />
           </Suspense>

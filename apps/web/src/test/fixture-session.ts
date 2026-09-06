@@ -45,6 +45,8 @@ export function fixtureSession(overrides: FixtureSession): Session {
       name: 'Fixture User',
       email: overrides.email ?? `${userId}@example.com`,
       emailVerified: overrides.emailVerified ?? true,
+      locale: null,
+      timeZone: null,
       role: 'user',
       twoFactorEnabled: false,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),

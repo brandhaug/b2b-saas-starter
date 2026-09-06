@@ -1,8 +1,10 @@
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { CircleAlertIcon } from 'lucide-react'
 import { PublicLayout } from '@/components/public-layout'
+import { pageTitle } from '@/components/page/page-title'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { pickOptionalStrings } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/magic-link/verify')({
   validateSearch: (search) => pickOptionalStrings(search, ['error']),
@@ -19,7 +21,7 @@ export const Route = createFileRoute('/magic-link/verify')({
     }
   },
   component: MagicLinkVerifyRoute,
-  head: () => ({ meta: [{ title: 'Sign-in link | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_magic_link()) }] })
 })
 
 function MagicLinkVerifyRoute() {
@@ -46,18 +48,16 @@ export function MagicLinkVerifyPage() {
             <CardTitle as="h1">
               <span className="flex items-center gap-2">
                 <CircleAlertIcon className="size-5 text-destructive" />
-                This sign-in link cannot be used
+                {m.public_auth_magic_link_unusable()}
               </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <p className="text-sm text-muted-foreground">
-              The link is invalid, has expired, or was already used. Each one works once
-              and expires ten minutes after it is sent.
+              {m.public_auth_magic_link_invalid()}
             </p>
             <p className="text-sm text-muted-foreground">
-              Still have the email? A newer link replaces an older one. You can also
-              sign in with your password.
+              {m.public_auth_magic_link_existing()}
             </p>
             <p className="text-center text-sm text-muted-foreground">
               <Link
@@ -65,7 +65,7 @@ export function MagicLinkVerifyPage() {
                 search={{}}
                 className="text-primary underline underline-offset-4"
               >
-                Request a new link or use your password
+                {m.public_auth_magic_link_request()}
               </Link>
             </p>
           </CardContent>

@@ -6,6 +6,7 @@ import {
   UserAdminRejected
 } from '../errors.ts'
 import { type NotificationKind } from '../notifications/notification-kinds.ts'
+import { type NotificationEvent } from '../notifications/notification-events.ts'
 import { SystemRole, type Member, type WorkspaceRole } from './workspace-identity.ts'
 
 /**
@@ -180,8 +181,18 @@ export function impersonationNotice(adminName: string) {
   return {
     kind: 'account.impersonated',
     title: 'A System Admin accessed your account',
-    message: `${adminName} started an impersonation session on your account. It ends when they stop it or after ${minutes} minutes, and it cannot change your password, two-factor settings, or email.`
-  } satisfies { kind: NotificationKind; title: string; message: string }
+    message: `${adminName} started an impersonation session on your account. It ends when they stop it or after ${minutes} minutes, and it cannot change your password, two-factor settings, or email.`,
+    event: {
+      type: 'account.impersonated',
+      adminName,
+      minutes
+    }
+  } satisfies {
+    kind: NotificationKind
+    title: string
+    message: string
+    event: NotificationEvent
+  }
 }
 
 /**

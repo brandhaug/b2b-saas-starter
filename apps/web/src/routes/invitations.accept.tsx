@@ -1,3 +1,4 @@
+import { roleLabel } from '@/lib/value-labels'
 import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { pageTitle } from '@/components/page/page-title'
 import { useState } from 'react'
@@ -5,12 +6,10 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { MailCheckIcon } from 'lucide-react'
 import { PublicLayout } from '@/components/public-layout'
 import { RoutePending } from '@/components/route-pending'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { requireSession } from '@/lib/server/auth'
-import { roleVariant } from '@/lib/badge-variants'
 import { Spinner } from '@/components/ui/spinner'
 import {
   acceptInvitationServerFn,
@@ -19,8 +18,7 @@ import {
 } from '@/lib/server/invitations'
 import { callServerFn } from '@/lib/server-call'
 import { pickOptionalStrings } from '@/lib/utils'
-
-const ACCEPT_FAILED = 'Could not accept the invitation'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The destination of the link `sendInvitationServerFn` emails. It sits outside
 // the /workspaces subtree on purpose: that subtree's routes resolve a workspace
@@ -53,7 +51,7 @@ export const Route = createFileRoute('/invitations/accept')({
   },
   pendingComponent: RoutePending,
   component: AcceptInvitationRoute,
-  head: () => ({ meta: [{ title: pageTitle('Accept invitation') }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_accept_invitation()) }] })
 })
 
 /**
@@ -106,21 +104,18 @@ function UnusableInvitation() {
       >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle as="h1">This invitation cannot be used</CardTitle>
+            <CardTitle as="h1">{m.invitation_link_unusable()}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 text-sm text-muted-foreground">
             {/* Naming which failure it was would tell a link-guesser whether a
                 given workspace exists. */}
-            <p>
-              It may have expired, been cancelled, already been accepted, or been sent
-              to a different address. Ask whoever invited you to send a new one.
-            </p>
+            <p>{m.invitation_unusable_description()}</p>
             <Button
               render={<Link to="/workspaces" />}
               variant="secondary"
               className="justify-self-start"
             >
-              Go to your workspaces
+              {m.go_to_workspaces()}
             </Button>
           </CardContent>
         </Card>
@@ -147,7 +142,7 @@ function PendingInvitation({
     try {
       const outcome = await callServerFn(
         () => acceptInvitation({ data: { invitationId: preview.invitationId } }),
-        ACCEPT_FAILED
+        m.accept_invitation_failed()
       )
       if (!outcome.ok) {
         setError(outcome.message)
@@ -172,14 +167,15 @@ function PendingInvitation({
           <CardHeader>
             <CardTitle as="h1" className="flex items-center gap-2">
               <MailCheckIcon className="size-5 text-muted-foreground" />
-              Join {preview.workspaceName}
+              {m.join_workspace_title({ workspace: preview.workspaceName })}
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <p className="text-sm text-muted-foreground">
-              You have been invited to {preview.workspaceName} as{' '}
-              <Badge variant={roleVariant(preview.role)}>{preview.role}</Badge>.
-              Accepting adds you to the workspace.
+              {m.invitation_accept_description({
+                workspace: preview.workspaceName,
+                role: roleLabel(preview.role)
+              })}
             </p>
             {error ? (
               <Alert variant="destructive">
@@ -189,10 +185,10 @@ function PendingInvitation({
             <div className="flex items-center gap-3">
               <Button onClick={() => void accept()} disabled={submitting}>
                 {submitting ? <Spinner data-icon="inline-start" /> : null}
-                Accept invitation
+                {m.accept_invitation_action()}
               </Button>
               <Button render={<Link to="/workspaces" />} variant="ghost">
-                Not now
+                {m.not_now_action()}
               </Button>
             </div>
           </CardContent>

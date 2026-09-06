@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** The knowledge shell's sections. Changelog is not one: /changelog redirects
  *  to the repository's GitHub Releases, where release-please publishes what
@@ -8,12 +9,25 @@ export type KnowledgeSection = 'docs' | 'blog' | 'faq'
 const SECTIONS: ReadonlyArray<{
   readonly id: KnowledgeSection
   readonly to: '/docs' | '/blog' | '/faq'
-  readonly label: string
 }> = [
-  { id: 'docs', to: '/docs', label: 'Docs' },
-  { id: 'blog', to: '/blog', label: 'Blog' },
-  { id: 'faq', to: '/faq', label: 'FAQ' }
+  { id: 'docs', to: '/docs' },
+  { id: 'blog', to: '/blog' },
+  { id: 'faq', to: '/faq' }
 ]
+
+function sectionLabel(section: KnowledgeSection): string {
+  switch (section) {
+    case 'docs': {
+      return m.public_docs_title()
+    }
+    case 'blog': {
+      return m.public_blog_title()
+    }
+    case 'faq': {
+      return m.public_faq_title()
+    }
+  }
+}
 
 /** The one active/inactive treatment for the section switcher segments. */
 function switcherClasses(isActive: boolean): string {
@@ -38,7 +52,7 @@ export function SectionSwitcher({ current }: { readonly current: KnowledgeSectio
             aria-current={section.id === current ? 'true' : undefined}
             className={switcherClasses(section.id === current)}
           >
-            {section.label}
+            {sectionLabel(section.id)}
           </Link>
         </li>
       ))}

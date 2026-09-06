@@ -24,6 +24,8 @@ auditConfig:
 catalog:
   '@babel/core': 8.0.1
   '@base-ui/react': 1.7.0
+  '@inlang/paraglide-js': 2.25.0
+  '@inlang/plugin-message-format': 4.4.4
   '@better-auth/cimd': 1.7.2
   '@better-auth/mcp': 1.7.2
   '@better-auth/oauth-provider': 1.7.2

@@ -81,7 +81,8 @@ describe('preference row copy', () => {
       isDefault: true,
       security: false,
       label: 'Plan changed',
-      description: 'A workspace moved to a different plan.'
+      description:
+        'A workspace you belong to is on a different plan. Limits and entitlements follow the new plan from now on.'
     })
   })
 

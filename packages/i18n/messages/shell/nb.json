@@ -1,0 +1,158 @@
+{
+  "shell_demo_read_only": "Den aktive demoen er skrivebeskyttet. Klon startpakken og logg inn som demo@starter.local for å gjøre endringer.",
+  "shell_description": "B2B SaaS-startmal for Cloudflare med TanStack Start, Effect v4, Drizzle D1, Better Auth, REST, MCP, e-post og tester.",
+  "shell_not_found": "Fant ikke siden",
+  "shell_not_found_description": "Siden du leter etter, finnes ikke.",
+  "shell_home": "Gå til forsiden",
+  "shell_unavailable": "Midlertidig utilgjengelig",
+  "shell_unavailable_description": "Denne tjenesten er midlertidig utilgjengelig. Prøv igjen senere.",
+  "shell_error": "Noe gikk galt",
+  "shell_error_description": "Det oppstod en uventet feil. Prøv igjen.",
+  "shell_language": "Språk",
+  "shell_preferences": "Språk og region",
+  "shell_preferences_description": "Språkvalget ditt gjelder på alle enheter og for e-post. Velg tidssonen som skal brukes til å vise datoer og klokkeslett.",
+  "shell_time_zone": "Tidssone",
+  "shell_time_zone_hint": "Bruk en IANA-tidssone, for eksempel Europe/Oslo eller America/New_York.",
+  "shell_save": "Lagre innstillinger",
+  "shell_saving": "Lagrer…",
+  "shell_save_error": "Kunne ikke lagre innstillingene dine. Prøv igjen.",
+  "shell_invalid_zone": "Skriv inn en gyldig tidssone, for eksempel Europe/Oslo.",
+  "shell_unsaved_title": "Bytte språk og laste siden på nytt?",
+  "shell_unsaved_description": "Du har redigert et skjema på denne siden. Når du bytter språk, lastes siden på nytt, og uferdige endringer kan gå tapt.",
+  "shell_cancel": "Avbryt",
+  "shell_switch": "Bytt språk",
+  "shell_unauthorized": "Økten din har utløpt. Logg inn på nytt og prøv igjen.",
+  "shell_forbidden": "Du har ikke tillatelse til å gjøre dette i arbeidsområdet. Kontakt en eier eller administrator.",
+  "shell_no_principal": "Du er ikke logget inn i dette arbeidsområdet. Logg inn på nytt og prøv igjen.",
+  "shell_plan_limit": "Abonnementet {planId} tillater maksimalt {limit} av denne ressursen i arbeidsområdet. Oppgrader abonnementet på faktureringssiden for å opprette flere.",
+  "shell_not_member": "Denne personen er ikke medlem av arbeidsområdet.",
+  "shell_sole_owner": "Arbeidsområdet må ha en eier. Overfør eierskapet til et annet medlem først.",
+  "shell_owner_required": "Bare en eier av arbeidsområdet kan tildele eller endre en eierrolle.",
+  "shell_membership_refused": "Arbeidsområdet avviste denne medlemskapsendringen.",
+  "shell_unknown_user": "Denne kontoen finnes ikke.",
+  "shell_impersonate_self": "En systemadministrator kan ikke opptre som seg selv.",
+  "shell_impersonate_admin": "En systemadministrator kan ikke opptre som en annen administrator.",
+  "shell_not_impersonating": "Denne økten opptrer ikke som noen andre.",
+  "shell_admin_refused": "Arbeidsområdet avviste endringen. En systemadministrator kan bare endre medlemskap i et arbeidsområde der de også er administrator eller eier. Systemrollen gir ingen rettigheter i arbeidsområdet.",
+  "shell_preferences_reload_title": "Lagre innstillingene og laste siden på nytt?",
+  "shell_preferences_reload_description": "Andre skjemaer på denne siden er redigert. Når du lagrer disse innstillingene, lastes siden på nytt, og uferdige endringer kan gå tapt.",
+  "shell_invalid_locale": "Velg et støttet språk.",
+  "shell_plan_starter_description": "Lokal utvikling og gjennomgang av referanseimplementasjonen.",
+  "shell_plan_team_description": "Oppsettet de fleste B2B SaaS-produkter tar utgangspunkt i.",
+  "shell_plan_enterprise_description": "SAML, innkjøp, tilpassede etterlevelseskrav og kundestøtte.",
+  "shell_plan_custom": "Etter avtale",
+  "shell_plan_seat_price": "{amount}/medlem/mnd.",
+  "shell_plan_month_price": "{amount}/mnd.",
+  "shell_plan_upgrade": "Oppgrader til {name}",
+  "shell_plan_contact": "Kontakt salg for å bytte til {name}.",
+  "shell_plan_downgrade": "Nedgraderinger håndteres i leverandørens abonnementsflyt.",
+  "shell_plan_entitlements": "{name} tillater {seats}, {tokens} og {webhooks}.",
+  "shell_plan_seat_per_member": "én plass per medlem",
+  "shell_plan_unlimited_seats": "ubegrenset antall plasser",
+  "shell_plan_unlimited_tokens": "ubegrenset antall API-tokener",
+  "shell_plan_unlimited_webhooks": "ubegrenset antall webhook-endepunkter",
+  "shell_plan_billed_member": "Faktureres per medlem",
+  "shell_plan_unlimited_label": "Ubegrenset antall: {label}",
+  "shell_plan_limit_label": "{label}: opptil {limit}",
+  "shell_plan_seats": [
+    {
+      "declarations": [
+        "input count",
+        "input formattedCount",
+        "local category = count: plural"
+      ],
+      "selectors": ["category"],
+      "match": {
+        "category=one": "opptil {formattedCount} plass",
+        "category=other": "opptil {formattedCount} plasser"
+      }
+    }
+  ],
+  "shell_plan_tokens": [
+    {
+      "declarations": [
+        "input count",
+        "input formattedCount",
+        "local category = count: plural"
+      ],
+      "selectors": ["category"],
+      "match": {
+        "category=one": "{formattedCount} API-token",
+        "category=other": "opptil {formattedCount} API-tokener"
+      }
+    }
+  ],
+  "shell_plan_webhooks": [
+    {
+      "declarations": [
+        "input count",
+        "input formattedCount",
+        "local category = count: plural"
+      ],
+      "selectors": ["category"],
+      "match": {
+        "category=one": "{formattedCount} webhook-endepunkt",
+        "category=other": "opptil {formattedCount} webhook-endepunkter"
+      }
+    }
+  ],
+  "shell_table_sort_asc": "Sorter etter {column}, nå stigende",
+  "shell_table_sort_desc": "Sorter etter {column}, nå synkende",
+  "shell_table_sort": "Sorter etter {column}",
+  "shell_table_empty": "Ingen resultater.",
+  "shell_table_filter": "Filtrer …",
+  "shell_table_filter_rows": "Filtrer rader",
+  "shell_table_previous": "Forrige",
+  "shell_table_next": "Neste",
+  "shell_chart_empty": "Ingen webhook-endepunkter er konfigurert ennå.",
+  "shell_chart_delivered": "{percent} levert",
+  "shell_chart_success_rate": "{endpoint}: {percent} vellykket levering",
+  "shell_chart_success": "Vellykket",
+  "shell_table_page": [
+    {
+      "declarations": [
+        "input count",
+        "input rows",
+        "input page",
+        "input pages",
+        "local category = count: plural"
+      ],
+      "selectors": ["category"],
+      "match": {
+        "category=one": "Side {page} av {pages} · {rows} rad",
+        "category=other": "Side {page} av {pages} · {rows} rader"
+      }
+    }
+  ],
+  "shell_confirm_again": "Trykk igjen for å bekrefte",
+  "shell_confirm_target": "Trykk igjen for å bekrefte {target}",
+  "shell_cancel_target": "Avbryt {target}",
+  "shell_action_target": "{action} {target}",
+  "shell_role_owner": "eier",
+  "shell_role_admin": "administrator",
+  "shell_role_member": "medlem",
+  "shell_role_user": "bruker",
+  "shell_status_pending": "venter",
+  "shell_status_accepted": "godtatt",
+  "shell_status_rejected": "avvist",
+  "shell_status_canceled": "avbrutt",
+  "shell_status_delivered": "levert",
+  "shell_status_failed": "mislyktes",
+  "shell_status_failed_permanent": "permanent feil",
+  "shell_status_dead_lettered": "lagt i feilkø",
+  "shell_status_ready": "klar",
+  "shell_make_role": "Gjør til {role}",
+  "shell_workspace_role": "Sett rollen i {workspace} til {role}",
+  "shell_command_menu": "Kommandomeny",
+  "shell_impersonated_sign_in": "Innloggingsmetoder kan ikke endres mens du opptrer som denne brukeren.",
+  "shell_impersonated_two_factor": "Tofaktorinnstillinger kan ikke endres mens du opptrer som denne brukeren.",
+  "shell_impersonated_passkeys": "Passnøkler kan ikke endres mens du opptrer som denne brukeren.",
+  "shell_impersonated_deletion": "Kontoen kan ikke slettes mens du opptrer som denne brukeren.",
+  "shell_diagram_browser": "nettleser",
+  "shell_diagram_mcp_client": "MCP-klient",
+  "shell_diagram_queue_jobs": "køjobber",
+  "shell_diagram_topology": "B2B-SAAS-STARTER · FORESPØRSELSFLYT",
+  "shell_diagram_sheet": "CLOUDFLARE-FIRST · ALCHEMY v2 · ARK 1/1",
+  "shell_trace_workspace_group": "HttpApiEndpoint · arbeidsområdegruppen",
+  "shell_trace_overview": "Effect · oversiktsprojeksjonen"
+}

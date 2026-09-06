@@ -100,19 +100,22 @@ describe('admin failed deliveries boundary', () => {
     ).rejects.toMatchObject({ name: 'ImpersonationStateError' })
   })
 
-  it('returns inline refusal reasons for disabled, missing and nonterminal sources', async () => {
+  it('returns safe inline guidance for disabled, missing and nonterminal sources', async () => {
     expect(
       await replayFailedDeliveryHandler({ deliveryId: 'whd_seed_perm_failed' })
-    ).toMatchObject({ status: 'refused', reason: expect.stringContaining('disabled') })
+    ).toMatchObject({
+      status: 'refused',
+      reason: expect.stringContaining('could not be replayed')
+    })
     expect(await replayFailedDeliveryHandler({ deliveryId: 'missing' })).toMatchObject({
       status: 'refused',
-      reason: expect.stringContaining('no longer exists')
+      reason: expect.stringContaining('could not be replayed')
     })
     expect(
       await replayFailedDeliveryHandler({ deliveryId: 'whd_seed_failed' })
     ).toMatchObject({
       status: 'refused',
-      reason: expect.stringContaining('only terminal')
+      reason: expect.stringContaining('could not be replayed')
     })
   })
 })

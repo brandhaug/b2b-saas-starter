@@ -3,6 +3,7 @@ import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceApiTokensPage } from '@/components/workspace-api-tokens-page'
 import { loadWorkspaceApiTokensServerFn } from '@/lib/server/api-tokens'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there. The page's own read permission
@@ -15,7 +16,7 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/api-tokens')({
   pendingComponent: RoutePending,
   component: WorkspaceApiTokensRoute,
   head: ({ params }) => ({
-    meta: [{ title: pageTitle('API tokens', params.workspaceSlug) }]
+    meta: [{ title: pageTitle(m.public_meta_api_tokens(), params.workspaceSlug) }]
   })
 })
 

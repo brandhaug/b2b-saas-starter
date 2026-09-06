@@ -3,7 +3,7 @@ import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-p
 import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { Effect, Schema } from 'effect'
 
-import { causeMessage } from '../cause-message'
+import { errorMessage } from '@b2b-saas-starter/failure'
 import { runCapabilities } from '../capabilities'
 import { signedOAuthQuery } from '../oauth-query'
 import { webRuntime } from '../observability'
@@ -191,7 +191,7 @@ async function recordGrantBestEffort(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the rejected value is a cause to log, not input to parse; `: unknown` is the safe annotation the audit-drop path demands
     (error: unknown) => {
       reportDroppedGrantAudit(
-        `mcp consent grant audit dropped (client ${clientId}, user ${input.userId}, workspace ${input.workspaceId}): ${causeMessage(error, 'no reason given')}`
+        `mcp consent grant audit dropped (client ${clientId}, user ${input.userId}, workspace ${input.workspaceId}): ${errorMessage(error) ?? 'no reason given'}`
       )
     }
   )

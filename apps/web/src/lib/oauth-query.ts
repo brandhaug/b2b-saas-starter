@@ -5,6 +5,8 @@
  * pure and ship to the browser, so no Effect here.
  */
 
+import { m } from '@b2b-saas-starter/i18n/messages'
+
 const SIGNED_PARAMETER_NAMES = 'ba_param'
 
 /**
@@ -52,18 +54,28 @@ export function consentRequest(search: {
  * Human copy per OAuth scope. Anything the map does not know shows as its raw
  * name — a new scope must still be visible on the consent screen.
  */
-const SCOPE_LABELS = new Map<string, string>([
-  ['openid', 'Know who you are'],
-  ['profile', 'See your name'],
-  ['email', 'See your email address'],
-  ['offline_access', 'Stay connected without signing in again'],
-  ['mcp:read', 'Read the workspace through the MCP server'],
-  [
-    'mcp:write',
-    'Change workspace data, manage API tokens and webhooks, and request exports within your permissions'
-  ]
-])
-
 export function scopeLabel(scope: string): string {
-  return SCOPE_LABELS.get(scope) ?? scope
+  switch (scope) {
+    case 'openid': {
+      return m.oauth_scope_openid()
+    }
+    case 'profile': {
+      return m.oauth_scope_profile()
+    }
+    case 'email': {
+      return m.oauth_scope_email()
+    }
+    case 'offline_access': {
+      return m.oauth_scope_offline()
+    }
+    case 'mcp:read': {
+      return m.oauth_scope_read()
+    }
+    case 'mcp:write': {
+      return m.oauth_scope_write()
+    }
+    default: {
+      return scope
+    }
+  }
 }

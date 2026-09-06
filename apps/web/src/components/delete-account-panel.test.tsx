@@ -54,7 +54,7 @@ describe('DeleteAccountPanel', () => {
   it('sends the password after the confirm step and leaves for /sign-in', async () => {
     const assign = vi.fn()
     Object.defineProperty(window, 'location', {
-      value: { assign },
+      value: { assign, href: 'http://localhost/account', origin: 'http://localhost' },
       writable: true
     })
     const deleteAccount = vi.fn().mockResolvedValue(deletablePlan)
@@ -117,9 +117,10 @@ describe('DeleteAccountPanel', () => {
         Object.assign(new Error('x'), { name: ACCOUNT_DELETION_BLOCKED_NAME })
       )
     ).toBe('Transfer ownership of your workspaces before deleting your account.')
-    // An unknown rejection shows its own message; one without a useful name
-    // or message gets the fallback sentence.
-    expect(describeDeleteFailure(new Error('boom'))).toBe('boom')
+    // Unknown rejections use the safe fallback sentence.
+    expect(describeDeleteFailure(new Error('boom'))).toBe(
+      'Could not delete the account'
+    )
     expect(describeDeleteFailure(undefined)).toBe('Could not delete the account')
   })
 })

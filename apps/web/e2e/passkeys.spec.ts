@@ -1,5 +1,6 @@
 import { expect, test, type CDPSession } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
+import { isolatedClientIp } from './test-isolation'
 
 // The critical passkey flow (ADR 0012): register a passkey from /account with
 // a user-chosen name, rename it, sign out, sign back in with the passkey, and
@@ -36,7 +37,10 @@ async function addVirtualAuthenticator(cdp: CDPSession): Promise<string> {
   return authenticatorId
 }
 
-test.beforeEach(async ({ page, context }) => {
+test.beforeEach(async ({ page, context }, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    'cf-connecting-ip': isolatedClientIp(testInfo.testId)
+  })
   const cdp = await context.newCDPSession(page)
   await addVirtualAuthenticator(cdp)
 })
@@ -52,6 +56,8 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.waitForURL(/\/workspaces/)
+  await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
+  await expect(page.locator('header select')).toBeEnabled()
 
   // Register from /account with a user-chosen name; the virtual authenticator
   // resolves the ceremony the button starts. The "No passkeys yet" copy only
@@ -68,7 +74,7 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   // Rename it.
   await page.getByRole('button', { name: 'Rename E2E key passkey' }).click()
   await page.getByLabel('New name').fill('Renamed key')
-  await page.getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByText('Renamed key')).toBeVisible()
 
   // Sign out (drop the session cookie) and come back through the passkey
@@ -87,6 +93,8 @@ test('registers, renames, signs in with, and removes a passkey', async ({
     .click({ timeout: 10_000 })
     .catch(() => undefined)
   await page.waitForURL(/\/workspaces/, { timeout: 15_000 })
+  await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
+  await expect(page.locator('header select')).toBeEnabled()
 
   // Remove the passkey and land back on the empty state. The row's reappearance
   // after the full page load is again the hydration wait.

@@ -14,7 +14,7 @@ Per-user, per-kind email channel for notifications: `off | instant | digest` (AD
 ## Patterns & Pitfalls
 
 - The vocabularies (`notificationKinds`, `securityNotificationKinds`, `notificationChannels`) are stored enums in `packages/db`; this context lifts them into `Schema.Literals` and never redeclares them.
-- `notification-kinds.ts` also owns `NOTIFICATION_KIND_DESCRIPTIONS`, the copy shared by the UI and the email subjects.
+- `notification-kinds.ts` exposes locale-aware label and description functions used by the UI and email subjects.
 
 ## Anti-patterns
 

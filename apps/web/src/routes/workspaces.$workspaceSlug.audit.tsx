@@ -4,6 +4,7 @@ import { AuditRouteError } from '@/components/audit-route-error'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAuditPage } from '@/components/workspace-audit-page'
 import { type ApplyWorkspaceAuditSearch } from '@/lib/audit-search'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import { pickOptionalStrings } from '@/lib/utils'
 import {
   loadWorkspaceAuditEventsServerFn,
@@ -66,20 +67,26 @@ function filtersFromSearch(search: AuditSearch): WorkspaceAuditFilters {
 export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
   validateSearch: (search) => decodeSearch(search),
   loaderDeps: ({ search }) => ({ search: decodeSearch(search) }),
-  loader: ({ params, deps }) =>
-    loadWorkspaceAuditEventsServerFn({
-      data: {
-        workspaceSlug: params.workspaceSlug,
-        filters: filtersFromSearch(deps.search),
-        ...(deps.search.cursor !== undefined && { cursor: deps.search.cursor }),
-        ...(deps.search.event && { event: deps.search.event })
-      }
-    }),
+  loader: {
+    // Search changes reload this same route. Show the route pending state while
+    // a selected event is fetched so detail failures do not look like a
+    // missing event.
+    staleReloadMode: 'blocking',
+    handler: ({ params, deps }) =>
+      loadWorkspaceAuditEventsServerFn({
+        data: {
+          workspaceSlug: params.workspaceSlug,
+          filters: filtersFromSearch(deps.search),
+          ...(deps.search.cursor !== undefined && { cursor: deps.search.cursor }),
+          ...(deps.search.event && { event: deps.search.event })
+        }
+      })
+  },
   pendingComponent: RoutePending,
   errorComponent: AuditRouteError,
   component: WorkspaceAuditRoute,
   head: ({ params }) => ({
-    meta: [{ title: pageTitle('Audit trail', params.workspaceSlug) }]
+    meta: [{ title: pageTitle(m.public_meta_audit(), params.workspaceSlug) }]
   })
 })
 

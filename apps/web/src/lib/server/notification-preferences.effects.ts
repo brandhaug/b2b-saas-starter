@@ -1,7 +1,10 @@
 import {
-  NOTIFICATION_KIND_DESCRIPTIONS,
-  isSecurityNotificationKind
+  isSecurityNotificationKind,
+  notificationKindDescription,
+  notificationKindLabel
 } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
+import { type Locale } from '@b2b-saas-starter/i18n/locale'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import {
   NotificationPreferences,
   type NotificationPreference
@@ -31,13 +34,13 @@ import {
  * words and never imports the kind table.
  */
 export function toPreferenceRow(
-  preference: NotificationPreference
+  preference: NotificationPreference,
+  locale: Locale = 'en'
 ): NotificationPreferenceRow {
-  const copy = NOTIFICATION_KIND_DESCRIPTIONS[preference.kind]
   return {
     ...preference,
-    label: copy.label,
-    description: copy.description,
+    label: notificationKindLabel(preference.kind, locale),
+    description: notificationKindDescription(preference.kind, locale),
     security: isSecurityNotificationKind(preference.kind)
   }
 }
@@ -49,6 +52,7 @@ export function toPreferenceRow(
  */
 export function notificationPreferencesPayload(input: {
   readonly userId: string
+  readonly locale?: Locale | undefined
 }): Effect.Effect<
   NotificationPreferencesPayload,
   CapabilityUnavailable,
@@ -58,7 +62,11 @@ export function notificationPreferencesPayload(input: {
     Effect.flatMap(NotificationPreferences, (preferences) =>
       preferences.list(input.userId)
     ),
-    (resolved) => ({ preferences: resolved.map(toPreferenceRow) })
+    (resolved) => ({
+      preferences: resolved.map((preference) =>
+        toPreferenceRow(preference, input.locale)
+      )
+    })
   )
 }
 
@@ -69,7 +77,12 @@ export function notificationPreferencesPayload(input: {
  */
 export async function loadNotificationPreferencesHandler(): Promise<NotificationPreferencesPayload> {
   const session = await requireRequestSession()
-  return runCapabilities(notificationPreferencesPayload({ userId: session.user.id }))
+  return runCapabilities(
+    notificationPreferencesPayload({
+      userId: session.user.id,
+      locale: getLocale()
+    })
+  )
 }
 
 /**
@@ -89,7 +102,7 @@ export async function setNotificationPreferenceHandler(
         kind: input.kind,
         channel: input.channel
       })
-      return toPreferenceRow(set)
+      return toPreferenceRow(set, getLocale())
     })
   )
 }

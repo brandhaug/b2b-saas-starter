@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { LinkedAccountsPanel } from './linked-accounts-panel'
 import { renderWithQueryClient } from '@/test/query-harness'
 import { authClient } from '@/lib/auth-client'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The panel calls the client module directly, so its endpoints are doubles
 // on the mocked module.
@@ -58,9 +59,7 @@ describe('LinkedAccountsPanel', () => {
 
     await screen.findByText('email and password')
     expect(screen.queryByRole('button', { name: /Unlink/ })).toBeNull()
-    expect(
-      screen.getByText('Add another sign-in method before removing this one')
-    ).toBeDefined()
+    expect(screen.getByText(m.add_sign_in_method_before_removing())).toBeDefined()
     expect(unlinkAccount).not.toHaveBeenCalled()
   })
 
@@ -84,7 +83,7 @@ describe('LinkedAccountsPanel', () => {
 
     // The refreshed list no longer offers GitHub, and the remaining method is
     // protected by the one-method rule.
-    await screen.findByText('Add another sign-in method before removing this one')
+    await screen.findByText(m.add_sign_in_method_before_removing())
     expect(screen.queryByText('GitHub')).toBeNull()
   })
 })

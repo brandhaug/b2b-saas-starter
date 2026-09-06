@@ -103,7 +103,9 @@ describe('/account', () => {
     screen.getByText('Mobile browser')
     screen.getByText('Sign out everywhere else')
     // The other session is the only revocable one.
-    const revoke = screen.getByRole('button', { name: 'Revoke Mobile browser session' })
+    const revoke = screen.getByRole('button', {
+      name: 'Revoke session on Mobile browser'
+    })
     fireEvent.click(revoke)
     fireEvent.click(screen.getByRole('button', { name: 'Revoke session' }))
     await waitFor(() =>

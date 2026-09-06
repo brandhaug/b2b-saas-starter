@@ -9,11 +9,14 @@ import {
   type NotificationRecipient
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
-  NOTIFICATION_KIND_DESCRIPTIONS,
   type NotificationChannel,
   type NotificationKind
 } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
+import { renderNotificationEvent } from '@b2b-saas-starter/capabilities/notifications/notification-events'
 import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
+import * as m from '@b2b-saas-starter/i18n/messages'
+import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
+import { formatDateTime } from '@b2b-saas-starter/i18n/format'
 import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import {
   NotificationDigestEmail,
@@ -33,6 +36,54 @@ export type RecipientDigest = {
   readonly items: ReadonlyArray<DigestItem>
 }
 
+function localizedKindLabel(kind: string, locale: Locale): string {
+  const options = { locale }
+  switch (kind) {
+    case 'api_token.created': {
+      return m.backend_email_notification_kind_api_token_created({}, options)
+    }
+    case 'api_token.revoked': {
+      return m.backend_email_notification_kind_api_token_revoked({}, options)
+    }
+    case 'workspace_member.role_changed': {
+      return m.backend_email_notification_kind_role_changed({}, options)
+    }
+    case 'two_factor.changed': {
+      return m.backend_email_notification_kind_two_factor_changed({}, options)
+    }
+    case 'webhook.delivery_failed': {
+      return m.backend_email_notification_kind_webhook_failed({}, options)
+    }
+    case 'workspace_member.joined': {
+      return m.backend_email_notification_kind_member_joined({}, options)
+    }
+    case 'billing.plan_changed': {
+      return m.backend_email_notification_kind_plan_changed({}, options)
+    }
+    case 'account.impersonated': {
+      return m.backend_email_notification_kind_impersonated({}, options)
+    }
+    default: {
+      return m.backend_email_notification_kind_announcement({}, options)
+    }
+  }
+}
+
+function notificationCopy(
+  notification: {
+    readonly title: string
+    readonly message: string
+    readonly event?: Parameters<typeof renderNotificationEvent>[0] | undefined
+  },
+  locale: Locale,
+  timeZone = 'UTC'
+) {
+  if (notification.event === undefined) {
+    return { title: notification.title, message: notification.message }
+  }
+  return renderNotificationEvent(notification.event, locale, timeZone)
+}
+
 /** Resolves a recipient's channel for a kind — the digest's one policy input. */
 export type ChannelResolver = (
   userId: string,
@@ -44,8 +95,17 @@ export type ChannelResolver = (
  * reads no clock, so the sender turns the ISO string it already holds into a
  * display line. UTC by construction — `DateTime.formatIso` writes UTC.
  */
-export function formatDigestTimestamp(createdAt: string): string {
-  return `${createdAt.slice(0, 16).replace('T', ' ')} UTC`
+export function formatDigestTimestamp(
+  createdAt: string,
+  locale: Locale = DEFAULT_LOCALE,
+  timeZone = 'UTC'
+): string {
+  return formatDateTime(
+    createdAt,
+    locale,
+    { dateStyle: 'medium', timeStyle: 'short' },
+    timeZone
+  )
 }
 
 /**
@@ -69,6 +129,12 @@ export function buildDigests(
     if (channelFor(recipient.userId, kind) !== 'digest') {
       continue
     }
+    const locale = recipient.locale ?? DEFAULT_LOCALE
+    const copy = notificationCopy(
+      candidate.notification,
+      locale,
+      recipient.timeZone ?? 'UTC'
+    )
     let entry = byRecipient.get(recipient.userId)
     if (entry === undefined) {
       entry = { recipient, items: [] }
@@ -76,11 +142,15 @@ export function buildDigests(
     }
     entry.items.push({
       id: candidate.notification.id,
-      kindLabel: NOTIFICATION_KIND_DESCRIPTIONS[kind].label,
-      title: candidate.notification.title,
-      message: candidate.notification.message,
+      kindLabel: localizedKindLabel(kind, locale),
+      title: copy.title,
+      message: copy.message,
       workspaceName: candidate.workspace?.name ?? null,
-      createdAt: formatDigestTimestamp(candidate.notification.createdAt)
+      createdAt: formatDigestTimestamp(
+        candidate.notification.createdAt,
+        locale,
+        candidate.recipient.timeZone ?? 'UTC'
+      )
     })
   }
   return [...byRecipient.values()]
@@ -151,12 +221,16 @@ export function runNotificationDigest(
       const outcome = yield* Effect.result(
         dispatcher.send({
           to: digest.recipient.email,
-          subject: `[B2B SaaS Starter] Your daily digest: ${String(digest.items.length)} unread`,
+          subject: m.backend_email_subject_digest(
+            { count: digest.items.length },
+            { locale: digest.recipient.locale ?? DEFAULT_LOCALE }
+          ),
           element: NotificationDigestEmail({
             recipientName: digest.recipient.name,
             items: digest.items,
             openUrl: `${appUrl}/workspaces`,
-            preferencesUrl: preferencesUrl(appUrl)
+            preferencesUrl: preferencesUrl(appUrl),
+            locale: digest.recipient.locale ?? DEFAULT_LOCALE
           })
         })
       )

@@ -8,6 +8,7 @@ import { SnippetPanel } from '@/components/landing/snippet-panel'
 import { useOverflowFade } from '@/hooks/use-overflow-fade'
 import { DEPLOY_COMMAND } from '@/lib/toolchain'
 import { cn } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * Direction A of the landing redesign: one narrative spine that follows a
@@ -71,7 +72,9 @@ function responseSnippet(overview: WorkspaceOverviewProjection): string {
     null,
     2
   )
-  return elided <= 0 ? body : `${body}\n… ${elided} more notifications`
+  return elided <= 0
+    ? body
+    : `${body}\n${m.public_request_more_notifications({ count: elided })}`
 }
 
 const REQUEST_SNIPPET = `curl -H "Authorization: Bearer bsk_live_xxx" \\\n  https://api.example.com/workspaces/starter-lab/overview`
@@ -137,27 +140,29 @@ return yield* invoke`
 ]
 
 /** The runtime the trace lands on, one row per lit schematic node. */
-const RUNTIME_ROWS: ReadonlyArray<{
+function runtimeRows(): ReadonlyArray<{
   readonly node: string
   readonly holds: string
   readonly declared: string
-}> = [
-  {
-    node: 'D1',
-    holds: 'SQLite: schema, migrations, seed rows',
-    declared: 'packages/db'
-  },
-  {
-    node: 'Queues',
-    holds: 'Webhook deliveries with retries and backoff',
-    declared: 'apps/background'
-  },
-  {
-    node: 'Email',
-    holds: 'Transactional sends, provider-gated until configured',
-    declared: 'packages/email'
-  }
-]
+}> {
+  return [
+    {
+      node: 'D1',
+      holds: m.public_request_d1_holds(),
+      declared: 'packages/db'
+    },
+    {
+      node: 'Queues',
+      holds: m.public_request_queues_holds(),
+      declared: 'apps/background'
+    },
+    {
+      node: 'Email',
+      holds: m.public_request_email_holds(),
+      declared: 'packages/email'
+    }
+  ]
+}
 
 function RequestTraceSection({
   overview
@@ -209,16 +214,10 @@ function RequestTraceSection({
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:py-24">
         <div className="max-w-2xl">
           <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
-            One request, traced end to end.
+            {m.public_request_heading()}
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
-            The same read that filled the numbers above, followed from the curl that
-            starts it to the binding that persists it. Every excerpt below is real code
-            from this repository; the caption on each panel is its path.
-            <span className="hidden lg:inline">
-              {' '}
-              In the rail, the node under discussion lights as you read.
-            </span>
+            {m.public_request_description()}
           </p>
         </div>
 
@@ -231,7 +230,7 @@ function RequestTraceSection({
           ref={schematicRef}
           // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <figure> is the semantic element; role="region" exposes the scrollable area without losing figure semantics.
           role="region"
-          aria-label="Architecture schematic, scrollable horizontally"
+          aria-label={m.public_architecture_aria()}
           // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focus stop to pan the horizontally overflowing schematic.
           tabIndex={0}
           className={cn(
@@ -244,23 +243,20 @@ function RequestTraceSection({
         </figure>
         <dl className="sr-only">
           <div>
-            <dt>Clients</dt>
-            <dd>browser, curl / SDK, MCP client, queue jobs</dd>
+            <dt>{m.public_request_clients()}</dt>
+            <dd>{m.public_request_clients_detail()}</dd>
           </div>
           <div>
-            <dt>Workers</dt>
-            <dd>
-              apps/web (TanStack Start), apps/api (REST + MCP), apps/background (queue
-              consumer)
-            </dd>
+            <dt>{m.public_request_workers()}</dt>
+            <dd>{m.public_request_workers_detail()}</dd>
           </div>
           <div>
-            <dt>Shared layer</dt>
-            <dd>packages/capabilities: every worker calls the same effects</dd>
+            <dt>{m.public_request_shared_layer()}</dt>
+            <dd>{m.public_request_shared_detail()}</dd>
           </div>
           <div>
-            <dt>Infrastructure</dt>
-            <dd>D1 (database), Queues (outbound webhooks), Email Service</dd>
+            <dt>{m.public_request_infrastructure()}</dt>
+            <dd>{m.public_request_infrastructure_detail()}</dd>
           </div>
         </dl>
 
@@ -281,12 +277,11 @@ function RequestTraceSection({
           >
             <article data-stage="request" className="pt-2">
               <StageMarker index="01" node="curl / SDK" />
-              <h3 className="mt-3 text-xl font-semibold text-balance">The request</h3>
+              <h3 className="mt-3 text-xl font-semibold text-balance">
+                {m.public_request_stage_request()}
+              </h3>
               <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                An ordinary bearer-authenticated GET. The body printed below is the live
-                overview this page rendered its numbers from, not a fixture: the first
-                notification is shown in full and the rest are counted, never
-                paraphrased.
+                {m.public_request_stage_request_description()}
               </p>
               <div className="mt-6">
                 <SnippetPanel
@@ -301,19 +296,15 @@ function RequestTraceSection({
               className="mt-16 border-t border-border pt-10 lg:mt-24"
             >
               <StageMarker index="02" node="apps/api" />
-              <h3 className="mt-3 text-xl font-semibold text-balance">The contract</h3>
+              <h3 className="mt-3 text-xl font-semibold text-balance">
+                {m.public_request_stage_contract()}
+              </h3>
               <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                The route exists because the contract says it does. Path, params,
-                success schema, and the typed error channel sit in one declaration:{' '}
-                <code className="font-mono text-xs">WORKSPACE_ERRORS</code> is
-                WorkspaceNotFound, Unauthorized, AuthorizationDenied, RateLimited,
-                CapabilityUnavailable — encoded on the endpoint, not thrown as strings.
-                The bearer gate rides the group, so a sibling endpoint cannot ship
-                without it.
+                {m.public_request_stage_contract_description()}
               </p>
               <div className="mt-6">
                 <SnippetPanel
-                  label="HttpApiEndpoint · the workspace group"
+                  label={m.shell_trace_workspace_group()}
                   path="packages/api/src/index.ts"
                   code={CONTRACT_SNIPPET}
                 />
@@ -326,17 +317,14 @@ function RequestTraceSection({
             >
               <StageMarker index="03" node="packages/capabilities" />
               <h3 className="mt-3 text-xl font-semibold text-balance">
-                The capability, written once
+                {m.public_request_stage_capability()}
               </h3>
               <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                Both surfaces call the same effect. Its failure channel and its service
-                requirements are part of its type, so every caller shares one failure
-                vocabulary and the compiler checks the wiring — the claim on this page
-                that cannot be faked.
+                {m.public_request_stage_capability_description()}
               </p>
               <div className="mt-6">
                 <SnippetPanel
-                  label="Effect · the overview projection"
+                  label={m.shell_trace_overview()}
                   path="packages/capabilities/src/workspace-projections.ts"
                   code={CAPABILITY_SNIPPET}
                 />
@@ -364,38 +352,32 @@ function RequestTraceSection({
             >
               <StageMarker index="04" node="D1 · Queues · Email" />
               <h3 className="mt-3 text-xl font-semibold text-balance">
-                The runtime it lands on
+                {m.public_request_stage_runtime()}
               </h3>
               <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                Every binding below the effect is declared once in{' '}
-                <code className="font-mono text-xs">alchemy.run.ts</code>: the same
-                TypeScript description provisions local dev and production, so the whole
-                story ends in{' '}
+                {m.public_request_stage_runtime_description()}{' '}
                 <code className="font-mono text-xs text-signal-ink">
                   {DEPLOY_COMMAND}
                 </code>
                 .
               </p>
               <table className="mt-6 w-full border-collapse text-left">
-                <caption className="sr-only">
-                  The three infrastructure bindings the trace ends in, one row per node
-                  in the schematic
-                </caption>
+                <caption className="sr-only">{m.public_request_caption()}</caption>
                 <thead>
                   <tr className="border-b border-border font-mono text-2xs text-muted-foreground">
                     <th scope="col" className="py-2 pr-4 font-medium">
-                      binding
+                      {m.public_request_binding()}
                     </th>
                     <th scope="col" className="py-2 pr-4 font-medium">
-                      what it holds
+                      {m.public_request_holds()}
                     </th>
                     <th scope="col" className="py-2 font-medium">
-                      declared in
+                      {m.public_request_declared_in()}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {RUNTIME_ROWS.map((row) => (
+                  {runtimeRows().map((row) => (
                     <tr key={row.node} className="border-b border-border">
                       <th
                         scope="row"
@@ -427,7 +409,7 @@ function RequestTraceSection({
                 className="w-full transition-colors duration-300"
               />
               <p className="mt-3 font-mono text-2xs text-muted-foreground">
-                The lit node follows the stage.
+                {m.public_request_rail()}
               </p>
             </div>
           </div>

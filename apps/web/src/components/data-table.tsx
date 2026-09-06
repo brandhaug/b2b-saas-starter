@@ -1,3 +1,6 @@
+import { m } from '@b2b-saas-starter/i18n/messages'
+import { formatNumber } from '@b2b-saas-starter/i18n/format'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import { useState, type ReactNode } from 'react'
 import {
   columnFilteringFeature,
@@ -34,8 +37,7 @@ import { formatDateTime } from '@/lib/format-date'
 
 const STICKY_CLASSES = 'sticky left-0 z-10 bg-card group-hover:bg-muted/50'
 
-/** Deterministic UTC rendering so SSR and the browser agree; table
- * convention sets identifiers and timestamps in mono tabular figures. */
+/** Keep identifiers and request-local timestamps in mono tabular figures. */
 function isDate(cell: ReactNode | Date): cell is Date {
   return Object.prototype.toString.call(cell) === '[object Date]'
 }
@@ -75,16 +77,16 @@ export type DataTableColumnDef<TData extends RowData> = ColumnDef<
 
 type SortState = {
   /** Appended to the sort button's accessible name. */
-  readonly label: string
+  readonly label: (input: { column: string }) => string
   /** The `aria-sort` value for the header cell. */
   readonly aria: 'ascending' | 'descending' | 'none'
   readonly glyph: string | null
 }
 
 const SORT_STATE = {
-  asc: { label: ', currently ascending', aria: 'ascending', glyph: '▲' },
-  desc: { label: ', currently descending', aria: 'descending', glyph: '▼' },
-  false: { label: '', aria: 'none', glyph: null }
+  asc: { label: m.shell_table_sort_asc, aria: 'ascending', glyph: '▲' },
+  desc: { label: m.shell_table_sort_desc, aria: 'descending', glyph: '▼' },
+  false: { label: m.shell_table_sort, aria: 'none', glyph: null }
 } satisfies Record<'asc' | 'desc' | 'false', SortState>
 
 /** A column's header titles its sort button only when it is a plain string. */
@@ -114,7 +116,7 @@ export function DataTable<TData extends RowData>({
   filter = false,
   filterPlaceholder,
   pageSize = 10,
-  emptyMessage = 'No results.',
+  emptyMessage = m.shell_table_empty(),
   tableLabel,
   pager = true
 }: DataTableProps<TData>) {
@@ -143,9 +145,9 @@ export function DataTable<TData extends RowData>({
         <Input
           value={globalFilter}
           onChange={(event) => setGlobalFilter(event.target.value)}
-          placeholder={filterPlaceholder ?? 'Filter…'}
+          placeholder={filterPlaceholder ?? m.shell_table_filter()}
           className="max-w-xs"
-          aria-label={filterPlaceholder ?? 'Filter rows'}
+          aria-label={filterPlaceholder ?? m.shell_table_filter_rows()}
         />
       ) : null}
       <Table aria-label={tableLabel}>
@@ -178,7 +180,7 @@ export function DataTable<TData extends RowData>({
                       <Button
                         variant="ghost"
                         onClick={header.column.getToggleSortingHandler()}
-                        aria-label={`Sort by ${columnTitle}${sortState.label}`}
+                        aria-label={sortState.label({ column: columnTitle })}
                       >
                         {label}
                         {sortState.glyph}
@@ -227,9 +229,12 @@ export function DataTable<TData extends RowData>({
           {/* Live: filter/pagination changes announce the new count, as the
               audit trail's count already does. */}
           <span aria-live="polite">
-            Page {table.state.pagination.pageIndex + 1} of {table.getPageCount()}
-            {' · '}
-            {filteredCount} rows
+            {m.shell_table_page({
+              count: filteredCount,
+              rows: formatNumber(filteredCount, getLocale()),
+              page: formatNumber(table.state.pagination.pageIndex + 1, getLocale()),
+              pages: formatNumber(table.getPageCount(), getLocale())
+            })}
           </span>
           <div className="flex gap-2">
             <Button
@@ -238,7 +243,7 @@ export function DataTable<TData extends RowData>({
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
-              Previous
+              {m.shell_table_previous()}
             </Button>
             <Button
               type="button"
@@ -246,7 +251,7 @@ export function DataTable<TData extends RowData>({
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
-              Next
+              {m.shell_table_next()}
             </Button>
           </div>
         </div>

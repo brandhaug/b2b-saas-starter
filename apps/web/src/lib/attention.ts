@@ -4,6 +4,7 @@ import { formatDateTime } from '@/lib/format-date'
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The dashboard's attention feed derivation: one ordered list of what an owner
@@ -52,10 +53,10 @@ export function attentionItems({
       items.push({
         id: 'pending-invitations',
         severity: 'warn',
-        title: `${pending} pending invitation${pending === 1 ? '' : 's'}`,
-        description: 'They join once they open the link and accept.',
+        title: m.attention_pending_title({ count: pending }),
+        description: m.attention_pending_description(),
         to: '/workspaces/$workspaceSlug/members',
-        linkLabel: 'Review invitations'
+        linkLabel: m.attention_review_invitations()
       })
     }
   }
@@ -71,10 +72,10 @@ export function attentionItems({
       items.push({
         id: 'unused-tokens',
         severity: 'info',
-        title: `${neverUsed} token${neverUsed === 1 ? '' : 's'} minted but never used`,
-        description: 'A token that has never authenticated may be stray.',
+        title: m.attention_unused_title({ count: neverUsed }),
+        description: m.attention_unused_description(),
         to: '/workspaces/$workspaceSlug/api-tokens',
-        linkLabel: 'Review tokens'
+        linkLabel: m.attention_review_tokens()
       })
     }
   }
@@ -85,10 +86,13 @@ export function attentionItems({
         items.push({
           id: `endpoint-${endpoint.id}`,
           severity: 'warn',
-          title: `Endpoint at ${endpoint.successRate}% success`,
-          description: `${endpoint.url} is under the ${SUCCESS_RATE_THRESHOLD}% threshold.`,
+          title: m.attention_endpoint_title({ rate: endpoint.successRate }),
+          description: m.attention_endpoint_description({
+            url: endpoint.url,
+            threshold: SUCCESS_RATE_THRESHOLD
+          }),
           to: '/workspaces/$workspaceSlug/webhooks',
-          linkLabel: 'Inspect deliveries'
+          linkLabel: m.attention_inspect_deliveries()
         })
       }
     }
@@ -102,9 +106,13 @@ export function attentionItems({
         id: `event-${event.id}`,
         severity: 'info',
         title: auditEventLabel(event.eventType),
-        description: `${event.actor} · ${auditActorTypeLabel(event.actorType)} · ${formatDateTime(event.createdAt)}`,
+        description: m.attention_audit_description({
+          actor: event.actor,
+          type: auditActorTypeLabel(event.actorType),
+          time: formatDateTime(event.createdAt)
+        }),
         to: '/workspaces/$workspaceSlug/audit',
-        linkLabel: 'Open the audit trail'
+        linkLabel: m.attention_open_audit()
       })
     }
   }

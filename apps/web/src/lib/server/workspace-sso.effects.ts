@@ -1,3 +1,4 @@
+import { m } from '@b2b-saas-starter/i18n/messages'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
   SsoConnections,
@@ -113,14 +114,14 @@ function loadSamlMetadata(
     catch: (thrown) =>
       ({
         code: 'saml_metadata_invalid',
-        message: causeMessage(thrown, 'The metadata could not be fetched')
+        message: causeMessage(thrown, m.server_metadata_fetch_failed())
       }) satisfies SsoValidationError
   }).pipe(
     Effect.flatMap((response) => {
       if (!response.ok) {
         return Effect.fail({
           code: 'saml_metadata_invalid',
-          message: `The metadata URL answered ${response.status}`
+          message: m.server_metadata_status({ status: response.status })
         } satisfies SsoValidationError)
       }
       return Effect.tryPromise({
@@ -128,7 +129,7 @@ function loadSamlMetadata(
         catch: (thrown) =>
           ({
             code: 'saml_metadata_invalid',
-            message: causeMessage(thrown, 'The metadata could not be fetched')
+            message: causeMessage(thrown, m.server_metadata_fetch_failed())
           }) satisfies SsoValidationError
       })
     })
@@ -204,15 +205,12 @@ export async function testSsoConnectionHandler(
       const sso = yield* SsoConnections
       const detail = yield* sso.describe({ providerId: input.providerId })
       if (Option.isNone(detail)) {
-        return failedTest(
-          'connection_not_found',
-          'No such connection in this workspace'
-        )
+        return failedTest('connection_not_found', m.server_sso_missing())
       }
       const connection = detail.value
       const verdict = yield* Effect.result(connectionCheck(connection))
       if (Result.isFailure(verdict)) {
-        yield* notifyOwnersOfFailedTest(connection, verdict.failure.message)
+        yield* notifyOwnersOfFailedTest(connection, verdict.failure.code)
         return failedTest(verdict.failure.code, verdict.failure.message)
       }
       return { outcome: 'passed' } satisfies SsoTestResult
@@ -227,12 +225,12 @@ function connectionCheck(
 ): Effect.Effect<void, SsoValidationError> {
   if (connection.protocol === 'oidc') {
     if (connection.oidc === null) {
-      return missingConfig('The stored connection has no resolved endpoints')
+      return missingConfig(m.server_sso_endpoints_missing())
     }
     return Effect.asVoid(resolveOidcIssuer(connection.issuer))
   }
   if (connection.saml === null) {
-    return missingConfig('The stored connection has no IdP metadata')
+    return missingConfig(m.server_sso_metadata_missing())
   }
   return Effect.asVoid(validateSamlMetadata(connection.saml.metadataXml))
 }
@@ -254,7 +252,7 @@ function failedTest(code: string, message: string): SsoTestResult {
  */
 export function notifyOwnersOfFailedTest(
   connection: SsoConnection,
-  reason: string
+  reasonCode: string
 ): Effect.Effect<
   void,
   CapabilityUnavailable,
@@ -268,7 +266,13 @@ export function notifyOwnersOfFailedTest(
     yield* Effect.forEach(owners, (owner) =>
       feed.record({
         title: 'SSO connection failed its test',
-        message: `The ${connection.protocol.toUpperCase()} connection for ${connection.domain} failed: ${reason}`,
+        message: `The ${connection.protocol.toUpperCase()} connection for ${connection.domain} failed: ${reasonCode}`,
+        event: {
+          type: 'sso.test_failed',
+          protocol: connection.protocol,
+          domain: connection.domain,
+          reasonCode
+        },
         userId: owner.id
       })
     )

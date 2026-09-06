@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { GITHUB_URL } from '@/components/landing/github-url'
 import { DEV_SERVERS, SETUP_STEPS } from '@/lib/toolchain'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 function ClosingSection() {
   // The whole command block, one click into the clipboard: the clone line
@@ -28,15 +29,14 @@ function ClosingSection() {
       <div className="mx-auto grid max-w-7xl items-center gap-x-20 gap-y-12 px-4 py-24 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:py-28">
         <div>
           <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
-            Fork it. Local in {SETUP_STEPS.length} commands.
+            {m.landing_fork_headline({ count: SETUP_STEPS.length })}
           </h2>
           <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">
-            MIT licensed. The reference application runs locally against a seed
-            workspace: no Stripe key, no OAuth app, no email domain required.
+            {m.landing_fork_description()}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
-              Open the live demo
+              {m.action_open_demo()}
               <ArrowRightIcon className="size-4" />
             </Button>
             <Button
@@ -45,7 +45,7 @@ function ClosingSection() {
               size="lg"
               variant="outline"
             >
-              Read the docs
+              {m.action_read_docs()}
             </Button>
           </div>
         </div>
@@ -56,7 +56,7 @@ function ClosingSection() {
         <div className="min-w-0">
           <div className="flex items-center justify-between gap-4 border border-border bg-card px-3 py-2">
             <p className="font-mono text-xs text-muted-foreground">
-              clone and quickstart
+              {m.landing_clone_commands()}
             </p>
             <div className="flex items-center gap-2">
               {/* Always-mounted so the change is announced when it flips. */}
@@ -66,12 +66,12 @@ function ClosingSection() {
                   copied ? 'opacity-100' : 'opacity-0'
                 }`}
               >
-                Copied
+                {m.action_copied()}
               </output>
               <Button
                 variant="outline"
                 size="icon-xs"
-                aria-label="Copy the clone and quickstart commands"
+                aria-label={m.action_copy_commands()}
                 onClick={() => void copyCommands()}
               >
                 <ClipboardIcon className="size-3.5" />
@@ -81,7 +81,7 @@ function ClosingSection() {
           <dl
             // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <dl> is the semantic element for the labelled command list; role="region" exposes the scrollable area without losing it.
             role="region"
-            aria-label="Clone and quickstart commands, scrollable"
+            aria-label={m.landing_commands_region()}
             // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focus stop to pan the overflowing command list.
             tabIndex={0}
             className="overflow-x-auto border border-t-0 border-border bg-card p-5 font-mono text-xs leading-loose text-foreground/90"

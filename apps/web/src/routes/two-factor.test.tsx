@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { authClient } from '@/lib/auth-client'
 import { TwoFactorChallengePage } from './two-factor'
+import * as m from '@b2b-saas-starter/i18n/messages'
 
 // The page calls the client module directly, so its verify endpoints are
 // doubles on the mocked module. The router is real, so the redirect
@@ -45,7 +46,7 @@ async function switchToBackupMode() {
  * so `getByLabelText` matches both and the role query is the unambiguous one.
  */
 function trustCheckbox(): HTMLElement {
-  return screen.getByRole('checkbox', { name: 'Trust this device for 30 days' })
+  return screen.getByRole('checkbox', { name: m.trust_device() })
 }
 
 describe('TwoFactorChallengePage', () => {
@@ -85,9 +86,7 @@ describe('TwoFactorChallengePage', () => {
     const { router } = await renderPage()
     await switchToBackupMode()
     // The enrollment promise the copy has to keep: ten one-time codes.
-    expect(
-      screen.getByText(/one of the ten codes you saved when you set up two-factor/i)
-    ).toBeDefined()
+    expect(screen.getByText(m.backup_code_description())).toBeDefined()
     fireEvent.change(screen.getByLabelText('Backup code'), {
       target: { value: '  aB3dE-f9gH1 ' }
     })
@@ -105,9 +104,7 @@ describe('TwoFactorChallengePage', () => {
   it('swaps back to the authenticator form', async () => {
     await renderPage()
     await switchToBackupMode()
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Use an authenticator code instead' })
-    )
+    fireEvent.click(screen.getByRole('button', { name: m.use_authenticator_code() }))
     await screen.findByLabelText('Verification code')
     expect(screen.queryByLabelText('Backup code')).toBeNull()
   })

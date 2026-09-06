@@ -10,12 +10,21 @@ import { ActionFeedback } from '@/components/page/action-feedback'
 import { Identifier } from '@/components/page/identifier'
 import { Panel } from '@/components/page/panel'
 import { Spinner } from '@/components/ui/spinner'
-const CHECKOUT_DISABLED =
-  'Checkout is not available right now: billing is not configured for this deployment.'
-const CHECKOUT_FAILED = 'Something went wrong starting checkout.'
-const PORTAL_FAILED = 'Something went wrong opening the billing portal.'
-const PORTAL_UNAVAILABLE =
-  'The billing portal is not available for this workspace yet. It opens after the first subscription. Start an upgrade first, then manage invoices and payment methods there.'
+import { formatCurrency, formatNumber } from '@b2b-saas-starter/i18n/format'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
+import { m } from '@b2b-saas-starter/i18n/messages'
+function CHECKOUT_DISABLED() {
+  return m.checkout_disabled()
+}
+function CHECKOUT_FAILED() {
+  return m.checkout_failed()
+}
+function PORTAL_FAILED() {
+  return m.portal_failed()
+}
+function PORTAL_UNAVAILABLE() {
+  return m.portal_unavailable()
+}
 
 /** The server function the Upgrade button calls; a test supplies its own. */ export type StartCheckout =
   (input: {
@@ -47,9 +56,9 @@ function portalErrorText(thrown: unknown): string {
     'name' in thrown &&
     thrown.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
   ) {
-    return PORTAL_UNAVAILABLE
+    return PORTAL_UNAVAILABLE()
   }
-  return causeMessage(thrown, PORTAL_FAILED)
+  return causeMessage(thrown, PORTAL_FAILED())
 }
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
@@ -67,9 +76,9 @@ function checkoutErrorText(thrown: unknown): string {
     'name' in thrown &&
     thrown.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
   ) {
-    return CHECKOUT_DISABLED
+    return CHECKOUT_DISABLED()
   }
-  return causeMessage(thrown, CHECKOUT_FAILED)
+  return causeMessage(thrown, CHECKOUT_FAILED())
 }
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
@@ -103,7 +112,7 @@ export function BillingPlans({
   const upgrade = useServerAction(
     (planId: string) => startCheckout({ data: { workspaceSlug, planId } }),
     {
-      failureMessage: CHECKOUT_FAILED,
+      failureMessage: CHECKOUT_FAILED(),
       describeFailure: checkoutErrorText,
       invalidate: false,
       onSuccess: (session) => window.location.assign(session.url)
@@ -116,7 +125,7 @@ export function BillingPlans({
   const portal = useServerAction<undefined, { url: string }>(
     () => startPortalSession({ data: { workspaceSlug } }),
     {
-      failureMessage: PORTAL_FAILED,
+      failureMessage: PORTAL_FAILED(),
       describeFailure: portalErrorText,
       invalidate: false,
       onSuccess: (session) => window.location.assign(session.url)
@@ -128,7 +137,7 @@ export function BillingPlans({
   return (
     <>
       <Panel
-        title="Current plan"
+        title={m.current_plan()}
         // The portal is the same handoff shape as checkout: the server fn
         // returns the hosted URL, the browser leaves. It renders only when
         // Stripe is configured — one definition, read off the capability's
@@ -145,7 +154,7 @@ export function BillingPlans({
               ) : (
                 <ExternalLink data-icon="inline-start" />
               )}
-              Manage billing
+              {m.manage_billing()}
             </Button>
           ) : null
         }
@@ -153,7 +162,7 @@ export function BillingPlans({
         <div className="flex flex-wrap items-center gap-3">
           <Badge>{currentPlan?.name ?? currentPlanId}</Badge>
           <p className="text-sm text-muted-foreground">
-            Entitlements follow the workspace's plan
+            {m.entitlements_follow_plan()}
             {currentPlan === undefined ? '.' : `: ${entitlementSentence(currentPlan)}`}
           </p>
         </div>
@@ -161,14 +170,13 @@ export function BillingPlans({
       <ActionFeedback error={portal.error} />
       {stripeConfigured ? null : (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Billing is an optional provider and Stripe is not configured on this
-          deployment. Set <Identifier>STRIPE_SECRET_KEY</Identifier>,{' '}
-          <Identifier>STRIPE_WEBHOOK_SECRET</Identifier>, and the per-plan price ids to
-          activate checkout. Everything else keeps working.
+          {m.billing_not_configured()} <Identifier>STRIPE_SECRET_KEY</Identifier>,{' '}
+          <Identifier>STRIPE_WEBHOOK_SECRET</Identifier>{' '}
+          {m.billing_configure_price_ids()}
         </p>
       )}
       <ActionFeedback error={upgrade.error} />
-      <Panel title="Plans">
+      <Panel title={m.plans_title()}>
         <div className="grid gap-4 md:grid-cols-3">
           {plans.map((plan) => (
             <PlanTile
@@ -210,21 +218,27 @@ function PlanTile({
     <div className="grid gap-2 rounded-none border border-border bg-muted p-4 content-start">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-semibold">{plan.name}</h3>
-        {plan.id === currentPlanId ? <Badge variant="neutral">Current</Badge> : null}
+        {plan.id === currentPlanId ? (
+          <Badge variant="neutral">{m.common_current()}</Badge>
+        ) : null}
       </div>
-      <p className="text-2xl font-semibold">{plan.price}</p>
-      <p className="text-sm text-muted-foreground">{plan.description}</p>
+      <p className="text-2xl font-semibold">{planPrice(plan)}</p>
+      <p className="text-sm text-muted-foreground">{planDescription(plan)}</p>
       <ul className="grid gap-1 text-sm text-muted-foreground">
         <EntitlementRow
-          label="Seats"
+          label={m.seats()}
           limit={plan.pricing === 'per_seat' ? null : plan.limits.seats}
           unlimitedLabel={
-            plan.pricing === 'per_seat' ? 'Billed per member' : 'Unlimited seats'
+            plan.pricing === 'per_seat'
+              ? m.shell_plan_billed_member()
+              : m.shell_plan_unlimited_label({
+                  label: m.seats().toLocaleLowerCase(getLocale())
+                })
           }
         />
-        <EntitlementRow label="API tokens" limit={plan.limits.apiTokens} />
+        <EntitlementRow label={m.nav_api_tokens()} limit={plan.limits.apiTokens} />
         <EntitlementRow
-          label="Webhook endpoints"
+          label={m.nav_webhook_endpoints()}
           limit={plan.limits.webhookEndpoints}
         />
       </ul>
@@ -302,7 +316,7 @@ function UpgradeButton({
       onClick={onUpgrade}
     >
       {busy ? <Spinner data-icon="inline-start" /> : null}
-      Upgrade to {planName}
+      {m.shell_plan_upgrade({ name: planName })}
     </Button>
   )
 }
@@ -312,38 +326,60 @@ function StaticPlanHint({ plan }: { readonly plan: BillingPlan }) {
   return (
     <p className="text-xs text-muted-foreground">
       {plan.purchase === 'downgrade'
-        ? 'Downgrades are handled by the provider subscription flow.'
-        : `Contact sales to move to ${plan.name}.`}
+        ? m.shell_plan_downgrade()
+        : m.shell_plan_contact({ name: plan.name })}
     </p>
   )
 }
 
 /** The current plan's ceilings as one sentence, read off the plan itself. */
 function entitlementSentence(plan: BillingPlan): string {
-  const parts = [
-    seatPhrase(plan),
-    limitPhrase(plan.limits.apiTokens, 'API token'),
-    limitPhrase(plan.limits.webhookEndpoints, 'webhook endpoint')
-  ]
-  return `${plan.name} allows ${parts.join(' and ')}.`
+  return m.shell_plan_entitlements({
+    name: plan.name,
+    seats: seatPhrase(plan),
+    tokens:
+      plan.limits.apiTokens === null
+        ? m.shell_plan_unlimited_tokens()
+        : m.shell_plan_tokens({
+            count: plan.limits.apiTokens,
+            formattedCount: formatNumber(plan.limits.apiTokens, getLocale())
+          }),
+    webhooks:
+      plan.limits.webhookEndpoints === null
+        ? m.shell_plan_unlimited_webhooks()
+        : m.shell_plan_webhooks({
+            count: plan.limits.webhookEndpoints,
+            formattedCount: formatNumber(plan.limits.webhookEndpoints, getLocale())
+          })
+  })
 }
 
-/** The seat half: included seats on a flat plan, per-member billing on per-seat. */
 function seatPhrase(plan: BillingPlan): string {
   if (plan.pricing === 'per_seat') {
-    return 'one seat per member'
+    return m.shell_plan_seat_per_member()
   }
   if (plan.limits.seats === null) {
-    return 'unlimited seats'
+    return m.shell_plan_unlimited_seats()
   }
-  return `up to ${plan.limits.seats} seats`
+  return m.shell_plan_seats({
+    count: plan.limits.seats,
+    formattedCount: formatNumber(plan.limits.seats, getLocale())
+  })
 }
 
-function limitPhrase(limit: number | null, noun: string): string {
-  if (limit === null) {
-    return `unlimited ${noun}s`
+function planPrice(plan: BillingPlan): string {
+  if (plan.price === null) {
+    return m.shell_plan_custom()
   }
-  return limit === 1 ? `1 ${noun}` : `up to ${limit} ${noun}s`
+  const amount = formatCurrency(plan.price.amount, plan.price.currency, getLocale(), {
+    maximumFractionDigits: 0
+  })
+  if (plan.price.amount === 0) {
+    return amount
+  }
+  return plan.pricing === 'per_seat'
+    ? m.shell_plan_seat_price({ amount })
+    : m.shell_plan_month_price({ amount })
 }
 
 function EntitlementRow({
@@ -360,14 +396,29 @@ function EntitlementRow({
     return (
       <li className="flex items-center gap-2">
         <Check className="size-4 text-primary" />
-        {unlimitedLabel ?? `Unlimited ${label.toLowerCase()}`}
+        {unlimitedLabel ??
+          m.shell_plan_unlimited_label({ label: label.toLocaleLowerCase(getLocale()) })}
       </li>
     )
   }
   return (
     <li className="flex items-center gap-2">
       <Minus className="size-4 text-muted-foreground" />
-      {label}: up to {limit}
+      {m.shell_plan_limit_label({ label, limit: formatNumber(limit, getLocale()) })}
     </li>
   )
+}
+
+function planDescription(plan: BillingPlan): string {
+  switch (plan.descriptionKey) {
+    case 'shell_plan_starter_description': {
+      return m.shell_plan_starter_description()
+    }
+    case 'shell_plan_team_description': {
+      return m.shell_plan_team_description()
+    }
+    case 'shell_plan_enterprise_description': {
+      return m.shell_plan_enterprise_description()
+    }
+  }
 }

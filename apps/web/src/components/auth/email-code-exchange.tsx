@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
 import { authErrorCopy } from '@/lib/auth-error-copy'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The first hop of the exchange as the flow drives it: the address a code is
@@ -111,7 +112,7 @@ export function EmailCodeExchange({
   layout = 'page',
   email,
   title,
-  emailTitle = 'Email me a code',
+  emailTitle = m.form_email_code(),
   emailDescription,
   emailFooter,
   codeSentNotice,
@@ -120,9 +121,9 @@ export function EmailCodeExchange({
   codeSubmittingLabel,
   codeSubmitIcon,
   codeFooter,
-  verifyErrorFallback = 'Verification failed',
+  verifyErrorFallback = m.public_auth_verification_failed(),
   renderExtraFields,
-  differentEmailLabel = 'Use a different email',
+  differentEmailLabel = m.use_different_email(),
   onDifferentEmail
 }: {
   readonly purpose: EmailCodePurpose
@@ -168,7 +169,7 @@ export function EmailCodeExchange({
       setSubmitError(null)
       const result = await send({ email: value.email, purpose })
       if (result.error) {
-        setSubmitError(authErrorCopy(result.error, 'Could not send the code'))
+        setSubmitError(authErrorCopy(result.error, m.public_auth_send_code_failed()))
         return
       }
       setSentEmail(value.email)
@@ -204,7 +205,7 @@ export function EmailCodeExchange({
     setSubmitError(null)
     const result = await send({ email: sentEmail, purpose })
     if (result.error) {
-      setSubmitError(authErrorCopy(result.error, 'Could not resend the code'))
+      setSubmitError(authErrorCopy(result.error, m.public_auth_resend_code_failed()))
       return
     }
     cooldown.start()
@@ -264,9 +265,9 @@ export function EmailCodeExchange({
                 {(field) => (
                   <FormTextField
                     name={field.name}
-                    label="Email"
+                    label={m.form_email()}
                     type="email"
-                    placeholder="you@example.com"
+                    placeholder={m.email_placeholder()}
                     autoComplete="email"
                     value={field.state.value}
                     errors={field.state.meta.errors}
@@ -280,7 +281,7 @@ export function EmailCodeExchange({
                 form={emailForm}
                 icon={<MailIcon className="size-4" />}
                 label={emailTitle}
-                submittingLabel="Sending…"
+                submittingLabel={m.sending()}
               />
               {submitError ? (
                 <p role="alert" className="text-sm text-destructive">
@@ -312,9 +313,9 @@ export function EmailCodeExchange({
           {(field) => (
             <FormTextField
               name={field.name}
-              label="Email"
+              label={m.form_email()}
               type="email"
-              placeholder="you@example.com"
+              placeholder={m.email_placeholder()}
               autoComplete="email"
               value={field.state.value}
               errors={field.state.meta.errors}

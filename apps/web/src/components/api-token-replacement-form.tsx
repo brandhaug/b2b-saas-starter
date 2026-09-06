@@ -15,7 +15,8 @@ import {
   type ReplaceApiTokenInput
 } from '@/lib/server/api-tokens'
 import { callServerFn } from '@/lib/server-call'
-import { formatUtcOr } from '@/lib/format-date'
+import { formatDateTime, formatTimestampOr } from '@/lib/format-date'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type ReplaceApiToken = (input: {
   readonly data: Omit<ReplaceApiTokenInput, 'scopes'> & {
@@ -52,7 +53,7 @@ export function ApiTokenReplacementForm({
               overlapSeconds: Number(value.overlapSeconds)
             }
           }),
-        'Failed to replace token'
+        m.token_replace_failed()
       )
       if (!result.ok) {
         setError(result.message)
@@ -67,24 +68,26 @@ export function ApiTokenReplacementForm({
     return (
       <div className="grid gap-4">
         <Alert variant="ok">
-          <AlertTitle>
-            Replacement created. Copy it now, it will not be shown again.
-          </AlertTitle>
+          <AlertTitle>{m.replacement_copy_notice()}</AlertTitle>
           <AlertDescription>
             <SecretReveal
               secret={created.token}
-              label="Replacement API token"
+              label={m.form_replacement_token()}
               className="flex items-center gap-2"
             />
             <p>
-              Update your clients with this token. The old credential expires at{' '}
-              {formatUtcOr(created.previousTokenExpiresAt, 'now')} UTC.
+              {m.token_update_clients_expiry({
+                time: formatDateTime(created.previousTokenExpiresAt)
+              })}
             </p>
-            <p>Replacement expiry: {formatUtcOr(created.expiresAt, 'never')}.</p>
+            <p>
+              {m.token_replacement_expiry()}{' '}
+              {formatTimestampOr(created.expiresAt, m.never())}.
+            </p>
           </AlertDescription>
         </Alert>
         <Button variant="outline" onClick={onClose} className="justify-self-start">
-          Close replacement
+          {m.action_close_replacement()}
         </Button>
       </div>
     )
@@ -93,34 +96,35 @@ export function ApiTokenReplacementForm({
   return (
     <form
       className="grid gap-4"
-      aria-label={`Replace ${token.name}`}
+      aria-label={m.action_replace_named({ name: token.name })}
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
         void form.handleSubmit()
       }}
     >
-      <h3 className="text-sm font-medium">Replace {token.name}</h3>
+      <h3 className="text-sm font-medium">
+        {m.action_replace_named({ name: token.name })}
+      </h3>
       <p className="text-sm text-muted-foreground">
-        Copy the replacement, update your clients, then revoke the old credential when
-        they are ready. Its expiry will never move later than{' '}
-        {formatUtcOr(token.expiresAt, 'the overlap you choose')}.
+        {m.token_replacement_guidance()}{' '}
+        {formatTimestampOr(token.expiresAt, m.token_replacement_overlap_fallback())}.
       </p>
       <p className="text-xs text-muted-foreground">
-        The replacement stays in this workspace and inherits expiry:{' '}
-        {formatUtcOr(token.expiresAt, 'never')}. You can keep or remove scopes.
+        {m.token_replacement_inherits_expiry()}{' '}
+        {formatTimestampOr(token.expiresAt, m.never())}. {m.token_keep_remove_scopes()}
       </p>
       <form.Field
         name="scopes"
         validators={{
           onChange: ({ value }) =>
-            value.length === 0 ? 'Pick at least one scope' : undefined
+            value.length === 0 ? m.replacement_scope_required() : undefined
         }}
       >
         {(field) => (
           <CheckboxSetField
             name="replacement-scopes"
-            legend="Replacement scopes"
+            legend={m.token_replacement_scopes()}
             options={token.scopes}
             value={field.state.value}
             errors={field.state.meta.errors}
@@ -137,7 +141,7 @@ export function ApiTokenReplacementForm({
               !Number.isInteger(seconds) ||
               seconds < 0 ||
               seconds > 86_400
-              ? 'Choose between 0 and 86400 seconds'
+              ? m.token_overlap_range()
               : undefined
           }
         }}
@@ -145,7 +149,7 @@ export function ApiTokenReplacementForm({
         {(field) => (
           <FormTextField
             name="replacement-overlap"
-            label="Old credential overlap (seconds)"
+            label={m.form_overlap()}
             type="number"
             min="0"
             max="86400"
@@ -157,10 +161,7 @@ export function ApiTokenReplacementForm({
           />
         )}
       </form.Field>
-      <p className="text-xs text-muted-foreground">
-        Use 0 to retire the old credential immediately. The maximum overlap is 24 hours;
-        an earlier expiry still applies.
-      </p>
+      <p className="text-xs text-muted-foreground">{m.token_overlap_hint()}</p>
       <form.Subscribe
         selector={(state): readonly [boolean, boolean] => [
           state.canSubmit,
@@ -170,10 +171,11 @@ export function ApiTokenReplacementForm({
         {([canSubmit, pending]) => (
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={!canSubmit || pending}>
-              {pending ? <Spinner data-icon="inline-start" /> : null}Create replacement
+              {pending ? <Spinner data-icon="inline-start" /> : null}
+              {m.token_create_replacement()}
             </Button>
             <Button type="button" variant="ghost" disabled={pending} onClick={onClose}>
-              Cancel
+              {m.common_cancel()}
             </Button>
           </div>
         )}

@@ -1,9 +1,10 @@
 import { type SOCIAL_PROVIDER_IDS } from '@b2b-saas-starter/env/social'
 import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import {
   TWO_FACTOR_REQUIRED_ERROR_CODE,
-  TWO_FACTOR_REQUIRED_MESSAGE
+  twoFactorRequiredMessage
 } from '@/lib/two-factor-refusal'
 
 /**
@@ -142,7 +143,7 @@ export function sixDigitCodeValidator({
 }: {
   value: string
 }): string | undefined {
-  return /^\d{6}$/.test(value) ? undefined : 'Enter the 6-digit code'
+  return /^\d{6}$/.test(value) ? undefined : m.public_auth_six_digit_code()
 }
 
 /**
@@ -152,7 +153,7 @@ export function sixDigitCodeValidator({
  * plugin's to define.
  */
 export function backupCodeValidator({ value }: { value: string }): string | undefined {
-  return value.trim().length > 0 ? undefined : 'Enter a backup code'
+  return value.trim().length > 0 ? undefined : m.public_auth_backup_code_required()
 }
 
 /**
@@ -166,4 +167,4 @@ export function backupCodeValidator({ value }: { value: string }): string | unde
  * (`lib/auth-error-copy.ts`) maps the code to that same sentence, so no
  * screen needs its own probe for it.
  */
-export { TWO_FACTOR_REQUIRED_ERROR_CODE, TWO_FACTOR_REQUIRED_MESSAGE }
+export { TWO_FACTOR_REQUIRED_ERROR_CODE, twoFactorRequiredMessage }

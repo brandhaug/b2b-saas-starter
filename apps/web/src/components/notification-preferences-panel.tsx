@@ -11,8 +11,11 @@ import {
   type NotificationPreferenceRow
 } from '@/lib/server/notification-preferences'
 import { cn } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
-const SAVE_FAILED = 'Could not save the preference'
+function saveFailedMessage() {
+  return m.notification_preference_save_failed()
+}
 
 /** The one server call this panel makes, as a port a test can replace. */
 export type SetNotificationPreference = (input: {
@@ -22,14 +25,16 @@ export type SetNotificationPreference = (input: {
   }
 }) => Promise<NotificationPreferenceRow>
 
-const CHANNELS: ReadonlyArray<{
+function channels(): ReadonlyArray<{
   readonly value: NotificationChannel
   readonly label: string
-}> = [
-  { value: 'off', label: 'Off' },
-  { value: 'instant', label: 'Instant' },
-  { value: 'digest', label: 'Daily digest' }
-]
+}> {
+  return [
+    { value: 'off', label: m.notification_channel_off() },
+    { value: 'instant', label: m.notification_channel_instant() },
+    { value: 'digest', label: m.notification_channel_digest() }
+  ]
+}
 
 /**
  * Per-kind email channel, one radio row per kind. The in-app feed is not
@@ -58,7 +63,7 @@ export function NotificationPreferencesPanel({
       kind: NotificationPreferenceRow['kind']
       channel: NotificationChannel
     }) => setPreference({ data: input }),
-    { failureMessage: SAVE_FAILED }
+    { failureMessage: saveFailedMessage() }
   )
 
   function select(row: NotificationPreferenceRow, channel: NotificationChannel) {
@@ -91,9 +96,13 @@ export function NotificationPreferencesPanel({
               <div className="grid gap-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium">{row.label}</span>
-                  {row.security ? <Badge variant="outline">Security</Badge> : null}
+                  {row.security ? (
+                    <Badge variant="outline">{m.security_label()}</Badge>
+                  ) : null}
                   {row.isDefault ? (
-                    <span className="text-xs text-muted-foreground">Default</span>
+                    <span className="text-xs text-muted-foreground">
+                      {m.default_label()}
+                    </span>
                   ) : null}
                   {pending ? <Spinner className="size-3" /> : null}
                 </div>
@@ -107,7 +116,7 @@ export function NotificationPreferencesPanel({
                 onValueChange={(next) => select(row, next)}
                 className="flex flex-wrap gap-3"
               >
-                {CHANNELS.map((channel) => (
+                {channels().map((channel) => (
                   <FieldLabel key={channel.value} className="text-sm">
                     <RadioGroupItem value={channel.value} />
                     <span>{channel.label}</span>
@@ -119,9 +128,7 @@ export function NotificationPreferencesPanel({
         })}
       </ul>
       <p className="text-xs text-muted-foreground">
-        Instant sends one email per notification as it happens. The daily digest arrives
-        once a day at 08:00 UTC with everything unread from the last 24 hours. The
-        in-app feed always shows every notification.
+        {m.notification_delivery_explanation()}
       </p>
     </div>
   )

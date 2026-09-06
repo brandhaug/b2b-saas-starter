@@ -1,47 +1,36 @@
-/**
- * UTC date formatting, in one place.
- *
- * Every timestamp the app renders is formatted with an explicit locale and an
- * explicit `UTC` time zone: the server and the browser sit in different zones,
- * and a value formatted in the ambient zone hydrates to different text than it
- * server-rendered. Panels each carried their own copy of that two-line rule;
- * this is the rule.
- */
+import { formatDate } from '@b2b-saas-starter/i18n/format'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
+import { presentationSettings } from './i18n'
 
-const LOCALE = 'en-US'
-
-/** A timestamp in UTC. `format` selects the fields, exactly as `Intl` does. */
-export function formatUtc(
+/** Explicit settings keep the server render and browser hydration identical. */
+export function formatTimestamp(
   value: Date | string,
   format: Intl.DateTimeFormatOptions = {}
 ): string {
-  return new Date(value).toLocaleString(LOCALE, { ...format, timeZone: 'UTC' })
+  const options =
+    Object.keys(format).length === 0
+      ? ({
+          year: 'numeric',
+          month: 'numeric',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: 'numeric',
+          second: 'numeric'
+        } satisfies Intl.DateTimeFormatOptions)
+      : format
+  return formatDate(value, getLocale(), options, presentationSettings().timeZone)
 }
 
-/**
- * The same, for a value that may be absent — `fallback` is the copy shown in
- * its place ("never" for a token that was minted but never used).
- */
-export function formatUtcOr(
+export function formatTimestampOr(
   value: Date | string | null | undefined,
   fallback: string,
   format: Intl.DateTimeFormatOptions = {}
 ): string {
-  return value === null || value === undefined ? fallback : formatUtc(value, format)
+  return value === null || value === undefined
+    ? fallback
+    : formatTimestamp(value, format)
 }
 
-const DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
-  dateStyle: 'medium',
-  timeStyle: 'short'
-}
-
-/**
- * The one timestamp presentation for tables — admin users, the audit trail,
- * the attention feed, anywhere `DataTable` renders a `Date`. One options
- * object means the tables cannot disagree about the shape of a timestamp, and
- * the UTC suffix is part of the presentation, so callers never append it
- * themselves.
- */
 export function formatDateTime(value: Date | string): string {
-  return `${formatUtc(value, DATE_TIME_OPTIONS)} UTC`
+  return `${formatTimestamp(value, { dateStyle: 'medium', timeStyle: 'short' })} ${presentationSettings().timeZone}`
 }

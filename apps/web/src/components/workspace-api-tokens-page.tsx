@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/page/page-header'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { type WorkspaceApiTokensPayload } from '@/lib/server/api-tokens'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The API-tokens page. Lives beside the route file (not in it) so the route
@@ -34,8 +35,8 @@ export function WorkspaceApiTokensPage({
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
-        title="API tokens"
-        description="Workspace-scoped bearer tokens for the API."
+        title={m.page_api_tokens()}
+        description={m.page_api_tokens_description()}
       />
       <ApiTokensPanel workspaceSlug={workspaceSlug} tokens={tokens} viewer={viewer} />
     </WorkspaceShell>

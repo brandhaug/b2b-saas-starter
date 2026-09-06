@@ -1,6 +1,7 @@
 import { useQuery, type QueryObserverResult } from '@tanstack/react-query'
 import { useClientValue } from '@/lib/client-only-value'
-import { type AuthResult } from '@/lib/auth-result'
+import { causeMessage } from '@/lib/cause-message'
+import { authFailure, type AuthResult } from '@/lib/auth-result'
 import { copyForAuthCode } from '@/lib/auth-error-copy'
 import { useServerAction, type ServerAction } from '@/hooks/use-server-action'
 
@@ -50,8 +51,7 @@ export function useAuthClientRows<Record, Row>({
         // The table's sentence for a known code, the panel's own
         // load-failed message otherwise — never the raw `error.message`,
         // which is whatever the far end put on the wire.
-        // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- TanStack Query surfaces failure states by rejecting the query function; there is no Effect channel here
-        throw new Error(copyForAuthCode(result.error) ?? loadFailedMessage)
+        return authFailure(copyForAuthCode(result.error) ?? loadFailedMessage)
       }
       return toRows(result.data ?? [])
     },
@@ -62,7 +62,7 @@ export function useAuthClientRows<Record, Row>({
   return {
     hydrated,
     rows,
-    loadError: queryError?.message ?? null,
+    loadError: queryError ? causeMessage(queryError, loadFailedMessage) : null,
     isPending,
     refetch
   }

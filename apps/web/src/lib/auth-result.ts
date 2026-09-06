@@ -1,3 +1,4 @@
+import { LocalizedError } from './localized-error'
 import { type AuthErrorPayload, copyForAuthCode } from './auth-error-copy'
 
 /**
@@ -26,8 +27,8 @@ export type AuthResult<D = unknown> = {
  * without a TOTP URI, say).
  */
 export function authFailure(message: string): never {
-  // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- the rejection is the failure channel `callServerFn` folds into a message, and `causeMessage` reads `Error.message` off it; this is the single place that converts Better Auth's `{ error }` convention, which is why the disable lives here rather than at each panel
-  throw new Error(message)
+  // oxlint-disable-next-line effect/noThrowStatement -- this locally generated copy has already passed the auth-code allowlist
+  throw new LocalizedError(message)
 }
 
 /** The data of a Better Auth call, or a rejection carrying its message. */

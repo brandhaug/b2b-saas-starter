@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useServerAction } from '@/hooks/use-server-action'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import {
   stopImpersonatingWithServerFn,
   type ImpersonationState,
@@ -33,7 +34,7 @@ export function ImpersonationBanner({
       await router.invalidate()
       await router.navigate({ to: '/admin' })
     },
-    { failureMessage: 'Could not stop impersonating', invalidate: false }
+    { failureMessage: m.impersonation_failure(), invalidate: false }
   )
   return (
     // `role="status"`, not `alert`: the banner is on the page from first paint
@@ -44,9 +45,10 @@ export function ImpersonationBanner({
       <UserRoundSearchIcon />
       <AlertDescription className="flex flex-wrap items-center gap-3">
         <span className="flex-1 text-foreground">
-          You are impersonating <strong>{impersonation.userName}</strong>{' '}
-          <span className="text-muted-foreground">({impersonation.userEmail})</span>.
-          Password, two-factor, email and account deletion are locked for this session.
+          {m.impersonating_notice({
+            name: impersonation.userName,
+            email: impersonation.userEmail
+          })}
           {stopping.error === null ? null : (
             <span role="alert" className="text-destructive">
               {' '}
@@ -61,7 +63,7 @@ export function ImpersonationBanner({
           onClick={() => stopping.run()}
         >
           {stopping.pending ? <Spinner data-icon="inline-start" /> : null}
-          Stop impersonating
+          {m.stop_impersonating()}
         </Button>
       </AlertDescription>
     </Alert>

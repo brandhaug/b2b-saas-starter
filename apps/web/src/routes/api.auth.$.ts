@@ -34,7 +34,8 @@ import {
   sendBackupCodesRotatedEmail,
   sendPasskeyChangedEmail,
   sendPasswordChangedEmail,
-  sendTwoFactorChangedEmail
+  sendTwoFactorChangedEmail,
+  recipientLocale
 } from '@/lib/server/auth-emails'
 import { notifyCredentialChangedEffect } from '@/lib/server/credential-change-notification'
 import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
@@ -46,25 +47,31 @@ import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/tur
  * new `CredentialChange` kind is a compile error here, not a silent
  * backup-codes email for a change that never rotated any.
  */
-function sendCredentialChangeEmail(input: {
+async function sendCredentialChangeEmail(input: {
   readonly email: string
   readonly change: CredentialChange
 }) {
+  const locale = await recipientLocale(input.email)
   switch (input.change.kind) {
     case 'two-factor': {
       return sendTwoFactorChangedEmail({
         email: input.email,
-        enabled: input.change.enabled
+        enabled: input.change.enabled,
+        locale
       })
     }
     case 'passkey': {
-      return sendPasskeyChangedEmail({ email: input.email, added: input.change.added })
+      return sendPasskeyChangedEmail({
+        email: input.email,
+        added: input.change.added,
+        locale
+      })
     }
     case 'password': {
-      return sendPasswordChangedEmail({ email: input.email })
+      return sendPasswordChangedEmail({ email: input.email, locale })
     }
     case 'backup-codes': {
-      return sendBackupCodesRotatedEmail({ email: input.email })
+      return sendBackupCodesRotatedEmail({ email: input.email, locale })
     }
   }
 }
