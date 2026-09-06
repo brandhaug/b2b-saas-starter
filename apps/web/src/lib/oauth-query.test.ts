@@ -34,6 +34,7 @@ describe('consentRequest', () => {
 describe('scopeLabel', () => {
   it('labels the known scopes and shows an unknown one raw', () => {
     expect(scopeLabel('mcp:read')).toBe('Read the workspace through the MCP server')
+    expect(scopeLabel('mcp:write')).toContain('Change workspace data')
     expect(scopeLabel('payments:write')).toBe('payments:write')
   })
 })

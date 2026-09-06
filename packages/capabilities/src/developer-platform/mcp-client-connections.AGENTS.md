@@ -6,6 +6,7 @@ The standing OAuth consents a user has granted to interactive MCP clients, each 
 
 ## Entry Points & Contracts
 
+- `getGrant` returns the current consent ID/version binding and scopes for a user, client, and workspace; missing consent or disabled client returns null. The MCP write guard compares it with the signed claim. The DB trigger increments versions on consent changes, including scope restoration in the same second.
 - `listForUser(userId)` is account-level, a consent naming its own workspace. A deleted workspace comes back `null` on the projection rather than dropping the row.
 - `describeClient(clientId)` resolves the client behind an OAuth `client_id`, or `null`. For CIMD clients that id is the HTTPS URL of their metadata document.
 - `recordGrant` writes `mcp_client.consent_granted` on its own, the consent row being an HTTP-shaped plugin write that cannot join a batch.

@@ -1,77 +1,110 @@
 # Workspace operation catalog
 
-`apps/api/src/operations.ts` now includes workspace mutations as well as reads.
-This reverses its earlier "writes stay out" decision. Keeping writes in manual
-REST bodies duplicated permissions and transport shaping in the permission
-matrix, and made transport reuse depend on copying those bodies. Capability
-business logic remains in `packages/capabilities`.
+The operation catalog in `apps/api/src/operations.ts` owns workspace reads and
+mutations shared by REST and MCP. Transport parity is the default: every
+supported workspace operation is exposed to equivalently authorized callers.
+Destruction, one-time secrets, and external side effects require accurate
+contracts and authorization, not a read-only MCP policy.
 
-The catalog has read and mutation row shapes. Each row references its canonical
-HTTP endpoint, which owns the method, path, input, success, and error schemas.
-The row adds its permission, capability call, and MCP decision. Mutation request
-types come from `HttpApiEndpoint.Request`, not a second payload or params shape.
-Its inferred Effect error channel retains the capability's expected failures;
-the download-link row translates an absent link into the contract's
-`WorkspaceExportNotDownloadable`. Guard failures remain in the shared request
-boundary. REST bindings preserve each row's input, success, and error types,
-so `HttpApiBuilder` checks them against the explicit endpoint schemas. We keep
-endpoint-to-row bindings explicit rather than erasing heterogeneous types with
-a cast-based dispatcher. Adding a mutation requires a contract endpoint, a
-catalog row, and its typed binding, but no handwritten handler body. The test
-policy oracle must also cover the new permission. Stable services are captured
-when building each mutation group; workspace
-context, audit actor, request origin, and scoped log annotations remain per call.
+## Shared dispatch
 
-MCP registration and discovery select the catalog's explicit `mcpTool` opt-ins.
-All existing reads opt in and retain their schemas and `readOnlyHint: true`.
-Every mutation currently opts out. Token creation/revocation and webhook secret
-rotation affect credentials; webhook creation/update/deletion affect outbound
-destinations; test/replay sends external traffic; export request/download-link
-creates data or grants download access. None gains agent access merely because
-it has a REST endpoint. Membership and invitation writes remain excluded from
-this bearer-token worker, as required by its Better Auth session boundary.
+Each catalog row references its canonical HTTP endpoint and declares its
+permission, capability call, and explicit, type-checked MCP exposure. REST
+bindings preserve each row's inferred input, result, and error channel so
+`HttpApiBuilder` checks them against the endpoint contract. Business behavior
+stays in `packages/capabilities`.
 
-A future MCP write tool requires a deliberate change to that row's opt-in
-type and the shared tool projection, with reviewed input/output schemas and tests.
-It must call the existing capability, enforce the row's permission on every
-invocation, preserve API Token versus OAuth Member audit provenance, and declare
-truthful `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`
-annotations. Annotations are client hints, never authorization or confirmation.
-Credential-bearing responses and externally visible side effects need explicit
-review before exposure. No generic write dispatcher or automatic tool naming
-is introduced. This catalog is not an automatic REST-and-MCP generator.
+`mcp-mutations.ts` provides an exhaustive projection over the mutation keys.
+Its small typed adapters decode canonical payload schemas and JSON IDs, then
+call the existing row's `run`. They never construct an HTTP request, session,
+or membership. The workspace comes from the credential. HTTP path and query
+codecs are not JSON argument codecs: list tools retain their numeric `limit`
+schema, while REST's optional query decoder treats invalid limits as absent.
 
-Effect is pinned to `4.0.0-rc.112`. `HttpApiBuilder.handleAll` accepts a mapped
-handler record and checks each endpoint's input, success, errors, and remaining
-requirements. It does not map heterogeneous catalog callbacks into that record.
-Explicit bindings are a local choice to preserve those checks without assertions
-or a custom mapped-record builder, not a claim that Effect requires handwritten
-handler bodies. Contract references remove the avoidable method, path, and input
-type duplication. Event prefixes remain explicit to preserve existing log names.
+Effect is pinned to `4.0.0-rc.112`. We retain `McpServer.addTool` and JSON-text
+results rather than changing the existing protocol's result representation.
+One-time secrets appear in a single text result, without a duplicate structured
+result. Expected capability refusals become useful `isError` tool results;
+defects receive a generic message without internal details.
 
-The pinned `Tool.make` and `McpServer.registerToolkit` can project schema-backed
-tools, but their default result encoding differs from our existing JSON-text
-results and typed-failure messages. We retain `McpServer.addTool` and the shared
-decoder, authorization, and exhaustive failure mapper. MCP currently supports
-three input shapes: no input, paging, and endpoint ID. A new shape needs a decoder
-and projection change; flipping `mcpTool` alone cannot expose a mutation. Any
-future write projection must invoke the existing row operation, not introduce a
-second dispatch table. HTTP-specific response shaping, notably signed download
-origins, needs explicit adaptation before reuse by a tool.
+Stable services are captured when layers build. Each invocation resolves its
+workspace, actor, and authority. The HTTP gate supplies the current origin and
+rate-limit key as values, so signed export URLs use the invoking API origin
+without retaining request objects across calls.
 
-Capability schemas remain owned by `packages/capabilities`; HTTP wire schemas
-remain in `packages/api` and are referenced through each row's endpoint. MCP JSON
-argument codecs remain in `mcp.ts`. Their paging codec intentionally differs from
-HTTP query decoding: an invalid optional HTTP limit is absent, while a non-number
-MCP limit is invalid params. We do not claim one interchangeable wire codec.
+## Authorization and grants
 
-The REST contract, SDK, error statuses, rate-limit buckets, MCP session protocol,
-and per-tool authorization are unchanged. `POST /mcp` still has no route-level
-permission check. The permission matrix derives mutation requests from rows and
-compares coverage with the served OpenAPI contract, including the fail-closed
-bucket rule. Those generated requests are coverage checks, not the permission
-oracle. Independent expectations pin the complete permission policy and the
-write-scope boundary. HTTP tests send independent denied mutation requests and
-check that the audit trail and token registry stay unchanged. Protocol and
-handler tests protect existing read behavior, mutation responses, error mapping,
-and audit provenance.
+`POST /mcp` authenticates. Every tool separately checks its catalog permission
+before invoking the operation. API tokens remain confined to their workspace
+and scopes; write invocations verify the credential again. OAuth writes require
+an explicit `mcp:write` token scope, a current matching consent containing that
+scope, and the member's current role. Existing `mcp:read` consents grant no write
+access. New consent must be requested explicitly. Tokens bind to the consent ID and its database-managed version. A trigger
+increments the version whenever consent scope or identity changes. Revocation,
+re-consent, and scope reduction/restoration cannot revive older write tokens,
+even within the same second. The issuer uses the pinned provider's claim
+extension because it supplies the issuing client, unlike the legacy custom
+claims callback.
+
+The shared `requireTokenScopes` guard checks every permission a requested token
+scope would grant against the creator's authority. REST and MCP use it in the
+same catalog callback. In particular, a workspace admin cannot mint an `admin`
+API token, whose permissions include owner-only export and workspace deletion.
+API token writes retain `api_token` audit attribution; OAuth writes retain the
+actual member's `user` attribution.
+
+Every mutation invocation consumes `rest_write` before its authorization check,
+in addition to the `mcp` transport bucket. A per-tool quota refusal is an MCP
+`isError` result; a transport-gate refusal retains HTTP 429. Individual tool
+results cannot assign independent HTTP statuses within a batched JSON-RPC request. Batching tools inside a protocol request does not bypass the
+write bucket. No mutation receives automatic retries.
+
+## Exposed mutations
+
+The ten existing workspace mutations are available as follows.
+
+| Operation                         | MCP tool                             | Result and side effects                                                                   |
+| --------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `api-tokens.create`               | `create_api_token`                   | One-time plaintext token; audited, with best-effort webhook publication                   |
+| `api-tokens.delete`               | `delete_api_token`                   | Revokes a token; repeated or unknown IDs return revoked without a second audit or webhook |
+| `webhooks.create`                 | `create_webhook`                     | Endpoint metadata; audited, with best-effort webhook publication                          |
+| `webhooks.update`                 | `update_webhook`                     | Changes URL, subscriptions, or enabled state; audited                                     |
+| `webhooks.delete`                 | `delete_webhook`                     | Removes endpoint data; audited; missing endpoints are refused                             |
+| `webhooks.rotate-secret`          | `rotate_webhook_secret`              | Returns the new signing secret once; audited; old secret has 24 hours of grace            |
+| `webhooks.test-event`             | `send_webhook_test_event`            | Saves a pending delivery and enqueues an external send                                    |
+| `webhooks.replay-delivery`        | `replay_webhook_delivery`            | Saves an audited pending copy and enqueues another external send                          |
+| `workspace-exports.request`       | `request_workspace_export`           | Saves an audited job, enqueues the archive, and notifies on completion                    |
+| `workspace-exports.download-link` | `get_workspace_export_download_link` | Returns a signed URL expiring within 15 minutes, capped by artifact retention             |
+
+Webhook creation's existing REST response omits the initial signing secret.
+MCP preserves that response. Rotate the secret to obtain a usable signing
+secret; rotation retains the previous secret during its grace period.
+
+Missing or failed webhook queues return `CapabilityUnavailable`. Test-send and
+replay may already have committed a pending delivery, so their error explains
+that enqueue was not confirmed and instructs callers to inspect deliveries
+before retrying. Export enqueue failure preserves the existing failed-row
+behavior. URL validation, dispatch-time SSRF checks, disabled-endpoint guards,
+plan ceilings, replay restrictions, rotation grace, and export expiry remain in
+the capabilities.
+
+All write tools declare all four supported annotations. Only API-token
+revocation claims idempotency, because a second call has no further audit or
+publication. Other mutations conservatively decline that hint. Deletion,
+endpoint updates, and rotation carry the destructive hint. All writes carry
+`openWorldHint`, including operations that affect credentials, outbound
+webhooks, queued work, or downloadable data. These are client hints, not access
+control or a guarantee of human approval. No confirmation-token service exists.
+
+## Boundaries and validation
+
+System-admin operations, impersonation, account deletion, authentication
+configuration, and membership/invitation mutations remain out of scope.
+Better Auth's browser-session endpoints cannot be made callable by fabricating
+a session or workspace member.
+
+Tests exercise the streamable-HTTP handler, independent permission expectations,
+secret results, observable mutation effects, current OAuth grants and roles,
+revocation, typed refusals, audit attribution, and write-rate limiting. Existing
+REST contracts, read tools, discovery, SDK types, and the permission matrix stay
+under validation.

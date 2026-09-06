@@ -791,6 +791,8 @@ export const oauthConsent = sqliteTable(
   'oauth_consent',
   {
     id: id(),
+    // DB trigger increments on consent changes, including same-second updates.
+    grantVersion: integer('grant_version').notNull().default(0),
     clientId: text('clientId')
       .notNull()
       .references(() => oauthClient.clientId),

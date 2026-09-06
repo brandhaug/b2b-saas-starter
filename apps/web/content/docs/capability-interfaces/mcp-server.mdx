@@ -6,11 +6,53 @@ order: 20
 tags: [mcp, ai, tools, oauth]
 ---
 
-The MCP server is the second Capability Interface. It exposes the same workspace reads as REST, shaped as MCP tools and one resource, and it takes two credentials: an OAuth access token for an MCP Client a person operates (Claude, Cursor, and similar), or a workspace API Token for scripts and CI.
+The MCP server is the second Capability Interface. It exposes the same supported workspace reads and mutations as REST, shaped as MCP tools and one resource, and it takes two credentials: an OAuth access token for an MCP Client a person operates (Claude, Cursor, and similar), or a workspace API Token for scripts and CI.
 
 ## Today's surface
 
-The API Worker serves a real Model Context Protocol server at `POST /mcp` (Cloudflare Agents SDK, stateless, modern 2026-07-28 protocol only). Every tool is a read over a workspace, derived from the same operation table the REST routes use (`apps/api/src/operations.ts`): `get_workspace_overview`, `list_members`, `list_notifications`, `list_api_tokens`, `list_webhooks`, `list_audit_events`, plus the `workspace://overview` resource. `GET /mcp` is the discovery document, listing exactly those tools. Tools take no arguments: the workspace comes from the credential, never from the client.
+The API Worker serves Effect's MCP server at `POST /mcp` using streamable
+HTTP and protocol `2025-11-25`. Initialize a session and send its
+`mcp-session-id` with later requests. `GET /mcp` returns 405; discovery is at
+`GET /mcp/discovery` and through the protocol's `tools/list`.
+
+Read tools remain `get_workspace_overview`, `list_members`,
+`list_notifications`, `list_api_tokens`, `list_webhooks`,
+`list_webhook_deliveries`, and `list_audit_events`, with the
+`workspace://overview` resource. List tools accept optional `cursor` and numeric
+`limit`; delivery listing takes `endpointId`. The workspace always comes from
+the credential.
+
+The ten write tools call the same operation catalog as REST:
+
+| Tool                                 | JSON arguments                                    | Behavior                                                            |
+| ------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------- |
+| `create_api_token`                   | `name`, `scopes`                                  | Creates a token and returns its plaintext once                      |
+| `delete_api_token`                   | `tokenId`                                         | Revokes the token; unknown or revoked IDs also return revoked       |
+| `create_webhook`                     | `url`, `events`, optional `description`           | Registers an endpoint; returns metadata                             |
+| `update_webhook`                     | `endpointId`, optional `url`, `events`, `enabled` | Changes endpoint configuration                                      |
+| `delete_webhook`                     | `endpointId`                                      | Removes an endpoint and associated data                             |
+| `rotate_webhook_secret`              | `endpointId`                                      | Returns a new signing secret once; old secret retains 24-hour grace |
+| `send_webhook_test_event`            | `endpointId`                                      | Saves and enqueues an external test delivery                        |
+| `replay_webhook_delivery`            | `deliveryId`                                      | Creates and enqueues a copy of a terminal delivery                  |
+| `request_workspace_export`           | none                                              | Creates an archive job and notifies on completion                   |
+| `get_workspace_export_download_link` | `exportId`                                        | Returns a signed URL for a ready, unexpired archive                 |
+
+Store plaintext tokens and signing secrets securely. Treat signed URLs as
+credentials; they expire within 15 minutes, capped by archive retention.
+Webhook creation preserves the REST contract, which omits the initial signing
+secret. Call `rotate_webhook_secret` to obtain a signing secret.
+
+Mutations can write audit records, publish webhooks, and enqueue work. Only
+token revocation is marked idempotent. Tools do not retry mutations
+automatically. A failed webhook enqueue can leave a pending delivery; inspect
+deliveries before retrying. An export enqueue failure can leave a failed export.
+Expected refusals return MCP tool errors, including disabled or missing
+endpoints, invalid URLs, unavailable queues, and unavailable or expired exports.
+
+Tool annotations describe read-only, destructive, idempotent, and external
+behavior. They are client hints and do not guarantee human approval. System-admin,
+account-deletion, impersonation, authentication-configuration, and Better Auth
+browser-session membership or invitation operations are not exposed.
 
 ## Connect from Claude
 
@@ -18,11 +60,11 @@ An MCP Client connects through OAuth 2.1. You sign in once, pick the workspace, 
 
 1. In Claude (or another MCP client that supports remote servers), add a custom connector with the server URL `https://<your-api-worker>/mcp`. Locally that is `http://localhost:8787/mcp`, with `pnpm -C apps/api dev` and `pnpm run dev` both running against a seeded local D1.
 2. The client fetches `/.well-known/oauth-protected-resource/mcp` from the API Worker, learns that the web app's `/api/auth` is the authorization server, and opens the browser at `/api/auth/oauth2/authorize`. If you are signed out you land on `/sign-in`; signing in resumes the authorization.
-3. On `/oauth/consent` you pick exactly one Workspace and see what the client asks for (`mcp:read` to use the server, `offline_access` to stay connected, and the identity scopes). Allow, and the browser returns to the client with the authorization code.
+3. On `/oauth/consent` you pick exactly one Workspace and see what the client asks for (`mcp:read` for reads, explicit `mcp:write` for mutations, `offline_access` to stay connected, and the identity scopes). Allow, and the browser returns to the client with the authorization code.
 4. The client exchanges the code for an access token bound to the API Worker's `/mcp` and to that workspace, and calls the tools with it. The token expires after an hour; the refresh token the client also received renews it without another sign-in.
 5. Disconnect from `/account`, under MCP clients: revoking deletes the consent, revokes the client's refresh and access tokens, and writes an `mcp_client.consent_revoked` Audit Event. Connecting wrote `mcp_client.consent_granted`.
 
-The client identifies itself with a Client ID Metadata Document, the HTTPS URL MCP clients publish (draft-00, as MCP 2026-07-28 pins it). There is no registration step and no client secret to manage.
+The client identifies itself with a Client ID Metadata Document, the HTTPS URL MCP clients publish . There is no registration step and no client secret to manage.
 
 ## Connect from a script
 
@@ -30,10 +72,10 @@ Scripts keep using API Tokens: `Authorization: Bearer bsk_live_…` on `POST /mc
 
 ## What the two credentials share, and where they differ
 
-Both open the same route, draw from the same `mcp` rate-limit bucket, and reach the same capability services. Each tool re-checks its own permission through the one `authorize()` path in `@b2b-saas-starter/authz`; the difference is who it authorizes as:
+Both open the same route and draw from the `mcp` rate-limit bucket. Every write invocation also draws from `rest_write`. Each tool re-checks its own permission through the one `authorize()` path in `@b2b-saas-starter/authz`; the difference is who it authorizes as:
 
 - An API Token authorizes as its scopes (`read`, `write`, `admin`).
-- An OAuth token authorizes as the Member: the API Worker verifies the token's signature against the web worker's JWKS, its issuer (`MCP_OAUTH_ISSUER`), audience (`MCP_RESOURCE_URL`) and expiry, reads the workspace from the token's `starter_workspace_*` claims, and resolves your membership in that workspace on every call. A member who leaves the workspace is refused on the next call; a role change applies on the next call. A token for workspace A can read nothing about workspace B.
+- An OAuth write also requires a current matching consent granting `mcp:write`. Existing read-only grants never acquire writes automatically. The token authorizes as the Member: the API Worker verifies the token's signature against the web worker's JWKS, its issuer (`MCP_OAUTH_ISSUER`), audience (`MCP_RESOURCE_URL`) and expiry, reads the workspace from the token's `starter_workspace_*` claims, and resolves your membership in that workspace on every call. A member who leaves the workspace is refused on the next call; a role change applies on the next call. A token for workspace A cannot access workspace B. Revoked or changed consents invalidate previously issued write tokens through a consent ID/version binding. Token creation cannot grant permissions beyond the creator's authority.
 
 REST routes stay token-only. OAuth is the interactive path, not a second REST credential.
 

@@ -1,12 +1,14 @@
 import {
   MCP_OFFLINE_ACCESS_SCOPE,
   MCP_READ_SCOPE,
+  MCP_WRITE_SCOPE,
+  MCP_CONSENT_CLAIM,
   MCP_WORKSPACE_ID_CLAIM,
   MCP_WORKSPACE_ROLE_CLAIM,
   MCP_WORKSPACE_SLUG_CLAIM
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import { type DrizzleDatabase } from './ports.ts'
-import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
+import { oauthConsent, workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 
@@ -29,15 +31,16 @@ export const MCP_CONSENT_PAGE = '/oauth/consent'
  * The scopes an MCP Client may request. `openid`/`profile`/`email` let a
  * client show who is connected; `offline_access` mints a refresh token so the
  * connection survives the one-hour access token; `mcp:read` is what the
- * resource server requires. Nothing here grants a permission — the Member's
- * role does, re-resolved on every MCP call.
+ * resource server requires. `mcp:write` explicitly consents to mutations;
+ * the current Member role still limits each operation.
  */
 export const MCP_OAUTH_SCOPES = [
   'openid',
   'profile',
   'email',
   MCP_OFFLINE_ACCESS_SCOPE,
-  MCP_READ_SCOPE
+  MCP_READ_SCOPE,
+  MCP_WRITE_SCOPE
 ]
 
 /**
@@ -103,6 +106,7 @@ export async function mcpWorkspaceAccessTokenClaims(
   db: DrizzleDatabase,
   input: {
     readonly userId: string | undefined
+    readonly clientId: string
     readonly referenceId: string | undefined
   }
 ): Promise<Record<string, string>> {
@@ -115,9 +119,21 @@ export async function mcpWorkspaceAccessTokenClaims(
   }
   // oxlint-disable-next-line effect/noAsyncFunction -- see the module doc: no Effect runtime reaches this callback
   const rows = await db
-    .select({ workspace: workspaces, member: workspaceMembers })
+    .select({
+      workspace: workspaces,
+      member: workspaceMembers,
+      consent: { id: oauthConsent.id, version: oauthConsent.grantVersion }
+    })
     .from(workspaceMembers)
     .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
+    .leftJoin(
+      oauthConsent,
+      and(
+        eq(oauthConsent.userId, workspaceMembers.userId),
+        eq(oauthConsent.referenceId, workspaces.id),
+        eq(oauthConsent.clientId, input.clientId)
+      )
+    )
     .where(
       and(
         eq(workspaceMembers.workspaceId, input.referenceId),
@@ -133,9 +149,16 @@ export async function mcpWorkspaceAccessTokenClaims(
       error_description: 'the user is not a member of the consented workspace'
     })
   }
-  return {
+  const claims = {
     [MCP_WORKSPACE_ID_CLAIM]: row.workspace.id,
     [MCP_WORKSPACE_SLUG_CLAIM]: row.workspace.slug,
     [MCP_WORKSPACE_ROLE_CLAIM]: row.member.role
   }
+  if (row.consent) {
+    return {
+      ...claims,
+      [MCP_CONSENT_CLAIM]: `${row.consent.id}:${row.consent.version}`
+    }
+  }
+  return claims
 }

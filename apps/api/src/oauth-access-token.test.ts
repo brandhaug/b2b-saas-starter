@@ -234,7 +234,7 @@ describe('resource configuration', () => {
     ).toEqual({
       resource: AUDIENCE,
       authorization_servers: [ISSUER],
-      scopes_supported: ['mcp:read', 'offline_access'],
+      scopes_supported: ['mcp:read', 'mcp:write', 'offline_access'],
       bearer_methods_supported: ['header'],
       resource_name: 'B2B SaaS Starter MCP'
     })

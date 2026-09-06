@@ -28,9 +28,17 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     describe('live developer-platform contract', () => {
       for (const contractCase of developerPlatformContractCases(expect)) {
         it.effect(contractCase.name, () =>
-          inWorkspace('dev-contract-lab', contractCase.assert, {
-            userId: 'usr_owner'
-          })
+          inWorkspace(
+            'dev-contract-lab',
+            contractCase.assert,
+            { userId: 'usr_owner' },
+            {
+              webhookQueue: {
+                send: () => Promise.resolve(),
+                sendBatch: () => Promise.resolve()
+              }
+            }
+          )
         )
       }
     })

@@ -56,6 +56,18 @@ export function SeedApiTokenRegistry(
         revokedAt: null
       }))
 
+      const credentials = new Map(
+        [...SEED_TOKEN_SCOPES].map(([secret, scopes]) => [
+          secret,
+          {
+            id: seed[0]?.id ?? 'tok_seed',
+            scopes,
+            workspaceId: seedWorkspaceRecord.id,
+            workspaceSlug: seedWorkspaceRecord.slug
+          }
+        ])
+      )
+
       function activeIn(workspaceId: string) {
         return entries.filter(
           (entry) => entry.workspaceId === workspaceId && entry.revokedAt === null
@@ -123,7 +135,14 @@ export function SeedApiTokenRegistry(
             eventType: 'api_token.created',
             payload: created
           })
-          return { ...created, token: 'bsk_seed_created_token' }
+          const secret = yield* newCapabilityId('bsk')
+          credentials.set(secret, {
+            id,
+            scopes: created.scopes,
+            workspaceId: ctx.workspace.id,
+            workspaceSlug: ctx.workspace.slug
+          })
+          return { ...created, token: secret }
         }),
         revoke: (input) =>
           Effect.gen(function* () {
@@ -158,15 +177,19 @@ export function SeedApiTokenRegistry(
         verifyBearerToken: (token) => {
           // Authentication only: an unknown token is the single failure. Whether
           // the reported scopes cover the request is decided at the route boundary.
-          const scopes = SEED_TOKEN_SCOPES.get(token)
-          if (!scopes) {
+          const credential = credentials.get(token)
+          const entry = entries.find(
+            (candidate) =>
+              candidate.token.id === credential?.id && candidate.revokedAt === null
+          )
+          if (!credential || !entry) {
             return Effect.fail(new AuthorizationDenied({ reason: 'invalid_token' }))
           }
           return Effect.succeed({
-            id: seed[0]?.id ?? 'tok_seed',
-            workspaceId: seedWorkspaceRecord.id,
-            workspaceSlug: seedWorkspaceRecord.slug,
-            scopes
+            id: entry.token.id,
+            workspaceId: credential.workspaceId,
+            workspaceSlug: credential.workspaceSlug,
+            scopes: credential.scopes
           })
         }
       }

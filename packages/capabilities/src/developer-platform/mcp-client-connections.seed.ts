@@ -30,6 +30,20 @@ export function SeedMcpClientConnections(seed: {
         }))
 
       return {
+        getGrant: Effect.fn('McpClientConnections.getGrant')((input) =>
+          Effect.sync(() => {
+            const grant = connections.find(
+              (connection) =>
+                connection.userId === input.userId &&
+                connection.client.clientId === input.clientId &&
+                connection.workspace?.id === input.workspaceId
+            )
+            if (!grant) {
+              return null
+            }
+            return { binding: `${grant.id}:0`, scopes: grant.scopes }
+          })
+        ),
         describeClient: (clientId) =>
           Effect.succeed(
             seed.clients.find((client) => client.clientId === clientId) ?? null

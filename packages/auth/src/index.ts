@@ -457,11 +457,20 @@ export function makeAuthOptions(options: AuthConfigInterface) {
           shouldRedirect: mcpWorkspaceNeedsSelection,
           consentReferenceId: mcpWorkspaceReferenceId
         },
-        customAccessTokenClaims: ({ user, referenceId }) =>
-          mcpWorkspaceAccessTokenClaims(options.db, {
-            userId: user?.id,
-            referenceId
-          })
+        // The claim extension receives the issuing client; the legacy custom
+        // callback does not. Bind writes to this client's current consent.
+        extensions: [
+          {
+            claims: {
+              accessToken: ({ user, client, referenceId }) =>
+                mcpWorkspaceAccessTokenClaims(options.db, {
+                  userId: user?.id,
+                  clientId: client.clientId,
+                  referenceId
+                })
+            }
+          }
+        ]
       }),
       // Client ID Metadata Documents: an MCP client identifies itself by an
       // HTTPS URL it controls, which is what MCP 2026-07-28 pins instead of

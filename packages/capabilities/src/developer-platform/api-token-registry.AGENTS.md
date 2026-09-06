@@ -14,7 +14,7 @@ Workspace-scoped programmatic-access tokens for the REST and MCP surface. Tokens
 
 ## Patterns & Pitfalls
 
-- Seed `verifyBearerToken` accepts exactly two fixture credentials, `SEED_API_TOKEN` (all scopes) and `SEED_READONLY_API_TOKEN`. The narrow one makes a 403 reachable without D1, and both live in the contract module because the API worker's tests quote them. Never let Seed accept arbitrary tokens: it is the auth gate when the worker runs without D1.
+- Seed `verifyBearerToken` starts with two fixture credentials, `SEED_API_TOKEN` (all scopes) and `SEED_READONLY_API_TOKEN`. The narrow one makes a 403 reachable without D1, and both live in the contract module because the API worker's tests quote them. Created Seed tokens also authenticate until revoked, as do fixture credentials until their backing row is revoked. Never let Seed accept arbitrary tokens: it is the auth gate when the worker runs without D1.
 - `hashApiToken` is shared with `scripts/seed.ts`; both must mint the same hash.
 
 ## Anti-patterns

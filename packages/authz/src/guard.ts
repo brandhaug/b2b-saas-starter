@@ -1,3 +1,4 @@
+import { apiTokenScopeAccess, type ApiTokenScope } from './roles.ts'
 import { Effect, type Scope } from 'effect'
 import { AUTHORIZATION_DENIED_REASONS, AuthorizationDenied } from './errors.ts'
 import {
@@ -74,5 +75,23 @@ export function requirePermission(
         reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
       })
     )
+  })
+}
+
+/** A minted credential cannot grant any permission its creator lacks. */
+export function requireTokenScopes(
+  principal: Principal | null,
+  scopes: ReadonlyArray<ApiTokenScope>
+): Effect.Effect<void, AuthorizationDenied, Scope.Scope> {
+  return Effect.gen(function* () {
+    for (const scope of scopes) {
+      for (const [resource, actions] of Object.entries(
+        apiTokenScopeAccess[scope].statements
+      )) {
+        if (actions.length > 0) {
+          yield* requirePermission(principal, { [resource]: actions })
+        }
+      }
+    }
   })
 }
