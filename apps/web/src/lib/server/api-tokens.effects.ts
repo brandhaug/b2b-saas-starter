@@ -1,5 +1,6 @@
 import {
   ApiTokenRegistry,
+  type ReplacedApiToken,
   type CreatedApiToken
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { Effect } from 'effect'
@@ -12,6 +13,7 @@ import {
   type CreateApiTokenInput,
   type LoadApiTokensInput,
   type RevokeApiTokenInput,
+  type ReplaceApiTokenInput,
   type WorkspaceApiTokensPayload
 } from './api-tokens'
 
@@ -49,22 +51,20 @@ export async function loadWorkspaceApiTokensHandler(
   })
 }
 
-export async function createApiTokenHandler(
-  input: CreateApiTokenInput
-): Promise<CreatedApiToken> {
+export async function createApiTokenHandler({
+  workspaceSlug,
+  ...input
+}: CreateApiTokenInput): Promise<CreatedApiToken> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
-    input.workspaceSlug,
+    workspaceSlug,
     Effect.gen(function* () {
       // The session gate above proves who is asking; this proves they may.
       yield* requireWorkspacePermission({ apiToken: ['create'] })
       const tokens = yield* ApiTokenRegistry
       // The entitlement gate and webhook fan-out live inside the capability,
       // below the interface — identical for every surface.
-      return yield* tokens.create({
-        name: input.name,
-        scopes: input.scopes
-      })
+      return yield* tokens.create(input)
     }),
     { userId: session.user.id }
   )
@@ -83,6 +83,22 @@ export async function revokeApiTokenHandler(
       yield* requireWorkspacePermission({ apiToken: ['revoke'] })
       const tokens = yield* ApiTokenRegistry
       return yield* tokens.revoke({ tokenId: input.tokenId })
+    }),
+    { userId: session.user.id }
+  )
+}
+
+export async function replaceApiTokenHandler({
+  workspaceSlug,
+  ...input
+}: ReplaceApiTokenInput): Promise<ReplacedApiToken> {
+  const session = await requireRequestSession()
+  return runWorkspaceCapabilities(
+    workspaceSlug,
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ apiToken: ['create'] })
+      const tokens = yield* ApiTokenRegistry
+      return yield* tokens.replace(input)
     }),
     { userId: session.user.id }
   )

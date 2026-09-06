@@ -10,6 +10,8 @@ import { WorkspaceExportNotDownloadable } from '@b2b-saas-starter/api/errors'
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
+  type InvalidApiTokenInput,
+  type ApiTokenNotRotatable,
   type CapabilityUnavailable,
   type PlanLimitExceeded,
   type WorkspaceNotFound
@@ -243,6 +245,8 @@ export function readOperations(): ReadonlyArray<WorkspaceReadOperation> {
 
 /** Expected mutation failures; each concrete row retains its inferred subset. */
 type CapabilityMutationError =
+  | InvalidApiTokenInput
+  | ApiTokenNotRotatable
   | CapabilityUnavailable
   | PlanLimitExceeded
   | InvalidWebhookUrl
@@ -304,16 +308,36 @@ export const MUTATION_OPERATIONS = {
     run: (options: HttpApiEndpoint.Request<typeof ApiTokenApi.endpoints.create>) =>
       Effect.gen(function* () {
         const tokens = yield* ApiTokenRegistry
-        const created = yield* tokens.create({
-          name: options.payload.name,
-          scopes: options.payload.scopes
-        })
+        const created = yield* tokens.create(options.payload)
         yield* Effect.annotateLogsScoped({
           tokenId: created.id,
           tokenScopes: created.scopes
         })
         return created
       }),
+    mcpTool: false
+  },
+  'api-tokens.replace': {
+    endpoint: ApiTokenApi.endpoints.replace,
+    permission: { apiToken: ['create'] },
+    param: { sample: 'tok_docs' },
+    samplePayload: { scopes: ['read'], overlapSeconds: 3600 },
+    run: (options: HttpApiEndpoint.Request<typeof ApiTokenApi.endpoints.replace>) =>
+      Effect.gen(function* () {
+        const tokens = yield* ApiTokenRegistry
+        const replaced = yield* tokens.replace({
+          tokenId: options.params.tokenId,
+          ...options.payload
+        })
+        yield* Effect.annotateLogsScoped({
+          tokenId: replaced.id,
+          previousTokenId: replaced.previousTokenId,
+          tokenScopes: replaced.scopes
+        })
+        return replaced
+      }),
+    // Like create, replacement reveals a credential once. Keep minting out
+    // of MCP tool results and model conversation history.
     mcpTool: false
   },
   // Revoking an unknown id answers `revoked` all the same: the capability

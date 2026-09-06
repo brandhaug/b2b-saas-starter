@@ -3,11 +3,15 @@ import {
   ApiToken,
   type ApiTokenRegistry as ApiTokenRegistryService,
   CreatedApiTokenSchema,
-  CreateApiTokenPayload
+  CreateApiTokenPayload,
+  ReplaceApiTokenPayload,
+  ReplacedApiTokenSchema
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   CapabilityUnavailable,
+  InvalidApiTokenInput,
+  ApiTokenNotRotatable,
   PlanLimitExceeded,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
@@ -300,7 +304,15 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
       params: SlugParams,
       payload: CreateApiTokenPayload,
       success: CreatedApiTokenSchema.pipe(HttpApiSchema.status(201)),
-      error: [PlanLimitExceeded, ...WORKSPACE_ERRORS]
+      error: [InvalidApiTokenInput, PlanLimitExceeded, ...WORKSPACE_ERRORS]
+    })
+  )
+  .add(
+    HttpApiEndpoint.post('replace', '/workspaces/:slug/api-tokens/:tokenId/replace', {
+      params: TokenIdParams,
+      payload: ReplaceApiTokenPayload,
+      success: ReplacedApiTokenSchema.pipe(HttpApiSchema.status(201)),
+      error: [InvalidApiTokenInput, ApiTokenNotRotatable, ...WORKSPACE_ERRORS]
     })
   )
   .add(

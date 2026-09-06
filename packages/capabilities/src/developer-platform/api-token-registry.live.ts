@@ -1,11 +1,16 @@
 import { apiTokens, workspaces } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
-import { and, desc, eq, isNull, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm'
 
 import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
-import { AuthorizationDenied } from '../errors.ts'
-import { randomHex } from '../crypto.ts'
+import { ApiTokenNotRotatable, AuthorizationDenied } from '../errors.ts'
+import {
+  mintApiToken,
+  planTokenReplacement,
+  tokenIsExpired,
+  validateTokenCreation
+} from './api-token-policy.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
@@ -20,14 +25,6 @@ import {
   shouldBumpLastUsedAt,
   type ApiToken
 } from './api-token-registry.ts'
-
-function randomToken(): string {
-  return `bsk_live_${randomHex(24)}`
-}
-
-function tokenPrefix(token: string): string {
-  return token.slice(0, 17)
-}
 
 const unavailable = orUnavailable('api-token-registry')
 
@@ -55,7 +52,9 @@ function toTokenProjection(row: typeof apiTokens.$inferSelect): ApiToken {
     prefix: row.tokenPrefix,
     scopes: row.scopes,
     lastUsedAt: row.lastUsedAt,
-    createdAt: row.createdAt
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    replacedByTokenId: row.replacedByTokenId
   }
 }
 
@@ -124,59 +123,161 @@ export const LiveApiTokenRegistry: Layer.Layer<
             id: token.id
           }))
         }),
-      create: (input) =>
-        Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          // Entitlement gate: the workspace's plan caps token count. The
-          // rule and the counting both live in the billing capability, so no
-          // caller can forget the gate.
-          yield* assertWithinPlanLimitFor({
-            resource: 'api_token',
-            db,
-            capability: 'api-token-registry',
-            table: apiTokens,
-            where: and(
-              eq(apiTokens.workspaceId, ctx.workspace.id),
-              isNull(apiTokens.revokedAt)
+      create: Effect.fn('ApiTokenRegistry.create')(function* (input) {
+        const ctx = yield* WorkspaceContext
+        const now = yield* DateTime.now
+        const valid = yield* validateTokenCreation(input, DateTime.toEpochMillis(now))
+        // Entitlement gate: the workspace's plan caps token count. The
+        // rule and the counting both live in the billing capability, so no
+        // caller can forget the gate.
+        yield* assertWithinPlanLimitFor({
+          resource: 'api_token',
+          db,
+          capability: 'api-token-registry',
+          table: apiTokens,
+          where: and(
+            eq(apiTokens.workspaceId, ctx.workspace.id),
+            isNull(apiTokens.revokedAt),
+            isNull(apiTokens.replacedByTokenId),
+            or(
+              isNull(apiTokens.expiresAt),
+              gt(apiTokens.expiresAt, DateTime.formatIso(now))
             )
-          })
-          const token = randomToken()
-          const createdAt = DateTime.formatIso(yield* DateTime.now)
-          const row = {
-            id: yield* newCapabilityId('tok'),
+          )
+        })
+        const token = mintApiToken()
+        const createdAt = DateTime.formatIso(now)
+        const row = {
+          id: yield* newCapabilityId('tok'),
+          workspaceId: ctx.workspace.id,
+          name: valid.name,
+          tokenPrefix: token.slice(0, 17),
+          tokenHash: yield* Effect.promise(() => hashApiToken(token)),
+          scopes: valid.scopes,
+          expiresAt: valid.expiresAt ?? null,
+          replacedByTokenId: null,
+          lastUsedAt: null,
+          revokedAt: null,
+          createdAt,
+          createdByUserId: ctx.actor?.userId ?? null
+        }
+        // Insert + audit insert as one batch — the shared audited-mutation
+        // shape with an unconditional match.
+        yield* auditedMutation({
+          matched: Effect.succeed(true),
+          auditEvent: {
             workspaceId: ctx.workspace.id,
-            name: input.name,
-            tokenPrefix: tokenPrefix(token),
-            tokenHash: yield* Effect.promise(() => hashApiToken(token)),
-            scopes: [...input.scopes],
-            lastUsedAt: null,
-            revokedAt: null,
-            createdAt,
-            createdByUserId: ctx.actor?.userId ?? null
-          }
-          // Insert + audit insert as one batch — the shared audited-mutation
-          // shape with an unconditional match.
-          yield* auditedMutation({
-            matched: Effect.succeed(true),
-            auditEvent: {
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
-              eventType: 'api_token.created',
-              targetType: 'api_token',
-              targetId: row.id,
-              metadata: { name: input.name, scopes: input.scopes }
-            },
-            write: () => db.insert(apiTokens).values(row)
-          })
-          // Fan-out sits beside the audit write, below the interface: the
-          // projection only — never the minted secret.
-          yield* publishWebhookEventWith(publisher, {
+            actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
             eventType: 'api_token.created',
-            payload: toTokenProjection(row)
-          })
-          return { ...toTokenProjection(row), token }
-        }),
+            targetType: 'api_token',
+            targetId: row.id,
+            metadata: {
+              name: valid.name,
+              scopes: valid.scopes,
+              expiresAt: row.expiresAt
+            }
+          },
+          write: () => db.insert(apiTokens).values(row)
+        })
+        // Fan-out sits beside the audit write, below the interface: the
+        // projection only — never the minted secret.
+        yield* publishWebhookEventWith(publisher, {
+          eventType: 'api_token.created',
+          payload: toTokenProjection(row)
+        })
+        return { ...toTokenProjection(row), token }
+      }),
+      replace: Effect.fn('ApiTokenRegistry.replace')(function* (input) {
+        const ctx = yield* WorkspaceContext
+        const source = yield* unavailable(
+          db
+            .select()
+            .from(apiTokens)
+            .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
+            .limit(1)
+        ).pipe(Effect.map((rows) => rows[0]))
+        if (!source) {
+          return yield* Effect.fail(
+            new ApiTokenNotRotatable({ tokenId: input.tokenId })
+          )
+        }
+        const now = yield* DateTime.now
+        const createdAt = DateTime.formatIso(now)
+        const plan = yield* planTokenReplacement(
+          toTokenProjection(source),
+          input,
+          DateTime.toEpochMillis(now)
+        )
+        const token = mintApiToken()
+        const row = {
+          id: yield* newCapabilityId('tok'),
+          workspaceId: ctx.workspace.id,
+          name: source.name,
+          tokenPrefix: token.slice(0, 17),
+          tokenHash: yield* Effect.promise(() => hashApiToken(token)),
+          scopes: plan.scopes,
+          expiresAt: plan.expiresAt,
+          replacedByTokenId: null,
+          lastUsedAt: null,
+          revokedAt: null,
+          createdAt,
+          createdByUserId: ctx.actor?.userId ?? null
+        }
+        // Claim the source and insert its replacement in one batch. The insert
+        // derives its mandatory workspace from that claim. If a concurrent revoke
+        // or replacement won, the scalar subquery returns NULL, failing NOT NULL
+        // and rolling back the entire batch, including its audit record.
+        let expiryUnchanged = isNull(apiTokens.expiresAt)
+        if (source.expiresAt !== null) {
+          expiryUnchanged = eq(apiTokens.expiresAt, source.expiresAt)
+        }
+        const eligible = and(
+          activeTokenWhere(source.id, ctx.workspace.id),
+          isNull(apiTokens.replacedByTokenId),
+          or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, createdAt)),
+          expiryUnchanged
+        )
+        const claimedWorkspace = sql<string>`(select workspace_id from api_tokens where id = ${source.id} and workspace_id = ${ctx.workspace.id} and replaced_by_token_id = ${row.id})`
+        yield* auditedMutation({
+          matched: Effect.succeed(true),
+          auditEvent: {
+            workspaceId: ctx.workspace.id,
+            actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
+            eventType: 'api_token.replaced',
+            targetType: 'api_token',
+            targetId: row.id,
+            metadata: {
+              previousTokenId: source.id,
+              replacementTokenId: row.id,
+              previousTokenExpiresAt: plan.previousTokenExpiresAt,
+              expiresAt: row.expiresAt,
+              scopes: row.scopes
+            }
+          },
+          write: () => [
+            db
+              .update(apiTokens)
+              .set({
+                expiresAt: plan.previousTokenExpiresAt,
+                replacedByTokenId: row.id
+              })
+              .where(eligible),
+            db.insert(apiTokens).values({ ...row, workspaceId: claimedWorkspace })
+          ]
+        })
+        yield* publishWebhookEventWith(publisher, {
+          eventType: 'api_token.created',
+          payload: toTokenProjection(row)
+        })
+        return {
+          ...toTokenProjection(row),
+          token,
+          previousTokenId: source.id,
+          previousTokenExpiresAt: plan.previousTokenExpiresAt
+        }
+      }),
       revoke: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
@@ -232,7 +333,11 @@ export const LiveApiTokenRegistry: Layer.Layer<
           // An unknown or revoked token is the only failure here, and the API
           // worker answers it 401. A known token that may not do what it asked
           // is a separate 403 raised by `requirePermission` at the boundary.
-          if (!row) {
+          const usedAt = yield* DateTime.now
+          if (
+            !row ||
+            tokenIsExpired(row.token.expiresAt, DateTime.toEpochMillis(usedAt))
+          ) {
             return yield* Effect.fail(
               new AuthorizationDenied({ reason: 'invalid_token' })
             )
@@ -243,7 +348,6 @@ export const LiveApiTokenRegistry: Layer.Layer<
           // bump is best-effort telemetry — a transient write failure has no
           // bearing on whether the token authenticates, so it is swallowed
           // rather than failing an otherwise-valid request with 503.
-          const usedAt = yield* DateTime.now
           if (
             shouldBumpLastUsedAt(row.token.lastUsedAt, DateTime.toEpochMillis(usedAt))
           ) {

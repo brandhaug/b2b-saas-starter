@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { fixtureSession } from '@/test/fixture-session'
 import {
   loadWorkspaceApiTokensHandler,
+  replaceApiTokenHandler,
+  createApiTokenHandler,
   revokeApiTokenHandler
 } from './api-tokens.effects'
 import type * as AuthModule from './auth'
@@ -63,5 +65,45 @@ describe('loadWorkspaceApiTokensHandler', () => {
     await expect(
       loadWorkspaceApiTokensHandler({ workspaceSlug: 'starter-lab' })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
+  })
+})
+
+describe('token lifecycle handlers', () => {
+  beforeEach(() => {
+    actor.userId = 'usr_demo'
+  })
+
+  it('passes optional expiry through creation', async () => {
+    const expiresAt = '2099-01-01T00:00:00.000Z'
+    const token = await createApiTokenHandler({
+      workspaceSlug: 'starter-lab',
+      name: 'Expiring',
+      scopes: ['read'],
+      expiresAt
+    })
+    expect(token.expiresAt).toBe(expiresAt)
+  })
+
+  it('requires mint permission for replacements', async () => {
+    actor.userId = 'usr_dev'
+    await expect(
+      replaceApiTokenHandler({
+        workspaceSlug: 'starter-lab',
+        tokenId: 'tok_docs',
+        scopes: ['read'],
+        overlapSeconds: 0
+      })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
+  })
+
+  it('replaces a token for an owner in the authorized workspace', async () => {
+    const replacement = await replaceApiTokenHandler({
+      workspaceSlug: 'starter-lab',
+      tokenId: 'tok_docs',
+      scopes: ['read'],
+      overlapSeconds: 0
+    })
+    expect(replacement.previousTokenId).toBe('tok_docs')
+    expect(replacement.token).toMatch(/^bsk_/)
   })
 })

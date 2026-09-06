@@ -20,19 +20,21 @@ const CREATE_TOKEN_FAILED = 'Failed to create token'
 type ApiTokenValues = {
   name: string
   scopes: ReadonlyArray<ApiTokenScope>
+  expiry: string
 }
 
 const DEFAULT_TOKEN_VALUES: ApiTokenValues = {
   name: '',
-  scopes: ['read']
+  scopes: ['read'],
+  expiry: ''
 }
 
 function validateTokenName(value: string): string | undefined {
   if (value.trim().length === 0) {
     return 'Token name is required'
   }
-  if (value.length > 80) {
-    return 'Token name must be under 80 characters'
+  if (value.length > 100) {
+    return 'Token name must be at most 100 characters'
   }
   return
 }
@@ -47,6 +49,7 @@ export type CreateApiToken = (input: {
   readonly data: {
     readonly workspaceSlug: string
     readonly name: string
+    readonly expiresAt?: string
     readonly scopes: ReadonlyArray<ApiTokenScope>
   }
 }) => Promise<CreatedApiToken>
@@ -72,15 +75,16 @@ export function ApiTokenForm({
       // The server function rejects when the capability fails. `callServerFn`
       // moves that rejection into the error channel as a display message, so
       // the failure path is a value instead of a try/catch.
+      const data: Parameters<CreateApiToken>[0]['data'] = {
+        workspaceSlug,
+        name: value.name,
+        scopes: value.scopes
+      }
+      const request = value.expiry
+        ? { ...data, expiresAt: new Date(`${value.expiry}Z`).toISOString() }
+        : data
       const outcome = await callServerFn(
-        () =>
-          createToken({
-            data: {
-              workspaceSlug,
-              name: value.name,
-              scopes: value.scopes
-            }
-          }),
+        () => createToken({ data: request }),
         CREATE_TOKEN_FAILED
       )
 
@@ -144,6 +148,31 @@ export function ApiTokenForm({
           />
         )}
       </form.Field>
+
+      <form.Field
+        name="expiry"
+        validators={{
+          onChange: ({ value }) =>
+            value && !(Date.parse(`${value}Z`) > Date.now())
+              ? 'Choose an expiry in the future'
+              : undefined
+        }}
+      >
+        {(field) => (
+          <FormTextField
+            name="create-token-expiry"
+            label="Expiry (UTC, optional)"
+            type="datetime-local"
+            value={field.state.value}
+            errors={field.state.meta.errors}
+            onBlur={field.handleBlur}
+            onChange={field.handleChange}
+          />
+        )}
+      </form.Field>
+      <p className="text-xs text-muted-foreground">
+        Leave expiry empty for a token that does not expire.
+      </p>
 
       <form.Subscribe
         selector={(state): readonly [boolean, boolean] => [

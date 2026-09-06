@@ -1,8 +1,10 @@
 import { apiTokenScopes } from '@b2b-saas-starter/db/schema'
-import { Context, Schema, type Effect } from 'effect'
+import { Context, DateTime, Schema, type Effect } from 'effect'
 
 import {
   type AuthorizationDenied,
+  type InvalidApiTokenInput,
+  type ApiTokenNotRotatable,
   type CapabilityUnavailable,
   type PlanLimitExceeded
 } from '../errors.ts'
@@ -33,7 +35,9 @@ export const ApiToken = Schema.Struct({
   prefix: Schema.String,
   scopes: Schema.Array(ApiTokenScope),
   lastUsedAt: Schema.NullOr(Schema.String),
-  createdAt: Schema.String
+  createdAt: Schema.String,
+  expiresAt: Schema.NullOr(Schema.String),
+  replacedByTokenId: Schema.NullOr(Schema.String)
 })
 export type ApiToken = typeof ApiToken.Type
 
@@ -48,29 +52,56 @@ type VerifiedApiToken = {
   readonly scopes: ReadonlyArray<ApiTokenScope>
 }
 
-export type CreateApiTokenInput = {
-  readonly name: string
-  readonly scopes: ReadonlyArray<ApiTokenScope>
-}
+const ApiTokenExpiry = Schema.String.check(
+  Schema.makeFilter(
+    (value) => {
+      const millis = Date.parse(value)
+      return (
+        Number.isFinite(millis) &&
+        /^\d{4}-/.test(value) &&
+        DateTime.formatIso(DateTime.makeUnsafe(millis)) === value
+      )
+    },
+    { description: 'ISO UTC timestamp, for example 2026-12-01T00:00:00.000Z' }
+  )
+)
+
+const TokenScopes = Schema.Array(ApiTokenScope).check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(API_TOKEN_SCOPES.length),
+  Schema.makeFilter((scopes) => new Set(scopes).size === scopes.length)
+)
 
 export const CreateApiTokenPayload = Schema.Struct({
   name: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(100)),
-  scopes: Schema.Array(ApiTokenScope).check(
-    Schema.isMinLength(1),
-    Schema.isMaxLength(API_TOKEN_SCOPES.length)
-  )
+  scopes: TokenScopes,
+  expiresAt: Schema.optionalKey(ApiTokenExpiry)
 })
 export type CreateApiTokenPayload = typeof CreateApiTokenPayload.Type
+export type CreateApiTokenInput = CreateApiTokenPayload
+
+export const MAX_TOKEN_OVERLAP_SECONDS = 86_400
+export const ReplaceApiTokenPayload = Schema.Struct({
+  scopes: TokenScopes,
+  overlapSeconds: Schema.Number.check(
+    Schema.isInt(),
+    Schema.isBetween({ minimum: 0, maximum: MAX_TOKEN_OVERLAP_SECONDS })
+  ),
+  expiresAt: Schema.optionalKey(ApiTokenExpiry)
+})
+export type ReplaceApiTokenPayload = typeof ReplaceApiTokenPayload.Type
+export type ReplaceApiTokenInput = ReplaceApiTokenPayload & { readonly tokenId: string }
 
 export const CreatedApiTokenSchema = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  prefix: Schema.String,
-  scopes: Schema.Array(ApiTokenScope),
-  lastUsedAt: Schema.NullOr(Schema.String),
-  createdAt: Schema.String,
+  ...ApiToken.fields,
   token: Schema.String
 })
+export const ReplacedApiTokenSchema = Schema.Struct({
+  ...CreatedApiTokenSchema.fields,
+  previousTokenId: Schema.String,
+  previousTokenExpiresAt: Schema.String
+})
+export type ReplacedApiToken = typeof ReplacedApiTokenSchema.Type
 
 export type RevokeApiTokenInput = {
   readonly tokenId: string
@@ -96,7 +127,14 @@ type ApiTokenRegistryInterface = {
     input: CreateApiTokenInput
   ) => Effect.Effect<
     CreatedApiToken,
-    CapabilityUnavailable | PlanLimitExceeded,
+    CapabilityUnavailable | PlanLimitExceeded | InvalidApiTokenInput,
+    WorkspaceContext
+  >
+  readonly replace: (
+    input: ReplaceApiTokenInput
+  ) => Effect.Effect<
+    ReplacedApiToken,
+    CapabilityUnavailable | InvalidApiTokenInput | ApiTokenNotRotatable,
     WorkspaceContext
   >
   /** Resolves `true` when a token was revoked, `false` when nothing matched. */
@@ -130,8 +168,8 @@ export const SEED_API_TOKEN = 'bsk_seed_0000000000000000'
  * A second fixture token carrying the `read` scope only. It exists so the
  * denial half of the permission matrix is reachable without a live D1: with
  * one all-powerful fixture token, no Seed-backed test could ever observe a
- * 403. Anything other than these two fails with `AuthorizationDenied`,
- * matching the Live layer's behavior for unknown tokens.
+ * 403. Both adapters also accept credentials they issue, and reject unknown,
+ * revoked, or expired credentials with `AuthorizationDenied`.
  */
 export const SEED_READONLY_API_TOKEN = 'bsk_seed_readonly000000'
 

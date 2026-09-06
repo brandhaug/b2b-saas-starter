@@ -2,7 +2,11 @@ import { Effect, Exit } from 'effect'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { failureTag } from '../internal/failure-tag.ts'
-import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  type PlanLimitExceeded,
+  type InvalidApiTokenInput
+} from '../errors.ts'
 import { type InvalidWebhookUrl } from './webhook-url.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { ApiTokenRegistry } from './api-token-registry.ts'
@@ -43,6 +47,7 @@ export type DeveloperPlatformContractCase = {
     | CapabilityUnavailable
     | InvalidWebhookUrl
     | PlanLimitExceeded
+    | InvalidApiTokenInput
     | WebhookEndpointNotFound
     | WebhookDeliveryNotFound
     | WebhookDispatchRejected,
@@ -54,7 +59,7 @@ export type PlanLimitContractCase = {
   readonly name: string
   readonly assert: Effect.Effect<
     void,
-    CapabilityUnavailable | PlanLimitExceeded,
+    CapabilityUnavailable | PlanLimitExceeded | InvalidApiTokenInput,
     ApiTokenRegistry | WorkspaceContext
   >
 }

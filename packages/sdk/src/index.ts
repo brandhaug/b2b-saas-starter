@@ -145,6 +145,21 @@ export type StarterClient = {
   readonly health: {
     readonly check: () => Promise<Success<StarterApiClient['health']['check']>>
   }
+  readonly apiTokens: {
+    readonly create: (
+      slug: string,
+      payload: Parameters<
+        StarterApiClient['api-token-registry']['create']
+      >[0]['payload']
+    ) => Promise<Success<StarterApiClient['api-token-registry']['create']>>
+    readonly replace: (
+      slug: string,
+      tokenId: string,
+      payload: Parameters<
+        StarterApiClient['api-token-registry']['replace']
+      >[0]['payload']
+    ) => Promise<Success<StarterApiClient['api-token-registry']['replace']>>
+  }
   readonly workspace: {
     readonly overview: (
       slug: string
@@ -261,6 +276,16 @@ export function createStarterClient(
   return {
     health: {
       check: () => run((resolved) => resolved.health.check())
+    },
+    apiTokens: {
+      create: (slug, payload) =>
+        run((resolved) =>
+          resolved['api-token-registry'].create({ params: { slug }, payload })
+        ),
+      replace: (slug, tokenId, payload) =>
+        run((resolved) =>
+          resolved['api-token-registry'].replace({ params: { slug, tokenId }, payload })
+        )
     },
     workspace: {
       overview: (slug) =>
