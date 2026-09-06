@@ -1,8 +1,12 @@
 // CLI helper config — used by `wrangler d1 migrations apply` and
-// `drizzle-kit` to talk to the shared D1 database. The Workers themselves
-// are deployed by Alchemy (see alchemy.run.ts); this file is *not* the
-// source of truth for production bindings. The placeholder `database_id`
-// is replaced by `wrangler d1 ... --remote` at apply time.
+// `drizzle-kit` to talk to the shared D1 database, and by the package
+// scripts' `--local` runs. The Workers themselves are deployed by Alchemy
+// (see alchemy.run.ts); this file is *not* the source of truth for
+// production bindings. Wrangler does NOT replace the placeholder
+// `database_id` with a remote lookup: a name matching `database_name` makes
+// wrangler use the binding's id verbatim. The package scripts therefore
+// resolve a remote target's uuid themselves (scripts/wrangler-d1.ts) and
+// pass the uuid to wrangler; local state stays keyed by the placeholder.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "b2b-saas-starter-db",
