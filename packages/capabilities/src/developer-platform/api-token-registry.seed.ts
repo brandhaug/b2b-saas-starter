@@ -112,6 +112,7 @@ export function SeedApiTokenRegistry(
           yield* audit.record({
             workspaceId: ctx.workspace.id,
             actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
             eventType: 'api_token.created',
             targetType: 'api_token',
             targetId: id,
@@ -142,6 +143,7 @@ export function SeedApiTokenRegistry(
             yield* audit.record({
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'api_token.revoked',
               targetType: 'api_token',
               targetId: input.tokenId,

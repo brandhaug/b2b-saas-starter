@@ -5,6 +5,7 @@ import { and, desc, eq, gte, lte, type SQL } from 'drizzle-orm'
 
 import {
   auditEventPosition,
+  assertAuditActorType,
   AuditEventLog,
   type AuditEvent,
   AUDIT_EVENT_PAGE_SIZE,
@@ -36,6 +37,7 @@ function toWireRow(row: AuditRow): AuditEvent {
     targetType: row.event.targetType,
     targetId: row.event.targetId ?? null,
     actor: row.actor?.name ?? 'system',
+    actorType: row.event.actorType,
     createdAt: row.event.createdAt
   }
 }
@@ -114,12 +116,14 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
       ).pipe(Effect.map((rows) => rows.map(toWireRow)))
 
       const insertFor = Effect.fnUntraced(function* (input: RecordAuditEventInput) {
+        yield* assertAuditActorType(input)
         const id = yield* newCapabilityId('aud')
         const createdAt = yield* DateTime.now
         return db.insert(auditEvents).values({
           id,
           workspaceId: input.workspaceId ?? null,
           actorUserId: input.actorUserId ?? null,
+          actorType: input.actorType,
           eventType: input.eventType,
           targetType: input.targetType,
           targetId: input.targetId ?? null,

@@ -19,6 +19,7 @@ const OverviewBody = Schema.Struct({
   notifications: Schema.Array(Schema.Unknown)
 })
 const CreatedTokenBody = Schema.Struct({
+  id: Schema.String,
   token: Schema.String,
   scopes: Schema.Array(Schema.String)
 })
@@ -197,6 +198,24 @@ describe('contract-served routes', () => {
       const body = yield* jsonBody(res, CreatedTokenBody)
       expect(body.token).toBeTruthy()
       expect(body.scopes).toEqual(['read'])
+      const auditResponse = yield* send(
+        get('/workspaces/starter-lab/audit-events?eventType=api_token.created', bearer)
+      )
+      expect(auditResponse.status).toBe(200)
+      const audit = yield* jsonBody(
+        auditResponse,
+        Schema.Struct({
+          items: Schema.Array(
+            Schema.Struct({
+              targetId: Schema.NullOr(Schema.String),
+              actorType: Schema.String
+            })
+          )
+        })
+      )
+      expect(audit.items.find((event) => event.targetId === body.id)?.actorType).toBe(
+        'api_token'
+      )
     })
   )
 

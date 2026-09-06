@@ -73,6 +73,7 @@ const snapshot: WorkspaceExportSnapshot = {
   auditEvents: [
     {
       id: 'aud_1',
+      actorType: 'user',
       eventType: 'api_token.created',
       targetType: 'api_token',
       targetId: 'tok_1',

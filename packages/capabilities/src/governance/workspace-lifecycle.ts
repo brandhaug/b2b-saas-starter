@@ -157,6 +157,7 @@ export function SeedWorkspaceLifecycle(options: {
               yield* audit.value.record({
                 workspaceId: workspace.id,
                 actorUserId: input.userId,
+                actorType: 'user',
                 eventType: 'workspace.created',
                 targetType: 'workspace',
                 targetId: workspace.id,
@@ -199,13 +200,15 @@ export function SeedWorkspaceLifecycle(options: {
           yield* Ref.update(created, (rows) =>
             rows.filter((each) => each.id !== ctx.workspace.id)
           )
-          // A system event on purpose, matching Live: the trail stays readable
-          // after the workspace it describes is gone.
+          // Unscoped on purpose, matching Live: the trail stays readable
+          // after the workspace it describes is gone. The actor stays the
+          // deleting user — only the workspace attribution is dropped.
           const audit = yield* Effect.serviceOption(AuditEventLog)
           if (Option.isSome(audit)) {
             yield* audit.value.record({
               workspaceId: null,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'workspace.deleted',
               targetType: 'workspace',
               targetId: removed.id,
@@ -254,6 +257,7 @@ export function LiveWorkspaceLifecycle(
             yield* audit.record({
               workspaceId: workspace.id,
               actorUserId: input.userId,
+              actorType: 'user',
               eventType: 'workspace.created',
               targetType: 'workspace',
               targetId: workspace.id,
@@ -300,12 +304,14 @@ export function LiveWorkspaceLifecycle(
           yield* callBinding(binding, (bound) =>
             bound.remove({ workspaceId: ctx.workspace.id })
           )
-          // A system event on purpose: `audit_events.workspace_id` cascades from
+          // Unscoped on purpose: `audit_events.workspace_id` cascades from
           // `workspaces.id`, so attributing this row to the deleted workspace
-          // would delete it alongside the thing it describes.
+          // would delete it alongside the thing it describes. The actor stays
+          // the deleting user — only the workspace attribution is dropped.
           yield* audit.record({
             workspaceId: null,
             actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
             eventType: 'workspace.deleted',
             targetType: 'workspace',
             targetId: removed.id,

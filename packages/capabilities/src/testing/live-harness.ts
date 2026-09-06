@@ -120,6 +120,7 @@ const insertFixtureRows = Effect.gen(function* () {
       id: row.id,
       workspaceId: row.workspaceId ?? null,
       actorUserId: row.actorUserId ?? null,
+      actorType: row.actorType,
       eventType: row.eventType,
       targetType: row.targetType,
       targetId: row.targetId ?? null,
@@ -294,7 +295,10 @@ export function inWorkspace<A, E>(
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {
   return Effect.provide(
     effect,
-    Layer.merge(makeLiveCapabilitiesLayer(bindings), liveWorkspaceContext(slug, actor))
+    Layer.merge(
+      makeLiveCapabilitiesLayer(bindings),
+      liveWorkspaceContext(slug, actor, 'user')
+    )
   )
 }
 

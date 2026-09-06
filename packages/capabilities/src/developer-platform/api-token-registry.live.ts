@@ -161,6 +161,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
             auditEvent: {
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'api_token.created',
               targetType: 'api_token',
               targetId: row.id,
@@ -194,6 +195,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
             auditEvent: {
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'api_token.revoked',
               targetType: 'api_token',
               targetId: input.tokenId,

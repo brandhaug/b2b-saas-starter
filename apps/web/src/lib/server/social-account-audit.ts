@@ -41,6 +41,7 @@ export function accountAuditInput(
   return {
     workspaceId: null,
     actorUserId: account.userId,
+    actorType: 'user',
     eventType,
     targetType: 'user',
     targetId: account.userId,

@@ -143,7 +143,12 @@ export async function runWorkspaceCapabilities<A, E>(
       },
       Effect.provide(
         effect,
-        selectWorkspaceLayer({ ...starterEnv, ...bindings }, workspaceSlug, actor)
+        selectWorkspaceLayer(
+          { ...starterEnv, ...bindings },
+          workspaceSlug,
+          actor,
+          'user'
+        )
       )
     )
   )

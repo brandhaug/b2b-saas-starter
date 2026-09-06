@@ -255,7 +255,8 @@ describe('seed notification feed: notifyWorkspaceOwners', () => {
           return feed.list.pipe(
             Effect.provideService(WorkspaceContext, {
               workspace: seedWorkspaceRecord,
-              actor
+              actor,
+              actorType: 'user'
             })
           )
         }

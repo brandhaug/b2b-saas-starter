@@ -108,6 +108,9 @@ export function workspaceLifecycleContractCases(
         )
         expect(createdEvents.length).toBe(createdBefore + 1)
         expect(
+          createdEvents.find((event) => event.targetId === created.id)?.actorType
+        ).toBe('user')
+        expect(
           createdEvents.some(
             (event) => event.targetId === created.id && event.targetType === 'workspace'
           )
@@ -119,6 +122,10 @@ export function workspaceLifecycleContractCases(
         yield* lifecycle.rename({ name: 'Audited Lab II' })
         const renamedPage = yield* log.list({ eventType: 'workspace.renamed' })
         expect(renamedPage.items.length).toBe(renamedBefore + 1)
+        expect(
+          renamedPage.items.find((event) => event.targetId === ctx.workspace.id)
+            ?.actorType
+        ).toBe(ctx.actorType)
         expect(
           renamedPage.items.some(
             (event) =>

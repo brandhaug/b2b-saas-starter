@@ -132,6 +132,17 @@ export const securityNotificationKinds = [
 ] as const satisfies ReadonlyArray<NotificationKind>
 
 /**
+ * Who performed an audited action, stored in `audit_events.actorType`: a
+ * signed-in session user, the platform itself (background worker or a
+ * lifecycle step no human initiated), or a bearer API token driving the
+ * REST/MCP surface. Independent of `actorUserId`: a user action can remain
+ * unattributed, and a credential can act on behalf of a known user.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const auditActorTypes = ['user', 'system', 'api_token'] as const
+export type AuditActorTypeValue = (typeof auditActorTypes)[number]
+
+/**
  * How a user receives one kind of Notification by email: not at all, one
  * email per Notification as it is created, or folded into the daily digest.
  * The in-app feed is unaffected by the choice.

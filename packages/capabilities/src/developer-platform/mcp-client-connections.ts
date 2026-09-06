@@ -68,6 +68,7 @@ export function consentGrantedAuditEvent(
   return {
     workspaceId: input.workspaceId,
     actorUserId: input.userId,
+    actorType: 'user',
     eventType: 'mcp_client.consent_granted',
     targetType: 'mcp_client',
     targetId: input.clientId,
@@ -85,6 +86,7 @@ export function consentRevokedAuditEvent(input: {
   return {
     workspaceId: input.workspaceId,
     actorUserId: input.userId,
+    actorType: 'user',
     eventType: 'mcp_client.consent_revoked',
     targetType: 'mcp_client',
     targetId: input.clientId,

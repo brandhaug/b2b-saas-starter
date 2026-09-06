@@ -205,6 +205,7 @@ export function SeedWebhookEndpoints(
           yield* audit.record({
             workspaceId: row.workspaceId,
             actorUserId: null,
+            actorType: 'system',
             eventType: auditEventType,
             targetType: 'webhook_endpoint',
             targetId: row.endpointId,
@@ -335,6 +336,7 @@ export function SeedWebhookEndpoints(
           yield* audit.record({
             workspaceId: input.workspaceId,
             actorUserId: (yield* WorkspaceContext).actor?.userId ?? null,
+            actorType: (yield* WorkspaceContext).actorType,
             eventType: input.auditEventType,
             targetType: 'webhook_endpoint',
             targetId: input.plan.endpointId,
@@ -404,6 +406,7 @@ export function SeedWebhookEndpoints(
           yield* audit.record({
             workspaceId: ctx.workspace.id,
             actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
             eventType: 'webhook_endpoint.created',
             targetType: 'webhook_endpoint',
             targetId: endpoint.id,
@@ -489,6 +492,7 @@ export function SeedWebhookEndpoints(
             yield* audit.record({
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook_endpoint.updated',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -515,6 +519,7 @@ export function SeedWebhookEndpoints(
             yield* audit.record({
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook_endpoint.deleted',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -629,6 +634,7 @@ export function SeedWebhookEndpoints(
             yield* audit.record({
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook_endpoint.secret_rotated',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -670,6 +676,7 @@ export function SeedWebhookEndpoints(
             yield* audit.record({
               workspaceId: input.workspaceId,
               actorUserId: null,
+              actorType: 'system',
               eventType: 'webhook_endpoint.auto_disabled',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,

@@ -140,7 +140,7 @@ export function SeedWorkspaceExports(options: {
         // for every other capability.
         const built = yield* Effect.result(
           buildArchive(options.fixture.id, completedAt).pipe(
-            Effect.provide(testWorkspaceContext(options.workspace))
+            Effect.provide(testWorkspaceContext(options.workspace, null, 'system'))
           )
         )
         const base = {
@@ -224,6 +224,7 @@ export function SeedWorkspaceExports(options: {
           yield* audit.record({
             workspaceId: ctx.workspace.id,
             actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
             eventType: 'workspace.export_requested',
             targetType: 'workspace_export',
             targetId: id,
@@ -298,6 +299,7 @@ export function SeedWorkspaceExports(options: {
             yield* audit.record({
               workspaceId: row.workspaceId,
               actorUserId: null,
+              actorType: 'user',
               eventType: 'workspace.export_downloaded',
               targetType: 'workspace_export',
               targetId: row.record.id,
@@ -335,6 +337,7 @@ function completeRow(
     yield* audit.record({
       workspaceId: row.workspaceId,
       actorUserId: null,
+      actorType: 'system',
       eventType: 'workspace.export_completed',
       targetType: 'workspace_export',
       targetId: row.record.id,

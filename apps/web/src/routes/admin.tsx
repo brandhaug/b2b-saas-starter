@@ -12,6 +12,8 @@ import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
 import { RoutePending } from '@/components/route-pending'
 import { formatDateTime } from '@/lib/format-date'
+import { auditActorTypeLabel } from '@/lib/audit-labels'
+import { auditActorTypeVariant } from '@/lib/badge-variants'
 import {
   listSystemUsersServerFn,
   loadAdminAuditEventsServerFn,
@@ -64,7 +66,19 @@ const userColumns: Array<DataTableColumnDef<SystemUser>> = [
 const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
   { accessorKey: 'eventType', header: 'Event', enableSorting: true },
   { accessorKey: 'targetType', header: 'Target', enableSorting: true },
-  { accessorKey: 'actor', header: 'Actor', enableSorting: true },
+  {
+    accessorKey: 'actor',
+    header: 'Actor',
+    enableSorting: true,
+    cell: ({ row }) => (
+      <span className="flex flex-wrap items-center gap-1.5 break-words">
+        {row.original.actor}{' '}
+        <Badge variant={auditActorTypeVariant(row.original.actorType)}>
+          {auditActorTypeLabel(row.original.actorType)}
+        </Badge>
+      </span>
+    )
+  },
   {
     accessorKey: 'createdAt',
     header: 'Created',

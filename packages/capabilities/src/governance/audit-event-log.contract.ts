@@ -43,6 +43,7 @@ export function auditEventContractDataset(
       id: 'aud_c_old',
       workspaceId,
       actorUserId: 'usr_alice',
+      actorType: 'user',
       eventType: 'api_token.created',
       targetType: 'api_token',
       targetId: 'tok_a',
@@ -54,6 +55,7 @@ export function auditEventContractDataset(
       id: 'aud_c_tie_b',
       workspaceId,
       actorUserId: 'usr_bob',
+      actorType: 'user',
       eventType: 'api_token.created',
       targetType: 'api_token',
       targetId: null,
@@ -64,6 +66,7 @@ export function auditEventContractDataset(
       id: 'aud_c_tie_a',
       workspaceId,
       actorUserId: 'usr_alice',
+      actorType: 'user',
       eventType: 'webhook_endpoint.created',
       targetType: 'webhook_endpoint',
       targetId: 'wh_a',
@@ -84,6 +87,24 @@ export function auditEventLogContractCases(
   expect: ContractExpect
 ): ReadonlyArray<AuditEventLogContractCase> {
   return [
+    {
+      name: 'missing provenance fails before recording or preparing a write',
+      assert: Effect.gen(function* () {
+        const audit = yield* AuditEventLog
+        const ctx = yield* WorkspaceContext
+        const input = {
+          workspaceId: ctx.workspace.id,
+          eventType: 'api_token.created',
+          targetType: 'api_token'
+        }
+        const before = (yield* list()).items.length
+        // @ts-expect-error Deliberately exercise an untyped caller omitting actorType.
+        expect((yield* Effect.exit(audit.record(input)))._tag).toBe('Failure')
+        // @ts-expect-error The atomic-write preparer must reject the same malformed input.
+        expect((yield* Effect.exit(audit.prepareRecord(input)))._tag).toBe('Failure')
+        expect((yield* list()).items.length).toBe(before)
+      })
+    },
     {
       name: 'lists events most-recent-first with ties broken by id',
       assert: Effect.gen(function* () {
@@ -178,6 +199,7 @@ export function auditEventLogContractCases(
         yield* audit.record({
           workspaceId: ctx.workspace.id,
           actorUserId: 'usr_alice',
+          actorType: 'user',
           eventType: 'api_token.created',
           targetType: 'api_token',
           targetId: 'tok_inserted'
@@ -204,6 +226,70 @@ export function auditEventLogContractCases(
         }
         expect(fresh.items).toHaveLength(4)
         expect(originalIds).toEqual(['aud_c_tie_b', 'aud_c_tie_a', 'aud_c_old'])
+      })
+    },
+    {
+      // Records into the shared dataset; keep after pagination assertions.
+      name: 'exposes the recorded actor type on the wire',
+      assert: Effect.gen(function* () {
+        const audit = yield* AuditEventLog
+        const ctx = yield* WorkspaceContext
+        yield* audit.record({
+          workspaceId: ctx.workspace.id,
+          actorUserId: null,
+          actorType: 'api_token',
+          eventType: 'api_token.created',
+          targetType: 'api_token',
+          targetId: 'tok_rest'
+        })
+        // The same operation can run as a system job.
+        yield* audit.record({
+          workspaceId: ctx.workspace.id,
+          actorUserId: null,
+          actorType: 'system',
+          eventType: 'api_token.created',
+          targetType: 'api_token',
+          targetId: 'tok_system'
+        })
+        const page = yield* list({ limit: 10 })
+        const byTarget = new Map(
+          page.items.map((event) => [event.targetId ?? '', event])
+        )
+        expect(byTarget.get('tok_rest')?.actorType).toBe('api_token')
+        expect(byTarget.get('tok_rest')?.actor).toBe('system')
+        expect(byTarget.get('tok_system')?.actorType).toBe('system')
+        expect(byTarget.get('tok_a')?.actorType).toBe('user')
+      })
+    },
+    {
+      name: 'does not infer provenance from event taxonomy or user attribution',
+      assert: Effect.gen(function* () {
+        const audit = yield* AuditEventLog
+        const ctx = yield* WorkspaceContext
+        yield* audit.record({
+          workspaceId: ctx.workspace.id,
+          actorType: 'system',
+          eventType: 'workspace.created',
+          targetType: 'workspace',
+          targetId: 'automated_workspace'
+        })
+        yield* audit.record({
+          workspaceId: ctx.workspace.id,
+          actorUserId: null,
+          actorType: 'user',
+          eventType: 'workspace.created',
+          targetType: 'workspace',
+          targetId: 'interactive_workspace'
+        })
+        const page = yield* list({ eventType: 'workspace.created' })
+        expect(
+          page.items.find((event) => event.targetId === 'automated_workspace')
+            ?.actorType
+        ).toBe('system')
+        expect(
+          page.items.find((event) => event.targetId === 'interactive_workspace')
+            ?.actorType
+        ).toBe('user')
       })
     }
   ]

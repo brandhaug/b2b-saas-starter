@@ -96,6 +96,7 @@ export function recordSsoSignInAudit(
       yield* writeAndReport(run, {
         workspaceId,
         actorUserId: null,
+        actorType: 'user',
         eventType: 'auth.sso_sign_in_failed',
         targetType: 'session',
         targetId: null,
@@ -116,6 +117,7 @@ export function recordSsoSignInAudit(
     yield* writeAndReport(run, {
       workspaceId,
       actorUserId: attributed.userId,
+      actorType: 'user',
       eventType: 'auth.sso_sign_in',
       targetType: 'session',
       targetId: attributed.sessionId,

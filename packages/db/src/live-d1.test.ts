@@ -65,6 +65,26 @@ const createdAtFixture = new Date('2026-08-15T09:00:00.000Z')
 const expiresAtFixture = new Date('2026-08-17T09:00:00.000Z')
 
 describe('migrations', () => {
+  it.live('rejects audit inserts that omit invocation provenance', () =>
+    Effect.gen(function* () {
+      yield* Effect.promise(() =>
+        expect(
+          test.d1
+            .prepare(
+              "INSERT INTO audit_events (id, event_type, target_type, created_at) VALUES ('aud_missing_actor', 'api_token.created', 'api_token', '2026-09-06T12:00:00.000Z')"
+            )
+            .run()
+        ).rejects.toThrow('NOT NULL constraint failed: audit_events.actor_type')
+      )
+      const row = yield* Effect.promise(() =>
+        test.d1
+          .prepare("SELECT id FROM audit_events WHERE id = 'aud_missing_actor'")
+          .first()
+      )
+      expect(row).toBeNull()
+    })
+  )
+
   it.live('create every table the schema declares', () =>
     Effect.gen(function* () {
       const rows = yield* Effect.promise(() =>

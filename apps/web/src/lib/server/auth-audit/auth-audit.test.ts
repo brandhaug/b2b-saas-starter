@@ -153,6 +153,7 @@ describe('authAuditInput', () => {
     })
     expect(input).toEqual({
       workspaceId: null,
+      actorType: 'user',
       actorUserId: 'usr_demo',
       eventType: 'auth.sign_in',
       targetType: 'session',
@@ -216,6 +217,7 @@ describe('authAuditInput', () => {
     })
     expect(known).toEqual({
       workspaceId: null,
+      actorType: 'user',
       actorUserId: null,
       eventType: 'auth.password_reset_requested',
       targetType: 'user',
@@ -528,6 +530,7 @@ describe('email-otp exchanges', () => {
       authAuditInput({ ...signInOtp, status: 200, actorUserId: 'usr_demo' })
     ).toEqual({
       workspaceId: null,
+      actorType: 'user',
       actorUserId: 'usr_demo',
       eventType: 'auth.sign_in',
       targetType: 'session',
@@ -856,6 +859,7 @@ describe('authAuditInput for the admin rows', () => {
       })
     ).toEqual({
       workspaceId: null,
+      actorType: 'user',
       actorUserId: 'usr_martin',
       eventType: 'system_admin.user_role_changed',
       targetType: 'user',

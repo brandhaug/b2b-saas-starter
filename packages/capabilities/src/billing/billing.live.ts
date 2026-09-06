@@ -187,6 +187,7 @@ export function LiveBilling(
             yield* audit.record({
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'billing.checkout_started',
               targetType: 'workspace',
               targetId: ctx.workspace.id,
@@ -218,6 +219,7 @@ export function LiveBilling(
             yield* audit.record({
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'billing.portal_opened',
               targetType: 'workspace',
               targetId: ctx.workspace.id,
@@ -246,6 +248,7 @@ export function LiveBilling(
                 // A system event: the actor is the provider webhook, not a user.
                 workspaceId: input.workspaceId,
                 actorUserId: null,
+                actorType: 'system',
                 eventType: 'billing.plan_changed',
                 targetType: 'workspace',
                 targetId: input.workspaceId,
@@ -315,6 +318,7 @@ export function LiveBilling(
               auditEvent: {
                 workspaceId: input.workspaceId,
                 actorUserId: null,
+                actorType: 'system',
                 eventType: 'billing.seats_changed',
                 targetType: 'workspace',
                 targetId: input.workspaceId,
@@ -358,6 +362,7 @@ export function LiveBilling(
               auditEvent: {
                 workspaceId: input.workspaceId,
                 actorUserId: null,
+                actorType: 'system',
                 eventType: 'billing.seats_changed',
                 targetType: 'workspace',
                 targetId: input.workspaceId,

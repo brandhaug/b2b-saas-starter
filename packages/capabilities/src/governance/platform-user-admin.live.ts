@@ -87,6 +87,7 @@ export function LivePlatformUserAdmin(
             )
             yield* audit.record({
               actorUserId: input.actorUserId,
+              actorType: 'user',
               eventType: 'system_admin.user_banned',
               targetType: 'user',
               targetId: input.userId
@@ -100,6 +101,7 @@ export function LivePlatformUserAdmin(
             )
             yield* audit.record({
               actorUserId: input.actorUserId,
+              actorType: 'user',
               eventType: 'system_admin.user_unbanned',
               targetType: 'user',
               targetId: input.userId
@@ -129,6 +131,7 @@ export function LivePlatformUserAdmin(
             yield* audit.record({
               workspaceId: input.workspaceId,
               actorUserId: input.actorUserId,
+              actorType: 'user',
               eventType: 'system_admin.user_role_changed',
               targetType: 'workspace_member',
               targetId: input.userId,
@@ -146,6 +149,7 @@ export function LivePlatformUserAdmin(
             )
             yield* audit.record({
               actorUserId: input.actorUserId,
+              actorType: 'user',
               eventType: 'system_admin.impersonation_started',
               targetType: 'user',
               targetId: input.userId,
@@ -165,6 +169,7 @@ export function LivePlatformUserAdmin(
             yield* callBinding(binding, (bound) => bound.stopImpersonating())
             yield* audit.record({
               actorUserId: input.actorUserId,
+              actorType: 'user',
               eventType: 'system_admin.impersonation_stopped',
               targetType: 'user',
               targetId: input.userId

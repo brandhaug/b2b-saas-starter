@@ -101,6 +101,7 @@ export function SeedWorkspaceOnboarding(
           yield* audit.record({
             workspaceId: ctx.workspace.id,
             actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
             eventType: 'workspace.onboarding_dismissed',
             targetType: 'workspace',
             targetId: ctx.workspace.id,
@@ -180,6 +181,7 @@ export const LiveWorkspaceOnboarding: Layer.Layer<
           auditEvent: {
             workspaceId: ctx.workspace.id,
             actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
             eventType: 'workspace.onboarding_dismissed',
             targetType: 'workspace',
             targetId: ctx.workspace.id,

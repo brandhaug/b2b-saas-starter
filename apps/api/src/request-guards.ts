@@ -1,6 +1,7 @@
 import { withHttpInvocation } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { selectWorkspaceContextLayer } from '@b2b-saas-starter/capabilities/runtime'
@@ -131,6 +132,17 @@ export function mcpCallerActor(caller: McpCaller): ActorRef | undefined {
     return undefined
   }
   return { userId: caller.token.userId }
+}
+
+/**
+ * The caller kind that same workspace layer should carry: an API Token names
+ * itself; OAuth acts on behalf of the authenticated user.
+ */
+export function mcpCallerActorType(caller: McpCaller): AuditActorTypeValue {
+  if (caller.kind === 'token') {
+    return 'api_token'
+  }
+  return 'user'
 }
 
 /**
@@ -270,15 +282,21 @@ export function webRequest(request: HttpServerRequest.HttpServerRequest): Reques
  * request-independent and lives on the isolate-level layer `http.ts` hands to
  * `HttpRouter.provideRequest`, so a request pays for the workspace lookup and
  * nothing else.
+ *
+ * `actorType` names what kind of caller made the request — it is what the
+ * audit writes a mutating capability performs read to label their rows. The
+ * REST groups are bearer-token-only, so they pass `'api_token'`; the MCP
+ * route's token callers do the same while its OAuth callers pass `'user'`.
  */
 export function provideWorkspace<A, E, R>(
   env: ApiEnv,
   slug: string,
   body: Effect.Effect<A, E, R>,
-  actor?: ActorRef
+  actor: ActorRef | undefined,
+  actorType: AuditActorTypeValue
 ) {
   return body.pipe(
-    Effect.provide(selectWorkspaceContextLayer(starterEnv(env), slug, actor))
+    Effect.provide(selectWorkspaceContextLayer(starterEnv(env), slug, actor, actorType))
   )
 }
 
