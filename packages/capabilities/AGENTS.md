@@ -24,7 +24,7 @@ Package-level modules that are not capabilities:
 - `governance/workspace-identity.ts`: `Workspace`, `Member`, role tuples, `toWorkspace`. Import identity types from here, not from the membership capability.
 - `errors.ts`: shared typed errors with their HTTP status. `AuthorizationDenied` is declared in [`authz`](../authz/AGENTS.md) and only re-exported here.
 - `governance/plugin-binding-failure.ts`: `makeBindingCaller` and `readPluginBindingFailure` classify a rejected Better Auth plugin call (4xx = workspace refused, else store unreachable). Every plugin-backed Live adapter builds its `callBinding` from it.
-- `seed-fixture.ts`: the single fixture, including the demo identity shared with `scripts/seed.ts` (root rule 8).
+- `seed-fixture.ts`: the single fixture (root rule 8).
 
 ## Usage Patterns
 
@@ -55,6 +55,7 @@ Mutating capabilities that write to D1 wrap the write in `governance/audited-mut
 
 ## Patterns & Pitfalls
 
+- Provider selection uses typed env bags and `select*Layer`, not Effect Config: invocation bindings select Seed/Live (`runtime.ts`) and leave unconfigured optional providers inactive (root rule 3).
 - Every Live D1 or queue failure surfaces as `CapabilityUnavailable` (503) via `internal/unavailable.ts`, never as a defect.
 - Paged list reads share `internal/keyset-cursor.ts` and the `Page<T>` shape (ADR 0057). Timestamped collections page newest-first on `(createdAt, id)`; untimestamped ones forward on `id`. Unpaged reads stay for the web app's own small pages.
 - Seed plugin-backed adapters read `AuditEventLog` ambiently with `Effect.serviceOption`. A harness that provides none gets no records; that is expected, not a bug.
