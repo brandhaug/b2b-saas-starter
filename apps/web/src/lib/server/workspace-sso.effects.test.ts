@@ -197,6 +197,7 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
   const REASON = 'issuer unreachable'
 
   it('notifies every owner, only the owners, with the domain and reason', async () => {
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- server-fn handler pattern per apps/web/AGENTS.md keeps plain it (TestClock epoch 0 vs session-expiry fixtures)
     const visibleTo = await Effect.runPromise(
       Effect.gen(function* () {
         const roster = yield* makeSeedRoster(members)

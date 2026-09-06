@@ -128,6 +128,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
   () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- suite setup runs outside any test; converting the hook to it.layer is a separate change
     Effect.runPromise(
       Effect.gen(function* () {
         provisioned = yield* Effect.promise(() => provisionAuthD1())

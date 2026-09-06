@@ -204,6 +204,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
           userId: 'usr_mixed',
           password: DELETE_PASSWORD,
           beforeDelete: (userId) =>
+            // oxlint-disable-next-line starter/no-run-promise-in-tests -- Better Auth calls these hooks as plain promise callbacks outside any Effect runtime; the runPromise is the port
             Effect.runPromise(
               Effect.flatMap(AccountLifecycle, (lifecycle) =>
                 lifecycle.prepareDeletion(userId)
@@ -218,6 +219,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
               )
             ),
           afterDelete: (userId) =>
+            // oxlint-disable-next-line starter/no-run-promise-in-tests -- Better Auth calls these hooks as plain promise callbacks outside any Effect runtime; the runPromise is the port
             Effect.runPromise(
               Effect.flatMap(AccountLifecycle, (lifecycle) =>
                 Effect.flatMap(readHandoffPlan(hookPlan), (plan) =>
