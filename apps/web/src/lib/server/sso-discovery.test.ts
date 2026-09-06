@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 
 import { resolveOidcIssuer, validateSamlMetadata } from './sso-discovery'
 
@@ -26,35 +26,45 @@ const METADATA = `<?xml version="1.0"?>
 </EntityDescriptor>`
 
 describe('validateSamlMetadata', () => {
-  it('extracts the entity id and the redirect binding URL from valid metadata', async () => {
-    const result = await Effect.runPromise(validateSamlMetadata(METADATA))
-    expect(result.entityId).toBe('https://idp.acme.com/saml')
-    expect(result.entryPoint).toBe('https://idp.acme.com/saml/sso')
-  })
+  it.effect(
+    'extracts the entity id and the redirect binding URL from valid metadata',
+    () =>
+      Effect.gen(function* () {
+        const result = yield* validateSamlMetadata(METADATA)
+        expect(result.entityId).toBe('https://idp.acme.com/saml')
+        expect(result.entryPoint).toBe('https://idp.acme.com/saml/sso')
+      })
+  )
 
-  it('refuses metadata with no usable SSO service', async () => {
-    // samlify parses garbage leniently — no entity id, no bindings — so the
-    // refusal lands on the missing-entry-point code either way.
-    const failure = await Effect.runPromise(
-      Effect.flip(validateSamlMetadata('this is not saml metadata'))
-    )
-    expect(failure).toMatchObject({ code: 'saml_metadata_missing_entry_point' })
-  })
+  it.effect('refuses metadata with no usable SSO service', () =>
+    Effect.gen(function* () {
+      // samlify parses garbage leniently — no entity id, no bindings — so the
+      // refusal lands on the missing-entry-point code either way.
+      const failure = yield* Effect.flip(
+        validateSamlMetadata('this is not saml metadata')
+      )
+      expect(failure).toMatchObject({ code: 'saml_metadata_missing_entry_point' })
+    })
+  )
 
-  it('refuses metadata without an HTTP-Redirect SSO binding', async () => {
-    const postOnly = METADATA.replace('HTTP-Redirect', 'HTTP-Custom-Binding')
-    const failure = await Effect.runPromise(Effect.flip(validateSamlMetadata(postOnly)))
-    expect(failure).toMatchObject({ code: 'saml_metadata_missing_entry_point' })
-  })
+  it.effect('refuses metadata without an HTTP-Redirect SSO binding', () =>
+    Effect.gen(function* () {
+      const postOnly = METADATA.replace('HTTP-Redirect', 'HTTP-Custom-Binding')
+      const failure = yield* Effect.flip(validateSamlMetadata(postOnly))
+      expect(failure).toMatchObject({ code: 'saml_metadata_missing_entry_point' })
+    })
+  )
 })
 
 describe('resolveOidcIssuer', () => {
-  it('fails discovery_unreachable for an issuer nothing answers', async () => {
-    // No network in tests: `.invalid` never resolves, which is the same
-    // refusal the form shows for a typo'd issuer.
-    const failure = await Effect.runPromise(
-      Effect.flip(resolveOidcIssuer('https://login.unreachable.invalid'))
-    )
-    expect(failure).toMatchObject({ code: 'discovery_unreachable' })
-  })
+  it.effect('fails discovery_unreachable for an issuer nothing answers', () =>
+    Effect.gen(function* () {
+      // No network in tests: `.invalid` never resolves, which is the same
+      // refusal the form shows for a typo'd issuer.
+      const failure = yield* Effect.flip(
+        resolveOidcIssuer('https://login.unreachable.invalid')
+      )
+      expect(failure).toMatchObject({ code: 'discovery_unreachable' })
+    })
+  )
 })

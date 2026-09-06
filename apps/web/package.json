@@ -60,6 +60,7 @@
   "devDependencies": {
     "@babel/core": "catalog:",
     "@cloudflare/workers-types": "catalog:",
+    "@effect/vitest": "catalog:",
     "@playwright/test": "catalog:",
     "@rolldown/plugin-babel": "catalog:",
     "@tailwindcss/vite": "catalog:",

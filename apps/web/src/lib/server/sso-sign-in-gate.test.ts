@@ -1,5 +1,5 @@
 import { Effect, Option, Schema } from 'effect'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 
 import { type SsoSignInTarget } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 
@@ -113,62 +113,66 @@ describe('disabledConnectionResponse (the SSO half)', () => {
 })
 
 describe('the request wrappers against the Seed layer', () => {
-  it('refuses a direct /sign-in/sso for the seeded disabled connection', async () => {
-    const response = await Effect.runPromise(
-      refuseDisabledConnection(
+  it.effect('refuses a direct /sign-in/sso for the seeded disabled connection', () =>
+    Effect.gen(function* () {
+      const response = yield* refuseDisabledConnection(
         gateRequest('/sign-in/sso', { email: 'someone@acme-corp.example' }),
         { method: 'POST', pathname: '/api/auth/sign-in/sso' }
       )
-    )
-    expect(response?.status).toBe(403)
-    expect(decodeRefusal(await response?.json())).toMatchObject({
-      code: 'sso_connection_disabled'
+      expect(response?.status).toBe(403)
+      expect(
+        decodeRefusal(yield* Effect.promise(() => response!.json()))
+      ).toMatchObject({
+        code: 'sso_connection_disabled'
+      })
     })
-  })
+  )
 
-  it('refuses a providerId-addressed /sign-in/sso for the same row', async () => {
-    const response = await Effect.runPromise(
-      refuseDisabledConnection(
+  it.effect('refuses a providerId-addressed /sign-in/sso for the same row', () =>
+    Effect.gen(function* () {
+      const response = yield* refuseDisabledConnection(
         gateRequest('/sign-in/sso', { providerId: 'sso_example_oidc' }),
         { method: 'POST', pathname: '/api/auth/sign-in/sso' }
       )
-    )
-    expect(response?.status).toBe(403)
-  })
+      expect(response?.status).toBe(403)
+    })
+  )
 
-  it('lets /sign-in/sso through for a domain with no connection', async () => {
-    const response = await Effect.runPromise(
-      refuseDisabledConnection(
+  it.effect('lets /sign-in/sso through for a domain with no connection', () =>
+    Effect.gen(function* () {
+      const response = yield* refuseDisabledConnection(
         gateRequest('/sign-in/sso', { email: 'demo@starter.local' }),
         { method: 'POST', pathname: '/api/auth/sign-in/sso' }
       )
-    )
-    expect(response).toBeNull()
-  })
-
-  it('lets the credential path through for the disabled connection — it does not demand SSO', async () => {
-    const response = await Effect.runPromise(
-      enforceSsoRequired(
-        gateRequest('/sign-in/email', { email: 'someone@acme-corp.example' }),
-        {
-          method: 'POST',
-          pathname: '/api/auth/sign-in/email'
-        }
-      )
-    )
-    expect(response).toBeNull()
-  })
-
-  it('ignores a non-JSON body instead of failing the sign-in', async () => {
-    const request = new Request('http://localhost:3071/api/auth/sign-in/sso', {
-      method: 'POST'
+      expect(response).toBeNull()
     })
-    const response = await Effect.runPromise(
-      refuseDisabledConnection(request, {
+  )
+
+  it.effect(
+    'lets the credential path through for the disabled connection — it does not demand SSO',
+    () =>
+      Effect.gen(function* () {
+        const response = yield* enforceSsoRequired(
+          gateRequest('/sign-in/email', { email: 'someone@acme-corp.example' }),
+          {
+            method: 'POST',
+            pathname: '/api/auth/sign-in/email'
+          }
+        )
+        expect(response).toBeNull()
+      })
+  )
+
+  it.effect('ignores a non-JSON body instead of failing the sign-in', () =>
+    Effect.gen(function* () {
+      const request = new Request('http://localhost:3071/api/auth/sign-in/sso', {
+        method: 'POST'
+      })
+      const response = yield* refuseDisabledConnection(request, {
         method: 'POST',
         pathname: '/api/auth/sign-in/sso'
       })
-    )
-    expect(response).toBeNull()
-  })
+      expect(response).toBeNull()
+    })
+  )
 })

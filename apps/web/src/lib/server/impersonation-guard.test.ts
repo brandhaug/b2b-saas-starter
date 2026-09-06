@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 import {
   impersonationForbiddenAction,
   impersonationGuardResponse
@@ -60,32 +60,36 @@ describe('impersonationForbiddenAction', () => {
 })
 
 describe('impersonationGuardResponse', () => {
-  it('answers 403 for a forbidden action on an impersonation session', async () => {
-    const response = await Effect.runPromise(
-      impersonationGuardResponse(post('/api/auth/change-password'), impersonated)
-    )
-    expect(response?.status).toBe(403)
-    expect(await response?.json()).toEqual({
-      code: 'forbidden_while_impersonating',
-      action: 'change_password'
+  it.effect('answers 403 for a forbidden action on an impersonation session', () =>
+    Effect.gen(function* () {
+      const response = yield* impersonationGuardResponse(
+        post('/api/auth/change-password'),
+        impersonated
+      )
+      expect(response?.status).toBe(403)
+      expect(yield* Effect.promise(() => response!.json())).toEqual({
+        code: 'forbidden_while_impersonating',
+        action: 'change_password'
+      })
     })
-  })
+  )
 
-  it('lets an ordinary session, an anonymous request, and an allowed action through', async () => {
-    expect(
-      await Effect.runPromise(
-        impersonationGuardResponse(post('/api/auth/change-password'), ordinary)
-      )
-    ).toBeNull()
-    expect(
-      await Effect.runPromise(
-        impersonationGuardResponse(post('/api/auth/change-password'), undefined)
-      )
-    ).toBeNull()
-    expect(
-      await Effect.runPromise(
-        impersonationGuardResponse(post('/api/auth/sign-out'), impersonated)
-      )
-    ).toBeNull()
-  })
+  it.effect(
+    'lets an ordinary session, an anonymous request, and an allowed action through',
+    () =>
+      Effect.gen(function* () {
+        expect(
+          yield* impersonationGuardResponse(post('/api/auth/change-password'), ordinary)
+        ).toBeNull()
+        expect(
+          yield* impersonationGuardResponse(
+            post('/api/auth/change-password'),
+            undefined
+          )
+        ).toBeNull()
+        expect(
+          yield* impersonationGuardResponse(post('/api/auth/sign-out'), impersonated)
+        ).toBeNull()
+      })
+  )
 })
