@@ -61,9 +61,7 @@ describe('replayable statuses', () => {
 
 describe('secret rotation grace', () => {
   it('schedules the replaced secret to expire exactly 24 hours out', () => {
-    expect(planSecretRotation(now).previousSecretExpiresAt).toBe(
-      '2026-09-02T12:00:00.000Z'
-    )
+    expect(planSecretRotation(now)).toBe('2026-09-02T12:00:00.000Z')
   })
 
   it('signs with the current secret alone when nothing was rotated', () => {

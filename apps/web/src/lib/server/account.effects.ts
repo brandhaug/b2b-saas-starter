@@ -11,7 +11,7 @@ import { notificationPreferencesPayload } from './notification-preferences.effec
 
 /**
  * The `/account` page's server reads, testable against the Seed layer like
- * `loadWorkspaceDashboard`. The route reaches them through
+ * `loadWorkspaceDashboardHandler`. The route reaches them through
  * `loadAccountPageServerFn` (in the client-safe `account.ts`), whose handler
  * imports this module dynamically; the delete is a server fn whose handler
  * lives in `account-delete.ts`, reached the same way.
@@ -27,27 +27,26 @@ export type AccountPagePayload = {
   readonly deletionPlan: AccountDeletionPlan
 }
 
-/**
- * The `/account` route's loader read, composed here so the route's loader is
- * one call: the deletion plan and the user's notification preferences — two
- * identity-keyed reads with no workspace involved, run as one capability
- * effect (`Effect.all`, the same composition the workspace settings payload
- * uses for its segments).
- */
-export function loadAccountPageData(input: { readonly userId: string }): Promise<
+/** The `/account` route's loader read: the handler the loader server fn delegates to. */
+export async function loadAccountPageHandler(): Promise<
   AccountPagePayload & {
     readonly preferences: ReadonlyArray<NotificationPreferenceRow>
   }
 > {
+  // The deletion plan and the user's notification preferences — two
+  // identity-keyed reads with no workspace involved, run as one capability
+  // effect (`Effect.all`, the same composition the workspace settings
+  // payload uses for its segments). The session keys both reads.
+  const session = await requireRequestSession()
   return runCapabilities(
     Effect.map(
       Effect.all(
         {
           deletionPlan: Effect.flatMap(AccountLifecycle, (lifecycle) =>
-            lifecycle.planDeletion(input.userId)
+            lifecycle.planDeletion(session.user.id)
           ),
           preferenceRows: Effect.map(
-            notificationPreferencesPayload(input),
+            notificationPreferencesPayload({ userId: session.user.id }),
             (payload) => payload.preferences
           )
         },
@@ -60,18 +59,3 @@ export function loadAccountPageData(input: { readonly userId: string }): Promise
     )
   )
 }
-
-/** The handler the loader server fn delegates to; the session keys the read. */
-export async function loadAccountPageHandler(): Promise<
-  AccountPagePayload & {
-    readonly preferences: ReadonlyArray<NotificationPreferenceRow>
-  }
-> {
-  const session = await requireRequestSession()
-  return loadAccountPageData({ userId: session.user.id })
-}
-
-/**
- * Loads the deletion plan. Identity-keyed by design — the plan spans every
- * workspace the user belongs to, before any single one is selected.
- */

@@ -1,7 +1,7 @@
 import { Effect } from 'effect'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { type ContractExpectMatchers } from '../governance/contract-expect.ts'
+import { type ContractExpect } from '../governance/contract-expect.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { McpClientConnections } from './mcp-client-connections.ts'
 
@@ -23,16 +23,8 @@ export type McpClientConnectionsContractCase = {
   >
 }
 
-/**
- * The slice of vitest's `expect` these cases use — deliberately narrow, like
- * the sibling contracts.
- */
-export type McpContractExpect = <A>(
-  actual: A
-) => Pick<ContractExpectMatchers<A>, 'toBe' | 'toEqual'>
-
 export function mcpClientConnectionsContractCases(
-  expect: McpContractExpect
+  expect: ContractExpect
 ): ReadonlyArray<McpClientConnectionsContractCase> {
   return [
     {
@@ -74,7 +66,7 @@ export function mcpClientConnectionsContractCases(
 
         const page = yield* log.list({ eventType: 'mcp_client.consent_granted' })
         expect(
-          page.events.some(
+          page.items.some(
             (event) =>
               event.targetId === 'https://contract.example/client.json' &&
               event.targetType === 'mcp_client'

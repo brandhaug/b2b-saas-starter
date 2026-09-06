@@ -5,12 +5,35 @@ import { SeedLayer } from '../layers.ts'
 import {
   demoMemberIdentity,
   demoUserIdentity,
+  seedMembers,
   seedWorkspaceExportFixture,
   seedWorkspaceRecord
 } from '../seed-fixture.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
-import { testWorkspaceContext, type Actor } from '../workspace-context.ts'
-import { AuditEventLog } from './audit-event-log.ts'
+import {
+  testWorkspaceContext,
+  type WorkspaceContext,
+  type Actor
+} from '../workspace-context.ts'
+import {
+  AUDIT_EVENT_PAGE_SIZE,
+  AuditEventLog,
+  type SeedAuditEventRow,
+  SeedAuditEventLog
+} from './audit-event-log.ts'
+import { SeedApiTokenRegistry } from '../developer-platform/api-token-registry.seed.ts'
+import { SeedWebhookEndpoints } from '../developer-platform/webhook-endpoints.seed.ts'
+import { SeedWebhookPublisher } from '../developer-platform/webhook-publisher.ts'
+import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
+import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
+import { SeedSeatSyncPublisher } from '../billing/seat-sync.ts'
+import { makeSeedRoster, SeedWorkspaceMembership } from './workspace-membership.ts'
+import { SeedWorkspaceInvitations } from './workspace-invitations.seed.ts'
+import { failureTag } from '../internal/failure-tag.ts'
+import {
+  collectWorkspaceExportSnapshot,
+  type WorkspaceExportSnapshotServices
+} from './workspace-export-snapshot.ts'
 import {
   issueWorkspaceExportDownloadLink,
   signWorkspaceExportDownload,
@@ -85,7 +108,7 @@ describe('SeedWorkspaceExports', () => {
       const listed = yield* exports.list
       expect(listed[0]?.id).toBe(created.id)
 
-      const events = (yield* audit.list()).events.filter(
+      const events = (yield* audit.list()).items.filter(
         (event) => event.targetId === created.id
       )
       expect(events.map((event) => event.eventType).toSorted()).toEqual([
@@ -120,12 +143,12 @@ describe('SeedWorkspaceExports', () => {
       if (Option.isNone(download)) {
         return
       }
-      expect(download.value.fileName).toBe(`starter-lab-export-${created.id}.zip`)
+      expect(download.value.fileName).toBe(`starter-lab-export-${created.id}.json.gz`)
       expect(download.value.sizeBytes).toBe(created.sizeBytes)
-      // ZIP local-header signature: PK\x03\x04.
-      expect([...download.value.body.subarray(0, 4)]).toEqual([0x50, 0x4b, 3, 4])
+      // Gzip magic bytes: 0x1f 0x8b.
+      expect([...download.value.body.subarray(0, 2)]).toEqual([0x1f, 0x8b])
 
-      const events = (yield* audit.list()).events.filter(
+      const events = (yield* audit.list()).items.filter(
         (event) => event.eventType === 'workspace.export_downloaded'
       )
       expect(events.some((event) => event.targetId === created.id)).toBe(true)
@@ -301,5 +324,85 @@ describe('signed download links', () => {
           )
         ).toBe(true)
       })
+  )
+})
+
+describe('collectWorkspaceExportSnapshot — the audit walk bound', () => {
+  // The runaway guard of `walkKeysetPages`: 25 pages × the audit read's own
+  // default page size. An export that hits it must refuse — a silently
+  // partial archive would wear the README's "complete audit trail" promise.
+  const BOUND = 25 * AUDIT_EVENT_PAGE_SIZE
+
+  function auditRows(count: number): ReadonlyArray<SeedAuditEventRow> {
+    return Array.from({ length: count }, (_, index) => ({
+      id: `evt_${String(index).padStart(5, '0')}`,
+      eventType: 'workspace.renamed',
+      targetType: 'workspace',
+      targetId: seedWorkspaceRecord.id,
+      actor: 'Demo Admin',
+      // oxlint-disable-next-line effect/noGlobals -- deterministic fixture timestamps: the rows need distinct millisecond positions, not the current time
+      createdAt: new Date(Date.UTC(2026, 0, 1) + index).toISOString(),
+      workspaceId: seedWorkspaceRecord.id,
+      actorUserId: demoUserIdentity.id
+    }))
+  }
+
+  /** The snapshot's service requirements over one staged audit log. */
+  function layerOver(
+    audit: Layer.Layer<AuditEventLog>
+  ): Effect.Effect<Layer.Layer<WorkspaceContext | WorkspaceExportSnapshotServices>> {
+    return Effect.map(makeSeedRoster(seedMembers), (roster) => {
+      const feed = SeedNotificationFeed([]).pipe(
+        Layer.provide(SeedNotificationPreferences([]).pipe(Layer.provide(audit)))
+      )
+      return Layer.mergeAll(
+        audit,
+        testWorkspaceContext(seedWorkspaceRecord),
+        feed,
+        SeedApiTokenRegistry([]).pipe(
+          Layer.provide(audit),
+          Layer.provide(SeedWebhookPublisher)
+        ),
+        SeedWebhookEndpoints([]).pipe(
+          Layer.provide(audit),
+          Layer.provide(SeedWebhookPublisher),
+          Layer.provide(feed)
+        ),
+        SeedWorkspaceInvitations({
+          roster,
+          workspace: seedWorkspaceRecord,
+          seed: []
+        }).pipe(Layer.provide(SeedSeatSyncPublisher)),
+        SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
+          Layer.provide(SeedSeatSyncPublisher)
+        )
+      )
+    })
+  }
+
+  it.effect('collects every event when the trail sits exactly on the bound', () =>
+    Effect.flatMap(layerOver(SeedAuditEventLog(auditRows(BOUND))), (layer) =>
+      Effect.gen(function* () {
+        const snapshot = yield* collectWorkspaceExportSnapshot({
+          exportId: 'exp_at_bound',
+          generatedAt: DateTime.makeUnsafe(0)
+        })
+        expect(snapshot.auditEvents).toHaveLength(BOUND)
+      }).pipe(Effect.provide(layer))
+    )
+  )
+
+  it.effect('refuses rather than truncating one event past the bound', () =>
+    Effect.flatMap(layerOver(SeedAuditEventLog(auditRows(BOUND + 1))), (layer) =>
+      Effect.gen(function* () {
+        const outcome = yield* Effect.exit(
+          collectWorkspaceExportSnapshot({
+            exportId: 'exp_past_bound',
+            generatedAt: DateTime.makeUnsafe(0)
+          })
+        )
+        expect(failureTag(outcome)).toBe('CapabilityUnavailable')
+      }).pipe(Effect.provide(layer))
+    )
   )
 })

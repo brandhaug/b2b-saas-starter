@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { type ContractExpectMatchers } from './contract-expect.ts'
+import { type ContractExpect } from './contract-expect.ts'
 import { type CapabilityUnavailable, type MembershipChangeRejected } from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
@@ -43,20 +43,9 @@ export type MembershipContractCase = {
   >
 }
 
-/**
-/**
- * The slice of vitest's `expect` these cases use. Narrow on purpose: the cases
- * run under two different test harnesses, and a case that reaches for more of
- * the matcher surface is usually asserting something only one adapter can
- * promise.
- */
-export type MembershipContractExpect = <A>(
-  actual: A
-) => Pick<ContractExpectMatchers<A>, 'toBe' | 'toEqual'>
-
 export function workspaceMembershipContractCases(
   ids: MembershipContractIds,
-  expect: MembershipContractExpect
+  expect: ContractExpect
 ): ReadonlyArray<MembershipContractCase> {
   return [
     {
@@ -177,7 +166,7 @@ export function workspaceMembershipContractCases(
         const membership = yield* WorkspaceMembership
         const log = yield* AuditEventLog
         function countOf(eventType: string) {
-          return Effect.map(log.list({ eventType }), (page) => page.events.length)
+          return Effect.map(log.list({ eventType }), (page) => page.items.length)
         }
         const addedBefore = yield* countOf('workspace_member.added')
         const removedBefore = yield* countOf('workspace_member.removed')
@@ -193,7 +182,7 @@ export function workspaceMembershipContractCases(
         // Each event names the member it is about, with the target type both
         // adapters write.
         expect(
-          (yield* log.list({ eventType: 'workspace_member.added' })).events.some(
+          (yield* log.list({ eventType: 'workspace_member.added' })).items.some(
             (event) =>
               event.targetId === ids.newcomer && event.targetType === 'workspace_member'
           )

@@ -6,12 +6,11 @@ Drizzle schema, migrations, and the `Database` service for D1.
 
 ## Entry Points & Contracts
 
-Five subpaths, no root export.
+Four subpaths, no root export.
 
 - `./schema` — one file in four ownership groups: Better Auth core, the `organization` + `sso` tables, the `jwt` + MCP OAuth tables, and the starter's own. Column helpers encode the dual timestamp dialect and return _fresh_ builders (Drizzle builders are single-use); `workspaceRef` takes the FK column name, since plugin tables spell it `workspaceId`.
 - `./enums` — every stored enum vocabulary, drizzle-free so `authz` and `auth` avoid table definitions. New enums go here, not beside a table.
 - `./service` — `Database` (Effect-native drizzle over `@effect/sql-d1`) and `RawD1` from `layerFromD1(env.DB)`. The driver has no transactions: atomicity is `batch(statements)`, compiling builders via `toSQL()` through the raw binding.
-- `./client` — the promise client, for Better Auth's `drizzleAdapter` only.
 - `./testing` (test-only) — `provisionTestD1()`: isolated local D1, all migrations applied.
 
 ## Usage Patterns
@@ -24,7 +23,7 @@ Deployed databases converge instead of resetting: both deploy workflows run `scr
 
 ## Anti-patterns
 
-- Don't use `./client` in capabilities or `./testing` in app code, and don't thread the raw binding around; resolve `RawD1` where the layer is built.
+- Don't use `./testing` in app code, and don't thread the raw binding around; resolve `RawD1` where the layer is built. Better Auth's `drizzleAdapter` calls `drizzle(d1)` from `drizzle-orm/d1` directly — there is no promise-client wrapper to import.
 - Don't switch back to `wrangler d1 migrations apply`: it sees only flat `migrations/*.sql` and skips folder output.
 
 ## Patterns & Pitfalls

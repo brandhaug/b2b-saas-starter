@@ -29,7 +29,7 @@ export type CreateWorkspaceInput = {
   readonly userId: string
 }
 
-export type WorkspaceLifecycleInterface = {
+type WorkspaceLifecycleInterface = {
   /**
    * Creates a workspace owned by `userId`. Identity-keyed (no
    * `WorkspaceContext`): the actor is not a member of anything yet — creating

@@ -1,7 +1,3 @@
-import { Option, Schema } from 'effect'
-
-import { type Writable } from '@b2b-saas-starter/config/writable'
-
 /**
  * Deployment identity mined from a worker env bag (plus Cloudflare's `cf`
  * hints). Each field has its own precedence chain over the raw env keys —
@@ -21,10 +17,8 @@ export type WideEventEnvironment = {
   readonly environment?: string | undefined
 }
 
-const CfProperties = Schema.Struct({ colo: Schema.String })
-
-const decodeCfProperties = Schema.decodeUnknownOption(CfProperties)
-const decodeString = Schema.decodeUnknownOption(Schema.String)
+/** The write-side view of a readonly type: same shape, mutable properties. */
+type Writable<T> = { -readonly [K in keyof T]: T[K] }
 
 /**
  * Read one own property of an untyped env bag as a non-empty string. The
@@ -33,11 +27,8 @@ const decodeString = Schema.decodeUnknownOption(Schema.String)
  */
 function ownStringValue(source: object, key: string): string | undefined {
   const value: unknown = Object.getOwnPropertyDescriptor(source, key)?.value
-  const decoded = decodeString(value)
-  if (Option.isNone(decoded) || decoded.value.length === 0) {
-    return undefined
-  }
-  return decoded.value
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof, effect/noTernary -- one env-bag string read with no domain contract behind it; the Schema codec this replaced was the over-engineering
+  return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 function pickString(
@@ -91,19 +82,10 @@ export function readCfColo(request: Request): string | undefined {
   if (!('cf' in request)) {
     return undefined
   }
-  const cf = decodeCfProperties(request.cf)
-  if (Option.isNone(cf)) {
-    return undefined
-  }
-  return cf.value.colo
-}
-
-/** Region hints for the environment enrichment; absent when there is no colo. */
-export function coloHint(
-  colo: string | undefined
-): { readonly colo: string } | undefined {
-  if (colo === undefined) {
-    return undefined
-  }
-  return { colo }
+  // SAFETY: `request.cf` is Cloudflare's untyped platform bag; the only claim
+  // is that it may carry a `colo` string, checked on the next line.
+  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- one property off a platform bag Cloudflare does not type; a codec would validate a contract nobody publishes
+  const colo: unknown = (request.cf as { readonly colo?: unknown }).colo
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof, effect/noTernary -- same single-string read as `ownStringValue`
+  return typeof colo === 'string' && colo.length > 0 ? colo : undefined
 }

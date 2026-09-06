@@ -4,13 +4,13 @@
 // the hooks import resolves on first auth use, long after every module in the
 // cycle has finished evaluating, and the browser bundle never resolves it.
 // fallow-ignore-file circular-dependencies
-import { createDrizzleDb } from '@b2b-saas-starter/db/client'
 import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
 import {
   activeSocialProviders,
   requireEmailVerification
 } from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
+import { drizzle } from 'drizzle-orm/d1'
 import { Effect, Layer, ManagedRuntime } from 'effect'
 import { causeMessage } from './cause-message'
 import { MissingD1Binding, localD1UnavailableResponse } from './server/auth-local-d1'
@@ -40,7 +40,7 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => {
     throw new MissingD1Binding({ property: 'DB' })
   }
   return {
-    db: createDrizzleDb(db),
+    db: drizzle(db),
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins:

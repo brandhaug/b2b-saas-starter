@@ -1,7 +1,7 @@
 import { Effect, Result, Schema } from 'effect'
 
 import { CapabilityUnavailable } from '../errors.ts'
-import { hmacSha256Hex } from '../internal/crypto.ts'
+import { hmacSha256Hex } from '../crypto.ts'
 import { STARTER_PLAN } from './plan-catalog.ts'
 
 /**
@@ -211,7 +211,7 @@ export const updateStripeSubscriptionItemQuantity = Effect.fnUntraced(
 // ---------------------------------------------------------------------------
 
 /** How a handled Stripe event determines the workspace's new plan. */
-export type StripeEventPlan =
+type StripeEventPlan =
   /** The plan rides in the event's `metadata.planId` (checkout sessions). */
   | { readonly kind: 'from_metadata' }
   /** The event pins one catalog plan (subscription deletions downgrade). */
@@ -276,7 +276,7 @@ const STRIPE_EVENT_SUBSCRIPTION_LINK_KINDS = new Set<string>([
 ])
 
 /** The subscription-event fields the policy reads, already decoded by the caller. */
-export type StripeSubscriptionEventObject = {
+type StripeSubscriptionEventObject = {
   /** The subscription's own id on `customer.subscription.*` events. */
   readonly id?: string | undefined
   readonly customer?: string | undefined

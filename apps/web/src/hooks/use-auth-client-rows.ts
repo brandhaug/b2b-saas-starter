@@ -1,5 +1,5 @@
 import { useQuery, type QueryObserverResult } from '@tanstack/react-query'
-import { useHydrated } from '@/lib/client-only-value'
+import { useClientValue } from '@/lib/client-only-value'
 import { type AuthResult } from '@/lib/auth-result'
 import { copyForAuthCode } from '@/lib/auth-error-copy'
 import { useServerAction, type ServerAction } from '@/hooks/use-server-action'
@@ -36,7 +36,7 @@ export function useAuthClientRows<Record, Row>({
   readonly toRows: (records: ReadonlyArray<Record>) => Array<Row>
   readonly loadFailedMessage: string
 }): AuthClientRows<Row> {
-  const hydrated = useHydrated()
+  const hydrated = useClientValue(() => true, false)
   const {
     data: rows,
     error: queryError,

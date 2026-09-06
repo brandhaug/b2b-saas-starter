@@ -5,7 +5,7 @@ import {
   MCP_WORKSPACE_ROLE_CLAIM,
   MCP_WORKSPACE_SLUG_CLAIM
 } from '@b2b-saas-starter/authz/mcp-access-token'
-import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
+import { type DrizzleDatabase } from './ports.ts'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'

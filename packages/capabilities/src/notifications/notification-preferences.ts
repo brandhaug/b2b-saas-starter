@@ -99,7 +99,7 @@ export function resolvePreferences(
  * The audit event a preference change records. One builder for both adapters,
  * so the Seed layer and the batched Live write cannot drift.
  */
-export function preferenceChangeEvent(
+function preferenceChangeEvent(
   input: SetNotificationPreferenceInput
 ): RecordAuditEventInput {
   return {

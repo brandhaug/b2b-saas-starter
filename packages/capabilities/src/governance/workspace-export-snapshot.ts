@@ -2,7 +2,8 @@ import { DateTime, Effect } from 'effect'
 
 import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
 import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
-import { type CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '../errors.ts'
+import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, type AuditEvent } from './audit-event-log.ts'
@@ -23,23 +24,33 @@ export type WorkspaceExportSnapshotServices =
   | WorkspaceInvitations
   | WorkspaceMembership
 
-/** Every page of the workspace's audit trail, newest first. */
+/**
+ * Every page of the workspace's audit trail, newest first — complete or the
+ * export fails. The walk's runaway guard stops at 25 pages of the read's own
+ * default size, and a `workspace.export` that hit it would be a silent
+ * partial archive wearing the README's "complete audit trail" promise, so an
+ * unexhausted walk is a `CapabilityUnavailable` the export records as
+ * `failed` instead. Every mutation writes an audit event, so the bound is a
+ * real operating limit, not a theoretical one; raise `maxPages` beside it if
+ * it ever bites.
+ */
 const allAuditEvents: Effect.Effect<
   ReadonlyArray<AuditEvent>,
   CapabilityUnavailable,
   AuditEventLog | WorkspaceContext
-> = Effect.gen(function* () {
-  const log = yield* AuditEventLog
-  // Keyset pagination: the capability caps a page at 100, so the export walks
-  // the cursor chain until the log reports the last page.
-  let page = yield* log.list()
-  const events: Array<AuditEvent> = [...page.events]
-  while (page.nextCursor !== null) {
-    page = yield* log.list({ cursor: page.nextCursor })
-    events.push(...page.events)
-  }
-  return events
-})
+> = Effect.flatMap(AuditEventLog, (log) =>
+  Effect.flatMap(walkKeysetPages(log.list), (walk) => {
+    if (walk.exhausted) {
+      return Effect.succeed(walk.items)
+    }
+    return Effect.fail(
+      new CapabilityUnavailable({
+        capability: 'workspace-export-snapshot',
+        reason: 'audit_trail_exceeds_export_walk_bound'
+      })
+    )
+  })
+)
 
 /**
  * Reads everything the archive carries through the capability services — the

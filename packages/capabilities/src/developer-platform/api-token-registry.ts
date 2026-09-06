@@ -6,7 +6,7 @@ import {
   type CapabilityUnavailable,
   type PlanLimitExceeded
 } from '../errors.ts'
-import { hashSha256 } from '../internal/crypto.ts'
+import { hashSha256 } from '../crypto.ts'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 
@@ -41,7 +41,7 @@ export type CreatedApiToken = ApiToken & {
   readonly token: string
 }
 
-export type VerifiedApiToken = {
+type VerifiedApiToken = {
   readonly id: string
   readonly workspaceId: string
   readonly workspaceSlug: string
@@ -76,7 +76,7 @@ export type RevokeApiTokenInput = {
   readonly tokenId: string
 }
 
-export type ApiTokenRegistryInterface = {
+type ApiTokenRegistryInterface = {
   readonly list: Effect.Effect<
     ReadonlyArray<ApiToken>,
     CapabilityUnavailable,

@@ -1,5 +1,5 @@
 {
-  "extends": "../config/tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     // The test harness spawns the real oxlint binary and writes fixtures to a temp
     // directory, so it needs the Node builtins. Nothing under `src` does.

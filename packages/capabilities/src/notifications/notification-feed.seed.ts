@@ -31,7 +31,7 @@ import { NotificationPreferences } from './notification-preferences.ts'
  * Defaults to the Seed Workspace, so a test that only reads or marks read can
  * pass the rows alone.
  */
-export type SeedNotificationFeedFixture = {
+type SeedNotificationFeedFixture = {
   readonly workspace: Workspace
   readonly members: ReadonlyArray<Member>
 }

@@ -10,13 +10,13 @@ import {
   type SeatSyncReason
 } from '@b2b-saas-starter/capabilities/billing/seat-sync'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { Effect, Schema, type Scope } from 'effect'
+import { Effect, type Scope } from 'effect'
 
 import {
   consumerInvocation,
   type DeliveryOutcome,
   type Env,
-  queueDelivery,
+  readDelivery,
   type QueueDelivery,
   type QueueEnvelope
 } from './queue-consumer.ts'
@@ -32,35 +32,16 @@ import {
  */
 
 /**
- * The one compiled codec for the queue boundary. A malformed body is terminal
- * by construction — redelivery can never fix a body's shape — so it is
- * annotated and acked, exactly like the webhook consumer treats one.
- */
-const decodeSeatSyncMessage = Schema.decodeUnknownResult(SeatSyncQueueMessage)
-
-/** Wire shape of the billing queue's messages — the schema is shared with the producer. */
-export type SeatSyncMessage = typeof SeatSyncQueueMessage.Type
-
-/**
- * The boundary decode: platform fields plus the message, or the terminal
- * `malformed` outcome — the same `queueDelivery` vocabulary every consumer in
- * this worker shares, so the envelope's id and attempt count ride along.
- */
-export function readSeatSyncDelivery(
-  envelope: QueueEnvelope
-): QueueDelivery<SeatSyncMessage> {
-  return queueDelivery(envelope, decodeSeatSyncMessage(envelope.body))
-}
-
-/**
  * Core of the seat-sync consumer: one message, one provider reconciliation.
  * Every no-op outcome (`no_subscription`, `quantity_unchanged`, …) acks —
- * they are honest answers, not failures — while a real `CapabilityUnavailable`
- * (Stripe unreachable or rejecting) propagates on the error channel, the same
- * shape `processStripeEvent` presents to its wrapper.
+ * they are honest answers, not failures — while a real
+ * `CapabilityUnavailable` (Stripe unreachable or rejecting) propagates on the
+ * error channel for `consumerInvocation`'s `'retry'` fold, the same shape
+ * `processWebhookMessage` presents to its wrapper. Exported with requirements
+ * open for tests, like its siblings.
  */
-function processSeatSyncCore(
-  delivery: QueueDelivery<SeatSyncMessage>
+export function processSeatSyncMessage(
+  delivery: QueueDelivery<SeatSyncQueueMessage>
 ): Effect.Effect<DeliveryOutcome, CapabilityUnavailable, Billing | Scope.Scope> {
   return Effect.as(
     Effect.gen(function* () {
@@ -93,19 +74,6 @@ function processSeatSyncCore(
 }
 
 /**
- * The queue's contract: an outcome, never an exception. A provider failure
- * folds into `'retry'` so the queue's backoff takes over — the wide event
- * above already carries the failure cause.
- */
-export function processSeatSyncMessage(
-  delivery: QueueDelivery<SeatSyncMessage>
-): Effect.Effect<DeliveryOutcome, never, Billing | Scope.Scope> {
-  return processSeatSyncCore(delivery).pipe(
-    Effect.catchCause(() => Effect.succeed<DeliveryOutcome>('retry'))
-  )
-}
-
-/**
  * The env the seat path builds its capabilities layer from: the projected
  * bindings plus the Stripe bag, mapped through the shared
  * `billingOptionsFromEnv`. Absent, `syncSeats` answers
@@ -121,15 +89,14 @@ function seatSyncEnv(env: Env): StarterEnv {
 /**
  * Consumer entry: wraps `processSeatSyncMessage` with the real capabilities
  * layer and a wide event, continuing the trace the membership mutation
- * stamped onto the message. Failures already folded into `'retry'` inside
- * `processSeatSyncMessage` — the entry owns scope and layer provision, and
- * its `'retry'` fold is the same dead code it was for every consumer.
+ * stamped onto the message. A provider failure reaches the entry's
+ * `onFailure: 'retry'` fold — the same contract every other consumer rides.
  */
 export function deliverSeatSync(
   envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
-  const delivery = readSeatSyncDelivery(envelope)
+  const delivery = readDelivery(SeatSyncQueueMessage, envelope)
   return consumerInvocation(env, {
     event: 'seat_sync',
     delivery,

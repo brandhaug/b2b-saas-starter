@@ -13,8 +13,9 @@ import { Schema } from 'effect'
  * validator is the single strict decode, and the derived types below type
  * both the client stub and the effects handlers.
  *
- * The behaviour itself is tested as the loader and effects in the effects
- * file (`workspace-members.test.ts`), driven directly with fixture actors.
+ * The behaviour itself is tested as the handlers in the effects file
+ * (`workspace-members.test.ts`), driven with mocked sessions against the
+ * Seed layer.
  */
 
 /**

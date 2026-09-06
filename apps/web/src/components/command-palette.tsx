@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode, useEffect, useState } from 'react'
+import { Suspense, use, type ReactNode, useEffect, useState } from 'react'
 import { SearchIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -46,47 +46,58 @@ export function CommandPaletteProvider({ children }: { readonly children: ReactN
 // `navigator.platform` is a browser-only fact that never changes, so it is
 // read through `useClientValue` (client snapshot reads the platform, server
 // snapshot keeps the ⌘K default) rather than a mount effect flipping state.
+// The modern UA-CH `platform` first, with the deprecated-but-universal
+// `navigator.platform` behind it: `userAgentData` is absent on Firefox and
+// pre-2026 Safari, and both of those run on Macs that own the ⌘ half of the
+// shortcut — a missing fallback would label every one of them "Ctrl K".
+type NavigatorWithUaData = Navigator & {
+  readonly userAgentData?: { readonly platform: string }
+}
+
 function isMacPlatform(): boolean {
-  return navigator.platform.toUpperCase().includes('MAC')
+  // SAFETY: the assertion only adds the UA-CH surface the DOM lib's
+  // `Navigator` lacks; the property is optional, so a browser without it
+  // falls through to `navigator.platform` below.
+  // oxlint-disable-next-line effect/noAs -- structural probe of a DOM API the lib predates, not a widening
+  const uaData = (navigator as NavigatorWithUaData).userAgentData
+  const platform = uaData?.platform ?? navigator.platform
+  return platform.toUpperCase().includes('MAC')
 }
 
 export function SearchButton() {
+  const value = use(CommandPaletteContext)
   const isMac = useClientValue(isMacPlatform, true)
 
   return (
-    <CommandPaletteContext.Consumer>
-      {(value) => (
-        <>
-          {/* Icon-only below md: below that width the full button is
-              `hidden`, which left touch users with no way to open the
-              palette except the ⌘K shortcut they do not have. */}
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => value?.setOpen(true)}
-            onMouseEnter={preloadCommandPalette}
-            onFocus={preloadCommandPalette}
-            aria-label="Search"
-            className="md:hidden"
-          >
-            <SearchIcon className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => value?.setOpen(true)}
-            onMouseEnter={preloadCommandPalette}
-            onFocus={preloadCommandPalette}
-            aria-label="Search"
-            className="hidden h-9 w-56 gap-2 rounded-md px-3 text-sm text-muted-foreground md:flex"
-          >
-            <SearchIcon className="size-4" />
-            <span className="flex-1 text-left">Search…</span>
-            <kbd className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs">
-              {isMac ? '⌘K' : 'Ctrl K'}
-            </kbd>
-          </Button>
-        </>
-      )}
-    </CommandPaletteContext.Consumer>
+    <>
+      {/* Icon-only below md: below that width the full button is
+          `hidden`, which left touch users with no way to open the
+          palette except the ⌘K shortcut they do not have. */}
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => value?.setOpen(true)}
+        onMouseEnter={preloadCommandPalette}
+        onFocus={preloadCommandPalette}
+        aria-label="Search"
+        className="md:hidden"
+      >
+        <SearchIcon className="size-4" />
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => value?.setOpen(true)}
+        onMouseEnter={preloadCommandPalette}
+        onFocus={preloadCommandPalette}
+        aria-label="Search"
+        className="hidden h-9 w-56 gap-2 rounded-md px-3 text-sm text-muted-foreground md:flex"
+      >
+        <SearchIcon className="size-4" />
+        <span className="flex-1 text-left">Search…</span>
+        <kbd className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs">
+          {isMac ? '⌘K' : 'Ctrl K'}
+        </kbd>
+      </Button>
+    </>
   )
 }

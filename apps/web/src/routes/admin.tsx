@@ -114,7 +114,7 @@ function AdminPage() {
         <DataTable
           columns={userColumns}
           data={users}
-          filterColumnId="name"
+          filter
           filterPlaceholder="Filter users…"
           pageSize={5}
           tableLabel="System users"
@@ -127,7 +127,7 @@ function AdminPage() {
         <DataTable
           columns={auditColumns}
           data={events}
-          filterColumnId="eventType"
+          filter
           filterPlaceholder="Filter events…"
           pageSize={5}
           tableLabel="Audit events"

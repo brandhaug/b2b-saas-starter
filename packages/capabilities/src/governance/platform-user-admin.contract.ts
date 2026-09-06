@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { type ContractExpectMatchers } from './contract-expect.ts'
+import { type ContractExpect } from './contract-expect.ts'
 import { type CapabilityUnavailable, type UserAdminRejected } from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { AuditEventLog } from './audit-event-log.ts'
@@ -40,14 +40,9 @@ export type UserAdminContractCase = {
   >
 }
 
-/** The slice of vitest's `expect` these cases use — see `workspace-membership.contract.ts`. */
-export type UserAdminContractExpect = <A>(
-  actual: A
-) => Pick<ContractExpectMatchers<A>, 'toBe'>
-
 export function platformUserAdminContractCases(
   ids: UserAdminContractIds,
-  expect: UserAdminContractExpect
+  expect: ContractExpect
 ): ReadonlyArray<UserAdminContractCase> {
   return [
     {

@@ -1,20 +1,41 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vite-plus/test'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import {
   type ListNotifications,
   type MarkNotificationsRead
 } from '@/components/live-notifications'
-import { loadWorkspaceDashboard } from '@/lib/server/workspace-dashboard.effects'
+import { fixtureSession } from '@/test/fixture-session'
+import { loadWorkspaceDashboardHandler } from '@/lib/server/workspace-dashboard.effects'
 import { type WorkspaceDashboardPayload } from '@/lib/server/workspace-dashboard'
 import { WorkspaceDashboardPage } from '@/components/workspace-dashboard-page'
+import type * as AuthModule from '@/lib/server/auth'
 
 /**
- * The payload comes from the real loader against the Seed layer rather than a
- * hand-written fixture, so a change to the payload shape cannot pass here while
- * failing in the app. `usr_demo` owns `starter-lab`; `usr_dev` is a member.
+ * The payload comes from the real loader handler against the Seed layer
+ * rather than a hand-written fixture, so a change to the payload shape
+ * cannot pass here while failing in the app. `usr_demo` owns
+ * `starter-lab`; `usr_dev` is a member. The handler's session gate is
+ * answered by the mock with the identity each case wants.
  */
+const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
+
+vi.mock('@/lib/server/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () => fixtureSession(actor)
+}))
+
+// Reset rather than restore-in-test-body: a failed assertion between the
+// `usr_dev` flip and a trailing restore must not leak the member identity
+// into the next case.
+beforeEach(() => {
+  actor.userId = 'usr_demo'
+})
+
+async function loadDashboard(): Promise<WorkspaceDashboardPayload> {
+  return loadWorkspaceDashboardHandler({ workspaceSlug: 'starter-lab' })
+}
 const listNotifications = vi.fn<ListNotifications>(async () => [
   {
     id: 'not_email',
@@ -52,9 +73,7 @@ async function renderDashboard(data: WorkspaceDashboardPayload) {
 
 describe('WorkspaceDashboardPage', () => {
   it('renders the attention feed, notifications, and webhook delivery for an owner', async () => {
-    const rendered = await renderDashboard(
-      await loadWorkspaceDashboard({ workspaceSlug: 'starter-lab', userId: 'usr_demo' })
-    )
+    const rendered = await renderDashboard(await loadDashboard())
     await rendered.findByText('Needs attention')
     // The seed's standing attention items: one token minted but never used,
     // and the newest audit events as informational entries.
@@ -65,9 +84,7 @@ describe('WorkspaceDashboardPage', () => {
   })
 
   it('offers mark-as-read and reports the change through the port', async () => {
-    await renderDashboard(
-      await loadWorkspaceDashboard({ workspaceSlug: 'starter-lab', userId: 'usr_demo' })
-    )
+    await renderDashboard(await loadDashboard())
     // The unread notification offers its own mark-read control...
     await screen.findByRole('button', {
       name: 'Mark read: Email needs configuration'
@@ -82,9 +99,8 @@ describe('WorkspaceDashboardPage', () => {
   })
 
   it('omits every gated segment for a member, who holds no owner permissions', async () => {
-    await renderDashboard(
-      await loadWorkspaceDashboard({ workspaceSlug: 'starter-lab', userId: 'usr_dev' })
-    )
+    actor.userId = 'usr_dev'
+    await renderDashboard(await loadDashboard())
     // A member's payload carries no readable segments beyond the feed itself,
     // so the attention list is absent rather than empty, and so is the chart.
     expect(screen.queryByText('Needs attention')).toBeNull()
@@ -94,18 +110,15 @@ describe('WorkspaceDashboardPage', () => {
   })
 
   it('shows the owner the Seed Workspace checklist with a dismiss control', async () => {
-    await renderDashboard(
-      await loadWorkspaceDashboard({ workspaceSlug: 'starter-lab', userId: 'usr_demo' })
-    )
+    await renderDashboard(await loadDashboard())
     screen.getByText('Set up your workspace')
     screen.getByText('3 of 4')
     screen.getByRole('button', { name: 'Dismiss' })
   })
 
   it('shows a member the checklist read-only, without the developer-platform steps', async () => {
-    await renderDashboard(
-      await loadWorkspaceDashboard({ workspaceSlug: 'starter-lab', userId: 'usr_dev' })
-    )
+    actor.userId = 'usr_dev'
+    await renderDashboard(await loadDashboard())
     screen.getByText('Set up your workspace')
     expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
     expect(screen.queryByText('Create an API token')).toBeNull()

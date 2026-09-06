@@ -24,7 +24,7 @@ import { type RecordAuditEventInput } from './audit-event-log.ts'
  */
 
 /** What a Live layer hands over once: the audit preparer and its own `orUnavailable` wrapper (so a 503 names the failing capability). The raw binding comes from the {@link RawD1} service instead. */
-export type AuditedMutationDeps = {
+type AuditedMutationDeps = {
   readonly prepareAuditRecord: (
     input: RecordAuditEventInput
   ) => Effect.Effect<BatchStatement>
@@ -33,7 +33,7 @@ export type AuditedMutationDeps = {
   ) => Effect.Effect<A, CapabilityUnavailable, R>
 }
 
-export type AuditedMutationInput = {
+type AuditedMutationInput = {
   /**
    * The scope pre-check. Resolve `false` to skip both writes and the audit
    * event. Unconditional inserts pass `Effect.succeed(true)`.
@@ -52,7 +52,7 @@ export type AuditedMutationInput = {
 }
 
 /** One audited mutation: `true` when the batch ran, `false` when the pre-check found nothing. */
-export type AuditedMutation = (
+type AuditedMutation = (
   input: AuditedMutationInput
 ) => Effect.Effect<boolean, CapabilityUnavailable>
 

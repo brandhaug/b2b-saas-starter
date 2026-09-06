@@ -25,7 +25,7 @@ export const McpClientSummary = Schema.Struct({
 })
 export type McpClientSummary = typeof McpClientSummary.Type
 
-export const McpClientConnectionWorkspace = Schema.Struct({
+const McpClientConnectionWorkspace = Schema.Struct({
   id: Schema.String,
   slug: Schema.String,
   name: Schema.String
@@ -42,14 +42,14 @@ export const McpClientConnection = Schema.Struct({
 })
 export type McpClientConnection = typeof McpClientConnection.Type
 
-export type RecordMcpConsentGrantInput = {
+type RecordMcpConsentGrantInput = {
   readonly userId: string
   readonly workspaceId: string
   readonly clientId: string
   readonly scopes: ReadonlyArray<string>
 }
 
-export type RevokeMcpClientInput = {
+type RevokeMcpClientInput = {
   readonly userId: string
   readonly connectionId: string
 }
@@ -92,7 +92,7 @@ export function consentRevokedAuditEvent(input: {
   }
 }
 
-export type McpClientConnectionsInterface = {
+type McpClientConnectionsInterface = {
   /** The client behind a `client_id`, or `null` when no such client is registered. */
   readonly describeClient: (
     clientId: string

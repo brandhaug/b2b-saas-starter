@@ -1,11 +1,12 @@
 import { screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vite-plus/test'
+import { describe, expect, it } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { VerifyEmailPage } from './verify-email'
-import { type SendEmailCode } from '@/components/auth/auth-client-ports'
 
 // The page only reports what the auth handler's redirect already decided, so
-// the report half takes no port; the code alternative (error branch only) does.
+// the report half takes no endpoint; the code alternative (error branch
+// only) calls the client module directly and needs no double for these
+// render-only cases.
 describe('VerifyEmailPage', () => {
   it('reports success without an error param and offers no code form', async () => {
     await renderWithRouter(<VerifyEmailPage />, { path: '/verify-email' })
@@ -24,11 +25,9 @@ describe('VerifyEmailPage', () => {
   })
 
   it('offers the code alternative on the failure branch only', async () => {
-    const sendCode = vi.fn<SendEmailCode>().mockResolvedValue({ error: null })
-    await renderWithRouter(
-      <VerifyEmailPage error="INVALID_TOKEN" sendCode={sendCode} />,
-      { path: '/verify-email' }
-    )
+    await renderWithRouter(<VerifyEmailPage error="INVALID_TOKEN" />, {
+      path: '/verify-email'
+    })
     screen.getByText('Or verify with a code')
     expect(screen.getByLabelText('Email')).toBeDefined()
   })

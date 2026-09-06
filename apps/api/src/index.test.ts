@@ -615,14 +615,15 @@ describe('workspace exports (ADR 0055)', () => {
         // whose Seed adapter shares nothing but the fixture secret.
         const download = yield* send(new Request(body.url))
         expect(download.status).toBe(200)
-        expect(download.headers.get('content-type')).toContain('application/zip')
+        expect(download.headers.get('content-type')).toContain('application/gzip')
         expect(download.headers.get('content-disposition')).toContain(
-          'starter-lab-export-exp_seed_ready.zip'
+          'starter-lab-export-exp_seed_ready.json.gz'
         )
         const bytes = new Uint8Array(
           yield* Effect.promise(() => download.arrayBuffer())
         )
-        expect([...bytes.subarray(0, 4)]).toEqual([0x50, 0x4b, 3, 4])
+        // Gzip magic bytes: 0x1f 0x8b.
+        expect([...bytes.subarray(0, 2)]).toEqual([0x1f, 0x8b])
       })
     ))
 

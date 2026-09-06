@@ -67,7 +67,7 @@ export type CreatedWebhookEndpoint = {
   readonly signingSecret: string
 }
 
-export type CreateWebhookEndpointInput = {
+type CreateWebhookEndpointInput = {
   readonly url: string
   readonly events: ReadonlyArray<string>
   // `| undefined` on purpose: callers read `description` off an optional request
@@ -115,15 +115,15 @@ export const UpdateWebhookEndpointPayload = Schema.Struct({
 })
 export type UpdateWebhookEndpointPayload = typeof UpdateWebhookEndpointPayload.Type
 
-export type DeleteWebhookEndpointInput = {
+type DeleteWebhookEndpointInput = {
   readonly endpointId: string
 }
 
-export type ReplayWebhookDeliveryInput = {
+type ReplayWebhookDeliveryInput = {
   readonly deliveryId: string
 }
 
-export type SendTestEventInput = {
+type SendTestEventInput = {
   readonly endpointId: string
 }
 
@@ -135,7 +135,7 @@ export type SendTestEventInput = {
  */
 export const WEBHOOK_TEST_EVENT_TYPE = 'webhook.test_event'
 
-export type DispatchedDelivery = {
+type DispatchedDelivery = {
   /**
    * The id of the `pending` delivery row the dispatch created. The queue
    * consumer records its attempts against this id, so the row a replay or test
@@ -144,11 +144,11 @@ export type DispatchedDelivery = {
   readonly deliveryId: string
 }
 
-export type RotateWebhookSecretInput = {
+type RotateWebhookSecretInput = {
   readonly endpointId: string
 }
 
-export type WebhookEndpointsInterface = {
+type WebhookEndpointsInterface = {
   readonly list: Effect.Effect<
     ReadonlyArray<WebhookEndpoint>,
     CapabilityUnavailable,

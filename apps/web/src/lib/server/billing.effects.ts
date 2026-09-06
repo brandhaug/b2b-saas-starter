@@ -47,22 +47,11 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
     )
 )
 
-/** The billing route's loader, as a plain function for tests. */
-export function loadWorkspaceBilling(input: {
-  readonly workspaceSlug: string
-  readonly userId: string
-}): Promise<WorkspaceBillingPayload> {
-  return runWorkspaceCapabilities(input.workspaceSlug, billingPayload, {
-    userId: input.userId
-  })
-}
-
 export async function loadWorkspaceBillingHandler(
   input: WorkspaceBillingInput
 ): Promise<WorkspaceBillingPayload> {
   const session = await requireRequestSession()
-  return loadWorkspaceBilling({
-    workspaceSlug: input.workspaceSlug,
+  return runWorkspaceCapabilities(input.workspaceSlug, billingPayload, {
     userId: session.user.id
   })
 }

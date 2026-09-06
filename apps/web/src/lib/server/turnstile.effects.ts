@@ -1,17 +1,23 @@
-import { makeTurnstileVerifierLayer } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
+import {
+  makeTurnstileVerifier,
+  TurnstileVerifier
+} from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
 import { hasValue } from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
+import { Layer } from 'effect'
 
 /**
  * Turnstile's server-only wiring (ADR 0031), reached only through dynamic
  * `import()` inside the handler of `turnstile.ts` (see apps/web/AGENTS.md):
- * the verifier layer factory and the env-bag site-key read both pin
+ * the verifier and the env-bag site-key read both pin
  * `effect`/capabilities graphs that must never ship to the browser.
  */
 
 /** Per-request verifier layer, built from worker env like the rate limiter's. */
 export function makeTurnstileLayer() {
-  return makeTurnstileVerifierLayer({ secretKey: env.TURNSTILE_SECRET_KEY })
+  return Layer.succeed(TurnstileVerifier)(
+    makeTurnstileVerifier({ secretKey: env.TURNSTILE_SECRET_KEY })
+  )
 }
 
 /**

@@ -12,9 +12,9 @@ type BlogFrontmatter = {
 }
 
 /**
- * Post metadata. `loadPost` resolves the component on demand — the glob is
- * lazy, so the compiled (and highlighted) MDX never rides the importing
- * route's chunk; the post's own chunk loads when its URL is opened.
+ * Post metadata. `getPostComponent` resolves the component on demand — the
+ * glob is lazy, so the compiled (and highlighted) MDX never rides the
+ * importing route's chunk; the post's own chunk loads when its URL is opened.
  */
 export type PostMeta = {
   readonly slug: string
@@ -59,19 +59,23 @@ export function getAllPostMeta(): Promise<ReadonlyArray<PostMeta>> {
   return metaPromise
 }
 
-export type LoadedPost = PostMeta & {
-  readonly Component: ComponentType<MdxComponentProps>
+/**
+ * The lazy loader for one post module, or `undefined` for an unknown slug —
+ * the one resolve both `loadPost` and `getPostComponent` build on.
+ */
+function postLoader(slug: string): (() => Promise<PostModule>) | undefined {
+  const path = `../../content/blog/${slug}.mdx`
+  return Object.hasOwn(modules, path) ? modules[path] : undefined
 }
 
-/** One post — metadata plus the component — or `undefined` for an unknown slug. */
-export async function loadPost(slug: string): Promise<LoadedPost | undefined> {
-  const path = `../../content/blog/${slug}.mdx`
-  const load = Object.hasOwn(modules, path) ? modules[path] : undefined
+/** One post's metadata, or `undefined` for an unknown slug. */
+export async function loadPost(slug: string): Promise<PostMeta | undefined> {
+  const load = postLoader(slug)
   if (load === undefined) {
     return undefined
   }
   const mod = await load()
-  return { slug, frontmatter: mod.frontmatter, Component: mod.default }
+  return { slug, frontmatter: mod.frontmatter }
 }
 
 /**
@@ -82,18 +86,17 @@ export async function loadPost(slug: string): Promise<LoadedPost | undefined> {
 export function getPostComponent(
   slug: string
 ): ComponentType<MdxComponentProps> | undefined {
-  const path = `../../content/blog/${slug}.mdx`
-  const load = Object.hasOwn(modules, path) ? modules[path] : undefined
+  const load = postLoader(slug)
   if (load === undefined) {
     return undefined
   }
-  let component = componentCache.get(path)
+  let component = componentCache.get(slug)
   if (component === undefined) {
     component = lazy(async () => {
       const mod = await load()
       return { default: mod.default }
     })
-    componentCache.set(path, component)
+    componentCache.set(slug, component)
   }
   return component
 }

@@ -70,7 +70,6 @@ Each record is a short, statement-style decision: a title plus prose describing 
 
 ## UI and frontend
 
-- [0011 — Storybook for UI states](./0011-storybook-for-ui-states.md)
 - [0022 — shadcn and TweakCN theming](./0022-shadcn-tweakcn-theming.md)
 - [0041 — TanStack Form for mutation forms](./0041-tanstack-form-for-mutation-forms.md)
 - [0042 — TanStack Table for dense lists](./0042-tanstack-table-for-dense-lists.md)

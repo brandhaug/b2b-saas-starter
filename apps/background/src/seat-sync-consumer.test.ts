@@ -3,18 +3,23 @@ import {
   type SeatSyncResult
 } from '@b2b-saas-starter/capabilities/billing/billing'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { SeatSyncQueueMessage } from '@b2b-saas-starter/capabilities/billing/seat-sync'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'
 
-import { processSeatSyncMessage, readSeatSyncDelivery } from './seat-sync-consumer.ts'
-import { type DeliveryOutcome } from './queue-consumer.ts'
+import { processSeatSyncMessage } from './seat-sync-consumer.ts'
+import {
+  consumerInvocation,
+  readDelivery,
+  type DeliveryOutcome
+} from './queue-consumer.ts'
 
 /**
  * The seat-sync consumer against a recording `Billing` stub: the outcomes the
  * queue acts on. Sync decisions themselves are the capability's (covered in
  * `packages/capabilities/src/billing/billing.test.ts`); what this owns is the
  * boundary — malformed messages ack, honest no-ops ack, provider failures
- * fold into a retry.
+ * reach the consumer entry's retry fold.
  */
 
 type SyncCall = { readonly workspaceId: string; readonly reason: string }
@@ -38,9 +43,9 @@ function stubBilling(
 function run(body: unknown, billing: Layer.Layer<Billing>) {
   return Effect.map(
     Effect.scoped(
-      processSeatSyncMessage(readSeatSyncDelivery({ body, attempts: 0 })).pipe(
-        Effect.provide(billing)
-      )
+      processSeatSyncMessage(
+        readDelivery(SeatSyncQueueMessage, { id: 'qmsg_seat', body, attempts: 0 })
+      ).pipe(Effect.provide(billing))
     ),
     (outcome) => ({ outcome })
   )
@@ -52,9 +57,13 @@ const message = {
   reason: 'member_added'
 }
 
-describe('readSeatSyncDelivery', () => {
+describe('readDelivery', () => {
   it('decodes a seat-sync message', () => {
-    const delivery = readSeatSyncDelivery({ body: message, attempts: 1 })
+    const delivery = readDelivery(SeatSyncQueueMessage, {
+      id: 'qmsg_1',
+      body: message,
+      attempts: 1
+    })
     expect(delivery.kind).toBe('message')
     if (delivery.kind === 'message') {
       expect(delivery.message.workspaceId).toBe('wrk_starter')
@@ -62,13 +71,18 @@ describe('readSeatSyncDelivery', () => {
   })
 
   it('reports a malformed body instead of throwing', () => {
-    expect(readSeatSyncDelivery({ body: { nope: true }, attempts: 1 }).kind).toBe(
-      'malformed'
-    )
+    expect(
+      readDelivery(SeatSyncQueueMessage, {
+        id: 'qmsg_2',
+        body: { nope: true },
+        attempts: 1
+      }).kind
+    ).toBe('malformed')
     // A webhook delivery body is not a seat-sync body, even though it decodes
     // as an object — the `kind` discriminant is what the consumer trusts.
     expect(
-      readSeatSyncDelivery({
+      readDelivery(SeatSyncQueueMessage, {
+        id: 'qmsg_3',
         body: { endpointId: 'wh_1', workspaceId: 'wrk_starter', payload: {} },
         attempts: 1
       }).kind
@@ -116,18 +130,52 @@ describe('processSeatSyncMessage', () => {
       })
     ))
 
-  it('folds a provider failure into a retry so the queue backs off', () =>
+  it('propagates a provider failure for the consumer entry to fold', () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const { outcome } = yield* run(
-          message,
-          stubBilling([], () =>
-            Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'billing',
-                reason: 'stripe request failed'
-              })
+        const error = yield* Effect.flip(
+          run(
+            message,
+            stubBilling([], () =>
+              Effect.fail(
+                new CapabilityUnavailable({
+                  capability: 'billing',
+                  reason: 'stripe request failed'
+                })
+              )
             )
+          )
+        )
+        expect(error._tag).toBe('CapabilityUnavailable')
+      })
+    ))
+
+  it("folds an escaped provider failure into the entry's retry outcome", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        // The fold in `consumerInvocation` — outside `withTriggerScope`, so
+        // the wide event exits with the cause before it becomes an outcome —
+        // went from dead code to the load-bearing path for every retryable
+        // consumer when the per-consumer wrapper was deleted. Drive it
+        // directly: a program that fails must answer `retry`.
+        const outcome = yield* Effect.scoped(
+          consumerInvocation(
+            {},
+            {
+              event: 'seat_sync',
+              delivery: readDelivery(SeatSyncQueueMessage, {
+                id: 'qmsg_fold',
+                body: message,
+                attempts: 1
+              }),
+              program: Effect.fail(
+                new CapabilityUnavailable({
+                  capability: 'billing',
+                  reason: 'stripe request failed'
+                })
+              ),
+              onFailure: 'retry'
+            }
           )
         )
         expect(outcome).toBe<DeliveryOutcome>('retry')

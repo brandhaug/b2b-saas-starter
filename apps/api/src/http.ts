@@ -1,7 +1,9 @@
 import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
-import { StarterApi } from '@b2b-saas-starter/api'
+import { RateLimiter, StarterApi } from '@b2b-saas-starter/api'
 import { selectAssistantLayer } from '@b2b-saas-starter/ai'
+import { apiFallbackLimits, apiRateLimitBindingNames } from '@b2b-saas-starter/infra'
+import { makeRateLimiter } from '@b2b-saas-starter/rate-limit'
 import { FileSystem, Layer, Path, Effect } from 'effect'
 import {
   Etag,
@@ -22,13 +24,29 @@ import {
 } from './handlers.ts'
 import { exportDownloadLayer } from './export-download.ts'
 import { bearerAuth } from './request-guards.ts'
-import { makeRateLimiterLayer } from './rate-limit.ts'
 import { mcpProtocolLayer } from './mcp.ts'
 import {
   makeOAuthTokenVerifierLayer,
   oauthResourceConfig,
   protectedResourceMetadata
 } from './oauth-access-token.ts'
+
+/**
+ * The rate-limit mechanism behind the contract's `RateLimiter` service: the
+ * binding names and fallback limits come from `@b2b-saas-starter/infra` — the
+ * same records the generated wrangler config and Alchemy's bindings are
+ * emitted from — so this wiring owns only the binding dispatch; the mechanism
+ * itself (dispatch, in-memory fallback, degraded-mode telemetry, clientKey)
+ * lives in the shared package.
+ */
+function makeRateLimiterLayer(env: ApiEnv): Layer.Layer<RateLimiter> {
+  return Layer.succeed(RateLimiter)(
+    makeRateLimiter({
+      binding: (bucket) => env[apiRateLimitBindingNames[bucket]],
+      fallbackLimits: apiFallbackLimits
+    })
+  )
+}
 
 // Web-standard platform with no filesystem. HttpApiBuilder requires HttpPlatform
 // + FileSystem + Path + Etag for file/multipart responses we never emit; the

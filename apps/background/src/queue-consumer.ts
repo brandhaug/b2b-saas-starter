@@ -13,7 +13,7 @@ import {
   WideEventLoggerLive,
   withTriggerScope
 } from '@b2b-saas-starter/logger'
-import { Effect, Layer, ManagedRuntime, Result, type Schema, type Scope } from 'effect'
+import { Effect, Layer, ManagedRuntime, Result, Schema, type Scope } from 'effect'
 import { FetchHttpClient, type HttpClient } from 'effect/unstable/http'
 
 /**
@@ -22,9 +22,9 @@ import { FetchHttpClient, type HttpClient } from 'effect/unstable/http'
  * apart: the worker-wide `Env`, the per-invocation runtime, the batch loop
  * every queue rides on, and the consumer-entry combinator that folds one
  * decoded delivery into a wide event plus an ack/retry outcome. Each queue
- * keeps its own message schema, its own `read…Delivery` one-liner, and its
- * own `process…` orchestration (exported with requirements open for tests);
- * those live beside their consumer.
+ * keeps its own message schema and its own `process…` orchestration (exported
+ * with requirements open for tests); those live beside their consumer, riding
+ * the shared `readDelivery` boundary decode.
  */
 
 // Bindings plus optional env. The same shape `ApiEnv` describes for apps/api.
@@ -50,12 +50,14 @@ export type Env = Partial<ServerEnv> & {
 
 /**
  * Structural subset of a Cloudflare queue `Message`: the untrusted body plus
- * the attempt count and the message id. This is what the platform hands the
- * batch loop; `readQueueDelivery` turns it into the decoded delivery the
- * consumers work from.
+ * the message id and the attempt count. `id` is required because the platform
+ * guarantees one for every delivered message and the consumers' row identity
+ * derives from it — an envelope without an id cannot name the delivery it
+ * stands for. This is what the batch loop hands the consumers;
+ * `readDelivery` turns it into the decoded delivery they work from.
  */
 export type QueueEnvelope = {
-  readonly id?: string | undefined
+  readonly id: string
   readonly body: unknown
   readonly attempts: number
 }
@@ -71,20 +73,21 @@ export type QueueEnvelope = {
  * its own trace.
  */
 export type QueueDelivery<M> = {
-  readonly id?: string | undefined
+  readonly id: string
   readonly attempts: number
 } & ({ readonly kind: 'message'; readonly message: M } | { readonly kind: 'malformed' })
 
 /**
- * Folds the platform fields and the consumer's own boundary decode into the
- * one delivery both the consumer and the trace continuation read. Callers run
- * their compiled schema decoder (`Schema.decodeUnknownResult(SomeMessage)`)
- * over `envelope.body` and hand the result here.
+ * The boundary decode every consumer runs exactly once per delivery: decodes
+ * `envelope.body` against the queue's message schema and folds the result with
+ * the platform fields into the one `QueueDelivery` the consumer and the trace
+ * continuation read.
  */
-export function queueDelivery<M>(
-  envelope: QueueEnvelope,
-  decoded: Result.Result<M, Schema.SchemaError>
-): QueueDelivery<M> {
+export function readDelivery<S extends Schema.ConstraintDecoder<unknown>>(
+  schema: S,
+  envelope: QueueEnvelope
+): QueueDelivery<S['Type']> {
+  const decoded = Schema.decodeUnknownResult(schema)(envelope.body)
   const platform = { id: envelope.id, attempts: envelope.attempts }
   if (Result.isFailure(decoded)) {
     return { ...platform, kind: 'malformed' }

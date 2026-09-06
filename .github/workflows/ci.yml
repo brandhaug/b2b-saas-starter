@@ -19,6 +19,10 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm run typecheck
       - run: pnpm run lint
+      # Dead-code regression gate (the `dead-code` step of `pnpm run check`).
+      # fallow is not a workspace dependency, so it comes from npm.
+      - run: npm install -g fallow@3
+      - run: pnpm run dead-code
       # The wrangler configs are generated from infra/bindings.ts. Regenerating
       # them must be a no-op; a hand-edited config (or a spec change nobody
       # re-ran) shows up as a diff here instead of as a worker that drifted

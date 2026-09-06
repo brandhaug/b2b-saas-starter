@@ -17,12 +17,14 @@ import {
   ApiPrincipal,
   BearerAuth,
   rateLimitBucketFor,
-  type ApiPrincipalValue
+  RateLimiter,
+  type ApiPrincipalValue,
+  type RateLimitBucket
 } from '@b2b-saas-starter/api'
 import { RateLimited, Unauthorized } from '@b2b-saas-starter/api/errors'
+import { clientKey } from '@b2b-saas-starter/rate-limit'
 import { starterEnv, type ApiEnv } from './env.ts'
 import { looksLikeJwt, OAuthTokenVerifier } from './oauth-access-token.ts'
-import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
 
 /**
  * The per-request enforcement helpers shared by every served surface — the
@@ -30,10 +32,6 @@ import { RateLimiter, type RateLimitBucket } from './rate-limit.ts'
  * route in `mcp.ts`. One authenticate path, one rate-limit path, one wide-event
  * envelope: a new surface cannot grow a second, weaker gate.
  */
-
-export function clientKey(request: HttpServerRequest.HttpServerRequest): string {
-  return request.headers['cf-connecting-ip'] ?? `unkeyed:${request.url}`
-}
 
 export function bearerToken(
   request: HttpServerRequest.HttpServerRequest
@@ -51,7 +49,10 @@ export function enforceRateLimit(
 ): Effect.Effect<void, RateLimited, RateLimiter | Scope.Scope> {
   return Effect.gen(function* () {
     const limiter = yield* RateLimiter
-    const allowed = yield* limiter.take({ bucket, key: clientKey(request) })
+    const allowed = yield* limiter.take({
+      bucket,
+      key: clientKey(webRequest(request))
+    })
     if (!allowed) {
       yield* Effect.annotateLogsScoped({
         outcome: 'rate_limited',
@@ -123,11 +124,6 @@ export function verifyToken(
 export type McpCaller =
   | { readonly kind: 'token'; readonly token: ApiPrincipalValue }
   | { readonly kind: 'oauth'; readonly token: McpAccessTokenPrincipal }
-
-/** The workspace an MCP caller is bound to, whichever credential it presented. */
-export function mcpCallerWorkspaceSlug(caller: McpCaller): string {
-  return caller.token.workspaceSlug
-}
 
 /** The actor a workspace layer should resolve for the caller: the Member behind an OAuth token, nobody behind an API Token. */
 export function mcpCallerActor(caller: McpCaller): ActorRef | undefined {

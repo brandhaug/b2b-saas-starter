@@ -122,7 +122,7 @@ export function truncateResponseBody(body: string): string {
 }
 
 /** How long a rotated-out signing secret keeps signing deliveries. */
-export const SECRET_ROTATION_GRACE = Duration.hours(24)
+const SECRET_ROTATION_GRACE = Duration.hours(24)
 
 /**
  * The rotation half of the secret state machine: when a rotation takes effect,
@@ -131,20 +131,12 @@ export const SECRET_ROTATION_GRACE = Duration.hours(24)
  * window — see `activeSigningSecrets`). Pure — both adapters persist the
  * expiry this returns next to the replacement secret.
  */
-export type PlannedSecretRotation = {
-  readonly previousSecretExpiresAt: string
-}
-
-export function planSecretRotation(now: DateTime.Utc): PlannedSecretRotation {
-  return {
-    previousSecretExpiresAt: DateTime.formatIso(
-      DateTime.addDuration(now, SECRET_ROTATION_GRACE)
-    )
-  }
+export function planSecretRotation(now: DateTime.Utc): string {
+  return DateTime.formatIso(DateTime.addDuration(now, SECRET_ROTATION_GRACE))
 }
 
 /** The stored rotation columns, as `getDispatchTarget` reads them back. */
-export type SigningSecretRotation = {
+type SigningSecretRotation = {
   readonly signingSecret: string
   readonly previousSigningSecret?: string | null
   readonly previousSecretExpiresAt?: string | null
@@ -194,7 +186,7 @@ export function backoffSeconds(attempts: number): number {
   return Math.min(attempts, 6) * 30
 }
 
-export type DeliveryDecision = 'delivered' | 'retry' | 'terminal'
+type DeliveryDecision = 'delivered' | 'retry' | 'terminal'
 
 /**
  * Ack/retry/terminal decision per response status. `0` means no HTTP response
@@ -244,7 +236,7 @@ export function deliverySuccessRate(total: number, delivered: number): number {
 }
 
 /** Everything a dispatch needs to persist its attempt row and answer the queue. */
-export type DeliveryAttemptPlan = {
+type DeliveryAttemptPlan = {
   readonly status: 'delivered' | 'failed_permanent' | 'failed'
   readonly responseStatus: number | null
   readonly nextAttemptAt: string | null
@@ -301,7 +293,7 @@ export type WebhookDeliveryAttemptInput = {
 }
 
 /** Everything a replay needs to know about the row it replays. */
-export type ReplayableWebhookDelivery = {
+type ReplayableWebhookDelivery = {
   readonly id: string
   readonly endpointId: string
   readonly eventType: string
@@ -346,7 +338,7 @@ export function planPendingDispatch(input: {
 }
 
 /** A replay plan is a pending dispatch with provenance. */
-export type ReplayedDeliveryPlan = PendingDispatchPlan & {
+type ReplayedDeliveryPlan = PendingDispatchPlan & {
   readonly replayedFrom: string
 }
 
@@ -375,7 +367,7 @@ export const terminalDeliveryAuditEventType = new Map<
  * actionable without a query. Owned here so the Seed and Live adapters emit
  * byte-identical copy.
  */
-export type DeadLetterNotification = {
+type DeadLetterNotification = {
   readonly title: string
   readonly message: string
 }

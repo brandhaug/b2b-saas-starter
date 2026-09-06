@@ -7,8 +7,17 @@ import {
 import { type NotificationEmailQueueBinding } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import { type WorkersAIBinding } from '@b2b-saas-starter/ai'
+import { type ApiRateLimitBindingName } from '@b2b-saas-starter/infra'
+import { type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
 
-import { type RateLimitBindings } from './rate-limit.ts'
+// The rate-limit bindings this worker's env may carry, keyed by binding name
+// and derived from the infra name record rather than spelled: renaming a
+// binding in infra renames the key here and in the generated wrangler config
+// together, and a bucket added to infra surfaces here the moment its row is
+// written.
+type RateLimitBindings = Readonly<
+  Partial<Record<ApiRateLimitBindingName, CloudflareRateLimit>>
+>
 
 // The worker's Cloudflare bindings + redacted env. Shared by the handler
 // layers, the web-handler assembly, and the fetch entrypoint. It structurally

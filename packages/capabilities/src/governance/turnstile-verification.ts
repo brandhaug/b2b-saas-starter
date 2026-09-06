@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Result, Schedule, Schema } from 'effect'
+import { Context, Effect, Result, Schedule, Schema } from 'effect'
 import { CapabilityUnavailable } from '../errors.ts'
 /**
  * Cloudflare Turnstile server-side verification (ADR 0031). The widget proves
@@ -12,11 +12,11 @@ import { CapabilityUnavailable } from '../errors.ts'
  * gate on the outcome instead of branching on configuration themselves.
  */
 
-export const SiteverifyResponse = Schema.Struct({
+const SiteverifyResponse = Schema.Struct({
   success: Schema.optionalKey(Schema.Boolean),
   'error-codes': Schema.optionalKey(Schema.Array(Schema.String))
 })
-export type SiteverifyResponse = typeof SiteverifyResponse.Type
+type SiteverifyResponse = typeof SiteverifyResponse.Type
 
 /** The request body siteverify expects — secret plus the widget's token. */
 export type SiteverifyRequest = {
@@ -35,14 +35,14 @@ export type SiteverifyCaller = (
   request: SiteverifyRequest
 ) => Effect.Effect<SiteverifyResponse, CapabilityUnavailable>
 
-export type TurnstileVerificationInput = {
+type TurnstileVerificationInput = {
   /** The `cf-turnstile-response` token the widget produced. */
   readonly token: string
   /** The visitor's IP, when the caller has it — siteverify scores better with it. */
   readonly remoteIp?: string | undefined
 }
 
-export type TurnstileOutcome =
+type TurnstileOutcome =
   | { readonly outcome: 'inactive' }
   | { readonly outcome: 'verified' }
   | { readonly outcome: 'unavailable' }
@@ -52,7 +52,7 @@ export type TurnstileOutcome =
       readonly codes: ReadonlyArray<string>
     }
 
-export type TurnstileVerifierInterface = {
+type TurnstileVerifierInterface = {
   /**
    * Whether server-side verification is configured at all. Callers that only
    * need the gate read this; `verify` returns `inactive` when it is false.
@@ -78,9 +78,9 @@ const decodeSiteverifyResponse = Schema.decodeUnknownResult(SiteverifyResponse)
  * add weight, not safety, to one JSON POST. The call carries an `AbortSignal`
  * from `Effect.tryPromise` so interruption and the 10s deadline reach the
  * socket, and transport failures surface as typed `CapabilityUnavailable`
- * instead of defects. Exported for tests.
+ * instead of defects.
  */
-export const liveSiteverifyCaller: SiteverifyCaller = Effect.fnUntraced(function* (
+const liveSiteverifyCaller: SiteverifyCaller = Effect.fnUntraced(function* (
   request: SiteverifyRequest
 ) {
   const response = yield* Effect.tryPromise({
@@ -196,11 +196,4 @@ export function makeTurnstileVerifier(options: {
         return classify(attempted.success)
       })
   }
-}
-
-/** Layer built from worker env — the web app calls this per deployment config. */
-export function makeTurnstileVerifierLayer(options: {
-  readonly secretKey?: string | undefined
-}): Layer.Layer<TurnstileVerifier> {
-  return Layer.succeed(TurnstileVerifier)(makeTurnstileVerifier(options))
 }

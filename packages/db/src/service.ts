@@ -39,7 +39,7 @@ export function layerFromD1(d1: D1Binding): Layer.Layer<Database | RawD1> {
     Layer.succeed(RawD1)(d1),
     Layer.effect(Database)(SQLiteD1Drizzle.makeWithDefaults({})).pipe(
       Layer.provide(D1Client.layer({ db: d1 })),
-      // oxlint-disable-next-line starter/no-effect-escape-hatch -- see the note above
+      // oxlint-disable-next-line no-restricted-properties -- see the note above
       Layer.orDie
     )
   )

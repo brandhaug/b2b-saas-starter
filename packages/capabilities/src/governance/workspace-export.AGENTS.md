@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Workspace data export (ADR 0055): an owner requests a ZIP, the background consumer builds it into R2, and a signed time-limited link on the API worker hands it back.
+Workspace data export (ADR 0055): an owner requests a gzipped JSON document of everything the workspace holds, the background consumer builds it into R2, and a signed time-limited link on the API worker hands it back.
 
 ## Entry Points & Contracts
 
@@ -22,4 +22,4 @@ Workspace data export (ADR 0055): an owner requests a ZIP, the background consum
 
 - No snapshot built from Drizzle rows, and no API worker origin inside the capability.
 - No skipping `isWorkspaceExportDownloadable` on verify because issue checked; the row can expire between them.
-- No REST `download` operation returning bytes; the signed route keeps the ZIP off a bearer credential.
+- No REST `download` operation returning bytes; the signed route keeps the archive off a bearer credential.

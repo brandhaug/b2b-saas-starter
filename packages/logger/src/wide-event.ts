@@ -14,7 +14,6 @@ import {
 } from 'effect'
 
 import {
-  coloHint,
   readCfColo,
   readWideEventEnvironment,
   type WideEventEnvironment
@@ -25,7 +24,11 @@ import {
   type TraceContinuation
 } from './trace.ts'
 import { failureMessage } from '@b2b-saas-starter/failure'
-import { type Writable } from '@b2b-saas-starter/config/writable'
+
+/** The mutable draft `withRequestScope` fills before the sinks read it. */
+type WideEventRecordDraft = {
+  -readonly [K in keyof WideEventRecord]: WideEventRecord[K]
+}
 
 const TaggedFailure = Schema.Struct({ _tag: Schema.String })
 
@@ -106,17 +109,10 @@ const wideEventSinks: Array<WideEventSink> = []
 /**
  * Register a sink invoked once per completed wide-event scope. Sinks must not
  * throw (rejections are swallowed) and must finish within the invocation —
- * the same ADR 0050 rule the OTLP exporters follow. Returns an unregister
- * function.
+ * the same ADR 0050 rule the OTLP exporters follow.
  */
-export function addWideEventSink(sink: WideEventSink): () => void {
+export function addWideEventSink(sink: WideEventSink): void {
   wideEventSinks.push(sink)
-  return () => {
-    const index = wideEventSinks.indexOf(sink)
-    if (index !== -1) {
-      wideEventSinks.splice(index, 1)
-    }
-  }
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-returns -- the raw failure value goes to vendor SDKs that accept `unknown`; parsing it here would destroy the stack trace
@@ -252,7 +248,7 @@ function emitWideEvent(
       yield* Effect.log(options.event).pipe(annotated)
     }
     if (wideEventSinks.length > 0) {
-      const record: Writable<WideEventRecord> = {
+      const record: WideEventRecordDraft = {
         service: options.service,
         event: options.event,
         traceId,
@@ -299,6 +295,10 @@ export function withHttpRequestScope<A, E, R>(
 ): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
   const url = new URL(options.request.url)
   const colo = readCfColo(options.request)
+  let coloHint: { readonly colo: string } | undefined
+  if (colo !== undefined) {
+    coloHint = { colo }
+  }
   return withRequestScope(
     {
       service: options.service,
@@ -308,7 +308,7 @@ export function withHttpRequestScope<A, E, R>(
         Object.fromEntries(options.request.headers.entries())
       ),
       spanKind: 'server',
-      environment: readWideEventEnvironment(options.env, coloHint(colo)),
+      environment: readWideEventEnvironment(options.env, coloHint),
       metadata: {
         pathname: url.pathname,
         method: options.request.method,

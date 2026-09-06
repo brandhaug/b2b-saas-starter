@@ -1,5 +1,5 @@
-import { createDrizzleDb, type DrizzleDatabase } from '@b2b-saas-starter/db/client'
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
+import { drizzle } from 'drizzle-orm/d1'
 import { Effect, Layer } from 'effect'
 import {
   cookieHeader as cookieHeaderOf,
@@ -15,6 +15,7 @@ import {
   type AuthConfigInterface,
   type AuthOptions
 } from './index.ts'
+import { type DrizzleDatabase } from './ports.ts'
 import { testMcpConfig } from './test-mcp.ts'
 import { decodeUriSecret } from './test-totp.ts'
 
@@ -52,7 +53,7 @@ async function noop(): Promise<void> {
 export function provisionAuthD1(): Promise<ProvisionedAuthD1> {
   return provisionTestD1().then((testD1) => ({
     d1: testD1.d1,
-    db: createDrizzleDb(testD1.d1),
+    db: drizzle(testD1.d1),
     dispose: () => testD1.dispose()
   }))
 }
@@ -134,12 +135,12 @@ export function enableTotp(session: SignUpSession) {
     })
     const response = enabled.response
     if (response.method !== 'totp') {
-      // oxlint-disable-next-line starter/no-effect-escape-hatch -- test invariant: the wrong response shape means the ceremony helper is broken, not the code under test
+      // oxlint-disable-next-line no-restricted-properties -- test invariant: the wrong response shape means the ceremony helper is broken, not the code under test
       return yield* Effect.die('expected TOTP enable response')
     }
     const secret = new URL(response.totpURI).searchParams.get('secret')
     if (secret === null) {
-      // oxlint-disable-next-line starter/no-effect-escape-hatch -- test invariant: same as above — a malformed otpauth URI is a helper bug
+      // oxlint-disable-next-line no-restricted-properties -- test invariant: same as above — a malformed otpauth URI is a helper bug
       return yield* Effect.die('the TOTP enable response carried no secret')
     }
     // Server-side helper endpoint: turns a secret into a valid code, so the

@@ -109,14 +109,6 @@ const MATRIX: ReadonlyArray<GatedOperation> = [
       scopes: ['read']
     })
   },
-  // Both revoke paths name the same permission, so both have to be here: the
-  // DELETE alias is where a matrix drawn from the POST alone would leak.
-  {
-    operation: 'POST /workspaces/{slug}/api-tokens/{tokenId}/revoke',
-    permission: 'apiToken:revoke',
-    expected: 403,
-    request: makeRequest('POST', `/workspaces/${SLUG}/api-tokens/tok_seed/revoke`)
-  },
   {
     operation: 'DELETE /workspaces/{slug}/api-tokens/{tokenId}',
     permission: 'apiToken:revoke',

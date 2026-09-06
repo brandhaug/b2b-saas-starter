@@ -5,7 +5,7 @@ import {
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { NotificationEmailQueueMessage } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { describeNotificationKind } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
+import { NOTIFICATION_KIND_DESCRIPTIONS } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
 import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import {
   EmailDispatcher,
@@ -13,31 +13,19 @@ import {
   type EmailSendError
 } from '@b2b-saas-starter/email'
 import { notificationEmailFor } from '@b2b-saas-starter/email/notification-emails'
-import { Effect, Layer, Schema, type Scope } from 'effect'
+import { Effect, Layer, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
 import {
   consumerInvocation,
   type DeliveryOutcome,
   type Env,
-  queueDelivery,
+  readDelivery,
   type QueueDelivery,
   type QueueEnvelope
 } from './queue-consumer.ts'
 
 const ack: DeliveryOutcome = 'ack'
-
-/** Wire shape of the instant-email queue — the schema is shared with the producer. */
-export type NotificationEmailMessage = typeof NotificationEmailQueueMessage.Type
-
-const decodeMessage = Schema.decodeUnknownResult(NotificationEmailQueueMessage)
-
-/** The boundary decode: platform fields plus the message, or terminal `malformed`. */
-export function readNotificationEmailDelivery(
-  envelope: QueueEnvelope
-): QueueDelivery<NotificationEmailMessage> {
-  return queueDelivery(envelope, decodeMessage(envelope.body))
-}
 
 /**
  * Sends one instant notification email. Re-reads everything at send time: the
@@ -51,7 +39,7 @@ export function readNotificationEmailDelivery(
  * wraps this with the real layers and the wide-event scope.
  */
 export function processNotificationEmailMessage(
-  delivery: QueueDelivery<NotificationEmailMessage>,
+  delivery: QueueDelivery<NotificationEmailQueueMessage>,
   appUrl: string
 ): Effect.Effect<
   DeliveryOutcome,
@@ -89,7 +77,7 @@ export function processNotificationEmailMessage(
       return ack
     }
     const dispatcher = yield* EmailDispatcher
-    const kindLabel = describeNotificationKind(kind).label
+    const kindLabel = NOTIFICATION_KIND_DESCRIPTIONS[kind].label
     const workspaceName = context.workspace?.name ?? null
     yield* dispatcher
       .send({
@@ -133,7 +121,7 @@ export function sendNotificationEmail(
   envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
-  const delivery = readNotificationEmailDelivery(envelope)
+  const delivery = readDelivery(NotificationEmailQueueMessage, envelope)
   return consumerInvocation(env, {
     event: 'notification_email',
     delivery,

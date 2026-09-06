@@ -15,7 +15,7 @@ export type EmailQueueRecipient = {
   readonly name: string
 }
 
-export type InstantFanOutInput = {
+type InstantFanOutInput = {
   readonly notificationId: string
   readonly kind: NotificationKind
   readonly recipients: ReadonlyArray<EmailQueueRecipient>

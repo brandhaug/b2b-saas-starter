@@ -10,7 +10,7 @@ Every third-party provider in the starter is env-gated. The app boots with zero 
 
 ## How env validation works
 
-`packages/env/src/server.ts` is the single source of truth. `ServerEnvSchema` declares every server variable: two required (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`) and the rest optional. Optional vars simply stay unset until you configure their provider; nothing fails and no surface degrades beyond that provider being off. In production, `auditRequiredEnv` rejects placeholder or too-short auth secrets before any request is served (see the config gate in `apps/web/src/start.ts`).
+`packages/env/src/server.ts` is the single source of truth. The `ServerEnv` type declares every server variable: two required (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`) and the rest optional. Optional vars simply stay unset until you configure their provider; nothing fails and no surface degrades beyond that provider being off. In production, `auditRequiredEnv` rejects placeholder or too-short auth secrets before any request is served (see the config gate in `apps/web/src/start.ts`).
 
 ## Where values go
 
@@ -94,7 +94,7 @@ The response's `provider` field reads `workers-ai` or `openai-compatible` and `a
 
 ## Workspace export (R2 + Queue)
 
-Owners can export a workspace as a ZIP from workspace settings (ADR 0055). The archive is built by the background worker and stored in an R2 bucket for seven days; downloads go through a signed link on the API worker.
+Owners can export a workspace as a gzipped JSON document from workspace settings (ADR 0055). The archive is built by the background worker and stored in an R2 bucket for seven days; downloads go through a signed link on the API worker.
 
 | Variable                  | Value                                                                            |
 | ------------------------- | -------------------------------------------------------------------------------- |
@@ -131,4 +131,4 @@ Error monitoring and product analytics, wired through the official SDKs (`@sentr
 
 ## Adding a provider variable
 
-Declare the variable in `ServerEnvSchema`. Everything else derives from the schema: `alchemy.run.ts` builds its forwarding env from the two optional key lists (secret or plain) in `packages/env/src/server.ts`, and workers read the var off their own env binding. `apps/web/src/worker-env.d.ts` derives its string vars from `ServerEnv`. The full secret matrix lives in `ARCHITECTURE.md`.
+Declare the variable in `ServerEnv`. Everything else derives from the type: `alchemy.run.ts` builds its forwarding env from the two optional key lists (secret or plain) in `packages/env/src/server.ts`, and workers read the var off their own env binding. `apps/web/src/worker-env.d.ts` derives its string vars from it. The full secret matrix lives in `ARCHITECTURE.md`.

@@ -1,8 +1,4 @@
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import {
-  type CapabilityUnavailable,
-  type MembershipChangeRejected
-} from '@b2b-saas-starter/capabilities/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
   SsoConnections,
   type SsoConnection,
@@ -12,7 +8,7 @@ import {
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { Effect, Option, Result, type Scope } from 'effect'
+import { Effect, Option, Result } from 'effect'
 
 import { causeMessage } from '../cause-message'
 
@@ -37,10 +33,10 @@ import {
 /**
  * The workspace SSO effects and their server-only wiring, reached only
  * through dynamic `import()` inside the handlers of `workspace-sso.ts` (see
- * apps/web/AGENTS.md for the split): the effects take their inputs as
- * arguments so the permission gates and the notify-on-failure rule are
- * testable without a session or an auth runtime; each `…Handler` adds the
- * session gate, the request origin and the plugin binding, nothing else.
+ * apps/web/AGENTS.md for the split): each handler reads the session once,
+ * then proves the actor may act inside the effect it hands to
+ * `runWorkspaceCapabilities` — the permission gates, the create-time IdP
+ * validation, and the notify-on-failure rule included.
  */
 
 function samlIssuer(
@@ -59,48 +55,46 @@ function samlIssuer(
   return requestOrigin()
 }
 
-export function createSsoConnection(
+export async function createSsoConnectionHandler(
   input: CreateSsoConnectionInput
-): Effect.Effect<
-  SsoConnection,
-  | AuthorizationDenied
-  | CapabilityUnavailable
-  | MembershipChangeRejected
-  | SsoValidationError,
-  Scope.Scope | WorkspaceContext | SsoConnections
-> {
-  return Effect.gen(function* () {
-    // The session gate in the server function proves who is asking; this
-    // proves they may.
-    yield* requireWorkspacePermission({ sso: ['create'] })
-    const sso = yield* SsoConnections
-    if (input.protocol === 'oidc') {
-      // The live IdP check runs before the row exists, so a typo'd issuer is
-      // refused at the form instead of as a broken connection to clean up.
-      const endpoints = yield* resolveOidcIssuer(input.issuer)
+): Promise<SsoConnection> {
+  const session = await requireRequestSession()
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.gen(function* () {
+      // The session gate above proves who is asking; this proves they may.
+      yield* requireWorkspacePermission({ sso: ['create'] })
+      const sso = yield* SsoConnections
+      if (input.protocol === 'oidc') {
+        // The live IdP check runs before the row exists, so a typo'd issuer is
+        // refused at the form instead of as a broken connection to clean up.
+        const endpoints = yield* resolveOidcIssuer(input.issuer)
+        return yield* sso.create({
+          protocol: 'oidc',
+          domain: input.domain,
+          issuer: input.issuer,
+          clientId: input.clientId,
+          clientSecret: input.clientSecret,
+          endpoints,
+          defaultWorkspaceRole: input.defaultWorkspaceRole
+        })
+      }
+      const metadata = yield* loadSamlMetadata(input)
+      const validated = yield* validateSamlMetadata(metadata)
       return yield* sso.create({
-        protocol: 'oidc',
+        protocol: 'saml',
         domain: input.domain,
-        issuer: input.issuer,
-        clientId: input.clientId,
-        clientSecret: input.clientSecret,
-        endpoints,
+        // The SP entity id defaults to the app origin when the form leaves it
+        // blank: the plugin generates SP metadata from it, so it must be stable.
+        issuer: samlIssuer(input, metadata),
+        metadataXml: metadata,
+        entryPoint: validated.entryPoint,
         defaultWorkspaceRole: input.defaultWorkspaceRole
       })
-    }
-    const metadata = yield* loadSamlMetadata(input)
-    const validated = yield* validateSamlMetadata(metadata)
-    return yield* sso.create({
-      protocol: 'saml',
-      domain: input.domain,
-      // The SP entity id defaults to the app origin when the form leaves it
-      // blank: the plugin generates SP metadata from it, so it must be stable.
-      issuer: samlIssuer(input, metadata),
-      metadataXml: metadata,
-      entryPoint: validated.entryPoint,
-      defaultWorkspaceRole: input.defaultWorkspaceRole
-    })
-  })
+    }),
+    { userId: session.user.id },
+    { ssoBinding: webSsoBinding }
+  )
 }
 
 /** A metadata URL is fetched once, at create; everything after stores the XML. */
@@ -141,74 +135,38 @@ function loadSamlMetadata(
   )
 }
 
-export async function createSsoConnectionHandler(
-  input: CreateSsoConnectionInput
-): Promise<SsoConnection> {
-  const session = await requireRequestSession()
-  return runWorkspaceCapabilities(
-    input.workspaceSlug,
-    createSsoConnection(input),
-    { userId: session.user.id },
-    { ssoBinding: webSsoBinding }
-  )
-}
-
-export function updateSsoConnection(
-  input: UpdateSsoConnectionInput
-): Effect.Effect<
-  SsoConnection | null,
-  AuthorizationDenied | CapabilityUnavailable | MembershipChangeRejected,
-  Scope.Scope | WorkspaceContext | SsoConnections
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ sso: ['update'] })
-    const sso = yield* SsoConnections
-    // Rest keeps the optional fields exactly as the schema decoded them — a
-    // field the form did not send stays absent, and `undefined` means the
-    // same thing to the capability.
-    // oxlint-disable-next-line no-unused-vars -- rest exclusion: the slug routes the server fn, and the update payload must not carry it
-    const { workspaceSlug, clientId, clientSecret, ...update } = input
-    const updated = yield* sso.update({
-      ...update,
-      // Credential rotation is both-or-neither (the schema's filter proves
-      // the pair); the plugin merges a partial oidcConfig over the stored
-      // one, so a rotation replaces exactly the pair it names.
-      oidcCredentials:
-        clientId !== undefined && clientSecret !== undefined
-          ? { clientId, clientSecret }
-          : undefined
-    })
-    if (Option.isNone(updated)) {
-      return null
-    }
-    return updated.value
-  })
-}
-
 export async function updateSsoConnectionHandler(
   input: UpdateSsoConnectionInput
 ): Promise<SsoConnection | null> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
-    updateSsoConnection(input),
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ sso: ['update'] })
+      const sso = yield* SsoConnections
+      // Rest keeps the optional fields exactly as the schema decoded them — a
+      // field the form did not send stays absent, and `undefined` means the
+      // same thing to the capability.
+      // oxlint-disable-next-line no-unused-vars -- rest exclusion: the slug routes the server fn, and the update payload must not carry it
+      const { workspaceSlug, clientId, clientSecret, ...update } = input
+      const updated = yield* sso.update({
+        ...update,
+        // Credential rotation is both-or-neither (the schema's filter proves
+        // the pair); the plugin merges a partial oidcConfig over the stored
+        // one, so a rotation replaces exactly the pair it names.
+        oidcCredentials:
+          clientId !== undefined && clientSecret !== undefined
+            ? { clientId, clientSecret }
+            : undefined
+      })
+      if (Option.isNone(updated)) {
+        return null
+      }
+      return updated.value
+    }),
     { userId: session.user.id },
     { ssoBinding: webSsoBinding }
   )
-}
-
-export function removeSsoConnection(input: {
-  readonly providerId: string
-}): Effect.Effect<
-  boolean,
-  AuthorizationDenied | CapabilityUnavailable | MembershipChangeRejected,
-  Scope.Scope | WorkspaceContext | SsoConnections
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ sso: ['remove'] })
-    const sso = yield* SsoConnections
-    return yield* sso.remove({ providerId: input.providerId })
-  })
 }
 
 export async function removeSsoConnectionHandler(
@@ -217,7 +175,11 @@ export async function removeSsoConnectionHandler(
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
-    removeSsoConnection({ providerId: input.providerId }),
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ sso: ['remove'] })
+      const sso = yield* SsoConnections
+      return yield* sso.remove({ providerId: input.providerId })
+    }),
     { userId: session.user.id },
     { ssoBinding: webSsoBinding }
   )
@@ -231,32 +193,32 @@ export async function removeSsoConnectionHandler(
  * and never fails the request that asked for the test: the verdict is the
  * answer, not an error.
  */
-export function testSsoConnection(input: {
-  readonly providerId: string
-}): Effect.Effect<
-  SsoTestResult,
-  AuthorizationDenied | CapabilityUnavailable,
-  | Scope.Scope
-  | WorkspaceContext
-  | SsoConnections
-  | WorkspaceMembership
-  | NotificationFeed
-> {
-  return Effect.gen(function* () {
-    yield* requireWorkspacePermission({ sso: ['update'] })
-    const sso = yield* SsoConnections
-    const detail = yield* sso.describe({ providerId: input.providerId })
-    if (Option.isNone(detail)) {
-      return failedTest('connection_not_found', 'No such connection in this workspace')
-    }
-    const connection = detail.value
-    const verdict = yield* Effect.result(connectionCheck(connection))
-    if (Result.isFailure(verdict)) {
-      yield* notifyOwnersOfFailedTest(connection, verdict.failure.message)
-      return failedTest(verdict.failure.code, verdict.failure.message)
-    }
-    return { outcome: 'passed' } satisfies SsoTestResult
-  })
+export async function testSsoConnectionHandler(
+  input: RemoveSsoConnectionInput
+): Promise<SsoTestResult> {
+  const session = await requireRequestSession()
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ sso: ['update'] })
+      const sso = yield* SsoConnections
+      const detail = yield* sso.describe({ providerId: input.providerId })
+      if (Option.isNone(detail)) {
+        return failedTest(
+          'connection_not_found',
+          'No such connection in this workspace'
+        )
+      }
+      const connection = detail.value
+      const verdict = yield* Effect.result(connectionCheck(connection))
+      if (Result.isFailure(verdict)) {
+        yield* notifyOwnersOfFailedTest(connection, verdict.failure.message)
+        return failedTest(verdict.failure.code, verdict.failure.message)
+      }
+      return { outcome: 'passed' } satisfies SsoTestResult
+    }),
+    { userId: session.user.id }
+  )
 }
 
 /** The live IdP check one stored connection answers to. */
@@ -283,7 +245,14 @@ function failedTest(code: string, message: string): SsoTestResult {
   return { outcome: 'failed', code, message } satisfies SsoTestResult
 }
 
-function notifyOwnersOfFailedTest(
+/**
+ * The owner fan-out behind a failed connection test: every owner on the
+ * roster gets one notification naming the domain and the reason, and nobody
+ * else does. Exported beside the handler because the handler seam cannot
+ * stage or observe a Seed feed across a call — this is where the rule is
+ * testable.
+ */
+export function notifyOwnersOfFailedTest(
   connection: SsoConnection,
   reason: string
 ): Effect.Effect<
@@ -303,15 +272,6 @@ function notifyOwnersOfFailedTest(
         userId: owner.id
       })
     )
-  })
-}
-
-export async function testSsoConnectionHandler(
-  input: RemoveSsoConnectionInput
-): Promise<SsoTestResult> {
-  const session = await requireRequestSession()
-  return runWorkspaceCapabilities(input.workspaceSlug, testSsoConnection(input), {
-    userId: session.user.id
   })
 }
 

@@ -15,9 +15,9 @@ import { Schema } from 'effect'
  * strict decode, and the derived type types both the client stub and the
  * effects handler.
  *
- * The behaviour itself is tested as the plain effects in the effects file
+ * The behaviour itself is tested as the handlers in the effects file
  * (`webhooks.test.ts` imports `webhooks.effects.ts` directly), driven with
- * fixture layers and fixture actors.
+ * mocked sessions against the Seed layer.
  */
 
 const CreateWebhookInput = Schema.Struct({

@@ -4,8 +4,8 @@ import { render } from '@react-email/render'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { type ReactElement } from 'react'
 
-export const EmailDeliveryMode = Schema.Literals(['cloudflare-email', 'log'])
-export type EmailDeliveryMode = typeof EmailDeliveryMode.Type
+const EmailDeliveryMode = Schema.Literals(['cloudflare-email', 'log'])
+type EmailDeliveryMode = typeof EmailDeliveryMode.Type
 
 export type EmailMessage = {
   /**
@@ -45,7 +45,7 @@ export type SendEmailBinding = {
 }
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class EmailRenderError extends Schema.TaggedError<EmailRenderError>()(
+class EmailRenderError extends Schema.TaggedError<EmailRenderError>()(
   'EmailRenderError',
   { message: Schema.String }
 ) {}
@@ -56,7 +56,7 @@ export class EmailSendError extends Schema.TaggedError<EmailSendError>()(
   { message: Schema.String, to: Schema.String, subject: Schema.String }
 ) {}
 
-export type EmailDispatcherInterface = {
+type EmailDispatcherInterface = {
   readonly send: (
     message: EmailMessage
   ) => Effect.Effect<EmailDeliveryResult, EmailRenderError | EmailSendError>

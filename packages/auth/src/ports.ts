@@ -1,5 +1,5 @@
 import { type CimdOptions } from '@better-auth/cimd'
-import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
+import { type drizzle } from 'drizzle-orm/d1'
 import { Context } from 'effect'
 
 /**
@@ -9,6 +9,13 @@ import { Context } from 'effect'
  * package never reads env itself. `index.ts` composes the options object and
  * re-exports everything below, so the public surface is unchanged.
  */
+
+/**
+ * The promise-based drizzle client over a raw D1 binding that Better Auth's
+ * `drizzleAdapter` requires. Application code uses the Effect-native
+ * `Database` service from `db` instead.
+ */
+export type DrizzleDatabase = ReturnType<typeof drizzle>
 
 /**
  * The account-lifecycle emails Better Auth sends (password reset, email

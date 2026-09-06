@@ -19,7 +19,7 @@ import { Workspace, WorkspaceRole } from './workspace-identity.ts'
  */
 
 /** What deleting the account does to one workspace membership. */
-export const AccountDeletionAction = Schema.Literals([
+const AccountDeletionAction = Schema.Literals([
   /** The user is the only owner and other members remain: deletion is blocked until ownership is transferred. */
   'blocked_sole_owner',
   /** Other owners remain: the user's membership is removed, the workspace stays. */
@@ -27,14 +27,14 @@ export const AccountDeletionAction = Schema.Literals([
   /** The user is the only member: the workspace goes with the account. */
   'delete_workspace'
 ])
-export type AccountDeletionAction = typeof AccountDeletionAction.Type
+type AccountDeletionAction = typeof AccountDeletionAction.Type
 
-export const AccountDeletionStep = Schema.Struct({
+const AccountDeletionStep = Schema.Struct({
   workspace: Workspace,
   role: WorkspaceRole,
   action: AccountDeletionAction
 })
-export type AccountDeletionStep = typeof AccountDeletionStep.Type
+type AccountDeletionStep = typeof AccountDeletionStep.Type
 
 export const AccountDeletionPlan = Schema.Struct({
   steps: Schema.Array(AccountDeletionStep),
@@ -105,7 +105,7 @@ export function blockingWorkspaces(
 }
 
 /** The counts the `account.deleted` event carries — never the workspace names. */
-export type DeletionMetadata = {
+type DeletionMetadata = {
   readonly workspacesLeft: number
   readonly workspacesDeleted: number
 }

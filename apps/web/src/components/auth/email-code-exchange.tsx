@@ -7,10 +7,8 @@ import {
 } from '@tanstack/react-form'
 import { MailIcon, ShieldCheckIcon } from 'lucide-react'
 import {
-  sendEmailCodeWithAuthClient,
   sixDigitCodeValidator,
-  type EmailCodePurpose,
-  type SendEmailCode
+  type EmailCodePurpose
 } from '@/components/auth/auth-client-ports'
 import { emailValidator } from '@/components/auth/auth-validators'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
@@ -21,8 +19,31 @@ import { ResendCodeButton } from '@/components/auth/resend-code-button'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
 import { authErrorCopy } from '@/lib/auth-error-copy'
+
+/**
+ * The first hop of the exchange as the flow drives it: the address a code is
+ * sent to and the flow's `purpose`. The envelope is Better Auth's
+ * `{ data, error }`. A flow that already holds the address (the reset
+ * page's fused request form) can override `send` to re-ask its own endpoint.
+ */
+export type SendEmailCode = (input: {
+  readonly email: string
+  readonly purpose: EmailCodePurpose
+}) => Promise<AuthResult<unknown>>
+
+/** The exchange's own send: the client's one-time-code endpoint. */
+function sendEmailCodeWithAuthClient(input: {
+  readonly email: string
+  readonly purpose: EmailCodePurpose
+}): Promise<AuthResult<unknown>> {
+  return authClient.emailOtp.sendVerificationOtp({
+    email: input.email,
+    type: input.purpose
+  })
+}
 
 /**
  * The second hop of the exchange, as the flow drives it: the address a code

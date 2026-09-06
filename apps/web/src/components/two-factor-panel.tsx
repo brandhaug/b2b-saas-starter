@@ -1,28 +1,12 @@
 import { useState, type ReactNode } from 'react'
 import { ShieldCheckIcon } from 'lucide-react'
 import {
-  disableTwoFactorWithAuthClient,
-  enableTwoFactorWithAuthClient,
-  generateBackupCodesWithAuthClient,
-  verifyTotpWithAuthClient,
-  type DisableTwoFactor,
-  type EnableTwoFactor,
-  type GenerateBackupCodes,
-  type VerifyTotpCode
-} from '@/components/auth/auth-client-ports'
-import {
   DisableFlow,
   EnableFlow,
   EnrollmentFlow,
   RegenerateFlow,
   type Enrollment
 } from '@/components/auth/two-factor-flows'
-
-export type {
-  DisableTwoFactor,
-  EnableTwoFactor,
-  GenerateBackupCodes
-} from '@/components/auth/auth-client-ports'
 
 /**
  * Account-level two-factor management: enable (password → one-time QR/secret
@@ -33,25 +17,17 @@ export type {
  * This module is the state machine — off → enrollment → on — and the frame
  * every step renders in; the flows themselves live beside the other auth
  * components in `auth/two-factor-flows.tsx`, each owning its own field state
- * and its own `useServerAction`. Nothing is shared but the enrollment
- * hand-off and the status line, both of which cross between flows here — a
- * single password field behind all of them used to mean "Turn off" and
- * "Regenerate" typed into each other.
+ * and its own `useServerAction` (calling the Better Auth client directly).
+ * Nothing is shared but the enrollment hand-off and the status line, both of
+ * which cross between flows here — a single password field behind all of
+ * them used to mean "Turn off" and "Regenerate" typed into each other.
  */
 export function TwoFactorPanel({
-  twoFactorEnabled,
-  enableTwoFactor = enableTwoFactorWithAuthClient,
-  verifyTotp = verifyTotpWithAuthClient,
-  disableTwoFactor = disableTwoFactorWithAuthClient,
-  generateBackupCodes = generateBackupCodesWithAuthClient
+  twoFactorEnabled
 }: {
   // Optional/nullable to match the plugin's declared field shape; anything
   // truthy means "on".
   readonly twoFactorEnabled?: boolean | null | undefined
-  readonly enableTwoFactor?: EnableTwoFactor
-  readonly verifyTotp?: VerifyTotpCode
-  readonly disableTwoFactor?: DisableTwoFactor
-  readonly generateBackupCodes?: GenerateBackupCodes
 }) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
@@ -64,7 +40,6 @@ export function TwoFactorPanel({
       <PanelFrame heading="Set up your authenticator" tone="primary">
         <EnrollmentFlow
           enrollment={enrollment}
-          verifyTotp={verifyTotp}
           onStart={clearStatus}
           onVerified={() => {
             setEnrollment(null)
@@ -83,19 +58,15 @@ export function TwoFactorPanel({
           {/* Status dot, from the status vocabulary: on = ok. */}
           <span
             className="mr-2 inline-block size-2 rounded-full bg-status-ok"
-            aria-hidden
+            aria-hidden="true"
           />
           On. Codes are required at sign-in.
         </p>
         <DisableFlow
-          disableTwoFactor={disableTwoFactor}
           onStart={clearStatus}
           onDisabled={() => setStatusMessage('Two-factor authentication is now off.')}
         />
-        <RegenerateFlow
-          generateBackupCodes={generateBackupCodes}
-          onStart={clearStatus}
-        />
+        <RegenerateFlow onStart={clearStatus} />
         <StatusMessage message={statusMessage} />
       </PanelFrame>
     )
@@ -107,15 +78,11 @@ export function TwoFactorPanel({
         {/* Status dot: off = neutral outline, not a second gray. */}
         <span
           className="mr-2 inline-block size-2 rounded-full border border-border"
-          aria-hidden
+          aria-hidden="true"
         />
         Off. Add an authenticator-app code to sign-in.
       </p>
-      <EnableFlow
-        enableTwoFactor={enableTwoFactor}
-        onStart={clearStatus}
-        onEnrolled={setEnrollment}
-      />
+      <EnableFlow onStart={clearStatus} onEnrolled={setEnrollment} />
       <StatusMessage message={statusMessage} />
     </PanelFrame>
   )

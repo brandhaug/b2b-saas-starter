@@ -273,7 +273,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const events = yield* (yield* AuditEventLog).list({
                 eventType: 'workspace_sso.connection_created'
               })
-              return events.events
+              return events.items
             }),
             { userId: 'usr_owner' }
           )
@@ -331,7 +331,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const events = yield* (yield* AuditEventLog).list({
                 eventType: 'workspace_sso.connection_updated'
               })
-              return events.events
+              return events.items
             }),
             { userId: 'usr_owner' }
           )

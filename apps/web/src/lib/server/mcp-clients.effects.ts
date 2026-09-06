@@ -15,27 +15,20 @@ import { type RevokeInput } from './mcp-clients'
  */
 
 /**
- * The account page's "Connected MCP clients" segment (ADR 0068) as a plain
- * function, so tests drive it directly with fixture users against the Seed
- * layer. An account-level read — no workspace layer — the consent names its
+ * The account page's "Connected MCP clients" segment (ADR 0068). The handler
+ * the loader server fn delegates to; the session keys the read. An
+ * account-level read — no workspace layer — the consent names its
  * workspace itself.
  */
-export function loadMcpClientConnections(input: {
-  readonly userId: string
-}): Promise<ReadonlyArray<McpClientConnection>> {
-  return runCapabilities(
-    Effect.flatMap(McpClientConnections, (connections) =>
-      connections.listForUser(input.userId)
-    )
-  )
-}
-
-/** The handler the loader server fn delegates to; the session keys the read. */
 export async function loadMcpClientConnectionsHandler(): Promise<
   ReadonlyArray<McpClientConnection>
 > {
   const session = await requireRequestSession()
-  return loadMcpClientConnections({ userId: session.user.id })
+  return runCapabilities(
+    Effect.flatMap(McpClientConnections, (connections) =>
+      connections.listForUser(session.user.id)
+    )
+  )
 }
 
 /**

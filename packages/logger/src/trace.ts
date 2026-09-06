@@ -18,15 +18,11 @@ export function readTraceHeader(request: Request): string | undefined {
  * either shape, so the encoder lives once, here.
  */
 export function traceparentFor(span: Tracer.AnySpan): string {
-  return `00-${span.traceId}-${span.spanId}-${traceFlags(span.sampled)}`
-}
-
-/** W3C trace-flags byte: bit 0 is the sampled flag, the rest are reserved. */
-function traceFlags(sampled: boolean): string {
-  if (sampled) {
-    return '01'
+  let flags = '00'
+  if (span.sampled) {
+    flags = '01'
   }
-  return '00'
+  return `00-${span.traceId}-${span.spanId}-${flags}`
 }
 
 /**

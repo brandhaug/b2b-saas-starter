@@ -1,5 +1,5 @@
 import { Clock, Effect } from 'effect'
-import { randomHex } from './crypto.ts'
+import { randomHex } from '../crypto.ts'
 
 /**
  * Mints a capability row id (`<prefix>_<millis>_<8-byte hex>`). The timestamp

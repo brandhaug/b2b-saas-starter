@@ -45,7 +45,7 @@ Mutating capabilities that write to D1 wrap the write in `governance/audited-mut
 - No Live mutation without the matching Seed mutation. Tests bind Seed and would pass silently.
 - No Drizzle row types on an `XxxInterface`. The schema struct is the wire contract.
 - Do not replace a plugin-backed write (membership, invitations, lifecycle, user admin, account lifecycle, SSO) with a direct Drizzle write to gain atomicity with its audit row. The divergence is an accepted trade (ADR 0051); the direct write would skip plugin validation and hooks.
-- No `./src/*` deep imports (`starter/no-deep-workspace-imports`).
+- No `./src/*` deep imports (`no-restricted-imports` pattern in the root lint config).
 
 ## Dependencies & Edges
 

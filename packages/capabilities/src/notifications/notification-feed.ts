@@ -46,7 +46,7 @@ export type CreateNotificationInput = {
 }
 
 /** What a producer hands `record` — the feed-only workspace message. */
-export type RecordNotificationInput = {
+type RecordNotificationInput = {
   readonly title: string
   readonly message: string
   /** The member the message is for. */

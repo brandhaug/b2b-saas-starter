@@ -9,14 +9,19 @@ import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keys
 import { StarterApi, type QueuedDeliveryResponse } from '@b2b-saas-starter/api'
 import { WorkspaceExportNotDownloadable } from '@b2b-saas-starter/api/errors'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
-import { Effect, Option, Result } from 'effect'
+import { Effect, Option } from 'effect'
 import { HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 
 import { type ApiEnv } from './env.ts'
-import { enforcePermission, observed, provideWorkspace } from './request-guards.ts'
+import {
+  enforcePermission,
+  observed,
+  provideWorkspace,
+  webRequest
+} from './request-guards.ts'
 import { mcpDiscoveryDocument } from './mcp.ts'
-import { READ_OPERATIONS } from './operations.ts'
+import { READ_OPERATIONS, type ReadOperationEndpoint } from './operations.ts'
 
 /**
  * Contract response literals. Each is declared with the literal type the
@@ -77,12 +82,14 @@ export function workspaceGroup(env: ApiEnv) {
      * between. (Taking the key and indexing `READ_OPERATIONS` inside the body
      * cannot work: within the generic body the index resolves to the union of
      * all six rows, and TypeScript rejects the union against any one
-     * endpoint's schema.) The row's own `read` signature dictates whether
-     * `params` must carry `endpointId` — a parameterized row requires it.
+     * endpoint's schema.) The key rides along as `event` — the table's key is
+     * the wide-event name under `workspace.` — and the row's own `read`
+     * signature dictates whether `params` must carry `endpointId` — a
+     * parameterized row requires it.
      */
     function workspaceRead<Args extends { readonly endpointId?: string }, A, E, R>(
+      event: ReadOperationEndpoint,
       op: {
-        readonly event: string
         readonly permission: PermissionRequest
         readonly read: (
           page: ListPageInput | undefined,
@@ -99,7 +106,7 @@ export function workspaceGroup(env: ApiEnv) {
       // same way the write handlers annotate ids below.
       return workspaceOperation(
         env,
-        `workspace.${op.event}`,
+        `workspace.${event}`,
         op.permission,
         params.slug,
         request,
@@ -117,52 +124,54 @@ export function workspaceGroup(env: ApiEnv) {
     // so the two Capability Interfaces cannot disagree about permissions.
     return handlers
       .handle('overview', ({ params, request }) =>
-        workspaceRead(READ_OPERATIONS.overview, params, undefined, request)
+        workspaceRead('overview', READ_OPERATIONS.overview, params, undefined, request)
       )
       .handle('members', ({ params, query, request }) =>
-        workspaceRead(READ_OPERATIONS.members, params, query, request)
+        workspaceRead('members', READ_OPERATIONS.members, params, query, request)
       )
       .handle('notifications', ({ params, query, request }) =>
-        workspaceRead(READ_OPERATIONS.notifications, params, query, request)
+        workspaceRead(
+          'notifications',
+          READ_OPERATIONS.notifications,
+          params,
+          query,
+          request
+        )
       )
       .handle('api-tokens', ({ params, query, request }) =>
-        workspaceRead(READ_OPERATIONS['api-tokens'], params, query, request)
+        workspaceRead(
+          'api-tokens',
+          READ_OPERATIONS['api-tokens'],
+          params,
+          query,
+          request
+        )
       )
       .handle('webhooks', ({ params, query, request }) =>
-        workspaceRead(READ_OPERATIONS.webhooks, params, query, request)
+        workspaceRead('webhooks', READ_OPERATIONS.webhooks, params, query, request)
       )
       .handle('webhook-deliveries', ({ params, request }) =>
-        workspaceRead(READ_OPERATIONS['webhook-deliveries'], params, undefined, request)
+        workspaceRead(
+          'webhook-deliveries',
+          READ_OPERATIONS['webhook-deliveries'],
+          params,
+          undefined,
+          request
+        )
       )
       .handle('audit-events', ({ params, query, request }) =>
-        workspaceRead(READ_OPERATIONS['audit-events'], params, query, request)
+        workspaceRead(
+          'audit-events',
+          READ_OPERATIONS['audit-events'],
+          params,
+          query,
+          request
+        )
       )
   })
 }
 
 export function apiTokenGroup(env: ApiEnv) {
-  // `revoke` and `delete` are the same operation on this registry — the schema
-  // keeps both routes for REST-shape compatibility, and both answer
-  // identically. Only the wide-event name distinguishes them.
-  function revokeOrDelete(
-    event: 'api-tokens.revoke' | 'api-tokens.delete',
-    params: { readonly slug: string; readonly tokenId: string },
-    request: HttpServerRequest.HttpServerRequest
-  ) {
-    return workspaceOperation(
-      env,
-      event,
-      { apiToken: ['revoke'] },
-      params.slug,
-      request,
-      Effect.gen(function* () {
-        const tokens = yield* ApiTokenRegistry
-        yield* tokens.revoke({ tokenId: params.tokenId })
-        return TOKEN_REVOKED
-      })
-    )
-  }
-
   return HttpApiBuilder.group(StarterApi, 'api-token-registry', (handlers) =>
     handlers
       .handle('create', ({ params, payload, request }) =>
@@ -188,11 +197,19 @@ export function apiTokenGroup(env: ApiEnv) {
           })
         )
       )
-      .handle('revoke', ({ params, request }) =>
-        revokeOrDelete('api-tokens.revoke', params, request)
-      )
       .handle('delete', ({ params, request }) =>
-        revokeOrDelete('api-tokens.delete', params, request)
+        workspaceOperation(
+          env,
+          'api-tokens.delete',
+          { apiToken: ['revoke'] },
+          params.slug,
+          request,
+          Effect.gen(function* () {
+            const tokens = yield* ApiTokenRegistry
+            yield* tokens.revoke({ tokenId: params.tokenId })
+            return TOKEN_REVOKED
+          })
+        )
       )
   )
 }
@@ -418,14 +435,11 @@ export function workspaceExportGroup(env: ApiEnv) {
 }
 
 /**
- * This request's own origin — where the signed download route lives. Read off
- * the worker's `Request` (the same `toWebResult` conversion `observed` uses);
- * a request with no derivable URL falls back to its `host` header.
+ * This request's own origin — where the signed download route lives — read off
+ * the worker's `Request` behind the router's request, the same `webRequest`
+ * conversion `observed` uses (as the `/mcp` challenge header does).
  */
-const requestOrigin = Effect.map(HttpServerRequest.HttpServerRequest, (request) => {
-  const web = HttpServerRequest.toWebResult(request)
-  if (Result.isSuccess(web)) {
-    return new URL(web.success.url).origin
-  }
-  return `https://${request.headers.host ?? 'localhost'}`
-})
+const requestOrigin = Effect.map(
+  HttpServerRequest.HttpServerRequest,
+  (request) => new URL(webRequest(request).url).origin
+)

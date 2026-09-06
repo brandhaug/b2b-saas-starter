@@ -1,4 +1,4 @@
-import { type DrizzleDatabase } from '@b2b-saas-starter/db/client'
+import { type DrizzleDatabase } from './ports.ts'
 import { user } from '@b2b-saas-starter/db/schema'
 import { Effect, type Layer } from 'effect'
 import { cookieHeader as toCookieHeader, cookiePairs } from 'effectful-better-auth'

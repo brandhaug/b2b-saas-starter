@@ -22,12 +22,12 @@ import { type AuditEventType, type AuditTargetType } from './audit-event-taxonom
  * sign-in page asks for.
  */
 
-export const SsoProtocol = Schema.Literals(['oidc', 'saml'])
-export type SsoProtocol = typeof SsoProtocol.Type
+const SsoProtocol = Schema.Literals(['oidc', 'saml'])
+type SsoProtocol = typeof SsoProtocol.Type
 
 /** The provisioning roles a connection may hand a first-time SSO member. */
-export const SsoProvisionedRole = Schema.Literals(ssoProvisionedRoles)
-export type SsoProvisionedRole = typeof SsoProvisionedRole.Type
+const SsoProvisionedRole = Schema.Literals(ssoProvisionedRoles)
+type SsoProvisionedRole = typeof SsoProvisionedRole.Type
 
 /**
  * A connection as the settings UI sees it — deliberately secret-free. The
@@ -59,7 +59,7 @@ export type OidcEndpoints = {
   readonly userInfoEndpoint?: string | undefined
 }
 
-export type CreateOidcConnectionInput = {
+type CreateOidcConnectionInput = {
   readonly protocol: 'oidc'
   readonly domain: string
   readonly issuer: string
@@ -76,7 +76,7 @@ export type CreateOidcConnectionInput = {
   readonly defaultWorkspaceRole: SsoProvisionedRole
 }
 
-export type CreateSamlConnectionInput = {
+type CreateSamlConnectionInput = {
   readonly protocol: 'saml'
   readonly domain: string
   /**
@@ -156,7 +156,7 @@ export const SsoConnectionDetail = Schema.Struct({
 })
 export type SsoConnectionDetail = typeof SsoConnectionDetail.Type
 
-export type SsoConnectionsInterface = {
+type SsoConnectionsInterface = {
   /** Every connection of the current workspace, newest first. */
   readonly list: Effect.Effect<
     ReadonlyArray<SsoConnection>,
@@ -352,7 +352,7 @@ export function requireProtocolMatch(
  * The adapters add `targetId` and record through `recordInWorkspace`.
  */
 /** The audit write both adapters record for one lifecycle event, minus `targetId`. */
-export type SsoAuditEvent = {
+type SsoAuditEvent = {
   readonly eventType: AuditEventType
   readonly targetType: AuditTargetType
   readonly metadata: JsonObject

@@ -1,17 +1,12 @@
 import { QRCodeSVG } from 'qrcode.react'
 import { useState } from 'react'
-import {
-  sixDigitCodeValidator,
-  type DisableTwoFactor,
-  type EnableTwoFactor,
-  type GenerateBackupCodes,
-  type VerifyTotpCode
-} from '@/components/auth/auth-client-ports'
+import { sixDigitCodeValidator } from '@/components/auth/auth-client-ports'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Identifier } from '@/components/page/identifier'
+import { authClient } from '@/lib/auth-client'
 import { authFailure } from '@/lib/auth-result'
 import { authErrorCopy } from '@/lib/auth-error-copy'
 import { useServerAction } from '@/hooks/use-server-action'
@@ -54,30 +49,32 @@ function parseSecretFromUri(uri: string): string | null {
  * rejects like any other failure.
  */
 export function EnableFlow({
-  enableTwoFactor,
   onStart,
   onEnrolled
 }: {
-  readonly enableTwoFactor: EnableTwoFactor
   readonly onStart: () => void
   readonly onEnrolled: (enrollment: Enrollment) => void
 }) {
   const [password, setPassword] = useState('')
   const enroll = useServerAction(
     async () => {
-      const result = await enableTwoFactor({ password })
+      const result = await authClient.twoFactor.enable({ password })
       if (result.error) {
         return authFailure(authErrorCopy(result.error, ENROLL_FAILED))
       }
+      // oxlint-disable typescript/no-unnecessary-condition -- the plugin calls a totp-less body a success; the probe is the wire-shape honesty the type does not carry
       const totpURI =
         result.data && 'totpURI' in result.data ? (result.data.totpURI ?? null) : null
+      // oxlint-enable typescript/no-unnecessary-condition
       if (totpURI === null) {
         return authFailure('Setup response was incomplete')
       }
+      // oxlint-disable typescript/no-unnecessary-condition -- same wire-shape honesty: the otp variant of the enable answer carries neither field
       const backupCodes =
         result.data && 'backupCodes' in result.data
           ? (result.data.backupCodes ?? null)
           : null
+      // oxlint-enable typescript/no-unnecessary-condition
       return { totpURI, backupCodes }
     },
     // Nothing here touches a loader, so nothing invalidates.
@@ -110,12 +107,10 @@ export function EnableFlow({
  */
 export function EnrollmentFlow({
   enrollment,
-  verifyTotp,
   onStart,
   onVerified
 }: {
   readonly enrollment: Enrollment
-  readonly verifyTotp: VerifyTotpCode
   readonly onStart: () => void
   readonly onVerified: () => void
 }) {
@@ -125,7 +120,7 @@ export function EnrollmentFlow({
   const [invalidCode, setInvalidCode] = useState<string | null>(null)
   const verify = useServerAction(
     async () => {
-      const result = await verifyTotp({ code })
+      const result = await authClient.twoFactor.verifyTotp({ code })
       return result.error
         ? authFailure(authErrorCopy(result.error, VERIFY_FAILED))
         : null
@@ -190,18 +185,16 @@ export function EnrollmentFlow({
 
 /** Turning two-factor off, behind its own password confirmation. */
 export function DisableFlow({
-  disableTwoFactor,
   onStart,
   onDisabled
 }: {
-  readonly disableTwoFactor: DisableTwoFactor
   readonly onStart: () => void
   readonly onDisabled: () => void
 }) {
   const [password, setPassword] = useState('')
   const turnOff = useServerAction(
     async () => {
-      const result = await disableTwoFactor({ password })
+      const result = await authClient.twoFactor.disable({ password })
       return result.error
         ? authFailure(authErrorCopy(result.error, DISABLE_FAILED))
         : null
@@ -242,25 +235,21 @@ export function DisableFlow({
  * saved them. Its password is its own: turn-off should not trust what was
  * typed here, and vice versa.
  */
-export function RegenerateFlow({
-  generateBackupCodes,
-  onStart
-}: {
-  readonly generateBackupCodes: GenerateBackupCodes
-  readonly onStart: () => void
-}) {
+export function RegenerateFlow({ onStart }: { readonly onStart: () => void }) {
   const [password, setPassword] = useState('')
   const [codes, setCodes] = useState<ReadonlyArray<string> | null>(null)
   const regenerate = useServerAction(
     async () => {
-      const result = await generateBackupCodes({ password })
+      const result = await authClient.twoFactor.generateBackupCodes({ password })
       if (result.error) {
         return authFailure(authErrorCopy(result.error, REGENERATE_FAILED))
       }
+      // oxlint-disable typescript/no-unnecessary-condition -- regeneration can answer a body without the codes; the probe and the refusal below are that wire-shape honesty
       const backupCodes = result.data?.backupCodes ?? null
       if (backupCodes === null || backupCodes.length === 0) {
         return authFailure('Regeneration response was incomplete')
       }
+      // oxlint-enable typescript/no-unnecessary-condition
       return backupCodes
     },
     {

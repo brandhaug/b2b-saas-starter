@@ -1,14 +1,18 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import {
-  LinkedAccountsPanel,
-  type ListLinkedAccounts,
-  type UnlinkAccount
-} from './linked-accounts-panel'
+import { LinkedAccountsPanel } from './linked-accounts-panel'
 import { renderWithQueryClient } from '@/test/query-harness'
+import { authClient } from '@/lib/auth-client'
 
-const listAccounts = vi.fn<ListLinkedAccounts>()
-const unlinkAccount = vi.fn<UnlinkAccount>()
+// The panel calls the client module directly, so its endpoints are doubles
+// on the mocked module.
+vi.mock('@/lib/auth-client', async () => {
+  const { fakeAuthClient } = await import('@/test/fake-auth-client')
+  return { authClient: fakeAuthClient() }
+})
+
+const listAccounts = vi.mocked(authClient.listAccounts)
+const unlinkAccount = vi.mocked(authClient.unlinkAccount)
 
 function linked(overrides: {
   readonly id: string
@@ -36,9 +40,7 @@ describe('LinkedAccountsPanel', () => {
         linked({ id: 'acc_github', providerId: 'github' })
       ]
     })
-    renderWithQueryClient(
-      <LinkedAccountsPanel listAccounts={listAccounts} unlinkAccount={unlinkAccount} />
-    )
+    renderWithQueryClient(<LinkedAccountsPanel />)
 
     expect(await screen.findByText('GitHub')).toBeDefined()
     expect(screen.getByText('email and password')).toBeDefined()
@@ -52,9 +54,7 @@ describe('LinkedAccountsPanel', () => {
     listAccounts.mockResolvedValue({
       data: [linked({ id: 'acc_credential', providerId: 'credential' })]
     })
-    renderWithQueryClient(
-      <LinkedAccountsPanel listAccounts={listAccounts} unlinkAccount={unlinkAccount} />
-    )
+    renderWithQueryClient(<LinkedAccountsPanel />)
 
     await screen.findByText('email and password')
     expect(screen.queryByRole('button', { name: /Unlink/ })).toBeNull()
@@ -75,9 +75,7 @@ describe('LinkedAccountsPanel', () => {
       .mockResolvedValueOnce({
         data: [linked({ id: 'acc_credential', providerId: 'credential' })]
       })
-    renderWithQueryClient(
-      <LinkedAccountsPanel listAccounts={listAccounts} unlinkAccount={unlinkAccount} />
-    )
+    renderWithQueryClient(<LinkedAccountsPanel />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Unlink GitHub' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Unlink' }))

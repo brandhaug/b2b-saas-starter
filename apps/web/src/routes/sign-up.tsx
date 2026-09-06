@@ -9,9 +9,7 @@ import { emailValidator, passwordValidator } from '@/components/auth/auth-valida
 import { SocialSignInButtons } from '@/components/auth/social-sign-in'
 import { FormTextField } from '@/components/form-text-field'
 import {
-  signInSocialWithAuthClient,
   signUpWithAuthClient,
-  type SignInWithSocial,
   type SignUpWithEmail,
   type SocialProviderId
 } from '@/components/auth/auth-client-ports'
@@ -66,16 +64,15 @@ export function SignUpPage({
   redirect,
   signUp = signUpWithAuthClient,
   turnstileSiteKey = null,
-  socialProviders = NO_SOCIAL_PROVIDERS,
-  signInSocial = signInSocialWithAuthClient
+  socialProviders = NO_SOCIAL_PROVIDERS
 }: {
   readonly redirect?: string | undefined
+  /** The sign-up call, injectable because the adapter composes the callback. */
   readonly signUp?: SignUpWithEmail
   /** Server-provided Turnstile site key; `null` renders no widget (provider-light). */
   readonly turnstileSiteKey?: string | null | undefined
   /** Active provider ids from the loader; empty renders no provider buttons. */
   readonly socialProviders?: ReadonlyArray<SocialProviderId>
-  readonly signInSocial?: SignInWithSocial
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -134,11 +131,7 @@ export function SignUpPage({
         </p>
       }
     >
-      <SocialSignInButtons
-        providers={socialProviders}
-        redirectTo={redirect}
-        signIn={signInSocial}
-      />
+      <SocialSignInButtons providers={socialProviders} redirectTo={redirect} />
 
       <form.Field
         name="name"

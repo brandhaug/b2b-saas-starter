@@ -5,7 +5,6 @@ import {
   ImpersonationForbidden,
   UserAdminRejected
 } from '../errors.ts'
-import { literalTuple } from '../internal/literal-tuple.ts'
 import { type NotificationKind } from '../notifications/notification-kinds.ts'
 import { SystemRole, type Member, type WorkspaceRole } from './workspace-identity.ts'
 
@@ -24,11 +23,11 @@ export const SystemUserAccount = Schema.Struct({
 })
 export type SystemUserAccount = typeof SystemUserAccount.Type
 
-export type UserAdminRef = {
+type UserAdminRef = {
   readonly userId: string
 }
 
-export type BanInput = UserAdminRef & {
+type BanInput = UserAdminRef & {
   /** The admin acting — resolved at the route boundary by `requireAdmin`. */
   readonly actorUserId: string | null
 }
@@ -53,13 +52,14 @@ export const IMPERSONATION_SESSION_SECONDS = 60 * 60
  * it at the catchall (`apps/web/src/lib/server/impersonation-guard.ts`) and the
  * UI hides the matching controls.
  */
-export const IMPERSONATION_FORBIDDEN_ACTIONS = literalTuple(
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const IMPERSONATION_FORBIDDEN_ACTIONS = [
   'change_password',
   'change_two_factor',
   'change_passkey',
   'change_email',
   'delete_account'
-)
+] as const
 
 export type ImpersonationForbiddenAction =
   (typeof IMPERSONATION_FORBIDDEN_ACTIONS)[number]
@@ -85,12 +85,12 @@ export function refuseWhileImpersonating(
   return Effect.fail(new ImpersonationForbidden({ action }))
 }
 
-export type StartImpersonationInput = UserAdminRef & {
+type StartImpersonationInput = UserAdminRef & {
   /** The System Admin starting the session — never null: an unattributed impersonation is refused. */
   readonly actorUserId: string
 }
 
-export type StopImpersonationInput = UserAdminRef & {
+type StopImpersonationInput = UserAdminRef & {
   /** The System Admin whose session is restored, read from `session.impersonatedBy`. */
   readonly actorUserId: string
 }
@@ -101,7 +101,7 @@ export type ImpersonationStarted = {
   readonly expiresInSeconds: number
 }
 
-export type PlatformUserAdminInterface = {
+type PlatformUserAdminInterface = {
   /** Every account, for `/admin`'s user list. Not paginated yet — neither is the plugin read it replaces. */
   readonly listUsers: Effect.Effect<
     ReadonlyArray<SystemUserAccount>,

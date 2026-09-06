@@ -29,7 +29,7 @@ import { webRuntime } from '../observability'
  * end to end locally without an email provider — the link or code lands in
  * the console log instead of an inbox.
  *
- * Unlike `sendInvitation`, a send failure here is not downgraded to a
+ * Unlike the invitation send, a send failure here is not downgraded to a
  * `delivered: false` result: Better Auth's endpoints have no honest "sent but
  * not really" response, so the rejection propagates and the endpoint fails.
  * The log-mode dispatcher never fails; only a real, broken `EMAIL` binding

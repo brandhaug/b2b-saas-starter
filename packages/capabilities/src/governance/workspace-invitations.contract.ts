@@ -282,7 +282,7 @@ export function workspaceInvitationsContractCases(
         const membership = yield* WorkspaceMembership
         const log = yield* AuditEventLog
         function countOf(eventType: string) {
-          return Effect.map(log.list({ eventType }), (page) => page.events.length)
+          return Effect.map(log.list({ eventType }), (page) => page.items.length)
         }
 
         const sentBefore = yield* countOf('workspace_invitation.sent')
@@ -291,9 +291,9 @@ export function workspaceInvitationsContractCases(
           role: 'member'
         })
         const sentPage = yield* log.list({ eventType: 'workspace_invitation.sent' })
-        expect(sentPage.events.length).toBe(sentBefore + 1)
+        expect(sentPage.items.length).toBe(sentBefore + 1)
         expect(
-          sentPage.events.some(
+          sentPage.items.some(
             (event) =>
               event.targetId === created.id &&
               event.targetType === 'workspace_invitation'

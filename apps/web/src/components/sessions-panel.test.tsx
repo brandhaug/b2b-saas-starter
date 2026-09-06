@@ -1,16 +1,19 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import {
-  SessionsPanel,
-  type ListSessions,
-  type RevokeOtherSessions,
-  type RevokeSession
-} from './sessions-panel'
+import { SessionsPanel } from './sessions-panel'
 import { renderWithQueryClient } from '@/test/query-harness'
+import { authClient } from '@/lib/auth-client'
 
-const listSessions = vi.fn<ListSessions>()
-const revokeSession = vi.fn<RevokeSession>()
-const revokeOtherSessions = vi.fn<RevokeOtherSessions>()
+// The panel calls the client module directly, so its endpoints are doubles
+// on the mocked module.
+vi.mock('@/lib/auth-client', async () => {
+  const { fakeAuthClient } = await import('@/test/fake-auth-client')
+  return { authClient: fakeAuthClient() }
+})
+
+const listSessions = vi.mocked(authClient.listSessions)
+const revokeSession = vi.mocked(authClient.revokeSession)
+const revokeOtherSessions = vi.mocked(authClient.revokeOtherSessions)
 
 type SessionRowInput = {
   readonly token: string
@@ -50,14 +53,7 @@ describe('SessionsPanel', () => {
         })
       ]
     })
-    renderWithQueryClient(
-      <SessionsPanel
-        currentSessionToken="tok_current"
-        listSessions={listSessions}
-        revokeSession={revokeSession}
-        revokeOtherSessions={revokeOtherSessions}
-      />
-    )
+    renderWithQueryClient(<SessionsPanel currentSessionToken="tok_current" />)
 
     await screen.findByText('· This device')
     expect(screen.getByText(/Mobile browser/)).toBeDefined()
@@ -80,14 +76,7 @@ describe('SessionsPanel', () => {
         ]
       })
       .mockResolvedValueOnce({ data: [session({ token: 'tok_current' })] })
-    renderWithQueryClient(
-      <SessionsPanel
-        currentSessionToken="tok_current"
-        listSessions={listSessions}
-        revokeSession={revokeSession}
-        revokeOtherSessions={revokeOtherSessions}
-      />
-    )
+    renderWithQueryClient(<SessionsPanel currentSessionToken="tok_current" />)
 
     fireEvent.click(
       await screen.findByRole('button', {
@@ -110,14 +99,7 @@ describe('SessionsPanel', () => {
         session({ token: 'tok_b' })
       ]
     })
-    renderWithQueryClient(
-      <SessionsPanel
-        currentSessionToken="tok_current"
-        listSessions={listSessions}
-        revokeSession={revokeSession}
-        revokeOtherSessions={revokeOtherSessions}
-      />
-    )
+    renderWithQueryClient(<SessionsPanel currentSessionToken="tok_current" />)
     fireEvent.click(
       await screen.findByRole('button', { name: 'Sign out everywhere else' })
     )
@@ -135,14 +117,7 @@ describe('SessionsPanel', () => {
       // than rendering the raw message.
       error: {}
     })
-    renderWithQueryClient(
-      <SessionsPanel
-        currentSessionToken="tok_current"
-        listSessions={listSessions}
-        revokeSession={revokeSession}
-        revokeOtherSessions={revokeOtherSessions}
-      />
-    )
+    renderWithQueryClient(<SessionsPanel currentSessionToken="tok_current" />)
     fireEvent.click(
       await screen.findByRole('button', { name: 'Sign out everywhere else' })
     )

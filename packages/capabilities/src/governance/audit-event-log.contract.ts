@@ -1,9 +1,10 @@
 import { Effect, Encoding } from 'effect'
-import { type ContractExpectMatchers } from './contract-expect.ts'
+import { type ContractExpect } from './contract-expect.ts'
 import { type CapabilityUnavailable } from '../errors.ts'
+import { type Page } from '../internal/keyset-cursor.ts'
 import {
   AuditEventLog,
-  type AuditEventPage,
+  type AuditEvent,
   type ListAuditEventsInput,
   type SeedAuditEventRow
 } from './audit-event-log.ts'
@@ -29,11 +30,6 @@ export type AuditEventLogContractCase = {
     AuditEventLog | WorkspaceContext
   >
 }
-
-/** The slice of vitest's `expect` these cases use — see the lifecycle contract. */
-export type ContractExpect = <A>(
-  actual: A
-) => Pick<ContractExpectMatchers<A>, 'toBe' | 'toEqual' | 'toHaveLength'>
 
 /**
  * The dataset every adapter installs before running the cases, all attributed
@@ -81,7 +77,7 @@ export function auditEventLogContractCases(
   list: (
     input?: ListAuditEventsInput
   ) => Effect.Effect<
-    AuditEventPage,
+    Page<AuditEvent>,
     CapabilityUnavailable,
     AuditEventLog | WorkspaceContext
   >,
@@ -92,7 +88,7 @@ export function auditEventLogContractCases(
       name: 'lists events most-recent-first with ties broken by id',
       assert: Effect.gen(function* () {
         const page = yield* list()
-        expect(page.events.map((event) => event.id)).toEqual([
+        expect(page.items.map((event) => event.id)).toEqual([
           'aud_c_tie_b',
           'aud_c_tie_a',
           'aud_c_old'
@@ -105,14 +101,14 @@ export function auditEventLogContractCases(
       name: 'exposes targetId on the wire',
       assert: Effect.gen(function* () {
         const page = yield* list({ eventType: 'webhook_endpoint.created' })
-        expect(page.events.map((event) => event.targetId)).toEqual(['wh_a'])
+        expect(page.items.map((event) => event.targetId)).toEqual(['wh_a'])
       })
     },
     {
       name: 'filters by actor server-side',
       assert: Effect.gen(function* () {
         const page = yield* list({ actorUserId: 'usr_bob' })
-        expect(page.events.map((event) => event.id)).toEqual(['aud_c_tie_b'])
+        expect(page.items.map((event) => event.id)).toEqual(['aud_c_tie_b'])
       })
     },
     {
@@ -122,11 +118,11 @@ export function auditEventLogContractCases(
           since: '2026-06-01T10:00:00.000Z',
           until: '2026-06-02T10:00:00.000Z'
         })
-        expect(page.events).toHaveLength(3)
+        expect(page.items).toHaveLength(3)
         const narrowed = yield* list({
           since: '2026-06-01T10:00:00.001Z'
         })
-        expect(narrowed.events.map((event) => event.id)).toEqual([
+        expect(narrowed.items.map((event) => event.id)).toEqual([
           'aud_c_tie_b',
           'aud_c_tie_a'
         ])
@@ -136,7 +132,7 @@ export function auditEventLogContractCases(
       name: 'yields an empty page for an undecodable cursor',
       assert: Effect.gen(function* () {
         const page = yield* list({ cursor: 'not-a-cursor' })
-        expect(page.events).toHaveLength(0)
+        expect(page.items).toHaveLength(0)
         expect(page.nextCursor).toBe(null)
       })
     },
@@ -149,7 +145,7 @@ export function auditEventLogContractCases(
         const page = yield* list({
           cursor: Encoding.encodeBase64('2026-06-02T10:00:00.000Z aud_c_tie_b')
         })
-        expect(page.events.map((event) => event.id)).toEqual([
+        expect(page.items.map((event) => event.id)).toEqual([
           'aud_c_tie_a',
           'aud_c_old'
         ])
@@ -159,7 +155,7 @@ export function auditEventLogContractCases(
       name: 'limit narrows the page below the default cap',
       assert: Effect.gen(function* () {
         const page = yield* list({ limit: 2 })
-        expect(page.events.map((event) => event.id)).toEqual([
+        expect(page.items.map((event) => event.id)).toEqual([
           'aud_c_tie_b',
           'aud_c_tie_a'
         ])
@@ -174,7 +170,7 @@ export function auditEventLogContractCases(
         const audit = yield* AuditEventLog
         const ctx = yield* WorkspaceContext
         const first = yield* list({ limit: 1 })
-        expect(first.events.map((event) => event.id)).toEqual(['aud_c_tie_b'])
+        expect(first.items.map((event) => event.id)).toEqual(['aud_c_tie_b'])
         // An event recorded between the two fetches lands wherever its
         // clock puts it — but the resumed page's keyset window is frozen
         // exactly where the first page ended: the original rows it covers
@@ -191,7 +187,7 @@ export function auditEventLogContractCases(
           cursor: first.nextCursor ?? undefined
         })
         const secondOriginals: Array<string> = []
-        for (const event of second.events) {
+        for (const event of second.items) {
           if (event.id.startsWith('aud_c_')) {
             secondOriginals.push(event.id)
           }
@@ -201,12 +197,12 @@ export function auditEventLogContractCases(
         // three keep their relative order wherever the new one landed.
         const fresh = yield* list({ limit: 10 })
         const originalIds: Array<string> = []
-        for (const event of fresh.events) {
+        for (const event of fresh.items) {
           if (event.id.startsWith('aud_c_')) {
             originalIds.push(event.id)
           }
         }
-        expect(fresh.events).toHaveLength(4)
+        expect(fresh.items).toHaveLength(4)
         expect(originalIds).toEqual(['aud_c_tie_b', 'aud_c_tie_a', 'aud_c_old'])
       })
     }

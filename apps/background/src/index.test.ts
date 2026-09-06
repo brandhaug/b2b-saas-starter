@@ -1,5 +1,6 @@
 import { type WebhookDeliveryAttemptInput } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
   NotificationFeed,
@@ -14,12 +15,8 @@ import {
 } from 'effect/unstable/http'
 
 import { signatureHeaderValue, computeWebhookSignature } from './webhook-signing.ts'
-import {
-  processDeadLetterMessage,
-  processWebhookMessage,
-  readQueueDelivery,
-  type WebhookMessage
-} from './webhook-consumer.ts'
+import { processDeadLetterMessage, processWebhookMessage } from './webhook-consumer.ts'
+import { readDelivery } from './queue-consumer.ts'
 
 // The delivery state machine (`backoffSeconds`, `classifyResponseStatus`,
 // `planDeliveryAttempt`) and the SSRF guard (`validateWebhookUrl`) are pure
@@ -64,7 +61,7 @@ describe('webhook signature', () => {
     ))
 })
 
-const message: WebhookMessage = {
+const message: WebhookQueueMessage = {
   endpointId: 'wh_1',
   workspaceId: 'ws_1',
   eventType: 'api_token.created',
@@ -199,14 +196,14 @@ describe('processWebhookMessage', () => {
     status: number,
     attempts = 1,
     input: unknown = message,
-    messageId?: string
+    messageId = 'qmsg_test'
   ) {
     const recorded: Array<WebhookDeliveryAttemptInput> = []
     const created: Array<CreateNotificationInput> = []
     const captured: CapturedRequest = {}
     return runScoped(
       processWebhookMessage(
-        readQueueDelivery({ id: messageId, body: input, attempts }),
+        readDelivery(WebhookQueueMessage, { id: messageId, body: input, attempts }),
         'trace-test'
       ).pipe(
         Effect.provide(
@@ -436,9 +433,9 @@ describe('processDeadLetterMessage', () => {
   ): Effect.Effect<Array<WebhookDeliveryAttemptInput>> {
     const recorded: Array<WebhookDeliveryAttemptInput> = []
     return runScoped(
-      processDeadLetterMessage(readQueueDelivery({ body: input, attempts })).pipe(
-        Effect.provide(Layer.merge(stubEndpoints(target, recorded), stubFeed([])))
-      )
+      processDeadLetterMessage(
+        readDelivery(WebhookQueueMessage, { id: 'qmsg_dead', body: input, attempts })
+      ).pipe(Effect.provide(Layer.merge(stubEndpoints(target, recorded), stubFeed([]))))
     ).pipe(Effect.map(() => recorded))
   }
 

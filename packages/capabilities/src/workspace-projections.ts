@@ -6,7 +6,6 @@ import { WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
 import { type Workspace } from './governance/workspace-identity.ts'
 import { WorkspaceMembership } from './governance/workspace-membership.ts'
 import { WorkspaceOnboarding } from './governance/workspace-onboarding.ts'
-import { literalTuple } from './internal/literal-tuple.ts'
 import {
   NotificationFeed,
   type Notification
@@ -127,17 +126,18 @@ export function listWorkspacesForUser(
  * The onboarding checklist steps, in display order. Labels and links are the
  * UI's — this is the vocabulary, the way the audit taxonomy is.
  */
-export const WORKSPACE_PROGRESS_STEPS = literalTuple(
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+const WORKSPACE_PROGRESS_STEPS = [
   'invite_member',
   'create_api_token',
   'add_webhook_endpoint',
   'enable_two_factor',
   'choose_plan'
-)
+] as const
 
 export type WorkspaceProgressStepId = (typeof WORKSPACE_PROGRESS_STEPS)[number]
 
-export type WorkspaceProgressStep = {
+type WorkspaceProgressStep = {
   readonly id: WorkspaceProgressStepId
   readonly complete: boolean
 }
@@ -151,7 +151,7 @@ export type WorkspaceProgressProjection = {
   readonly dismissedAt: string | null
 }
 
-export type WorkspaceProgressOptions = {
+type WorkspaceProgressOptions = {
   /**
    * Whether to read (and therefore show) the API-token and webhook steps.
    * Those two reads sit behind `apiToken:list` and `webhook:list`, which a

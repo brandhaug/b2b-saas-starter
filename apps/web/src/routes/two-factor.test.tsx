@@ -1,25 +1,24 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import {
-  type VerifyBackupCode,
-  type VerifyTotpCode
-} from '@/components/auth/auth-client-ports'
+import { authClient } from '@/lib/auth-client'
 import { TwoFactorChallengePage } from './two-factor'
 
-// The page's own ports, handed in as props. The router is real, so the
-// redirect assertions read the resulting location instead of asking whether a
+// The page calls the client module directly, so its verify endpoints are
+// doubles on the mocked module. The router is real, so the redirect
+// assertions read the resulting location instead of asking whether a
 // `history.push` double was called.
-const verifyTotp = vi.fn<VerifyTotpCode>()
-const verifyBackupCode = vi.fn<VerifyBackupCode>()
+vi.mock('@/lib/auth-client', async () => {
+  const { fakeAuthClient } = await import('@/test/fake-auth-client')
+  return { authClient: fakeAuthClient() }
+})
+
+const verifyTotp = vi.mocked(authClient.twoFactor.verifyTotp)
+const verifyBackupCode = vi.mocked(authClient.twoFactor.verifyBackupCode)
 
 async function renderPage(redirect?: string) {
   const rendered = await renderWithRouter(
-    <TwoFactorChallengePage
-      {...(redirect === undefined ? {} : { redirect })}
-      verifyTotp={verifyTotp}
-      verifyBackupCode={verifyBackupCode}
-    />,
+    <TwoFactorChallengePage {...(redirect === undefined ? {} : { redirect })} />,
     { path: '/two-factor', destinations: ['/workspaces', '/workspaces/starter-lab'] }
   )
   await screen.findByLabelText('Verification code')

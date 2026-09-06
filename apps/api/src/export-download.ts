@@ -17,8 +17,9 @@ import { enforceRateLimit, observed } from './request-guards.ts'
  * retention horizon, reads the object, and records
  * `workspace.export_downloaded`. Every refusal is one 404 — an unknown id, a
  * bad signature, and an expired link are indistinguishable to a probing
- * client. Not a contract operation: the response is a ZIP, not a schema, and
- * the OpenAPI document must not advertise a route no bearer token reaches.
+ * client. Not a contract operation: the response is a gzipped JSON document,
+ * not a schema, and the OpenAPI document must not advertise a route no bearer
+ * token reaches.
  */
 
 const DownloadQuery = Schema.Struct({
@@ -34,7 +35,7 @@ const notFound = HttpServerResponse.empty({ status: 404 })
  * A guard failure as a plain response on this non-contract route: status and
  * body both come from the contract's own error annotations
  * (`guardFailureResponse`), so the refusal reads exactly like the same
- * failure on a REST route — the same thing `POST /mcp` does. Only the ZIP
+ * failure on a REST route — the same thing `POST /mcp` does. Only the gzip
  * response and the 404s above are this route's own shape.
  */
 function guardResponse(
@@ -82,7 +83,7 @@ export function exportDownloadLayer(env: ApiEnv) {
         }
         yield* Effect.annotateLogsScoped({ sizeBytes: download.value.sizeBytes })
         return HttpServerResponse.uint8Array(download.value.body, {
-          contentType: 'application/zip',
+          contentType: 'application/gzip',
           headers: {
             'content-disposition': `attachment; filename="${download.value.fileName}"`,
             'cache-control': 'private, no-store'

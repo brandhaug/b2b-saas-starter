@@ -22,7 +22,7 @@ import { orUnavailable } from '../internal/unavailable.ts'
  */
 
 export const WORKSPACE_ROLES = workspaceRoles
-export const SYSTEM_ROLES = systemRoles
+const SYSTEM_ROLES = systemRoles
 
 export const WorkspaceRole = Schema.Literals(WORKSPACE_ROLES)
 export type WorkspaceRole = typeof WorkspaceRole.Type

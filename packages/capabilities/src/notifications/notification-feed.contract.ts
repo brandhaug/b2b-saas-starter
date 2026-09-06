@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { type ContractExpectMatchers } from '../governance/contract-expect.ts'
+import { type ContractExpect } from '../governance/contract-expect.ts'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { NotificationFeed, type SeedNotification } from './notification-feed.ts'
@@ -67,11 +67,6 @@ export type NotificationFeedContractCase = {
     NotificationFeed | WorkspaceContext
   >
 }
-
-/** The slice of vitest's `expect` these cases use — see the lifecycle contract. */
-export type ContractExpect = <A>(
-  actual: A
-) => Pick<ContractExpectMatchers<A>, 'toBe' | 'toEqual'>
 
 export function notificationFeedContractCases(
   freshIds: () => NotificationFeedContractDataset,

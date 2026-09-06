@@ -9,26 +9,20 @@ import { Schema } from 'effect'
  * `token_workspace_mismatch` when a token reaches across workspaces. A new
  * denial reason means widening this record; anything else is a compile error.
  */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const AUTHORIZATION_DENIED_REASONS = {
   noPrincipal: 'no_principal',
   insufficientPermission: 'insufficient_permission',
   invalidToken: 'invalid_token',
   tokenWorkspaceMismatch: 'token_workspace_mismatch'
-} satisfies Record<AuthorizationDeniedReasonKey, AuthorizationDeniedReasonValue>
+} as const
 
 /** The record's keys — exactly the denial causes the guards distinguish. */
-export type AuthorizationDeniedReasonKey =
-  | 'noPrincipal'
-  | 'insufficientPermission'
-  | 'invalidToken'
-  | 'tokenWorkspaceMismatch'
+export type AuthorizationDeniedReasonKey = keyof typeof AUTHORIZATION_DENIED_REASONS
 
 /** The wire vocabulary of `AuthorizationDenied.reason`. */
 export type AuthorizationDeniedReasonValue =
-  | 'no_principal'
-  | 'insufficient_permission'
-  | 'invalid_token'
-  | 'token_workspace_mismatch'
+  (typeof AUTHORIZATION_DENIED_REASONS)[AuthorizationDeniedReasonKey]
 
 export const AuthorizationDeniedReason = Schema.Literals(
   Object.values(AUTHORIZATION_DENIED_REASONS)

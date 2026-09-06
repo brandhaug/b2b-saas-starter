@@ -24,13 +24,13 @@ function workersAiError(reason: AiError.AiErrorReason) {
 
 /** The binding takes one raw string: the message texts, blank ones dropped. */
 function flatPrompt(messages: ReadonlyArray<ChatMessage>): string {
-  const chunks: Array<string> = []
+  const parts: Array<string> = []
   for (const message of messages) {
     if (message.content !== '') {
-      chunks.push(message.content)
+      parts.push(message.content)
     }
   }
-  return chunks.join('\n\n')
+  return parts.join('\n\n')
 }
 
 /**

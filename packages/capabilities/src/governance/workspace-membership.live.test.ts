@@ -51,7 +51,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             Effect.gen(function* () {
               const audit = yield* AuditEventLog
-              return (yield* audit.list()).events
+              return (yield* audit.list()).items
             }),
             { userId: 'usr_owner' }
           )
@@ -125,7 +125,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const events = yield* run(
             Effect.gen(function* () {
               const audit = yield* AuditEventLog
-              return (yield* audit.list()).events
+              return (yield* audit.list()).items
             })
           )
           const types = events.map((event) => event.eventType)
@@ -276,7 +276,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               'other-lab',
               Effect.gen(function* () {
                 const audit = yield* AuditEventLog
-                return (yield* audit.list()).events
+                return (yield* audit.list()).items
               }),
               { userId: 'usr_bob' }
             )

@@ -1,25 +1,26 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
-import {
-  type RequestPasswordReset,
-  type RequestPasswordResetCode,
-  type ResetPasswordWithCode
-} from '@/components/auth/auth-client-ports'
+import { authClient } from '@/lib/auth-client'
+import { type RequestPasswordReset } from '@/components/auth/auth-client-ports'
 import { ForgotPasswordPage } from './forgot-password'
 
-// The page's own `requestReset` port, handed in as a prop.
+// The link request stays a prop: `requestPasswordResetWithAuthClient`
+// composes the redirect, so the test drives the kept behaviour seam
+// directly. The code path's two endpoints call the client module directly
+// and are doubles on the mocked module.
+vi.mock('@/lib/auth-client', async () => {
+  const { fakeAuthClient } = await import('@/test/fake-auth-client')
+  return { authClient: fakeAuthClient() }
+})
+
 const requestReset = vi.fn<RequestPasswordReset>()
-const requestCode = vi.fn<RequestPasswordResetCode>()
-const resetWithCode = vi.fn<ResetPasswordWithCode>()
+const requestCode = vi.mocked(authClient.emailOtp.requestPasswordReset)
+const resetWithCode = vi.mocked(authClient.emailOtp.resetPassword)
 
 async function renderPage() {
   const rendered = await renderWithRouter(
-    <ForgotPasswordPage
-      requestReset={requestReset}
-      requestCode={requestCode}
-      resetWithCode={resetWithCode}
-    />,
+    <ForgotPasswordPage requestReset={requestReset} />,
     { path: '/forgot-password', destinations: ['/sign-in'] }
   )
   await screen.findByLabelText('Email')
@@ -146,7 +147,7 @@ describe('ForgotPasswordPage', () => {
       expect(resetWithCode).toHaveBeenCalledWith({
         email: 'demo@starter.local',
         otp: '246813',
-        newPassword: 'fresh-otp-password-1'
+        password: 'fresh-otp-password-1'
       })
     )
     await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'))

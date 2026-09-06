@@ -10,7 +10,7 @@ import {
   WorkspaceExports,
   type CompleteWorkspaceExportInput,
   type FailWorkspaceExportInput,
-  type WorkspaceExportQueueMessage,
+  WorkspaceExportQueueMessage,
   type WorkspaceExportsInterface
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
@@ -29,9 +29,9 @@ import {
 } from '../../../infra/bindings.ts'
 import {
   processWorkspaceExportMessage,
-  readExportDelivery,
   type ResolveWorkspace
 } from './export-consumer.ts'
+import { readDelivery } from './queue-consumer.ts'
 
 const workspace = { id: 'wrk_1', slug: 'lab', name: 'Lab', planId: 'team' }
 
@@ -122,7 +122,7 @@ function stubReads(failing = false) {
       recordTerminalDeliveryAttempt: () => unused
     }),
     Layer.succeed(AuditEventLog)({
-      list: () => list({ events: [], nextCursor: null }),
+      list: () => list({ items: [], nextCursor: null }),
       listGlobal: unused,
       record: () => unused,
       prepareRecord: () => unused
@@ -162,7 +162,11 @@ function run(
   return Effect.scoped(
     Effect.orDie(
       processWorkspaceExportMessage(
-        readExportDelivery({ body, attempts: options.attempts ?? 1 }),
+        readDelivery(WorkspaceExportQueueMessage, {
+          id: 'qmsg_export',
+          body,
+          attempts: options.attempts ?? 1
+        }),
         options.resolve ?? resolveLab
       ).pipe(
         Effect.provide(
@@ -183,10 +187,8 @@ describe('processWorkspaceExportMessage', () => {
         expect(recorded.completed).toHaveLength(1)
         const completed = recorded.completed[0]
         expect(completed).toMatchObject({ exportId: 'exp_1', workspaceId: 'wrk_1' })
-        // A real ZIP: local-header signature first, end-of-central-directory last.
-        expect([...(completed?.archive.subarray(0, 4) ?? [])]).toEqual([
-          0x50, 0x4b, 3, 4
-        ])
+        // A real gzip container: magic bytes first.
+        expect([...(completed?.archive.subarray(0, 2) ?? [])]).toEqual([0x1f, 0x8b])
         expect(completed?.archive.length).toBeGreaterThan(22)
       })
     ))
@@ -254,13 +256,15 @@ describe('processWorkspaceExportMessage', () => {
     ))
 })
 
-describe('readExportDelivery', () => {
+describe('readDelivery', () => {
   it('decodes the producer schema, traceparent included', () => {
-    const delivery = readExportDelivery({
+    const delivery = readDelivery(WorkspaceExportQueueMessage, {
+      id: 'qmsg_1',
       body: { ...message, traceparent: '00-abc-def-01' },
       attempts: 2
     })
     expect(delivery).toEqual({
+      id: 'qmsg_1',
       attempts: 2,
       kind: 'message',
       message: { ...message, traceparent: '00-abc-def-01' }
@@ -269,8 +273,12 @@ describe('readExportDelivery', () => {
 
   it('names a body that misses the workspace slug malformed', () => {
     expect(
-      readExportDelivery({ body: { exportId: 'x', workspaceId: 'y' }, attempts: 1 })
-    ).toEqual({ attempts: 1, kind: 'malformed' })
+      readDelivery(WorkspaceExportQueueMessage, {
+        id: 'qmsg_2',
+        body: { exportId: 'x', workspaceId: 'y' },
+        attempts: 1
+      })
+    ).toEqual({ id: 'qmsg_2', attempts: 1, kind: 'malformed' })
   })
 })
 

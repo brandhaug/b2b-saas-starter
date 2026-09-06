@@ -1,7 +1,7 @@
 /* oxlint-disable starter/no-hex-color -- mermaid needs concrete color values:
  * it interpolates and parses them in JS (d3-color), so CSS custom properties
- * cannot cross that boundary the way chart-colors.ts hands recharts
- * `var(--chart-1)` for CSS-side fills. Every literal here mirrors the Catppuccin
+ * cannot cross that boundary the way recharts charts take `var(--chart-1)`
+ * for CSS-side fills. Every literal here mirrors the Catppuccin
  * Mocha token of the same name in apps/web/src/index.css, the file that stays
  * the one source of these values; change a token there, change its mirror here.
  */

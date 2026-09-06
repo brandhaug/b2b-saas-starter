@@ -68,8 +68,7 @@ import { join } from 'node:path'
  *
  * Byte budget: intentionally NOT enforced here. The root route's static
  * import graph is only observable by fetching a built page's modulepreload
- * set — `scripts/measure-preloads.mjs` does that against a running
- * `vp preview` and owns the budget signal.
+ * set from a running preview, not from the build output this script reads.
  */
 
 const MARKERS = [

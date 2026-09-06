@@ -22,7 +22,7 @@ flowchart LR
   BG -->|Email| Email[Cloudflare Email]
 ```
 
-The web Worker has the D1 binding wired but reads through `SeedLayer` today; it will swap to `makeLiveLayerFromD1` when the live readers are adopted.
+The web Worker has the D1 binding wired; the shared capabilities runtime selects the Live layer when the binding is present and falls back to the in-memory Seed layer when it is not, so a fresh clone with no bindings still runs.
 
 ## Why this shape
 

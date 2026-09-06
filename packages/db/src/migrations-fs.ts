@@ -13,14 +13,12 @@ const migrationsDir = join(import.meta.dirname, '..', 'migrations')
 
 /** Reads every committed migration, sorted by folder name (timestamp order). */
 export function listMigrations(): Array<{ name: string; sql: string }> {
-  const names = readdirSync(migrationsDir, { withFileTypes: true }).reduce<
-    Array<string>
-  >((folders, entry) => {
+  const names: Array<string> = []
+  for (const entry of readdirSync(migrationsDir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      folders.push(entry.name)
+      names.push(entry.name)
     }
-    return folders
-  }, [])
+  }
   return names.toSorted().map((name) => ({
     name,
     sql: readFileSync(join(migrationsDir, name, 'migration.sql'), 'utf8')

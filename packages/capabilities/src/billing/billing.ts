@@ -34,19 +34,19 @@ export function seatChangeMetadata(quantity: number, detail?: JsonObject): JsonO
 }
 
 /** The checkout handoff: where Stripe should send the browser afterwards. */
-export type CheckoutInput = {
+type CheckoutInput = {
   readonly planId: string
   readonly successUrl: string
   readonly cancelUrl: string
 }
 
-export type CheckoutSession = {
+type CheckoutSession = {
   /** The Stripe-hosted URL to redirect the browser to. */
   readonly url: string
 }
 
 /** The Billing Portal handoff: same shape as checkout, different Stripe surface. */
-export type PortalSession = {
+type PortalSession = {
   /** The Stripe-hosted Billing Portal URL to redirect the browser to. */
   readonly url: string
 }
@@ -57,7 +57,7 @@ export type PortalSession = {
  * without re-deriving the decision. Every non-`synced` outcome is an honest
  * no-op, not a failure — the queue message is acked.
  */
-export type SeatSyncOutcome =
+type SeatSyncOutcome =
   | 'synced'
   /** The workspace has never checked out: no subscription row to sync. */
   | 'no_subscription'
@@ -161,7 +161,7 @@ export type ApplySubscriptionEventInput = {
   readonly detail?: JsonObject | undefined
 }
 
-export type BillingInterface = {
+type BillingInterface = {
   /**
    * Whether checkout is actually wired: the Stripe secret key is set and
    * every self-serve plan's price id is configured. One definition of

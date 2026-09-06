@@ -16,18 +16,13 @@ import { mkdtempSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Schema } from 'effect'
+import { parseArgs } from 'node:util'
 import { listMigrations } from '../src/migrations-fs.ts'
+import { decodeNames } from './alchemy-bookkeeping.ts'
 import { wranglerD1Execute } from './wrangler-d1.ts'
 
-function resolveTarget(argv: ReadonlyArray<string>): '--remote' | '--local' {
-  if (argv.includes('--remote')) {
-    return '--remote'
-  }
-  return '--local'
-}
-
-const target = resolveTarget(process.argv)
+const { values } = parseArgs({ options: { remote: { type: 'boolean' } } })
+const target = values.remote ? '--remote' : '--local'
 
 function wranglerExecute(
   args: ReadonlyArray<string>,
@@ -48,18 +43,6 @@ function wranglerExecute(
   )
 }
 
-// Wrangler's `--json` output for a SELECT: one batch per statement. Decoding it
-// instead of casting means a wrangler output change fails here, loudly, rather
-// than producing an empty applied-set and re-running every migration.
-
-const AppliedMigrationsJson = Schema.fromJsonString(
-  Schema.Array(
-    Schema.Struct({
-      results: Schema.Array(Schema.Struct({ name: Schema.String }))
-    })
-  )
-)
-
 const migrations = listMigrations()
 
 await wranglerExecute(
@@ -69,14 +52,8 @@ await wranglerExecute(
   true
 )
 
-const appliedJson = await wranglerExecute(
-  ['--command=SELECT name FROM d1_migrations'],
-  true
-)
-const applied = new Set<string>(
-  Schema.decodeUnknownSync(AppliedMigrationsJson)(appliedJson).flatMap((batch) =>
-    batch.results.map((row) => row.name)
-  )
+const applied = new Set(
+  decodeNames(await wranglerExecute(['--command=SELECT name FROM d1_migrations'], true))
 )
 
 const pending = migrations.filter(({ name }) => !applied.has(name))
