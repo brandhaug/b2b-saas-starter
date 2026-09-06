@@ -128,7 +128,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
   () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- suite setup runs outside any test; converting the hook to it.layer is a separate change
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the hook is the port: layer() suites expose no live tester for a real-clock suite, and a memoized fixture could not dispose its workerd process
     Effect.runPromise(
       Effect.gen(function* () {
         provisioned = yield* Effect.promise(() => provisionAuthD1())
