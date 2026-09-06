@@ -7,7 +7,7 @@ import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
   mirroredRestPath,
   READ_OPERATIONS,
-  readOperations,
+  mcpToolOperations,
   type CapabilityRead,
   type CapabilityReadError,
   type CapabilityReadServices,
@@ -78,7 +78,10 @@ import {
  *
  * `GET /mcp/discovery` remains the REST discovery document served by the
  * contract group; it advertises exactly what this module registers. (`GET
- * /mcp` itself is `layerHttp`'s: 405, no SSE stream to open.)
+ * /mcp` itself is `layerHttp`'s: 405, no SSE stream to open.) The registered
+ * tools are the operation table's tool-projecting rows — every read, no
+ * mutation; the write-tool boundary is a per-row decision recorded in
+ * ADR 0072.
  *
  * Two credentials open the route (ADR 0068): a workspace API Token, or an
  * OAuth access token the web worker minted for a signed-in Member after the
@@ -181,11 +184,13 @@ function toolInput(operation: WorkspaceReadOperation): ToolJsonSchema {
 /**
  * One tool descriptor, projected from one row of the shared operation table
  * (operations.ts) rather than hand-mirrored: same name, same permission, same
- * capability read as the REST endpoint it names. Every tool is a read over a
- * surviving capability — MCP exposes what REST exposes, nothing resurrected.
+ * capability read as the REST endpoint it names. Only rows that declare a
+ * tool projection reach here — every read today, no mutation (ADR 0072) — so
+ * MCP exposes what REST exposes, nothing resurrected and nothing destructive
+ * until a row says otherwise.
  */
 function toolDescription(operation: WorkspaceReadOperation): string {
-  return `${operation.toolDescription} Mirrors GET /${mirroredRestPath(operation.path)}.`
+  return `${operation.toolDescription} Mirrors GET /${mirroredRestPath(operation.endpoint.path)}.`
 }
 
 /**
@@ -207,7 +212,7 @@ export function mcpDiscoveryDocument(): McpDiscovery {
   return {
     name: MCP_SERVER_NAME,
     resources: [OVERVIEW_RESOURCE_URI],
-    tools: readOperations().map(toolProjection)
+    tools: mcpToolOperations().map(toolProjection)
   }
 }
 
@@ -353,21 +358,23 @@ function decodeOperationInput(
   return Effect.gen(function* () {
     if (operation.param !== undefined) {
       const args = yield* decodeEndpointIdInput(payload ?? {}).pipe(invalidParams)
-      return operation.read(undefined, args)
+      return Effect.suspend(() => operation.read(undefined, args))
     }
     if (operation.paged) {
       const page = yield* decodePagedInput(payload ?? {}).pipe(invalidParams)
-      return operation.read(page)
+      return Effect.suspend(() => operation.read(page))
     }
-    return operation.read(undefined)
+    return Effect.suspend(() => operation.read(undefined))
   })
 }
 
 /**
- * Registers every read operation as an MCP tool. Each invocation re-checks
- * its own permission first — the route gate only proved the caller holds a
- * valid credential; a tool must never serve data its REST counterpart would
- * deny — and typed failures become `isError` results the model can read.
+ * Registers the tool-projecting rows of the operation table as MCP tools —
+ * today every read and no mutation, the per-row `mcpTool` decision of
+ * ADR 0072. Each invocation re-checks its own permission first — the route
+ * gate only proved the caller holds a valid credential; a tool must never
+ * serve data its REST counterpart would deny — and typed failures become
+ * `isError` results the model can read.
  */
 function registerTools(env: ApiEnv) {
   return Effect.gen(function* () {
@@ -376,7 +383,7 @@ function registerTools(env: ApiEnv) {
     // resolve them from this context rather than rebuilding any graph.
     const services = yield* Effect.context<CapabilityReadServices>()
 
-    for (const operation of readOperations()) {
+    for (const operation of mcpToolOperations()) {
       yield* registry.addTool({
         tool: new McpTool({
           ...toolProjection(operation),

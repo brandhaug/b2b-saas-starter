@@ -24,7 +24,7 @@ describe('mcp ↔ rest operation mirror', () => {
     for (const [index, operation] of readOperations().entries()) {
       const tool = mcpDiscoveryDocument().tools[index]
       expect(tool?.description).toContain(
-        `Mirrors GET /${mirroredRestPath(operation.path)}.`
+        `Mirrors GET /${mirroredRestPath(operation.endpoint.path)}.`
       )
     }
   })
@@ -113,7 +113,12 @@ function Ok<Result extends Schema.Top>(result: Result) {
 }
 
 const ToolListResult = Schema.Struct({
-  tools: Schema.Array(Schema.Struct({ name: Schema.String }))
+  tools: Schema.Array(
+    Schema.Struct({
+      name: Schema.String,
+      annotations: Schema.Struct({ readOnlyHint: Schema.Boolean })
+    })
+  )
 })
 const CallToolResult = Schema.Struct({
   content: Schema.Array(Schema.Struct({ type: Schema.String, text: Schema.String })),
@@ -138,6 +143,30 @@ const GuardFailureBody = Schema.Struct({
 })
 
 describe('POST /mcp protocol', () => {
+  it.effect(
+    'admin credentials expose only read tools, with read-only annotations',
+    () =>
+      Effect.gen(function* () {
+        const client = mcpClient(handler, bearer.authorization)
+        yield* Effect.promise(() => client.initialize())
+        const response = yield* Effect.promise(() => client.rpc('tools/list', {}))
+        const body = yield* jsonBody(response, Ok(ToolListResult))
+        // This is the permitted public tool contract, independent of catalog rows.
+        expect(body.result.tools.map((tool) => tool.name).toSorted()).toEqual([
+          'get_workspace_overview',
+          'list_api_tokens',
+          'list_audit_events',
+          'list_members',
+          'list_notifications',
+          'list_webhook_deliveries',
+          'list_webhooks'
+        ])
+        expect(body.result.tools.every((tool) => tool.annotations.readOnlyHint)).toBe(
+          true
+        )
+      })
+  )
+
   it.effect('a session-initialized client lists tools and calls them', () =>
     Effect.gen(function* () {
       const client = mcpClient(handler, bearer.authorization)

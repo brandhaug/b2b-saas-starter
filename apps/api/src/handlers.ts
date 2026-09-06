@@ -1,38 +1,29 @@
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
-import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import {
-  type UpdateWebhookEndpointInput,
-  WebhookEndpoints
-} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
-import { StarterApi, type QueuedDeliveryResponse } from '@b2b-saas-starter/api'
-import { WorkspaceExportNotDownloadable } from '@b2b-saas-starter/api/errors'
+import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { StarterApi } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
-import { Effect, Option } from 'effect'
-import { HttpServerRequest } from 'effect/unstable/http'
+import { Context, Effect } from 'effect'
+import { type HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 
 import { type ApiEnv } from './env.ts'
-import {
-  enforcePermission,
-  observed,
-  provideWorkspace,
-  webRequest
-} from './request-guards.ts'
+import { enforcePermission, observed, provideWorkspace } from './request-guards.ts'
 import { mcpDiscoveryDocument } from './mcp.ts'
-import { READ_OPERATIONS, type ReadOperationEndpoint } from './operations.ts'
+import {
+  type MutationRequestOptions,
+  MUTATION_OPERATIONS,
+  READ_OPERATIONS
+} from './operations.ts'
 
 /**
- * Contract response literals. Each is declared with the literal type the
- * `StarterApi` success schema pins down, so the value is *checked* against the
- * contract instead of asserted with `as const`.
+ * Contract response literal. Declared with the literal type the `StarterApi`
+ * success schema pins down, so the value is *checked* against the contract
+ * instead of asserted with `as const`.
  */
 const HEALTH_OK = { status: 'ok' } satisfies { readonly status: 'ok' }
-const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
-const WEBHOOK_DELETED = {
-  status: 'deleted'
-} satisfies { readonly status: 'deleted' }
 
 /**
  * The one wrapper every workspace-scoped handler composes — reads and writes
@@ -40,8 +31,8 @@ const WEBHOOK_DELETED = {
  * wide event. Bearer auth and the group's rate-limit bucket are the contract's
  * `BearerAuth` middleware's job, so a handler composes only this and the
  * capability call. The event name is passed whole — reads sit under
- * `workspace.*` (see `workspaceRead`), writes name themselves
- * (`api-tokens.create`).
+ * `workspace.*` (see `workspaceRead`), a write's table key is its event
+ * (`api-tokens.create`, see `workspaceWrite`).
  *
  * Every REST workspace operation rides a bearer token, so the workspace layer
  * the body runs against carries the `api_token` caller kind — the label a
@@ -77,23 +68,12 @@ export function healthGroup(env: ApiEnv) {
 
 export function workspaceGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'workspace', (handlers) => {
-    /**
-     * Generic in the row, not in the key: the call site hands over the table
-     * entry itself, so `A`/`E`/`R` are inferred from that row's own capability
-     * read. That is what lets the contract's success and error schemas check
-     * the handler — a row whose read stopped answering what its endpoint
-     * declares fails here, at compile time, with no channel widening in
-     * between. (Taking the key and indexing `READ_OPERATIONS` inside the body
-     * cannot work: within the generic body the index resolves to the union of
-     * all six rows, and TypeScript rejects the union against any one
-     * endpoint's schema.) The key rides along as `event` — the table's key is
-     * the wide-event name under `workspace.` — and the row's own `read`
-     * signature dictates whether `params` must carry `endpointId` — a
-     * parameterized row requires it.
-     */
+    // Infer each concrete row's input, success, errors, and requirements rather
+    // than widening to the union of reads. HttpApiBuilder checks the result
+    // against that endpoint's contract. Parameterized reads require endpointId.
     function workspaceRead<Args extends { readonly endpointId?: string }, A, E, R>(
-      event: ReadOperationEndpoint,
       op: {
+        readonly endpoint: { readonly identifier: string }
         readonly permission: PermissionRequest
         readonly read: (
           page: ListPageInput | undefined,
@@ -110,7 +90,7 @@ export function workspaceGroup(env: ApiEnv) {
       // same way the write handlers annotate ids below.
       return workspaceOperation(
         env,
-        `workspace.${event}`,
+        `workspace.${op.endpoint.identifier}`,
         op.permission,
         params.slug,
         request,
@@ -128,220 +108,91 @@ export function workspaceGroup(env: ApiEnv) {
     // so the two Capability Interfaces cannot disagree about permissions.
     return handlers
       .handle('overview', ({ params, request }) =>
-        workspaceRead('overview', READ_OPERATIONS.overview, params, undefined, request)
+        workspaceRead(READ_OPERATIONS.overview, params, undefined, request)
       )
       .handle('members', ({ params, query, request }) =>
-        workspaceRead('members', READ_OPERATIONS.members, params, query, request)
+        workspaceRead(READ_OPERATIONS.members, params, query, request)
       )
       .handle('notifications', ({ params, query, request }) =>
-        workspaceRead(
-          'notifications',
-          READ_OPERATIONS.notifications,
-          params,
-          query,
-          request
-        )
+        workspaceRead(READ_OPERATIONS.notifications, params, query, request)
       )
       .handle('api-tokens', ({ params, query, request }) =>
-        workspaceRead(
-          'api-tokens',
-          READ_OPERATIONS['api-tokens'],
-          params,
-          query,
-          request
-        )
+        workspaceRead(READ_OPERATIONS['api-tokens'], params, query, request)
       )
       .handle('webhooks', ({ params, query, request }) =>
-        workspaceRead('webhooks', READ_OPERATIONS.webhooks, params, query, request)
+        workspaceRead(READ_OPERATIONS.webhooks, params, query, request)
       )
       .handle('webhook-deliveries', ({ params, request }) =>
-        workspaceRead(
-          'webhook-deliveries',
-          READ_OPERATIONS['webhook-deliveries'],
-          params,
-          undefined,
-          request
-        )
+        workspaceRead(READ_OPERATIONS['webhook-deliveries'], params, undefined, request)
       )
       .handle('audit-events', ({ params, query, request }) =>
-        workspaceRead(
-          'audit-events',
-          READ_OPERATIONS['audit-events'],
-          params,
-          query,
-          request
-        )
+        workspaceRead(READ_OPERATIONS['audit-events'], params, query, request)
       )
   })
 }
 
+/** Preserve each row's input, result and errors through contract registration. */
+function workspaceWrites<Services>(
+  env: ApiEnv,
+  services: Context.Context<Services>,
+  eventPrefix: string
+) {
+  return function workspaceWrite<Options extends MutationRequestOptions, A, E, R>(op: {
+    readonly endpoint: { readonly identifier: string }
+    readonly permission: PermissionRequest
+    readonly run: (options: Options) => Effect.Effect<A, E, R>
+  }) {
+    return (
+      options: Options & { readonly request: HttpServerRequest.HttpServerRequest }
+    ) =>
+      workspaceOperation(
+        env,
+        `${eventPrefix}.${op.endpoint.identifier}`,
+        op.permission,
+        options.params.slug,
+        options.request,
+        Effect.suspend(() => op.run(options)).pipe(Effect.provide(services))
+      )
+  }
+}
+
+// Explicit endpoint bindings preserve HttpApiBuilder's per-endpoint schema
+// checks. Permissions, calls and response/error shaping belong to the rows.
 export function apiTokenGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'api-token-registry', (handlers) =>
-    handlers
-      .handle('create', ({ params, payload, request }) =>
-        workspaceOperation(
-          env,
-          'api-tokens.create',
-          { apiToken: ['create'] },
-          params.slug,
-          request,
-          Effect.gen(function* () {
-            const tokens = yield* ApiTokenRegistry
-            // The entitlement gate and the webhook fan-out live inside the
-            // capability, below the interface — identical for every surface.
-            const created = yield* tokens.create({
-              name: payload.name,
-              scopes: payload.scopes
-            })
-            yield* Effect.annotateLogsScoped({
-              tokenId: created.id,
-              tokenScopes: created.scopes
-            })
-            return created
-          })
-        )
+    Effect.gen(function* () {
+      const tokens = yield* ApiTokenRegistry
+      const write = workspaceWrites(
+        env,
+        Context.make(ApiTokenRegistry, tokens),
+        'api-tokens'
       )
-      .handle('delete', ({ params, request }) =>
-        workspaceOperation(
-          env,
-          'api-tokens.delete',
-          { apiToken: ['revoke'] },
-          params.slug,
-          request,
-          Effect.gen(function* () {
-            const tokens = yield* ApiTokenRegistry
-            yield* tokens.revoke({ tokenId: params.tokenId })
-            return TOKEN_REVOKED
-          })
-        )
-      )
+      return handlers.handleAll({
+        create: write(MUTATION_OPERATIONS['api-tokens.create']),
+        delete: write(MUTATION_OPERATIONS['api-tokens.delete'])
+      })
+    })
   )
 }
 
 export function webhookGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'webhook-endpoints', (handlers) =>
-    handlers
-      .handle('create', ({ params, payload, request }) =>
-        workspaceOperation(
-          env,
-          'webhooks.create',
-          { webhook: ['create'] },
-          params.slug,
-          request,
-          Effect.gen(function* () {
-            const webhooks = yield* WebhookEndpoints
-            const created = yield* webhooks.create({
-              url: payload.url,
-              events: payload.events,
-              description: payload.description
-            })
-            yield* Effect.annotateLogsScoped({ webhookEndpointId: created.endpoint.id })
-            return created.endpoint
-          })
-        )
+    Effect.gen(function* () {
+      const webhooks = yield* WebhookEndpoints
+      const write = workspaceWrites(
+        env,
+        Context.make(WebhookEndpoints, webhooks),
+        'webhooks'
       )
-      .handle('update', ({ params, payload, request }) =>
-        workspaceOperation(
-          env,
-          'webhooks.update',
-          { webhook: ['update'] },
-          params.slug,
-          request,
-          Effect.gen(function* () {
-            const webhooks = yield* WebhookEndpoints
-            const patch: UpdateWebhookEndpointInput = {
-              endpointId: params.endpointId
-            }
-            if (payload.url !== undefined) {
-              patch.url = payload.url
-            }
-            if (payload.events !== undefined) {
-              patch.events = payload.events
-            }
-            if (payload.enabled !== undefined) {
-              patch.enabled = payload.enabled
-            }
-            const updated = yield* webhooks.update(patch)
-            yield* Effect.annotateLogsScoped({ webhookEndpointId: updated.id })
-            return updated
-          })
-        )
-      )
-      .handle('delete', ({ params, request }) =>
-        workspaceOperation(
-          env,
-          'webhooks.delete',
-          { webhook: ['delete'] },
-          params.slug,
-          request,
-          Effect.gen(function* () {
-            const webhooks = yield* WebhookEndpoints
-            // A no-match delete fails the capability's typed 404 — the same
-            // `WebhookEndpointNotFound` the contract declares.
-            yield* webhooks.delete({ endpointId: params.endpointId })
-            return WEBHOOK_DELETED
-          })
-        )
-      )
-      .handle('rotate-secret', ({ params, request }) =>
-        workspaceOperation(
-          env,
-          'webhooks.rotate-secret',
-          { webhook: ['rotateSecret'] },
-          params.slug,
-          request,
-          Effect.gen(function* () {
-            const webhooks = yield* WebhookEndpoints
-            // The new secret rides this one response only — the same one-time
-            // reveal the web surface gives the operator.
-            const rotated = yield* webhooks.rotateSecret({
-              endpointId: params.endpointId
-            })
-            yield* Effect.annotateLogsScoped({ webhookEndpointId: params.endpointId })
-            return { signingSecret: rotated.signingSecret }
-          })
-        )
-      )
-      .handle('test-event', ({ params, request }) =>
-        workspaceOperation(
-          env,
-          'webhooks.test-event',
-          { webhook: ['test'] },
-          params.slug,
-          request,
-          Effect.gen(function* () {
-            const webhooks = yield* WebhookEndpoints
-            const sent = yield* webhooks.sendTestEvent({
-              endpointId: params.endpointId
-            })
-            yield* Effect.annotateLogsScoped({ deliveryId: sent.deliveryId })
-            return {
-              status: 'queued',
-              deliveryId: sent.deliveryId
-            } satisfies QueuedDeliveryResponse
-          })
-        )
-      )
-      .handle('replay-delivery', ({ params, request }) =>
-        workspaceOperation(
-          env,
-          'webhooks.replay-delivery',
-          { webhook: ['replay'] },
-          params.slug,
-          request,
-          Effect.gen(function* () {
-            const webhooks = yield* WebhookEndpoints
-            const replayed = yield* webhooks.replayDelivery({
-              deliveryId: params.deliveryId
-            })
-            yield* Effect.annotateLogsScoped({ deliveryId: replayed.deliveryId })
-            return {
-              status: 'queued',
-              deliveryId: replayed.deliveryId
-            } satisfies QueuedDeliveryResponse
-          })
-        )
-      )
+      return handlers.handleAll({
+        create: write(MUTATION_OPERATIONS['webhooks.create']),
+        update: write(MUTATION_OPERATIONS['webhooks.update']),
+        delete: write(MUTATION_OPERATIONS['webhooks.delete']),
+        'rotate-secret': write(MUTATION_OPERATIONS['webhooks.rotate-secret']),
+        'test-event': write(MUTATION_OPERATIONS['webhooks.test-event']),
+        'replay-delivery': write(MUTATION_OPERATIONS['webhooks.replay-delivery'])
+      })
+    })
   )
 }
 
@@ -388,62 +239,25 @@ export function mcpGroup(env: ApiEnv) {
 }
 
 /**
- * Workspace data export over the REST surface (ADR 0055). `request` enqueues
- * the job; `download-link` mints the signed URL, re-checking the permission on
- * the way — the link then points at the public signed route on this worker,
- * so it is prefixed with this request's own origin.
+ * Workspace data export over the REST surface (ADR 0055): `request` enqueues
+ * the job; `download-link` mints the signed URL, re-checking the permission
+ * on the way — the link then points at the public signed route on this worker,
+ * so it is prefixed with this request's own origin (the one request-derived
+ * success in the table; see the download-link row).
  */
 export function workspaceExportGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'workspace-exports', (handlers) =>
-    handlers
-      .handle('request', ({ params, request }) =>
-        workspaceOperation(
-          env,
-          'workspace-exports.request',
-          { workspaceExport: ['request'] },
-          params.slug,
-          request,
-          Effect.gen(function* () {
-            const exports = yield* WorkspaceExports
-            const created = yield* exports.request
-            yield* Effect.annotateLogsScoped({ exportId: created.id })
-            return created
-          })
-        )
+    Effect.gen(function* () {
+      const exports = yield* WorkspaceExports
+      const write = workspaceWrites(
+        env,
+        Context.make(WorkspaceExports, exports),
+        'workspace-exports'
       )
-      .handle('download-link', ({ params, request }) =>
-        workspaceOperation(
-          env,
-          'workspace-exports.download-link',
-          { workspaceExport: ['download'] },
-          params.slug,
-          request,
-          Effect.gen(function* () {
-            const exports = yield* WorkspaceExports
-            const link = yield* exports.issueDownloadLink({ exportId: params.exportId })
-            if (Option.isNone(link)) {
-              return yield* new WorkspaceExportNotDownloadable({
-                exportId: params.exportId
-              })
-            }
-            const origin = yield* requestOrigin
-            yield* Effect.annotateLogsScoped({ exportId: params.exportId })
-            return {
-              url: `${origin}${link.value.path}`,
-              expiresAt: link.value.expiresAt
-            }
-          })
-        )
-      )
+      return handlers.handleAll({
+        request: write(MUTATION_OPERATIONS['workspace-exports.request']),
+        'download-link': write(MUTATION_OPERATIONS['workspace-exports.download-link'])
+      })
+    })
   )
 }
-
-/**
- * This request's own origin — where the signed download route lives — read off
- * the worker's `Request` behind the router's request, the same `webRequest`
- * conversion `observed` uses (as the `/mcp` challenge header does).
- */
-const requestOrigin = Effect.map(
-  HttpServerRequest.HttpServerRequest,
-  (request) => new URL(webRequest(request).url).origin
-)
