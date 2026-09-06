@@ -60,4 +60,12 @@ const exit = await Effect.runPromiseExit(Effect.succeed('ack'))
 const outcome = await E.runPromise(E.succeed('ack'))
 `
   )
+
+  rule.invalid(
+    'reports through a namespace import',
+    `import * as Eff from 'effect'
+
+const outcome = await Eff.runPromise(Eff.succeed('ack'))
+`
+  )
 })
