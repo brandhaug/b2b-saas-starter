@@ -14,7 +14,10 @@ import {
   requireRecipient,
   requireUnexpired,
   WorkspaceInvitations,
+  type AcceptInvitationInput,
+  type CreateInvitationInput,
   type Invitation,
+  type InvitationRef,
   type WorkspaceInvitationBinding
 } from './workspace-invitations.ts'
 
@@ -124,7 +127,7 @@ export function LiveWorkspaceInvitations(
       })
 
       return {
-        list: Effect.gen(function* () {
+        list: Effect.fn('WorkspaceInvitations.list')(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -133,8 +136,8 @@ export function LiveWorkspaceInvitations(
               .where(eq(workspaceInvitations.workspaceId, ctx.workspace.id))
           )
           return rows.map(toInvitation)
-        }),
-        find: (invitationId) =>
+        })(),
+        find: Effect.fn('WorkspaceInvitations.find')((invitationId: string) =>
           findJoined(invitationId).pipe(
             Effect.map(
               Option.map((row) => ({
@@ -143,87 +146,91 @@ export function LiveWorkspaceInvitations(
                 workspaceName: row.workspace.name
               }))
             )
-          ),
-        create: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            yield* callBinding(binding, (bound) =>
-              bound.create({
-                workspaceId: ctx.workspace.id,
-                email: input.email,
-                role: input.role
-              })
-            )
-            const created = yield* readPending(ctx.workspace.id, input.email)
-            yield* recordInWorkspace(audit, {
-              eventType: 'workspace_invitation.sent',
-              targetType: 'workspace_invitation',
-              targetId: created.id,
-              metadata: { email: input.email, role: input.role }
+          )
+        ),
+        create: Effect.fn('WorkspaceInvitations.create')(function* (
+          input: CreateInvitationInput
+        ) {
+          const ctx = yield* WorkspaceContext
+          yield* callBinding(binding, (bound) =>
+            bound.create({
+              workspaceId: ctx.workspace.id,
+              email: input.email,
+              role: input.role
             })
-            return created
-          }),
-        cancel: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const pending = yield* requirePendingInWorkspace(
-              ctx.workspace.id,
-              input.invitationId
-            )
-            yield* callBinding(binding, (bound) =>
-              bound.cancel({ invitationId: input.invitationId })
-            )
-            yield* recordInWorkspace(audit, {
-              eventType: 'workspace_invitation.canceled',
-              targetType: 'workspace_invitation',
-              targetId: input.invitationId,
-              metadata: { email: pending.email }
-            })
-          }),
-        accept: (input) =>
-          Effect.gen(function* () {
-            // No `WorkspaceContext` to read: the invitation names its own
-            // workspace, which is the only way an accept can work for someone
-            // the workspace does not yet contain.
-            const joined = yield* findJoined(input.invitationId)
-            if (Option.isNone(joined)) {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: 'invitation_not_pending' })
-              )
-            }
-            const row = joined.value
-            const pending = toInvitation(row.invitation)
-            yield* requirePending(pending)
-            yield* requireRecipient(pending, input.email)
-            yield* requireUnexpired(pending)
-
-            // The plugin settles the invitation and creates the member row in
-            // one call; this capability never writes either itself.
-            yield* callBinding(binding, (bound) =>
-              bound.accept({ invitationId: input.invitationId })
-            )
-            yield* audit.record({
-              workspaceId: row.workspace.id,
-              actorUserId: input.userId,
-              actorType: 'user',
-              eventType: 'workspace_invitation.accepted',
-              targetType: 'workspace_invitation',
-              targetId: input.invitationId,
-              metadata: { email: pending.email, role: pending.role }
-            })
-            // Acceptance adds a member, so it triggers the same seat sync a
-            // direct add does — keyed off the invitation's own workspace,
-            // because the accepter still has no `WorkspaceContext` to read.
-            yield* publishSeatSyncWith(seatSync, {
-              workspaceId: row.workspace.id,
-              reason: 'invitation_accepted'
-            })
-            return {
-              workspaceSlug: row.workspace.slug,
-              workspaceName: row.workspace.name,
-              role: pending.role
-            }
+          )
+          const created = yield* readPending(ctx.workspace.id, input.email)
+          yield* recordInWorkspace(audit, {
+            eventType: 'workspace_invitation.sent',
+            targetType: 'workspace_invitation',
+            targetId: created.id,
+            metadata: { email: input.email, role: input.role }
           })
+          return created
+        }),
+        cancel: Effect.fn('WorkspaceInvitations.cancel')(function* (
+          input: InvitationRef
+        ) {
+          const ctx = yield* WorkspaceContext
+          const pending = yield* requirePendingInWorkspace(
+            ctx.workspace.id,
+            input.invitationId
+          )
+          yield* callBinding(binding, (bound) =>
+            bound.cancel({ invitationId: input.invitationId })
+          )
+          yield* recordInWorkspace(audit, {
+            eventType: 'workspace_invitation.canceled',
+            targetType: 'workspace_invitation',
+            targetId: input.invitationId,
+            metadata: { email: pending.email }
+          })
+        }),
+        accept: Effect.fn('WorkspaceInvitations.accept')(function* (
+          input: AcceptInvitationInput
+        ) {
+          // No `WorkspaceContext` to read: the invitation names its own
+          // workspace, which is the only way an accept can work for someone
+          // the workspace does not yet contain.
+          const joined = yield* findJoined(input.invitationId)
+          if (Option.isNone(joined)) {
+            return yield* Effect.fail(
+              new MembershipChangeRejected({ reason: 'invitation_not_pending' })
+            )
+          }
+          const row = joined.value
+          const pending = toInvitation(row.invitation)
+          yield* requirePending(pending)
+          yield* requireRecipient(pending, input.email)
+          yield* requireUnexpired(pending)
+
+          // The plugin settles the invitation and creates the member row in
+          // one call; this capability never writes either itself.
+          yield* callBinding(binding, (bound) =>
+            bound.accept({ invitationId: input.invitationId })
+          )
+          yield* audit.record({
+            workspaceId: row.workspace.id,
+            actorUserId: input.userId,
+            actorType: 'user',
+            eventType: 'workspace_invitation.accepted',
+            targetType: 'workspace_invitation',
+            targetId: input.invitationId,
+            metadata: { email: pending.email, role: pending.role }
+          })
+          // Acceptance adds a member, so it triggers the same seat sync a
+          // direct add does — keyed off the invitation's own workspace,
+          // because the accepter still has no `WorkspaceContext` to read.
+          yield* publishSeatSyncWith(seatSync, {
+            workspaceId: row.workspace.id,
+            reason: 'invitation_accepted'
+          })
+          return {
+            workspaceSlug: row.workspace.slug,
+            workspaceName: row.workspace.name,
+            role: pending.role
+          }
+        })
       }
     })
   )

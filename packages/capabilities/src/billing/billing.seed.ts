@@ -1,3 +1,4 @@
+import { type JsonObject } from '@b2b-saas-starter/db/schema'
 import { Effect, Layer, Ref } from 'effect'
 
 import { CapabilityUnavailable } from '../errors.ts'
@@ -11,6 +12,8 @@ import {
   planChangeMetadata,
   seatChangeMetadata,
   seatQuantityMoved,
+  type ApplySubscriptionEventInput,
+  type CheckoutInput,
   type SubscriptionState
 } from './billing.ts'
 /**
@@ -75,147 +78,117 @@ export function SeedBilling(options?: {
       }
 
       return {
-        configured: Effect.succeed(configured),
-        currentPlan: Effect.gen(function* () {
+        configured: Effect.fn('Billing.configured')(() => Effect.succeed(configured))(),
+        currentPlan: Effect.fn('Billing.currentPlan')(function* () {
           const ctx = yield* WorkspaceContext
           const overrides = yield* Ref.get(planOverrides)
           return planById(overrides.get(ctx.workspace.id) ?? ctx.workspace.planId)
-        }),
-        startCheckout: (input) =>
-          Effect.gen(function* () {
-            if (!configured) {
-              return yield* Effect.fail(
-                new CapabilityUnavailable({
-                  capability: 'billing',
-                  reason: 'provider_not_configured'
-                })
-              )
-            }
-            const ctx = yield* WorkspaceContext
-            let quantity = 1
-            if (planById(input.planId).pricing === 'per_seat') {
-              quantity = yield* memberCount
-            }
-            const url = `https://checkout.stripe.com/c/pay/test_${input.planId}`
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
-              eventType: 'billing.checkout_started',
-              targetType: 'workspace',
-              targetId: ctx.workspace.id,
-              metadata: { planId: input.planId, quantity }
-            })
-            return { url }
-          }),
-        startPortalSession: (_input) =>
-          Effect.gen(function* () {
-            if (!configured) {
-              return yield* Effect.fail(
-                new CapabilityUnavailable({
-                  capability: 'billing',
-                  reason: 'provider_not_configured'
-                })
-              )
-            }
-            const ctx = yield* WorkspaceContext
-            const current = (yield* Ref.get(subscriptions)).get(ctx.workspace.id)
-            if (current === undefined) {
-              return yield* Effect.fail(
-                new CapabilityUnavailable({
-                  capability: 'billing',
-                  reason: 'no_billing_profile'
-                })
-              )
-            }
-            yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
-              eventType: 'billing.portal_opened',
-              targetType: 'workspace',
-              targetId: ctx.workspace.id,
-              metadata: {}
-            })
-            return {
-              url: `https://billing.stripe.com/p/session/test_portal_${ctx.workspace.id}`
-            }
-          }),
-        applyProviderEvent: (input) =>
-          Effect.gen(function* () {
-            const known = PLANS.some((plan) => plan.id === input.planId)
-            if (!known) {
-              return false
-            }
-            yield* Ref.update(planOverrides, (map) => {
-              const next = new Map(map)
-              next.set(input.workspaceId, input.planId)
-              return next
-            })
-            yield* audit.record({
-              // A system event: the actor is the provider webhook, not a user.
-              workspaceId: input.workspaceId,
-              actorUserId: null,
-              actorType: 'system',
-              eventType: 'billing.plan_changed',
-              targetType: 'workspace',
-              targetId: input.workspaceId,
-              metadata: planChangeMetadata(input.planId, input.detail)
-            })
-            return true
-          }),
-        applySubscriptionEvent: (input) =>
-          Effect.gen(function* () {
-            const existing = (yield* Ref.get(subscriptions)).get(input.workspaceId)
-            // The shared reduction (`billing.ts`) both adapters enforce:
-            // `null` means the event carries no customer and no row holds one
-            // — the Live adapter answers the same input `false`.
-            const next = nextSubscriptionState(input, existing)
-            if (next === null) {
-              return false
-            }
-            yield* Ref.update(subscriptions, (map) => {
-              const nextMap = new Map(map)
-              nextMap.set(input.workspaceId, next)
-              return nextMap
-            })
-            if (seatQuantityMoved(input, next, existing)) {
-              yield* audit.record({
-                workspaceId: input.workspaceId,
-                actorUserId: null,
-                actorType: 'system',
-                eventType: 'billing.seats_changed',
-                targetType: 'workspace',
-                targetId: input.workspaceId,
-                metadata: seatChangeMetadata(next.seatQuantity, input.detail)
+        })(),
+        startCheckout: Effect.fn('Billing.startCheckout')(function* (
+          input: CheckoutInput
+        ) {
+          if (!configured) {
+            return yield* Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'billing',
+                reason: 'provider_not_configured'
               })
-            }
-            return true
-          }),
-        syncSeats: (input) =>
-          Effect.gen(function* () {
-            // Workspace state is checked before the provider gate, so a
-            // workspace that never checked out answers `no_subscription`
-            // whether or not Stripe is configured on this deployment.
-            const members = yield* memberCount
-            const current = (yield* Ref.get(subscriptions)).get(input.workspaceId)
-            if (current === undefined) {
-              return { outcome: 'no_subscription', quantity: null }
-            }
-            if (current.subscriptionItemId === null) {
-              return { outcome: 'no_seat_item', quantity: null }
-            }
-            if (current.seatQuantity === members) {
-              return { outcome: 'quantity_unchanged', quantity: members }
-            }
-            if (!configured) {
-              return { outcome: 'provider_not_configured', quantity: null }
-            }
-            yield* Ref.update(subscriptions, (map) => {
-              const next = new Map(map)
-              next.set(input.workspaceId, { ...current, seatQuantity: members })
-              return next
-            })
+            )
+          }
+          const ctx = yield* WorkspaceContext
+          let quantity = 1
+          if (planById(input.planId).pricing === 'per_seat') {
+            quantity = yield* memberCount
+          }
+          const url = `https://checkout.stripe.com/c/pay/test_${input.planId}`
+          yield* audit.record({
+            workspaceId: ctx.workspace.id,
+            actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
+            eventType: 'billing.checkout_started',
+            targetType: 'workspace',
+            targetId: ctx.workspace.id,
+            metadata: { planId: input.planId, quantity }
+          })
+          return { url }
+        }),
+        startPortalSession: Effect.fn('Billing.startPortalSession')(function* (_input: {
+          readonly returnUrl: string
+        }) {
+          if (!configured) {
+            return yield* Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'billing',
+                reason: 'provider_not_configured'
+              })
+            )
+          }
+          const ctx = yield* WorkspaceContext
+          const current = (yield* Ref.get(subscriptions)).get(ctx.workspace.id)
+          if (current === undefined) {
+            return yield* Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'billing',
+                reason: 'no_billing_profile'
+              })
+            )
+          }
+          yield* audit.record({
+            workspaceId: ctx.workspace.id,
+            actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
+            eventType: 'billing.portal_opened',
+            targetType: 'workspace',
+            targetId: ctx.workspace.id,
+            metadata: {}
+          })
+          return {
+            url: `https://billing.stripe.com/p/session/test_portal_${ctx.workspace.id}`
+          }
+        }),
+        applyProviderEvent: Effect.fn('Billing.applyProviderEvent')(function* (input: {
+          readonly workspaceId: string
+          readonly planId: string
+          readonly detail?: JsonObject | undefined
+        }) {
+          const known = PLANS.some((plan) => plan.id === input.planId)
+          if (!known) {
+            return false
+          }
+          yield* Ref.update(planOverrides, (map) => {
+            const next = new Map(map)
+            next.set(input.workspaceId, input.planId)
+            return next
+          })
+          yield* audit.record({
+            // A system event: the actor is the provider webhook, not a user.
+            workspaceId: input.workspaceId,
+            actorUserId: null,
+            actorType: 'system',
+            eventType: 'billing.plan_changed',
+            targetType: 'workspace',
+            targetId: input.workspaceId,
+            metadata: planChangeMetadata(input.planId, input.detail)
+          })
+          return true
+        }),
+        applySubscriptionEvent: Effect.fn('Billing.applySubscriptionEvent')(function* (
+          input: ApplySubscriptionEventInput
+        ) {
+          const existing = (yield* Ref.get(subscriptions)).get(input.workspaceId)
+          // The shared reduction (`billing.ts`) both adapters enforce:
+          // `null` means the event carries no customer and no row holds one
+          // — the Live adapter answers the same input `false`.
+          const next = nextSubscriptionState(input, existing)
+          if (next === null) {
+            return false
+          }
+          yield* Ref.update(subscriptions, (map) => {
+            const nextMap = new Map(map)
+            nextMap.set(input.workspaceId, next)
+            return nextMap
+          })
+          if (seatQuantityMoved(input, next, existing)) {
             yield* audit.record({
               workspaceId: input.workspaceId,
               actorUserId: null,
@@ -223,10 +196,48 @@ export function SeedBilling(options?: {
               eventType: 'billing.seats_changed',
               targetType: 'workspace',
               targetId: input.workspaceId,
-              metadata: seatChangeMetadata(members, { reason: input.reason })
+              metadata: seatChangeMetadata(next.seatQuantity, input.detail)
             })
-            return { outcome: 'synced', quantity: members }
+          }
+          return true
+        }),
+        syncSeats: Effect.fn('Billing.syncSeats')(function* (input: {
+          readonly workspaceId: string
+          readonly reason: string
+        }) {
+          // Workspace state is checked before the provider gate, so a
+          // workspace that never checked out answers `no_subscription`
+          // whether or not Stripe is configured on this deployment.
+          const members = yield* memberCount
+          const current = (yield* Ref.get(subscriptions)).get(input.workspaceId)
+          if (current === undefined) {
+            return { outcome: 'no_subscription', quantity: null }
+          }
+          if (current.subscriptionItemId === null) {
+            return { outcome: 'no_seat_item', quantity: null }
+          }
+          if (current.seatQuantity === members) {
+            return { outcome: 'quantity_unchanged', quantity: members }
+          }
+          if (!configured) {
+            return { outcome: 'provider_not_configured', quantity: null }
+          }
+          yield* Ref.update(subscriptions, (map) => {
+            const next = new Map(map)
+            next.set(input.workspaceId, { ...current, seatQuantity: members })
+            return next
           })
+          yield* audit.record({
+            workspaceId: input.workspaceId,
+            actorUserId: null,
+            actorType: 'system',
+            eventType: 'billing.seats_changed',
+            targetType: 'workspace',
+            targetId: input.workspaceId,
+            metadata: seatChangeMetadata(members, { reason: input.reason })
+          })
+          return { outcome: 'synced', quantity: members }
+        })
       }
     })
   )

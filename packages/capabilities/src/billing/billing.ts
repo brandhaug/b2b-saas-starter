@@ -34,7 +34,7 @@ export function seatChangeMetadata(quantity: number, detail?: JsonObject): JsonO
 }
 
 /** The checkout handoff: where Stripe should send the browser afterwards. */
-type CheckoutInput = {
+export type CheckoutInput = {
   readonly planId: string
   readonly successUrl: string
   readonly cancelUrl: string

@@ -23,7 +23,11 @@ import {
   verifyWorkspaceExportDownload,
   workspaceExportExpiresAt,
   WorkspaceExports,
-  type WorkspaceExport
+  type CompleteWorkspaceExportInput,
+  type FailWorkspaceExportInput,
+  type OpenWorkspaceExportDownloadInput,
+  type WorkspaceExport,
+  type WorkspaceExportAvailability
 } from './workspace-export.ts'
 import { type Workspace } from './workspace-identity.ts'
 
@@ -191,15 +195,17 @@ export function SeedWorkspaceExports(options: {
       }
 
       return {
-        availability: Effect.succeed({ available: true }),
-        list: Effect.gen(function* () {
+        availability: Effect.fn('WorkspaceExports.availability')(() =>
+          Effect.succeed({ available: true } satisfies WorkspaceExportAvailability)
+        )(),
+        list: Effect.fn('WorkspaceExports.list')(function* () {
           const ctx = yield* WorkspaceContext
           return rows
             .filter((row) => row.workspaceId === ctx.workspace.id)
             .toSorted(byRequestedAtDesc)
             .map((row) => row.record)
-        }),
-        request: Effect.gen(function* () {
+        })(),
+        request: Effect.fn('WorkspaceExports.request')(function* () {
           const ctx = yield* WorkspaceContext
           const id = yield* newCapabilityId('exp')
           const requestedAt = yield* DateTime.now
@@ -235,9 +241,9 @@ export function SeedWorkspaceExports(options: {
           const archive = yield* buildArchive(id, requestedAt)
           yield* completeRow(row, archive, requestedAt, audit, feed)
           return row.record
-        }),
-        issueDownloadLink: (input) =>
-          Effect.gen(function* () {
+        })(),
+        issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(
+          function* (input: { readonly exportId: string }) {
             const ctx = yield* WorkspaceContext
             const row = rows.find(
               (candidate) =>
@@ -252,17 +258,19 @@ export function SeedWorkspaceExports(options: {
               record: row.record,
               now: yield* DateTime.now
             })
-          }),
-        complete: (input) =>
-          Effect.gen(function* () {
-            const row = findPending(input.exportId, input.workspaceId)
-            if (!row) {
-              return false
-            }
-            yield* completeRow(row, input.archive, yield* DateTime.now, audit, feed)
-            return true
-          }),
-        fail: (input) =>
+          }
+        ),
+        complete: Effect.fn('WorkspaceExports.complete')(function* (
+          input: CompleteWorkspaceExportInput
+        ) {
+          const row = findPending(input.exportId, input.workspaceId)
+          if (!row) {
+            return false
+          }
+          yield* completeRow(row, input.archive, yield* DateTime.now, audit, feed)
+          return true
+        }),
+        fail: Effect.fn('WorkspaceExports.fail')((input: FailWorkspaceExportInput) =>
           Effect.sync(() => {
             const row = findPending(input.exportId, input.workspaceId)
             if (!row) {
@@ -274,43 +282,45 @@ export function SeedWorkspaceExports(options: {
               failureReason: input.reason
             }
             return true
-          }),
-        openDownload: (input) =>
-          Effect.gen(function* () {
-            const now = yield* DateTime.now
-            const row = rows.find((candidate) => candidate.record.id === input.exportId)
-            if (
-              !row ||
-              row.archive === null ||
-              !isWorkspaceExportDownloadable(row.record, now)
-            ) {
-              return Option.none()
-            }
-            const valid = yield* verifyWorkspaceExportDownload({
-              downloadSecret: row.downloadSecret,
-              exportId: input.exportId,
-              expires: input.expires,
-              signature: input.signature,
-              now
-            })
-            if (!valid) {
-              return Option.none()
-            }
-            yield* audit.record({
-              workspaceId: row.workspaceId,
-              actorUserId: null,
-              actorType: 'user',
-              eventType: 'workspace.export_downloaded',
-              targetType: 'workspace_export',
-              targetId: row.record.id,
-              metadata: {}
-            })
-            return Option.some({
-              fileName: workspaceExportFileName(row.workspaceSlug, row.record.id),
-              sizeBytes: row.archive.length,
-              body: row.archive
-            })
           })
+        ),
+        openDownload: Effect.fn('WorkspaceExports.openDownload')(function* (
+          input: OpenWorkspaceExportDownloadInput
+        ) {
+          const now = yield* DateTime.now
+          const row = rows.find((candidate) => candidate.record.id === input.exportId)
+          if (
+            !row ||
+            row.archive === null ||
+            !isWorkspaceExportDownloadable(row.record, now)
+          ) {
+            return Option.none()
+          }
+          const valid = yield* verifyWorkspaceExportDownload({
+            downloadSecret: row.downloadSecret,
+            exportId: input.exportId,
+            expires: input.expires,
+            signature: input.signature,
+            now
+          })
+          if (!valid) {
+            return Option.none()
+          }
+          yield* audit.record({
+            workspaceId: row.workspaceId,
+            actorUserId: null,
+            actorType: 'user',
+            eventType: 'workspace.export_downloaded',
+            targetType: 'workspace_export',
+            targetId: row.record.id,
+            metadata: {}
+          })
+          return Option.some({
+            fileName: workspaceExportFileName(row.workspaceSlug, row.record.id),
+            sizeBytes: row.archive.length,
+            body: row.archive
+          })
+        })
       }
     })
   )

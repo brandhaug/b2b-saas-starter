@@ -99,7 +99,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         )
         expect(requested.status).toBe('pending')
         expect(ports.sent).toEqual([
-          { exportId: requested.id, workspaceId: 'wrk_live', workspaceSlug: 'live-lab' }
+          {
+            exportId: requested.id,
+            workspaceId: 'wrk_live',
+            workspaceSlug: 'live-lab',
+            // `request` opens the span the publisher stamps onto the message,
+            // so the consumer joins the trace (ADR 0050).
+            traceparent: expect.any(String)
+          }
         ])
 
         // Nothing to hand out while the job is pending.

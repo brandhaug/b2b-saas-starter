@@ -11,7 +11,10 @@ import {
   requireRecipient,
   requireUnexpired,
   WorkspaceInvitations,
+  type AcceptInvitationInput,
+  type CreateInvitationInput,
   type Invitation,
+  type InvitationRef,
   type InvitationStatus
 } from './workspace-invitations.ts'
 
@@ -84,8 +87,8 @@ export function SeedWorkspaceInvitations(options: {
       const seatSync = yield* SeatSyncPublisher
 
       return {
-        list: Ref.get(store),
-        find: (invitationId) =>
+        list: Effect.fn('WorkspaceInvitations.list')(() => Ref.get(store))(),
+        find: Effect.fn('WorkspaceInvitations.find')((invitationId: string) =>
           Ref.get(store).pipe(
             Effect.map((rows) => {
               const found = rows.find((row) => row.id === invitationId)
@@ -98,94 +101,98 @@ export function SeedWorkspaceInvitations(options: {
                 workspaceName: options.workspace.name
               })
             })
-          ),
-        create: (input) =>
-          Effect.gen(function* () {
-            const current = yield* Ref.get(store)
-            const alreadyInvited = current.some(
-              (each) => each.email === input.email && each.status === 'pending'
+          )
+        ),
+        create: Effect.fn('WorkspaceInvitations.create')(function* (
+          input: CreateInvitationInput
+        ) {
+          const current = yield* Ref.get(store)
+          const alreadyInvited = current.some(
+            (each) => each.email === input.email && each.status === 'pending'
+          )
+          if (alreadyInvited) {
+            return yield* Effect.fail(
+              new MembershipChangeRejected({ reason: 'already_invited' })
             )
-            if (alreadyInvited) {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: 'already_invited' })
-              )
-            }
-            const id = yield* newCapabilityId('inv')
-            const now = yield* DateTime.now
-            const created: Invitation = {
-              id,
-              email: input.email,
-              role: input.role,
-              status: 'pending',
-              expiresAt: DateTime.formatIso(
-                DateTime.addDuration(now, SEED_INVITATION_TTL_MS)
-              )
-            }
-            yield* Ref.update(store, (rows) => [created, ...rows])
-            // Same event, target, and metadata as the Live adapter.
-            const audit = yield* Effect.serviceOption(AuditEventLog)
-            if (Option.isSome(audit)) {
-              yield* recordInWorkspace(audit.value, {
-                eventType: 'workspace_invitation.sent',
-                targetType: 'workspace_invitation',
-                targetId: created.id,
-                metadata: { email: input.email, role: input.role }
-              })
-            }
-            return created
-          }),
-        cancel: (input) =>
-          Effect.gen(function* () {
-            const pending = yield* findPending(store, input.invitationId)
-            yield* settle(store, input.invitationId, 'canceled')
-            const audit = yield* Effect.serviceOption(AuditEventLog)
-            if (Option.isSome(audit)) {
-              yield* recordInWorkspace(audit.value, {
-                eventType: 'workspace_invitation.canceled',
-                targetType: 'workspace_invitation',
-                targetId: input.invitationId,
-                metadata: { email: pending.email }
-              })
-            }
-          }),
-        accept: (input) =>
-          Effect.gen(function* () {
-            const pending = yield* findPending(store, input.invitationId)
-            yield* requireRecipient(pending, input.email)
-            yield* requireUnexpired(pending)
-
-            yield* settle(store, input.invitationId, 'accepted')
-            // No `user` table to join, so the fixture fabricates the identity
-            // fields the way `SeedWorkspaceMembership.addMember` does — but the
-            // invitation's real address is known, so it rides along.
-            const joined = fabricateSeedMember(input.userId, pending.role, input.email)
-            yield* Ref.update(options.roster, (current) => [...current, joined])
-            // No `WorkspaceContext` to read, matching Live: the event names the
-            // invitation's own workspace and the accepting user directly.
-            const audit = yield* Effect.serviceOption(AuditEventLog)
-            if (Option.isSome(audit)) {
-              yield* audit.value.record({
-                workspaceId: options.workspace.id,
-                actorUserId: input.userId,
-                actorType: 'user',
-                eventType: 'workspace_invitation.accepted',
-                targetType: 'workspace_invitation',
-                targetId: input.invitationId,
-                metadata: { email: pending.email, role: pending.role }
-              })
-            }
-            // Acceptance adds a member, so it triggers the same seat sync the
-            // membership seed triggers — keyed off the fixture workspace.
-            yield* publishSeatSyncWith(seatSync, {
-              workspaceId: options.workspace.id,
-              reason: 'invitation_accepted'
+          }
+          const id = yield* newCapabilityId('inv')
+          const now = yield* DateTime.now
+          const created: Invitation = {
+            id,
+            email: input.email,
+            role: input.role,
+            status: 'pending',
+            expiresAt: DateTime.formatIso(
+              DateTime.addDuration(now, SEED_INVITATION_TTL_MS)
+            )
+          }
+          yield* Ref.update(store, (rows) => [created, ...rows])
+          // Same event, target, and metadata as the Live adapter.
+          const audit = yield* Effect.serviceOption(AuditEventLog)
+          if (Option.isSome(audit)) {
+            yield* recordInWorkspace(audit.value, {
+              eventType: 'workspace_invitation.sent',
+              targetType: 'workspace_invitation',
+              targetId: created.id,
+              metadata: { email: input.email, role: input.role }
             })
-            return {
-              workspaceSlug: options.workspace.slug,
-              workspaceName: options.workspace.name,
-              role: pending.role
-            }
+          }
+          return created
+        }),
+        cancel: Effect.fn('WorkspaceInvitations.cancel')(function* (
+          input: InvitationRef
+        ) {
+          const pending = yield* findPending(store, input.invitationId)
+          yield* settle(store, input.invitationId, 'canceled')
+          const audit = yield* Effect.serviceOption(AuditEventLog)
+          if (Option.isSome(audit)) {
+            yield* recordInWorkspace(audit.value, {
+              eventType: 'workspace_invitation.canceled',
+              targetType: 'workspace_invitation',
+              targetId: input.invitationId,
+              metadata: { email: pending.email }
+            })
+          }
+        }),
+        accept: Effect.fn('WorkspaceInvitations.accept')(function* (
+          input: AcceptInvitationInput
+        ) {
+          const pending = yield* findPending(store, input.invitationId)
+          yield* requireRecipient(pending, input.email)
+          yield* requireUnexpired(pending)
+
+          yield* settle(store, input.invitationId, 'accepted')
+          // No `user` table to join, so the fixture fabricates the identity
+          // fields the way `SeedWorkspaceMembership.addMember` does — but the
+          // invitation's real address is known, so it rides along.
+          const joined = fabricateSeedMember(input.userId, pending.role, input.email)
+          yield* Ref.update(options.roster, (current) => [...current, joined])
+          // No `WorkspaceContext` to read, matching Live: the event names the
+          // invitation's own workspace and the accepting user directly.
+          const audit = yield* Effect.serviceOption(AuditEventLog)
+          if (Option.isSome(audit)) {
+            yield* audit.value.record({
+              workspaceId: options.workspace.id,
+              actorUserId: input.userId,
+              actorType: 'user',
+              eventType: 'workspace_invitation.accepted',
+              targetType: 'workspace_invitation',
+              targetId: input.invitationId,
+              metadata: { email: pending.email, role: pending.role }
+            })
+          }
+          // Acceptance adds a member, so it triggers the same seat sync the
+          // membership seed triggers — keyed off the fixture workspace.
+          yield* publishSeatSyncWith(seatSync, {
+            workspaceId: options.workspace.id,
+            reason: 'invitation_accepted'
           })
+          return {
+            workspaceSlug: options.workspace.slug,
+            workspaceName: options.workspace.name,
+            role: pending.role
+          }
+        })
       }
     })
   )
