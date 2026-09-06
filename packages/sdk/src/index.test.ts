@@ -111,3 +111,33 @@ describe('plain SDK client against the API worker (seed)', () => {
     expect(decodeTag(rejection)._tag).toBe('Unauthorized')
   })
 })
+
+test('SDK creates expiring tokens and returns a replacement credential once', async () => {
+  const handle = await loadWorkerHandler()
+  const tokenClient = createStarterClient({
+    baseUrl: 'https://api.test',
+    apiToken: SEED_API_TOKEN,
+    fetch: (input, init) => handle(new Request(input, init))
+  })
+  const expiresAt = '2099-01-01T00:00:00.000Z'
+  const original = await tokenClient.apiTokens.create('starter-lab', {
+    name: 'SDK rotation',
+    scopes: ['read'],
+    expiresAt
+  })
+  expect(original.expiresAt).toBe(expiresAt)
+  const replacement = await tokenClient.apiTokens.replace('starter-lab', original.id, {
+    scopes: ['read'],
+    overlapSeconds: 3600
+  })
+  expect(replacement.previousTokenId).toBe(original.id)
+  expect(replacement.expiresAt).toBe(expiresAt)
+  expect(replacement.token).not.toBe(original.token)
+  const page = await tokenClient.workspace.apiTokens('starter-lab')
+  const retired = page.items.find((token) => token.id === original.id)
+  expect(retired?.replacedByTokenId).toBe(replacement.id)
+  expect(retired?.expiresAt).toBe(replacement.previousTokenExpiresAt)
+  expect(
+    page.items.every((token) => !('token' in token) && !('tokenHash' in token))
+  ).toBe(true)
+})

@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "c77403c3-c766-4e17-b2f1-02be5f41cdf7",
-  "prevIds": ["03f7a775-6bc2-4d8c-83f8-9aec0f135f06"],
+  "id": "03f7a775-6bc2-4d8c-83f8-9aec0f135f06",
+  "prevIds": ["0216768d-5b7d-4522-9536-8eadb44bd7f4"],
   "ddl": [
     {
       "name": "account",
@@ -78,10 +78,6 @@
     },
     {
       "name": "webhook_deliveries",
-      "entityType": "tables"
-    },
-    {
-      "name": "webhook_delivery_attempts",
       "entityType": "tables"
     },
     {
@@ -328,6 +324,26 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "replaced_by_token_id",
+      "entityType": "columns",
+      "table": "api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
       "name": "revoked_at",
       "entityType": "columns",
       "table": "api_tokens"
@@ -349,26 +365,6 @@
       "default": null,
       "generated": null,
       "name": "created_by_user_id",
-      "entityType": "columns",
-      "table": "api_tokens"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "expires_at",
-      "entityType": "columns",
-      "table": "api_tokens"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "replaced_by_token_id",
       "entityType": "columns",
       "table": "api_tokens"
     },
@@ -2288,126 +2284,6 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "last_attempt_token",
-      "entityType": "columns",
-      "table": "webhook_deliveries"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "id",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "delivery_id",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "attempts",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "phase",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "status",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "attempted_at",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "duration_ms",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "failure_reason",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "response_status",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "request_headers",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "response_body",
-      "entityType": "columns",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
       "name": "id",
       "entityType": "columns",
       "table": "webhook_endpoints"
@@ -3287,17 +3163,6 @@
       "table": "webhook_deliveries"
     },
     {
-      "columns": ["delivery_id"],
-      "tableTo": "webhook_deliveries",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "CASCADE",
-      "nameExplicit": false,
-      "name": "fk_webhook_delivery_attempts_delivery_id_webhook_deliveries_id_fk",
-      "entityType": "fks",
-      "table": "webhook_delivery_attempts"
-    },
-    {
       "columns": ["workspace_id"],
       "tableTo": "workspaces",
       "columnsTo": ["id"],
@@ -3538,13 +3403,6 @@
       "nameExplicit": false,
       "name": "webhook_deliveries_pk",
       "table": "webhook_deliveries",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "webhook_delivery_attempts_pk",
-      "table": "webhook_delivery_attempts",
       "entityType": "pks"
     },
     {
@@ -4031,60 +3889,6 @@
       "name": "webhook_deliveries_endpoint_id_idx",
       "entityType": "indexes",
       "table": "webhook_deliveries"
-    },
-    {
-      "columns": [
-        {
-          "value": "last_attempt_at",
-          "isExpression": false
-        },
-        {
-          "value": "id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "name": "webhook_deliveries_retention_idx",
-      "entityType": "indexes",
-      "table": "webhook_deliveries"
-    },
-    {
-      "columns": [
-        {
-          "value": "delivery_id",
-          "isExpression": false
-        },
-        {
-          "value": "attempts",
-          "isExpression": false
-        },
-        {
-          "value": "phase",
-          "isExpression": false
-        }
-      ],
-      "isUnique": true,
-      "where": null,
-      "origin": "manual",
-      "name": "webhook_delivery_attempt_identity_idx",
-      "entityType": "indexes",
-      "table": "webhook_delivery_attempts"
-    },
-    {
-      "columns": [
-        {
-          "value": "delivery_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": true,
-      "where": "\"webhook_delivery_attempts\".\"phase\" = 'terminal'",
-      "origin": "manual",
-      "name": "webhook_delivery_terminal_identity_idx",
-      "entityType": "indexes",
-      "table": "webhook_delivery_attempts"
     },
     {
       "columns": [

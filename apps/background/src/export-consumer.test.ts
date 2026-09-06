@@ -104,6 +104,7 @@ function stubReads(failing = false) {
       list: list([]),
       listPage: () => unused,
       create: () => unused,
+      replace: () => unused,
       revoke: () => unused,
       verifyBearerToken: () => unused
     }),

@@ -123,3 +123,21 @@ export class AccountDeletionRejected extends Schema.TaggedError<AccountDeletionR
   { reason: Schema.String },
   { httpApiStatus: 409 }
 ) {}
+
+// oxlint-disable-next-line unicorn/throw-new-error -- pinned Effect v4 calls this factory TaggedError
+export class InvalidApiTokenInput extends Schema.TaggedError<InvalidApiTokenInput>()(
+  'InvalidApiTokenInput',
+  { message: Schema.String },
+  { httpApiStatus: 400 }
+) {}
+
+// oxlint-disable-next-line unicorn/throw-new-error -- pinned Effect v4 calls this factory TaggedError
+export class ApiTokenNotRotatable extends Schema.TaggedError<ApiTokenNotRotatable>()(
+  'ApiTokenNotRotatable',
+  { tokenId: Schema.String },
+  { httpApiStatus: 409 }
+) {
+  override get message() {
+    return 'This token is unavailable for replacement. It may be expired, revoked, or already replaced.'
+  }
+}

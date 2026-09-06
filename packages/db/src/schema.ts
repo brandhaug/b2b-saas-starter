@@ -402,6 +402,8 @@ export const apiTokens = sqliteTable(
       .$type<ReadonlyArray<ApiTokenScopeValue>>()
       .notNull(),
     lastUsedAt: text('last_used_at'),
+    expiresAt: text('expires_at'),
+    replacedByTokenId: text('replaced_by_token_id'),
     revokedAt: text('revoked_at'),
     createdAt: isoCreatedAt(),
     createdByUserId: text('created_by_user_id').references(() => user.id)

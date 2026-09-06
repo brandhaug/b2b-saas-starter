@@ -1,5 +1,9 @@
 import { DateTime, Duration } from 'effect'
-import { type ApiToken } from './developer-platform/api-token-registry.ts'
+import {
+  type ApiToken,
+  SEED_API_TOKEN,
+  SEED_READONLY_API_TOKEN
+} from './developer-platform/api-token-registry.ts'
 import {
   type McpClientConnection,
   type McpClientSummary
@@ -112,21 +116,36 @@ export const seedUserAdminMemberships: ReadonlyArray<SeedMembership> = seedMembe
 export const seedApiTokens: ReadonlyArray<ApiToken> = [
   {
     id: 'tok_docs',
-    name: 'Docs automation',
-    prefix: 'bsk_seed_docs',
-    scopes: ['read'],
+    name: 'Local admin token',
+    prefix: SEED_API_TOKEN.slice(0, 17),
+    scopes: ['read', 'write', 'admin'],
+    expiresAt: null,
+    replacedByTokenId: null,
     lastUsedAt: '2026-05-15T16:44:00.000Z',
     createdAt: '2026-05-12T11:15:00.000Z'
   },
   {
     id: 'tok_mcp',
     name: 'MCP local client',
-    prefix: 'bsk_seed_mcp',
-    scopes: ['read', 'write'],
+    prefix: SEED_READONLY_API_TOKEN.slice(0, 17),
+    scopes: ['read'],
+    expiresAt: null,
+    replacedByTokenId: null,
     lastUsedAt: null,
     createdAt: '2026-05-14T08:20:00.000Z'
   }
 ]
+
+/** Resolve fixture credentials by identity: list ordering must not change authority. */
+export function seedApiTokenValue(token: ApiToken): string {
+  if (token.id === 'tok_docs') {
+    return SEED_API_TOKEN
+  }
+  if (token.id === 'tok_mcp') {
+    return SEED_READONLY_API_TOKEN
+  }
+  return `${token.prefix}_token`
+}
 
 /**
  * The one MCP Client the fixture knows: a Client ID Metadata Document client
