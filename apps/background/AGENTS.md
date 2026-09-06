@@ -14,6 +14,7 @@ Cloudflare Worker for queued, scheduled and inbound-provider work: webhook fan-o
 Per queue the outcome table is the contract; the non-obvious parts:
 
 - Webhooks retry a retryable failure (5xx, 408, 429, network, timeout) at `backoffSeconds(attempts)`; a 4xx or SSRF rejection is `failed_permanent`; undispatchable or malformed acks.
+- The failure ladder rides every recorded attempt (ADR 0062 addendum): the capability's returned streak drives owner-targeted warnings at 5/10/15 (the existing `webhook.delivery_failed` kind, email per the owner's channel preference) and, at 20, `autoDisableEndpoint` before the warning that names it. The disable is durable — its failure fails the message — while the notifications are best-effort.
 - The DLQ consumer acks after writing the terminal `dead_lettered` row, but retries if that write fails, so a D1 blip cannot lose the evidence.
 - Exports resolve `WorkspaceContext` from the slug with no actor, ownership having been checked at request time; a slug naming another `workspaceId` fails the row. No DLQ, the row is the record. `WORKSPACE_EXPORT_RETENTION_DAYS` is declared twice, in `infra/bindings.ts` (R2 lifecycle rule) and the capability; `export-consumer.test.ts` fails if they diverge.
 - Seat sync has no DLQ, since the next mutation re-syncs. Its Stripe env is `starterEnv(env)` plus `billingOptionsFromEnv(env)`, because `starterEnv` projects bindings only.

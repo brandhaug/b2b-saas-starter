@@ -140,6 +140,7 @@ export function LiveAccountLifecycle(
             yield* audit.record({
               workspaceId: null,
               actorUserId: userId,
+              actorType: 'user',
               eventType: 'workspace.deleted',
               targetType: 'workspace',
               targetId: workspaceId,
@@ -158,6 +159,7 @@ export function LiveAccountLifecycle(
             yield* audit.record({
               workspaceId,
               actorUserId: userId,
+              actorType: 'user',
               eventType: 'workspace_member.removed',
               targetType: 'workspace_member',
               targetId: userId,
@@ -194,8 +196,10 @@ export function LiveAccountLifecycle(
           workspaceId: null,
           // Actorless on purpose: `audit_events.actor_user_id` restricts on
           // `user.id`, and the actor row is gone by the time this runs — the
-          // event names the account in `targetId` instead.
+          // event names the account in `targetId` instead. The actor type
+          // stays `user`: the account deleted itself.
           actorUserId: null,
+          actorType: 'user',
           eventType: 'account.deleted',
           targetType: 'user',
           targetId: input.userId,

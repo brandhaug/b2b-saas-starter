@@ -4,6 +4,8 @@ import {
 } from '@b2b-saas-starter/capabilities/runtime'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import {
+  failureLadderAction,
+  failureLadderNotification,
   planDeliveryAttempt,
   truncateResponseBody,
   WEBHOOK_USER_AGENT
@@ -108,6 +110,85 @@ function annotateMessageFields(message: WebhookQueueMessage) {
 }
 
 /**
+ * The user-facing half of a failure-ladder rung (ADR 0062 addendum): one
+ * owner-targeted Notification of the existing `webhook.delivery_failed` kind,
+ * its copy owned by `failureLadderNotification`. The ladder deliberately
+ * rides the existing webhook kind — one preference knob for webhook failure
+ * notices, one email template — instead of minting a second vocabulary entry
+ * beside it. This is where the feed's email fan-out starts for the kind.
+ * Best-effort — a feed outage must not fail an attempt whose row already
+ * recorded.
+ */
+function notifyFailureLadder(input: {
+  readonly workspaceId: string
+  readonly url: string | null
+  readonly consecutiveFailures: number
+}): Effect.Effect<void, never, NotificationFeed | Scope.Scope> {
+  return Effect.gen(function* () {
+    const feed = yield* NotificationFeed
+    yield* feed.notifyWorkspaceOwners({
+      workspaceId: input.workspaceId,
+      kind: 'webhook.delivery_failed',
+      ...failureLadderNotification({
+        url: input.url,
+        consecutiveFailures: input.consecutiveFailures
+      })
+    })
+  }).pipe(
+    // The cause goes on the log record whole; the wide event keeps the flag.
+    Effect.catchCause((cause) =>
+      Effect.logError('failure_ladder_notification_failed', cause).pipe(
+        Effect.annotateLogs({ notificationCreate: 'failed' })
+      )
+    )
+  )
+}
+
+/**
+ * The failure ladder's execution of the reaction the delivery plan names for
+ * the streak a recorded attempt left (`failureLadderAction`): nothing
+ * between rungs, an owner warning at 5/10/15, and at 20 the endpoint
+ * disabled (`WebhookEndpoints.autoDisableEndpoint` batches the audit event
+ * with the write) plus the warning that names it. The disable is durable —
+ * its failure fails the message so the queue redelivers onto the same rung —
+ * while the warning is best-effort, like every feed write in this worker.
+ */
+function applyFailureLadder(input: {
+  readonly endpointId: string
+  readonly workspaceId: string
+  readonly url: string | null
+  readonly consecutiveFailures: number
+}): Effect.Effect<
+  void,
+  CapabilityUnavailable,
+  WebhookEndpoints | NotificationFeed | Scope.Scope
+> {
+  return Effect.gen(function* () {
+    // A streak of zero — the attempt delivered, or no endpoint resolved to
+    // climb against — leaves the ladder nothing to react to.
+    if (input.consecutiveFailures === 0) {
+      return
+    }
+    yield* Effect.annotateLogsScoped({
+      consecutiveFailures: input.consecutiveFailures
+    })
+    const action = failureLadderAction(input.consecutiveFailures)
+    if (action === 'silent') {
+      return
+    }
+    if (action === 'disable') {
+      const webhooks = yield* WebhookEndpoints
+      yield* webhooks.autoDisableEndpoint({
+        endpointId: input.endpointId,
+        workspaceId: input.workspaceId,
+        consecutiveFailures: input.consecutiveFailures
+      })
+    }
+    yield* notifyFailureLadder(input)
+  })
+}
+
+/**
  * Delivers one webhook message: resolve the dispatch target, re-check the
  * SSRF guard, sign, POST, persist the attempt row, and decide ack/retry.
  * Capability and HTTP requirements stay open so tests inject stub
@@ -160,7 +241,7 @@ export function processWebhookMessage(
     if (!urlCheck.valid) {
       // Never-dispatched terminal row: resolves this message's delivery id and
       // records the payload, so the row stays replayable once the URL is fixed.
-      yield* webhooks.recordTerminalDeliveryAttempt({
+      const recorded = yield* webhooks.recordTerminalDeliveryAttempt({
         deliveryId,
         endpointId: target.id,
         workspaceId: message.workspaceId,
@@ -174,6 +255,13 @@ export function processWebhookMessage(
         skipReason: `invalid_url: ${urlCheck.reason}`
       })
       yield* notifyDeliveryGaveUp(message, target.url, 'failed_permanent')
+      // A refused URL is a failed attempt like any other — the ladder climbs.
+      yield* applyFailureLadder({
+        endpointId: target.id,
+        workspaceId: message.workspaceId,
+        url: target.url,
+        consecutiveFailures: recorded.consecutiveFailures
+      })
       return 'ack' satisfies DeliveryOutcome
     }
     const now = yield* DateTime.now
@@ -227,7 +315,7 @@ export function processWebhookMessage(
     // capability interface: classification, persisted status, and the
     // backoff-aligned retry schedule all come from the capability.
     const plan = planDeliveryAttempt(responseStatus, attempts, now)
-    yield* webhooks.recordDeliveryAttempt({
+    const recorded = yield* webhooks.recordDeliveryAttempt({
       id: deliveryId,
       endpointId: target.id,
       // Terminal statuses batch an audit event with the attempt row inside
@@ -248,6 +336,14 @@ export function processWebhookMessage(
     if (plan.status === 'failed_permanent') {
       yield* notifyDeliveryGaveUp(message, target.url, 'failed_permanent')
     }
+    // The failure ladder reacts to the streak the attempt left: warnings at
+    // the rungs, the auto-disable at the threshold (ADR 0062 addendum).
+    yield* applyFailureLadder({
+      endpointId: target.id,
+      workspaceId: message.workspaceId,
+      url: target.url,
+      consecutiveFailures: recorded.consecutiveFailures
+    })
     return plan.outcome satisfies DeliveryOutcome
   })
 }
@@ -303,7 +399,7 @@ export function processDeadLetterMessage(
     // the exhausted row goes terminal in place instead of forking a second
     // row, and its recorded payload keeps it replayable.
     const deliveryId = deliveryIdFor(delivery)
-    yield* webhooks.recordTerminalDeliveryAttempt({
+    const recorded = yield* webhooks.recordTerminalDeliveryAttempt({
       deliveryId,
       endpointId: message.endpointId,
       workspaceId: message.workspaceId,
@@ -314,6 +410,15 @@ export function processDeadLetterMessage(
     })
     yield* Effect.annotateLogsScoped({ outcome: 'dead_lettered' })
     yield* notifyDeliveryGaveUp(message, null, 'dead_lettered')
+    // The exhausted message is one more failed attempt: the ladder climbs it
+    // too, so a streak whose twentieth failure is a dead letter still reaches
+    // its rung.
+    yield* applyFailureLadder({
+      endpointId: message.endpointId,
+      workspaceId: message.workspaceId,
+      url: null,
+      consecutiveFailures: recorded.consecutiveFailures
+    })
   })
 }
 

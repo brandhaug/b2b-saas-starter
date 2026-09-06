@@ -14,7 +14,7 @@ import {
   type EmailMessage
 } from '@b2b-saas-starter/email'
 import { render } from '@react-email/render'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 
 import { processNotificationEmailMessage } from './notification-email-consumer.ts'
@@ -43,6 +43,7 @@ function stubFeed(
     unreadCount: Effect.die('unused'),
     markRead: () => Effect.die('unused'),
     notifyUser: () => Effect.die('unused'),
+    notifyWorkspaceOwners: () => Effect.die('unused'),
     create: () => Effect.die('unused'),
     loadForEmail: () => Effect.succeed(found),
     record: () => Effect.die('unused'),
@@ -93,79 +94,73 @@ function run(
     })
   }
   const preferences = SeedNotificationPreferences(stored).pipe(Layer.provide(audit))
-  return Effect.scoped(
-    processNotificationEmailMessage(
-      readDelivery(NotificationEmailQueueMessage, {
-        id: 'q1',
-        body,
-        attempts: 1
-      }),
-      'https://app.test'
-    ).pipe(
-      Effect.provide(
-        Layer.mergeAll(stubFeed(found), preferences, stubDispatcher(sent, options.fail))
-      )
-    )
-  ).pipe(Effect.map((outcome) => ({ outcome, sent })))
+  return processNotificationEmailMessage(
+    readDelivery(NotificationEmailQueueMessage, {
+      id: 'q1',
+      body,
+      attempts: 1
+    }),
+    'https://app.test'
+  ).pipe(
+    Effect.provide(
+      Layer.mergeAll(stubFeed(found), preferences, stubDispatcher(sent, options.fail))
+    ),
+    Effect.map((outcome) => ({ outcome, sent }))
+  )
 }
 
 const message = { notificationId: 'not_1', recipientUserId: 'usr_owner' }
 
 describe('processNotificationEmailMessage', () => {
-  it('renders the kind template and sends it to the recipient', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { outcome, sent } = yield* run(context, message)
-        expect(outcome).toBe('ack')
-        expect(sent).toHaveLength(1)
-        expect(sent[0]?.to).toBe('owner@example.com')
-        expect(sent[0]?.subject).toBe(
-          '[B2B SaaS Starter] API token created: API token created'
-        )
-        const html = yield* Effect.promise(() => render(sent[0]!.element))
-        expect(html).toContain('Ops Lead minted')
-        expect(html).toContain('https://app.test/workspaces/starter-lab/api-tokens')
-        expect(html).toContain(
-          'https://app.test/account/notifications?kind=api_token.created'
-        )
-      })
-    ))
+  it.effect('renders the kind template and sends it to the recipient', () =>
+    Effect.gen(function* () {
+      const { outcome, sent } = yield* run(context, message)
+      expect(outcome).toBe('ack')
+      expect(sent).toHaveLength(1)
+      expect(sent[0]?.to).toBe('owner@example.com')
+      expect(sent[0]?.subject).toBe(
+        '[B2B SaaS Starter] API token created: API token created'
+      )
+      const html = yield* Effect.promise(() => render(sent[0]!.element))
+      expect(html).toContain('Ops Lead minted')
+      expect(html).toContain('https://app.test/workspaces/starter-lab/api-tokens')
+      expect(html).toContain(
+        'https://app.test/account/notifications?kind=api_token.created'
+      )
+    })
+  )
 
-  it('acks without sending when the recipient moved the kind off instant', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const digest = yield* run(context, message, { channel: 'digest' })
-        const off = yield* run(context, message, { channel: 'off' })
-        expect(digest).toEqual({ outcome: 'ack', sent: [] })
-        expect(off).toEqual({ outcome: 'ack', sent: [] })
-      })
-    ))
+  it.effect('acks without sending when the recipient moved the kind off instant', () =>
+    Effect.gen(function* () {
+      const digest = yield* run(context, message, { channel: 'digest' })
+      const off = yield* run(context, message, { channel: 'off' })
+      expect(digest).toEqual({ outcome: 'ack', sent: [] })
+      expect(off).toEqual({ outcome: 'ack', sent: [] })
+    })
+  )
 
-  it('acks without sending when the notification is gone or already read', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { outcome, sent } = yield* run(null, message)
-        expect(outcome).toBe('ack')
-        expect(sent).toHaveLength(0)
-      })
-    ))
+  it.effect('acks without sending when the notification is gone or already read', () =>
+    Effect.gen(function* () {
+      const { outcome, sent } = yield* run(null, message)
+      expect(outcome).toBe('ack')
+      expect(sent).toHaveLength(0)
+    })
+  )
 
-  it('acks a malformed message as terminal', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { outcome, sent } = yield* run(context, { notificationId: 42 })
-        expect(outcome).toBe('ack')
-        expect(sent).toHaveLength(0)
-      })
-    ))
+  it.effect('acks a malformed message as terminal', () =>
+    Effect.gen(function* () {
+      const { outcome, sent } = yield* run(context, { notificationId: 42 })
+      expect(outcome).toBe('ack')
+      expect(sent).toHaveLength(0)
+    })
+  )
 
-  it('surfaces a send failure so the queue retries', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const error = yield* Effect.flip(run(context, message, { fail: true }))
-        expect(error._tag).toBe('EmailSendError')
-      })
-    ))
+  it.effect('surfaces a send failure so the queue retries', () =>
+    Effect.gen(function* () {
+      const error = yield* Effect.flip(run(context, message, { fail: true }))
+      expect(error._tag).toBe('EmailSendError')
+    })
+  )
 })
 
 describe('notification links', () => {

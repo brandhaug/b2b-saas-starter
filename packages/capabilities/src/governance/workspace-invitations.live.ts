@@ -212,6 +212,7 @@ export function LiveWorkspaceInvitations(
           yield* audit.record({
             workspaceId: row.workspace.id,
             actorUserId: input.userId,
+            actorType: 'user',
             eventType: 'workspace_invitation.accepted',
             targetType: 'workspace_invitation',
             targetId: input.invitationId,

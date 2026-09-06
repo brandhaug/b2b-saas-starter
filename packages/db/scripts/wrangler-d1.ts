@@ -79,21 +79,24 @@ function runWrangler(
 }
 
 /**
- * Executes SQL against a D1 database by name. `args` carries the target
+ * Executes SQL against a D1 database. `args` carries the target
  * (`--local` / `--remote`) and the payload (`--command=…` / `--file=…`).
- * When `captureJson` is set the `--json` output — and, on failure, wrangler's
- * error, which json mode writes to stdout — is captured for the caller;
- * otherwise wrangler streams straight through and `stdout` comes back empty.
+ * A remote target is passed to wrangler by uuid, a local one by name (see
+ * `remoteDatabaseId`). When `captureJson` is set the `--json` output — and,
+ * on failure, wrangler's error, which json mode writes to stdout — is
+ * captured for the caller; otherwise wrangler streams straight through and
+ * `stdout` comes back empty.
  */
-export function wranglerD1Execute(
+export async function wranglerD1Execute(
   database: string,
   args: ReadonlyArray<string>,
   captureJson: boolean
 ): Promise<WranglerRun> {
+  const target = args.includes('--remote') ? await remoteDatabaseId(database) : database
   return runWrangler(
     [
       'execute',
-      database,
+      target,
       `--config=${join(packageDir, 'wrangler.jsonc')}`,
       ...args,
       ...(captureJson ? ['--json'] : [])
@@ -106,9 +109,45 @@ export function wranglerD1Execute(
 // loudly, rather than producing an empty database list (which baseline.ts
 // would read as "nothing deployed, skip everything").
 const DatabasesJson = Schema.fromJsonString(
-  Schema.Array(Schema.Struct({ name: Schema.String }))
+  Schema.Array(Schema.Struct({ name: Schema.String, uuid: Schema.String }))
 )
 const decodeDatabases = Schema.decodeUnknownSync(DatabasesJson)
+
+type RemoteDatabase = { readonly name: string; readonly uuid: string }
+
+// The account's database list, fetched at most once per process: baseline
+// issues one execute per unrecorded migration, and re-listing the account for
+// each would only add latency. A CLI script's process is too short for the
+// cache to go stale.
+let databasesFetched: Promise<ReadonlyArray<RemoteDatabase>> | undefined
+
+function fetchDatabases(): Promise<ReadonlyArray<RemoteDatabase>> {
+  databasesFetched ??= runWrangler(['list', '--json'], true).then((run) => {
+    if (!run.ok) {
+      throw new Error(`wrangler d1 list failed (exit ${run.code}):\n${run.output}`)
+    }
+    return decodeDatabases(run.stdout)
+  })
+  return databasesFetched
+}
+
+/**
+ * The uuid of one remote D1 database, by name. Wrangler would resolve a bare
+ * name through the account API — but only when no `d1_databases` binding in
+ * the config claims that name, and this package's wrangler.jsonc does claim
+ * it with a placeholder `database_id` that wrangler then uses verbatim. A
+ * uuid matches no binding, so wrangler's own lookup lands on the real
+ * database. Local mode needs no resolution: without `--remote` wrangler keys
+ * its local state by the binding's placeholder id and never calls the API.
+ */
+async function remoteDatabaseId(database: string): Promise<string> {
+  const databases = await fetchDatabases()
+  const found = databases.find((entry) => entry.name === database)
+  if (found === undefined) {
+    throw new Error(`no D1 database named '${database}' exists in the account`)
+  }
+  return found.uuid
+}
 
 /**
  * Every D1 database name in the account, via `wrangler d1 list --json` (auth
@@ -119,9 +158,6 @@ const decodeDatabases = Schema.decodeUnknownSync(DatabasesJson)
  * `CREATE TABLE`, not silently skip schema.
  */
 export async function listRemoteDatabases(): Promise<ReadonlyArray<string>> {
-  const run = await runWrangler(['list', '--json'], true)
-  if (!run.ok) {
-    throw new Error(`wrangler d1 list failed (exit ${run.code}):\n${run.output}`)
-  }
-  return decodeDatabases(run.stdout).map((database) => database.name)
+  const databases = await fetchDatabases()
+  return databases.map((database) => database.name)
 }

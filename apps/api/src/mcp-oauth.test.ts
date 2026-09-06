@@ -4,7 +4,7 @@ import {
   MCP_WORKSPACE_SLUG_CLAIM
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { afterEach, describe, expect, test, vi } from 'vite-plus/test'
+import { afterEach, describe, expect, it, vi } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 import {
   exportJWK,
@@ -45,15 +45,11 @@ type TestAuthority = {
  */
 let authority: Promise<TestAuthority> | undefined
 function theAuthority(): Promise<TestAuthority> {
-  authority ??= Effect.runPromise(
-    Effect.gen(function* () {
-      const pair = yield* Effect.promise(() => generateKeyPair('EdDSA'))
-      const jwk = yield* Effect.promise(() => exportJWK(pair.publicKey))
-      return {
-        privateKey: pair.privateKey,
-        jwks: { keys: [{ ...jwk, kid: 'k1', alg: 'EdDSA' }] }
-      }
-    })
+  authority ??= generateKeyPair('EdDSA').then(({ publicKey, privateKey }) =>
+    exportJWK(publicKey).then((jwk) => ({
+      privateKey,
+      jwks: { keys: [{ ...jwk, kid: 'k1', alg: 'EdDSA' }] }
+    }))
   )
   return authority
 }
@@ -138,73 +134,72 @@ const ProtectedResourceBody = Schema.Struct({
 })
 
 describe('POST /mcp with an OAuth access token', () => {
-  test('a token for workspace A reads workspace A', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { privateKey, jwks } = yield* Effect.promise(theAuthority)
-        stubJwksFetch(jwks)
-        const handler = buildWebHandler(env).handler
-        const token = yield* Effect.promise(() => accessToken(privateKey))
-        const res = yield* Effect.promise(() =>
-          callTool(handler, `Bearer ${token}`, 'get_workspace_overview')
-        )
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, CallToolBody)
-        expect(body.result.isError).toBeUndefined()
-        expect(body.result.content[0]?.text).toContain('"slug": "starter-lab"')
-      })
-    ))
+  it.effect('a token for workspace A reads workspace A', () =>
+    Effect.gen(function* () {
+      const { privateKey, jwks } = yield* Effect.promise(theAuthority)
+      stubJwksFetch(jwks)
+      const handler = buildWebHandler(env).handler
+      const token = yield* Effect.promise(() => accessToken(privateKey))
+      const res = yield* Effect.promise(() =>
+        callTool(handler, `Bearer ${token}`, 'get_workspace_overview')
+      )
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(res, CallToolBody)
+      expect(body.result.isError).toBeUndefined()
+      expect(body.result.content[0]?.text).toContain('"slug": "starter-lab"')
+    })
+  )
 
-  test('a token for workspace A cannot read workspace B', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { privateKey, jwks } = yield* Effect.promise(theAuthority)
-        stubJwksFetch(jwks)
-        // Same user, same signature, but the consent named another workspace:
-        // the workspace layer resolves the slug in the claims and nothing else.
-        const handler = buildWebHandler(env).handler
-        const token = yield* Effect.promise(() =>
-          accessToken(privateKey, {
-            [MCP_WORKSPACE_ID_CLAIM]: 'wrk_other',
-            [MCP_WORKSPACE_SLUG_CLAIM]: 'other-workspace'
+  it.effect('a token for workspace A cannot read workspace B', () =>
+    Effect.gen(function* () {
+      const { privateKey, jwks } = yield* Effect.promise(theAuthority)
+      stubJwksFetch(jwks)
+      // Same user, same signature, but the consent named another workspace:
+      // the workspace layer resolves the slug in the claims and nothing else.
+      const handler = buildWebHandler(env).handler
+      const token = yield* Effect.promise(() =>
+        accessToken(privateKey, {
+          [MCP_WORKSPACE_ID_CLAIM]: 'wrk_other',
+          [MCP_WORKSPACE_SLUG_CLAIM]: 'other-workspace'
+        })
+      )
+      const res = yield* Effect.promise(() =>
+        callTool(handler, `Bearer ${token}`, 'get_workspace_overview')
+      )
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(res, CallToolBody)
+      expect(body.result.isError).toBe(true)
+      expect(body.result.content[0]?.text).toBe('workspace not found')
+
+      // The resource channel answers the same resolution failure with a
+      // JSON-RPC error instead of an `isError` result — pinned end to end
+      // because Effect's `registerResource` re-wraps the message through
+      // `catchCause`, so the surfaced text is worth asserting, not assuming.
+      const session = mcpClient(handler, `Bearer ${token}`)
+      const read = yield* Effect.promise(() =>
+        session
+          .initialize()
+          .then(() => session.rpc('resources/read', { uri: 'workspace://overview' }))
+      )
+      expect(read.status).toBe(200)
+      const readBody = yield* jsonBody(
+        read,
+        Schema.Struct({
+          jsonrpc: Schema.Literal('2.0'),
+          id: Schema.Unknown,
+          error: Schema.Struct({
+            code: Schema.Number,
+            message: Schema.String
           })
-        )
-        const res = yield* Effect.promise(() =>
-          callTool(handler, `Bearer ${token}`, 'get_workspace_overview')
-        )
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, CallToolBody)
-        expect(body.result.isError).toBe(true)
-        expect(body.result.content[0]?.text).toBe('workspace not found')
+        })
+      )
+      expect(readBody.error.message).toContain('workspace not found')
+    })
+  )
 
-        // The resource channel answers the same resolution failure with a
-        // JSON-RPC error instead of an `isError` result — pinned end to end
-        // because Effect's `registerResource` re-wraps the message through
-        // `catchCause`, so the surfaced text is worth asserting, not assuming.
-        const session = mcpClient(handler, `Bearer ${token}`)
-        const read = yield* Effect.promise(() =>
-          session
-            .initialize()
-            .then(() => session.rpc('resources/read', { uri: 'workspace://overview' }))
-        )
-        expect(read.status).toBe(200)
-        const readBody = yield* jsonBody(
-          read,
-          Schema.Struct({
-            jsonrpc: Schema.Literal('2.0'),
-            id: Schema.Unknown,
-            error: Schema.Struct({
-              code: Schema.Number,
-              message: Schema.String
-            })
-          })
-        )
-        expect(readBody.error.message).toContain('workspace not found')
-      })
-    ))
-
-  test('a token for a user who is not a member reads nothing, non-disclosingly', () =>
-    Effect.runPromise(
+  it.effect(
+    'a token for a user who is not a member reads nothing, non-disclosingly',
+    () =>
       Effect.gen(function* () {
         const { privateKey, jwks } = yield* Effect.promise(theAuthority)
         stubJwksFetch(jwks)
@@ -219,158 +214,146 @@ describe('POST /mcp with an OAuth access token', () => {
         expect(body.result.isError).toBe(true)
         expect(body.result.content[0]?.text).toBe('workspace not found')
       })
-    ))
+  )
 
-  test('a member authorizes as their role, not as the token claim', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { privateKey, jwks } = yield* Effect.promise(theAuthority)
-        stubJwksFetch(jwks)
-        const handler = buildWebHandler(env).handler
-        // `usr_dev` is a plain member of the seed workspace; a member cannot
-        // read the audit log even if the token claims otherwise.
-        const token = yield* Effect.promise(() =>
-          accessToken(privateKey, {
-            sub: 'usr_dev',
-            [MCP_WORKSPACE_ROLE_CLAIM]: 'owner'
-          })
-        )
-        const res = yield* Effect.promise(() =>
-          callTool(handler, `Bearer ${token}`, 'list_audit_events')
-        )
-        const body = yield* jsonBody(res, CallToolBody)
-        expect(body.result.isError).toBe(true)
-        expect(body.result.content[0]?.text).toContain('denied:')
+  it.effect('a member authorizes as their role, not as the token claim', () =>
+    Effect.gen(function* () {
+      const { privateKey, jwks } = yield* Effect.promise(theAuthority)
+      stubJwksFetch(jwks)
+      const handler = buildWebHandler(env).handler
+      // `usr_dev` is a plain member of the seed workspace; a member cannot
+      // read the audit log even if the token claims otherwise.
+      const token = yield* Effect.promise(() =>
+        accessToken(privateKey, {
+          sub: 'usr_dev',
+          [MCP_WORKSPACE_ROLE_CLAIM]: 'owner'
+        })
+      )
+      const res = yield* Effect.promise(() =>
+        callTool(handler, `Bearer ${token}`, 'list_audit_events')
+      )
+      const body = yield* jsonBody(res, CallToolBody)
+      expect(body.result.isError).toBe(true)
+      expect(body.result.content[0]?.text).toContain('denied:')
 
-        const allowed = yield* Effect.promise(() =>
-          callTool(handler, `Bearer ${token}`, 'list_notifications')
-        )
-        expect((yield* jsonBody(allowed, CallToolBody)).result.isError).toBeUndefined()
-      })
-    ))
+      const allowed = yield* Effect.promise(() =>
+        callTool(handler, `Bearer ${token}`, 'list_notifications')
+      )
+      expect((yield* jsonBody(allowed, CallToolBody)).result.isError).toBeUndefined()
+    })
+  )
 
-  test('the key set is fetched once across requests', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { privateKey, jwks } = yield* Effect.promise(theAuthority)
-        const fetchJwks = stubJwksFetch(jwks)
-        const handler = buildWebHandler(env).handler
-        const token = yield* Effect.promise(() => accessToken(privateKey))
-        yield* Effect.promise(() =>
-          callTool(handler, `Bearer ${token}`, 'list_members')
-        )
-        yield* Effect.promise(() =>
-          callTool(handler, `Bearer ${token}`, 'list_members')
-        )
-        expect(fetchJwks).toHaveBeenCalledTimes(1)
-      })
-    ))
+  it.effect('the key set is fetched once across requests', () =>
+    Effect.gen(function* () {
+      const { privateKey, jwks } = yield* Effect.promise(theAuthority)
+      const fetchJwks = stubJwksFetch(jwks)
+      const handler = buildWebHandler(env).handler
+      const token = yield* Effect.promise(() => accessToken(privateKey))
+      yield* Effect.promise(() => callTool(handler, `Bearer ${token}`, 'list_members'))
+      yield* Effect.promise(() => callTool(handler, `Bearer ${token}`, 'list_members'))
+      expect(fetchJwks).toHaveBeenCalledTimes(1)
+    })
+  )
 
-  test('a JWT is refused when OAuth is not configured', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { privateKey, jwks } = yield* Effect.promise(theAuthority)
-        const fetchJwks = stubJwksFetch(jwks)
-        const handler = buildWebHandler({}).handler
-        const token = yield* Effect.promise(() => accessToken(privateKey))
-        // Not `callTool`: the refusal lands on the initialize exchange itself.
-        const session = mcpClient(handler, `Bearer ${token}`)
-        const res = yield* Effect.promise(() =>
-          session.rpc('initialize', {
-            protocolVersion: '2025-11-25',
-            capabilities: {},
-            clientInfo: { name: 'test-client', version: '1.0.0' }
-          })
-        )
-        expect(res.status).toBe(401)
-        expect((yield* jsonBody(res, ErrorBody)).message).toBe('oauth_not_configured')
-        expect(res.headers.get('www-authenticate')).toBeNull()
-        expect(fetchJwks).not.toHaveBeenCalled()
-      })
-    ))
+  it.effect('a JWT is refused when OAuth is not configured', () =>
+    Effect.gen(function* () {
+      const { privateKey, jwks } = yield* Effect.promise(theAuthority)
+      const fetchJwks = stubJwksFetch(jwks)
+      const handler = buildWebHandler({}).handler
+      const token = yield* Effect.promise(() => accessToken(privateKey))
+      // Not `callTool`: the refusal lands on the initialize exchange itself.
+      const session = mcpClient(handler, `Bearer ${token}`)
+      const res = yield* Effect.promise(() =>
+        session.rpc('initialize', {
+          protocolVersion: '2025-11-25',
+          capabilities: {},
+          clientInfo: { name: 'test-client', version: '1.0.0' }
+        })
+      )
+      expect(res.status).toBe(401)
+      expect((yield* jsonBody(res, ErrorBody)).message).toBe('oauth_not_configured')
+      expect(res.headers.get('www-authenticate')).toBeNull()
+      expect(fetchJwks).not.toHaveBeenCalled()
+    })
+  )
 
-  test('a 401 points OAuth clients at the protected-resource metadata', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          new Request('https://api.test/mcp', {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              accept: 'application/json, text/event-stream'
-            },
-            body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'initialize' })
-          })
-        )
-        expect(res.status).toBe(401)
-        expect(res.headers.get('www-authenticate')).toBe(
-          'Bearer resource_metadata="https://api.test/.well-known/oauth-protected-resource/mcp"'
-        )
-      })
-    ))
+  it.effect('a 401 points OAuth clients at the protected-resource metadata', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        new Request('https://api.test/mcp', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream'
+          },
+          body: encodeJsonBody({ jsonrpc: '2.0', id: 1, method: 'initialize' })
+        })
+      )
+      expect(res.status).toBe(401)
+      expect(res.headers.get('www-authenticate')).toBe(
+        'Bearer resource_metadata="https://api.test/.well-known/oauth-protected-resource/mcp"'
+      )
+    })
+  )
 })
 
 describe('the two credentials stay separate', () => {
-  test('REST routes do not accept an OAuth access token', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { privateKey, jwks } = yield* Effect.promise(theAuthority)
-        stubJwksFetch(jwks)
-        const token = yield* Effect.promise(() => accessToken(privateKey))
-        const res = yield* send(
-          new Request('https://api.test/workspaces/starter-lab/overview', {
-            headers: { authorization: `Bearer ${token}` }
-          })
-        )
-        expect(res.status).toBe(401)
-        expect((yield* jsonBody(res, ErrorBody))._tag).toBe('Unauthorized')
-      })
-    ))
+  it.effect('REST routes do not accept an OAuth access token', () =>
+    Effect.gen(function* () {
+      const { privateKey, jwks } = yield* Effect.promise(theAuthority)
+      stubJwksFetch(jwks)
+      const token = yield* Effect.promise(() => accessToken(privateKey))
+      const res = yield* send(
+        new Request('https://api.test/workspaces/starter-lab/overview', {
+          headers: { authorization: `Bearer ${token}` }
+        })
+      )
+      expect(res.status).toBe(401)
+      expect((yield* jsonBody(res, ErrorBody))._tag).toBe('Unauthorized')
+    })
+  )
 
-  test('an API Token still opens POST /mcp with OAuth configured', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const { jwks } = yield* Effect.promise(theAuthority)
-        const fetchJwks = stubJwksFetch(jwks)
-        const handler = buildWebHandler(env).handler
-        const res = yield* Effect.promise(() =>
-          callTool(handler, `Bearer ${SEED_API_TOKEN}`, 'get_workspace_overview')
-        )
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, CallToolBody)
-        expect(body.result.content[0]?.text).toContain('"slug": "starter-lab"')
-        // The token path never touches the key set.
-        expect(fetchJwks).not.toHaveBeenCalled()
-      })
-    ))
+  it.effect('an API Token still opens POST /mcp with OAuth configured', () =>
+    Effect.gen(function* () {
+      const { jwks } = yield* Effect.promise(theAuthority)
+      const fetchJwks = stubJwksFetch(jwks)
+      const handler = buildWebHandler(env).handler
+      const res = yield* Effect.promise(() =>
+        callTool(handler, `Bearer ${SEED_API_TOKEN}`, 'get_workspace_overview')
+      )
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(res, CallToolBody)
+      expect(body.result.content[0]?.text).toContain('"slug": "starter-lab"')
+      // The token path never touches the key set.
+      expect(fetchJwks).not.toHaveBeenCalled()
+    })
+  )
 })
 
 describe('protected-resource metadata', () => {
-  test('is served at the well-known root and the /mcp alias', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        for (const path of [
-          '/.well-known/oauth-protected-resource',
-          '/.well-known/oauth-protected-resource/mcp'
-        ]) {
-          const res = yield* send(new Request(`https://api.test${path}`))
-          expect(res.status).toBe(200)
-          const body = yield* jsonBody(res, ProtectedResourceBody)
-          expect(body.resource).toBe(RESOURCE)
-          expect(body.authorization_servers).toEqual([ISSUER])
-          expect(body.scopes_supported).toContain('mcp:read')
-        }
-      })
-    ))
+  it.effect('is served at the well-known root and the /mcp alias', () =>
+    Effect.gen(function* () {
+      for (const path of [
+        '/.well-known/oauth-protected-resource',
+        '/.well-known/oauth-protected-resource/mcp'
+      ]) {
+        const res = yield* send(new Request(`https://api.test${path}`))
+        expect(res.status).toBe(200)
+        const body = yield* jsonBody(res, ProtectedResourceBody)
+        expect(body.resource).toBe(RESOURCE)
+        expect(body.authorization_servers).toEqual([ISSUER])
+        expect(body.scopes_supported).toContain('mcp:read')
+      }
+    })
+  )
 
-  test('is 404 while OAuth is unconfigured', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          new Request('https://api.test/.well-known/oauth-protected-resource/mcp'),
-          {}
-        )
-        expect(res.status).toBe(404)
-      })
-    ))
+  it.effect('is 404 while OAuth is unconfigured', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        new Request('https://api.test/.well-known/oauth-protected-resource/mcp'),
+        {}
+      )
+      expect(res.status).toBe(404)
+    })
+  )
 })

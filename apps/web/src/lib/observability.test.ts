@@ -82,6 +82,7 @@ describe('runWebRequestScope', () => {
       async () => {
         // Two nested runs, exactly as a loader and a server function do it: a
         // bare `Effect.runPromise*` over `withWebRequestScope`.
+        // oxlint-disable-next-line starter/no-run-promise-in-tests -- a bare runtime inside the promise callback is the interop under test, the documented shape loaders and server fns use
         await Effect.runPromise(
           withWebRequestScope(
             { event: 'capability.workspace', metadata: { workspaceSlug: 'acme' } },
@@ -89,6 +90,7 @@ describe('runWebRequestScope', () => {
             lookupRequest
           )
         )
+        // oxlint-disable-next-line starter/no-run-promise-in-tests -- a bare runtime inside the promise callback is the interop under test, the documented shape loaders and server fns use
         await Effect.runPromiseExit(
           withWebRequestScope(
             { event: 'capability.global' },
@@ -134,6 +136,7 @@ describe('runWebRequestScope', () => {
     await runWebRequestScope(
       { request: registered, handlerType: 'router' },
       async () => {
+        // oxlint-disable-next-line starter/no-run-promise-in-tests -- a bare runtime inside the promise callback is the interop under test, the documented shape loaders and server fns use
         await Effect.runPromise(
           withWebRequestScope(
             { event: 'capability.global' },
@@ -279,6 +282,7 @@ describe('withWebRequestScope', () => {
   it('flags its own event as standalone when there is no request to join', async () => {
     ambient.request = undefined
 
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- a bare runtime inside the promise callback is the interop under test, the documented shape loaders and server fns use
     await Effect.runPromise(
       withWebRequestScope(
         { event: 'capability.global', metadata: { workspaceSlug: 'acme' } },

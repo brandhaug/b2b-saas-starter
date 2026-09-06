@@ -4,7 +4,7 @@ import { describe, expect, it } from '@effect/vitest'
 import { CapabilityUnavailable } from '../errors.ts'
 import { SeedAuditEventLog } from '../governance/audit-event-log.ts'
 import { seedMembers, seedWorkspaceRecord } from '../seed-fixture.ts'
-import { testWorkspaceContext } from '../workspace-context.ts'
+import { testWorkspaceContext, WorkspaceContext } from '../workspace-context.ts'
 import {
   type NotificationEmailQueueBinding,
   type NotificationEmailQueueMessage
@@ -14,6 +14,7 @@ import { SeedNotificationFeed } from './notification-feed.seed.ts'
 import {
   inDigestWindow,
   NotificationFeed,
+  type NotifyWorkspaceOwnersInput,
   type SeedNotification
 } from './notification-feed.ts'
 import {
@@ -221,6 +222,87 @@ describe('seed notification feed: create and fan-out', () => {
         ).pipe(Effect.provide(layer))
         expect(enqueued.map((message) => message.recipientUserId)).toEqual(['usr_dev'])
       })
+  )
+})
+
+describe('seed notification feed: notifyWorkspaceOwners', () => {
+  it.effect(
+    'records one owner-only row per owner, emailing each per their channel',
+    () => {
+      const enqueued: Array<NotificationEmailQueueMessage> = []
+      // The demo owner takes webhook failures instantly; the other owner
+      // stays on the kind's digest default.
+      const layer = feedFor(enqueued, [
+        { userId: 'usr_demo', kind: 'webhook.delivery_failed', channel: 'instant' }
+      ])
+      const ladderNotice = {
+        workspaceId: seedWorkspaceRecord.id,
+        kind: 'webhook.delivery_failed',
+        title: 'Webhook endpoint failing',
+        message: 'https://example.com/hook has failed 5 deliveries in a row.'
+      } satisfies NotifyWorkspaceOwnersInput
+      return Effect.gen(function* () {
+        const feed = yield* NotificationFeed
+        yield* feed.notifyWorkspaceOwners(ladderNotice)
+        // The fixture roster's owners are usr_demo and usr_martin; one row
+        // each, and a row is visible only to its reader — the member and the
+        // admin see none of them.
+        function visibleTo(actor: {
+          userId: string
+          role: 'owner' | 'admin' | 'member'
+          systemRole: 'admin' | 'user'
+        }) {
+          return feed.list.pipe(
+            Effect.provideService(WorkspaceContext, {
+              workspace: seedWorkspaceRecord,
+              actor,
+              actorType: 'user'
+            })
+          )
+        }
+        function titled(rows: ReadonlyArray<{ title: string }>) {
+          return rows.filter((row) => row.title === ladderNotice.title)
+        }
+        expect(
+          titled(
+            yield* visibleTo({ userId: 'usr_demo', role: 'owner', systemRole: 'admin' })
+          )
+        ).toHaveLength(1)
+        expect(
+          titled(
+            yield* visibleTo({
+              userId: 'usr_martin',
+              role: 'owner',
+              systemRole: 'admin'
+            })
+          )
+        ).toHaveLength(1)
+        expect(
+          titled(
+            yield* visibleTo({ userId: 'usr_dev', role: 'member', systemRole: 'user' })
+          )
+        ).toHaveLength(0)
+        expect(
+          titled(
+            yield* visibleTo({ userId: 'usr_ops', role: 'admin', systemRole: 'user' })
+          )
+        ).toHaveLength(0)
+        // One enqueue per row, resolved per owner's channel: only the owner
+        // who chose instant gets a message.
+        expect(enqueued.map((message) => message.recipientUserId)).toEqual(['usr_demo'])
+        // The fixture knows one workspace: any other id owns no rows.
+        yield* feed.notifyWorkspaceOwners({
+          ...ladderNotice,
+          workspaceId: 'wrk_elsewhere'
+        })
+        expect(enqueued).toHaveLength(1)
+        expect(
+          titled(
+            yield* visibleTo({ userId: 'usr_demo', role: 'owner', systemRole: 'admin' })
+          )
+        ).toHaveLength(1)
+      }).pipe(Effect.provide(layer))
+    }
   )
 })
 

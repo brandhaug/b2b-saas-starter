@@ -195,6 +195,7 @@ export function LiveWorkspaceExports(
             auditEvent: {
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'workspace.export_requested',
               targetType: 'workspace_export',
               targetId: id,
@@ -263,6 +264,7 @@ export function LiveWorkspaceExports(
             auditEvent: {
               workspaceId: input.workspaceId,
               actorUserId: null,
+              actorType: 'system',
               eventType: 'workspace.export_completed',
               targetType: 'workspace_export',
               targetId: input.exportId,
@@ -349,6 +351,8 @@ export function LiveWorkspaceExports(
           yield* audit.record({
             workspaceId: found.row.workspaceId,
             actorUserId: null,
+            // The signed-link holder initiated this request, not a background job.
+            actorType: 'user',
             eventType: 'workspace.export_downloaded',
             targetType: 'workspace_export',
             targetId: found.row.id,

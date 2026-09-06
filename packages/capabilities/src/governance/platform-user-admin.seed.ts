@@ -76,6 +76,7 @@ export function SeedPlatformUserAdmin(
             // Same events as Live, recorded after the in-memory write.
             yield* audit.record({
               actorUserId: input.actorUserId,
+              actorType: 'user',
               eventType: 'system_admin.user_banned',
               targetType: 'user',
               targetId: input.userId
@@ -87,6 +88,7 @@ export function SeedPlatformUserAdmin(
             yield* setBanned(input.userId, false)
             yield* audit.record({
               actorUserId: input.actorUserId,
+              actorType: 'user',
               eventType: 'system_admin.user_unbanned',
               targetType: 'user',
               targetId: input.userId
@@ -114,6 +116,7 @@ export function SeedPlatformUserAdmin(
             yield* audit.record({
               workspaceId: input.workspaceId,
               actorUserId: input.actorUserId,
+              actorType: 'user',
               eventType: 'system_admin.user_role_changed',
               targetType: 'workspace_member',
               targetId: input.userId,
@@ -129,6 +132,7 @@ export function SeedPlatformUserAdmin(
             yield* Ref.set(impersonating, input.userId)
             yield* audit.record({
               actorUserId: input.actorUserId,
+              actorType: 'user',
               eventType: 'system_admin.impersonation_started',
               targetType: 'user',
               targetId: input.userId,
@@ -155,6 +159,7 @@ export function SeedPlatformUserAdmin(
             yield* Ref.set(impersonating, null)
             yield* audit.record({
               actorUserId: input.actorUserId,
+              actorType: 'user',
               eventType: 'system_admin.impersonation_stopped',
               targetType: 'user',
               targetId: input.userId

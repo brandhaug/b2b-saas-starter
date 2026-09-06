@@ -104,6 +104,7 @@ function preferenceChangeEvent(
 ): RecordAuditEventInput {
   return {
     actorUserId: input.userId,
+    actorType: 'user',
     eventType: 'notification_preference.changed',
     targetType: 'user',
     targetId: input.userId,

@@ -1,5 +1,5 @@
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import { auditEventLabel } from '@/lib/audit-labels'
+import { auditActorTypeLabel, auditEventLabel } from '@/lib/audit-labels'
 import { formatDateTime } from '@/lib/format-date'
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
@@ -102,7 +102,7 @@ export function attentionItems({
         id: `event-${event.id}`,
         severity: 'info',
         title: auditEventLabel(event.eventType),
-        description: `${event.actor} · ${formatDateTime(event.createdAt)}`,
+        description: `${event.actor} · ${auditActorTypeLabel(event.actorType)} · ${formatDateTime(event.createdAt)}`,
         to: '/workspaces/$workspaceSlug/audit',
         linkLabel: 'Open the audit trail'
       })

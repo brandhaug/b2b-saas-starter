@@ -334,16 +334,21 @@ export function subscriptionLinkForStripeEvent(
 /**
  * Verifies Stripe's `stripe-signature` header scheme: `t=<ts>,v1=<hex>` where
  * `v1` is HMAC-SHA256 over `<ts>.<payload>` keyed with the webhook secret.
- * Constant-time comparison; `toleranceSeconds` bounds replay. Exported for
- * the background worker and its tests.
+ * Constant-time comparison; `toleranceSeconds` bounds replay, measured on
+ * the injectable `now` wall clock so tests can pin the boundary. Exported
+ * for the background worker and its tests.
  */
 // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto's HMAC API is promise-based, and this helper is shared with the background worker's plain fetch handler
-export async function verifyStripeSignature(input: {
-  readonly secret: string
-  readonly payload: string
-  readonly header: string | null
-  readonly toleranceSeconds?: number | undefined
-}): Promise<boolean> {
+export async function verifyStripeSignature(
+  input: {
+    readonly secret: string
+    readonly payload: string
+    readonly header: string | null
+    readonly toleranceSeconds?: number | undefined
+  },
+  // oxlint-disable-next-line effect/noGlobals -- replay tolerance is a wall-clock comparison by definition; Clock would tie a pure verification helper to an Effect runtime
+  now: () => number = Date.now
+): Promise<boolean> {
   if (input.header === null) {
     return false
   }
@@ -359,8 +364,7 @@ export async function verifyStripeSignature(input: {
   if (timestamp === undefined || signature === undefined) {
     return false
   }
-  // oxlint-disable-next-line effect/noGlobals -- replay tolerance is a wall-clock comparison by definition; Clock would tie a pure verification helper to an Effect runtime
-  const age = Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp))
+  const age = Math.abs(Math.floor(now() / 1000) - Number(timestamp))
   if (!Number.isFinite(age)) {
     return false
   }

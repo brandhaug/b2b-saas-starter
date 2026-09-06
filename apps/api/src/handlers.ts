@@ -42,6 +42,10 @@ const WEBHOOK_DELETED = {
  * capability call. The event name is passed whole — reads sit under
  * `workspace.*` (see `workspaceRead`), writes name themselves
  * (`api-tokens.create`).
+ *
+ * Every REST workspace operation rides a bearer token, so the workspace layer
+ * the body runs against carries the `api_token` caller kind — the label a
+ * mutating capability's audit row then records.
  */
 function workspaceOperation<A, E, R>(
   env: ApiEnv,
@@ -58,7 +62,7 @@ function workspaceOperation<A, E, R>(
     { workspaceSlug: slug },
     Effect.gen(function* () {
       yield* enforcePermission(permission, slug)
-      return yield* provideWorkspace(env, slug, body)
+      return yield* provideWorkspace(env, slug, body, undefined, 'api_token')
     })
   )
 }

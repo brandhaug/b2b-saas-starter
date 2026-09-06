@@ -12,6 +12,7 @@ import {
   DELIVERIES_PAGE_SIZE,
   deliverySuccessRate,
   isReplayableDeliveryStatus,
+  nextConsecutiveFailures,
   planPendingDispatch,
   planReplayedDelivery,
   planSecretRotation,
@@ -61,6 +62,9 @@ type SeedEndpointRow = {
   signingSecret: string
   previousSigningSecret: string | null
   previousSecretExpiresAt: string | null
+  // The failure ladder's streak, moved in the same step as the delivery row
+  // (see `recordAttempt`) so the Seed store mirrors the Live batch.
+  consecutiveFailures: number
 }
 
 type SeedDeliveryRow = {
@@ -158,7 +162,8 @@ export function SeedWebhookEndpoints(
         events: [...fixture.events],
         signingSecret: fixture.signingSecret ?? 'whsec_seed_fixture',
         previousSigningSecret: null,
-        previousSecretExpiresAt: null
+        previousSecretExpiresAt: null,
+        consecutiveFailures: 0
       }))
       const deliveries: Array<SeedDeliveryRow> = seedDeliveries.map((fixture) =>
         toDeliveryRow(fixture, seedWorkspaceRecord.id)
@@ -200,6 +205,7 @@ export function SeedWebhookEndpoints(
           yield* audit.record({
             workspaceId: row.workspaceId,
             actorUserId: null,
+            actorType: 'system',
             eventType: auditEventType,
             targetType: 'webhook_endpoint',
             targetId: row.endpointId,
@@ -266,6 +272,19 @@ export function SeedWebhookEndpoints(
         if (input.responseBody !== undefined) {
           attemptUpdate.responseBody = input.responseBody ?? null
         }
+        // The failure ladder's streak moves with the row, mirroring the
+        // counter update Live batches beside the delivery write. An endpoint
+        // that no longer resolves (deleted, or a foreign workspace) has no
+        // streak to move; the row still records the attempt.
+        const endpoint = endpointFor(input.endpointId, input.workspaceId)
+        let consecutiveFailures = 0
+        if (endpoint) {
+          consecutiveFailures = nextConsecutiveFailures(
+            endpoint.consecutiveFailures,
+            input.status
+          )
+          endpoint.consecutiveFailures = consecutiveFailures
+        }
         yield* persistAttempt(
           {
             id: deliveryId,
@@ -284,7 +303,7 @@ export function SeedWebhookEndpoints(
           },
           attemptUpdate
         )
-        return deliveryId
+        return { deliveryId, consecutiveFailures }
       })
 
       /**
@@ -317,6 +336,7 @@ export function SeedWebhookEndpoints(
           yield* audit.record({
             workspaceId: input.workspaceId,
             actorUserId: (yield* WorkspaceContext).actor?.userId ?? null,
+            actorType: (yield* WorkspaceContext).actorType,
             eventType: input.auditEventType,
             targetType: 'webhook_endpoint',
             targetId: input.plan.endpointId,
@@ -379,12 +399,14 @@ export function SeedWebhookEndpoints(
             events: [...input.events],
             signingSecret: 'whsec_seed_created',
             previousSigningSecret: null,
-            previousSecretExpiresAt: null
+            previousSecretExpiresAt: null,
+            consecutiveFailures: 0
           }
           endpoints.push(endpoint)
           yield* audit.record({
             workspaceId: ctx.workspace.id,
             actorUserId: ctx.actor?.userId ?? null,
+            actorType: ctx.actorType,
             eventType: 'webhook_endpoint.created',
             targetType: 'webhook_endpoint',
             targetId: endpoint.id,
@@ -470,6 +492,7 @@ export function SeedWebhookEndpoints(
             yield* audit.record({
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook_endpoint.updated',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -496,6 +519,7 @@ export function SeedWebhookEndpoints(
             yield* audit.record({
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook_endpoint.deleted',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -610,6 +634,7 @@ export function SeedWebhookEndpoints(
             yield* audit.record({
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook_endpoint.secret_rotated',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -629,17 +654,38 @@ export function SeedWebhookEndpoints(
               signingSecrets: activeSigningSecrets(endpoint, yield* DateTime.now)
             }
           }),
-        recordDeliveryAttempt: (input) => recordAttempt(input).pipe(Effect.asVoid),
+        recordDeliveryAttempt: (input) =>
+          Effect.map(recordAttempt(input), ({ consecutiveFailures }) => ({
+            consecutiveFailures
+          })),
         recordTerminalDeliveryAttempt: (input) =>
           // Same row identity and evidence as Live: the id from the queue
           // message, the payload recorded so the row stays replayable. The
           // retry schedule clears; response evidence already on the row stays.
-          Effect.map(
-            recordAttempt({ ...input, nextAttemptAt: null }),
-            (deliveryId) => ({
-              deliveryId
+          recordAttempt({ ...input, nextAttemptAt: null }),
+        autoDisableEndpoint: (input) =>
+          Effect.gen(function* () {
+            // Zero-match — already disabled, deleted, or foreign to the
+            // workspace — writes and audits nothing, mirroring the Live
+            // audited mutation's skip.
+            const endpoint = endpointFor(input.endpointId, input.workspaceId)
+            if (!endpoint || !endpoint.enabled) {
+              return
+            }
+            endpoint.enabled = false
+            yield* audit.record({
+              workspaceId: input.workspaceId,
+              actorUserId: null,
+              actorType: 'system',
+              eventType: 'webhook_endpoint.auto_disabled',
+              targetType: 'webhook_endpoint',
+              targetId: endpoint.id,
+              metadata: {
+                url: endpoint.url,
+                consecutiveFailures: input.consecutiveFailures
+              }
             })
-          )
+          })
       }
     })
   )

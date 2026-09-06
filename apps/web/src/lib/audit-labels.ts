@@ -104,6 +104,23 @@ export function auditEventLabel(eventType: string): string {
   return known ?? prettify(eventType)
 }
 
+/** The human label map for audit actor types, same ownership as the event labels. */
+const ACTOR_TYPE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  user: 'User',
+  system: 'System',
+  api_token: 'API token'
+})
+
+/** Who performed one audited event: a session user, the platform, or an API token. */
+export function auditActorTypeLabel(actorType: string): string {
+  const known = Object.hasOwn(ACTOR_TYPE_LABELS, actorType)
+    ? ACTOR_TYPE_LABELS[actorType]
+    : undefined
+  // Unknown values (a producer newer than this map) prettify from their
+  // snake_case spelling rather than breaking the page.
+  return known ?? prettify(actorType)
+}
+
 /**
  * The dropdown options for the event-type filter: every known type, sorted,
  * with their human labels.

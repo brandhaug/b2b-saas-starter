@@ -51,6 +51,9 @@ export function authAuditInput(
   const input: RecordAuditEventInput = {
     workspaceId: null,
     actorUserId,
+    // Every exchange this table maps is a human at an auth endpoint —
+    // attributed or not, the actor type is `user`.
+    actorType: 'user',
     eventType,
     // Sign-in's target is the session it opens (the established shape); the
     // lifecycle and admin events target the account they change.

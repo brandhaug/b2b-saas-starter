@@ -1,7 +1,7 @@
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { signWorkspaceExportDownload } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { seedWorkspaceExportFixture } from '@b2b-saas-starter/capabilities/seed-fixture'
-import { describe, expect, test, vi } from 'vite-plus/test'
+import { describe, expect, it, vi } from '@effect/vitest'
 import { DateTime, Effect, Schema } from 'effect'
 import { type ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
@@ -19,6 +19,7 @@ const OverviewBody = Schema.Struct({
   notifications: Schema.Array(Schema.Unknown)
 })
 const CreatedTokenBody = Schema.Struct({
+  id: Schema.String,
   token: Schema.String,
   scopes: Schema.Array(Schema.String)
 })
@@ -105,275 +106,273 @@ function send(request: Request, env: ApiEnv = {}): Effect.Effect<Response> {
   return Effect.promise(() => handlerFor(env)(request))
 }
 
-function jsonBody<S extends Schema.Top>(
-  response: Response,
-  schema: S
-): Effect.Effect<S['Type'], never, S['DecodingServices']> {
+function jsonBody<S extends Schema.Top>(response: Response, schema: S) {
   return Effect.promise(() => response.json()).pipe(
-    Effect.flatMap((body) => Schema.decodeUnknownEffect(schema)(body)),
-    Effect.orDie
+    Effect.flatMap((body) => Schema.decodeUnknownEffect(schema)(body))
   )
 }
 
 describe('contract-served routes', () => {
-  test('GET /health is public and returns ok', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(get('/health'))
-        expect(res.status).toBe(200)
-        expect(yield* jsonBody(res, HealthBody)).toEqual({ status: 'ok' })
-      })
-    ))
+  it.effect('GET /health is public and returns ok', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/health'))
+      expect(res.status).toBe(200)
+      expect(yield* jsonBody(res, HealthBody)).toEqual({ status: 'ok' })
+    })
+  )
 
-  test('GET /openapi.json is generated from the contract', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(get('/openapi.json'))
-        expect(res.status).toBe(200)
-        const doc = yield* jsonBody(res, OpenApiBody)
-        expect(doc.openapi).toBeDefined()
-        expect(doc.paths['/workspaces/{slug}/overview']).toBeDefined()
-        expect(doc.paths['/workspaces/{slug}/webhooks']).toBeDefined()
-        expect(doc.paths['/health']).toBeDefined()
-        // The published contract must not advertise a surface the worker cannot
-        // serve. See the 404 test below and issue #64.
-        expect(doc.paths['/workspaces/{slug}/invitations']).toBeUndefined()
-      })
-    ))
+  it.effect('GET /openapi.json is generated from the contract', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/openapi.json'))
+      expect(res.status).toBe(200)
+      const doc = yield* jsonBody(res, OpenApiBody)
+      expect(doc.openapi).toBeDefined()
+      expect(doc.paths['/workspaces/{slug}/overview']).toBeDefined()
+      expect(doc.paths['/workspaces/{slug}/webhooks']).toBeDefined()
+      expect(doc.paths['/health']).toBeDefined()
+      // The published contract must not advertise a surface the worker cannot
+      // serve. See the 404 test below and issue #64.
+      expect(doc.paths['/workspaces/{slug}/invitations']).toBeUndefined()
+    })
+  )
 
-  test('GET /reference serves the Scalar UI', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(get('/reference'))
-        expect(res.status).toBe(200)
-        expect(res.headers.get('content-type')).toContain('text/html')
-      })
-    ))
+  it.effect('GET /reference serves the Scalar UI', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/reference'))
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toContain('text/html')
+    })
+  )
 
-  test('protected routes require a bearer token', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(get('/workspaces/starter-lab/overview'))
-        expect(res.status).toBe(401)
-        expect((yield* jsonBody(res, ErrorBody))._tag).toBe('Unauthorized')
-      })
-    ))
+  it.effect('protected routes require a bearer token', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/workspaces/starter-lab/overview'))
+      expect(res.status).toBe(401)
+      expect((yield* jsonBody(res, ErrorBody))._tag).toBe('Unauthorized')
+    })
+  )
 
-  test('unknown bearer tokens are authentication failures', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          get('/workspaces/starter-lab/overview', {
-            authorization: 'Bearer bsk_live_bogus'
-          })
-        )
-        expect(res.status).toBe(401)
-      })
-    ))
+  it.effect('unknown bearer tokens are authentication failures', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        get('/workspaces/starter-lab/overview', {
+          authorization: 'Bearer bsk_live_bogus'
+        })
+      )
+      expect(res.status).toBe(401)
+    })
+  )
 
-  test('workspace tokens cannot cross workspace slugs', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(get('/workspaces/does-not-exist/overview', bearer))
-        expect(res.status).toBe(403)
-        expect((yield* jsonBody(res, ErrorBody))._tag).toBe('AuthorizationDenied')
-      })
-    ))
+  it.effect('workspace tokens cannot cross workspace slugs', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/workspaces/does-not-exist/overview', bearer))
+      expect(res.status).toBe(403)
+      expect((yield* jsonBody(res, ErrorBody))._tag).toBe('AuthorizationDenied')
+    })
+  )
 
   // The read-only token's whole route table lives in `permission-matrix.test.ts`,
   // which asserts every gated operation the contract advertises. Keeping one
   // permitted read and two denials here as well only duplicated three of its rows.
 
-  test('GET workspace overview returns the DTO for the seed token', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(get('/workspaces/starter-lab/overview', bearer))
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, OverviewBody)
-        expect(body.workspace.slug).toBe('starter-lab')
-        expect(Array.isArray(body.notifications)).toBe(true)
-      })
-    ))
+  it.effect('GET workspace overview returns the DTO for the seed token', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/workspaces/starter-lab/overview', bearer))
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(res, OverviewBody)
+      expect(body.workspace.slug).toBe('starter-lab')
+      expect(Array.isArray(body.notifications)).toBe(true)
+    })
+  )
 
-  test('POST create api token returns 201 with the created token', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          post(
-            '/workspaces/starter-lab/api-tokens',
-            { name: 'CI token', scopes: ['read'] },
-            bearer
-          )
+  it.effect('POST create api token returns 201 with the created token', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        post(
+          '/workspaces/starter-lab/api-tokens',
+          { name: 'CI token', scopes: ['read'] },
+          bearer
         )
-        expect(res.status).toBe(201)
-        const body = yield* jsonBody(res, CreatedTokenBody)
-        expect(body.token).toBeTruthy()
-        expect(body.scopes).toEqual(['read'])
-      })
-    ))
-
-  test('POST create webhook rejects invalid destinations', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          post(
-            '/workspaces/starter-lab/webhooks',
-            { url: 'http://insecure.example.com/hook', events: ['api_token.created'] },
-            bearer
+      )
+      expect(res.status).toBe(201)
+      const body = yield* jsonBody(res, CreatedTokenBody)
+      expect(body.token).toBeTruthy()
+      expect(body.scopes).toEqual(['read'])
+      const auditResponse = yield* send(
+        get('/workspaces/starter-lab/audit-events?eventType=api_token.created', bearer)
+      )
+      expect(auditResponse.status).toBe(200)
+      const audit = yield* jsonBody(
+        auditResponse,
+        Schema.Struct({
+          items: Schema.Array(
+            Schema.Struct({
+              targetId: Schema.NullOr(Schema.String),
+              actorType: Schema.String
+            })
           )
-        )
-        expect(res.status).toBe(400)
-        expect((yield* jsonBody(res, ErrorBody))._tag).toBe('InvalidWebhookUrl')
-      })
-    ))
+        })
+      )
+      expect(audit.items.find((event) => event.targetId === body.id)?.actorType).toBe(
+        'api_token'
+      )
+    })
+  )
 
-  test('POST create webhook accepts https destinations', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          post(
-            '/workspaces/starter-lab/webhooks',
-            { url: 'https://example.com/hook', events: ['api_token.created'] },
-            bearer
-          )
+  it.effect('POST create webhook rejects invalid destinations', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        post(
+          '/workspaces/starter-lab/webhooks',
+          { url: 'http://insecure.example.com/hook', events: ['api_token.created'] },
+          bearer
         )
-        expect(res.status).toBe(201)
-        const body = yield* jsonBody(res, CreatedWebhookBody)
-        expect(body.url).toBe('https://example.com/hook')
-        expect(body.enabled).toBe(true)
-      })
-    ))
+      )
+      expect(res.status).toBe(400)
+      expect((yield* jsonBody(res, ErrorBody))._tag).toBe('InvalidWebhookUrl')
+    })
+  )
 
-  test('PATCH webhook endpoint updates the provided fields', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        function patch(payload: typeof Schema.Json.Type) {
-          return send(
-            new Request('https://api.test/workspaces/starter-lab/webhooks/wh_release', {
+  it.effect('POST create webhook accepts https destinations', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        post(
+          '/workspaces/starter-lab/webhooks',
+          { url: 'https://example.com/hook', events: ['api_token.created'] },
+          bearer
+        )
+      )
+      expect(res.status).toBe(201)
+      const body = yield* jsonBody(res, CreatedWebhookBody)
+      expect(body.url).toBe('https://example.com/hook')
+      expect(body.enabled).toBe(true)
+    })
+  )
+
+  it.effect('PATCH webhook endpoint updates the provided fields', () =>
+    Effect.gen(function* () {
+      function patch(payload: typeof Schema.Json.Type) {
+        return send(
+          new Request('https://api.test/workspaces/starter-lab/webhooks/wh_release', {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json', ...bearer },
+            body: encodeJsonBody(payload)
+          })
+        )
+      }
+      const res = yield* patch({ enabled: false })
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(res, UpdatedWebhookBody)
+      // Only the provided field changed; URL and subscriptions are intact.
+      expect(body.enabled).toBe(false)
+      expect(body.url).toBe('https://example.com/webhooks/starter')
+      expect(body.events).toEqual(['api_token.created'])
+      // Put the endpoint back: later tests dispatch to it.
+      const reEnabled = yield* patch({ enabled: true })
+      expect((yield* jsonBody(reEnabled, UpdatedWebhookBody)).enabled).toBe(true)
+    })
+  )
+
+  it.effect('PATCH webhook endpoint re-validates the URL and 404s unknown ids', () =>
+    Effect.gen(function* () {
+      function patch(endpointId: string, payload: typeof Schema.Json.Type) {
+        return send(
+          new Request(
+            `https://api.test/workspaces/starter-lab/webhooks/${endpointId}`,
+            {
               method: 'PATCH',
               headers: { 'content-type': 'application/json', ...bearer },
               body: encodeJsonBody(payload)
-            })
-          )
-        }
-        const res = yield* patch({ enabled: false })
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, UpdatedWebhookBody)
-        // Only the provided field changed; URL and subscriptions are intact.
-        expect(body.enabled).toBe(false)
-        expect(body.url).toBe('https://example.com/webhooks/starter')
-        expect(body.events).toEqual(['api_token.created'])
-        // Put the endpoint back: later tests dispatch to it.
-        const reEnabled = yield* patch({ enabled: true })
-        expect((yield* jsonBody(reEnabled, UpdatedWebhookBody)).enabled).toBe(true)
-      })
-    ))
-
-  test('PATCH webhook endpoint re-validates the URL and 404s unknown ids', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        function patch(endpointId: string, payload: typeof Schema.Json.Type) {
-          return send(
-            new Request(
-              `https://api.test/workspaces/starter-lab/webhooks/${endpointId}`,
-              {
-                method: 'PATCH',
-                headers: { 'content-type': 'application/json', ...bearer },
-                body: encodeJsonBody(payload)
-              }
-            )
-          )
-        }
-        const invalid = yield* patch('wh_release', { url: 'http://localhost/hook' })
-        expect(invalid.status).toBe(400)
-        expect((yield* jsonBody(invalid, ErrorBody))._tag).toBe('InvalidWebhookUrl')
-        const missing = yield* patch('wh_missing', { enabled: true })
-        expect(missing.status).toBe(404)
-        expect((yield* jsonBody(missing, ErrorBody))._tag).toBe(
-          'WebhookEndpointNotFound'
-        )
-      })
-    ))
-
-  test('DELETE webhook endpoint removes it and 404s when nothing matches', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        // Create a throwaway endpoint so the seed fixture stays intact for the
-        // other tests in this file.
-        const created = yield* send(
-          post(
-            '/workspaces/starter-lab/webhooks',
-            { url: 'https://example.com/doomed', events: ['api_token.revoked'] },
-            bearer
-          )
-        )
-        const createdBody = yield* jsonBody(created, CreatedEndpointIdBody)
-        const res = yield* send(
-          new Request(
-            `https://api.test/workspaces/starter-lab/webhooks/${createdBody.id}`,
-            {
-              method: 'DELETE',
-              headers: bearer
             }
           )
         )
-        expect(res.status).toBe(200)
-        expect(yield* jsonBody(res, DeletedBody)).toEqual({ status: 'deleted' })
-        const again = yield* send(
-          new Request(
-            `https://api.test/workspaces/starter-lab/webhooks/${createdBody.id}`,
-            {
-              method: 'DELETE',
-              headers: bearer
-            }
-          )
-        )
-        expect(again.status).toBe(404)
-      })
-    ))
+      }
+      const invalid = yield* patch('wh_release', { url: 'http://localhost/hook' })
+      expect(invalid.status).toBe(400)
+      expect((yield* jsonBody(invalid, ErrorBody))._tag).toBe('InvalidWebhookUrl')
+      const missing = yield* patch('wh_missing', { enabled: true })
+      expect(missing.status).toBe(404)
+      expect((yield* jsonBody(missing, ErrorBody))._tag).toBe('WebhookEndpointNotFound')
+    })
+  )
 
-  test('POST rotate-secret returns the new secret once', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          post('/workspaces/starter-lab/webhooks/wh_release/rotate-secret', {}, bearer)
+  it.effect('DELETE webhook endpoint removes it and 404s when nothing matches', () =>
+    Effect.gen(function* () {
+      // Create a throwaway endpoint so the seed fixture stays intact for the
+      // other tests in this file.
+      const created = yield* send(
+        post(
+          '/workspaces/starter-lab/webhooks',
+          { url: 'https://example.com/doomed', events: ['api_token.revoked'] },
+          bearer
         )
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, RotatedSecretBody)
-        expect(body.signingSecret).toMatch(/^whsec_/)
-        const missing = yield* send(
-          post('/workspaces/starter-lab/webhooks/wh_missing/rotate-secret', {}, bearer)
+      )
+      const createdBody = yield* jsonBody(created, CreatedEndpointIdBody)
+      const res = yield* send(
+        new Request(
+          `https://api.test/workspaces/starter-lab/webhooks/${createdBody.id}`,
+          {
+            method: 'DELETE',
+            headers: bearer
+          }
         )
-        expect(missing.status).toBe(404)
-      })
-    ))
+      )
+      expect(res.status).toBe(200)
+      expect(yield* jsonBody(res, DeletedBody)).toEqual({ status: 'deleted' })
+      const again = yield* send(
+        new Request(
+          `https://api.test/workspaces/starter-lab/webhooks/${createdBody.id}`,
+          {
+            method: 'DELETE',
+            headers: bearer
+          }
+        )
+      )
+      expect(again.status).toBe(404)
+    })
+  )
 
-  test('POST test-event queues a synthetic webhook.test_event delivery', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          post('/workspaces/starter-lab/webhooks/wh_release/test-event', {}, bearer)
-        )
-        expect(res.status).toBe(201)
-        const body = yield* jsonBody(res, QueuedDeliveryBody)
-        expect(body.status).toBe('queued')
-        expect(body.deliveryId).toBeTruthy()
-        // The pending delivery lists back through the read surface.
-        const deliveries = yield* send(
-          get('/workspaces/starter-lab/webhooks/wh_release/deliveries', bearer)
-        )
-        const rows = yield* jsonBody(deliveries, DeliveriesBody)
-        const pending = rows.find((row) => row.id === body.deliveryId)
-        expect(pending).toMatchObject({
-          status: 'pending',
-          attempts: 0,
-          eventType: 'webhook.test_event'
-        })
-      })
-    ))
+  it.effect('POST rotate-secret returns the new secret once', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        post('/workspaces/starter-lab/webhooks/wh_release/rotate-secret', {}, bearer)
+      )
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(res, RotatedSecretBody)
+      expect(body.signingSecret).toMatch(/^whsec_/)
+      const missing = yield* send(
+        post('/workspaces/starter-lab/webhooks/wh_missing/rotate-secret', {}, bearer)
+      )
+      expect(missing.status).toBe(404)
+    })
+  )
 
-  test('POST replay-delivery re-enqueues a failed delivery as a pending copy', () =>
-    Effect.runPromise(
+  it.effect('POST test-event queues a synthetic webhook.test_event delivery', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        post('/workspaces/starter-lab/webhooks/wh_release/test-event', {}, bearer)
+      )
+      expect(res.status).toBe(201)
+      const body = yield* jsonBody(res, QueuedDeliveryBody)
+      expect(body.status).toBe('queued')
+      expect(body.deliveryId).toBeTruthy()
+      // The pending delivery lists back through the read surface.
+      const deliveries = yield* send(
+        get('/workspaces/starter-lab/webhooks/wh_release/deliveries', bearer)
+      )
+      const rows = yield* jsonBody(deliveries, DeliveriesBody)
+      const pending = rows.find((row) => row.id === body.deliveryId)
+      expect(pending).toMatchObject({
+        status: 'pending',
+        attempts: 0,
+        eventType: 'webhook.test_event'
+      })
+    })
+  )
+
+  it.effect(
+    'POST replay-delivery re-enqueues a failed delivery as a pending copy',
+    () =>
       Effect.gen(function* () {
         const res = yield* send(
           post(
@@ -420,49 +419,46 @@ describe('contract-served routes', () => {
         )
         expect(missing.status).toBe(404)
       })
-    ))
+  )
 
-  test('GET webhook deliveries lists recorded evidence for one endpoint', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          get('/workspaces/starter-lab/webhooks/wh_release/deliveries', bearer)
-        )
-        expect(res.status).toBe(200)
-        const rows = yield* jsonBody(res, DeliveriesBody)
-        const failed = rows.find((row) => row.id === 'whd_seed_failed')
-        expect(failed).toMatchObject({
-          status: 'failed',
-          responseStatus: 500,
-          replayedFrom: null
-        })
-        expect(failed?.requestHeaders?.['x-b2b-starter-event']).toBe(
-          'api_token.created'
-        )
-        expect(failed?.responseBody).toContain('upstream')
+  it.effect('GET webhook deliveries lists recorded evidence for one endpoint', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        get('/workspaces/starter-lab/webhooks/wh_release/deliveries', bearer)
+      )
+      expect(res.status).toBe(200)
+      const rows = yield* jsonBody(res, DeliveriesBody)
+      const failed = rows.find((row) => row.id === 'whd_seed_failed')
+      expect(failed).toMatchObject({
+        status: 'failed',
+        responseStatus: 500,
+        replayedFrom: null
       })
-    ))
+      expect(failed?.requestHeaders?.['x-b2b-starter-event']).toBe('api_token.created')
+      expect(failed?.responseBody).toContain('upstream')
+    })
+  )
 
   // Issue #64: the worker has no session to offer Better Auth's organization
   // plugin, so it cannot persist an invitation. The endpoint used to email a
   // link carrying no invitation id, which no recipient could ever accept, so
   // the route is gone rather than left emailing a dead link.
-  test('POST invitations is not served: the worker cannot persist one', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          post(
-            '/workspaces/starter-lab/invitations',
-            { to: 'invitee@example.com' },
-            bearer
-          )
+  it.effect('POST invitations is not served: the worker cannot persist one', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        post(
+          '/workspaces/starter-lab/invitations',
+          { to: 'invitee@example.com' },
+          bearer
         )
-        expect(res.status).toBe(404)
-      })
-    ))
+      )
+      expect(res.status).toBe(404)
+    })
+  )
 
-  test('POST assistant answer returns a mock reply when authorized and unconfigured', () =>
-    Effect.runPromise(
+  it.effect(
+    'POST assistant answer returns a mock reply when authorized and unconfigured',
+    () =>
       Effect.gen(function* () {
         const res = yield* send(
           post(
@@ -476,65 +472,59 @@ describe('contract-served routes', () => {
         expect(body.provider).toBe('mock')
         expect(body.assistantConfigured).toBe(false)
       })
-    ))
+  )
 
-  test('GET /mcp/discovery returns the discovery document when authorized', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(get('/mcp/discovery', bearer))
-        expect(res.status).toBe(200)
-        expect((yield* jsonBody(res, McpDiscoveryBody)).name).toBe(
-          'b2b-saas-starter-mcp'
-        )
-      })
-    ))
+  it.effect('GET /mcp/discovery returns the discovery document when authorized', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/mcp/discovery', bearer))
+      expect(res.status).toBe(200)
+      expect((yield* jsonBody(res, McpDiscoveryBody)).name).toBe('b2b-saas-starter-mcp')
+    })
+  )
 
-  test('a denying rate-limit binding short-circuits with 429', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const denyAssistant: ApiEnv = {
-          RATE_LIMITER_ASSISTANT: { limit: () => Promise.resolve({ success: false }) }
-        }
-        const res = yield* send(
-          post('/assistant/answer', {
-            workspaceSlug: 'starter-lab',
-            question: 'Hi'
-          }),
-          denyAssistant
-        )
-        expect(res.status).toBe(429)
-        expect((yield* jsonBody(res, ErrorBody))._tag).toBe('RateLimited')
-      })
-    ))
+  it.effect('a denying rate-limit binding short-circuits with 429', () =>
+    Effect.gen(function* () {
+      const denyAssistant: ApiEnv = {
+        RATE_LIMITER_ASSISTANT: { limit: () => Promise.resolve({ success: false }) }
+      }
+      const res = yield* send(
+        post('/assistant/answer', {
+          workspaceSlug: 'starter-lab',
+          question: 'Hi'
+        }),
+        denyAssistant
+      )
+      expect(res.status).toBe(429)
+      expect((yield* jsonBody(res, ErrorBody))._tag).toBe('RateLimited')
+    })
+  )
 
-  test('GET / serves the root index', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(get('/'))
-        expect(res.status).toBe(200)
-        expect(res.headers.get('content-type')).toContain('application/json')
-        const body = yield* jsonBody(
-          res,
-          Schema.Struct({
-            name: Schema.Literal('b2b-saas-starter-api'),
-            health: Schema.Literal('/health'),
-            openapi: Schema.Literal('/openapi.json'),
-            docs: Schema.Literal('/reference'),
-            mcp: Schema.Literal('/mcp'),
-            mcpDiscovery: Schema.Literal('/mcp/discovery')
-          })
-        )
-        expect(body.docs).toBe('/reference')
-      })
-    ))
+  it.effect('GET / serves the root index', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/'))
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toContain('application/json')
+      const body = yield* jsonBody(
+        res,
+        Schema.Struct({
+          name: Schema.Literal('b2b-saas-starter-api'),
+          health: Schema.Literal('/health'),
+          openapi: Schema.Literal('/openapi.json'),
+          docs: Schema.Literal('/reference'),
+          mcp: Schema.Literal('/mcp'),
+          mcpDiscovery: Schema.Literal('/mcp/discovery')
+        })
+      )
+      expect(body.docs).toBe('/reference')
+    })
+  )
 
-  test('unknown routes are 404', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(get('/nope'))
-        expect(res.status).toBe(404)
-      })
-    ))
+  it.effect('unknown routes are 404', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/nope'))
+      expect(res.status).toBe(404)
+    })
+  )
 })
 
 /**
@@ -551,7 +541,7 @@ const decodeWideEventLine = Schema.decodeUnknownSync(
 )
 
 describe('request observability', () => {
-  test('the wide event carries the Cloudflare colo the request arrived at', () => {
+  it.effect('the wide event carries the Cloudflare colo the request arrived at', () => {
     const lines: Array<typeof WideEventLine.Type> = []
     const captureLine = vi
       .spyOn(console, 'log')
@@ -564,29 +554,28 @@ describe('request observability', () => {
     // attached here the way the runtime would.
     Object.defineProperty(request, 'cf', { value: { colo: 'ARN' } })
 
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(request)
-        expect(res.status).toBe(200)
+    return Effect.gen(function* () {
+      const res = yield* send(request)
+      expect(res.status).toBe(200)
 
-        const events = lines.filter((line) => line.message === 'request.health')
-        // Exactly one event per request, and it names the colo as its region.
-        expect(events).toHaveLength(1)
-        expect(events[0]?.annotations).toMatchObject({
-          service: 'api',
-          status: 'ok',
-          pathname: '/health',
-          method: 'GET',
-          region: 'ARN'
-        })
-      }).pipe(Effect.ensuring(Effect.sync(() => captureLine.mockRestore())))
-    )
+      const events = lines.filter((line) => line.message === 'request.health')
+      // Exactly one event per request, and it names the colo as its region.
+      expect(events).toHaveLength(1)
+      expect(events[0]?.annotations).toMatchObject({
+        service: 'api',
+        status: 'ok',
+        pathname: '/health',
+        method: 'GET',
+        region: 'ARN'
+      })
+    }).pipe(Effect.ensuring(Effect.sync(() => captureLine.mockRestore())))
   })
 })
 
 describe('workspace exports (ADR 0055)', () => {
-  test('POST /workspaces/:slug/exports requests an export with the owner-set token', () =>
-    Effect.runPromise(
+  it.effect(
+    'POST /workspaces/:slug/exports requests an export with the owner-set token',
+    () =>
       Effect.gen(function* () {
         const res = yield* send(post('/workspaces/starter-lab/exports', {}, bearer))
         expect(res.status).toBe(202)
@@ -594,41 +583,39 @@ describe('workspace exports (ADR 0055)', () => {
         // The Seed adapter has no queue: the row lands ready inline.
         expect(body.status).toBe('ready')
       })
-    ))
+  )
 
-  test('POST …/exports/:exportId/download-link mints a link on this origin', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(
-          post(
-            `/workspaces/starter-lab/exports/${seedWorkspaceExportFixture.id}/download-link`,
-            {},
-            bearer
-          )
+  it.effect('POST …/exports/:exportId/download-link mints a link on this origin', () =>
+    Effect.gen(function* () {
+      const res = yield* send(
+        post(
+          `/workspaces/starter-lab/exports/${seedWorkspaceExportFixture.id}/download-link`,
+          {},
+          bearer
         )
-        expect(res.status).toBe(200)
-        const body = yield* jsonBody(res, DownloadLinkBody)
-        expect(body.url).toMatch(
-          /^https:\/\/api\.test\/exports\/exp_seed_ready\/download\?expires=\d+&signature=[0-9a-f]{64}$/
-        )
-        // The minted link is honoured by the public route, on a fresh handler
-        // whose Seed adapter shares nothing but the fixture secret.
-        const download = yield* send(new Request(body.url))
-        expect(download.status).toBe(200)
-        expect(download.headers.get('content-type')).toContain('application/gzip')
-        expect(download.headers.get('content-disposition')).toContain(
-          'starter-lab-export-exp_seed_ready.json.gz'
-        )
-        const bytes = new Uint8Array(
-          yield* Effect.promise(() => download.arrayBuffer())
-        )
-        // Gzip magic bytes: 0x1f 0x8b.
-        expect([...bytes.subarray(0, 2)]).toEqual([0x1f, 0x8b])
-      })
-    ))
+      )
+      expect(res.status).toBe(200)
+      const body = yield* jsonBody(res, DownloadLinkBody)
+      expect(body.url).toMatch(
+        /^https:\/\/api\.test\/exports\/exp_seed_ready\/download\?expires=\d+&signature=[0-9a-f]{64}$/
+      )
+      // The minted link is honoured by the public route, on a fresh handler
+      // whose Seed adapter shares nothing but the fixture secret.
+      const download = yield* send(new Request(body.url))
+      expect(download.status).toBe(200)
+      expect(download.headers.get('content-type')).toContain('application/gzip')
+      expect(download.headers.get('content-disposition')).toContain(
+        'starter-lab-export-exp_seed_ready.json.gz'
+      )
+      const bytes = new Uint8Array(yield* Effect.promise(() => download.arrayBuffer()))
+      // Gzip magic bytes: 0x1f 0x8b.
+      expect([...bytes.subarray(0, 2)]).toEqual([0x1f, 0x8b])
+    })
+  )
 
-  test('download-link answers 404 for an export this workspace cannot hand out', () =>
-    Effect.runPromise(
+  it.effect(
+    'download-link answers 404 for an export this workspace cannot hand out',
+    () =>
       Effect.gen(function* () {
         const res = yield* send(
           post('/workspaces/starter-lab/exports/exp_nope/download-link', {}, bearer)
@@ -638,10 +625,14 @@ describe('workspace exports (ADR 0055)', () => {
           'WorkspaceExportNotDownloadable'
         )
       })
-    ))
+  )
 
-  test('GET /exports/:id/download is public but refuses a bad or missing signature', () =>
-    Effect.runPromise(
+  // `it.live`, not `it.effect`: the test mints the link against `DateTime.now`
+  // and the handler validates it against the real clock, so the TestClock's
+  // epoch-zero time would read as an already-expired signature.
+  it.live(
+    'GET /exports/:id/download is public but refuses a bad or missing signature',
+    () =>
       Effect.gen(function* () {
         const now = yield* DateTime.now
         const expires = Math.floor(DateTime.toEpochMillis(now) / 1000) + 600
@@ -672,15 +663,14 @@ describe('workspace exports (ADR 0055)', () => {
         )
         expect(unknown.status).toBe(404)
       })
-    ))
+  )
 
-  test('the signed download route is not advertised by the contract', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(get('/openapi.json'))
-        const doc = yield* jsonBody(res, OpenApiBody)
-        expect(doc.paths['/exports/{exportId}/download']).toBeUndefined()
-        expect(doc.paths['/workspaces/{slug}/exports']).toBeDefined()
-      })
-    ))
+  it.effect('the signed download route is not advertised by the contract', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/openapi.json'))
+      const doc = yield* jsonBody(res, OpenApiBody)
+      expect(doc.paths['/exports/{exportId}/download']).toBeUndefined()
+      expect(doc.paths['/workspaces/{slug}/exports']).toBeDefined()
+    })
+  )
 })

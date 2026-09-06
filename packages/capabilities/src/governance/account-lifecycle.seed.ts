@@ -73,6 +73,7 @@ export function SeedAccountLifecycle(options: {
             yield* audit.record({
               workspaceId: null,
               actorUserId: userId,
+              actorType: 'user',
               eventType: 'workspace.deleted',
               targetType: 'workspace',
               targetId: step.workspace.id,
@@ -85,6 +86,7 @@ export function SeedAccountLifecycle(options: {
             yield* audit.record({
               workspaceId: step.workspace.id,
               actorUserId: userId,
+              actorType: 'user',
               eventType: 'workspace_member.removed',
               targetType: 'workspace_member',
               targetId: userId,
@@ -102,6 +104,7 @@ export function SeedAccountLifecycle(options: {
         return audit.record({
           workspaceId: null,
           actorUserId: null,
+          actorType: 'user',
           eventType: 'account.deleted',
           targetType: 'user',
           targetId: input.userId,

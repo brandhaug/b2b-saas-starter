@@ -33,6 +33,7 @@ function runRecordAuthAudit(
   request: Request,
   response: Response
 ): Promise<AuthAuditOutcome> {
+  // oxlint-disable-next-line starter/no-run-promise-in-tests -- the suite asserts through await expect(...).resolves over these promises across dozens of sites; folding every body would grow arms and legs
   return Effect.runPromise(
     Effect.scoped(recordAuthAudit(exchangeOf(request), response, runCapabilities))
   )
@@ -152,6 +153,7 @@ describe('authAuditInput', () => {
     })
     expect(input).toEqual({
       workspaceId: null,
+      actorType: 'user',
       actorUserId: 'usr_demo',
       eventType: 'auth.sign_in',
       targetType: 'session',
@@ -215,6 +217,7 @@ describe('authAuditInput', () => {
     })
     expect(known).toEqual({
       workspaceId: null,
+      actorType: 'user',
       actorUserId: null,
       eventType: 'auth.password_reset_requested',
       targetType: 'user',
@@ -527,6 +530,7 @@ describe('email-otp exchanges', () => {
       authAuditInput({ ...signInOtp, status: 200, actorUserId: 'usr_demo' })
     ).toEqual({
       workspaceId: null,
+      actorType: 'user',
       actorUserId: 'usr_demo',
       eventType: 'auth.sign_in',
       targetType: 'session',
@@ -583,6 +587,7 @@ describe('recordAuthAudit', () => {
     })
     const clone = vi.spyOn(response, 'clone')
     const json = vi.spyOn(response, 'json')
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the suite asserts through await expect(...).resolves over these promises across dozens of sites; folding every body would grow arms and legs
     const outcome = await Effect.runPromise(
       Effect.scoped(
         recordAuthAudit(exchangeOf(request), response, runCapabilities, {
@@ -854,6 +859,7 @@ describe('authAuditInput for the admin rows', () => {
       })
     ).toEqual({
       workspaceId: null,
+      actorType: 'user',
       actorUserId: 'usr_martin',
       eventType: 'system_admin.user_role_changed',
       targetType: 'user',
@@ -972,6 +978,7 @@ describe('recordAuthAudit with a pre-handler context', () => {
     response: Response,
     context: AuthAuditContext
   ): Promise<AuthAuditOutcome> {
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the suite asserts through await expect(...).resolves over these promises across dozens of sites; folding every body would grow arms and legs
     return Effect.runPromise(
       Effect.scoped(
         recordAuthAudit(exchangeOf(request), response, runCapabilities, context)

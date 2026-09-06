@@ -1,5 +1,5 @@
-import { Effect, type Scope } from 'effect'
-import { describe, expect, it } from 'vite-plus/test'
+import { Effect } from 'effect'
+import { describe, expect, it } from '@effect/vitest'
 import {
   authRateLimitBucket,
   clientKey,
@@ -11,34 +11,30 @@ function request(headers: Record<string, string>): Request {
   return new Request('http://localhost:3071/api/auth/sign-in', { headers })
 }
 
-// `take` annotates the request's wide event, so it needs a Scope; tests
-// supply it with `Effect.scoped`.
-function runScoped<A, E>(effect: Effect.Effect<A, E, Scope.Scope>): Promise<A> {
-  return Effect.runPromise(Effect.scoped(effect))
-}
-
 describe('rate limiter fallback (no Cloudflare bindings)', () => {
-  it('enforces the auth_write limit across per-request layer rebuilds', async () => {
-    // The auth route builds the layer on every request (api.auth.$.ts), so
-    // this test rebuilds it per take — the fallback counters must survive.
-    function take(key: string) {
-      return Effect.gen(function* () {
-        const limiter = yield* RateLimiter
-        return yield* limiter.take({ bucket: 'auth_write', key })
-      }).pipe(Effect.provide(makeRateLimiterLayer({})))
-    }
+  it.effect('enforces the auth_write limit across per-request layer rebuilds', () =>
+    Effect.gen(function* () {
+      // The auth route builds the layer on every request (api.auth.$.ts), so
+      // this test rebuilds it per take — the fallback counters must survive.
+      function take(key: string) {
+        return Effect.gen(function* () {
+          const limiter = yield* RateLimiter
+          return yield* limiter.take({ bucket: 'auth_write', key })
+        }).pipe(Effect.provide(makeRateLimiterLayer({})))
+      }
 
-    const key = `test-${Date.now()}-${Math.random()}`
-    const outcomes: Array<boolean> = []
-    for (let i = 0; i < 21; i += 1) {
-      outcomes.push(await runScoped(take(key)))
-    }
-    // auth_write allows 20 per window; the 21st take is denied.
-    expect(outcomes.slice(0, 20).every(Boolean)).toBe(true)
-    expect(outcomes[20]).toBe(false)
-    // A different key is unaffected.
-    expect(await runScoped(take(`${key}-other`))).toBe(true)
-  })
+      const key = `test-${Date.now()}-${Math.random()}`
+      const outcomes: Array<boolean> = []
+      for (let i = 0; i < 21; i += 1) {
+        outcomes.push(yield* take(key))
+      }
+      // auth_write allows 20 per window; the 21st take is denied.
+      expect(outcomes.slice(0, 20).every(Boolean)).toBe(true)
+      expect(outcomes[20]).toBe(false)
+      // A different key is unaffected.
+      expect(yield* take(`${key}-other`)).toBe(true)
+    })
+  )
 })
 
 describe('authRateLimitBucket', () => {
@@ -63,22 +59,24 @@ describe('authRateLimitBucket', () => {
     expect(authRateLimitBucket(method, pathname)).toBe(expected)
   })
 
-  it('enforces the tighter auth_sign_in fallback limit', async () => {
-    function take(key: string) {
-      return Effect.gen(function* () {
-        const limiter = yield* RateLimiter
-        return yield* limiter.take({ bucket: 'auth_sign_in', key })
-      }).pipe(Effect.provide(makeRateLimiterLayer({})))
-    }
-    const key = `sign-in-${Date.now()}-${Math.random()}`
-    const outcomes: Array<boolean> = []
-    for (let i = 0; i < 6; i += 1) {
-      outcomes.push(await runScoped(take(key)))
-    }
-    // auth_sign_in allows 5 per window; the 6th take is denied.
-    expect(outcomes.slice(0, 5).every(Boolean)).toBe(true)
-    expect(outcomes[5]).toBe(false)
-  })
+  it.effect('enforces the tighter auth_sign_in fallback limit', () =>
+    Effect.gen(function* () {
+      function take(key: string) {
+        return Effect.gen(function* () {
+          const limiter = yield* RateLimiter
+          return yield* limiter.take({ bucket: 'auth_sign_in', key })
+        }).pipe(Effect.provide(makeRateLimiterLayer({})))
+      }
+      const key = `sign-in-${Date.now()}-${Math.random()}`
+      const outcomes: Array<boolean> = []
+      for (let i = 0; i < 6; i += 1) {
+        outcomes.push(yield* take(key))
+      }
+      // auth_sign_in allows 5 per window; the 6th take is denied.
+      expect(outcomes.slice(0, 5).every(Boolean)).toBe(true)
+      expect(outcomes[5]).toBe(false)
+    })
+  )
 })
 
 describe('clientKey', () => {

@@ -113,6 +113,24 @@ export function LiveNotificationFeed(
         ).pipe(Effect.map((rows) => rows.map((row) => toRecipient(row.user))))
       }
 
+      /** The workspace's owners, as email recipients. */
+      function ownersOf(
+        workspaceId: string
+      ): Effect.Effect<ReadonlyArray<EmailQueueRecipient>, CapabilityUnavailable> {
+        return unavailable(
+          db
+            .select({ user })
+            .from(workspaceMembers)
+            .innerJoin(user, eq(user.id, workspaceMembers.userId))
+            .where(
+              and(
+                eq(workspaceMembers.workspaceId, workspaceId),
+                eq(workspaceMembers.role, 'owner')
+              )
+            )
+        ).pipe(Effect.map((rows) => rows.map((row) => toRecipient(row.user))))
+      }
+
       /** The one user a targeted row reaches, if the account still exists. */
       function userById(
         userId: string
@@ -341,6 +359,51 @@ export function LiveNotificationFeed(
               recipients,
               traceparent
             })
+          }),
+        notifyWorkspaceOwners: (input) =>
+          Effect.gen(function* () {
+            const owners = yield* ownersOf(input.workspaceId)
+            if (owners.length === 0) {
+              return
+            }
+            const createdAt = DateTime.formatIso(yield* DateTime.now)
+            // One targeted row per owner, each visible only to its reader —
+            // the same shape `notifyUser` writes, resolved from the workspace
+            // the background producer holds.
+            const created: Array<{
+              row: NotificationRow
+              owner: EmailQueueRecipient
+            }> = []
+            for (const owner of owners) {
+              created.push({
+                owner,
+                row: {
+                  id: yield* newCapabilityId('not'),
+                  workspaceId: input.workspaceId,
+                  userId: owner.userId,
+                  kind: input.kind,
+                  title: input.title,
+                  message: input.message,
+                  readAt: null,
+                  createdAt
+                }
+              })
+            }
+            yield* unavailable(
+              db.insert(notifications).values(created.map(({ row }) => row))
+            )
+            // One enqueue per row: a notification id addresses one (row,
+            // recipient) pair, so each owner's email resolves against their
+            // own channel preference.
+            const traceparent = yield* currentTraceparent
+            for (const { row, owner } of created) {
+              yield* enqueueInstantEmails(options.emailQueue, preferences, {
+                notificationId: row.id,
+                kind: input.kind,
+                recipients: [owner],
+                traceparent
+              })
+            }
           }),
         loadForEmail: (notificationId, recipientUserId) =>
           Effect.gen(function* () {

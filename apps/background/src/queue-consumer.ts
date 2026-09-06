@@ -7,6 +7,7 @@ import { type NotificationEmailQueueBinding } from '@b2b-saas-starter/capabiliti
 import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { type SendEmailBinding } from '@b2b-saas-starter/email'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
+import { type BackgroundBindingName } from '@b2b-saas-starter/infra'
 import {
   makeOtlpLayer,
   parentSpanFromHeaders,
@@ -27,26 +28,40 @@ import { FetchHttpClient, type HttpClient } from 'effect/unstable/http'
  * the shared `readDelivery` boundary decode.
  */
 
-// Bindings plus optional env. The same shape `ApiEnv` describes for apps/api.
-export type Env = Partial<ServerEnv> & {
-  readonly DB?: D1Database
+/**
+ * Binding name → binding type, one row per name `BackgroundBindingName`
+ * admits. `Env` below maps the infra-derived key union through this record,
+ * so a binding added in `infra/bindings.ts` fails this file's typecheck
+ * until its row exists here — the key set cannot drift from the deploy
+ * silently.
+ */
+type BackgroundBindingTypes = {
+  readonly DB: D1Database
   // The producer port, not workers-types' `Queue`: this worker only forwards
   // the binding to `starterEnv`, and every other worker declares it the same
   // way, so one structural shape describes the queue across all three.
-  readonly WEBHOOK_QUEUE?: WebhookQueueBinding
+  readonly WEBHOOK_QUEUE: WebhookQueueBinding
   // Workspace export (ADR 0055): the job queue this worker consumes and the
   // bucket it writes archives to. Both absent when `WORKSPACE_EXPORT_BUCKET`
   // was unset at deploy time; the capability then reports unavailable.
-  readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding
-  readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding
+  readonly WORKSPACE_EXPORT_QUEUE: WorkspaceExportQueueBinding
+  readonly WORKSPACE_EXPORT_BUCKET: WorkspaceExportBucketBinding
   // Producer port for instant notification emails — this worker both consumes
   // the queue and produces onto it (webhook deliveries that gave up create a
   // Notification). Absent, Notifications persist and no instant email goes out.
-  readonly NOTIFICATION_EMAIL_QUEUE?: NotificationEmailQueueBinding
+  readonly NOTIFICATION_EMAIL_QUEUE: NotificationEmailQueueBinding
   // Cloudflare Email send binding, for the notification emails. Absent, the
   // dispatcher logs instead of sending (CLAUDE.md rule 3).
-  readonly EMAIL?: SendEmailBinding
+  readonly EMAIL: SendEmailBinding
 }
+
+// Bindings plus optional env. The same shape `ApiEnv` describes for apps/api,
+// with the binding keys derived from infra (`BackgroundBindingName`) instead
+// of spelled: every key is optional, because a row says the deploy CAN bind
+// it — never that it did — and a provider-gated binding is deliberately
+// absent while its provider is unset.
+export type Env = Partial<ServerEnv> &
+  Readonly<Partial<{ [B in BackgroundBindingName]: BackgroundBindingTypes[B] }>>
 
 /**
  * Structural subset of a Cloudflare queue `Message`: the untrusted body plus

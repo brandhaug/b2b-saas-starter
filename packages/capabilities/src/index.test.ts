@@ -327,9 +327,14 @@ describe('layer selection without D1', () => {
       expect(notifications.length).toBeGreaterThan(0)
     }).pipe(
       Effect.provide(
-        selectWorkspaceLayer({}, seedWorkspaceRecord.slug, {
-          userId: 'usr_demo'
-        })
+        selectWorkspaceLayer(
+          {},
+          seedWorkspaceRecord.slug,
+          {
+            userId: 'usr_demo'
+          },
+          'user'
+        )
       )
     )
   )

@@ -18,6 +18,7 @@ const payload: WorkspaceAuditPayload = {
   events: [
     {
       id: 'evt_1',
+      actorType: 'api_token',
       eventType: 'api_token.created',
       targetType: 'api_token',
       targetId: 'tok_1',
@@ -44,6 +45,12 @@ async function renderPage(overrides: Partial<WorkspaceAuditPayload> = {}) {
 }
 
 describe('WorkspaceAuditPage', () => {
+  it('shows credential provenance beside the actor name', async () => {
+    await renderPage()
+    const cell = screen.getByRole('cell', { name: 'Demo Owner API token' })
+    expect(cell).toBeTruthy()
+  })
+
   it('keeps the actor filter when turning to the next page', async () => {
     // Regression: the page used to spread the payload's `actorUserId`-keyed
     // filters into an `actor`-keyed search update, so the actor vanished on

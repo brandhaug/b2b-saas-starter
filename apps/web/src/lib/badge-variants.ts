@@ -64,3 +64,21 @@ export function workspaceExportStatusVariant(
   }
   return 'destructive'
 }
+
+/**
+ * Audit actor type → badge variant. Like a role, an actor type is identity,
+ * not a state — no status hue and no emphasis: a session user is the common
+ * case in neutral, the platform acted alone in `info` (the informational
+ * hue), and a machine credential takes the bordered `outline` pill, visible
+ * without claiming a state. Unknown values (a row newer than the vocabulary)
+ * fall back to `outline`, the badge vocabulary's home for exactly that.
+ */
+export function auditActorTypeVariant(actorType: string): BadgeVariant {
+  if (actorType === 'user') {
+    return 'neutral'
+  }
+  if (actorType === 'system') {
+    return 'info'
+  }
+  return 'outline'
+}

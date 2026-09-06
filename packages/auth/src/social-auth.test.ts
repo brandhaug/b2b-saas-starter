@@ -11,7 +11,7 @@ import {
   expect,
   it,
   vi
-} from 'vite-plus/test'
+} from '@effect/vitest'
 import { type AuthAccountChange, Auth } from './index.ts'
 import {
   buildAuthLayer,
@@ -128,6 +128,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
   () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the hook is the port: layer() suites expose no live tester for a real-clock suite, and a memoized fixture could not dispose its workerd process
     Effect.runPromise(
       Effect.gen(function* () {
         provisioned = yield* Effect.promise(() => provisionAuthD1())
@@ -157,7 +158,7 @@ afterEach(() => {
 afterAll(() => provisioned.dispose())
 
 function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
-  return Effect.runPromise(Effect.provide(effect, authLayer))
+  return Effect.provide(effect, authLayer)
 }
 
 /** A verified email/password user — the implicit-linking precondition. */
@@ -222,75 +223,81 @@ function completeGithubRoundTrip() {
 }
 
 describe('social sign-in', () => {
-  it('links a matching verified social email to the existing account and signs in', () =>
-    run(
-      Effect.gen(function* () {
-        useGithubIdentity('linked@social.test', 987_654)
-        const userId = yield* seedVerifiedLocalUser('linked@social.test')
-        const before = accountChanges.length
+  it.live(
+    'links a matching verified social email to the existing account and signs in',
+    () =>
+      run(
+        Effect.gen(function* () {
+          useGithubIdentity('linked@social.test', 987_654)
+          const userId = yield* seedVerifiedLocalUser('linked@social.test')
+          const before = accountChanges.length
 
-        const callback = yield* completeGithubRoundTrip()
+          const callback = yield* completeGithubRoundTrip()
 
-        // The round trip ends in a redirect to the callback URL with a fresh
-        // session cookie — the sign-in completed.
-        expect(callback.status).toBe(302)
-        expect(callback.headers.get('location')).toBe(
-          'http://localhost:3071/workspaces'
-        )
-        expect(
-          callback.headers
-            .getSetCookie()
-            .some((cookie) => cookie.startsWith('better-auth'))
-        ).toBe(true)
+          // The round trip ends in a redirect to the callback URL with a fresh
+          // session cookie — the sign-in completed.
+          expect(callback.status).toBe(302)
+          expect(callback.headers.get('location')).toBe(
+            'http://localhost:3071/workspaces'
+          )
+          expect(
+            callback.headers
+              .getSetCookie()
+              .some((cookie) => cookie.startsWith('better-auth'))
+          ).toBe(true)
 
-        // Implicit linking: the GitHub account row belongs to the existing
-        // email/password user, not a second user.
-        const rows = yield* Effect.promise(() =>
-          db
-            .select()
-            .from(account)
-            .where(and(eq(account.providerId, 'github'), eq(account.userId, userId)))
-        )
-        expect(rows).toHaveLength(1)
-        expect(rows[0]?.accountId).toBe(String(githubProfile.id))
+          // Implicit linking: the GitHub account row belongs to the existing
+          // email/password user, not a second user.
+          const rows = yield* Effect.promise(() =>
+            db
+              .select()
+              .from(account)
+              .where(and(eq(account.providerId, 'github'), eq(account.userId, userId)))
+          )
+          expect(rows).toHaveLength(1)
+          expect(rows[0]?.accountId).toBe(String(githubProfile.id))
 
-        // The linking audit port saw the same row. Better Auth hands the
-        // whole account row to the hook; the port's contract is the two
-        // fields the audit reads.
-        const change = accountChanges
-          .slice(before)
-          .find((entry) => entry.kind === 'linked')
-        expect(change?.account).toMatchObject({ providerId: 'github', userId })
+          // The linking audit port saw the same row. Better Auth hands the
+          // whole account row to the hook; the port's contract is the two
+          // fields the audit reads.
+          const change = accountChanges
+            .slice(before)
+            .find((entry) => entry.kind === 'linked')
+          expect(change?.account).toMatchObject({ providerId: 'github', userId })
 
-        // Still exactly one user for that mailbox.
-        const users = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.email, 'linked@social.test'))
-        )
-        expect(users).toHaveLength(1)
-      })
-    ))
-
-  it('signs up a first-time social visitor as one user with the provider account', () =>
-    run(
-      Effect.gen(function* () {
-        useGithubIdentity('first-time@social.test', 654_321)
-        const before = accountChanges.length
-
-        const callback = yield* completeGithubRoundTrip()
-
-        expect(callback.status).toBe(302)
-        const users = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.email, 'first-time@social.test'))
-        )
-        expect(users).toHaveLength(1)
-        expect(accountChanges.slice(before).at(-1)?.account).toMatchObject({
-          providerId: 'github',
-          userId: users[0]!.id
+          // Still exactly one user for that mailbox.
+          const users = yield* Effect.promise(() =>
+            db.select().from(user).where(eq(user.email, 'linked@social.test'))
+          )
+          expect(users).toHaveLength(1)
         })
-      })
-    ))
+      )
+  )
 
-  it('refuses the link when the local mailbox is not verified', () =>
+  it.live(
+    'signs up a first-time social visitor as one user with the provider account',
+    () =>
+      run(
+        Effect.gen(function* () {
+          useGithubIdentity('first-time@social.test', 654_321)
+          const before = accountChanges.length
+
+          const callback = yield* completeGithubRoundTrip()
+
+          expect(callback.status).toBe(302)
+          const users = yield* Effect.promise(() =>
+            db.select().from(user).where(eq(user.email, 'first-time@social.test'))
+          )
+          expect(users).toHaveLength(1)
+          expect(accountChanges.slice(before).at(-1)?.account).toMatchObject({
+            providerId: 'github',
+            userId: users[0]!.id
+          })
+        })
+      )
+  )
+
+  it.live('refuses the link when the local mailbox is not verified', () =>
     run(
       Effect.gen(function* () {
         useGithubIdentity('squatter@social.test', 111_222)
@@ -331,9 +338,10 @@ describe('social sign-in', () => {
         expect(users).toHaveLength(1)
         expect(users[0]?.id).toBe(squatter.id)
       })
-    ))
+    )
+  )
 
-  it('unlinks a provider through the endpoint and reports it to the port', () =>
+  it.live('unlinks a provider through the endpoint and reports it to the port', () =>
     run(
       Effect.gen(function* () {
         useGithubIdentity('unlink@social.test', 333_444)
@@ -382,5 +390,6 @@ describe('social sign-in', () => {
           userId
         })
       })
-    ))
+    )
+  )
 })

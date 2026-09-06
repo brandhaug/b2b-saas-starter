@@ -20,9 +20,11 @@ function makeFixture() {
   const seedLayer = SeedAuditEventLog([])
   type AccountAuditEffect = Parameters<RunAccountAudit>[0]
   function runAgainstSeed(effect: AccountAuditEffect) {
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the RunAccountAudit port is a Promise — the hooks under test are Better Auth promise callbacks
     return Effect.runPromise(Effect.provide(effect, seedLayer))
   }
   function recordedEvents() {
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the RunAccountAudit port is a Promise — the hooks under test are Better Auth promise callbacks
     return Effect.runPromise(
       Effect.gen(function* () {
         const audit = yield* AuditEventLog
@@ -91,6 +93,7 @@ describe('accountAuditInput', () => {
       })
     ).toEqual({
       workspaceId: null,
+      actorType: 'user',
       actorUserId: 'usr_demo',
       eventType: 'auth.account_linked',
       targetType: 'user',

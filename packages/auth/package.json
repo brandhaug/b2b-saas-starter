@@ -23,6 +23,7 @@
     "effectful-better-auth": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "jose": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

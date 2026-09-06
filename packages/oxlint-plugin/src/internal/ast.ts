@@ -83,7 +83,7 @@ export function getStringValue(
 export function isIdentifier(
   node: ESTree.Node | null | undefined,
   name?: string
-): boolean {
+): node is Extract<ESTree.Node, { readonly type: 'Identifier' }> {
   if (node === null || node === undefined) {
     return false
   }

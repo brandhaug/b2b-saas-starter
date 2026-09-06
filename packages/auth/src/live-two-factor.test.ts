@@ -3,7 +3,7 @@ import { user } from '@b2b-saas-starter/db/schema'
 import { Effect, type Layer } from 'effect'
 import { cookieHeader as toCookieHeader, cookiePairs } from 'effectful-better-auth'
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
+import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { type AuthEmailSender, Auth } from './index.ts'
 import {
   buildAuthLayer,
@@ -58,6 +58,7 @@ const capturingEmailSender: AuthEmailSender = {
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
   () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the hook is the port: layer() suites expose no live tester for a real-clock suite, and a memoized fixture could not dispose its workerd process
     Effect.runPromise(
       Effect.gen(function* () {
         provisioned = yield* Effect.promise(() => provisionAuthD1())
@@ -72,7 +73,7 @@ beforeAll(
 afterAll(() => provisioned.dispose())
 
 function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
-  return Effect.runPromise(Effect.provide(effect, authLayer))
+  return Effect.provide(effect, authLayer)
 }
 
 /** The raw instance handler's answer for one credential sign-in attempt. */
@@ -146,31 +147,36 @@ function codeFor(email: string): string {
 }
 
 describe('the two-factor challenge hop', () => {
-  it('diverts a TOTP-enabled credential sign-in and leaves no working session', () =>
-    run(
-      Effect.gen(function* () {
-        const email = 'challenge@twofactor.test'
-        yield* totpUser(email)
+  it.live(
+    'diverts a TOTP-enabled credential sign-in and leaves no working session',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const email = 'challenge@twofactor.test'
+          yield* totpUser(email)
 
-        const signIn = yield* signInWithEmail(email)
-        expect(signIn.status).toBe(200)
-        const body = yield* Effect.promise(() => signIn.json())
-        // The hook's answer replaces the sign-in's own.
-        expect(body.twoFactorRedirect).toBe(true)
+          const signIn = yield* signInWithEmail(email)
+          expect(signIn.status).toBe(200)
+          const body = yield* Effect.promise(() => signIn.json())
+          // The hook's answer replaces the sign-in's own.
+          expect(body.twoFactorRedirect).toBe(true)
 
-        // The challenge cookie is set in place of the session: the hook
-        // deletes the session it had minted and expires its cookie, so the
-        // jar the response builds opens nothing.
-        const cookies = signIn.headers.getSetCookie().join(' ')
-        expect(cookies).toContain('two_factor')
-        const probe = yield* getSessionWith(toCookieHeader(cookiePairs(signIn.headers)))
-        expect(probe.status).toBe(200)
-        const probeBody = yield* Effect.promise(() => probe.json())
-        expect(probeBody).toBeNull()
-      })
-    ))
+          // The challenge cookie is set in place of the session: the hook
+          // deletes the session it had minted and expires its cookie, so the
+          // jar the response builds opens nothing.
+          const cookies = signIn.headers.getSetCookie().join(' ')
+          expect(cookies).toContain('two_factor')
+          const probe = yield* getSessionWith(
+            toCookieHeader(cookiePairs(signIn.headers))
+          )
+          expect(probe.status).toBe(200)
+          const probeBody = yield* Effect.promise(() => probe.json())
+          expect(probeBody).toBeNull()
+        })
+      )
+  )
 
-  it('mints the session when the challenge is completed with a code', () =>
+  it.live('mints the session when the challenge is completed with a code', () =>
     run(
       Effect.gen(function* () {
         const email = 'completer@twofactor.test'
@@ -197,25 +203,29 @@ describe('the two-factor challenge hop', () => {
         const probeBody = yield* Effect.promise(() => probe.json())
         expect(probeBody?.user?.email).toBe(email)
       })
-    ))
+    )
+  )
 
-  it('still mints an email-OTP session for that same user — the gap the app gate closes', () =>
-    run(
-      Effect.gen(function* () {
-        const email = 'otp-gap@twofactor.test'
-        yield* totpUser(email)
-        const auth = yield* Auth.Tag
+  it.live(
+    'still mints an email-OTP session for that same user — the gap the app gate closes',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const email = 'otp-gap@twofactor.test'
+          yield* totpUser(email)
+          const auth = yield* Auth.Tag
 
-        yield* auth.api.sendVerificationOTP({ body: { email, type: 'sign-in' } })
+          yield* auth.api.sendVerificationOTP({ body: { email, type: 'sign-in' } })
 
-        // The plugin's two-factor hook matches the credential sign-in
-        // endpoints only, so the emailed code mints the session outright —
-        // documented here so the app-layer gate has a pinned reason to exist.
-        const { response, headers } = yield* auth.full.signInEmailOTP({
-          body: { email, otp: codeFor(email) }
+          // The plugin's two-factor hook matches the credential sign-in
+          // endpoints only, so the emailed code mints the session outright —
+          // documented here so the app-layer gate has a pinned reason to exist.
+          const { response, headers } = yield* auth.full.signInEmailOTP({
+            body: { email, otp: codeFor(email) }
+          })
+          expect(response.user.email).toBe(email)
+          expect(headers.getSetCookie().join(' ')).toContain('session_token=')
         })
-        expect(response.user.email).toBe(email)
-        expect(headers.getSetCookie().join(' ')).toContain('session_token=')
-      })
-    ))
+      )
+  )
 })

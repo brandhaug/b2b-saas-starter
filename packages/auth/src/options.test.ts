@@ -1,6 +1,6 @@
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { Effect } from 'effect'
-import { describe, expect, it, vi } from 'vite-plus/test'
+import { describe, expect, it, vi } from '@effect/vitest'
 import {
   type AuthConfigInterface,
   MAGIC_LINK_EXPIRES_IN_SECONDS,
@@ -157,26 +157,25 @@ describe('makeAuthOptions', () => {
   })
 
   describe('account linking hooks', () => {
-    it("hands account rows to the caller's link and unlink hooks", () =>
-      Effect.runPromise(
-        Effect.gen(function* () {
-          // The port's promise shape matters: `Effect.promise` awaits what the
-          // hook returns, so the doubles resolve rather than answer undefined.
-          const onAccountLinked = vi.fn().mockResolvedValue(undefined)
-          const onAccountUnlinked = vi.fn().mockResolvedValue(undefined)
-          const hooks = makeAuthOptions({
-            ...baseConfig,
-            accountHooks: { onAccountLinked, onAccountUnlinked }
-          }).databaseHooks.account
-          const account = { providerId: 'github', userId: 'usr_demo' }
+    it.effect("hands account rows to the caller's link and unlink hooks", () =>
+      Effect.gen(function* () {
+        // The port's promise shape matters: `Effect.promise` awaits what the
+        // hook returns, so the doubles resolve rather than answer undefined.
+        const onAccountLinked = vi.fn().mockResolvedValue(undefined)
+        const onAccountUnlinked = vi.fn().mockResolvedValue(undefined)
+        const hooks = makeAuthOptions({
+          ...baseConfig,
+          accountHooks: { onAccountLinked, onAccountUnlinked }
+        }).databaseHooks.account
+        const account = { providerId: 'github', userId: 'usr_demo' }
 
-          yield* Effect.promise(() => hooks.create.after(account))
-          yield* Effect.promise(() => hooks.delete.after(account))
+        yield* Effect.promise(() => hooks.create.after(account))
+        yield* Effect.promise(() => hooks.delete.after(account))
 
-          expect(onAccountLinked).toHaveBeenCalledWith(account)
-          expect(onAccountUnlinked).toHaveBeenCalledWith(account)
-        })
-      ))
+        expect(onAccountLinked).toHaveBeenCalledWith(account)
+        expect(onAccountUnlinked).toHaveBeenCalledWith(account)
+      })
+    )
   })
 
   describe('background tasks', () => {

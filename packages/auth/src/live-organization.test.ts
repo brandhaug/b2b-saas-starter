@@ -2,7 +2,7 @@ import { type DrizzleDatabase } from './ports.ts'
 import { user, workspaceInvitations, workspaces } from '@b2b-saas-starter/db/schema'
 import { Effect, type Layer } from 'effect'
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
+import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { Auth } from './index.ts'
 import {
   buildAuthLayer,
@@ -27,6 +27,7 @@ let authLayer: Layer.Layer<AuthService>
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
   () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the hook is the port: layer() suites expose no live tester for a real-clock suite, and a memoized fixture could not dispose its workerd process
     Effect.runPromise(
       Effect.gen(function* () {
         provisioned = yield* Effect.promise(() => provisionAuthD1())
@@ -41,7 +42,7 @@ beforeAll(
 afterAll(() => provisioned.dispose())
 
 function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
-  return Effect.runPromise(Effect.provide(effect, authLayer))
+  return Effect.provide(effect, authLayer)
 }
 
 /** The plugin needs an existing user to own the workspace it creates. */
@@ -50,7 +51,7 @@ function seedUser(id: string, email: string) {
 }
 
 describe('organization plugin', () => {
-  it('creates a workspace through the remapped organization model', () =>
+  it.live('creates a workspace through the remapped organization model', () =>
     run(
       Effect.gen(function* () {
         yield* seedUser('usr_acme_owner', 'owner@acme.test')
@@ -68,9 +69,10 @@ describe('organization plugin', () => {
         expect(rows).toHaveLength(1)
         expect(rows[0]?.name).toBe('Acme')
       })
-    ))
+    )
+  )
 
-  it('carries planId and updatedAt as organization additional fields', () =>
+  it.live('carries planId and updatedAt as organization additional fields', () =>
     run(
       Effect.gen(function* () {
         yield* seedUser('usr_plan_owner', 'owner@plan.test')
@@ -86,9 +88,10 @@ describe('organization plugin', () => {
         expect(created.planId).toBe('starter')
         expect(created.updatedAt).toBeInstanceOf(Date)
       })
-    ))
+    )
+  )
 
-  it('creates an invitation through the remapped invitation model', () =>
+  it.live('creates an invitation through the remapped invitation model', () =>
     run(
       Effect.gen(function* () {
         const { headers } = yield* signUpSession('inviter@invite.test')
@@ -119,9 +122,10 @@ describe('organization plugin', () => {
         expect(rows[0]?.status).toBe('pending')
         expect(rows[0]?.workspaceId).toBe(workspace.id)
       })
-    ))
+    )
+  )
 
-  it('answers hasPermission from the starter statement set', () =>
+  it.live('answers hasPermission from the starter statement set', () =>
     run(
       Effect.gen(function* () {
         const { headers } = yield* signUpSession('owner@perm.test')
@@ -143,12 +147,13 @@ describe('organization plugin', () => {
 
         expect(result.success).toBe(true)
       })
-    ))
+    )
+  )
 
   // The two below guard configuration that is correct today; they exist to fail
   // if it is changed, not because they drove it.
 
-  it('keeps the plugin default statements working under the starter roles', () =>
+  it.live('keeps the plugin default statements working under the starter roles', () =>
     run(
       Effect.gen(function* () {
         const owner = yield* signUpSession('owner@roles.test')
@@ -198,9 +203,10 @@ describe('organization plugin', () => {
         expect(memberUpdates.success).toBe(false)
         expect(memberReadsNotifications.success).toBe(true)
       })
-    ))
+    )
+  )
 
-  it('exposes no team endpoints', () =>
+  it.live('exposes no team endpoints', () =>
     run(
       Effect.gen(function* () {
         const auth = yield* Auth.Tag
@@ -212,11 +218,12 @@ describe('organization plugin', () => {
         expect(endpoints).not.toContain('createTeam')
         expect(endpoints).not.toContain('setActiveTeam')
       })
-    ))
+    )
+  )
 })
 
 describe('two-factor plugin', () => {
-  it('enables TOTP, verifies it, and flips twoFactorEnabled on the user', () =>
+  it.live('enables TOTP, verifies it, and flips twoFactorEnabled on the user', () =>
     run(
       Effect.gen(function* () {
         const session = yield* signUpSession('totp@twofactor.test')
@@ -233,5 +240,6 @@ describe('two-factor plugin', () => {
         )
         expect(rows[0]?.twoFactorEnabled).toBe(true)
       })
-    ))
+    )
+  )
 })

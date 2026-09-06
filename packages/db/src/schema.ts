@@ -1,4 +1,5 @@
 import {
+  auditActorTypes,
   deliveryStatuses,
   invitationStatuses,
   notificationChannels,
@@ -22,6 +23,7 @@ import {
 export {
   adminSystemRole,
   apiTokenScopes,
+  auditActorTypes,
   deliveryStatuses,
   invitationStatuses,
   notificationChannels,
@@ -32,6 +34,7 @@ export {
   workspaceExportStatuses,
   workspaceRoles,
   type ApiTokenScopeValue,
+  type AuditActorTypeValue,
   type DeliveryStatus,
   type NotificationChannel,
   type NotificationKind,
@@ -423,6 +426,11 @@ export const webhookEndpoints = sqliteTable(
     previousSigningSecret: text('previous_signing_secret'),
     previousSecretExpiresAt: text('previous_secret_expires_at'),
     enabled: integer('enabled', { mode: 'boolean' }).default(true).notNull(),
+    // The failure ladder (ADR 0062 addendum): consecutive failed delivery
+    // attempts on this endpoint. Each recorded failure climbs the counter, a
+    // delivered attempt resets it to zero. Storage-only bookkeeping for the
+    // queue consumer's escalation — deliberately never on the wire projection.
+    consecutiveFailures: integer('consecutive_failures').default(0).notNull(),
     // Free-text subscriptions by design: a producer can add event types
     // without a migration (see webhook-endpoints.AGENTS.md in
     // packages/capabilities). The known vocabulary lives in the capabilities
@@ -509,6 +517,7 @@ export const auditEvents = sqliteTable(
     id: id(),
     workspaceId: workspaceRefNullable(),
     actorUserId: text('actor_user_id').references(() => user.id),
+    actorType: text('actor_type', { enum: auditActorTypes }).notNull(),
     eventType: text('event_type').notNull(),
     targetType: text('target_type').notNull(),
     targetId: text('target_id'),
