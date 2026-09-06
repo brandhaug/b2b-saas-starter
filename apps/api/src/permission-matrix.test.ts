@@ -1,6 +1,6 @@
 import { SEED_READONLY_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { BearerAuth, rateLimitBucketFor, StarterApi } from '@b2b-saas-starter/api'
-import { describe, expect, test } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
 import { mirroredRestPath, permissionLabel, readOperations } from './operations.ts'
@@ -57,13 +57,9 @@ function send(request: Request): Effect.Effect<Response> {
   return Effect.promise(() => buildWebHandler({}).handler(request))
 }
 
-function jsonBody<S extends Schema.Top>(
-  response: Response,
-  schema: S
-): Effect.Effect<S['Type'], never, S['DecodingServices']> {
+function jsonBody<S extends Schema.Top>(response: Response, schema: S) {
   return Effect.promise(() => response.json()).pipe(
-    Effect.flatMap((body) => Schema.decodeUnknownEffect(schema)(body)),
-    Effect.orDie
+    Effect.flatMap((body) => Schema.decodeUnknownEffect(schema)(body))
   )
 }
 
@@ -213,23 +209,22 @@ const HTTP_METHODS = new Set([
 ])
 
 describe('permission matrix', () => {
-  test('covers every gated operation the served contract advertises', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(new Request('https://api.test/openapi.json'))
-        const doc = yield* jsonBody(res, OpenApiBody)
-        const served = Object.entries(doc.paths)
-          .flatMap(([path, item]) =>
-            Object.keys(item)
-              .filter((key) => HTTP_METHODS.has(key))
-              .map((method) => `${method.toUpperCase()} ${path}`)
-          )
-          .filter((operation) => !PUBLIC_OPERATIONS.has(operation))
-        expect(served.toSorted()).toEqual(
-          MATRIX.map((entry) => entry.operation).toSorted()
+  it.effect('covers every gated operation the served contract advertises', () =>
+    Effect.gen(function* () {
+      const res = yield* send(new Request('https://api.test/openapi.json'))
+      const doc = yield* jsonBody(res, OpenApiBody)
+      const served = Object.entries(doc.paths)
+        .flatMap(([path, item]) =>
+          Object.keys(item)
+            .filter((key) => HTTP_METHODS.has(key))
+            .map((method) => `${method.toUpperCase()} ${path}`)
         )
-      })
-    ))
+        .filter((operation) => !PUBLIC_OPERATIONS.has(operation))
+      expect(served.toSorted()).toEqual(
+        MATRIX.map((entry) => entry.operation).toSorted()
+      )
+    })
+  )
 
   /**
    * The gate is declared on the contract (`BearerAuth`), not hand-composed in
@@ -238,33 +233,32 @@ describe('permission matrix', () => {
    * operation with no security requirement rather than as a handler someone has
    * to notice is missing three lines.
    */
-  test('the served document secures exactly the gated operations', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const res = yield* send(new Request('https://api.test/openapi.json'))
-        const doc = yield* jsonBody(res, OpenApiBody)
-        expect(doc.components.securitySchemes['bearer']).toEqual({
-          type: 'http',
-          scheme: 'Bearer'
-        })
-        const secured = Object.entries(doc.paths).flatMap(([path, item]) =>
-          Object.entries(item)
-            .filter(([method]) => HTTP_METHODS.has(method))
-            .filter(([, operation]) => (operation.security?.length ?? 0) > 0)
-            .map(([method]) => `${method.toUpperCase()} ${path}`)
-        )
-        expect(secured.toSorted()).toEqual(
-          MATRIX.map((entry) => entry.operation).toSorted()
-        )
+  it.effect('the served document secures exactly the gated operations', () =>
+    Effect.gen(function* () {
+      const res = yield* send(new Request('https://api.test/openapi.json'))
+      const doc = yield* jsonBody(res, OpenApiBody)
+      expect(doc.components.securitySchemes['bearer']).toEqual({
+        type: 'http',
+        scheme: 'Bearer'
       })
-    ))
+      const secured = Object.entries(doc.paths).flatMap(([path, item]) =>
+        Object.entries(item)
+          .filter(([method]) => HTTP_METHODS.has(method))
+          .filter(([, operation]) => (operation.security?.length ?? 0) > 0)
+          .map(([method]) => `${method.toUpperCase()} ${path}`)
+      )
+      expect(secured.toSorted()).toEqual(
+        MATRIX.map((entry) => entry.operation).toSorted()
+      )
+    })
+  )
 
   /**
    * The bucket a group draws from is a row in the contract's table; the
    * middleware dies on a group without one, so assert the table covers every
    * group that carries the gate.
    */
-  test('every group behind the gate names a rate-limit bucket', () => {
+  it('every group behind the gate names a rate-limit bucket', () => {
     const gated = Object.values(StarterApi.groups)
       .filter((group) =>
         Object.values(group.endpoints).some((endpoint) =>
@@ -280,17 +274,17 @@ describe('permission matrix', () => {
     expect(gated).not.toContain('health')
   })
 
-  test.each(MATRIX)(
+  it.effect.each(MATRIX)(
     'a read-only token gets $expected from $operation ($permission)',
     (entry) =>
-      Effect.runPromise(
-        Effect.gen(function* () {
-          const res = yield* send(entry.request)
-          expect(res.status).toBe(entry.expected)
-          if (entry.expected === 403) {
-            expect((yield* jsonBody(res, ErrorBody))._tag).toBe('AuthorizationDenied')
-          }
-        })
-      )
+      Effect.gen(function* () {
+        const res = yield* send(entry.request)
+        // oxlint-disable-next-line vitest/no-standalone-expect -- it.effect.each's double call hides the test block from the rule
+        expect(res.status).toBe(entry.expected)
+        if (entry.expected === 403) {
+          // oxlint-disable-next-line vitest/no-standalone-expect -- same as above
+          expect((yield* jsonBody(res, ErrorBody))._tag).toBe('AuthorizationDenied')
+        }
+      })
   )
 })

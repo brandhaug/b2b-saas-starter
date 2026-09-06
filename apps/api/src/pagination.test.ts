@@ -1,6 +1,6 @@
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { walkKeysetPages } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
-import { describe, expect, test } from 'vite-plus/test'
+import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
 
@@ -27,13 +27,9 @@ function send(request: Request): Effect.Effect<Response> {
   return Effect.promise(() => buildWebHandler({}).handler(request))
 }
 
-function jsonBody<S extends Schema.Top>(
-  response: Response,
-  schema: S
-): Effect.Effect<S['Type'], never, S['DecodingServices']> {
+function jsonBody<S extends Schema.Top>(response: Response, schema: S) {
   return Effect.promise(() => response.json()).pipe(
-    Effect.flatMap((body) => Schema.decodeUnknownEffect(schema)(body)),
-    Effect.orDie
+    Effect.flatMap((body) => Schema.decodeUnknownEffect(schema)(body))
   )
 }
 
@@ -69,119 +65,108 @@ function walk(path: string) {
 }
 
 describe('REST list paging', () => {
-  test('every list endpoint answers the Page shape with no params', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        for (const path of [
-          '/workspaces/starter-lab/members',
-          '/workspaces/starter-lab/notifications',
-          '/workspaces/starter-lab/api-tokens',
-          '/workspaces/starter-lab/webhooks'
-        ]) {
-          const response = yield* send(get(path))
-          expect(response.status).toBe(200)
-          const page = yield* jsonBody(response, PageBody)
-          expect(page.items.length).toBeGreaterThan(0)
-          // The seed collections are smaller than the default page, so the
-          // first page is the last one.
-          expect(page.nextCursor).toBe(null)
-        }
-      })
-    ))
-
-  test('limit narrows the page and the cursor resumes exactly after it', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const response = yield* send(
-          get('/workspaces/starter-lab/notifications?limit=2')
-        )
+  it.effect('every list endpoint answers the Page shape with no params', () =>
+    Effect.gen(function* () {
+      for (const path of [
+        '/workspaces/starter-lab/members',
+        '/workspaces/starter-lab/notifications',
+        '/workspaces/starter-lab/api-tokens',
+        '/workspaces/starter-lab/webhooks'
+      ]) {
+        const response = yield* send(get(path))
+        expect(response.status).toBe(200)
         const page = yield* jsonBody(response, PageBody)
-        expect(page.items).toHaveLength(2)
-        expect(page.items.map((item) => item.id)).toEqual(['not_email', 'not_export'])
-        expect(page.nextCursor).not.toBe(null)
+        expect(page.items.length).toBeGreaterThan(0)
+        // The seed collections are smaller than the default page, so the
+        // first page is the last one.
+        expect(page.nextCursor).toBe(null)
+      }
+    })
+  )
 
-        const resumed = yield* send(
-          get(
-            `/workspaces/starter-lab/notifications?limit=2&cursor=${encodeURIComponent(page.nextCursor ?? '')}`
-          )
+  it.effect('limit narrows the page and the cursor resumes exactly after it', () =>
+    Effect.gen(function* () {
+      const response = yield* send(get('/workspaces/starter-lab/notifications?limit=2'))
+      const page = yield* jsonBody(response, PageBody)
+      expect(page.items).toHaveLength(2)
+      expect(page.items.map((item) => item.id)).toEqual(['not_email', 'not_export'])
+      expect(page.nextCursor).not.toBe(null)
+
+      const resumed = yield* send(
+        get(
+          `/workspaces/starter-lab/notifications?limit=2&cursor=${encodeURIComponent(page.nextCursor ?? '')}`
         )
-        const nextPage = yield* jsonBody(resumed, PageBody)
-        expect(nextPage.items.map((item) => item.id)).toEqual([
-          'not_webhook',
-          'not_token'
-        ])
-      })
-    ))
+      )
+      const nextPage = yield* jsonBody(resumed, PageBody)
+      expect(nextPage.items.map((item) => item.id)).toEqual([
+        'not_webhook',
+        'not_token'
+      ])
+    })
+  )
 
-  test('a walk with a small limit covers the collection once, newest first', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const ids = yield* walk('/workspaces/starter-lab/notifications?limit=2')
-        expect(ids).toEqual([
-          'not_email',
-          'not_export',
-          'not_webhook',
-          'not_token',
-          'not_token_call',
-          'not_billing',
-          'not_rotation',
-          'not_invite'
-        ])
-      })
-    ))
+  it.effect('a walk with a small limit covers the collection once, newest first', () =>
+    Effect.gen(function* () {
+      const ids = yield* walk('/workspaces/starter-lab/notifications?limit=2')
+      expect(ids).toEqual([
+        'not_email',
+        'not_export',
+        'not_webhook',
+        'not_token',
+        'not_token_call',
+        'not_billing',
+        'not_rotation',
+        'not_invite'
+      ])
+    })
+  )
 
-  test('audit events honor limit', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
+  it.effect('audit events honor limit', () =>
+    Effect.gen(function* () {
+      const response = yield* send(get('/workspaces/starter-lab/audit-events?limit=1'))
+      const page = yield* jsonBody(response, PageBody)
+      // The seed fixture holds two workspace-scoped audit events, so the
+      // newest-first first page holds one and names the next.
+      expect(page.items).toHaveLength(1)
+      expect(page.items[0]?.id).toBe('aud_export')
+      expect(page.nextCursor).not.toBe(null)
+    })
+  )
+
+  it.effect('an undecodable cursor addresses no position instead of failing', () =>
+    Effect.gen(function* () {
+      const response = yield* send(
+        get('/workspaces/starter-lab/notifications?cursor=not-a-cursor')
+      )
+      expect(response.status).toBe(200)
+      const page = yield* jsonBody(response, PageBody)
+      expect(page.items).toHaveLength(0)
+      expect(page.nextCursor).toBe(null)
+    })
+  )
+
+  it.effect('an out-of-range limit clamps instead of failing', () =>
+    Effect.gen(function* () {
+      for (const limit of ['0', '-5', '999999']) {
         const response = yield* send(
-          get('/workspaces/starter-lab/audit-events?limit=1')
-        )
-        const page = yield* jsonBody(response, PageBody)
-        // The seed fixture holds two workspace-scoped audit events, so the
-        // newest-first first page holds one and names the next.
-        expect(page.items).toHaveLength(1)
-        expect(page.items[0]?.id).toBe('aud_export')
-        expect(page.nextCursor).not.toBe(null)
-      })
-    ))
-
-  test('an undecodable cursor addresses no position instead of failing', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const response = yield* send(
-          get('/workspaces/starter-lab/notifications?cursor=not-a-cursor')
+          get(`/workspaces/starter-lab/notifications?limit=${limit}`)
         )
         expect(response.status).toBe(200)
         const page = yield* jsonBody(response, PageBody)
-        expect(page.items).toHaveLength(0)
-        expect(page.nextCursor).toBe(null)
-      })
-    ))
+        expect(page.items.length).toBeGreaterThan(0)
+      }
+    })
+  )
 
-  test('an out-of-range limit clamps instead of failing', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        for (const limit of ['0', '-5', '999999']) {
-          const response = yield* send(
-            get(`/workspaces/starter-lab/notifications?limit=${limit}`)
-          )
-          expect(response.status).toBe(200)
-          const page = yield* jsonBody(response, PageBody)
-          expect(page.items.length).toBeGreaterThan(0)
-        }
-      })
-    ))
-
-  test('an unusable limit falls back to the default page instead of failing', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const response = yield* send(
-          get('/workspaces/starter-lab/notifications?limit=abc')
-        )
-        expect(response.status).toBe(200)
-        const page = yield* jsonBody(response, PageBody)
-        expect(page.items).toHaveLength(8)
-        expect(page.nextCursor).toBe(null)
-      })
-    ))
+  it.effect('an unusable limit falls back to the default page instead of failing', () =>
+    Effect.gen(function* () {
+      const response = yield* send(
+        get('/workspaces/starter-lab/notifications?limit=abc')
+      )
+      expect(response.status).toBe(200)
+      const page = yield* jsonBody(response, PageBody)
+      expect(page.items).toHaveLength(8)
+      expect(page.nextCursor).toBe(null)
+    })
+  )
 })

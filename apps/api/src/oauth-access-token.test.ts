@@ -4,7 +4,7 @@ import {
   MCP_WORKSPACE_SLUG_CLAIM,
   mcpAccessTokenPrincipal
 } from '@b2b-saas-starter/authz/mcp-access-token'
-import { describe, expect, test, vi } from 'vite-plus/test'
+import { describe, expect, it, vi } from '@effect/vitest'
 import { Effect, Exit, Result } from 'effect'
 import {
   createLocalJWKSet,
@@ -79,11 +79,11 @@ function verifyWith(signer: Signer, token: string) {
     { issuer: ISSUER, audience: AUDIENCE },
     createLocalJWKSet(signer.jwks)
   )
-  return Effect.runPromise(Effect.result(verifier.verify(token).pipe(Effect.scoped)))
+  return Effect.result(verifier.verify(token))
 }
 
 describe('claim → principal mapping', () => {
-  test('maps the starter claims onto the workspace principal', () => {
+  it('maps the starter claims onto the workspace principal', () => {
     const outcome = mcpAccessTokenPrincipal(goodPayload)
     expect(outcome).toEqual({
       ok: true,
@@ -97,14 +97,14 @@ describe('claim → principal mapping', () => {
     })
   })
 
-  test('refuses a token without the mcp:read scope', () => {
+  it('refuses a token without the mcp:read scope', () => {
     expect(mcpAccessTokenPrincipal({ ...goodPayload, scope: 'openid' })).toEqual({
       ok: false,
       reason: 'missing_mcp_scope'
     })
   })
 
-  test('refuses a token missing a workspace claim or naming an unknown role', () => {
+  it('refuses a token missing a workspace claim or naming an unknown role', () => {
     // A payload with no slug claim at all.
     const withoutSlug: JWTPayload = {
       sub: 'usr_demo',
@@ -124,7 +124,7 @@ describe('claim → principal mapping', () => {
     ).toEqual({ ok: false, reason: 'malformed_claims' })
   })
 
-  test('refuses a DPoP-bound token presented as a bare bearer', () => {
+  it('refuses a DPoP-bound token presented as a bare bearer', () => {
     expect(mcpAccessTokenPrincipal({ ...goodPayload, cnf: { jkt: 'thumb' } })).toEqual({
       ok: false,
       reason: 'dpop_bound_token'
@@ -133,22 +133,22 @@ describe('claim → principal mapping', () => {
 })
 
 describe('JWKS verification', () => {
-  test('accepts a token signed by the issuer for this resource', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const signer = yield* makeSigner()
-        const token = yield* Effect.promise(() => signer.sign(goodPayload))
-        const outcome = yield* Effect.promise(() => verifyWith(signer, token))
-        expect(Result.isSuccess(outcome)).toBe(true)
-        if (Result.isSuccess(outcome)) {
-          expect(outcome.success.workspaceSlug).toBe('starter-lab')
-          expect(outcome.success.userId).toBe('usr_demo')
-        }
-      })
-    ))
+  it.effect('accepts a token signed by the issuer for this resource', () =>
+    Effect.gen(function* () {
+      const signer = yield* makeSigner()
+      const token = yield* Effect.promise(() => signer.sign(goodPayload))
+      const outcome = yield* verifyWith(signer, token)
+      expect(Result.isSuccess(outcome)).toBe(true)
+      if (Result.isSuccess(outcome)) {
+        expect(outcome.success.workspaceSlug).toBe('starter-lab')
+        expect(outcome.success.userId).toBe('usr_demo')
+      }
+    })
+  )
 
-  test('rejects a wrong issuer, a wrong audience, an expired token, and a foreign key', () =>
-    Effect.runPromise(
+  it.effect(
+    'rejects a wrong issuer, a wrong audience, an expired token, and a foreign key',
+    () =>
       Effect.gen(function* () {
         const signer = yield* makeSigner()
         const cases = yield* Effect.promise(() =>
@@ -160,7 +160,7 @@ describe('JWKS verification', () => {
         )
         const reasons: Array<string> = []
         for (const token of cases) {
-          const outcome = yield* Effect.promise(() => verifyWith(signer, token))
+          const outcome = yield* verifyWith(signer, token)
           expect(Result.isFailure(outcome)).toBe(true)
           if (Result.isFailure(outcome)) {
             reasons.push(outcome.failure.message)
@@ -175,51 +175,48 @@ describe('JWKS verification', () => {
         // A token signed by a key the issuer never published.
         const stranger = yield* makeSigner()
         const forged = yield* Effect.promise(() => stranger.sign(goodPayload))
-        const outcome = yield* Effect.promise(() => verifyWith(signer, forged))
+        const outcome = yield* verifyWith(signer, forged)
         expect(Result.isFailure(outcome)).toBe(true)
         if (Result.isFailure(outcome)) {
           expect(outcome.failure.message).toBe('invalid_access_token')
         }
       })
-    ))
+  )
 
-  test('fetches the remote key set once and reuses the cached keys', () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const signer = yield* makeSigner()
-        const fetchJwks = vi.fn(() =>
-          Promise.resolve(
-            // oxlint-disable-next-line effect/noGlobals -- the fixture JWK set is the wire body jose's custom fetch receives
-            new Response(JSON.stringify(signer.jwks), {
-              headers: { 'content-type': 'application/json' }
-            })
-          )
+  it.effect('fetches the remote key set once and reuses the cached keys', () =>
+    Effect.gen(function* () {
+      const signer = yield* makeSigner()
+      const fetchJwks = vi.fn(() =>
+        Promise.resolve(
+          // oxlint-disable-next-line effect/noGlobals -- the fixture JWK set is the wire body jose's custom fetch receives
+          new Response(JSON.stringify(signer.jwks), {
+            headers: { 'content-type': 'application/json' }
+          })
         )
-        const keySet = createRemoteJWKSet(new URL(`${ISSUER}/jwks`), {
-          [customFetch]: fetchJwks
-        })
-        const verifier = makeOAuthTokenVerifier(
-          { issuer: ISSUER, audience: AUDIENCE },
-          keySet
-        )
-        const first = yield* Effect.promise(() => signer.sign(goodPayload))
-        const second = yield* Effect.promise(() =>
-          signer.sign({ ...goodPayload, sub: 'usr_dev' })
-        )
-        const exits = yield* Effect.promise(() =>
-          Promise.all([
-            Effect.runPromiseExit(verifier.verify(first).pipe(Effect.scoped)),
-            Effect.runPromiseExit(verifier.verify(second).pipe(Effect.scoped))
-          ])
-        )
-        expect(exits.every(Exit.isSuccess)).toBe(true)
-        expect(fetchJwks).toHaveBeenCalledTimes(1)
+      )
+      const keySet = createRemoteJWKSet(new URL(`${ISSUER}/jwks`), {
+        [customFetch]: fetchJwks
       })
-    ))
+      const verifier = makeOAuthTokenVerifier(
+        { issuer: ISSUER, audience: AUDIENCE },
+        keySet
+      )
+      const first = yield* Effect.promise(() => signer.sign(goodPayload))
+      const second = yield* Effect.promise(() =>
+        signer.sign({ ...goodPayload, sub: 'usr_dev' })
+      )
+      const exits = yield* Effect.all([
+        Effect.exit(verifier.verify(first)),
+        Effect.exit(verifier.verify(second))
+      ])
+      expect(exits.every(Exit.isSuccess)).toBe(true)
+      expect(fetchJwks).toHaveBeenCalledTimes(1)
+    })
+  )
 })
 
 describe('resource configuration', () => {
-  test('is inactive until both the issuer and the resource URL are set', () => {
+  it('is inactive until both the issuer and the resource URL are set', () => {
     expect(oauthResourceConfig({})).toBeUndefined()
     expect(oauthResourceConfig({ MCP_OAUTH_ISSUER: ISSUER })).toBeUndefined()
     expect(oauthResourceConfig({ MCP_RESOURCE_URL: AUDIENCE })).toBeUndefined()
@@ -231,7 +228,7 @@ describe('resource configuration', () => {
     ).toEqual({ issuer: ISSUER, audience: AUDIENCE, jwksUrl: `${ISSUER}/jwks` })
   })
 
-  test('advertises the resource, its authorization server and the MCP scopes', () => {
+  it('advertises the resource, its authorization server and the MCP scopes', () => {
     expect(
       protectedResourceMetadata({ issuer: ISSUER, audience: AUDIENCE, jwksUrl: '' })
     ).toEqual({
@@ -243,7 +240,7 @@ describe('resource configuration', () => {
     })
   })
 
-  test('tells a JWT from an API Token by shape', () => {
+  it('tells a JWT from an API Token by shape', () => {
     expect(looksLikeJwt('bsk_seed_0000000000000000')).toBe(false)
     expect(looksLikeJwt('aaa.bbb.ccc')).toBe(true)
   })
