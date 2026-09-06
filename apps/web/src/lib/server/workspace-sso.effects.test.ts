@@ -214,7 +214,11 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
         return yield* Effect.scoped(
           Effect.gen(function* () {
             yield* notifyOwnersOfFailedTest(connection, REASON).pipe(
-              Effect.provideService(WorkspaceContext, { workspace, actor: null })
+              Effect.provideService(WorkspaceContext, {
+                workspace,
+                actor: null,
+                actorType: 'user'
+              })
             )
             const counts: Record<string, number> = {}
             const samples: Record<string, string | undefined> = {}
@@ -225,6 +229,7 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
               ).pipe(
                 Effect.provideService(WorkspaceContext, {
                   workspace,
+                  actorType: 'user',
                   actor: { userId: member.id, role: member.role, systemRole: 'user' }
                 })
               )

@@ -29,18 +29,23 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live audit event log', (it
     function insertPage(start: number, rowCount: number) {
       return Effect.gen(function* () {
         const db = yield* Database
-        const rows = Array.from({ length: rowCount }, (_, index) => ({
-          id: `aud_pg_${String(start + index).padStart(4, '0')}`,
-          workspaceId: 'wrk_audit_pages',
-          eventType: 'page.filler',
-          targetType: 'test',
-          targetId: null,
-          metadata: {},
-          // Fixed literal base, not a clock read.
-          createdAt: DateTime.formatIso(
-            DateTime.makeUnsafe(Date.UTC(2026, 5, 10, 0, index * 2))
-          )
-        }))
+        const rows = Array.from(
+          { length: rowCount },
+          (_, index) =>
+            ({
+              id: `aud_pg_${String(start + index).padStart(4, '0')}`,
+              workspaceId: 'wrk_audit_pages',
+              actorType: 'system',
+              eventType: 'page.filler',
+              targetType: 'test',
+              targetId: null,
+              metadata: {},
+              // Fixed literal base, not a clock read.
+              createdAt: DateTime.formatIso(
+                DateTime.makeUnsafe(Date.UTC(2026, 5, 10, 0, index * 2))
+              )
+            }) satisfies typeof auditEvents.$inferInsert
+        )
         // D1 binds at most 100 parameters per statement (8 per row here).
         for (let i = 0; i < rows.length; i += 10) {
           yield* db.insert(auditEvents).values(rows.slice(i, i + 10))
@@ -84,6 +89,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live audit event log', (it
             const audit = yield* AuditEventLog
             yield* audit.record({
               workspaceId: 'wrk_other',
+              actorType: 'user',
               eventType: 'workspace.created',
               targetType: 'workspace'
             })

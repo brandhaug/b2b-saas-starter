@@ -375,6 +375,7 @@ function auditRows(): ReadonlyArray<string> {
       // workspace trail.
       workspaceId: event.workspaceId ?? null,
       actorUserId: event.actorUserId ?? null,
+      actorType: event.actorType,
       eventType: event.eventType,
       targetType: event.targetType,
       targetId: event.targetId,

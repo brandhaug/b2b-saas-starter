@@ -35,9 +35,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 role: 'member'
               })
             ),
-            selectWorkspaceLayer({ DB: d1, invitationBinding: binding }, 'live-lab', {
-              userId: 'usr_owner'
-            })
+            selectWorkspaceLayer(
+              { DB: d1, invitationBinding: binding },
+              'live-lab',
+              {
+                userId: 'usr_owner'
+              },
+              'user'
+            )
           )
 
           expect(created.email).toBe('selected@live-invite.test')

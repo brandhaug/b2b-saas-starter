@@ -93,6 +93,7 @@ describe('accountAuditInput', () => {
       })
     ).toEqual({
       workspaceId: null,
+      actorType: 'user',
       actorUserId: 'usr_demo',
       eventType: 'auth.account_linked',
       targetType: 'user',

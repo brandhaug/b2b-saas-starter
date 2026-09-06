@@ -191,7 +191,7 @@ export function buildWorkspaceExport(
     delivery,
     onFailure: 'retry',
     program: processWorkspaceExportMessage(delivery, (slug) =>
-      selectWorkspaceContextLayer(capabilitiesEnv, slug)
+      selectWorkspaceContextLayer(capabilitiesEnv, slug, undefined, 'system')
     ).pipe(Effect.provide(selectCapabilitiesLayer(capabilitiesEnv)))
   })
 }

@@ -152,6 +152,9 @@ describe('SeedWorkspaceExports', () => {
         (event) => event.eventType === 'workspace.export_downloaded'
       )
       expect(events.some((event) => event.targetId === created.id)).toBe(true)
+      expect(events.find((event) => event.targetId === created.id)?.actorType).toBe(
+        'user'
+      )
     }).pipe(Effect.provide(ownerLayer))
   )
 
@@ -336,6 +339,7 @@ describe('collectWorkspaceExportSnapshot — the audit walk bound', () => {
   function auditRows(count: number): ReadonlyArray<SeedAuditEventRow> {
     return Array.from({ length: count }, (_, index) => ({
       id: `evt_${String(index).padStart(5, '0')}`,
+      actorType: 'user',
       eventType: 'workspace.renamed',
       targetType: 'workspace',
       targetId: seedWorkspaceRecord.id,

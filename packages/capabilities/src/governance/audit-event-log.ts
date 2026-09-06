@@ -1,4 +1,5 @@
 import { type JsonObject } from '@b2b-saas-starter/db/schema'
+import { auditActorTypes, type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 
@@ -18,6 +19,9 @@ export const AuditEvent = Schema.Struct({
   targetType: Schema.String,
   targetId: Schema.NullOr(Schema.String),
   actor: Schema.String,
+  // Lenient like `eventType`: the read never breaks on a row the taxonomy
+  // has not met, and the UI's label map prettifies the unknown.
+  actorType: Schema.String,
   createdAt: Schema.String
 })
 export type AuditEvent = typeof AuditEvent.Type
@@ -73,6 +77,7 @@ export const AUDIT_EVENT_PAGE_SIZE = 100
  * can answer the same server-side filters as Live without reaching into D1.
  */
 export type SeedAuditEventRow = AuditEvent & {
+  readonly actorType: AuditActorTypeValue
   readonly workspaceId?: string | null
   readonly actorUserId?: string | null
 }
@@ -80,6 +85,11 @@ export type SeedAuditEventRow = AuditEvent & {
 export type RecordAuditEventInput = {
   readonly workspaceId?: string | null
   readonly actorUserId?: string | null
+  /**
+   * Who the actor was: a session user, the platform, or a bearer API token.
+   * Required invocation provenance, independent of the event's taxonomy.
+   */
+  readonly actorType: AuditActorTypeValue
   /**
    * From the taxonomy module — the write boundary is where the vocabulary is
    * enforced. The read path stays a lenient `Schema.String`.
@@ -93,6 +103,21 @@ export type RecordAuditEventInput = {
    * `audit_events.metadata` JSON column.
    */
   readonly metadata?: JsonObject
+}
+
+/**
+ * Reject missing or invalid provenance even for untyped callers. Event names
+ * do not constrain who can perform an action.
+ */
+const decodeAuditActorType = Schema.decodeUnknownEffect(
+  Schema.Literals(auditActorTypes)
+)
+
+export function assertAuditActorType(
+  input: RecordAuditEventInput
+): Effect.Effect<void> {
+  // oxlint-disable-next-line no-restricted-properties -- missing internal invocation provenance is a caller defect, not a retryable store failure
+  return decodeAuditActorType(input.actorType).pipe(Effect.orDie, Effect.asVoid)
 }
 
 export type AuditEventLogInterface = {
@@ -125,8 +150,8 @@ export class AuditEventLog extends Context.Service<
  * in context. The plugin-backed mutations (`WorkspaceMembership`,
  * `WorkspaceInvitations`, `WorkspaceLifecycle.rename`) all end the same way —
  * call the binding, read the row back, audit it — and this is that last step,
- * reading `workspaceId` and `actorUserId` off `WorkspaceContext` instead of
- * having each call site restate them.
+ * reading `workspaceId`, `actorUserId`, and the caller's actor type off
+ * `WorkspaceContext` instead of having each call site restate them.
  *
  * The audit row is deliberately NOT atomic with the write it follows, and it
  * cannot be: D1 rejects an explicit BEGIN, and a plugin write that happens over
@@ -137,14 +162,15 @@ export class AuditEventLog extends Context.Service<
  */
 export function recordInWorkspace(
   audit: AuditEventLogInterface,
-  event: Omit<RecordAuditEventInput, 'workspaceId' | 'actorUserId'>
+  event: Omit<RecordAuditEventInput, 'workspaceId' | 'actorUserId' | 'actorType'>
 ): Effect.Effect<void, CapabilityUnavailable, WorkspaceContext> {
   return Effect.gen(function* () {
     const ctx = yield* WorkspaceContext
     yield* audit.record({
       ...event,
       workspaceId: ctx.workspace.id,
-      actorUserId: ctx.actor?.userId ?? null
+      actorUserId: ctx.actor?.userId ?? null,
+      actorType: ctx.actorType
     })
   })
 }
@@ -160,6 +186,7 @@ function toSeedWire(row: SeedAuditEventRow): AuditEvent {
     targetType: row.targetType,
     targetId: row.targetId ?? null,
     actor: row.actor,
+    actorType: row.actorType,
     createdAt: row.createdAt
   }
 }
@@ -238,6 +265,7 @@ export function SeedAuditEventLog(
     listGlobal: Effect.sync(() => rows.map(toSeedWire)),
     record: (input) =>
       Effect.gen(function* () {
+        yield* assertAuditActorType(input)
         // Appends into this instance's store so recorded events read back
         // through `list`/`listGlobal` exactly as Live's inserts do —
         // mutating-capability Seeds depend on this to satisfy the same
@@ -248,12 +276,13 @@ export function SeedAuditEventLog(
           targetType: input.targetType,
           targetId: input.targetId ?? null,
           actor: seedActorName(actors, input.actorUserId),
+          actorType: input.actorType,
           actorUserId: input.actorUserId ?? null,
           workspaceId: input.workspaceId ?? null,
           createdAt: DateTime.formatIso(yield* DateTime.now)
         }
         rows.push(row)
       }),
-    prepareRecord: () => Effect.succeed(noopStatement)
+    prepareRecord: (input) => assertAuditActorType(input).pipe(Effect.as(noopStatement))
   })
 }

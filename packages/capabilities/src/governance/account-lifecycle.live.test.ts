@@ -178,6 +178,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
             id: 'aud_mixed_owned',
             workspaceId: 'wrk_mixed_shared',
             actorUserId: 'usr_mixed',
+            actorType: 'user',
             eventType: 'workspace_member.added',
             targetType: 'workspace_member',
             targetId: 'usr_co_owner',

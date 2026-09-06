@@ -1,3 +1,4 @@
+import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaces } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Schema } from 'effect'
@@ -43,6 +44,13 @@ export function memberToActor(member: Member): Actor {
 export type WorkspaceContextInterface = {
   readonly workspace: Workspace
   readonly actor: Actor | null
+  /**
+   * What kind of caller made the request, read by the audit writes a
+   * mutating capability performs: a session user, the platform, or a bearer
+   * API token driving the REST/MCP surface. Independent of whether a user
+   * identity is available; the request boundary must supply provenance.
+   */
+  readonly actorType: AuditActorTypeValue
 }
 
 export class WorkspaceContext extends Context.Service<
@@ -52,7 +60,8 @@ export class WorkspaceContext extends Context.Service<
 
 export function liveWorkspaceContext(
   slug: string,
-  actor?: ActorRef
+  actor: ActorRef | undefined,
+  actorType: AuditActorTypeValue
 ): Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable, Database> {
   return Layer.effect(WorkspaceContext)(
     Effect.gen(function* () {
@@ -78,7 +87,8 @@ export function liveWorkspaceContext(
       }
       return {
         workspace: toWorkspace(row),
-        actor: resolvedActor
+        actor: resolvedActor,
+        actorType
       }
     })
   )
@@ -96,8 +106,9 @@ export function liveWorkspaceContext(
 export function seedWorkspaceContext(
   seedWorkspace: Workspace,
   slug: string,
-  actor?: ActorRef,
-  members: ReadonlyArray<Member> = []
+  actor: ActorRef | undefined,
+  members: ReadonlyArray<Member>,
+  actorType: AuditActorTypeValue
 ): Layer.Layer<WorkspaceContext, WorkspaceNotFound> {
   return Layer.effect(WorkspaceContext)(
     Effect.suspend((): Effect.Effect<WorkspaceContextInterface, WorkspaceNotFound> => {
@@ -105,13 +116,22 @@ export function seedWorkspaceContext(
         return Effect.fail(new WorkspaceNotFound({ slug }))
       }
       if (!actor) {
-        return Effect.succeed({ workspace: seedWorkspace, actor: null })
+        return Effect.succeed({
+          workspace: seedWorkspace,
+          actor: null,
+          actorType
+        })
       }
       const member = members.find((candidate) => candidate.id === actor.userId)
       if (!member) {
         return Effect.fail(new WorkspaceNotFound({ slug }))
       }
-      return Effect.succeed({ workspace: seedWorkspace, actor: memberToActor(member) })
+      const resolved = memberToActor(member)
+      return Effect.succeed({
+        workspace: seedWorkspace,
+        actor: resolved,
+        actorType
+      })
     })
   )
 }
@@ -119,7 +139,12 @@ export function seedWorkspaceContext(
 /** Test injection: a context built from already-resolved values, no membership checks. */
 export function testWorkspaceContext(
   workspace: Workspace,
-  actor: Actor | null = null
+  actor: Actor | null = null,
+  actorType: AuditActorTypeValue = 'user'
 ): Layer.Layer<WorkspaceContext> {
-  return Layer.succeed(WorkspaceContext)({ workspace, actor })
+  return Layer.succeed(WorkspaceContext)({
+    workspace,
+    actor,
+    actorType
+  })
 }

@@ -227,6 +227,7 @@ export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
 export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   {
     id: 'aud_admin',
+    actorType: 'user',
     eventType: 'system_admin.user_role_changed',
     targetType: 'user',
     targetId: 'usr_dev',
@@ -238,6 +239,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   // showcase show the start/stop pair against the same admin and target.
   {
     id: 'aud_impersonation_started',
+    actorType: 'user',
     eventType: 'system_admin.impersonation_started',
     targetType: 'user',
     targetId: 'usr_dev',
@@ -247,6 +249,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   },
   {
     id: 'aud_impersonation_stopped',
+    actorType: 'user',
     eventType: 'system_admin.impersonation_stopped',
     targetType: 'user',
     targetId: 'usr_dev',
@@ -258,6 +261,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   // account security, not workspace activity, so it carries no workspace.
   {
     id: 'aud_passkey',
+    actorType: 'user',
     eventType: 'auth.passkey_added',
     targetType: 'user',
     targetId: 'usr_demo',
@@ -267,6 +271,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   },
   {
     id: 'aud_token',
+    actorType: 'user',
     eventType: 'api_token.created',
     targetType: 'api_token',
     targetId: 'tok_ops',
@@ -279,6 +284,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   },
   {
     id: 'aud_mcp_consent',
+    actorType: 'user',
     eventType: 'mcp_client.consent_granted',
     targetType: 'mcp_client',
     targetId: 'https://mcp-client.example.com/oauth/client-metadata.json',
@@ -289,6 +295,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   },
   {
     id: 'aud_export',
+    actorType: 'system',
     eventType: 'workspace.export_completed',
     targetType: 'workspace_export',
     targetId: 'exp_seed_ready',
@@ -299,6 +306,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
   },
   {
     id: 'aud_magic_link',
+    actorType: 'user',
     eventType: 'auth.sign_in',
     targetType: 'session',
     // A session the magic link opened; no fixture row exists for it.

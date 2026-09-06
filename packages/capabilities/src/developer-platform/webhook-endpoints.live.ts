@@ -347,6 +347,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           auditEvent: {
             workspaceId: input.workspaceId,
             actorUserId: null,
+            actorType: 'system',
             eventType: auditEventType,
             targetType: 'webhook_endpoint',
             targetId: input.endpointId,
@@ -495,6 +496,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             auditEvent: {
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook_endpoint.created',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -578,6 +580,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             auditEvent: {
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook_endpoint.updated',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,
@@ -624,6 +627,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             auditEvent: {
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook_endpoint.deleted',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,
@@ -695,6 +699,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             auditEvent: {
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook.delivery_replayed',
               targetType: 'webhook_endpoint',
               targetId: source.endpointId,
@@ -776,6 +781,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             auditEvent: {
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
               eventType: 'webhook_endpoint.secret_rotated',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,
@@ -839,6 +845,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             auditEvent: {
               workspaceId: input.workspaceId,
               actorUserId: null,
+              actorType: 'system',
               eventType: 'webhook_endpoint.auto_disabled',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,

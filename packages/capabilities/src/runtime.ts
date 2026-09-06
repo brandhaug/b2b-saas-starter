@@ -1,4 +1,5 @@
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
+import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { Layer } from 'effect'
 import { type SeatSyncQueueBinding } from './billing/seat-sync.ts'
 import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
@@ -125,14 +126,23 @@ export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
 export function selectWorkspaceContextLayer(
   env: StarterEnv,
   slug: string,
-  actor?: ActorRef
+  actor: ActorRef | undefined,
+  actorType: AuditActorTypeValue
 ): Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable> {
   if (env.DB === undefined) {
     // Passing `seedMembers` makes the seed path enforce the same actor
     // membership semantics as the live path (fixture members allowed).
-    return seedWorkspaceContext(seedWorkspaceRecord, slug, actor, seedMembers)
+    return seedWorkspaceContext(
+      seedWorkspaceRecord,
+      slug,
+      actor,
+      seedMembers,
+      actorType
+    )
   }
-  return liveWorkspaceContext(slug, actor).pipe(Layer.provide(layerFromD1(env.DB)))
+  return liveWorkspaceContext(slug, actor, actorType).pipe(
+    Layer.provide(layerFromD1(env.DB))
+  )
 }
 
 /**
@@ -144,7 +154,8 @@ export function selectWorkspaceContextLayer(
 export function selectWorkspaceLayer(
   env: StarterEnv,
   slug: string,
-  actor?: ActorRef
+  actor: ActorRef | undefined,
+  actorType: AuditActorTypeValue
 ): Layer.Layer<
   CapabilityServices | WorkspaceContext,
   WorkspaceNotFound | CapabilityUnavailable
@@ -154,11 +165,11 @@ export function selectWorkspaceLayer(
     // membership semantics as the live path (fixture members allowed).
     return Layer.merge(
       SeedLayer,
-      seedWorkspaceContext(seedWorkspaceRecord, slug, actor, seedMembers)
+      seedWorkspaceContext(seedWorkspaceRecord, slug, actor, seedMembers, actorType)
     )
   }
   return Layer.mergeAll(
     makeLiveCapabilitiesLayer(liveCapabilitiesOptions(env)),
-    liveWorkspaceContext(slug, actor)
+    liveWorkspaceContext(slug, actor, actorType)
   ).pipe(Layer.provide(layerFromD1(env.DB)))
 }

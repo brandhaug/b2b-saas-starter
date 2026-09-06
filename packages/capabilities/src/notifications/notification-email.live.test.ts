@@ -116,7 +116,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           Effect.flatMap(NotificationFeed, (feed) => feed.list),
           Layer.merge(
             feedLayer([]),
-            liveWorkspaceContext('live-lab', { userId: 'usr_owner' })
+            liveWorkspaceContext('live-lab', { userId: 'usr_owner' }, 'user')
           )
         )
         expect(listed.map((row) => row.id)).toContain(created.id)

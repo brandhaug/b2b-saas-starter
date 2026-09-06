@@ -1,4 +1,5 @@
 import { Effect, Exit } from 'effect'
+import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts'
@@ -62,6 +63,42 @@ export function developerPlatformContractCases(
   expect: ContractExpect
 ): ReadonlyArray<DeveloperPlatformContractCase> {
   return [
+    {
+      name: 'the same token mutation records the invocation actor in both adapters',
+      assert: Effect.gen(function* () {
+        const tokens = yield* ApiTokenRegistry
+        const audit = yield* AuditEventLog
+        const ctx = yield* WorkspaceContext
+        const actors: ReadonlyArray<AuditActorTypeValue> = [
+          'user',
+          'api_token',
+          'system'
+        ]
+        for (const actorType of actors) {
+          let actor = ctx.actor
+          if (actorType !== 'user') {
+            actor = null
+          }
+          const created = yield* tokens
+            .create({ name: `provenance-${actorType}`, scopes: ['read'] })
+            .pipe(
+              Effect.provideService(WorkspaceContext, {
+                ...ctx,
+                actor,
+                actorType
+              })
+            )
+          expect((yield* tokens.list).some((token) => token.id === created.id)).toBe(
+            true
+          )
+          const events = yield* audit.list({ eventType: 'api_token.created' })
+          expect(
+            events.items.find((event) => event.targetId === created.id)?.actorType
+          ).toBe(actorType)
+          yield* tokens.revoke({ tokenId: created.id })
+        }
+      })
+    },
     {
       name: 'created token lists back and disappears after revoke',
       assert: Effect.gen(function* () {
@@ -229,6 +266,9 @@ export function developerPlatformContractCases(
         // The delivery-attempt suites dead-letter their own endpoints too, so
         // scope to this one instead of assuming the newest event is ours.
         expect(events.items.some((event) => event.targetId === endpoint.id)).toBe(true)
+        expect(
+          events.items.find((event) => event.targetId === endpoint.id)?.actorType
+        ).toBe('system')
         // The audit metadata points back at the row it committed with, and the
         // row itself is listable through the same interface.
         const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
@@ -328,6 +368,9 @@ export function developerPlatformContractCases(
           eventType: 'webhook_endpoint.auto_disabled'
         })
         expect(events.items.some((event) => event.targetId === endpoint.id)).toBe(true)
+        expect(
+          events.items.find((event) => event.targetId === endpoint.id)?.actorType
+        ).toBe('system')
 
         // Already disabled matches nothing: no second write, no phantom audit.
         yield* webhooks.autoDisableEndpoint({

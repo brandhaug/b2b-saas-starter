@@ -167,6 +167,7 @@ export function SeedWorkspaceInvitations(options: {
               yield* audit.value.record({
                 workspaceId: options.workspace.id,
                 actorUserId: input.userId,
+                actorType: 'user',
                 eventType: 'workspace_invitation.accepted',
                 targetType: 'workspace_invitation',
                 targetId: input.invitationId,

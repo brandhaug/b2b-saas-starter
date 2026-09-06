@@ -113,7 +113,10 @@ export function listWorkspacesForUser(
           Effect.provide(
             Layer.succeed(WorkspaceContext)({
               workspace,
-              actor: memberToActor(member)
+              actor: memberToActor(member),
+              // The membership row this projection already proved *is* the
+              // session user — there is no other caller kind here.
+              actorType: 'user'
             })
           )
         ),

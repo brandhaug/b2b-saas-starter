@@ -20,9 +20,15 @@ import {
 import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
+import { Badge } from '@/components/ui/badge'
 import { DataTable, type DataTableColumnDef } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import { AUDIT_EVENT_FILTER_OPTIONS, auditEventLabel } from '@/lib/audit-labels'
+import {
+  AUDIT_EVENT_FILTER_OPTIONS,
+  auditActorTypeLabel,
+  auditEventLabel
+} from '@/lib/audit-labels'
+import { auditActorTypeVariant } from '@/lib/badge-variants'
 import {
   auditSearchFromFilters,
   compact,
@@ -85,7 +91,17 @@ const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
     accessorKey: 'actor',
     header: 'Actor',
     enableSorting: true,
-    cell: ({ row }) => <span className="break-words">{row.original.actor}</span>
+    // The joined display name alone cannot tell "the platform did this"
+    // from "an API token did" — both render as `system` when no user row
+    // joins — so the actor type rides beside it as a badge.
+    cell: ({ row }) => (
+      <span className="flex flex-wrap items-center gap-1.5 break-words">
+        {row.original.actor}{' '}
+        <Badge variant={auditActorTypeVariant(row.original.actorType)}>
+          {auditActorTypeLabel(row.original.actorType)}
+        </Badge>
+      </span>
+    )
   }
 ]
 

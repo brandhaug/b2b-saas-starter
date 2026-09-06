@@ -233,6 +233,20 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           'workspace.export_downloaded',
           'workspace.export_requested'
         ])
+        expect(
+          events.items.find(
+            (event) =>
+              event.targetId === requested.id &&
+              event.eventType === 'workspace.export_completed'
+          )?.actorType
+        ).toBe('system')
+        expect(
+          events.items.find(
+            (event) =>
+              event.targetId === requested.id &&
+              event.eventType === 'workspace.export_downloaded'
+          )?.actorType
+        ).toBe('user')
       })
     )
 

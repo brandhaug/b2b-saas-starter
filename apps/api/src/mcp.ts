@@ -38,6 +38,7 @@ import {
   authenticateMcpCaller,
   enforceRateLimit,
   mcpCallerActor,
+  mcpCallerActorType,
   observed,
   provideWorkspace,
   webRequest,
@@ -317,7 +318,13 @@ function bridgedRead(
   >
 ): Effect.Effect<ToolOutcome, never, CapabilityReadServices> {
   return Effect.result(
-    provideWorkspace(env, caller.token.workspaceSlug, body, mcpCallerActor(caller))
+    provideWorkspace(
+      env,
+      caller.token.workspaceSlug,
+      body,
+      mcpCallerActor(caller),
+      mcpCallerActorType(caller)
+    )
   )
 }
 

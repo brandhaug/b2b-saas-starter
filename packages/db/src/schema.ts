@@ -1,4 +1,5 @@
 import {
+  auditActorTypes,
   deliveryStatuses,
   invitationStatuses,
   notificationChannels,
@@ -22,6 +23,7 @@ import {
 export {
   adminSystemRole,
   apiTokenScopes,
+  auditActorTypes,
   deliveryStatuses,
   invitationStatuses,
   notificationChannels,
@@ -32,6 +34,7 @@ export {
   workspaceExportStatuses,
   workspaceRoles,
   type ApiTokenScopeValue,
+  type AuditActorTypeValue,
   type DeliveryStatus,
   type NotificationChannel,
   type NotificationKind,
@@ -514,6 +517,7 @@ export const auditEvents = sqliteTable(
     id: id(),
     workspaceId: workspaceRefNullable(),
     actorUserId: text('actor_user_id').references(() => user.id),
+    actorType: text('actor_type', { enum: auditActorTypes }).notNull(),
     eventType: text('event_type').notNull(),
     targetType: text('target_type').notNull(),
     targetId: text('target_id'),
