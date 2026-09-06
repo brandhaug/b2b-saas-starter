@@ -24,6 +24,7 @@
     "react": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@react-email/ui": "catalog:",
     "@types/react": "catalog:",
     "react-email": "catalog:",
