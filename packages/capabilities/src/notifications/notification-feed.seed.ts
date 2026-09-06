@@ -20,6 +20,7 @@ import {
   type NotificationEmailContext,
   type NotificationFeedOptions,
   type NotifyUserInput,
+  type NotifyWorkspaceOwnersInput,
   type SeedNotification
 } from './notification-feed.ts'
 import { NotificationPreferences } from './notification-preferences.ts'
@@ -253,6 +254,50 @@ export function SeedNotificationFeed(
               recipients: [toRecipient(member)],
               traceparent
             })
+          }),
+        notifyWorkspaceOwners: (input: NotifyWorkspaceOwnersInput) =>
+          Effect.gen(function* () {
+            // Owners of the fixture workspace, straight off the roster — the
+            // same filter Live applies to `workspace_members`. Any other
+            // workspace id owns no rows here (the fixture knows one), so the
+            // call records nothing, mirroring Live's empty join.
+            if (input.workspaceId !== fixture.workspace.id) {
+              return
+            }
+            const owners = fixture.members.filter((member) => member.role === 'owner')
+            if (owners.length === 0) {
+              return
+            }
+            const createdAt = DateTime.formatIso(yield* DateTime.now)
+            const created: Array<{ row: SeedRow; owner: EmailQueueRecipient }> = []
+            for (const owner of owners) {
+              created.push({
+                owner: toRecipient(owner),
+                row: {
+                  id: yield* newCapabilityId('not'),
+                  workspaceId: input.workspaceId,
+                  userId: owner.id,
+                  kind: input.kind,
+                  title: input.title,
+                  message: input.message,
+                  createdAt,
+                  read: false
+                }
+              })
+            }
+            // One store write for all rows, mirroring Live's single insert.
+            yield* Ref.update(rows, (all) => [...all, ...created.map(({ row }) => row)])
+            // One enqueue per row: a notification id addresses one (row,
+            // recipient) pair, exactly like the Live fan-out.
+            const traceparent = yield* currentTraceparent
+            for (const { row, owner } of created) {
+              yield* enqueueInstantEmails(options.emailQueue, preferences, {
+                notificationId: row.id,
+                kind: input.kind,
+                recipients: [owner],
+                traceparent
+              })
+            }
           }),
         loadForEmail: (notificationId, recipientUserId) =>
           Effect.gen(function* () {

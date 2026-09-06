@@ -1,8 +1,8 @@
 import { notifications } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
-import { Effect, Layer } from 'effect'
+import { DateTime, Effect, Layer } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import { LiveAuditEventLog } from '../governance/audit-event-log.live.ts'
 import { LIVE_SUITE_TIMEOUT, TestDatabase } from '../testing/live-harness.ts'
@@ -210,6 +210,84 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           )
         )
         expect(afterRead).toBeNull()
+      })
+    )
+  })
+
+  describe('notifyWorkspaceOwners (ADR 0062 addendum)', () => {
+    // A per-run title: the D1 file outlives the process, so a fixed one
+    // would accumulate a row per run and break the count.
+    const title = `Live ladder notice ${DateTime.formatIso(DateTime.nowUnsafe())}`
+
+    it.effect('records one owner-only row and enqueues per the owners channel', () =>
+      Effect.gen(function* () {
+        const enqueued: Array<NotificationEmailQueueMessage> = []
+        // The kind defaults to digest; the owner opts into instant so the
+        // enqueue is observable.
+        yield* withFeed(
+          [],
+          Effect.flatMap(NotificationPreferences, (preferences) =>
+            preferences.set({
+              userId: 'usr_owner',
+              kind: 'webhook.delivery_failed',
+              channel: 'instant'
+            })
+          )
+        )
+        yield* withFeed(
+          enqueued,
+          Effect.flatMap(NotificationFeed, (feed) =>
+            feed.notifyWorkspaceOwners({
+              workspaceId: 'wrk_live',
+              kind: 'webhook.delivery_failed',
+              title,
+              message: 'https://example.com/hook has failed 5 deliveries in a row.'
+            })
+          )
+        )
+        // wrk_live's one member is its owner: exactly one row, addressed to
+        // them, and one instant email for it.
+        const db = yield* Database
+        const rows = yield* db
+          .select()
+          .from(notifications)
+          .where(
+            and(
+              eq(notifications.workspaceId, 'wrk_live'),
+              eq(notifications.title, title)
+            )
+          )
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({ userId: 'usr_owner', readAt: null })
+        expect(enqueued.map((message) => message.recipientUserId)).toEqual([
+          'usr_owner'
+        ])
+      })
+    )
+
+    it.effect('a workspace whose members hold no owner role records nothing', () =>
+      Effect.gen(function* () {
+        const enqueued: Array<NotificationEmailQueueMessage> = []
+        // The user-admin contract workspace's only member (usr_owner) is a
+        // plain member there, so the owners join resolves nobody.
+        yield* withFeed(
+          enqueued,
+          Effect.flatMap(NotificationFeed, (feed) =>
+            feed.notifyWorkspaceOwners({
+              workspaceId: 'wrk_user_admin_contract',
+              kind: 'webhook.delivery_failed',
+              title,
+              message: 'nobody holds the owner role here'
+            })
+          )
+        )
+        expect(enqueued).toEqual([])
+        const db = yield* Database
+        const rows = yield* db
+          .select()
+          .from(notifications)
+          .where(eq(notifications.workspaceId, 'wrk_user_admin_contract'))
+        expect(rows).toHaveLength(0)
       })
     )
   })

@@ -148,6 +148,29 @@ type RotateWebhookSecretInput = {
   readonly endpointId: string
 }
 
+/**
+ * The failure-ladder half of a recorded attempt: the endpoint's consecutive
+ * failure streak as this attempt left it — every failure climbs, a delivered
+ * attempt resets to zero. The queue consumer reads this to execute the
+ * ladder's reaction (`failureLadderAction` in the delivery plan); `0` also
+ * covers an attempt recorded against an endpoint that no longer resolves,
+ * where there is no streak left to react to.
+ */
+export type RecordedWebhookAttempt = {
+  readonly consecutiveFailures: number
+}
+
+type AutoDisableWebhookEndpointInput = {
+  readonly endpointId: string
+  readonly workspaceId: string
+  /**
+   * The streak that triggered the disable, recorded verbatim in the audit
+   * event's metadata — the governance log names the ladder's reading, not
+   * just the outcome.
+   */
+  readonly consecutiveFailures: number
+}
+
 type WebhookEndpointsInterface = {
   readonly list: Effect.Effect<
     ReadonlyArray<WebhookEndpoint>,
@@ -283,9 +306,16 @@ type WebhookEndpointsInterface = {
     CapabilityUnavailable
   >
 
+  /**
+   * One delivery attempt from the queue consumer, upserted on the delivery
+   * row id. The endpoint's consecutive-failure counter moves in the same
+   * batched write as the delivery row (ADR 0062 addendum's failure ladder):
+   * a failure climbs the streak, a delivered attempt resets it to zero, and
+   * the streak this attempt left is the return value the consumer reacts to.
+   */
   readonly recordDeliveryAttempt: (
     input: WebhookDeliveryAttemptInput
-  ) => Effect.Effect<void, CapabilityUnavailable>
+  ) => Effect.Effect<RecordedWebhookAttempt, CapabilityUnavailable>
 
   /**
    * Terminal delivery rows for outcomes that never dispatched (the SSRF guard
@@ -296,6 +326,11 @@ type WebhookEndpointsInterface = {
    * delivery id and payload travel in the queue message: the id resolves the
    * message's existing attempt row (one row per message, same as the retry
    * path), and the recorded payload is what makes a terminal row replayable.
+   *
+   * A terminal status is a failure like any other, so it climbs the endpoint's
+   * consecutive-failure streak the same way a retryable one does — the ladder
+   * (ADR 0062 addendum) must react to the streak's every step, including the
+   * one that ends a message.
    */
   readonly recordTerminalDeliveryAttempt: (input: {
     readonly deliveryId: string
@@ -305,7 +340,24 @@ type WebhookEndpointsInterface = {
     readonly attempts: number
     readonly status: 'failed_permanent' | 'dead_lettered'
     readonly payload: Json
-  }) => Effect.Effect<{ readonly deliveryId: string }, CapabilityUnavailable>
+  }) => Effect.Effect<
+    { readonly deliveryId: string } & RecordedWebhookAttempt,
+    CapabilityUnavailable
+  >
+
+  /**
+   * Background-worker surface — the auto-disable rung of the failure ladder
+   * (ADR 0062 addendum). Sets `enabled = false` and batches the
+   * `webhook_endpoint.auto_disabled` audit event with the write, scoped to
+   * `(endpointId, workspaceId)` like every background lookup. An endpoint
+   * that is already disabled, deleted, or foreign to the workspace matches
+   * nothing: no write, no audit event. Re-enabling is the operator's one
+   * path, `update { enabled: true }` — there deliberately is no second way
+   * back from either kind of disable.
+   */
+  readonly autoDisableEndpoint: (
+    input: AutoDisableWebhookEndpointInput
+  ) => Effect.Effect<void, CapabilityUnavailable>
 }
 
 export class WebhookEndpoints extends Context.Service<

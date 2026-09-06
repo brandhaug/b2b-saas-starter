@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vite-plus/test'
 
 import {
   activeSigningSecrets,
+  failureLadderAction,
+  failureLadderNotification,
+  nextConsecutiveFailures,
   planReplayedDelivery,
   planSecretRotation,
   truncateResponseBody,
@@ -10,7 +13,9 @@ import {
   isReplayableDeliveryStatus,
   backoffSeconds,
   classifyResponseStatus,
-  planDeliveryAttempt
+  planDeliveryAttempt,
+  type FailureLadderAction,
+  WEBHOOK_FAILURE_AUTO_DISABLE_AT
 } from './webhook-delivery-plan.ts'
 
 const now = DateTime.makeUnsafe('2026-09-01T12:00:00.000Z')
@@ -166,6 +171,58 @@ describe('classifyResponseStatus', () => {
     expect(classifyResponseStatus(500)).toBe('retry')
     expect(classifyResponseStatus(503)).toBe('retry')
     expect(classifyResponseStatus(0)).toBe('retry')
+  })
+})
+
+describe('failure ladder', () => {
+  it('climbs on every failure vocabulary entry and resets only on delivered', () => {
+    expect(nextConsecutiveFailures(4, 'failed')).toBe(5)
+    expect(nextConsecutiveFailures(4, 'failed_permanent')).toBe(5)
+    expect(nextConsecutiveFailures(4, 'dead_lettered')).toBe(5)
+    expect(nextConsecutiveFailures(19, 'delivered')).toBe(0)
+    expect(nextConsecutiveFailures(0, 'delivered')).toBe(0)
+  })
+
+  it('warns exactly at 5, 10, and 15 and disables from 20 on — silent elsewhere', () => {
+    // The ladder's whole policy in one oracle: rungs fire once per climb
+    // (exact matches), the threshold is a floor that stays reached past 20,
+    // and every other streak escalates nothing.
+    const expected = new Map<number, FailureLadderAction>([
+      [5, 'warn'],
+      [10, 'warn'],
+      [15, 'warn'],
+      [20, 'disable'],
+      [21, 'disable']
+    ])
+    for (let streak = 0; streak <= WEBHOOK_FAILURE_AUTO_DISABLE_AT + 1; streak++) {
+      expect(failureLadderAction(streak)).toBe(expected.get(streak) ?? 'silent')
+    }
+  })
+
+  it('warns with the streak and the coming threshold, naming the endpoint', () => {
+    const copy = failureLadderNotification({
+      url: 'https://example.com/hook',
+      consecutiveFailures: 5
+    })
+    expect(copy.title).toBe('Webhook endpoint failing')
+    expect(copy.message).toContain('https://example.com/hook')
+    expect(copy.message).toContain('5 deliveries in a row')
+    expect(copy.message).toContain('20')
+  })
+
+  it('names the disable and the one way back at the threshold', () => {
+    const copy = failureLadderNotification({
+      url: 'https://example.com/hook',
+      consecutiveFailures: 20
+    })
+    expect(copy.title).toBe('Webhook endpoint auto-disabled')
+    expect(copy.message).toContain('disabled')
+    expect(copy.message).toContain('Re-enable')
+  })
+
+  it('falls back to a generic target when the URL is unknown', () => {
+    const copy = failureLadderNotification({ url: null, consecutiveFailures: 10 })
+    expect(copy.message).toContain('A webhook endpoint')
   })
 })
 

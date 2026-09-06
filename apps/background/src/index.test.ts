@@ -1,9 +1,13 @@
-import { type WebhookDeliveryAttemptInput } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import {
+  nextConsecutiveFailures,
+  type WebhookDeliveryAttemptInput
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import {
   NotificationFeed,
-  type CreateNotificationInput
+  type CreateNotificationInput,
+  type NotifyWorkspaceOwnersInput
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
@@ -91,10 +95,28 @@ function resolveTarget(
   return null
 }
 
+/** One auto-disable the consumer asked the capability to run. */
+type AutoDisableCall = {
+  readonly endpointId: string
+  readonly workspaceId: string
+  readonly consecutiveFailures: number
+}
+
+/**
+ * The mutable stand-in for the endpoint's stored streak. The stub moves it
+ * with the capability's own pure `nextConsecutiveFailures`, so the counts the
+ * consumer reacts to are the counts the real adapter would return. A run
+ * starts it at the streak its prior (unstubbed) attempts would have left.
+ */
+type StreakState = { current: number }
+
 function stubEndpoints(
   dispatchTarget: typeof target | null,
-  recorded: Array<WebhookDeliveryAttemptInput>
+  recorded: Array<WebhookDeliveryAttemptInput>,
+  autoDisabled: Array<AutoDisableCall> = [],
+  streakInput?: StreakState
 ): Layer.Layer<WebhookEndpoints> {
+  const streak: StreakState = streakInput ?? { current: 0 }
   return Layer.succeed(WebhookEndpoints)({
     list: Effect.die('unused in delivery tests'),
     listPage: () => Effect.die('unused in delivery tests'),
@@ -110,6 +132,8 @@ function stubEndpoints(
     recordDeliveryAttempt: (input) =>
       Effect.sync(() => {
         recorded.push(input)
+        streak.current = nextConsecutiveFailures(streak.current, input.status)
+        return { consecutiveFailures: streak.current }
       }),
     recordTerminalDeliveryAttempt: (input) =>
       Effect.sync(() => {
@@ -121,18 +145,28 @@ function stubEndpoints(
           responseStatus: null,
           nextAttemptAt: null
         })
-        return { deliveryId: input.deliveryId }
+        streak.current = nextConsecutiveFailures(streak.current, input.status)
+        return {
+          deliveryId: input.deliveryId,
+          consecutiveFailures: streak.current
+        }
+      }),
+    autoDisableEndpoint: (input) =>
+      Effect.sync(() => {
+        autoDisabled.push(input)
       })
   })
 }
 
 /**
  * The user-facing half of a terminal delivery: the consumer creates one
- * `webhook.delivery_failed` Notification, and the tests assert on what it
- * asked the feed to persist. Every other feed method is unused here.
+ * `webhook.delivery_failed` Notification, and the failure ladder's rungs
+ * notify the workspace owners. The tests assert on what the consumer asked
+ * the feed to persist. Every other feed method is unused here.
  */
 function stubFeed(
-  created: Array<CreateNotificationInput>
+  created: Array<CreateNotificationInput>,
+  ownerNotices: Array<NotifyWorkspaceOwnersInput> = []
 ): Layer.Layer<NotificationFeed> {
   return Layer.succeed(NotificationFeed)({
     list: Effect.die('unused in delivery tests'),
@@ -151,6 +185,10 @@ function stubFeed(
           createdAt: '2026-08-25T00:00:00.000Z',
           read: false
         }
+      }),
+    notifyWorkspaceOwners: (input) =>
+      Effect.sync(() => {
+        ownerNotices.push(input)
       }),
     loadForEmail: () => Effect.die('unused in delivery tests'),
     listDigestCandidates: () => Effect.die('unused in delivery tests'),
@@ -188,23 +226,35 @@ describe('processWebhookMessage', () => {
     status: number,
     attempts = 1,
     input: unknown = message,
-    messageId = 'qmsg_test'
+    messageId = 'qmsg_test',
+    startsAtStreak = 0
   ) {
     const recorded: Array<WebhookDeliveryAttemptInput> = []
     const created: Array<CreateNotificationInput> = []
+    const ownerNotices: Array<NotifyWorkspaceOwnersInput> = []
+    const autoDisabled: Array<AutoDisableCall> = []
     const captured: CapturedRequest = {}
+    const streak: StreakState = { current: startsAtStreak }
     return processWebhookMessage(
       readDelivery(WebhookQueueMessage, { id: messageId, body: input, attempts }),
       'trace-test'
     ).pipe(
       Effect.provide(
         Layer.mergeAll(
-          stubEndpoints(dispatchTarget, recorded),
-          stubFeed(created),
+          stubEndpoints(dispatchTarget, recorded, autoDisabled, streak),
+          stubFeed(created, ownerNotices),
           stubHttp(status, captured)
         )
       ),
-      Effect.map((outcome) => ({ outcome, recorded, created, captured }))
+      Effect.map((outcome) => ({
+        outcome,
+        recorded,
+        created,
+        ownerNotices,
+        autoDisabled,
+        captured,
+        streak: streak.current
+      }))
     )
   }
 
@@ -339,6 +389,91 @@ describe('processWebhookMessage', () => {
       const retried = yield* run(target, 500)
       expect(delivered.created).toHaveLength(0)
       expect(retried.created).toHaveLength(0)
+      // Nor does a fresh failure reach a ladder rung: nothing is escalated.
+      expect(delivered.ownerNotices).toHaveLength(0)
+      expect(retried.ownerNotices).toHaveLength(0)
+      expect(retried.autoDisabled).toHaveLength(0)
+    })
+  )
+
+  it.effect('climbs the streak on failure and warns the owners at a rung', () =>
+    Effect.gen(function* () {
+      // The endpoint already failed four deliveries; this attempt's failure
+      // lands on the first rung (ADR 0062 addendum's failure ladder).
+      const { outcome, streak, ownerNotices, autoDisabled } = yield* run(
+        target,
+        500,
+        1,
+        message,
+        'qmsg_rung',
+        4
+      )
+      expect(outcome).toBe('retry')
+      expect(streak).toBe(5)
+      expect(autoDisabled).toHaveLength(0)
+      expect(ownerNotices).toHaveLength(1)
+      expect(ownerNotices[0]).toMatchObject({
+        workspaceId: 'ws_1',
+        kind: 'webhook.delivery_failed',
+        title: 'Webhook endpoint failing'
+      })
+      expect(ownerNotices[0]?.message).toContain('https://example.com/hook')
+      expect(ownerNotices[0]?.message).toContain('5 deliveries in a row')
+    })
+  )
+
+  it.effect('resets the streak on a delivered attempt and escalates nothing', () =>
+    Effect.gen(function* () {
+      // A streak standing at 4 meets a delivered attempt: the reset erases
+      // the climb, so the next failure starts from zero, not from 5.
+      const { outcome, streak, created, ownerNotices, autoDisabled } = yield* run(
+        target,
+        200,
+        1,
+        message,
+        'qmsg_reset',
+        4
+      )
+      expect(outcome).toBe('ack')
+      expect(streak).toBe(0)
+      expect(created).toHaveLength(0)
+      expect(ownerNotices).toHaveLength(0)
+      expect(autoDisabled).toHaveLength(0)
+    })
+  )
+
+  it.effect('stays silent between rungs — only 5, 10, and 15 escalate', () =>
+    Effect.gen(function* () {
+      const sixth = yield* run(target, 500, 1, message, 'qmsg_between', 5)
+      expect(sixth.streak).toBe(6)
+      expect(sixth.ownerNotices).toHaveLength(0)
+      const twelfth = yield* run(target, 500, 1, message, 'qmsg_between_2', 11)
+      expect(twelfth.streak).toBe(12)
+      expect(twelfth.ownerNotices).toHaveLength(0)
+    })
+  )
+
+  it.effect('auto-disables the endpoint at the twentieth consecutive failure', () =>
+    Effect.gen(function* () {
+      // Nineteen failures already climbed; this attempt is the one that
+      // trips the disable rung.
+      const { outcome, streak, autoDisabled, ownerNotices } = yield* run(
+        target,
+        500,
+        1,
+        message,
+        'qmsg_disable',
+        19
+      )
+      expect(outcome).toBe('retry')
+      expect(streak).toBe(20)
+      expect(autoDisabled).toEqual([
+        { endpointId: 'wh_1', workspaceId: 'ws_1', consecutiveFailures: 20 }
+      ])
+      // The threshold rung also notifies, naming what happened.
+      expect(ownerNotices).toHaveLength(1)
+      expect(ownerNotices[0]?.title).toBe('Webhook endpoint auto-disabled')
+      expect(ownerNotices[0]?.message).toContain('Re-enable')
     })
   )
 
@@ -408,19 +543,27 @@ describe('processWebhookMessage', () => {
 })
 
 describe('processDeadLetterMessage', () => {
-  function runDeadLetter(input: unknown, attempts = 4) {
+  function runDeadLetter(input: unknown, attempts = 4, startsAtStreak = 0) {
     const recorded: Array<WebhookDeliveryAttemptInput> = []
+    const autoDisabled: Array<AutoDisableCall> = []
+    const ownerNotices: Array<NotifyWorkspaceOwnersInput> = []
+    const streak: StreakState = { current: startsAtStreak }
     return processDeadLetterMessage(
       readDelivery(WebhookQueueMessage, { id: 'qmsg_dead', body: input, attempts })
     ).pipe(
-      Effect.provide(Layer.merge(stubEndpoints(target, recorded), stubFeed([]))),
-      Effect.map(() => recorded)
+      Effect.provide(
+        Layer.mergeAll(
+          stubEndpoints(target, recorded, autoDisabled, streak),
+          stubFeed([], ownerNotices)
+        )
+      ),
+      Effect.map(() => ({ recorded, autoDisabled, ownerNotices }))
     )
   }
 
   it.effect('records a dead_lettered row carrying the audit workspace id', () =>
     Effect.gen(function* () {
-      const recorded = yield* runDeadLetter(message)
+      const { recorded, autoDisabled } = yield* runDeadLetter(message)
       expect(recorded).toHaveLength(1)
       expect(recorded[0]).toMatchObject({
         endpointId: 'wh_1',
@@ -431,12 +574,27 @@ describe('processDeadLetterMessage', () => {
         responseStatus: null,
         nextAttemptAt: null
       })
+      // A first failure on the streak: no rung, no disable.
+      expect(autoDisabled).toHaveLength(0)
+    })
+  )
+
+  it.effect('a dead letter landing on the threshold disables the endpoint', () =>
+    Effect.gen(function* () {
+      // The exhausted message's terminal write is the streak's twentieth
+      // failure — the ladder must react on the dead-letter path too.
+      const { autoDisabled, ownerNotices } = yield* runDeadLetter(message, 4, 19)
+      expect(autoDisabled).toEqual([
+        { endpointId: 'wh_1', workspaceId: 'ws_1', consecutiveFailures: 20 }
+      ])
+      expect(ownerNotices).toHaveLength(1)
+      expect(ownerNotices[0]?.title).toBe('Webhook endpoint auto-disabled')
     })
   )
 
   it.effect('acks a malformed dead letter without recording', () =>
     Effect.gen(function* () {
-      const recorded = yield* runDeadLetter({ endpointId: 42 })
+      const { recorded } = yield* runDeadLetter({ endpointId: 42 })
       expect(recorded).toHaveLength(0)
     })
   )

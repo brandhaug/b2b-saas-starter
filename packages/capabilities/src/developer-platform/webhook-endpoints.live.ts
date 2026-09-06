@@ -1,4 +1,4 @@
-import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
+import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
 import {
   type JsonObject,
   type JsonValue,
@@ -21,6 +21,7 @@ import {
   DELIVERIES_PAGE_SIZE,
   deliverySuccessRate,
   isReplayableDeliveryStatus,
+  nextConsecutiveFailures,
   planPendingDispatch,
   planReplayedDelivery,
   planSecretRotation,
@@ -123,6 +124,11 @@ export const LiveWebhookEndpoints: Layer.Layer<
     const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
     const notificationFeed = yield* NotificationFeed
+
+    // The raw binding `batch` needs for the one attempt write below that
+    // carries no audit row beside it, resolved once at construction — the
+    // same pattern `auditedMutations` resolves its own binding with.
+    const rawD1 = yield* RawD1
 
     // The shared mutate+audit combinator — one implementation of the batched
     // write, its zero-match skip, and the phantom-audit caveat (see
@@ -236,6 +242,14 @@ export const LiveWebhookEndpoints: Layer.Layer<
      * the response evidence on an update: a field left out of the input
      * (a terminal write, say) leaves the recorded value in place rather than
      * nulling it.
+     *
+     * The endpoint's consecutive-failure counter (ADR 0062 addendum's ladder)
+     * moves in the same D1 batch as the delivery row: a failure climbs the
+     * streak, a delivered attempt resets it, and the streak this attempt left
+     * is returned for the consumer to react to. Check-then-act like every
+     * audited mutation — two concurrent attempts on one endpoint can read the
+     * same streak; the accepted trade, with the disable threshold a floor so
+     * a skipped increment cannot skip the disable.
      */
     function recordAttempt(input: {
       readonly id?: string
@@ -273,6 +287,23 @@ export const LiveWebhookEndpoints: Layer.Layer<
         if (input.responseBody !== undefined) {
           attemptUpdate.responseBody = input.responseBody ?? null
         }
+        // Read once, used twice: the streak this attempt leaves, and the
+        // endpoint URL a dead-letter notification names. An endpoint that no
+        // longer resolves (deleted, or a foreign workspace) has no streak to
+        // move — the counter statement below then matches zero rows and the
+        // delivery row still records the attempt.
+        const endpoint = yield* endpointRow(input.endpointId, input.workspaceId)
+        let consecutiveFailures = 0
+        if (endpoint !== null) {
+          consecutiveFailures = nextConsecutiveFailures(
+            endpoint.consecutiveFailures,
+            input.status
+          )
+        }
+        const counterUpdate = db
+          .update(webhookEndpoints)
+          .set({ consecutiveFailures })
+          .where(scopedEndpointWhere(input.endpointId, input.workspaceId))
         const deliveryInsert = db
           .insert(webhookDeliveries)
           .values({
@@ -295,11 +326,19 @@ export const LiveWebhookEndpoints: Layer.Layer<
           })
         const auditEventType = terminalDeliveryAuditEventType.get(input.status)
         if (auditEventType === undefined) {
-          yield* unavailable(deliveryInsert)
-          return deliveryId
+          // No audit row to batch beside: delivery row and counter still
+          // commit as one D1 batch — several statements, one implicit
+          // transaction — never one after the other.
+          yield* unavailable(
+            batch([deliveryInsert, counterUpdate]).pipe(
+              Effect.provideService(RawD1, rawD1)
+            )
+          )
+          return { deliveryId, consecutiveFailures }
         }
-        // Terminal outcome: the attempt row and its audit event commit or roll
-        // back together — the shared audited-mutation shape. `workspaceId`
+        // Terminal outcome: the attempt row, its audit event, and the counter
+        // move commit or roll back together — the shared audited-mutation
+        // shape with the write list carrying both statements. `workspaceId`
         // comes from the queue message — verified against the endpoint by
         // `getDispatchTarget` on the delivery path, trusted as stamped by our
         // own publisher on the dead-letter path.
@@ -318,24 +357,21 @@ export const LiveWebhookEndpoints: Layer.Layer<
               responseStatus: input.responseStatus ?? null
             }
           },
-          write: () => deliveryInsert
+          write: () => [deliveryInsert, counterUpdate]
         })
         // The dead-letter outcome additionally tells the workspace: the
         // notification names the endpoint URL so the message is actionable
-        // without a query. Reads the endpoint row for it.
-        if (input.status === 'dead_lettered') {
-          const endpoint = yield* endpointRow(input.endpointId, input.workspaceId)
-          if (endpoint) {
-            yield* notifyDeadLetter({
-              endpointId: endpoint.id,
-              workspaceId: input.workspaceId,
-              eventType: input.eventType,
-              attempts: input.attempts,
-              url: endpoint.url
-            })
-          }
+        // without a query.
+        if (input.status === 'dead_lettered' && endpoint) {
+          yield* notifyDeadLetter({
+            endpointId: endpoint.id,
+            workspaceId: input.workspaceId,
+            eventType: input.eventType,
+            attempts: input.attempts,
+            url: endpoint.url
+          })
         }
-        return deliveryId
+        return { deliveryId, consecutiveFailures }
       })
     }
 
@@ -778,15 +814,46 @@ export const LiveWebhookEndpoints: Layer.Layer<
             )
           }
         }),
-      recordDeliveryAttempt: (input) => recordAttempt(input).pipe(Effect.asVoid),
+      recordDeliveryAttempt: (input) =>
+        Effect.map(recordAttempt(input), ({ consecutiveFailures }) => ({
+          consecutiveFailures
+        })),
       recordTerminalDeliveryAttempt: (input) =>
         // The row id and payload travel in the queue message: the id resolves
         // the message's own attempt row (one row per message), and the
         // recorded payload is what makes a terminal row replayable. The
         // retry schedule clears; response evidence already on the row stays.
-        Effect.map(recordAttempt({ ...input, nextAttemptAt: null }), (deliveryId) => ({
-          deliveryId
-        }))
+        recordAttempt({ ...input, nextAttemptAt: null }),
+      autoDisableEndpoint: (input) =>
+        Effect.gen(function* () {
+          // Read first so the audit metadata can name the endpoint; the row
+          // is the same one the streak climbed against. An endpoint already
+          // disabled, deleted, or foreign to the workspace matches nothing:
+          // no write, no audit event — the audited-mutation zero-match skip.
+          const endpoint = yield* endpointRow(input.endpointId, input.workspaceId)
+          if (!endpoint || !endpoint.enabled) {
+            return
+          }
+          yield* auditedMutation({
+            matched: Effect.succeed(true),
+            auditEvent: {
+              workspaceId: input.workspaceId,
+              actorUserId: null,
+              eventType: 'webhook_endpoint.auto_disabled',
+              targetType: 'webhook_endpoint',
+              targetId: input.endpointId,
+              metadata: {
+                url: endpoint.url,
+                consecutiveFailures: input.consecutiveFailures
+              }
+            },
+            write: () =>
+              db
+                .update(webhookEndpoints)
+                .set({ enabled: false })
+                .where(scopedEndpointWhere(input.endpointId, input.workspaceId))
+          })
+        })
     }
   })
 )

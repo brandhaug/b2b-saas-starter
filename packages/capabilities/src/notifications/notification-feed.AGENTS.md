@@ -9,6 +9,7 @@ The one place a Notification row is created (ADR 0061). Producers call `create` 
 - `create` is keyed by `workspaceId`, since background producers hold an id. It persists the row, then enqueues one `NotificationEmailQueueMessage` per recipient whose channel resolves to `instant`; `userId: null` broadcasts.
 - `record` is the workspace-scoped write: one member, no email.
 - `notifyUser` is identity-keyed and inserts one row per workspace the user belongs to, but enqueues at most one email: the extra rows are copies of one event.
+- `notifyWorkspaceOwners` is workspace-keyed and owner-targeted (one row per owner, one enqueue per row) — the webhook failure ladder's rung notices are the producer.
 - `loadForEmail` and the digest skip a read row, so marking read in the app also stops its email.
 - `userId = NULL` rows are broadcasts; a `userId` restricts the row to that actor, and with no actor in context only broadcasts return (`visibleToActor`, shared by the reads and `markRead`).
 - The enqueue never fails `create`: no binding means no enqueue, a rejection annotates the wide event.
