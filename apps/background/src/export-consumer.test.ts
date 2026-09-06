@@ -126,6 +126,7 @@ function stubReads(failing = false) {
       autoDisableEndpoint: () => unused
     }),
     Layer.succeed(AuditEventLog)({
+      get: () => unused,
       list: () => list({ items: [], nextCursor: null }),
       listGlobal: unused,
       record: () => unused,

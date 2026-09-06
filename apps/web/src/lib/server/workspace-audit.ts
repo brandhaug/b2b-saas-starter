@@ -1,4 +1,7 @@
-import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import {
+  type AuditEvent,
+  type AuditEventDetail
+} from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema, type Types } from 'effect'
@@ -44,6 +47,7 @@ export type WorkspaceAuditFilters = Types.Mutable<typeof WorkspaceAuditFilters.T
  * and the hard gate above already decided who reaches this payload.
  */
 export type WorkspaceAuditPayload = {
+  readonly selectedEvent: AuditEventDetail | null
   readonly viewer: WorkspaceViewer | null
   readonly events: ReadonlyArray<AuditEvent>
   /** Opaque keyset cursor for the next older page, or null on the last one. */
@@ -61,7 +65,8 @@ export type WorkspaceAuditPayload = {
 const WorkspaceAuditInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   filters: WorkspaceAuditFilters,
-  cursor: Schema.optionalKey(Schema.String)
+  cursor: Schema.optionalKey(Schema.String),
+  event: Schema.optionalKey(Schema.NonEmptyString)
 })
 
 export type WorkspaceAuditInput = typeof WorkspaceAuditInput.Type

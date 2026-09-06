@@ -3,6 +3,8 @@ import { auditActorTypes, type AuditActorTypeValue } from '@b2b-saas-starter/db/
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 
+import { AuditEventMetadata, decodeAuditEventMetadata } from './audit-event-metadata.ts'
+
 import { type CapabilityUnavailable } from '../errors.ts'
 import {
   seedKeysetPage,
@@ -25,6 +27,13 @@ export const AuditEvent = Schema.Struct({
   createdAt: Schema.String
 })
 export type AuditEvent = typeof AuditEvent.Type
+
+export const AuditEventDetail = Schema.Struct({
+  ...AuditEvent.fields,
+  actorUserId: Schema.NullOr(Schema.String),
+  metadata: AuditEventMetadata
+})
+export type AuditEventDetail = typeof AuditEventDetail.Type
 
 /**
  * The keyset position every audit page cuts on — newest first on
@@ -77,6 +86,7 @@ export const AUDIT_EVENT_PAGE_SIZE = 100
  * can answer the same server-side filters as Live without reaching into D1.
  */
 export type SeedAuditEventRow = AuditEvent & {
+  readonly metadata?: JsonObject
   readonly actorType: AuditActorTypeValue
   readonly workspaceId?: string | null
   readonly actorUserId?: string | null
@@ -121,6 +131,9 @@ export function assertAuditActorType(
 }
 
 export type AuditEventLogInterface = {
+  readonly get: (
+    id: string
+  ) => Effect.Effect<AuditEventDetail | null, CapabilityUnavailable, WorkspaceContext>
   readonly list: (
     input?: ListAuditEventsInput
   ) => Effect.Effect<Page<AuditEvent>, CapabilityUnavailable, WorkspaceContext>
@@ -250,8 +263,22 @@ export function SeedAuditEventLog(
   // A private copy: `record` appends without mutating the caller's fixture
   // array. Sharing state across adapters happens by providing one instance of
   // this layer (see layers.ts), not by sharing the fixture array.
-  const rows: Array<SeedAuditEventRow> = [...seed]
+  const rows: Array<SeedAuditEventRow> = structuredClone([...seed])
   return Layer.succeed(AuditEventLog)({
+    get: Effect.fn('AuditEventLog.get')(function* (id: string) {
+      const ctx = yield* WorkspaceContext
+      const row = rows.find(
+        (event) => event.id === id && event.workspaceId === ctx.workspace.id
+      )
+      if (!row) {
+        return null
+      }
+      return {
+        ...toSeedWire(row),
+        actorUserId: row.actorUserId ?? null,
+        metadata: decodeAuditEventMetadata(row.metadata ?? {})
+      }
+    }),
     // Same scoping as Live: the per-workspace read filters on the resolved
     // workspace from `WorkspaceContext` (invariant 1) — never an unscoped pass
     // over the fixture. Like the other Seed adapters, the context arrives
@@ -279,6 +306,7 @@ export function SeedAuditEventLog(
           actorType: input.actorType,
           actorUserId: input.actorUserId ?? null,
           workspaceId: input.workspaceId ?? null,
+          metadata: structuredClone(input.metadata ?? {}),
           createdAt: DateTime.formatIso(yield* DateTime.now)
         }
         rows.push(row)

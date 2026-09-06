@@ -47,6 +47,43 @@ describe('loadWorkspaceAuditEventsHandler', () => {
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
 
+  it('resolves direct event links outside the current list and cursor', async () => {
+    const payload = await loadWorkspaceAuditEventsHandler({
+      workspaceSlug: 'starter-lab',
+      filters: { eventType: 'no.such.event' },
+      cursor: 'invalid',
+      event: 'aud_token'
+    })
+    expect(payload.events).toEqual([])
+    expect(payload.selectedEvent).toMatchObject({
+      id: 'aud_token',
+      targetType: 'api_token'
+    })
+  })
+
+  it.each(['missing', 'aud_admin'])(
+    'does not disclose unavailable event %s',
+    async (event) => {
+      const payload = await loadWorkspaceAuditEventsHandler({
+        workspaceSlug: 'starter-lab',
+        filters: {},
+        event
+      })
+      expect(payload.selectedEvent).toBeNull()
+    }
+  )
+
+  it('denies an event lookup to a member', async () => {
+    actor.userId = 'usr_dev'
+    await expect(
+      loadWorkspaceAuditEventsHandler({
+        workspaceSlug: 'starter-lab',
+        filters: {},
+        event: 'aud_token'
+      })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
+  })
+
   it('gives an owner the workspace-scoped events, newest first', async () => {
     const payload = await load()
     expect(payload.viewer).toEqual({ role: 'owner' })

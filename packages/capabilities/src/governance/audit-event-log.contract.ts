@@ -88,6 +88,21 @@ export function auditEventLogContractCases(
 ): ReadonlyArray<AuditEventLogContractCase> {
   return [
     {
+      name: 'gets an event independently of list filters and cursors',
+      assert: Effect.gen(function* () {
+        const audit = yield* AuditEventLog
+        expect(
+          (yield* list({ eventType: 'no.such.event', cursor: 'invalid' })).items
+        ).toEqual([])
+        const event = yield* audit.get('aud_c_old')
+        expect(event?.id).toBe('aud_c_old')
+        expect(event?.actorUserId).toBe('usr_alice')
+        expect(event?.actor).toBe('Alice')
+        expect(event?.targetId).toBe('tok_a')
+        expect(yield* audit.get('missing')).toBe(null)
+      })
+    },
+    {
       name: 'missing provenance fails before recording or preparing a write',
       assert: Effect.gen(function* () {
         const audit = yield* AuditEventLog
@@ -271,7 +286,16 @@ export function auditEventLogContractCases(
           actorType: 'system',
           eventType: 'workspace.created',
           targetType: 'workspace',
-          targetId: 'automated_workspace'
+          targetId: 'automated_workspace',
+          metadata: {
+            role: 'admin',
+            attempts: 2,
+            responseStatus: 503,
+            email: 'private@example.com',
+            scopes: ['admin'],
+            url: 'https://secret.example',
+            nested: { token: 'secret' }
+          }
         })
         yield* audit.record({
           workspaceId: ctx.workspace.id,
@@ -282,6 +306,30 @@ export function auditEventLogContractCases(
           targetId: 'interactive_workspace'
         })
         const page = yield* list({ eventType: 'workspace.created' })
+        const recorded = page.items.find(
+          (event) => event.targetId === 'automated_workspace'
+        )
+        const detail = yield* audit.get(recorded?.id ?? '')
+        expect(detail?.metadata).toEqual({
+          role: 'admin',
+          attempts: 2,
+          responseStatus: 503
+        })
+        const ctxOther = {
+          ...ctx,
+          workspace: { ...ctx.workspace, id: 'other-workspace' }
+        }
+        expect(
+          yield* audit
+            .get(recorded?.id ?? '')
+            .pipe(Effect.provideService(WorkspaceContext, ctxOther))
+        ).toBe(null)
+        expect('metadata' in (recorded ?? {})).toBe(false)
+        const globalEvent = (yield* audit.listGlobal).find(
+          (event) => event.id === recorded?.id
+        )
+        expect(globalEvent?.id).toBe(recorded?.id)
+        expect('metadata' in (globalEvent ?? {})).toBe(false)
         expect(
           page.items.find((event) => event.targetId === 'automated_workspace')
             ?.actorType
@@ -290,6 +338,30 @@ export function auditEventLogContractCases(
           page.items.find((event) => event.targetId === 'interactive_workspace')
             ?.actorType
         ).toBe('user')
+      })
+    },
+    {
+      name: 'snapshots recorded metadata so callers cannot rewrite an audit event',
+      assert: Effect.gen(function* () {
+        const audit = yield* AuditEventLog
+        const ctx = yield* WorkspaceContext
+        const metadata = { attempts: 2 }
+        yield* audit.record({
+          workspaceId: ctx.workspace.id,
+          actorType: 'system',
+          eventType: 'webhook.delivery_failed',
+          targetType: 'webhook_endpoint',
+          targetId: 'metadata-snapshot',
+          metadata
+        })
+        metadata.attempts = 99
+        const page = yield* audit.list({ eventType: 'webhook.delivery_failed' })
+        const recorded = page.items.find(
+          (event) => event.targetId === 'metadata-snapshot'
+        )
+        expect((yield* audit.get(recorded?.id ?? ''))?.metadata).toEqual({
+          attempts: 2
+        })
       })
     }
   ]

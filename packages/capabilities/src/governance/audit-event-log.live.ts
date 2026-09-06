@@ -16,6 +16,7 @@ import { clampPageLimit, cutKeysetPage, type Page } from '../internal/keyset-cur
 import { keysetResume } from '../internal/keyset-query.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
+import { decodeAuditEventMetadata } from './audit-event-metadata.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 function pageLimit(input: ListAuditEventsInput | undefined): number {
@@ -133,6 +134,31 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
       })
 
       return {
+        get: Effect.fn('AuditEventLog.get')(function* (id: string) {
+          const ctx = yield* WorkspaceContext
+          const rows = yield* orUnavailable('audit-event-log')(
+            db
+              .select({ event: auditEvents, actor: user })
+              .from(auditEvents)
+              .leftJoin(user, eq(user.id, auditEvents.actorUserId))
+              .where(
+                and(
+                  eq(auditEvents.workspaceId, ctx.workspace.id),
+                  eq(auditEvents.id, id)
+                )
+              )
+              .limit(1)
+          )
+          const row = rows[0]
+          if (!row) {
+            return null
+          }
+          return {
+            ...toWireRow(row),
+            actorUserId: row.event.actorUserId,
+            metadata: decodeAuditEventMetadata(row.event.metadata)
+          }
+        }),
         list: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
