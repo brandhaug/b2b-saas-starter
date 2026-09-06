@@ -9,6 +9,8 @@ const createdToken: CreatedApiToken = {
   prefix: 'bsk_live_abcdefgh',
   scopes: ['read'],
   lastUsedAt: null,
+  expiresAt: null,
+  replacedByTokenId: null,
   createdAt: '2026-05-16T09:00:00.000Z',
   token: 'bsk_live_secret_value'
 }
@@ -79,4 +81,26 @@ describe('ApiTokenForm', () => {
     await screen.findByRole('alert')
     expect(screen.getByRole('alert').textContent).toContain('nope')
   })
+})
+
+it('submits the chosen expiry as UTC', async () => {
+  createToken.mockResolvedValue(createdToken)
+  renderForm()
+  fireEvent.change(screen.getByLabelText('Token name'), {
+    target: { value: 'Expiring' }
+  })
+  fireEvent.change(screen.getByLabelText('Expiry (UTC, optional)'), {
+    target: { value: '2099-01-01T12:30' }
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Create token' }))
+  await waitFor(() =>
+    expect(createToken).toHaveBeenCalledWith({
+      data: {
+        workspaceSlug: 'starter-lab',
+        name: 'Expiring',
+        scopes: ['read'],
+        expiresAt: '2099-01-01T12:30:00.000Z'
+      }
+    })
+  )
 })

@@ -16,13 +16,13 @@ import {
 } from '@b2b-saas-starter/db/schema'
 import {
   ApiTokenRegistry,
-  hashApiToken,
-  SEED_API_TOKEN
+  hashApiToken
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import {
   demoMemberIdentity,
   demoUserIdentity,
   seedAuditEvents,
+  seedApiTokenValue,
   seedMcpClientConnections,
   seedMcpClients,
   seedSsoConnections
@@ -156,22 +156,12 @@ const collectFixture = Effect.gen(function* () {
 
 type Fixture = Effect.Success<typeof collectFixture>
 
-// The first fixture token is seeded from the documented SEED_API_TOKEN so the
-// same credential verifies against both the in-memory Seed layer and a seeded
-// local D1 (Seed/Live equivalence).
-function seedTokenValue(token: Fixture['tokens'][number], index: number): string {
-  if (index === 0) {
-    return SEED_API_TOKEN
-  }
-  return `${token.prefix}_token`
-}
-
 function resolveHashes(fixture: Fixture) {
   return Effect.all({
     demoPassword: Effect.promise(() => hashPassword(DEMO_USER_PASSWORD)),
     // `hashApiToken` is the registry's own hashing scheme.
-    tokens: Effect.forEach(fixture.tokens, (token, index) =>
-      Effect.promise(() => hashApiToken(seedTokenValue(token, index)))
+    tokens: Effect.forEach(fixture.tokens, (token) =>
+      Effect.promise(() => hashApiToken(seedApiTokenValue(token)))
     )
   })
 }
@@ -310,6 +300,8 @@ function tokenRows(
       tokenHash: tokenHashes[index],
       scopes: token.scopes,
       lastUsedAt: token.lastUsedAt,
+      expiresAt: token.expiresAt,
+      replacedByTokenId: token.replacedByTokenId,
       revokedAt: null,
       createdAt: token.createdAt,
       createdByUserId: fixture.members[1]?.id ?? null

@@ -10,11 +10,13 @@ Workspace-scoped programmatic-access tokens for the REST and MCP surface. Tokens
 - `revoke` stamps `revokedAt`. Its where clause carries `workspaceId` and `isNull(revokedAt)`, so a double or cross-workspace revoke resolves `false` and emits no audit event and no webhook.
 - `verifyBearerToken` authenticates only: it reports the token's scopes and `requirePermission` decides. It fails `AuthorizationDenied` with `reason: 'invalid_token'`, this layer's single authorization-shaped failure, which `apps/api` answers as 401.
 - `verifyBearerToken` bumps `lastUsedAt` at most once per `LAST_USED_WRITE_INTERVAL_MS`, decided by the pure `shouldBumpLastUsedAt`. It emits no audit event; the per-request `api_token.used` event was dropped for flooding the log.
+- `replace` requires `apiToken:create` at the boundary. The shared policy preserves workspace, scope subset, and expiry; overlap is 0–86,400 seconds. D1 claims the source, inserts the replacement, and audits in one batch. Its mandatory workspace subquery makes a lost concurrent claim roll back. See ADR 0026 before changing this write.
+- `expiresAt <= now` fails bearer verification. Replaced parents remain usable only until their shortened expiry and cannot be replaced again.
 - `ApiTokenScope` is closed: widening it means a literal here plus a column constraint in the same migration.
 
 ## Patterns & Pitfalls
 
-- Seed `verifyBearerToken` accepts exactly two fixture credentials, `SEED_API_TOKEN` (all scopes) and `SEED_READONLY_API_TOKEN`. The narrow one makes a 403 reachable without D1, and both live in the contract module because the API worker's tests quote them. Never let Seed accept arbitrary tokens: it is the auth gate when the worker runs without D1.
+- Seed stores hashes for fixture and newly issued credentials. `seedApiTokenValue` in the fixture resolves the two documented credentials by ID; `scripts/seed.ts` uses the same mapping and scopes. Verification reads revocation and expiry on every call.
 - `hashApiToken` is shared with `scripts/seed.ts`; both must mint the same hash.
 
 ## Anti-patterns

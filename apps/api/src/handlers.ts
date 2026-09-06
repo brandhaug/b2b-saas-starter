@@ -169,6 +169,7 @@ export function apiTokenGroup(env: ApiEnv) {
       )
       return handlers.handleAll({
         create: write(MUTATION_OPERATIONS['api-tokens.create']),
+        replace: write(MUTATION_OPERATIONS['api-tokens.replace']),
         delete: write(MUTATION_OPERATIONS['api-tokens.delete'])
       })
     })

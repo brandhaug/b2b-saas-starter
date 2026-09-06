@@ -1,50 +1,88 @@
 ---
 title: API tokens
-description: Workspace-scoped credentials with scopes, prefixes, and revocation.
+description: Workspace-scoped credentials with expiry, guided replacement, and revocation.
 category: capability-interfaces
 order: 30
 tags: [tokens, auth, security]
 ---
 
-API Tokens are the credential type for REST and MCP. They belong to a Workspace, never to a user account.
+API Tokens authenticate REST and MCP requests. Each token belongs to one Workspace.
 
 ## Creation
 
-A workspace admin creates a token from the API tokens page (`/workspaces/:slug/api-tokens`, gated on `apiToken:create`; the settings page links to it). The web app calls `ApiTokenRegistry.create` directly through a server function; the API Worker's `POST /workspaces/:slug/api-tokens` is the same capability's external surface for programmatic callers. The token's plaintext value is shown exactly once at creation: `randomToken()` in `packages/capabilities/src/developer-platform/api-token-registry.ts` returns a `bsk_live_<48-hex>` value; D1 stores only the SHA-256 `tokenHash` and a 17-character `tokenPrefix` for display. `ApiTokenRegistry.create` requires `WorkspaceContext` (supplied by the route layer from the URL slug) and writes an `api_token.created` Audit Event through `AuditEventLog.record`.
+A workspace owner creates a token on the API tokens page at
+`/workspaces/:slug/api-tokens`. Creation requires `apiToken:create`; REST callers
+use `POST /workspaces/:slug/api-tokens` with an `admin`-scoped token. Both paths
+call `ApiTokenRegistry.create`.
+
+Choose scopes and optionally a future expiry. The web form labels the expiry as
+UTC. REST accepts a canonical ISO UTC timestamp, such as
+`2027-12-01T00:00:00.000Z`; omit `expiresAt` for no expiry. Copy the token when it
+appears. Its plaintext is returned once; storage retains only its SHA-256 hash
+and a display prefix. Creation records an `api_token.created` Audit Event.
 
 ## Scopes
 
-Scopes are coarse on purpose: `read`, `write`, and `admin`. Each scope maps to a set of permissions in `@b2b-saas-starter/authz`, so a scope and a workspace role are answered by the same `authorize()` call.
+The scopes are `read`, `write`, and `admin`. They map to permissions through the
+same authorization rules as workspace roles. Every route and MCP tool checks its
+own permission after authenticating the token. A `write` token cannot create or
+replace credentials because those actions can grant more authority.
 
-The API Worker's `enforcePermission(request, permission)` guard (`apps/api/src/handlers.ts`) parses the `Authorization: Bearer …` header, calls `ApiTokenRegistry.verifyBearerToken(token)` to authenticate, then checks the route's permission against the token's scopes. A missing header or an unknown token is HTTP 401; a token that may not do what it asked is HTTP 403. Handlers name the permission (`{ apiToken: ['create'] }`), never a scope. Minting a token needs the `admin` scope: `write` deliberately cannot create tokens, because a `write` token allowed to mint could issue an `admin` one. The MCP discovery endpoint at `/mcp` needs only workspace read access; per-tool permissions will follow once tool dispatch is wired.
+A missing, unknown, revoked, or expired token gets HTTP 401. A valid token without
+the requested permission gets HTTP 403. Tokens cannot access another Workspace,
+even if they carry the `admin` scope.
+
+## Expiry and replacement
+
+Every bearer verification checks expiry. A token stops authenticating at the
+exact `expiresAt` instant. Expired tokens remain listed with an expired state.
+
+To rotate a usable token, select **Replace**, keep or remove scopes, and choose
+how long the old credential can overlap with its replacement. The maximum is
+24 hours; choose 0 seconds to retire it immediately. Copy the replacement, update
+your clients, and revoke the old credential early when all clients have switched.
+The form shows the exact retirement time. An earlier existing expiry always wins.
+
+The replacement keeps the original workspace, name, and expiry. REST and SDK
+callers can request an earlier future expiry, but cannot extend it. You cannot
+replace a revoked, expired, or already replaced token. Replacement works at the
+plan's token ceiling because it transfers the original token's slot.
+
+`POST /workspaces/:slug/api-tokens/:tokenId/replace` accepts `scopes`,
+`overlapSeconds`, and optional `expiresAt`. It requires `apiToken:create`.
+The response includes the new plaintext `token`, `previousTokenId`, and
+`previousTokenExpiresAt`. D1 commits the old credential's retirement, the new
+hash, and an `api_token.replaced` Audit Event together. That event links both IDs
+and their expiry details without storing plaintext. Replacement and creation are
+excluded from MCP tools to keep credentials out of tool histories.
 
 ## Revocation
 
-Revocation is immediate, from the API tokens page (`apiToken:revoke`) or the external endpoint. `ApiTokenRegistry.revoke` stamps `revokedAt` on the row and `verifyBearerToken` filters `isNull(revokedAt)`: subsequent requests get HTTP 401, the same answer as any unknown token. Revocation also writes an `api_token.revoked` Audit Event via `AuditEventLog.record`; user-facing Notification emission on revocation is not yet wired.
+Revocation requires `apiToken:revoke` and takes effect immediately. Subsequent
+requests get HTTP 401, and the token disappears from the list. It also records
+an `api_token.revoked` Audit Event. Revoking an old token does not revoke the
+replacement; revoke each credential that needs to be retired.
 
-## Using the API from code
+## Using the SDK
 
-The typed SDK is the programmatic counterpart of this page's token: it authenticates with an API Token and walks the same paged lists the REST routes serve.
+The Typed SDK derives its request and response types from the REST contract.
+Store the replacement in your secret manager when you receive it.
 
 ```ts
 import { createStarterClient } from '@b2b-saas-starter/sdk'
 
 const client = createStarterClient({
   baseUrl: 'https://api.example.com',
-  apiToken: 'bsk_live_…' // minted above, shown exactly once
+  apiToken: adminToken
 })
 
-// One Page of the workspace's audit events (newest first).
-const page = await client.workspace.auditEvents('acme', { limit: 100 })
+const replacement = await client.apiTokens.replace('acme', tokenId, {
+  scopes: ['read'],
+  overlapSeconds: 3600
+})
 
-// Or every notification, cursor handled for you.
-for await (const notification of client.workspace.notifications.iterate('acme')) {
-  console.log(notification.title)
-}
+// Save replacement.token now. It cannot be retrieved later.
 ```
 
-See [Typed SDK](/docs/capability-interfaces/sdk) for the Effect-native client and the error model.
-
-## What tokens are not
-
-API Tokens are not user sessions, not OAuth client secrets, and not provider API keys. They are a Workspace-scoped programmatic credential intended for the starter's public REST and MCP traffic.
+See [Typed SDK](/docs/capability-interfaces/sdk) for the Effect-native client and
+error model.

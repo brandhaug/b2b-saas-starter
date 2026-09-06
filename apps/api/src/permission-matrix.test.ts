@@ -181,6 +181,7 @@ describe('permission matrix', () => {
       'GET /workspaces/{slug}/webhooks/{endpointId}/deliveries': { webhook: ['list'] },
       'GET /workspaces/{slug}/audit-events': { auditLog: ['read'] },
       'POST /workspaces/{slug}/api-tokens': { apiToken: ['create'] },
+      'POST /workspaces/{slug}/api-tokens/{tokenId}/replace': { apiToken: ['create'] },
       'DELETE /workspaces/{slug}/api-tokens/{tokenId}': { apiToken: ['revoke'] },
       'POST /workspaces/{slug}/webhooks': { webhook: ['create'] },
       'PATCH /workspaces/{slug}/webhooks/{endpointId}': { webhook: ['update'] },
