@@ -24,13 +24,13 @@ let dbLayer: ReturnType<typeof layerFromD1>
 
 // getPlatformProxy boots a workerd process (~seconds) that the whole suite
 // shares and must dispose afterwards. The suite lifecycle stays vitest's:
-// `@effect/vitest`'s `it.layer(...)` could own the process as a scoped
-// Layer, but converting setup hooks is a separate change from migrating
-// test bodies.
+// `@effect/vitest`'s `layer(...)` would own the process as a scoped Layer,
+// but it hands its callback a tester with no `live` (`MethodsNonLive`), and
+// these tests read the real clock over workerd — so the hook is the port.
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
   () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- suite setup runs outside any test; converting the hook to it.layer is a separate change
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- the hook is the port: layer() suites expose no live tester for a real-clock suite, and a memoized fixture could not dispose its workerd process
     Effect.runPromise(
       Effect.gen(function* () {
         test = yield* Effect.promise(() => provisionTestD1())
@@ -83,7 +83,7 @@ describe('migrations', () => {
   // The organization plugin reads these tables by its own field names. A
   // column the plugin expects but the migration never created is invisible
   // until a plugin endpoint runs, so assert the contract here instead.
-  it.live.each([
+  describe.each([
     {
       table: 'workspaces',
       columns: [
@@ -116,19 +116,19 @@ describe('migrations', () => {
     },
     // The plugin declares this field on `session` unconditionally.
     { table: 'session', columns: ['activeOrganizationId'] }
-  ])('give $table the columns the organization plugin expects', ({ table, columns }) =>
-    Effect.gen(function* () {
-      const rows = yield* Effect.promise(() =>
-        test.d1.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>()
-      )
-      const actual = new Set(rows.results.map((row) => row.name))
-      // oxlint-disable vitest/no-standalone-expect -- it.live.each's double call hides the test block from the rule
-      for (const column of columns) {
-        expect(actual, `${table} is missing ${column}`).toContain(column)
-      }
-      // oxlint-enable vitest/no-standalone-expect
-    })
-  )
+  ])('$table', ({ table, columns }) => {
+    it.live('has the columns the organization plugin expects', () =>
+      Effect.gen(function* () {
+        const rows = yield* Effect.promise(() =>
+          test.d1.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>()
+        )
+        const actual = new Set(rows.results.map((row) => row.name))
+        for (const column of columns) {
+          expect(actual, `${table} is missing ${column}`).toContain(column)
+        }
+      })
+    )
+  })
 })
 
 describe('column modes over live D1', () => {
