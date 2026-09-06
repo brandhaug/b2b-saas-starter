@@ -1,4 +1,5 @@
 import {
+  MCP_CONSENT_CLAIM,
   MCP_WORKSPACE_ID_CLAIM,
   MCP_WORKSPACE_ROLE_CLAIM,
   MCP_WORKSPACE_SLUG_CLAIM
@@ -172,7 +173,7 @@ describe('mcp oauth authorization server', () => {
                 tokenEndpointAuthMethod: 'none',
                 grantTypes: ['authorization_code', 'refresh_token'],
                 responseTypes: ['code'],
-                scopes: ['openid', 'offline_access', 'mcp:read'],
+                scopes: ['openid', 'offline_access', 'mcp:read', 'mcp:write'],
                 requirePKCE: true
               })
               .run()
@@ -196,7 +197,10 @@ describe('mcp oauth authorization server', () => {
           authorize.searchParams.set('client_id', CLIENT_ID)
           authorize.searchParams.set('redirect_uri', REDIRECT_URI)
           authorize.searchParams.set('response_type', 'code')
-          authorize.searchParams.set('scope', 'openid offline_access mcp:read')
+          authorize.searchParams.set(
+            'scope',
+            'openid offline_access mcp:read mcp:write'
+          )
           authorize.searchParams.set('state', 'xyz')
           authorize.searchParams.set('code_challenge', challenge)
           authorize.searchParams.set('code_challenge_method', 'S256')
@@ -281,10 +285,11 @@ describe('mcp oauth authorization server', () => {
             })
           )
           expect(payload.sub).toBe(userId)
-          expect(payload.scope).toBe('openid offline_access mcp:read')
+          expect(payload.scope).toBe('openid offline_access mcp:read mcp:write')
           expect(payload[MCP_WORKSPACE_ID_CLAIM]).toBe(workspace.id)
           expect(payload[MCP_WORKSPACE_SLUG_CLAIM]).toBe('mcp-co')
           expect(payload[MCP_WORKSPACE_ROLE_CLAIM]).toBe('owner')
+          expect(payload[MCP_CONSENT_CLAIM]).toEqual(expect.stringMatching(/:0$/))
 
           // The consent row carries the workspace as its reference, so a consent
           // for this workspace is no consent for another.

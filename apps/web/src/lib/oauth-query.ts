@@ -57,7 +57,11 @@ const SCOPE_LABELS = new Map<string, string>([
   ['profile', 'See your name'],
   ['email', 'See your email address'],
   ['offline_access', 'Stay connected without signing in again'],
-  ['mcp:read', 'Read the workspace through the MCP server']
+  ['mcp:read', 'Read the workspace through the MCP server'],
+  [
+    'mcp:write',
+    'Change workspace data, manage API tokens and webhooks, and request exports within your permissions'
+  ]
 ])
 
 export function scopeLabel(scope: string): string {

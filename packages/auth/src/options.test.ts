@@ -395,6 +395,7 @@ describe('mcp oauth plugins', () => {
       'http://localhost:8787/mcp'
     ])
     expect(provider?.options.scopes).toContain('mcp:read')
+    expect(provider?.options.scopes).toContain('mcp:write')
   })
 
   it('does not sign session responses as JWTs', () => {

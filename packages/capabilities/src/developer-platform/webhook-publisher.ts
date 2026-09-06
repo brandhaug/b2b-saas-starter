@@ -4,7 +4,7 @@ import { Database } from '@b2b-saas-starter/db/service'
 import { webhookEndpoints } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
-import { type CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '../errors.ts'
 import { bestEffort } from '../internal/best-effort.ts'
 import {
   makeQueuePublisher,
@@ -185,13 +185,35 @@ export function LiveWebhookPublisher(
               })
             )
           }),
-        enqueue: makeQueuePublisher('webhook-publisher', queue, (input) => ({
-          endpointId: input.endpointId,
-          workspaceId: input.workspaceId,
-          eventType: input.eventType,
-          payload: input.payload,
-          deliveryId: input.deliveryId
-        }))
+        enqueue: (message) => {
+          if (!queue) {
+            return Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'webhook-publisher',
+                reason: 'not_configured; nothing enqueued'
+              })
+            )
+          }
+          return makeQueuePublisher(
+            'webhook-publisher',
+            queue,
+            (input: EnqueueWebhookMessageInput) => ({
+              endpointId: input.endpointId,
+              workspaceId: input.workspaceId,
+              eventType: input.eventType,
+              payload: input.payload,
+              deliveryId: input.deliveryId
+            })
+          )(message).pipe(
+            Effect.mapError(
+              () =>
+                new CapabilityUnavailable({
+                  capability: 'webhook-publisher',
+                  reason: 'enqueue_not_confirmed'
+                })
+            )
+          )
+        }
       }
     })
   )

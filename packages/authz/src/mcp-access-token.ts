@@ -13,17 +13,20 @@ import { Schema } from 'effect'
  */
 
 /**
- * The one scope an MCP Client requests to use the MCP server. It is advertised
+ * Clients request read access and explicitly add write access when needed. It is advertised
  * in the protected-resource metadata and required in every access token's
  * `scope` claim; `offline_access` rides beside it so a client can refresh
  * without a second sign-in.
  */
 export const MCP_READ_SCOPE = 'mcp:read'
+export const MCP_WRITE_SCOPE = 'mcp:write'
+export const MCP_CONSENT_CLAIM = 'starter_consent_binding'
 export const MCP_OFFLINE_ACCESS_SCOPE = 'offline_access'
 
 /** What the resource server advertises as `scopes_supported`. */
 export const MCP_RESOURCE_SCOPES: ReadonlyArray<string> = [
   MCP_READ_SCOPE,
+  MCP_WRITE_SCOPE,
   MCP_OFFLINE_ACCESS_SCOPE
 ]
 
@@ -46,6 +49,8 @@ export const McpAccessTokenClaims = Schema.Struct({
   sub: Schema.String,
   /** Space-separated OAuth scopes; must contain {@link MCP_READ_SCOPE}. */
   scope: Schema.String,
+  client_id: Schema.optionalKey(Schema.String),
+  [MCP_CONSENT_CLAIM]: Schema.optionalKey(Schema.String),
   [MCP_WORKSPACE_ID_CLAIM]: Schema.String,
   [MCP_WORKSPACE_SLUG_CLAIM]: Schema.String,
   [MCP_WORKSPACE_ROLE_CLAIM]: Schema.Literals(workspaceRoles),
@@ -62,6 +67,8 @@ const decodeClaims = Schema.decodeUnknownResult(McpAccessTokenClaims)
  * the authority.
  */
 export type McpAccessTokenPrincipal = {
+  readonly clientId?: string | undefined
+  readonly consentBinding?: string | undefined
   readonly userId: string
   readonly workspaceId: string
   readonly workspaceSlug: string
@@ -106,6 +113,8 @@ export function mcpAccessTokenPrincipal(
     ok: true,
     principal: {
       userId: claims.sub,
+      clientId: claims.client_id,
+      consentBinding: claims[MCP_CONSENT_CLAIM],
       workspaceId: claims[MCP_WORKSPACE_ID_CLAIM],
       workspaceSlug: claims[MCP_WORKSPACE_SLUG_CLAIM],
       workspaceRole: claims[MCP_WORKSPACE_ROLE_CLAIM],

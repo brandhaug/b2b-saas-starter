@@ -40,7 +40,8 @@ export function jsonBody<S extends Schema.Top>(response: Response, schema: S) {
  */
 export function mcpClient(
   handler: (request: Request) => Promise<Response>,
-  authorization: string
+  authorization: string,
+  origin = 'https://api.test'
 ) {
   let nextId = 0
   let sessionId: string | undefined
@@ -57,7 +58,7 @@ export function mcpClient(
       headers.set('mcp-protocol-version', '2025-11-25')
     }
     return handler(
-      new Request('https://api.test/mcp', {
+      new Request(`${origin}/mcp`, {
         method: 'POST',
         headers,
         // oxlint-disable-next-line effect/noGlobals -- the client is the wire format's encoder

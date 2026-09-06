@@ -53,8 +53,17 @@ Each route declares a Cloudflare RateLimit bucket (`rest_read`, `rest_write`, `a
 
 ## Error model
 
-Tagged errors like `WorkspaceNotFound`, `Unauthorized`, `RateLimited`, and `InternalError` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. The same mapping is intended for the MCP server once tool dispatch lands. Adding a new domain error in `@b2b-saas-starter/capabilities` updates both interfaces at type-check time.
+Tagged errors like `WorkspaceNotFound`, `Unauthorized`, `RateLimited`, and `InternalError` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. MCP uses the same guard status mapping at its transport gate and returns expected operation refusals as tool errors. Adding a new domain error in `@b2b-saas-starter/capabilities` updates both interfaces at type-check time.
 
 ## OpenAPI and Scalar
 
 Hitting `https://api.<domain>/reference` returns the Scalar reference UI. The raw OpenAPI document is at `/openapi.json` and regenerates on every deploy from the `HttpApi` groups in `packages/api`.
+
+## MCP parity
+
+Every supported workspace mutation is also available as an authorized MCP tool.
+REST response contracts remain unchanged, including webhook creation returning
+endpoint metadata without its signing secret. Rotate the secret to obtain one.
+Token creation checks that the requested scopes grant no permission beyond the
+caller's authority. See [MCP server](/docs/capability-interfaces/mcp-server) for
+write tools, side effects, and one-time secret responses.

@@ -1,3 +1,11 @@
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
+import { mcpMutationOperations } from './mcp-mutations.ts'
+import { clientKey } from '@b2b-saas-starter/rate-limit'
 import {
   memberPrincipal,
   tokenPrincipal,
@@ -7,13 +15,22 @@ import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
   mirroredRestPath,
   READ_OPERATIONS,
-  mcpToolOperations,
+  readOperations,
+  OperationOrigin,
+  OperationPrincipal,
+  type CapabilityMutationError,
+  type CapabilityMutationServices,
   type CapabilityRead,
   type CapabilityReadError,
   type CapabilityReadServices,
   type WorkspaceReadOperation
 } from './operations.ts'
-import { guardFailureResponse, GuardFailure } from '@b2b-saas-starter/api/errors'
+import {
+  type RateLimited,
+  type Unauthorized,
+  guardFailureResponse,
+  GuardFailure
+} from '@b2b-saas-starter/api/errors'
 import { RateLimiter, type McpDiscovery } from '@b2b-saas-starter/api'
 import { Context, Effect, Layer, Result, Schema, SchemaIssue, type Types } from 'effect'
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
@@ -36,6 +53,10 @@ import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-conte
 
 import {
   authenticateMcpCaller,
+  authorizeMcpMutation,
+  enforceRateLimitKey,
+  bearerToken,
+  verifyMcpCredential,
   enforceRateLimit,
   mcpCallerActor,
   mcpCallerActorType,
@@ -79,9 +100,8 @@ import {
  * `GET /mcp/discovery` remains the REST discovery document served by the
  * contract group; it advertises exactly what this module registers. (`GET
  * /mcp` itself is `layerHttp`'s: 405, no SSE stream to open.) The registered
- * tools are the operation table's tool-projecting rows — every read, no
- * mutation; the write-tool boundary is a per-row decision recorded in
- * ADR 0072.
+ * tools project all supported workspace reads and mutations. ADR 0072 records
+ * their authorization, typed input adapters, and side-effect annotations.
  *
  * Two credentials open the route (ADR 0068): a workspace API Token, or an
  * OAuth access token the web worker minted for a signed-in Member after the
@@ -188,9 +208,8 @@ function toolInput(operation: WorkspaceReadOperation): ToolJsonSchema {
  * One tool descriptor, projected from one row of the shared operation table
  * (operations.ts) rather than hand-mirrored: same name, same permission, same
  * capability read as the REST endpoint it names. Only rows that declare a
- * tool projection reach here — every read today, no mutation (ADR 0072) — so
- * MCP exposes what REST exposes, nothing resurrected and nothing destructive
- * until a row says otherwise.
+ * read projection reach here. Mutations use typed JSON adapters beside the
+ * catalog and share the same capability dispatch (ADR 0072).
  */
 function toolDescription(operation: WorkspaceReadOperation): string {
   return `${operation.toolDescription} Mirrors GET /${mirroredRestPath(operation.endpoint.path)}.`
@@ -215,7 +234,14 @@ export function mcpDiscoveryDocument(): McpDiscovery {
   return {
     name: MCP_SERVER_NAME,
     resources: [OVERVIEW_RESOURCE_URI],
-    tools: mcpToolOperations().map(toolProjection)
+    tools: [
+      ...readOperations().map(toolProjection),
+      ...mcpMutationOperations().map((op) => ({
+        name: op.toolName,
+        description: `${op.toolDescription} Mirrors ${op.endpoint.method} /${mirroredRestPath(op.endpoint.path)}.`,
+        inputSchema: mutationInputSchema(op.input)
+      }))
+    ]
   }
 }
 
@@ -226,7 +252,12 @@ export function mcpDiscoveryDocument(): McpDiscovery {
 export const TOOL_FAILED_MESSAGE = 'tool failed; see the API worker logs'
 
 /** What a settled tool invocation hands the wire encoder. */
-type ToolOutcome = Result.Result<unknown, CapabilityReadError>
+type ToolFailure =
+  | CapabilityReadError
+  | CapabilityMutationError
+  | RateLimited
+  | Unauthorized
+type ToolOutcome = Result.Result<unknown, ToolFailure>
 
 // The JSON-RPC wire format carries opaque JSON payloads; serializing the
 // already-typed capability results here IS the encoding step.
@@ -245,13 +276,49 @@ function textResult(data: unknown): CallToolResult {
  * `CapabilityReadError`: a new variant is a compile error here until it gets
  * its text, never a silent generic body or a serialized failure object.
  */
-function failureText(error: CapabilityReadError): string {
+function failureText(error: ToolFailure): string {
   switch (error._tag) {
     case 'AuthorizationDenied': {
       return `denied: ${error.reason}`
     }
     case 'CapabilityUnavailable': {
+      if (error.capability === 'webhook-publisher') {
+        return 'webhook queue unavailable; a pending delivery may have been saved, but enqueue was not confirmed. Inspect deliveries before retrying'
+      }
+      if (error.capability === 'workspace-exports') {
+        return 'export unavailable; an enqueue failure may have saved a failed export'
+      }
       return 'capability unavailable in this environment'
+    }
+    case 'Unauthorized': {
+      return 'credential no longer valid'
+    }
+    case 'RateLimited': {
+      return 'write rate limit exceeded'
+    }
+    case 'PlanLimitExceeded': {
+      return 'workspace plan limit exceeded'
+    }
+    case 'InvalidApiTokenInput': {
+      return 'invalid API token input'
+    }
+    case 'ApiTokenNotRotatable': {
+      return 'API token cannot be replaced'
+    }
+    case 'InvalidWebhookUrl': {
+      return 'invalid webhook URL'
+    }
+    case 'WebhookEndpointNotFound': {
+      return 'webhook endpoint not found'
+    }
+    case 'WebhookDeliveryNotFound': {
+      return 'webhook delivery not found'
+    }
+    case 'WebhookDispatchRejected': {
+      return `webhook dispatch refused: ${error.reason}`
+    }
+    case 'WorkspaceExportNotDownloadable': {
+      return 'workspace export not downloadable'
     }
     case 'WorkspaceNotFound': {
       return 'workspace not found'
@@ -378,8 +445,8 @@ function decodeOperationInput(
 
 /**
  * Registers the tool-projecting rows of the operation table as MCP tools —
- * today every read and no mutation, the per-row `mcpTool` decision of
- * ADR 0072. Each invocation re-checks its own permission first — the route
+ * here the existing reads. Mutation registration uses typed JSON adapters
+ * for the same catalog, per ADR 0072. Each invocation re-checks its own permission first — the route
  * gate only proved the caller holds a valid credential; a tool must never
  * serve data its REST counterpart would deny — and typed failures become
  * `isError` results the model can read.
@@ -389,9 +456,17 @@ function registerTools(env: ApiEnv) {
     const registry = yield* McpServer
     // The isolate-level capability services, captured once: tool invocations
     // resolve them from this context rather than rebuilding any graph.
-    const services = yield* Effect.context<CapabilityReadServices>()
+    const services = (yield* Effect.context<CapabilityReadServices>()).pipe(
+      Context.pick(
+        NotificationFeed,
+        WorkspaceMembership,
+        ApiTokenRegistry,
+        WebhookEndpoints,
+        AuditEventLog
+      )
+    )
 
-    for (const operation of mcpToolOperations()) {
+    for (const operation of readOperations()) {
       yield* registry.addTool({
         tool: new McpTool({
           ...toolProjection(operation),
@@ -427,6 +502,109 @@ function registerTools(env: ApiEnv) {
                   content: [{ type: 'text', text: TOOL_FAILED_MESSAGE }],
                   isError: true
                 })
+              )
+            ),
+            Effect.provideContext(services)
+          )
+      })
+    }
+  })
+}
+
+type McpInvocation = {
+  readonly origin: string
+  readonly rateKey: string
+  readonly bearer: string | null
+}
+const CurrentMcpInvocation = Context.Reference<McpInvocation | undefined>(
+  '@b2b-saas-starter/api/mcp/invocation',
+  { defaultValue: () => undefined }
+)
+
+function mutationInputSchema(input: Schema.Constraint): ToolJsonSchema {
+  if (Schema.toJsonSchemaDocument(input).schema.type === undefined) {
+    return NO_TOOL_INPUT_SCHEMA
+  }
+  return advertisedInputSchema(input)
+}
+
+function registerMutationTools(env: ApiEnv) {
+  return Effect.gen(function* () {
+    const registry = yield* McpServer
+    const services = (yield* Effect.context<
+      | CapabilityMutationServices
+      | RateLimiter
+      | ApiTokenRegistry
+      | OAuthTokenVerifier
+      | McpClientConnections
+    >()).pipe(
+      Context.pick(
+        ApiTokenRegistry,
+        WebhookEndpoints,
+        WorkspaceExports,
+        RateLimiter,
+        OAuthTokenVerifier,
+        McpClientConnections
+      )
+    )
+    for (const operation of mcpMutationOperations()) {
+      yield* registry.addTool({
+        tool: new McpTool({
+          name: operation.toolName,
+          description: `${operation.toolDescription} Mirrors ${operation.endpoint.method} /${mirroredRestPath(operation.endpoint.path)}.`,
+          inputSchema: mutationInputSchema(operation.input),
+          annotations: operation.annotations
+        }),
+        annotations: Context.empty(),
+        handle: (payload) =>
+          Effect.gen(function* () {
+            yield* requireCaller()
+            const invocation = yield* CurrentMcpInvocation
+            if (invocation === undefined) {
+              return yield* new InternalError({ message: 'no MCP invocation context' })
+            }
+            const verified = yield* Effect.result(
+              Effect.gen(function* () {
+                yield* enforceRateLimitKey('rest_write', invocation.rateKey)
+                return yield* verifyMcpCredential(invocation.bearer)
+              }).pipe(Effect.scoped)
+            )
+            if (Result.isFailure(verified)) {
+              return outcomeToToolResult(verified)
+            }
+            const caller = verified.success
+            const invoke = yield* operation.decode(payload ?? {}).pipe(invalidParams)
+            const guarded = Effect.gen(function* () {
+              const principal = yield* authorizeMcpMutation(
+                caller,
+                operation.permission
+              )
+              return yield* invoke.pipe(
+                Effect.provideService(OperationPrincipal, principal),
+                Effect.provideService(OperationOrigin, invocation.origin)
+              )
+            }).pipe(Effect.scoped)
+            const outcome = yield* Effect.result(
+              provideWorkspace(
+                env,
+                caller.token.workspaceSlug,
+                guarded,
+                mcpCallerActor(caller),
+                mcpCallerActorType(caller)
+              )
+            )
+            return outcomeToToolResult(outcome)
+          }).pipe(
+            Effect.catchDefect(() =>
+              Effect.logError('MCP mutation defect', { tool: operation.toolName }).pipe(
+                Effect.andThen(
+                  Effect.succeed(
+                    new CallToolResult({
+                      content: [{ type: 'text', text: TOOL_FAILED_MESSAGE }],
+                      isError: true
+                    })
+                  )
+                )
               )
             ),
             Effect.provideContext(services)
@@ -560,7 +738,14 @@ function makeGate(
             Effect.gen(function* () {
               yield* enforceRateLimit(request, 'mcp')
               const caller = yield* authenticateMcpCaller(request)
-              return yield* Effect.provideService(httpEffect, CurrentMcpCaller, caller)
+              return yield* httpEffect.pipe(
+                Effect.provideService(CurrentMcpCaller, caller),
+                Effect.provideService(CurrentMcpInvocation, {
+                  origin: new URL(webRequest(request).url).origin,
+                  rateKey: clientKey(webRequest(request)),
+                  bearer: bearerToken(request)
+                })
+              )
             })
           ),
           isGuardFailure,
@@ -587,16 +772,28 @@ export function mcpProtocolLayer(
 ): Layer.Layer<
   never,
   never,
-  HttpRouter.HttpRouter | CapabilityReadServices | GateServices
+  | HttpRouter.HttpRouter
+  | CapabilityReadServices
+  | CapabilityMutationServices
+  | McpClientConnections
+  | GateServices
 > {
   const gate = HttpRouter.middleware(makeGate(env)).layer
-  const registrations: Layer.Layer<never, never, CapabilityReadServices> =
-    Layer.effectDiscard(
-      Effect.gen(function* () {
-        yield* registerTools(env)
-        yield* registerOverviewResource(env)
-      })
-    ).pipe(Layer.provide(McpServer.layer))
+  const registrations: Layer.Layer<
+    never,
+    never,
+    | CapabilityReadServices
+    | CapabilityMutationServices
+    | McpClientConnections
+    | RateLimiter
+    | OAuthTokenVerifier
+  > = Layer.effectDiscard(
+    Effect.gen(function* () {
+      yield* registerTools(env)
+      yield* registerMutationTools(env)
+      yield* registerOverviewResource(env)
+    })
+  ).pipe(Layer.provide(McpServer.layer))
 
   const protocol: Layer.Layer<never, never, HttpRouter.HttpRouter> = mcpLayerHttp({
     name: MCP_SERVER_NAME,

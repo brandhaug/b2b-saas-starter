@@ -82,6 +82,31 @@ export const LiveMcpClientConnections: Layer.Layer<
     })
 
     return {
+      getGrant: Effect.fn('McpClientConnections.getGrant')(function* (input) {
+        const [grant] = yield* unavailable(
+          db
+            .select({
+              id: oauthConsent.id,
+              version: oauthConsent.grantVersion,
+              scopes: oauthConsent.scopes
+            })
+            .from(oauthConsent)
+            .innerJoin(oauthClient, eq(oauthConsent.clientId, oauthClient.clientId))
+            .where(
+              and(
+                eq(oauthConsent.userId, input.userId),
+                eq(oauthConsent.clientId, input.clientId),
+                eq(oauthConsent.referenceId, input.workspaceId),
+                eq(oauthClient.disabled, false)
+              )
+            )
+            .limit(1)
+        )
+        if (!grant) {
+          return null
+        }
+        return { binding: `${grant.id}:${grant.version}`, scopes: grant.scopes }
+      }),
       describeClient: (clientId) =>
         unavailable(
           db

@@ -11,7 +11,7 @@ Decides which endpoints receive a domain event and puts one queue message per en
 - `WebhookQueueMessage` is owned here; the background consumer imports it rather than keeping a parallel shape. `workspaceId` is stamped from the producer's `WorkspaceContext` and re-verified by `getDispatchTarget` before secrets are released.
 - `deliveryId` is required and minted before enqueueing. It stays stable across retries and dead-letter queue transfer. Replay and test send use their pre-created pending row ID.
 - `WebhookQueueBinding` is structural `{ send, sendBatch }`, so this package never depends on `@cloudflare/workers-types`.
-- With no queue binding, Live no-ops rather than failing (CLAUDE.md rule 3).
+- With no queue binding, best-effort `publish` stays inactive. Explicit `enqueue` refuses with `CapabilityUnavailable`; test/replay callers must never report a queued delivery when nothing was enqueued.
 
 ## Patterns & Pitfalls
 

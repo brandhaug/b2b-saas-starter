@@ -95,6 +95,16 @@ export function consentRevokedAuditEvent(input: {
 }
 
 type McpClientConnectionsInterface = {
+  /** Current consent binding and scopes; null for revoked, missing or disabled clients. */
+  readonly getGrant: (input: {
+    readonly userId: string
+    readonly clientId: string
+    readonly workspaceId: string
+  }) => Effect.Effect<
+    { readonly binding: string; readonly scopes: ReadonlyArray<string> } | null,
+    CapabilityUnavailable
+  >
+
   /** The client behind a `client_id`, or `null` when no such client is registered. */
   readonly describeClient: (
     clientId: string

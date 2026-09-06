@@ -1,3 +1,4 @@
+import { requireTokenScopes } from '@b2b-saas-starter/authz/guard'
 import {
   ApiTokenApi,
   WebhookApi,
@@ -7,7 +8,7 @@ import {
   type DeletedResponse
 } from '@b2b-saas-starter/api'
 import { WorkspaceExportNotDownloadable } from '@b2b-saas-starter/api/errors'
-import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import { type Principal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   type InvalidApiTokenInput,
@@ -32,11 +33,8 @@ import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/w
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { workspaceOverview } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { Effect, Option, type Schema, type Scope } from 'effect'
-import { HttpServerRequest } from 'effect/unstable/http'
+import { Context, Effect, Option, type Schema, type Scope } from 'effect'
 import { type HttpApiEndpoint } from 'effect/unstable/httpapi'
-
-import { webRequest } from './request-guards.ts'
 
 /**
  * Workspace reads and mutations share this catalog (ADR 0072). REST binds each
@@ -263,7 +261,8 @@ export function readOperations(): ReadonlyArray<WorkspaceReadOperation> {
 }
 
 /** Expected mutation failures; each concrete row retains its inferred subset. */
-type CapabilityMutationError =
+export type CapabilityMutationError =
+  | AuthorizationDenied
   | InvalidApiTokenInput
   | ApiTokenNotRotatable
   | CapabilityUnavailable
@@ -275,17 +274,20 @@ type CapabilityMutationError =
   | WorkspaceExportNotDownloadable
 
 /** Stable services, separate from the request's workspace, actor and scope. */
-type CapabilityMutationServices = ApiTokenRegistry | WebhookEndpoints | WorkspaceExports
+export type CapabilityMutationServices =
+  | ApiTokenRegistry
+  | WebhookEndpoints
+  | WorkspaceExports
 
 /** Rows narrow this to their decoded path parameters and payload. */
 export type MutationRequestOptions = {
-  readonly params: { readonly slug: string }
+  readonly params: object
 }
 
 /**
  * `never` checks heterogeneous runs without widening their inputs. Callers
  * use the concrete row, preserving its inferred success and error channels.
- * Mutations require a separate MCP opt-in design, per ADR 0072.
+ * MCP JSON adapters invoke these same runs, per ADR 0072.
  */
 type WorkspaceMutationOperation = {
   readonly endpoint: HttpApiEndpoint.Top
@@ -300,22 +302,35 @@ type WorkspaceMutationOperation = {
     CapabilityMutationError,
     | CapabilityMutationServices
     | WorkspaceContext
-    | HttpServerRequest.HttpServerRequest
+    | OperationOrigin
+    | OperationPrincipal
     | Scope.Scope
   >
-  readonly mcpTool: false
+  readonly mcpTool: true
 }
+
+/** Decoded operation data, without HTTP headers, query codecs or request objects. */
+type OperationInput<E extends HttpApiEndpoint.Top> = {
+  readonly params: Omit<HttpApiEndpoint.Request<E>['params'], 'slug'>
+} & Pick<
+  HttpApiEndpoint.Request<E>,
+  Extract<keyof HttpApiEndpoint.Request<E>, 'payload'>
+>
+
+export class OperationOrigin extends Context.Service<OperationOrigin, string>()(
+  '@b2b-saas-starter/api/OperationOrigin'
+) {}
+
+export class OperationPrincipal extends Context.Service<
+  OperationPrincipal,
+  Principal
+>()('@b2b-saas-starter/api/OperationPrincipal') {}
 
 /** Response literals checked against the contract without assertions. */
 const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
 const WEBHOOK_DELETED = { status: 'deleted' } satisfies DeletedResponse
 
 /** Signed downloads use this request's origin, never the layer-build context. */
-const requestOrigin = Effect.map(
-  HttpServerRequest.HttpServerRequest,
-  (request) => new URL(webRequest(request).url).origin
-)
-
 /** Keys are existing wide-event names; rows follow contract group order. */
 export const MUTATION_OPERATIONS = {
   'api-tokens.create': {
@@ -324,8 +339,9 @@ export const MUTATION_OPERATIONS = {
     samplePayload: { name: 'CI token', scopes: ['read'] },
     // The entitlement gate and the webhook fan-out live inside the
     // capability, below the interface — identical for every surface.
-    run: (options: HttpApiEndpoint.Request<typeof ApiTokenApi.endpoints.create>) =>
+    run: (options: OperationInput<typeof ApiTokenApi.endpoints.create>) =>
       Effect.gen(function* () {
+        yield* requireTokenScopes(yield* OperationPrincipal, options.payload.scopes)
         const tokens = yield* ApiTokenRegistry
         const created = yield* tokens.create(options.payload)
         yield* Effect.annotateLogsScoped({
@@ -334,15 +350,16 @@ export const MUTATION_OPERATIONS = {
         })
         return created
       }),
-    mcpTool: false
+    mcpTool: true
   },
   'api-tokens.replace': {
     endpoint: ApiTokenApi.endpoints.replace,
     permission: { apiToken: ['create'] },
     param: { sample: 'tok_docs' },
     samplePayload: { scopes: ['read'], overlapSeconds: 3600 },
-    run: (options: HttpApiEndpoint.Request<typeof ApiTokenApi.endpoints.replace>) =>
+    run: (options: OperationInput<typeof ApiTokenApi.endpoints.replace>) =>
       Effect.gen(function* () {
+        yield* requireTokenScopes(yield* OperationPrincipal, options.payload.scopes)
         const tokens = yield* ApiTokenRegistry
         const replaced = yield* tokens.replace({
           tokenId: options.params.tokenId,
@@ -355,9 +372,8 @@ export const MUTATION_OPERATIONS = {
         })
         return replaced
       }),
-    // Like create, replacement reveals a credential once. Keep minting out
-    // of MCP tool results and model conversation history.
-    mcpTool: false
+    // Replacement shares the one-time reveal and caller-grant guard with create.
+    mcpTool: true
   },
   // Revoking an unknown id answers `revoked` all the same: the capability
   // resolves `false` and no typed failure exists for a no-match revoke.
@@ -365,13 +381,13 @@ export const MUTATION_OPERATIONS = {
     endpoint: ApiTokenApi.endpoints.delete,
     permission: { apiToken: ['revoke'] },
     param: { sample: 'tok_seed' },
-    run: (options: HttpApiEndpoint.Request<typeof ApiTokenApi.endpoints.delete>) =>
+    run: (options: OperationInput<typeof ApiTokenApi.endpoints.delete>) =>
       Effect.gen(function* () {
         const tokens = yield* ApiTokenRegistry
         yield* tokens.revoke({ tokenId: options.params.tokenId })
         return TOKEN_REVOKED
       }),
-    mcpTool: false
+    mcpTool: true
   },
   // The endpoint projection rides the response; the one-time signing secret
   // the capability also returns stays off the wire — the same split the web
@@ -383,7 +399,7 @@ export const MUTATION_OPERATIONS = {
       url: 'https://hooks.example.com/x',
       events: ['api_token.created']
     },
-    run: (options: HttpApiEndpoint.Request<typeof WebhookApi.endpoints.create>) =>
+    run: (options: OperationInput<typeof WebhookApi.endpoints.create>) =>
       Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
         const created = yield* webhooks.create({
@@ -394,14 +410,14 @@ export const MUTATION_OPERATIONS = {
         yield* Effect.annotateLogsScoped({ webhookEndpointId: created.endpoint.id })
         return created.endpoint
       }),
-    mcpTool: false
+    mcpTool: true
   },
   'webhooks.update': {
     endpoint: WebhookApi.endpoints.update,
     permission: { webhook: ['update'] },
     param: { sample: 'wh_release' },
     samplePayload: { enabled: true },
-    run: (options: HttpApiEndpoint.Request<typeof WebhookApi.endpoints.update>) =>
+    run: (options: OperationInput<typeof WebhookApi.endpoints.update>) =>
       Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
         const patch: UpdateWebhookEndpointInput = {
@@ -420,7 +436,7 @@ export const MUTATION_OPERATIONS = {
         yield* Effect.annotateLogsScoped({ webhookEndpointId: updated.id })
         return updated
       }),
-    mcpTool: false
+    mcpTool: true
   },
   // A no-match delete fails the capability's typed 404 — the same
   // `WebhookEndpointNotFound` the contract declares.
@@ -428,13 +444,13 @@ export const MUTATION_OPERATIONS = {
     endpoint: WebhookApi.endpoints.delete,
     permission: { webhook: ['delete'] },
     param: { sample: 'wh_release' },
-    run: (options: HttpApiEndpoint.Request<typeof WebhookApi.endpoints.delete>) =>
+    run: (options: OperationInput<typeof WebhookApi.endpoints.delete>) =>
       Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
         yield* webhooks.delete({ endpointId: options.params.endpointId })
         return WEBHOOK_DELETED
       }),
-    mcpTool: false
+    mcpTool: true
   },
   // The new secret rides this one response only — the same one-time reveal
   // the web surface gives the operator.
@@ -442,9 +458,7 @@ export const MUTATION_OPERATIONS = {
     endpoint: WebhookApi.endpoints['rotate-secret'],
     permission: { webhook: ['rotateSecret'] },
     param: { sample: 'wh_release' },
-    run: (
-      options: HttpApiEndpoint.Request<(typeof WebhookApi.endpoints)['rotate-secret']>
-    ) =>
+    run: (options: OperationInput<(typeof WebhookApi.endpoints)['rotate-secret']>) =>
       Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
         const rotated = yield* webhooks.rotateSecret({
@@ -455,15 +469,13 @@ export const MUTATION_OPERATIONS = {
         })
         return { signingSecret: rotated.signingSecret }
       }),
-    mcpTool: false
+    mcpTool: true
   },
   'webhooks.test-event': {
     endpoint: WebhookApi.endpoints['test-event'],
     permission: { webhook: ['test'] },
     param: { sample: 'wh_release' },
-    run: (
-      options: HttpApiEndpoint.Request<(typeof WebhookApi.endpoints)['test-event']>
-    ) =>
+    run: (options: OperationInput<(typeof WebhookApi.endpoints)['test-event']>) =>
       Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
         const sent = yield* webhooks.sendTestEvent({
@@ -475,15 +487,13 @@ export const MUTATION_OPERATIONS = {
           deliveryId: sent.deliveryId
         } satisfies QueuedDeliveryResponse
       }),
-    mcpTool: false
+    mcpTool: true
   },
   'webhooks.replay-delivery': {
     endpoint: WebhookApi.endpoints['replay-delivery'],
     permission: { webhook: ['replay'] },
     param: { sample: 'whd_seed_failed' },
-    run: (
-      options: HttpApiEndpoint.Request<(typeof WebhookApi.endpoints)['replay-delivery']>
-    ) =>
+    run: (options: OperationInput<(typeof WebhookApi.endpoints)['replay-delivery']>) =>
       Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
         const replayed = yield* webhooks.replayDelivery({
@@ -495,21 +505,19 @@ export const MUTATION_OPERATIONS = {
           deliveryId: replayed.deliveryId
         } satisfies QueuedDeliveryResponse
       }),
-    mcpTool: false
+    mcpTool: true
   },
   'workspace-exports.request': {
     endpoint: WorkspaceExportApi.endpoints.request,
     permission: { workspaceExport: ['request'] },
-    run: (
-      _options: HttpApiEndpoint.Request<typeof WorkspaceExportApi.endpoints.request>
-    ) =>
+    run: (_options: OperationInput<typeof WorkspaceExportApi.endpoints.request>) =>
       Effect.gen(function* () {
         const exports = yield* WorkspaceExports
         const created = yield* exports.request
         yield* Effect.annotateLogsScoped({ exportId: created.id })
         return created
       }),
-    mcpTool: false
+    mcpTool: true
   },
   'workspace-exports.download-link': {
     endpoint: WorkspaceExportApi.endpoints['download-link'],
@@ -519,9 +527,7 @@ export const MUTATION_OPERATIONS = {
     // expired — is one typed 404 for every case, so a probing caller learns
     // nothing about which.
     run: (
-      options: HttpApiEndpoint.Request<
-        (typeof WorkspaceExportApi.endpoints)['download-link']
-      >
+      options: OperationInput<(typeof WorkspaceExportApi.endpoints)['download-link']>
     ) =>
       Effect.gen(function* () {
         const exports = yield* WorkspaceExports
@@ -533,14 +539,14 @@ export const MUTATION_OPERATIONS = {
             exportId: options.params.exportId
           })
         }
-        const origin = yield* requestOrigin
+        const origin = yield* OperationOrigin
         yield* Effect.annotateLogsScoped({ exportId: options.params.exportId })
         return {
           url: `${origin}${link.value.path}`,
           expiresAt: link.value.expiresAt
         }
       }),
-    mcpTool: false
+    mcpTool: true
   }
 } satisfies Record<string, WorkspaceMutationOperation>
 
@@ -549,13 +555,6 @@ export function mutationOperations(): ReadonlyArray<
   Omit<WorkspaceMutationOperation, 'run'>
 > {
   return Object.values(MUTATION_OPERATIONS)
-}
-
-/** Explicit opt-in only. A tool name alone must never expose a mutation. */
-export function mcpToolOperations(): ReadonlyArray<WorkspaceReadOperation> {
-  return [...readOperations(), ...mutationOperations()].filter(
-    (operation) => operation.mcpTool
-  )
 }
 
 /** `notification:read`-style label, used by the permission matrix output. */

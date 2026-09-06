@@ -15,9 +15,11 @@ import { jsonBody, mcpClient } from './test-utils.ts'
  */
 describe('mcp ↔ rest operation mirror', () => {
   it('discovery advertises exactly the shared read operations, in order', () => {
-    expect(mcpDiscoveryDocument().tools.map((tool) => tool.name)).toEqual(
-      readOperations().map((op) => op.toolName)
-    )
+    expect(
+      mcpDiscoveryDocument()
+        .tools.slice(0, 8)
+        .map((tool) => tool.name)
+    ).toEqual(readOperations().map((op) => op.toolName))
   })
 
   it('every advertised tool names the REST operation it mirrors', () => {
@@ -143,29 +145,30 @@ const GuardFailureBody = Schema.Struct({
 })
 
 describe('POST /mcp protocol', () => {
-  it.effect(
-    'admin credentials expose only read tools, with read-only annotations',
-    () =>
-      Effect.gen(function* () {
-        const client = mcpClient(handler, bearer.authorization)
-        yield* Effect.promise(() => client.initialize())
-        const response = yield* Effect.promise(() => client.rpc('tools/list', {}))
-        const body = yield* jsonBody(response, Ok(ToolListResult))
-        // This is the permitted public tool contract, independent of catalog rows.
-        expect(body.result.tools.map((tool) => tool.name).toSorted()).toEqual([
-          'get_workspace_overview',
-          'list_api_tokens',
-          'list_audit_events',
-          'list_members',
-          'list_notifications',
-          'list_webhook_deliveries',
-          'list_webhook_delivery_attempts',
-          'list_webhooks'
-        ])
-        expect(body.result.tools.every((tool) => tool.annotations.readOnlyHint)).toBe(
-          true
-        )
-      })
+  it.effect('admin credentials expose reads and writes with distinct annotations', () =>
+    Effect.gen(function* () {
+      const client = mcpClient(handler, bearer.authorization)
+      yield* Effect.promise(() => client.initialize())
+      const response = yield* Effect.promise(() => client.rpc('tools/list', {}))
+      const body = yield* jsonBody(response, Ok(ToolListResult))
+      // This is the permitted public tool contract, independent of catalog rows.
+      expect(body.result.tools).toHaveLength(19)
+      expect(
+        body.result.tools
+          .filter((tool) => tool.annotations.readOnlyHint)
+          .map((tool) => tool.name)
+          .toSorted()
+      ).toEqual([
+        'get_workspace_overview',
+        'list_api_tokens',
+        'list_audit_events',
+        'list_members',
+        'list_notifications',
+        'list_webhook_deliveries',
+        'list_webhook_delivery_attempts',
+        'list_webhooks'
+      ])
+    })
   )
 
   it.effect('a session-initialized client lists tools and calls them', () =>
@@ -178,10 +181,10 @@ describe('POST /mcp protocol', () => {
       const body = yield* jsonBody(listed, Ok(ToolListResult))
       // `tools/list` and the discovery document are both projected from the
       // shared operation table, so both surfaces answer with one list.
-      expect(body.result.tools.map((tool) => tool.name)).toEqual(
+      expect(body.result.tools.slice(0, 8).map((tool) => tool.name)).toEqual(
         readOperations().map((op) => op.toolName)
       )
-      expect(mcpDiscoveryDocument().tools).toHaveLength(readOperations().length)
+      expect(mcpDiscoveryDocument().tools).toHaveLength(19)
 
       const called = yield* Effect.promise(() =>
         client.rpc('tools/call', {

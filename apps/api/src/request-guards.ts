@@ -1,12 +1,24 @@
+import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { withHttpInvocation } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
-import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import {
+  memberPrincipal,
+  tokenPrincipal,
+  type Principal,
+  type PermissionRequest
+} from '@b2b-saas-starter/authz/client'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { selectWorkspaceContextLayer } from '@b2b-saas-starter/capabilities/runtime'
-import { type ActorRef } from '@b2b-saas-starter/capabilities/workspace-context'
-import { type McpAccessTokenPrincipal } from '@b2b-saas-starter/authz/mcp-access-token'
+import {
+  WorkspaceContext,
+  type ActorRef
+} from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  MCP_WRITE_SCOPE,
+  type McpAccessTokenPrincipal
+} from '@b2b-saas-starter/authz/mcp-access-token'
 import {
   AUTHORIZATION_DENIED_REASONS,
   AuthorizationDenied
@@ -48,12 +60,17 @@ export function enforceRateLimit(
   request: HttpServerRequest.HttpServerRequest,
   bucket: RateLimitBucket
 ): Effect.Effect<void, RateLimited, RateLimiter | Scope.Scope> {
+  return enforceRateLimitKey(bucket, clientKey(webRequest(request)))
+}
+
+/** Value-based guard shared by HTTP routes and individual MCP calls. */
+export function enforceRateLimitKey(
+  bucket: RateLimitBucket,
+  key: string
+): Effect.Effect<void, RateLimited, RateLimiter | Scope.Scope> {
   return Effect.gen(function* () {
     const limiter = yield* RateLimiter
-    const allowed = yield* limiter.take({
-      bucket,
-      key: clientKey(webRequest(request))
-    })
+    const allowed = yield* limiter.take({ bucket, key })
     if (!allowed) {
       yield* Effect.annotateLogsScoped({
         outcome: 'rate_limited',
@@ -160,8 +177,18 @@ export function authenticateMcpCaller(
   Unauthorized | CapabilityUnavailable,
   ApiTokenRegistry | OAuthTokenVerifier | Scope.Scope
 > {
+  return verifyMcpCredential(bearerToken(request))
+}
+
+/** Resolve the credential again for each write, including batched tool calls. */
+export function verifyMcpCredential(
+  bearer: string | null
+): Effect.Effect<
+  McpCaller,
+  Unauthorized | CapabilityUnavailable,
+  ApiTokenRegistry | OAuthTokenVerifier | Scope.Scope
+> {
   return Effect.gen(function* () {
-    const bearer = bearerToken(request)
     if (bearer !== null && looksLikeJwt(bearer)) {
       const verifier = yield* OAuthTokenVerifier
       const verified = yield* verifier.verify(bearer).pipe(
@@ -357,3 +384,53 @@ export function bearerAuth(env: ApiEnv): Layer.Layer<BearerAuth> {
     })
   )
 }
+
+/** Current workspace identity, role, and consent constrain every MCP mutation. */
+export const authorizeMcpMutation = Effect.fn('Mcp.authorizeMutation')(function* (
+  caller: McpCaller,
+  permission: PermissionRequest
+) {
+  const ctx = yield* WorkspaceContext
+  if (ctx.workspace.id !== caller.token.workspaceId) {
+    return yield* new AuthorizationDenied({
+      reason: AUTHORIZATION_DENIED_REASONS.tokenWorkspaceMismatch
+    })
+  }
+  let principal: Principal
+  if (caller.kind === 'token') {
+    principal = tokenPrincipal(caller.token.scopes)
+  } else {
+    if (ctx.actor === null) {
+      return yield* new AuthorizationDenied({
+        reason: AUTHORIZATION_DENIED_REASONS.noPrincipal
+      })
+    }
+    principal = memberPrincipal(ctx.actor.role)
+    const token = caller.token
+    if (
+      !token.scopes.includes(MCP_WRITE_SCOPE) ||
+      token.clientId === undefined ||
+      token.consentBinding === undefined
+    ) {
+      return yield* new AuthorizationDenied({
+        reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
+      })
+    }
+    const connections = yield* McpClientConnections
+    const grant = yield* connections.getGrant({
+      userId: token.userId,
+      clientId: token.clientId,
+      workspaceId: token.workspaceId
+    })
+    if (
+      grant?.binding !== token.consentBinding ||
+      !grant.scopes.includes(MCP_WRITE_SCOPE)
+    ) {
+      return yield* new AuthorizationDenied({
+        reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
+      })
+    }
+  }
+  yield* requirePermission(principal, permission)
+  return principal
+})

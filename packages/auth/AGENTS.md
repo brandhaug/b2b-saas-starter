@@ -25,7 +25,7 @@ The Better Auth instance and nothing else: options, plugin list, plugin↔schema
 
 **sso** (ADR 0069). `provisionedRoleOf` maps anything outside `member | admin` to `member`, so **SSO never mints `owner`**. `enabled` is starter vocabulary the plugin knows nothing of, enforced by the app; connections register fully hydrated, so a new IdP needs no env change.
 
-**MCP OAuth** (ADR 0068). `AuthConfig.mcp` supplies the audience-bound `/mcp` URL and the outbound transport, both the app's, since Workers cannot run the Node transport. `/oauth/consent` is both post-login and consent hop, its workspace pick vouched for by `MCP_WORKSPACE_SELECTED_HEADER`; `customAccessTokenClaims` re-reads membership from D1 on every refresh.
+**MCP OAuth** (ADR 0068). `AuthConfig.mcp` supplies the audience-bound `/mcp` URL and the outbound transport, both the app's, since Workers cannot run the Node transport. `/oauth/consent` is both post-login and consent hop, its workspace pick vouched for by `MCP_WORKSPACE_SELECTED_HEADER`; The access-token claim extension re-reads membership and the issuing client's consent ID/version from D1 on issuance and refresh. `mcp:write` requires explicit consent; the API worker rechecks the binding before writes.
 
 **Account deletion.** `deleteUser` stays disabled unless the app supplies `userDeleteHooks`; without them it strands sole-owner workspaces and trips restricting FKs. The order is the design (ADR 0059): password, `beforeDelete`, user row, `afterDelete`.
 

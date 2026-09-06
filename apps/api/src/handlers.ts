@@ -1,20 +1,27 @@
-import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
-import { StarterApi } from '@b2b-saas-starter/api'
+import { ApiPrincipal, StarterApi } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import { Context, Effect } from 'effect'
 import { type HttpServerRequest } from 'effect/unstable/http'
 import { HttpApiBuilder } from 'effect/unstable/httpapi'
 
 import { type ApiEnv } from './env.ts'
-import { enforcePermission, observed, provideWorkspace } from './request-guards.ts'
+import {
+  enforcePermission,
+  observed,
+  provideWorkspace,
+  webRequest
+} from './request-guards.ts'
 import { mcpDiscoveryDocument } from './mcp.ts'
 import {
   type MutationRequestOptions,
   MUTATION_OPERATIONS,
+  OperationOrigin,
+  OperationPrincipal,
   READ_OPERATIONS
 } from './operations.ts'
 
@@ -53,7 +60,11 @@ function workspaceOperation<A, E, R>(
     { workspaceSlug: slug },
     Effect.gen(function* () {
       yield* enforcePermission(permission, slug)
-      return yield* provideWorkspace(env, slug, body, undefined, 'api_token')
+      const principal = yield* ApiPrincipal
+      return yield* provideWorkspace(env, slug, body, undefined, 'api_token').pipe(
+        Effect.provideService(OperationPrincipal, tokenPrincipal(principal.scopes)),
+        Effect.provideService(OperationOrigin, new URL(webRequest(request).url).origin)
+      )
     })
   )
 }
@@ -156,7 +167,10 @@ function workspaceWrites<Services>(
     readonly run: (options: Options) => Effect.Effect<A, E, R>
   }) {
     return (
-      options: Options & { readonly request: HttpServerRequest.HttpServerRequest }
+      options: Options & {
+        readonly params: { readonly slug: string }
+        readonly request: HttpServerRequest.HttpServerRequest
+      }
     ) =>
       workspaceOperation(
         env,

@@ -1,3 +1,6 @@
+import { requireTokenScopes } from '@b2b-saas-starter/authz/guard'
+import { memberPrincipal } from '@b2b-saas-starter/authz/client'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   ApiTokenRegistry,
   type ReplacedApiToken,
@@ -61,6 +64,9 @@ export async function createApiTokenHandler({
     Effect.gen(function* () {
       // The session gate above proves who is asking; this proves they may.
       yield* requireWorkspacePermission({ apiToken: ['create'] })
+      const ctx = yield* WorkspaceContext
+      const principal = ctx.actor ? memberPrincipal(ctx.actor.role) : null
+      yield* requireTokenScopes(principal, input.scopes)
       const tokens = yield* ApiTokenRegistry
       // The entitlement gate and webhook fan-out live inside the capability,
       // below the interface — identical for every surface.
@@ -97,6 +103,9 @@ export async function replaceApiTokenHandler({
     workspaceSlug,
     Effect.gen(function* () {
       yield* requireWorkspacePermission({ apiToken: ['create'] })
+      const ctx = yield* WorkspaceContext
+      const principal = ctx.actor ? memberPrincipal(ctx.actor.role) : null
+      yield* requireTokenScopes(principal, input.scopes)
       const tokens = yield* ApiTokenRegistry
       return yield* tokens.replace(input)
     }),

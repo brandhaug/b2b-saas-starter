@@ -31,9 +31,17 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         it.effect(
           contractCase.name,
           () =>
-            inWorkspace('dev-contract-lab', contractCase.assert, {
-              userId: 'usr_owner'
-            }),
+            inWorkspace(
+              'dev-contract-lab',
+              contractCase.assert,
+              { userId: 'usr_owner' },
+              {
+                webhookQueue: {
+                  send: () => Promise.resolve(),
+                  sendBatch: () => Promise.resolve()
+                }
+              }
+            ),
           30_000
         )
       }

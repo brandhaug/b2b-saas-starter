@@ -49,10 +49,11 @@ changing its token store, so a failed audit leaves the credential intact.
 
 The web form guides scope narrowing and overlap selection, displays expiry and
 expired states, and keeps the replacement secret visible after list refresh.
-REST and the derived SDK expose replacement; the operation catalog explicitly
-excludes it from MCP, as it already excludes token creation. This keeps
-credential-bearing responses out of tool histories. MCP bearer verification and
-token listing still enforce and expose expiry.
+REST, the derived SDK, and MCP expose replacement under the same permission
+and caller-grant checks. MCP returns the replacement plaintext once, so clients
+must protect tool histories containing credentials. Replacement is destructive
+and non-idempotent: callers must not automatically retry it. MCP bearer
+verification and token listing enforce and expose expiry.
 
 The interaction is inspired by [Unkey's replacement-key operation](https://www.unkey.com/docs/api-reference/v2/keys/reroll-key).
 The implementation remains local to the starter's capabilities and D1.
