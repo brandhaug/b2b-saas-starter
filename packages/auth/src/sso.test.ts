@@ -4,7 +4,7 @@ import { Effect, type Layer } from 'effect'
 import { cookieHeader, cookiePairs } from 'effectful-better-auth'
 import { eq } from 'drizzle-orm'
 import { createSign, generateKeyPairSync } from 'node:crypto'
-import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
+import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { Auth } from './index.ts'
 import {
   buildAuthLayer,
@@ -144,180 +144,186 @@ afterAll(() => {
 })
 
 function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
-  return Effect.runPromise(Effect.provide(effect, authLayer))
+  return Effect.provide(effect, authLayer)
 }
 
 describe('workspace SSO over the sso plugin', () => {
-  it('round-trips a mocked OIDC connection and provisions the member with the connection’s role', () =>
-    run(
-      Effect.gen(function* () {
-        const auth = yield* Auth.Tag
+  it.live(
+    'round-trips a mocked OIDC connection and provisions the member with the connection’s role',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const auth = yield* Auth.Tag
 
-        // The owner registers the connection against their workspace.
-        const owner = yield* signUpSession('owner@roundtrip.test')
-        const workspace = yield* auth.api.createOrganization({
-          body: { name: 'Roundtrip Co', slug: 'roundtrip', userId: owner.userId }
-        })
-        const registered = yield* auth.api.registerSSOProvider({
-          body: {
-            providerId: PROVIDER_ID,
-            issuer: ISSUER,
-            domain: 'roundtrip.test',
-            organizationId: workspace.id,
-            oidcConfig: {
-              clientId: 'rt-client',
-              clientSecret: 'rt-secret',
-              pkce: false,
-              skipDiscovery: true,
-              authorizationEndpoint: `${ISSUER}/authorize`,
-              tokenEndpoint: `${ISSUER}/token`,
-              jwksEndpoint: `${ISSUER}/jwks`,
-              userInfoEndpoint: `${ISSUER}/userinfo`
-            },
-            enabled: true,
-            defaultWorkspaceRole: 'admin'
-          },
-          headers: owner.headers
-        })
-        expect(registered.providerId).toBe(PROVIDER_ID)
-
-        // Domain routing: the email resolves to the connection and the plugin
-        // answers with the authorization redirect. The response also sets the
-        // signed state cookie the callback re-checks, so it is threaded
-        // through like a browser would.
-        const signIn = yield* auth.full.signInSSO({
-          body: {
-            email: 'provisioned@roundtrip.test',
-            callbackURL: 'http://localhost:3071/workspaces'
-          }
-        })
-        expect(signIn.response.redirect).toBe(true)
-        const authorizationUrl = new URL(signIn.response.url)
-        expect(authorizationUrl.origin + authorizationUrl.pathname).toBe(
-          `${ISSUER}/authorize`
-        )
-        const state = authorizationUrl.searchParams.get('state')
-        expect(state).toBeTruthy()
-        const stateCookie = cookieHeader(cookiePairs(signIn.headers))
-
-        // The IdP redirects back with a code; the stubbed token endpoint
-        // answers with a signed ID token, the JWKS endpoint with the key.
-        const callback = yield* Effect.promise(() =>
-          auth.instance.api.callbackSSO({
-            params: { providerId: PROVIDER_ID },
-            query: { state: state ?? '', code: 'rt-auth-code' },
-            headers: new Headers({ cookie: stateCookie }),
-            asResponse: true
+          // The owner registers the connection against their workspace.
+          const owner = yield* signUpSession('owner@roundtrip.test')
+          const workspace = yield* auth.api.createOrganization({
+            body: { name: 'Roundtrip Co', slug: 'roundtrip', userId: owner.userId }
           })
-        )
-        expect(callback.status).toBeGreaterThanOrEqual(300)
-        expect(callback.status).toBeLessThan(400)
-        // The session cookie is the proof of a completed sign-in.
-        expect(callback.headers.getSetCookie().length).toBeGreaterThan(0)
-
-        // Provisioning: the user was created…
-        const users = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.email, 'provisioned@roundtrip.test'))
-        )
-        expect(users).toHaveLength(1)
-        const provisionedUser = users[0]
-        // …linked to the IdP account…
-        const accounts = yield* Effect.promise(() =>
-          db.select().from(account).where(eq(account.providerId, PROVIDER_ID))
-        )
-        expect(accounts).toHaveLength(1)
-        expect(accounts[0]?.userId).toBe(provisionedUser?.id)
-        // …and added to the workspace with the connection's default role.
-        const members: Array<typeof workspaceMembers.$inferSelect> =
-          yield* Effect.promise(() =>
-            db
-              .select()
-              .from(workspaceMembers)
-              .where(eq(workspaceMembers.workspaceId, workspace.id))
-          )
-        const provisionedMember = members.find(
-          (member) => member.userId === provisionedUser?.id
-        )
-        expect(provisionedMember?.role).toBe('admin')
-
-        // The plugin's own list is sanitized: the secret never leaves the row,
-        // the client id's tail does.
-        const providers = yield* auth.api.listSSOProviders({
-          headers: owner.headers
-        })
-        const serialized = JSON.stringify(providers)
-        expect(serialized).not.toContain('rt-secret')
-        expect(serialized).toContain('rt-client'.slice(-4))
-        expect(serialized).not.toContain('rt-client')
-      })
-    ))
-
-  it('provisions `member` when the stored default role is not a provisioned role', () =>
-    run(
-      Effect.gen(function* () {
-        const auth = yield* Auth.Tag
-        const owner = yield* signUpSession('owner2@roundtrip.test')
-        const workspace = yield* auth.api.createOrganization({
-          body: { name: 'Fallback Co', slug: 'fallback', userId: owner.userId }
-        })
-        // `owner` is NOT a provisioned role: written raw (the plugin types
-        // additional fields as plain strings), the read must narrow it back.
-        yield* auth.api.registerSSOProvider({
-          body: {
-            providerId: 'rt_fallback',
-            issuer: ISSUER,
-            domain: 'fallback.test',
-            organizationId: workspace.id,
-            oidcConfig: {
-              clientId: 'rt-client',
-              clientSecret: 'rt-secret',
-              pkce: false,
-              skipDiscovery: true,
-              authorizationEndpoint: `${ISSUER}/authorize`,
-              tokenEndpoint: `${ISSUER}/token`,
-              jwksEndpoint: `${ISSUER}/jwks`,
-              userInfoEndpoint: `${ISSUER}/userinfo`
+          const registered = yield* auth.api.registerSSOProvider({
+            body: {
+              providerId: PROVIDER_ID,
+              issuer: ISSUER,
+              domain: 'roundtrip.test',
+              organizationId: workspace.id,
+              oidcConfig: {
+                clientId: 'rt-client',
+                clientSecret: 'rt-secret',
+                pkce: false,
+                skipDiscovery: true,
+                authorizationEndpoint: `${ISSUER}/authorize`,
+                tokenEndpoint: `${ISSUER}/token`,
+                jwksEndpoint: `${ISSUER}/jwks`,
+                userInfoEndpoint: `${ISSUER}/userinfo`
+              },
+              enabled: true,
+              defaultWorkspaceRole: 'admin'
             },
-            enabled: true,
-            defaultWorkspaceRole: 'owner'
-          },
-          headers: owner.headers
-        })
-
-        idTokenSubject = 'idp-user-2'
-        idTokenEmail = 'fallback@fallback.test'
-        idTokenName = 'Fallback Member'
-        const signIn = yield* auth.full.signInSSO({
-          body: {
-            email: 'fallback@fallback.test',
-            callbackURL: 'http://localhost:3071/workspaces'
-          }
-        })
-        const state = new URL(signIn.response.url).searchParams.get('state')
-        const stateCookie = cookieHeader(cookiePairs(signIn.headers))
-        yield* Effect.promise(() =>
-          auth.instance.api.callbackSSO({
-            params: { providerId: 'rt_fallback' },
-            query: { state: state ?? '', code: 'rt-auth-code-2' },
-            headers: new Headers({ cookie: stateCookie }),
-            asResponse: true
+            headers: owner.headers
           })
-        )
+          expect(registered.providerId).toBe(PROVIDER_ID)
 
-        const users = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.email, 'fallback@fallback.test'))
-        )
-        expect(users).toHaveLength(1)
-        const members: Array<typeof workspaceMembers.$inferSelect> =
-          yield* Effect.promise(() =>
-            db
-              .select()
-              .from(workspaceMembers)
-              .where(eq(workspaceMembers.workspaceId, workspace.id))
+          // Domain routing: the email resolves to the connection and the plugin
+          // answers with the authorization redirect. The response also sets the
+          // signed state cookie the callback re-checks, so it is threaded
+          // through like a browser would.
+          const signIn = yield* auth.full.signInSSO({
+            body: {
+              email: 'provisioned@roundtrip.test',
+              callbackURL: 'http://localhost:3071/workspaces'
+            }
+          })
+          expect(signIn.response.redirect).toBe(true)
+          const authorizationUrl = new URL(signIn.response.url)
+          expect(authorizationUrl.origin + authorizationUrl.pathname).toBe(
+            `${ISSUER}/authorize`
           )
-        const member = members.find((row) => row.userId === users[0]?.id)
-        // Never `owner`: the guard narrows the raw value back to `member`.
-        expect(member?.role).toBe('member')
-      })
-    ))
+          const state = authorizationUrl.searchParams.get('state')
+          expect(state).toBeTruthy()
+          const stateCookie = cookieHeader(cookiePairs(signIn.headers))
+
+          // The IdP redirects back with a code; the stubbed token endpoint
+          // answers with a signed ID token, the JWKS endpoint with the key.
+          const callback = yield* Effect.promise(() =>
+            auth.instance.api.callbackSSO({
+              params: { providerId: PROVIDER_ID },
+              query: { state: state ?? '', code: 'rt-auth-code' },
+              headers: new Headers({ cookie: stateCookie }),
+              asResponse: true
+            })
+          )
+          expect(callback.status).toBeGreaterThanOrEqual(300)
+          expect(callback.status).toBeLessThan(400)
+          // The session cookie is the proof of a completed sign-in.
+          expect(callback.headers.getSetCookie().length).toBeGreaterThan(0)
+
+          // Provisioning: the user was created…
+          const users = yield* Effect.promise(() =>
+            db.select().from(user).where(eq(user.email, 'provisioned@roundtrip.test'))
+          )
+          expect(users).toHaveLength(1)
+          const provisionedUser = users[0]
+          // …linked to the IdP account…
+          const accounts = yield* Effect.promise(() =>
+            db.select().from(account).where(eq(account.providerId, PROVIDER_ID))
+          )
+          expect(accounts).toHaveLength(1)
+          expect(accounts[0]?.userId).toBe(provisionedUser?.id)
+          // …and added to the workspace with the connection's default role.
+          const members: Array<typeof workspaceMembers.$inferSelect> =
+            yield* Effect.promise(() =>
+              db
+                .select()
+                .from(workspaceMembers)
+                .where(eq(workspaceMembers.workspaceId, workspace.id))
+            )
+          const provisionedMember = members.find(
+            (member) => member.userId === provisionedUser?.id
+          )
+          expect(provisionedMember?.role).toBe('admin')
+
+          // The plugin's own list is sanitized: the secret never leaves the row,
+          // the client id's tail does.
+          const providers = yield* auth.api.listSSOProviders({
+            headers: owner.headers
+          })
+          const serialized = JSON.stringify(providers)
+          expect(serialized).not.toContain('rt-secret')
+          expect(serialized).toContain('rt-client'.slice(-4))
+          expect(serialized).not.toContain('rt-client')
+        })
+      )
+  )
+
+  it.live(
+    'provisions `member` when the stored default role is not a provisioned role',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const auth = yield* Auth.Tag
+          const owner = yield* signUpSession('owner2@roundtrip.test')
+          const workspace = yield* auth.api.createOrganization({
+            body: { name: 'Fallback Co', slug: 'fallback', userId: owner.userId }
+          })
+          // `owner` is NOT a provisioned role: written raw (the plugin types
+          // additional fields as plain strings), the read must narrow it back.
+          yield* auth.api.registerSSOProvider({
+            body: {
+              providerId: 'rt_fallback',
+              issuer: ISSUER,
+              domain: 'fallback.test',
+              organizationId: workspace.id,
+              oidcConfig: {
+                clientId: 'rt-client',
+                clientSecret: 'rt-secret',
+                pkce: false,
+                skipDiscovery: true,
+                authorizationEndpoint: `${ISSUER}/authorize`,
+                tokenEndpoint: `${ISSUER}/token`,
+                jwksEndpoint: `${ISSUER}/jwks`,
+                userInfoEndpoint: `${ISSUER}/userinfo`
+              },
+              enabled: true,
+              defaultWorkspaceRole: 'owner'
+            },
+            headers: owner.headers
+          })
+
+          idTokenSubject = 'idp-user-2'
+          idTokenEmail = 'fallback@fallback.test'
+          idTokenName = 'Fallback Member'
+          const signIn = yield* auth.full.signInSSO({
+            body: {
+              email: 'fallback@fallback.test',
+              callbackURL: 'http://localhost:3071/workspaces'
+            }
+          })
+          const state = new URL(signIn.response.url).searchParams.get('state')
+          const stateCookie = cookieHeader(cookiePairs(signIn.headers))
+          yield* Effect.promise(() =>
+            auth.instance.api.callbackSSO({
+              params: { providerId: 'rt_fallback' },
+              query: { state: state ?? '', code: 'rt-auth-code-2' },
+              headers: new Headers({ cookie: stateCookie }),
+              asResponse: true
+            })
+          )
+
+          const users = yield* Effect.promise(() =>
+            db.select().from(user).where(eq(user.email, 'fallback@fallback.test'))
+          )
+          expect(users).toHaveLength(1)
+          const members: Array<typeof workspaceMembers.$inferSelect> =
+            yield* Effect.promise(() =>
+              db
+                .select()
+                .from(workspaceMembers)
+                .where(eq(workspaceMembers.workspaceId, workspace.id))
+            )
+          const member = members.find((row) => row.userId === users[0]?.id)
+          // Never `owner`: the guard narrows the raw value back to `member`.
+          expect(member?.role).toBe('member')
+        })
+      )
+  )
 })

@@ -3,7 +3,7 @@ import { user, verification } from '@b2b-saas-starter/db/schema'
 import { Effect, type Layer } from 'effect'
 import { type BetterAuthApiError } from 'effectful-better-auth'
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vite-plus/test'
+import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { type AuthEmailSender, Auth } from './index.ts'
 import {
   buildAuthLayer,
@@ -86,55 +86,60 @@ beforeAll(
 afterAll(() => provisioned.dispose())
 
 function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
-  return Effect.runPromise(Effect.provide(effect, authLayer))
+  return Effect.provide(effect, authLayer)
 }
 
 describe('account lifecycle email flows', () => {
-  it('sends a verification email on sign-up and verifies through the token hop', () =>
-    run(
-      Effect.gen(function* () {
-        const email = 'newbie@lifecycle.test'
-        const auth = yield* Auth.Tag
-        const before = sentEmails.length
+  it.live(
+    'sends a verification email on sign-up and verifies through the token hop',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const email = 'newbie@lifecycle.test'
+          const auth = yield* Auth.Tag
+          const before = sentEmails.length
 
-        const signUp = yield* auth.api.signUpEmail({
-          body: {
-            name: 'Newbie',
-            email,
-            password: 'correct-horse-battery-staple',
-            callbackURL: 'http://localhost:3071/verify-email'
-          }
+          const signUp = yield* auth.api.signUpEmail({
+            body: {
+              name: 'Newbie',
+              email,
+              password: 'correct-horse-battery-staple',
+              callbackURL: 'http://localhost:3071/verify-email'
+            }
+          })
+          expect(signUp.user.emailVerified).toBe(false)
+
+          const sent = sentEmails
+            .slice(before)
+            .filter((entry) => entry.kind === 'verification')
+          expect(sent).toHaveLength(1)
+          const url = sent[0]?.url ?? ''
+          // The link points at the auth handler's token-exchange route with our
+          // landing page as the callback — not straight at the app route.
+          expect(url).toContain('http://localhost:3071/api/auth/verify-email?token=')
+          expect(url).toContain(
+            encodeURIComponent('http://localhost:3071/verify-email')
+          )
+
+          const response = yield* Effect.promise(() =>
+            auth.instance.handler(new Request(url))
+          )
+          expect(response.status).toBe(302)
+          expect(response.headers.get('location')).toBe(
+            'http://localhost:3071/verify-email'
+          )
+          // autoSignInAfterVerification: the hop sets a session cookie.
+          expect(response.headers.get('set-cookie')).toContain('better-auth')
+
+          const rows = yield* Effect.promise(() =>
+            db.select().from(user).where(eq(user.email, email))
+          )
+          expect(rows[0]?.emailVerified).toBe(true)
         })
-        expect(signUp.user.emailVerified).toBe(false)
+      )
+  )
 
-        const sent = sentEmails
-          .slice(before)
-          .filter((entry) => entry.kind === 'verification')
-        expect(sent).toHaveLength(1)
-        const url = sent[0]?.url ?? ''
-        // The link points at the auth handler's token-exchange route with our
-        // landing page as the callback — not straight at the app route.
-        expect(url).toContain('http://localhost:3071/api/auth/verify-email?token=')
-        expect(url).toContain(encodeURIComponent('http://localhost:3071/verify-email'))
-
-        const response = yield* Effect.promise(() =>
-          auth.instance.handler(new Request(url))
-        )
-        expect(response.status).toBe(302)
-        expect(response.headers.get('location')).toBe(
-          'http://localhost:3071/verify-email'
-        )
-        // autoSignInAfterVerification: the hop sets a session cookie.
-        expect(response.headers.get('set-cookie')).toContain('better-auth')
-
-        const rows = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.email, email))
-        )
-        expect(rows[0]?.emailVerified).toBe(true)
-      })
-    ))
-
-  it('rejects a bad verification token by redirecting with an error param', () =>
+  it.live('rejects a bad verification token by redirecting with an error param', () =>
     run(
       Effect.gen(function* () {
         const auth = yield* Auth.Tag
@@ -149,9 +154,10 @@ describe('account lifecycle email flows', () => {
         const location = response.headers.get('location') ?? ''
         expect(new URL(location).searchParams.get('error')).toBeTruthy()
       })
-    ))
+    )
+  )
 
-  it('round-trips a password reset: request, hop, set, old sessions revoked', () =>
+  it.live('round-trips a password reset: request, hop, set, old sessions revoked', () =>
     run(
       Effect.gen(function* () {
         const email = 'resetter@lifecycle.test'
@@ -226,9 +232,10 @@ describe('account lifecycle email flows', () => {
         })
         expect(fresh.user.email).toBe(email)
       })
-    ))
+    )
+  )
 
-  it('answers unknown-email reset requests identically and sends nothing', () =>
+  it.live('answers unknown-email reset requests identically and sends nothing', () =>
     run(
       Effect.gen(function* () {
         const auth = yield* Auth.Tag
@@ -244,7 +251,8 @@ describe('account lifecycle email flows', () => {
         expect(requested.message).toContain('If this email exists')
         expect(sentEmails.slice(before)).toHaveLength(0)
       })
-    ))
+    )
+  )
 })
 
 describe('email-otp plugin', () => {
@@ -276,7 +284,7 @@ describe('email-otp plugin', () => {
     })
   }
 
-  it('sends a six-digit sign-in code and signs the holder in', () =>
+  it.live('sends a six-digit sign-in code and signs the holder in', () =>
     run(
       Effect.gen(function* () {
         const email = 'coder@otp.test'
@@ -299,9 +307,10 @@ describe('email-otp plugin', () => {
         expect(response.user.email).toBe(email)
         expect(headers.getSetCookie().join(' ')).toContain('better-auth')
       })
-    ))
+    )
+  )
 
-  it('locks the code after three failed attempts, even for the correct one', () =>
+  it.live('locks the code after three failed attempts, even for the correct one', () =>
     run(
       Effect.gen(function* () {
         const email = 'lockout@otp.test'
@@ -339,9 +348,10 @@ describe('email-otp plugin', () => {
         )
         expect(consumed).toEqual({ ok: false, status: 400 })
       })
-    ))
+    )
+  )
 
-  it('answers an unknown email identically and sends nothing', () =>
+  it.live('answers an unknown email identically and sends nothing', () =>
     run(
       Effect.gen(function* () {
         const email = 'ghost@otp.test'
@@ -360,9 +370,10 @@ describe('email-otp plugin', () => {
         )
         expect(verify).toEqual({ ok: false, status: 400 })
       })
-    ))
+    )
+  )
 
-  it('verifies an email address with a code and opens a session', () =>
+  it.live('verifies an email address with a code and opens a session', () =>
     run(
       Effect.gen(function* () {
         const email = 'verify-by-code@otp.test'
@@ -391,9 +402,10 @@ describe('email-otp plugin', () => {
         )
         expect(rows[0]?.emailVerified).toBe(true)
       })
-    ))
+    )
+  )
 
-  it('resets a password with a code and revokes the prior sessions', () =>
+  it.live('resets a password with a code and revokes the prior sessions', () =>
     run(
       Effect.gen(function* () {
         const email = 'otp-reset@otp.test'
@@ -430,7 +442,8 @@ describe('email-otp plugin', () => {
         })
         expect(fresh.user.email).toBe(email)
       })
-    ))
+    )
+  )
 })
 
 describe('magic-link sign-in', () => {
@@ -442,7 +455,7 @@ describe('magic-link sign-in', () => {
     errorCallbackURL: 'http://localhost:3071/magic-link/verify'
   }
 
-  it('round-trips a link for an existing user: request, hop, session', () =>
+  it.live('round-trips a link for an existing user: request, hop, session', () =>
     run(
       Effect.gen(function* () {
         const email = 'linker@magic.test'
@@ -476,9 +489,10 @@ describe('magic-link sign-in', () => {
         // is already signed in.
         expect(response.headers.get('set-cookie')).toContain('better-auth')
       })
-    ))
+    )
+  )
 
-  it('stores the token hashed, not as the emailed plaintext', () =>
+  it.live('stores the token hashed, not as the emailed plaintext', () =>
     run(
       Effect.gen(function* () {
         const email = 'hashed@magic.test'
@@ -500,9 +514,10 @@ describe('magic-link sign-in', () => {
         const rows = yield* Effect.promise(() => db.select().from(verification))
         expect(rows.some((row) => row.identifier === token)).toBe(false)
       })
-    ))
+    )
+  )
 
-  it('creates a verified user when an unknown email consumes a link', () =>
+  it.live('creates a verified user when an unknown email consumes a link', () =>
     run(
       Effect.gen(function* () {
         const email = 'newcomer@magic.test'
@@ -535,5 +550,6 @@ describe('magic-link sign-in', () => {
         expect(rows).toHaveLength(1)
         expect(rows[0]?.emailVerified).toBe(true)
       })
-    ))
+    )
+  )
 })
