@@ -274,17 +274,15 @@ describe('permission matrix', () => {
     expect(gated).not.toContain('health')
   })
 
-  it.effect.each(MATRIX)(
-    'a read-only token gets $expected from $operation ($permission)',
-    (entry) =>
+  describe.each(MATRIX)('$operation ($permission)', (entry) => {
+    it.effect('answers a read-only token with the expected status', () =>
       Effect.gen(function* () {
         const res = yield* send(entry.request)
-        // oxlint-disable-next-line vitest/no-standalone-expect -- it.effect.each's double call hides the test block from the rule
         expect(res.status).toBe(entry.expected)
         if (entry.expected === 403) {
-          // oxlint-disable-next-line vitest/no-standalone-expect -- same as above
           expect((yield* jsonBody(res, ErrorBody))._tag).toBe('AuthorizationDenied')
         }
       })
-  )
+    )
+  })
 })

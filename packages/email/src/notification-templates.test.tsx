@@ -36,22 +36,20 @@ describe('notification email templates', () => {
     }
   })
 
-  it.effect.each(notificationKinds)(
-    'renders %s with the notification copy and the unsubscribe link',
-    (kind) =>
+  describe.each(notificationKinds)('the %s notification', (kind) => {
+    it.effect('renders with the notification copy and the unsubscribe link', () =>
       Effect.gen(function* () {
         const { html, text } = yield* rendered(notificationEmailFor(kind, props))
         // The heading is the kind's shared label, not bespoke template copy.
-        // oxlint-disable vitest/no-standalone-expect -- it.effect.each's double call hides the test block from the rule
         expect(html).toContain(`>${props.kindLabel}</`)
         expect(html).toContain('Webhook delivery gave up')
         expect(html).toContain('Starter Lab')
         expect(html).toContain(props.openUrl)
         expect(html).toContain(props.preferencesUrl)
         expect(text.toLowerCase()).toContain('unsubscribe')
-        // oxlint-enable vitest/no-standalone-expect
       })
-  )
+    )
+  })
 
   it.effect('omits the workspace line for an account-level notification', () =>
     Effect.gen(function* () {

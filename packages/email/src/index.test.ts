@@ -74,33 +74,34 @@ describe('OneTimeCodeEmail', () => {
   type SentPurpose = 'sign-in' | 'email-verification' | 'forget-password'
   type PurposeCase = { readonly purpose: SentPurpose; readonly heading: string }
 
-  it.effect.each([
+  describe.each([
     { purpose: 'sign-in', heading: 'Sign in to B2B SaaS Starter' },
     { purpose: 'email-verification', heading: 'Verify your email address' },
     { purpose: 'forget-password', heading: 'Reset your password' }
   ] satisfies ReadonlyArray<PurposeCase>)(
-    'renders the $purpose code and its purpose',
-    ({ purpose, heading }) =>
-      Effect.gen(function* () {
-        const html = yield* Effect.promise(() =>
-          render(OneTimeCodeEmail({ code: '034135', purpose }))
-        )
-        const text = yield* Effect.promise(() =>
-          render(OneTimeCodeEmail({ code: '034135', purpose }), { plainText: true })
-        )
-        // The code itself is the payload: it must survive both renders intact.
-        // oxlint-disable vitest/no-standalone-expect -- it.effect.each's double call hides the test block from the rule
-        expect(html).toContain('034135')
-        expect(text).toContain('034135')
-        expect(html).toContain(heading)
-        // react-email's plain-text pass uppercases headings.
-        expect(text.toLowerCase()).toContain(heading.toLowerCase())
-        // The stated limits are the plugin's own; the copy is where a drift
-        // between them and the email would be caught first.
-        expect(text).toContain('ten minutes')
-        expect(text).toContain('three failed attempts')
-        // oxlint-enable vitest/no-standalone-expect
-      })
+    'the $purpose code',
+    ({ purpose, heading }) => {
+      it.effect('renders the code and its purpose in both bodies', () =>
+        Effect.gen(function* () {
+          const html = yield* Effect.promise(() =>
+            render(OneTimeCodeEmail({ code: '034135', purpose }))
+          )
+          const text = yield* Effect.promise(() =>
+            render(OneTimeCodeEmail({ code: '034135', purpose }), { plainText: true })
+          )
+          // The code itself is the payload: it must survive both renders intact.
+          expect(html).toContain('034135')
+          expect(text).toContain('034135')
+          expect(html).toContain(heading)
+          // react-email's plain-text pass uppercases headings.
+          expect(text.toLowerCase()).toContain(heading.toLowerCase())
+          // The stated limits are the plugin's own; the copy is where a drift
+          // between them and the email would be caught first.
+          expect(text).toContain('ten minutes')
+          expect(text).toContain('three failed attempts')
+        })
+      )
+    }
   )
 
   it.effect(
@@ -161,7 +162,7 @@ describe('PasswordResetEmail', () => {
 })
 
 describe('PasswordChangedEmail', () => {
-  it.effect.each([
+  describe.each([
     {
       via: 'reset',
       heading: 'Your password was reset',
@@ -176,19 +177,19 @@ describe('PasswordChangedEmail', () => {
     readonly via: 'reset' | 'password-change'
     readonly heading: string
     readonly flow: string
-  }>)('renders the $via flow, naming what happened', ({ via, heading, flow }) =>
-    Effect.gen(function* () {
-      const html = yield* Effect.promise(() => render(PasswordChangedEmail({ via })))
-      const text = yield* Effect.promise(() =>
-        render(PasswordChangedEmail({ via }), { plainText: true })
-      )
-      // oxlint-disable vitest/no-standalone-expect -- it.effect.each's double call hides the test block from the rule
-      expect(html).toContain(heading)
-      expect(text.toLowerCase()).toContain(heading.toLowerCase())
-      expect(text).toContain(flow)
-      // oxlint-enable vitest/no-standalone-expect
-    })
-  )
+  }>)('the $via flow', ({ via, heading, flow }) => {
+    it.effect('names what happened', () =>
+      Effect.gen(function* () {
+        const html = yield* Effect.promise(() => render(PasswordChangedEmail({ via })))
+        const text = yield* Effect.promise(() =>
+          render(PasswordChangedEmail({ via }), { plainText: true })
+        )
+        expect(html).toContain(heading)
+        expect(text.toLowerCase()).toContain(heading.toLowerCase())
+        expect(text).toContain(flow)
+      })
+    )
+  })
 
   it.effect(
     'renders no action link — a sign-in button in this email is a phishing assist',
