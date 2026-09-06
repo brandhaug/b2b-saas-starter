@@ -4,8 +4,9 @@ import {
   SeedAuditEventLog
 } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/seed-fixture'
+import { it } from '@effect/vitest'
 import { Effect } from 'effect'
-import { describe, expect, test } from 'vite-plus/test'
+import { describe, expect } from 'vite-plus/test'
 import {
   mcpCallerActor,
   mcpCallerActorType,
@@ -41,10 +42,10 @@ describe('MCP audit provenance', () => {
     }
   ]
 
-  test.each(cases)(
-    '$caller.kind retains provenance through workspace resolution and recording',
-    ({ caller, actorType }) =>
-      Effect.runPromise(
+  for (const { caller, actorType } of cases) {
+    it.effect(
+      `${caller.kind} retains provenance through workspace resolution and recording`,
+      () =>
         provideWorkspace(
           {},
           workspace.workspaceSlug,
@@ -62,6 +63,6 @@ describe('MCP audit provenance', () => {
           mcpCallerActor(caller),
           mcpCallerActorType(caller)
         ).pipe(Effect.provide(SeedAuditEventLog([])))
-      )
-  )
+    )
+  }
 })
