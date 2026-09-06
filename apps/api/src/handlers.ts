@@ -81,8 +81,13 @@ export function workspaceGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'workspace', (handlers) => {
     // Infer each concrete row's input, success, errors, and requirements rather
     // than widening to the union of reads. HttpApiBuilder checks the result
-    // against that endpoint's contract. Parameterized reads require endpointId.
-    function workspaceRead<Args extends { readonly endpointId?: string }, A, E, R>(
+    // against that endpoint's contract. Parameterized reads require their declared path ID.
+    function workspaceRead<
+      Args extends { readonly endpointId?: string; readonly deliveryId?: string },
+      A,
+      E,
+      R
+    >(
       op: {
         readonly endpoint: { readonly identifier: string }
         readonly permission: PermissionRequest
@@ -97,7 +102,7 @@ export function workspaceGroup(env: ApiEnv) {
     ) {
       // The decoded `query` rides along: paged list rows page on it (ADR
       // 0057), the overview row ignores it — one shape for every row of the
-      // table. The one parameterized read names which endpoint it served, the
+      // table. An endpoint read names which endpoint it served, the
       // same way the write handlers annotate ids below.
       return workspaceOperation(
         env,
@@ -135,6 +140,14 @@ export function workspaceGroup(env: ApiEnv) {
       )
       .handle('webhook-deliveries', ({ params, request }) =>
         workspaceRead(READ_OPERATIONS['webhook-deliveries'], params, undefined, request)
+      )
+      .handle('webhook-delivery-attempts', ({ params, request }) =>
+        workspaceRead(
+          READ_OPERATIONS['webhook-delivery-attempts'],
+          params,
+          undefined,
+          request
+        )
       )
       .handle('audit-events', ({ params, query, request }) =>
         workspaceRead(READ_OPERATIONS['audit-events'], params, query, request)
@@ -183,6 +196,7 @@ export function apiTokenGroup(env: ApiEnv) {
       )
       return handlers.handleAll({
         create: write(MUTATION_OPERATIONS['api-tokens.create']),
+        replace: write(MUTATION_OPERATIONS['api-tokens.replace']),
         delete: write(MUTATION_OPERATIONS['api-tokens.delete'])
       })
     })

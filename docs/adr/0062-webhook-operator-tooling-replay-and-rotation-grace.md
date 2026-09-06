@@ -1,5 +1,9 @@
 # Webhook operator tooling: replay as linked rows and rotation with a signing grace window
 
+The signing protocol, attempt storage, and failure-ladder atomicity below are
+superseded by [ADR 0073](./0073-standard-webhooks-and-delivery-attempt-history.md).
+Replay provenance and the 24-hour rotation grace remain in effect.
+
 Operator tooling for Webhook Endpoints — delivery history with recorded evidence, replay of failed deliveries, a synthetic test send, endpoint update/delete, and secret rotation with a 24-hour grace window — raised four design questions that share one answer: **the delivery log is append-only operator evidence, and the signing secret rotates by shifting, not replacing.**
 
 ## Replays are new rows, never edits

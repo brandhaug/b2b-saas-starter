@@ -9,6 +9,7 @@ export type WorkspaceAuditSearchUpdate = {
   readonly eventType?: string
   readonly since?: string
   readonly until?: string
+  readonly event?: string
   readonly cursor?: string
 }
 
@@ -33,7 +34,8 @@ export function compact(
     'eventType',
     'since',
     'until',
-    'cursor'
+    'cursor',
+    'event'
   ]
   for (const key of keys) {
     const value = search[key]

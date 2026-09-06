@@ -65,6 +65,10 @@ function success<S extends Schema.Top>(
 // Independent expectations: these names and payloads are not derived from the catalog.
 const writes = [
   { name: 'create_api_token', args: { name: 'CI', scopes: ['read'] } },
+  {
+    name: 'replace_api_token',
+    args: { tokenId: 'foreign-token', scopes: ['read'], overlapSeconds: 0 }
+  },
   { name: 'delete_api_token', args: { tokenId: 'foreign-token' } },
   {
     name: 'create_webhook',
@@ -80,7 +84,7 @@ const writes = [
 ] satisfies ReadonlyArray<{ name: string; args: Schema.Json }>
 
 describe('MCP workspace mutations over streamable HTTP', () => {
-  it.effect('advertises all ten typed tools with honest annotations', () =>
+  it.effect('advertises all eleven typed tools with honest annotations', () =>
     Effect.gen(function* () {
       const client = mcpClient(buildWebHandler(env).handler, `Bearer ${SEED_API_TOKEN}`)
       yield* Effect.promise(() => client.initialize())
@@ -114,6 +118,7 @@ describe('MCP workspace mutations over streamable HTTP', () => {
         expect(tool?.annotations.idempotentHint).toBe(write.name === 'delete_api_token')
         expect(tool?.annotations.destructiveHint).toBe(
           [
+            'replace_api_token',
             'delete_api_token',
             'update_webhook',
             'delete_webhook',
@@ -145,101 +150,139 @@ describe('MCP workspace mutations over streamable HTTP', () => {
       })
   )
 
-  it.effect('executes all ten mutations and exposes each permitted secret once', () =>
-    Effect.gen(function* () {
-      const handler = buildWebHandler(env).handler
-      const client = mcpClient(handler, `Bearer ${SEED_API_TOKEN}`)
-      yield* Effect.promise(() => client.initialize())
-      const token = yield* success(
-        client,
-        'create_api_token',
-        { name: 'MCP CI', scopes: ['read'] },
-        createdToken
-      )
-      expect(token.scopes).toEqual(['read'])
-      expect(token.token).toMatch(/^bsk_/)
-      const newReader = mcpClient(handler, `Bearer ${token.token}`)
-      yield* Effect.promise(() => newReader.initialize())
-      expect(
-        (yield* call(newReader, 'create_api_token', {
-          name: 'escalation',
-          scopes: ['admin']
-        })).isError
-      ).toBe(true)
-      const webhook = yield* success(
-        client,
-        'create_webhook',
-        { url: 'https://hooks.example.com/mcp', events: ['api_token.created'] },
-        record
-      )
-      const rotated = yield* success(
-        client,
-        'rotate_webhook_secret',
-        { endpointId: webhook.id },
-        secret
-      )
-      expect(rotated.signingSecret.length).toBeGreaterThan(10)
-      const test = yield* success(
-        client,
-        'send_webhook_test_event',
-        { endpointId: webhook.id },
-        queued
-      )
-      expect(test.deliveryId).toBeTruthy()
-      const replay = yield* success(
-        client,
-        'replay_webhook_delivery',
-        { deliveryId: 'whd_seed_failed' },
-        queued
-      )
-      expect(replay.deliveryId).not.toBe('whd_seed_failed')
-      yield* success(
-        client,
-        'update_webhook',
-        { endpointId: webhook.id, enabled: false },
-        Schema.Struct({ enabled: Schema.Literal(false) })
-      )
-      expect(
-        (yield* call(client, 'send_webhook_test_event', { endpointId: webhook.id }))
-          .isError
-      ).toBe(true)
-      yield* success(
-        client,
-        'delete_webhook',
-        { endpointId: webhook.id },
-        Schema.Struct({ status: Schema.Literal('deleted') })
-      )
-      expect(
-        (yield* call(client, 'rotate_webhook_secret', { endpointId: webhook.id }))
-          .content[0]?.text
-      ).toContain('not found')
-      const exported = yield* success(client, 'request_workspace_export', {}, record)
-      const download = yield* success(
-        client,
-        'get_workspace_export_download_link',
-        { exportId: exported.id },
-        link
-      )
-      expect(new URL(download.url).origin).toBe('https://api.test')
-      expect(
-        (yield* Effect.promise(() => handler(new Request(download.url)))).status
-      ).toBe(200)
-      yield* success(
-        client,
-        'delete_api_token',
-        { tokenId: token.id },
-        Schema.Struct({ status: Schema.Literal('revoked') })
-      )
-      const revoked = yield* Effect.promise(() =>
-        newReader.rpc('tools/call', { name: 'list_api_tokens' })
-      )
-      expect(revoked.status).toBe(401)
-      const audit = yield* call(client, 'list_audit_events')
-      expect(audit.content[0]?.text).toContain('api_token')
-      expect(audit.content[0]?.text).not.toContain(token.token)
-      expect(audit.content[0]?.text).not.toContain(rotated.signingSecret)
-      expect(audit.content[0]?.text).not.toContain(download.url)
-    })
+  it.effect(
+    'executes all eleven mutations and exposes each permitted secret once',
+    () =>
+      Effect.gen(function* () {
+        const handler = buildWebHandler(env).handler
+        const client = mcpClient(handler, `Bearer ${SEED_API_TOKEN}`)
+        yield* Effect.promise(() => client.initialize())
+        const token = yield* success(
+          client,
+          'create_api_token',
+          { name: 'MCP CI', scopes: ['read'] },
+          createdToken
+        )
+        expect(token.scopes).toEqual(['read'])
+        expect(token.token).toMatch(/^bsk_/)
+        const newReader = mcpClient(handler, `Bearer ${token.token}`)
+        yield* Effect.promise(() => newReader.initialize())
+        expect(
+          (yield* call(newReader, 'create_api_token', {
+            name: 'escalation',
+            scopes: ['admin']
+          })).isError
+        ).toBe(true)
+        const replacement = yield* success(
+          client,
+          'replace_api_token',
+          {
+            tokenId: token.id,
+            scopes: ['read'],
+            overlapSeconds: 0
+          },
+          createdToken
+        )
+        expect(replacement.token).not.toBe(token.token)
+        expect(
+          (yield* Effect.promise(() =>
+            newReader.rpc('tools/call', { name: 'list_api_tokens' })
+          )).status
+        ).toBe(401)
+        const replacementReader = mcpClient(handler, `Bearer ${replacement.token}`)
+        yield* Effect.promise(() => replacementReader.initialize())
+        expect((yield* call(replacementReader, 'list_api_tokens')).isError).not.toBe(
+          true
+        )
+        expect(
+          (yield* call(client, 'replace_api_token', {
+            tokenId: replacement.id,
+            scopes: ['admin'],
+            overlapSeconds: 0
+          })).isError
+        ).toBe(true)
+        expect(
+          (yield* call(client, 'replace_api_token', {
+            tokenId: 'foreign-token',
+            scopes: ['read'],
+            overlapSeconds: 0
+          })).isError
+        ).toBe(true)
+        const webhook = yield* success(
+          client,
+          'create_webhook',
+          { url: 'https://hooks.example.com/mcp', events: ['api_token.created'] },
+          record
+        )
+        const rotated = yield* success(
+          client,
+          'rotate_webhook_secret',
+          { endpointId: webhook.id },
+          secret
+        )
+        expect(rotated.signingSecret.length).toBeGreaterThan(10)
+        const test = yield* success(
+          client,
+          'send_webhook_test_event',
+          { endpointId: webhook.id },
+          queued
+        )
+        expect(test.deliveryId).toBeTruthy()
+        const replay = yield* success(
+          client,
+          'replay_webhook_delivery',
+          { deliveryId: 'whd_seed_failed' },
+          queued
+        )
+        expect(replay.deliveryId).not.toBe('whd_seed_failed')
+        yield* success(
+          client,
+          'update_webhook',
+          { endpointId: webhook.id, enabled: false },
+          Schema.Struct({ enabled: Schema.Literal(false) })
+        )
+        expect(
+          (yield* call(client, 'send_webhook_test_event', { endpointId: webhook.id }))
+            .isError
+        ).toBe(true)
+        yield* success(
+          client,
+          'delete_webhook',
+          { endpointId: webhook.id },
+          Schema.Struct({ status: Schema.Literal('deleted') })
+        )
+        expect(
+          (yield* call(client, 'rotate_webhook_secret', { endpointId: webhook.id }))
+            .content[0]?.text
+        ).toContain('not found')
+        const exported = yield* success(client, 'request_workspace_export', {}, record)
+        const download = yield* success(
+          client,
+          'get_workspace_export_download_link',
+          { exportId: exported.id },
+          link
+        )
+        expect(new URL(download.url).origin).toBe('https://api.test')
+        expect(
+          (yield* Effect.promise(() => handler(new Request(download.url)))).status
+        ).toBe(200)
+        yield* success(
+          client,
+          'delete_api_token',
+          { tokenId: replacement.id },
+          Schema.Struct({ status: Schema.Literal('revoked') })
+        )
+        const revoked = yield* Effect.promise(() =>
+          replacementReader.rpc('tools/call', { name: 'list_api_tokens' })
+        )
+        expect(revoked.status).toBe(401)
+        const audit = yield* call(client, 'list_audit_events')
+        expect(audit.content[0]?.text).toContain('api_token')
+        expect(audit.content[0]?.text).not.toContain(token.token)
+        expect(audit.content[0]?.text).not.toContain(replacement.token)
+        expect(audit.content[0]?.text).not.toContain(rotated.signingSecret)
+        expect(audit.content[0]?.text).not.toContain(download.url)
+      })
   )
 
   it.effect(

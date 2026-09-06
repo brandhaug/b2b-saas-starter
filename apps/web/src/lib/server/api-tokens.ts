@@ -1,8 +1,11 @@
 import {
+  CreateApiTokenPayload,
+  ReplaceApiTokenPayload,
   type ApiToken,
+  type ReplacedApiToken,
   type CreatedApiToken
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { API_TOKEN_SCOPES, type WorkspaceViewer } from '@/lib/permissions'
+import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
@@ -37,8 +40,7 @@ const LoadApiTokensInput = Schema.Struct({
 
 const CreateApiTokenInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  name: Schema.NonEmptyString.check(Schema.isMaxLength(80)),
-  scopes: Schema.NonEmptyArray(Schema.Literals(API_TOKEN_SCOPES))
+  ...CreateApiTokenPayload.fields
 })
 
 // The `workspaceSlug` half is the web fn's own; the capability's revoke
@@ -72,4 +74,18 @@ export const revokeApiTokenServerFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<boolean> => {
     const { revokeApiTokenHandler } = await import('./api-tokens.effects')
     return revokeApiTokenHandler(data)
+  })
+
+const ReplaceApiTokenInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  tokenId: Schema.NonEmptyString,
+  ...ReplaceApiTokenPayload.fields
+})
+export type ReplaceApiTokenInput = typeof ReplaceApiTokenInput.Type
+
+export const replaceApiTokenServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(ReplaceApiTokenInput))
+  .handler(async ({ data }): Promise<ReplacedApiToken> => {
+    const { replaceApiTokenHandler } = await import('./api-tokens.effects')
+    return replaceApiTokenHandler(data)
   })

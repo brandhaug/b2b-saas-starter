@@ -1,4 +1,5 @@
 import {
+  ApiToken,
   SEED_API_TOKEN,
   SEED_READONLY_API_TOKEN
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
@@ -7,6 +8,15 @@ import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
 
 const Failure = Schema.Struct({ _tag: Schema.String })
+// Bearer authentication legitimately updates lastUsedAt even when permission
+// rejects a mutation. Compare lifecycle fields, not authentication telemetry.
+const TokenLifecyclePage = Schema.Struct({
+  items: Schema.Array(
+    ApiToken.mapFields(({ lastUsedAt: _lastUsedAt, ...fields }) => fields)
+  ),
+  nextCursor: Schema.NullOr(Schema.String)
+})
+const decodeTokenLifecyclePage = Schema.decodeUnknownEffect(TokenLifecyclePage)
 const encodeBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
 it.effect('denied mutations leave the audit trail and token registry unchanged', () =>
@@ -36,7 +46,8 @@ it.effect('denied mutations leave the audit trail and token registry unchanged',
       Effect.flatMap((response) => Effect.promise(() => response.json()))
     )
     const tokensBefore = yield* send('GET', 'api-tokens', SEED_API_TOKEN).pipe(
-      Effect.flatMap((response) => Effect.promise(() => response.json()))
+      Effect.flatMap((response) => Effect.promise(() => response.json())),
+      Effect.flatMap(decodeTokenLifecyclePage)
     )
     // Independent requests, deliberately not generated from catalog fixtures.
     // An absent target must still be denied before a capability can return 404.
@@ -45,6 +56,11 @@ it.effect('denied mutations leave the audit trail and token registry unchanged',
         method: 'POST',
         path: 'api-tokens',
         body: { name: 'Escalation', scopes: ['admin'] }
+      },
+      {
+        method: 'POST',
+        path: 'api-tokens/tok_absent/replace',
+        body: { scopes: ['read'], overlapSeconds: 0 }
       },
       { method: 'DELETE', path: 'api-tokens/tok_seed' },
       { method: 'POST', path: 'exports' },
@@ -78,7 +94,12 @@ it.effect('denied mutations leave the audit trail and token registry unchanged',
     ]) {
       const response = yield* send('GET', path, SEED_API_TOKEN)
       expect(response.status).toBe(200)
-      expect(yield* Effect.promise(() => response.json())).toEqual(expected)
+      const body = yield* Effect.promise(() => response.json())
+      if (path === 'api-tokens') {
+        expect(yield* decodeTokenLifecyclePage(body)).toEqual(expected)
+      } else {
+        expect(body).toEqual(expected)
+      }
     }
   })
 )

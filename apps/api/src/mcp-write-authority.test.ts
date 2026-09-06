@@ -166,7 +166,28 @@ it.effect(
       ).toBe(true)
       expect(yield* call(oauth, 'list_audit_events')).toEqual(before)
       harness.setScopes(['mcp:read', 'mcp:write'])
+      const source = yield* call(oauth, 'create_api_token', {
+        name: 'replacement source',
+        scopes: ['admin', 'read']
+      })
+      const sourceToken = yield* decodeCreated(source.content[0]?.text)
       harness.setUser('usr_ops')
+      const beforeReplacement = yield* call(oauth, 'list_audit_events')
+      expect(
+        (yield* call(oauth, 'replace_api_token', {
+          tokenId: sourceToken.id,
+          scopes: ['admin'],
+          overlapSeconds: 0
+        })).isError
+      ).toBe(true)
+      expect(yield* call(oauth, 'list_audit_events')).toEqual(beforeReplacement)
+      expect(
+        (yield* call(oauth, 'replace_api_token', {
+          tokenId: sourceToken.id,
+          scopes: ['read'],
+          overlapSeconds: 0
+        })).isError
+      ).not.toBe(true)
       expect(
         (yield* call(oauth, 'create_api_token', {
           name: 'escalation',
@@ -307,7 +328,7 @@ it.effect(
 )
 
 const decodeCreated = Schema.decodeUnknownEffect(
-  Schema.fromJsonString(Schema.Struct({ token: Schema.String }))
+  Schema.fromJsonString(Schema.Struct({ id: Schema.String, token: Schema.String }))
 )
 const decodeRotated = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Struct({ signingSecret: Schema.String }))
@@ -331,6 +352,13 @@ it.effect('one-time secrets and signed URLs never enter invocation telemetry', (
       exportId: 'exp_seed_ready'
     })
     const token = yield* decodeCreated(created.content[0]?.text)
+    const replaced = yield* call(client, 'replace_api_token', {
+      tokenId: token.id,
+      scopes: ['read'],
+      overlapSeconds: 0
+    })
+    expect(replaced.isError).not.toBe(true)
+    const replacement = yield* decodeCreated(replaced.content[0]?.text)
     const secret = yield* decodeRotated(rotated.content[0]?.text)
     const signed = yield* decodeLink(link.content[0]?.text)
     expect(harness.telemetry.length).toBeGreaterThan(0)
@@ -338,6 +366,7 @@ it.effect('one-time secrets and signed URLs never enter invocation telemetry', (
     expect(telemetry).toContain('grant resolved in invocation')
     for (const value of [
       token.token,
+      replacement.token,
       secret.signingSecret,
       signed.url,
       new URL(signed.url).search

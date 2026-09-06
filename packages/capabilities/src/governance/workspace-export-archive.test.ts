@@ -42,6 +42,8 @@ const snapshot: WorkspaceExportSnapshot = {
       prefix: 'bsk_live_abc',
       scopes: ['read'],
       lastUsedAt: null,
+      expiresAt: null,
+      replacedByTokenId: null,
       createdAt: '2026-08-20T00:00:00.000Z'
     }
   ],

@@ -92,6 +92,15 @@ _Avoid_: Integration, OAuth app, connected account
 A workspace-owned outbound event delivery target.
 _Avoid_: Provider webhook, callback URL, integration
 
+**Webhook Delivery**:
+One event payload addressed to one Webhook Endpoint, including its automatic
+retries. A manual replay is a new delivery linked to its source.
+_Avoid_: Attempt, callback
+
+**Webhook Attempt**:
+An individual dispatch result or terminal outcome within a Webhook Delivery.
+_Avoid_: Delivery, audit event
+
 **Seed Workspace**:
 A deterministic workspace included for local development, tests, and showcase screenshots.
 _Avoid_: Fake account, sample tenant

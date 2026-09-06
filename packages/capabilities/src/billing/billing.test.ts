@@ -33,6 +33,7 @@ function billingFixture(options?: {
   const recordedAuditEvents: Array<RecordAuditEventInput> = []
   const auditLayer = Layer.effect(AuditEventLog)(
     Effect.succeed({
+      get: () => Effect.die('not used here'),
       list: () => Effect.die('not used here'),
       listGlobal: Effect.succeed([]),
       record: (input: RecordAuditEventInput) =>

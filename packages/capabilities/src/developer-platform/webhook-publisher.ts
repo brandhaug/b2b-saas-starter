@@ -1,3 +1,4 @@
+import { newCapabilityId } from '../internal/ids.ts'
 import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { Database } from '@b2b-saas-starter/db/service'
 import { webhookEndpoints } from '@b2b-saas-starter/db/schema'
@@ -24,14 +25,8 @@ export const WebhookQueueMessage = Schema.Struct({
   endpointId: Schema.String,
   workspaceId: Schema.String,
   eventType: Schema.String,
-  /**
-   * The delivery row this message drives. Present when the row already exists
-   * (an operator replay or test send created it as `pending`); the consumer
-   * records its attempts against this id instead of deriving one from the
-   * queue message id. Absent on ordinary fan-out, where the consumer mints the
-   * deterministic `whd_<message id>`.
-   */
-  deliveryId: Schema.optionalKey(Schema.String),
+  /** Stable across queue retries and transfer to the dead-letter queue. */
+  deliveryId: Schema.String,
   // Deliberately an unchecked string, with no W3C pattern. A failed decode at
   // the consumer's queue boundary is treated as a malformed message and acked,
   // so a strict check here would turn a cosmetic trace defect into a silently
@@ -73,7 +68,7 @@ type EnqueueWebhookMessageInput = {
   readonly endpointId: string
   readonly workspaceId: string
   readonly eventType: string
-  readonly deliveryId?: string | undefined
+  readonly deliveryId: string
   readonly payload: typeof Schema.Json.Type
 }
 
@@ -167,22 +162,25 @@ export function LiveWebhookPublisher(
             if (subscribed.length === 0) {
               return
             }
+            const messages = yield* Effect.forEach(subscribed, (endpoint) =>
+              Effect.gen(function* () {
+                return {
+                  body: withTraceparent(
+                    {
+                      endpointId: endpoint.id,
+                      deliveryId: yield* newCapabilityId('whd'),
+                      workspaceId: ctx.workspace.id,
+                      eventType: input.eventType,
+                      payload: input.payload
+                    },
+                    traceparent
+                  )
+                }
+              })
+            )
             yield* unavailable(
               Effect.tryPromise({
-                try: () =>
-                  queue.sendBatch(
-                    subscribed.map((endpoint) => ({
-                      body: withTraceparent(
-                        {
-                          endpointId: endpoint.id,
-                          workspaceId: ctx.workspace.id,
-                          eventType: input.eventType,
-                          payload: input.payload
-                        },
-                        traceparent
-                      )
-                    }))
-                  ),
+                try: () => queue.sendBatch(messages),
                 catch: (cause) => cause
               })
             )
@@ -204,9 +202,7 @@ export function LiveWebhookPublisher(
               workspaceId: input.workspaceId,
               eventType: input.eventType,
               payload: input.payload,
-              // The pre-resolved delivery row rides along only when it exists —
-              // ordinary fan-out leaves it to the consumer to mint.
-              ...(input.deliveryId !== undefined && { deliveryId: input.deliveryId })
+              deliveryId: input.deliveryId
             })
           )(message).pipe(
             Effect.mapError(

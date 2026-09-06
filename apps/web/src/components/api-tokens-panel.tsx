@@ -1,8 +1,13 @@
 import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { useRouter } from '@tanstack/react-router'
 
 import { ApiTokenForm, type CreateApiToken } from '@/components/api-token-form'
+import {
+  ApiTokenReplacementForm,
+  type ReplaceApiToken
+} from '@/components/api-token-replacement-form'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Item,
@@ -22,6 +27,17 @@ import { viewerCan, type Viewer } from '@/lib/permissions'
 import { revokeApiTokenServerFn } from '@/lib/server/api-tokens'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { useServerAction } from '@/hooks/use-server-action'
+
+function subscribeClock(onChange: () => void) {
+  const timer = window.setInterval(onChange, 1000)
+  return () => window.clearInterval(timer)
+}
+function clockSnapshot() {
+  return Math.floor(Date.now() / 1000) * 1000
+}
+function serverClockSnapshot() {
+  return 0
+}
 
 const REVOKE_FAILED = 'Failed to revoke token'
 
@@ -49,15 +65,19 @@ export function ApiTokensPanel({
   tokens,
   viewer,
   revokeToken = revokeApiTokenServerFn,
-  createToken
+  createToken,
+  replaceToken
 }: {
   readonly workspaceSlug: string
   readonly tokens: ReadonlyArray<ApiToken>
   readonly viewer: Viewer
   readonly revokeToken?: RevokeApiToken
+  readonly replaceToken?: ReplaceApiToken
   readonly createToken?: CreateApiToken
 }) {
   const router = useRouter()
+  const now = useSyncExternalStore(subscribeClock, clockSnapshot, serverClockSnapshot)
+  const [replacing, setReplacing] = useState<ApiToken | null>(null)
   // Revocation is irreversible, so it takes a click to arm and a second to
   // commit — the same two-step pattern the settings page's delete uses.
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
@@ -97,8 +117,18 @@ export function ApiTokensPanel({
         />
       </CreateSection>
 
+      {replacing ? (
+        <ApiTokenReplacementForm
+          key={replacing.id}
+          workspaceSlug={workspaceSlug}
+          token={replacing}
+          onReplaced={() => router.invalidate()}
+          onClose={() => setReplacing(null)}
+          {...(replaceToken === undefined ? {} : { replaceToken })}
+        />
+      ) : null}
       <ListSection
-        title="Active tokens"
+        title="Tokens"
         footer={
           canRevoke ? undefined : (
             <p className="text-xs text-muted-foreground">
@@ -110,7 +140,7 @@ export function ApiTokensPanel({
         {tokens.length === 0 ? (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>No active tokens</EmptyTitle>
+              <EmptyTitle>No tokens</EmptyTitle>
               <EmptyDescription>Create one above to get started.</EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -127,6 +157,13 @@ export function ApiTokensPanel({
                     Created {formatUtcOr(token.createdAt, 'never')} · Last used{' '}
                     {formatUtcOr(token.lastUsedAt, 'never')}
                   </ItemDescription>
+                  <ItemDescription>
+                    {token.expiresAt !== null && Date.parse(token.expiresAt) <= now
+                      ? 'Expired'
+                      : 'Expires'}{' '}
+                    {formatUtcOr(token.expiresAt, 'never')}
+                    {token.replacedByTokenId === null ? null : ' · Replacement issued'}
+                  </ItemDescription>
                   <div className="flex flex-wrap gap-1">
                     {token.scopes.map((scope) => (
                       <Badge key={scope} variant="outline">
@@ -135,8 +172,19 @@ export function ApiTokensPanel({
                     ))}
                   </div>
                 </ItemContent>
-                {canRevoke ? (
-                  <ItemActions>
+                <ItemActions>
+                  {canCreate &&
+                  token.replacedByTokenId === null &&
+                  (token.expiresAt === null || Date.parse(token.expiresAt) > now) ? (
+                    <Button
+                      variant="outline"
+                      disabled={replacing !== null}
+                      onClick={() => setReplacing(token)}
+                    >
+                      Replace
+                    </Button>
+                  ) : null}
+                  {canRevoke ? (
                     <ConfirmButton
                       label="Revoke"
                       confirmLabel="Confirm revoke"
@@ -146,8 +194,8 @@ export function ApiTokensPanel({
                       onCancel={() => setConfirmingId(null)}
                       onConfirm={() => void revokeTokenOnRow(token.id)}
                     />
-                  </ItemActions>
-                ) : null}
+                  ) : null}
+                </ItemActions>
                 {failedRow?.key === token.id ? (
                   <ActionFeedback error={failedRow.message} />
                 ) : null}

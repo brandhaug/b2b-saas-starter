@@ -22,20 +22,22 @@ Read tools remain `get_workspace_overview`, `list_members`,
 `limit`; delivery listing takes `endpointId`. The workspace always comes from
 the credential.
 
-The ten write tools call the same operation catalog as REST:
+The eleven write tools call the same operation catalog as REST:
 
-| Tool                                 | JSON arguments                                    | Behavior                                                            |
-| ------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------- |
-| `create_api_token`                   | `name`, `scopes`                                  | Creates a token and returns its plaintext once                      |
-| `delete_api_token`                   | `tokenId`                                         | Revokes the token; unknown or revoked IDs also return revoked       |
-| `create_webhook`                     | `url`, `events`, optional `description`           | Registers an endpoint; returns metadata                             |
-| `update_webhook`                     | `endpointId`, optional `url`, `events`, `enabled` | Changes endpoint configuration                                      |
-| `delete_webhook`                     | `endpointId`                                      | Removes an endpoint and associated data                             |
-| `rotate_webhook_secret`              | `endpointId`                                      | Returns a new signing secret once; old secret retains 24-hour grace |
-| `send_webhook_test_event`            | `endpointId`                                      | Saves and enqueues an external test delivery                        |
-| `replay_webhook_delivery`            | `deliveryId`                                      | Creates and enqueues a copy of a terminal delivery                  |
-| `request_workspace_export`           | none                                              | Creates an archive job and notifies on completion                   |
-| `get_workspace_export_download_link` | `exportId`                                        | Returns a signed URL for a ready, unexpired archive                 |
+| Tool | JSON arguments | Behavior |
+| ---- | -------------- | -------- |
+
+| `create_api_token` | `name`, `scopes`, optional `expiresAt` | Creates a token and returns its plaintext once |
+| `replace_api_token` | `tokenId`, `scopes`, `overlapSeconds`, optional `expiresAt` | Returns replacement plaintext once; narrows scopes/expiry and retires the old token within 24 hours; audited, do not automatically retry |
+| `delete_api_token` | `tokenId` | Revokes the token; unknown or revoked IDs also return revoked |
+| `create_webhook` | `url`, `events`, optional `description` | Registers an endpoint; returns metadata |
+| `update_webhook` | `endpointId`, optional `url`, `events`, `enabled` | Changes endpoint configuration |
+| `delete_webhook` | `endpointId` | Removes an endpoint and associated data |
+| `rotate_webhook_secret` | `endpointId` | Returns a new signing secret once; old secret retains 24-hour grace |
+| `send_webhook_test_event` | `endpointId` | Saves and enqueues an external test delivery |
+| `replay_webhook_delivery` | `deliveryId` | Creates and enqueues a copy of a terminal delivery |
+| `request_workspace_export` | none | Creates an archive job and notifies on completion |
+| `get_workspace_export_download_link` | `exportId` | Returns a signed URL for a ready, unexpired archive |
 
 Store plaintext tokens and signing secrets securely. Treat signed URLs as
 credentials; they expire within 15 minutes, capped by archive retention.
@@ -75,7 +77,7 @@ Scripts keep using API Tokens: `Authorization: Bearer bsk_live_…` on `POST /mc
 Both open the same route and draw from the `mcp` rate-limit bucket. Every write invocation also draws from `rest_write`. Each tool re-checks its own permission through the one `authorize()` path in `@b2b-saas-starter/authz`; the difference is who it authorizes as:
 
 - An API Token authorizes as its scopes (`read`, `write`, `admin`).
-- An OAuth write also requires a current matching consent granting `mcp:write`. Existing read-only grants never acquire writes automatically. The token authorizes as the Member: the API Worker verifies the token's signature against the web worker's JWKS, its issuer (`MCP_OAUTH_ISSUER`), audience (`MCP_RESOURCE_URL`) and expiry, reads the workspace from the token's `starter_workspace_*` claims, and resolves your membership in that workspace on every call. A member who leaves the workspace is refused on the next call; a role change applies on the next call. A token for workspace A cannot access workspace B. Revoked or changed consents invalidate previously issued write tokens through a consent ID/version binding. Token creation cannot grant permissions beyond the creator's authority.
+- An OAuth write also requires a current matching consent granting `mcp:write`. Existing read-only grants never acquire writes automatically. The token authorizes as the Member: the API Worker verifies the token's signature against the web worker's JWKS, its issuer (`MCP_OAUTH_ISSUER`), audience (`MCP_RESOURCE_URL`) and expiry, reads the workspace from the token's `starter_workspace_*` claims, and resolves your membership in that workspace on every call. A member who leaves the workspace is refused on the next call; a role change applies on the next call. A token for workspace A cannot access workspace B. Revoked or changed consents invalidate previously issued write tokens through a consent ID/version binding. Token creation and replacement cannot grant permissions beyond the caller's authority.
 
 REST routes stay token-only. OAuth is the interactive path, not a second REST credential.
 

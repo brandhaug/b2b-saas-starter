@@ -17,7 +17,7 @@ describe('mcp ↔ rest operation mirror', () => {
   it('discovery advertises exactly the shared read operations, in order', () => {
     expect(
       mcpDiscoveryDocument()
-        .tools.slice(0, 7)
+        .tools.slice(0, 8)
         .map((tool) => tool.name)
     ).toEqual(readOperations().map((op) => op.toolName))
   })
@@ -57,7 +57,7 @@ describe('mcp ↔ rest operation mirror', () => {
       } else {
         // The one parameterized read takes exactly its declared path
         // parameter, nothing else.
-        expect(Object.keys(properties)).toEqual(['endpointId'])
+        expect(Object.keys(properties)).toEqual([operation.input])
       }
     }
   })
@@ -152,7 +152,7 @@ describe('POST /mcp protocol', () => {
       const response = yield* Effect.promise(() => client.rpc('tools/list', {}))
       const body = yield* jsonBody(response, Ok(ToolListResult))
       // This is the permitted public tool contract, independent of catalog rows.
-      expect(body.result.tools).toHaveLength(17)
+      expect(body.result.tools).toHaveLength(19)
       expect(
         body.result.tools
           .filter((tool) => tool.annotations.readOnlyHint)
@@ -165,6 +165,7 @@ describe('POST /mcp protocol', () => {
         'list_members',
         'list_notifications',
         'list_webhook_deliveries',
+        'list_webhook_delivery_attempts',
         'list_webhooks'
       ])
     })
@@ -180,10 +181,10 @@ describe('POST /mcp protocol', () => {
       const body = yield* jsonBody(listed, Ok(ToolListResult))
       // `tools/list` and the discovery document are both projected from the
       // shared operation table, so both surfaces answer with one list.
-      expect(body.result.tools.slice(0, 7).map((tool) => tool.name)).toEqual(
+      expect(body.result.tools.slice(0, 8).map((tool) => tool.name)).toEqual(
         readOperations().map((op) => op.toolName)
       )
-      expect(mcpDiscoveryDocument().tools).toHaveLength(17)
+      expect(mcpDiscoveryDocument().tools).toHaveLength(19)
 
       const called = yield* Effect.promise(() =>
         client.rpc('tools/call', {

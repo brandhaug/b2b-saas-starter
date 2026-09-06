@@ -1,4 +1,7 @@
-import { CreateApiTokenPayload } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import {
+  CreateApiTokenPayload,
+  ReplaceApiTokenPayload
+} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import {
   CreateWebhookEndpointPayload,
   UpdateWebhookEndpointPayload
@@ -72,6 +75,22 @@ const projections = {
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    }
+  ),
+  'api-tokens.replace': projection(
+    MUTATION_OPERATIONS['api-tokens.replace'],
+    Schema.Struct({ tokenId: Schema.String, ...ReplaceApiTokenPayload.fields }),
+    ({ tokenId, ...payload }) => ({ params: { tokenId }, payload }),
+    {
+      toolName: 'replace_api_token',
+      toolDescription:
+        'Replace an active API token with the same or fewer scopes and no later expiry. Return the new plaintext token once. Retire the old credential immediately or after up to 24 hours of overlap. Records an audit event; do not retry automatically.',
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
         idempotentHint: false,
         openWorldHint: true
       }

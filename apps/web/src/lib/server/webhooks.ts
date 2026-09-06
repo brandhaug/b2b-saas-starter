@@ -2,7 +2,10 @@ import {
   type CreatedWebhookEndpoint,
   type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import {
+  type WebhookDelivery,
+  type WebhookDeliveryAttempt
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
@@ -120,4 +123,11 @@ export const sendTestEventServerFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<{ readonly deliveryId: string }> => {
     const { sendTestEventHandler } = await import('./webhooks.effects')
     return sendTestEventHandler(data)
+  })
+
+export const listWebhookDeliveryAttemptsServerFn = createServerFn({ method: 'GET' })
+  .validator(Schema.decodeUnknownSync(ReplayDeliveryInput))
+  .handler(async ({ data }): Promise<ReadonlyArray<WebhookDeliveryAttempt>> => {
+    const { listWebhookDeliveryAttemptsHandler } = await import('./webhooks.effects')
+    return listWebhookDeliveryAttemptsHandler(data)
   })

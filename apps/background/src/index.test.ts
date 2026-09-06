@@ -1,5 +1,6 @@
 import {
   nextConsecutiveFailures,
+  failureLadderAction,
   type WebhookDeliveryAttemptInput
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -17,7 +18,7 @@ import {
   type HttpClientRequest
 } from 'effect/unstable/http'
 
-import { signatureHeaderValue, computeWebhookSignature } from './webhook-signing.ts'
+import { computeWebhookSignature } from './webhook-signing.ts'
 import { processDeadLetterMessage, processWebhookMessage } from './webhook-consumer.ts'
 import { readDelivery } from './queue-consumer.ts'
 
@@ -27,42 +28,8 @@ import { readDelivery } from './queue-consumer.ts'
 // in `webhook-delivery-plan.test.ts` / `webhook-url.test.ts`, not here. What
 // this file owns is the worker's orchestration around them.
 
-describe('webhook signature', () => {
-  it.effect('matches the fixed HMAC-SHA256 vector over "<timestamp>.<body>"', () =>
-    Effect.gen(function* () {
-      const secret = 'whsec_test'
-      const timestamp = 1_700_000_000
-      const body =
-        '{"deliveryId":"whd_test","eventType":"demo.event","payload":{"hello":"world"}}'
-      const signature = yield* computeWebhookSignature(secret, timestamp, body)
-      expect(signature).toBe(
-        '869b9de1fa743616d6143977e0a770f55f7cfd874cba33d935c1bfb5b481f9b2'
-      )
-      expect(signatureHeaderValue(timestamp, [signature])).toBe(
-        't=1700000000,sha256=869b9de1fa743616d6143977e0a770f55f7cfd874cba33d935c1bfb5b481f9b2'
-      )
-    })
-  )
-
-  it.effect('lists one sha256 entry per active signing secret on the header', () =>
-    Effect.gen(function* () {
-      const timestamp = 1_700_000_000
-      const body = '{"hello":"world"}'
-      const signatures = [
-        yield* computeWebhookSignature('whsec_new', timestamp, body),
-        yield* computeWebhookSignature('whsec_old', timestamp, body)
-      ]
-      // The rotation-grace shape: `t=` first, then one sha256 per secret, in
-      // signing order (current secret first).
-      const header = signatureHeaderValue(timestamp, signatures)
-      expect(header).toMatch(/^t=1700000000,sha256=[0-9a-f]{64},sha256=[0-9a-f]{64}$/)
-      expect(header).toContain(signatures[1])
-      expect(signatures[0]).not.toBe(signatures[1])
-    })
-  )
-})
-
 const message: WebhookQueueMessage = {
+  deliveryId: 'whd_qmsg_1',
   endpointId: 'wh_1',
   workspaceId: 'ws_1',
   eventType: 'api_token.created',
@@ -72,14 +39,14 @@ const message: WebhookQueueMessage = {
 const target = {
   id: 'wh_1',
   url: 'https://example.com/hook',
-  signingSecrets: ['whsec_test']
+  signingSecrets: ['whsec_dGVzdF9zZWNyZXQ=']
 }
 
 /** Same endpoint mid-rotation: the replaced secret still signs for 24h. */
 const rotatingTarget = {
   id: 'wh_1',
   url: 'https://example.com/hook',
-  signingSecrets: ['whsec_new', 'whsec_old']
+  signingSecrets: ['whsec_bmV3X3NlY3JldA==', 'whsec_b2xkX3NlY3JldA==']
 }
 
 // Mirrors the Live workspace check: the target only resolves when the
@@ -95,13 +62,6 @@ function resolveTarget(
   return null
 }
 
-/** One auto-disable the consumer asked the capability to run. */
-type AutoDisableCall = {
-  readonly endpointId: string
-  readonly workspaceId: string
-  readonly consecutiveFailures: number
-}
-
 /**
  * The mutable stand-in for the endpoint's stored streak. The stub moves it
  * with the capability's own pure `nextConsecutiveFailures`, so the counts the
@@ -113,7 +73,6 @@ type StreakState = { current: number }
 function stubEndpoints(
   dispatchTarget: typeof target | null,
   recorded: Array<WebhookDeliveryAttemptInput>,
-  autoDisabled: Array<AutoDisableCall> = [],
   streakInput?: StreakState
 ): Layer.Layer<WebhookEndpoints> {
   const streak: StreakState = streakInput ?? { current: 0 }
@@ -126,6 +85,8 @@ function stubEndpoints(
     delete: () => Effect.die('unused in delivery tests'),
     replayDelivery: () => Effect.die('unused in delivery tests'),
     sendTestEvent: () => Effect.die('unused in delivery tests'),
+    listDeliveryAttempts: () => Effect.die('unused in delivery tests'),
+    cleanupDeliveryHistory: () => Effect.die('unused in delivery tests'),
     listDeliveries: () => Effect.die('unused in delivery tests'),
     listGlobalDeliveries: () => Effect.die('unused in delivery tests'),
     replayDeliveryAsAdmin: () => Effect.die('unused in delivery tests'),
@@ -135,10 +96,24 @@ function stubEndpoints(
       Effect.sync(() => {
         recorded.push(input)
         streak.current = nextConsecutiveFailures(streak.current, input.status)
-        return { consecutiveFailures: streak.current }
+        return {
+          consecutiveFailures: streak.current,
+          recorded: true,
+          failureAction: failureLadderAction(streak.current),
+          status: input.status
+        }
       }),
     recordTerminalDeliveryAttempt: (input) =>
       Effect.sync(() => {
+        if (input.workspaceId !== 'ws_1') {
+          return {
+            deliveryId: input.deliveryId,
+            recorded: false,
+            failureAction: 'silent',
+            consecutiveFailures: streak.current,
+            status: input.status
+          }
+        }
         // The queue message's id resolves the row; the recorded payload keeps
         // the terminal row replayable, exactly like the Live adapter.
         recorded.push({
@@ -150,12 +125,11 @@ function stubEndpoints(
         streak.current = nextConsecutiveFailures(streak.current, input.status)
         return {
           deliveryId: input.deliveryId,
+          recorded: true,
+          failureAction: failureLadderAction(streak.current),
+          status: input.status,
           consecutiveFailures: streak.current
         }
-      }),
-    autoDisableEndpoint: (input) =>
-      Effect.sync(() => {
-        autoDisabled.push(input)
       })
   })
 }
@@ -214,7 +188,10 @@ describe('processWebhookMessage', () => {
       HttpClient.make((request) => {
         captured.request = request
         return Effect.succeed(
-          HttpClientResponse.fromWeb(request, new Response(null, { status }))
+          HttpClientResponse.fromWeb(
+            request,
+            new Response('receiver response', { status })
+          )
         )
       })
     )
@@ -234,7 +211,6 @@ describe('processWebhookMessage', () => {
     const recorded: Array<WebhookDeliveryAttemptInput> = []
     const created: Array<CreateNotificationInput> = []
     const ownerNotices: Array<NotifyWorkspaceOwnersInput> = []
-    const autoDisabled: Array<AutoDisableCall> = []
     const captured: CapturedRequest = {}
     const streak: StreakState = { current: startsAtStreak }
     return processWebhookMessage(
@@ -243,7 +219,7 @@ describe('processWebhookMessage', () => {
     ).pipe(
       Effect.provide(
         Layer.mergeAll(
-          stubEndpoints(dispatchTarget, recorded, autoDisabled, streak),
+          stubEndpoints(dispatchTarget, recorded, streak),
           stubFeed(created, ownerNotices),
           stubHttp(status, captured)
         )
@@ -253,7 +229,6 @@ describe('processWebhookMessage', () => {
         recorded,
         created,
         ownerNotices,
-        autoDisabled,
         captured,
         streak: streak.current
       }))
@@ -274,20 +249,21 @@ describe('processWebhookMessage', () => {
         // Operator evidence: what was sent...
         payload: { hello: 'world' },
         requestHeaders: {
-          'x-b2b-starter-event': 'api_token.created'
+          'webhook-id': 'whd_qmsg_1'
         }
       })
       const headers: Record<string, string | undefined> =
         captured.request?.headers ?? {}
-      expect(headers['x-b2b-starter-event']).toBe('api_token.created')
-      expect(headers['x-b2b-starter-signature']).toMatch(/^t=\d+,sha256=[0-9a-f]{64}$/)
+      expect(headers['webhook-id']).toBe('whd_qmsg_1')
+      expect(headers['webhook-signature']).toMatch(/^v1,[A-Za-z0-9+/]{43}=$/)
       expect(headers['x-trace-id']).toBe('trace-test')
       // The exact header block the consumer recorded is the one it posted.
-      expect(recorded[0]?.requestHeaders?.['x-b2b-starter-signature']).toBe(
-        headers['x-b2b-starter-signature']
+      expect(recorded[0]?.requestHeaders?.['webhook-signature']).toBe(
+        headers['webhook-signature']
       )
-      // A null response body records the empty string, not a fabricated one.
-      expect(recorded[0]?.responseBody).toBe('')
+      expect(recorded[0]?.responseBody).toBe('receiver response')
+      expect(recorded[0]?.durationMs).toBeGreaterThanOrEqual(0)
+      expect(recorded[0]?.failureReason).toBeNull()
     })
   )
 
@@ -297,9 +273,9 @@ describe('processWebhookMessage', () => {
       expect(outcome).toBe('ack')
       const headers: Record<string, string | undefined> =
         captured.request?.headers ?? {}
-      const header = headers['x-b2b-starter-signature'] ?? ''
+      const header = headers['webhook-signature'] ?? ''
       // Two entries: the current secret signs first, the replaced one second.
-      const entries = header.split(',').filter((part) => part.startsWith('sha256='))
+      const entries = header.split(' ')
       expect(entries).toHaveLength(2)
       // Recompute both signatures over the exact bytes the request carried.
       const requestBody = captured.request?.body
@@ -308,21 +284,23 @@ describe('processWebhookMessage', () => {
       if (requestBody?._tag === 'Uint8Array') {
         bodyText = new TextDecoder().decode(requestBody.body)
       }
-      const timestamp = Number(header.match(/^t=(\d+)/)?.[1])
+      const timestamp = Number(headers['webhook-timestamp'])
       const expectedFirst = yield* computeWebhookSignature(
-        'whsec_new',
+        'whsec_bmV3X3NlY3JldA==',
+        headers['webhook-id'] ?? '',
         timestamp,
         bodyText
       )
       const expectedSecond = yield* computeWebhookSignature(
-        'whsec_old',
+        'whsec_b2xkX3NlY3JldA==',
+        headers['webhook-id'] ?? '',
         timestamp,
         bodyText
       )
-      expect(entries[0]).toBe(`sha256=${expectedFirst}`)
-      expect(entries[1]).toBe(`sha256=${expectedSecond}`)
+      expect(entries[0]).toBe(`v1,${expectedFirst}`)
+      expect(entries[1]).toBe(`v1,${expectedSecond}`)
       // The recorded evidence carries the same dual-signature header.
-      expect(recorded[0]?.requestHeaders?.['x-b2b-starter-signature']).toBe(header)
+      expect(recorded[0]?.requestHeaders?.['webhook-signature']).toBe(header)
     })
   )
 
@@ -330,27 +308,34 @@ describe('processWebhookMessage', () => {
     Effect.gen(function* () {
       const { outcome, recorded } = yield* run(target, 500, 2)
       expect(outcome).toBe('retry')
-      expect(recorded[0]).toMatchObject({ status: 'failed', responseStatus: 500 })
+      expect(recorded[0]).toMatchObject({
+        status: 'failed',
+        responseStatus: 500,
+        failureReason: 'Receiver returned HTTP 500'
+      })
+      expect(recorded[0]?.durationMs).toBeGreaterThanOrEqual(0)
       expect(recorded[0]?.nextAttemptAt).toBeTruthy()
     })
   )
 
-  it.effect('derives one stable deliveryId per queue message across redeliveries', () =>
-    Effect.gen(function* () {
-      // Two independent runs stand in for attempt 1 and its redelivery: the
-      // envelope id is the identity, so both must persist — and sign — the
-      // same deliveryId even though each run is a fresh invocation.
-      const firstAttempt = yield* run(target, 500, 1, message, 'qmsg_1')
-      const redelivery = yield* run(target, 200, 2, message, 'qmsg_1')
-      expect(firstAttempt.recorded[0]?.id).toBe('whd_qmsg_1')
-      expect(redelivery.recorded[0]?.id).toBe('whd_qmsg_1')
-      // The signed body carries the same id it persists (same variable in
-      // processWebhookMessage), so receiver dedup on the body's deliveryId
-      // collapses both attempts.
-    })
+  it.effect(
+    'uses the producer identity across redeliveries with different platform IDs',
+    () =>
+      Effect.gen(function* () {
+        // Two independent runs stand in for attempt 1 and its redelivery: the
+        // envelope id is the identity, so both must persist — and sign — the
+        // same deliveryId even though each run is a fresh invocation.
+        const firstAttempt = yield* run(target, 500, 1, message, 'qmsg_1')
+        const redelivery = yield* run(target, 200, 2, message, 'qmsg_changed')
+        expect(firstAttempt.recorded[0]?.id).toBe('whd_qmsg_1')
+        expect(redelivery.recorded[0]?.id).toBe('whd_qmsg_1')
+        // The signed body carries the same id it persists (same variable in
+        // processWebhookMessage), so receiver dedup on the body's deliveryId
+        // collapses both attempts.
+      })
   )
 
-  it.effect('prefers the deliveryId an operator dispatch stamped on the message', () =>
+  it.effect('uses the new identity stamped on a manual replay', () =>
     Effect.gen(function* () {
       // A replay's pending row exists before the message is enqueued; the
       // consumer must resolve that row, not mint a queue-derived one.
@@ -394,7 +379,6 @@ describe('processWebhookMessage', () => {
       // Nor does a fresh failure reach a ladder rung: nothing is escalated.
       expect(delivered.ownerNotices).toHaveLength(0)
       expect(retried.ownerNotices).toHaveLength(0)
-      expect(retried.autoDisabled).toHaveLength(0)
     })
   )
 
@@ -402,7 +386,7 @@ describe('processWebhookMessage', () => {
     Effect.gen(function* () {
       // The endpoint already failed four deliveries; this attempt's failure
       // lands on the first rung (ADR 0062 addendum's failure ladder).
-      const { outcome, streak, ownerNotices, autoDisabled } = yield* run(
+      const { outcome, streak, ownerNotices } = yield* run(
         target,
         500,
         1,
@@ -412,7 +396,6 @@ describe('processWebhookMessage', () => {
       )
       expect(outcome).toBe('retry')
       expect(streak).toBe(5)
-      expect(autoDisabled).toHaveLength(0)
       expect(ownerNotices).toHaveLength(1)
       expect(ownerNotices[0]).toMatchObject({
         workspaceId: 'ws_1',
@@ -428,7 +411,7 @@ describe('processWebhookMessage', () => {
     Effect.gen(function* () {
       // A streak standing at 4 meets a delivered attempt: the reset erases
       // the climb, so the next failure starts from zero, not from 5.
-      const { outcome, streak, created, ownerNotices, autoDisabled } = yield* run(
+      const { outcome, streak, created, ownerNotices } = yield* run(
         target,
         200,
         1,
@@ -440,7 +423,6 @@ describe('processWebhookMessage', () => {
       expect(streak).toBe(0)
       expect(created).toHaveLength(0)
       expect(ownerNotices).toHaveLength(0)
-      expect(autoDisabled).toHaveLength(0)
     })
   )
 
@@ -455,11 +437,11 @@ describe('processWebhookMessage', () => {
     })
   )
 
-  it.effect('auto-disables the endpoint at the twentieth consecutive failure', () =>
+  it.effect('notifies owners after the capability records the disable threshold', () =>
     Effect.gen(function* () {
       // Nineteen failures already climbed; this attempt is the one that
       // trips the disable rung.
-      const { outcome, streak, autoDisabled, ownerNotices } = yield* run(
+      const { outcome, streak, ownerNotices } = yield* run(
         target,
         500,
         1,
@@ -469,9 +451,6 @@ describe('processWebhookMessage', () => {
       )
       expect(outcome).toBe('retry')
       expect(streak).toBe(20)
-      expect(autoDisabled).toEqual([
-        { endpointId: 'wh_1', workspaceId: 'ws_1', consecutiveFailures: 20 }
-      ])
       // The threshold rung also notifies, naming what happened.
       expect(ownerNotices).toHaveLength(1)
       expect(ownerNotices[0]?.title).toBe('Webhook endpoint auto-disabled')
@@ -479,11 +458,15 @@ describe('processWebhookMessage', () => {
     })
   )
 
-  it.effect('acks a disabled endpoint without recording an attempt', () =>
+  it.effect('records a disabled endpoint outcome without dispatching', () =>
     Effect.gen(function* () {
       const { outcome, recorded, captured } = yield* run(null, 200)
       expect(outcome).toBe('ack')
-      expect(recorded).toHaveLength(0)
+      expect(recorded[0]).toMatchObject({
+        status: 'failed_permanent',
+        failureReason: 'Endpoint is disabled or no longer available',
+        responseStatus: null
+      })
       expect(captured.request).toBeUndefined()
     })
   )
@@ -501,7 +484,7 @@ describe('processWebhookMessage', () => {
   )
 
   it.effect(
-    'treats a message without a workspaceId as malformed (legacy in-flight shape)',
+    'treats a message without a workspaceId as malformed at the queue boundary',
     () =>
       Effect.gen(function* () {
         const { outcome, recorded, captured } = yield* run(target, 200, 1, {
@@ -547,7 +530,6 @@ describe('processWebhookMessage', () => {
 describe('processDeadLetterMessage', () => {
   function runDeadLetter(input: unknown, attempts = 4, startsAtStreak = 0) {
     const recorded: Array<WebhookDeliveryAttemptInput> = []
-    const autoDisabled: Array<AutoDisableCall> = []
     const ownerNotices: Array<NotifyWorkspaceOwnersInput> = []
     const streak: StreakState = { current: startsAtStreak }
     return processDeadLetterMessage(
@@ -555,17 +537,17 @@ describe('processDeadLetterMessage', () => {
     ).pipe(
       Effect.provide(
         Layer.mergeAll(
-          stubEndpoints(target, recorded, autoDisabled, streak),
+          stubEndpoints(target, recorded, streak),
           stubFeed([], ownerNotices)
         )
       ),
-      Effect.map(() => ({ recorded, autoDisabled, ownerNotices }))
+      Effect.map(() => ({ recorded, ownerNotices }))
     )
   }
 
   it.effect('records a dead_lettered row carrying the audit workspace id', () =>
     Effect.gen(function* () {
-      const { recorded, autoDisabled } = yield* runDeadLetter(message)
+      const { recorded } = yield* runDeadLetter(message)
       expect(recorded).toHaveLength(1)
       expect(recorded[0]).toMatchObject({
         endpointId: 'wh_1',
@@ -577,18 +559,14 @@ describe('processDeadLetterMessage', () => {
         nextAttemptAt: null
       })
       // A first failure on the streak: no rung, no disable.
-      expect(autoDisabled).toHaveLength(0)
     })
   )
 
-  it.effect('a dead letter landing on the threshold disables the endpoint', () =>
+  it.effect('notifies owners when a dead letter reaches the disable threshold', () =>
     Effect.gen(function* () {
       // The exhausted message's terminal write is the streak's twentieth
       // failure — the ladder must react on the dead-letter path too.
-      const { autoDisabled, ownerNotices } = yield* runDeadLetter(message, 4, 19)
-      expect(autoDisabled).toEqual([
-        { endpointId: 'wh_1', workspaceId: 'ws_1', consecutiveFailures: 20 }
-      ])
+      const { ownerNotices } = yield* runDeadLetter(message, 4, 19)
       expect(ownerNotices).toHaveLength(1)
       expect(ownerNotices[0]?.title).toBe('Webhook endpoint auto-disabled')
     })

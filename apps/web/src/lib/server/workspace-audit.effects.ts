@@ -43,11 +43,16 @@ export async function loadWorkspaceAuditEventsHandler(
         // No second gate here: the hard `auditLog` read above already decided
         // who reaches this payload (owner/admin only), and the role table has no
         // separate member-list statement to compose.
-        const [page, members] = yield* Effect.all(
-          [log.list(listInput), membership.listMembers],
+        const [page, members, selectedEvent] = yield* Effect.all(
+          [
+            log.list(listInput),
+            membership.listMembers,
+            input.event ? log.get(input.event) : Effect.succeed(null)
+          ],
           { concurrency: 'unbounded' }
         )
         return {
+          selectedEvent,
           events: page.items,
           nextCursor: page.nextCursor,
           filters: input.filters,

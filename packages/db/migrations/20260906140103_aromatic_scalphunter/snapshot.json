@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "0972968f-222d-4dd3-b5a6-810f50f464c5",
+  "id": "03f7a775-6bc2-4d8c-83f8-9aec0f135f06",
   "prevIds": ["0216768d-5b7d-4522-9536-8eadb44bd7f4"],
   "ddl": [
     {
@@ -315,6 +315,26 @@
       "default": null,
       "generated": null,
       "name": "last_used_at",
+      "entityType": "columns",
+      "table": "api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "expires_at",
+      "entityType": "columns",
+      "table": "api_tokens"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "replaced_by_token_id",
       "entityType": "columns",
       "table": "api_tokens"
     },
@@ -1225,16 +1245,6 @@
       "default": null,
       "generated": null,
       "name": "id",
-      "entityType": "columns",
-      "table": "oauth_consent"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "0",
-      "generated": null,
-      "name": "grant_version",
       "entityType": "columns",
       "table": "oauth_consent"
     },

@@ -25,6 +25,7 @@ export const AUDIT_EVENT_TYPES = [
   // developer-platform
   'api_token.created',
   'api_token.revoked',
+  'api_token.replaced',
   'webhook_endpoint.created',
   'webhook_endpoint.updated',
   'webhook_endpoint.deleted',

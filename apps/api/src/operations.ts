@@ -11,6 +11,8 @@ import { WorkspaceExportNotDownloadable } from '@b2b-saas-starter/api/errors'
 import { type Principal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
+  type InvalidApiTokenInput,
+  type ApiTokenNotRotatable,
   type CapabilityUnavailable,
   type PlanLimitExceeded,
   type WorkspaceNotFound
@@ -75,7 +77,7 @@ type ReadOperationEndpoint = keyof typeof WorkspaceApi.endpoints
 
 /**
  * The one path parameter an operation can take besides `:slug`: a whole-
- * collection read takes none, the deliveries read addresses one endpoint, and
+ * collection read takes none, delivery reads address an endpoint or a delivery, and
  * a mutation addresses the row its path names (`tokenId`, `endpointId`,
  * `deliveryId`, `exportId`).
  */
@@ -114,7 +116,10 @@ export type CollectionReadOperation = {
   readonly toolDescription: string
 }
 
-export type ParameterizedReadOperation = {
+export type ParameterizedReadOperation<
+  Key extends 'endpointId' | 'deliveryId' = 'endpointId'
+> = {
+  readonly input: Key
   readonly mcpTool: true
   readonly endpoint: HttpApiEndpoint.Top
   readonly permission: PermissionRequest
@@ -122,12 +127,12 @@ export type ParameterizedReadOperation = {
   /**
    * The page input rides along for a uniform call shape; the deliveries read
    * is capped by the capability (the 20 newest), not paged, and ignores it.
-   * The endpoint id is required — a missing value is a caller bug, not an
+   * The path id is required — a missing value is a caller bug, not an
    * empty string to query with.
    */
   readonly read: (
     page: ListPageInput | undefined,
-    args: { readonly endpointId: string }
+    args: Readonly<Record<Key, string>>
   ) => CapabilityRead
   readonly toolName: string
   readonly toolDescription: string
@@ -136,6 +141,7 @@ export type ParameterizedReadOperation = {
 export type WorkspaceReadOperation =
   | CollectionReadOperation
   | ParameterizedReadOperation
+  | ParameterizedReadOperation<'deliveryId'>
 
 /**
  * The OpenAPI-style path of the mirrored REST route — `:endpointId` becomes
@@ -214,6 +220,7 @@ export const READ_OPERATIONS = {
     mcpTool: true,
     endpoint: WorkspaceApi.endpoints['webhook-deliveries'],
     permission: { webhook: ['list'] },
+    input: 'endpointId',
     param: { sample: 'wh_release' },
     read: (_page, args) =>
       Effect.flatMap(WebhookEndpoints, (webhooks) =>
@@ -222,6 +229,20 @@ export const READ_OPERATIONS = {
     toolName: 'list_webhook_deliveries',
     toolDescription:
       'List recent deliveries for one webhook endpoint, newest first, with response status and recorded evidence.'
+  },
+  'webhook-delivery-attempts': {
+    mcpTool: true,
+    endpoint: WorkspaceApi.endpoints['webhook-delivery-attempts'],
+    permission: { webhook: ['list'] },
+    input: 'deliveryId',
+    param: { sample: 'whd_seed_failed' },
+    read: (_page, args) =>
+      Effect.flatMap(WebhookEndpoints, (webhooks) =>
+        webhooks.listDeliveryAttempts({ deliveryId: args.deliveryId })
+      ),
+    toolName: 'list_webhook_delivery_attempts',
+    toolDescription:
+      'Read retained attempts for one delivery, in attempt order, with bounded request and response evidence.'
   },
   'audit-events': {
     mcpTool: true,
@@ -242,6 +263,8 @@ export function readOperations(): ReadonlyArray<WorkspaceReadOperation> {
 /** Expected mutation failures; each concrete row retains its inferred subset. */
 export type CapabilityMutationError =
   | AuthorizationDenied
+  | InvalidApiTokenInput
+  | ApiTokenNotRotatable
   | CapabilityUnavailable
   | PlanLimitExceeded
   | InvalidWebhookUrl
@@ -320,16 +343,36 @@ export const MUTATION_OPERATIONS = {
       Effect.gen(function* () {
         yield* requireTokenScopes(yield* OperationPrincipal, options.payload.scopes)
         const tokens = yield* ApiTokenRegistry
-        const created = yield* tokens.create({
-          name: options.payload.name,
-          scopes: options.payload.scopes
-        })
+        const created = yield* tokens.create(options.payload)
         yield* Effect.annotateLogsScoped({
           tokenId: created.id,
           tokenScopes: created.scopes
         })
         return created
       }),
+    mcpTool: true
+  },
+  'api-tokens.replace': {
+    endpoint: ApiTokenApi.endpoints.replace,
+    permission: { apiToken: ['create'] },
+    param: { sample: 'tok_docs' },
+    samplePayload: { scopes: ['read'], overlapSeconds: 3600 },
+    run: (options: OperationInput<typeof ApiTokenApi.endpoints.replace>) =>
+      Effect.gen(function* () {
+        yield* requireTokenScopes(yield* OperationPrincipal, options.payload.scopes)
+        const tokens = yield* ApiTokenRegistry
+        const replaced = yield* tokens.replace({
+          tokenId: options.params.tokenId,
+          ...options.payload
+        })
+        yield* Effect.annotateLogsScoped({
+          tokenId: replaced.id,
+          previousTokenId: replaced.previousTokenId,
+          tokenScopes: replaced.scopes
+        })
+        return replaced
+      }),
+    // Replacement shares the one-time reveal and caller-grant guard with create.
     mcpTool: true
   },
   // Revoking an unknown id answers `revoked` all the same: the capability

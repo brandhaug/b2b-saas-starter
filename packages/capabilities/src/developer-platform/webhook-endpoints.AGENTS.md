@@ -12,11 +12,11 @@ Webhook destinations and tooling; background dispatch uses [`webhook-publisher`]
 - Rotation keeps the replaced secret signing for 24h; `activeSigningSecrets` filters expiry lazily.
 - Background lookups use `(endpointId, workspaceId)` from the queue. Dispatch targets return all active signing secrets.
 - Dead letters record broadcast notifications, worded by `deadLetterNotification`.
-- Failure attempts batch the streak with the delivery; auto-disable batches its audit and skips zero matches. The delivery plan owns the counter transition, reaction, and notification copy; the consumer executes them.
+- Accepted failures batch the streak and threshold disable with the attempt; the worker only sends best-effort warnings for accepted results. Terminal bookkeeping after HTTP failures does not count another dispatch failure.
 
 ## Patterns & Pitfalls
 
-- The state machine lives in `webhook-delivery-plan.ts`. Attempt upserts change attempt state only: payload and replay provenance are insert-only; absent evidence preserves the previous attempt's evidence.
+- `webhook-attempt-history.live.ts` atomically accepts immutable attempt observations, advances summaries, moves failure streaks, and auto-disables with guarded audits. Duplicate and late observations cannot repeat these effects. Read ADR 0073 before changing acceptance order or identity.
 - Global paging uses `(lastAttemptAt DESC, id DESC)`, with null times last in both adapters. Admin replay requires a terminal source and enabled endpoint. Queue failures remain visible after the pending copy commits.
 - Signing secrets are plaintext in D1 by design (HMAC needs them back); only `rotateSecret` and `getDispatchTarget` return them.
 
@@ -25,4 +25,6 @@ Webhook destinations and tooling; background dispatch uses [`webhook-publisher`]
 - No dispatch from a request path, no in-place delivery mutation to replay, no `successRate` recomputed in a route.
 - Every mutation's where clause carries `workspaceId`, never the endpoint id alone (regression test in `src/index.test.ts`).
 
-> TODO(intent): keyset paging for deliveries, a per-attempt timeline, `lastDeliveryAt` on the list projection.
+> TODO(intent): keyset paging for delivery summaries, `lastDeliveryAt` on the list projection.
+
+- `listDeliveryAttempts` joins through the delivery and endpoint to enforce workspace ownership. `cleanupDeliveryHistory` removes a bounded expired-summary batch; attempts cascade. Seed mirrors both.

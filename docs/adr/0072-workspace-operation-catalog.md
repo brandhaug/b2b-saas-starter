@@ -61,20 +61,21 @@ write bucket. No mutation receives automatic retries.
 
 ## Exposed mutations
 
-The ten existing workspace mutations are available as follows.
+The eleven existing workspace mutations are available as follows.
 
-| Operation                         | MCP tool                             | Result and side effects                                                                   |
-| --------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `api-tokens.create`               | `create_api_token`                   | One-time plaintext token; audited, with best-effort webhook publication                   |
-| `api-tokens.delete`               | `delete_api_token`                   | Revokes a token; repeated or unknown IDs return revoked without a second audit or webhook |
-| `webhooks.create`                 | `create_webhook`                     | Endpoint metadata; audited, with best-effort webhook publication                          |
-| `webhooks.update`                 | `update_webhook`                     | Changes URL, subscriptions, or enabled state; audited                                     |
-| `webhooks.delete`                 | `delete_webhook`                     | Removes endpoint data; audited; missing endpoints are refused                             |
-| `webhooks.rotate-secret`          | `rotate_webhook_secret`              | Returns the new signing secret once; audited; old secret has 24 hours of grace            |
-| `webhooks.test-event`             | `send_webhook_test_event`            | Saves a pending delivery and enqueues an external send                                    |
-| `webhooks.replay-delivery`        | `replay_webhook_delivery`            | Saves an audited pending copy and enqueues another external send                          |
-| `workspace-exports.request`       | `request_workspace_export`           | Saves an audited job, enqueues the archive, and notifies on completion                    |
-| `workspace-exports.download-link` | `get_workspace_export_download_link` | Returns a signed URL expiring within 15 minutes, capped by artifact retention             |
+| Operation                         | MCP tool                             | Result and side effects                                                                                     |
+| --------------------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `api-tokens.create`               | `create_api_token`                   | One-time plaintext token; audited, with best-effort webhook publication                                     |
+| `api-tokens.replace`              | `replace_api_token`                  | One-time replacement token with narrowed scopes/expiry and bounded old-token overlap; audited and published |
+| `api-tokens.delete`               | `delete_api_token`                   | Revokes a token; repeated or unknown IDs return revoked without a second audit or webhook                   |
+| `webhooks.create`                 | `create_webhook`                     | Endpoint metadata; audited, with best-effort webhook publication                                            |
+| `webhooks.update`                 | `update_webhook`                     | Changes URL, subscriptions, or enabled state; audited                                                       |
+| `webhooks.delete`                 | `delete_webhook`                     | Removes endpoint data; audited; missing endpoints are refused                                               |
+| `webhooks.rotate-secret`          | `rotate_webhook_secret`              | Returns the new signing secret once; audited; old secret has 24 hours of grace                              |
+| `webhooks.test-event`             | `send_webhook_test_event`            | Saves a pending delivery and enqueues an external send                                                      |
+| `webhooks.replay-delivery`        | `replay_webhook_delivery`            | Saves an audited pending copy and enqueues another external send                                            |
+| `workspace-exports.request`       | `request_workspace_export`           | Saves an audited job, enqueues the archive, and notifies on completion                                      |
+| `workspace-exports.download-link` | `get_workspace_export_download_link` | Returns a signed URL expiring within 15 minutes, capped by artifact retention                               |
 
 Webhook creation's existing REST response omits the initial signing secret.
 MCP preserves that response. Rotate the secret to obtain a usable signing
@@ -91,7 +92,7 @@ the capabilities.
 All write tools declare all four supported annotations. Only API-token
 revocation claims idempotency, because a second call has no further audit or
 publication. Other mutations conservatively decline that hint. Deletion,
-endpoint updates, and rotation carry the destructive hint. All writes carry
+token replacement, endpoint updates, and rotation carry the destructive hint. All writes carry
 `openWorldHint`, including operations that affect credentials, outbound
 webhooks, queued work, or downloadable data. These are client hints, not access
 control or a guarantee of human approval. No confirmation-token service exists.

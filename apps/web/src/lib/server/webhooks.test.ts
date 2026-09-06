@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { fixtureSession } from '@/test/fixture-session'
 import {
   loadWorkspaceWebhooksHandler,
+  listWebhookDeliveryAttemptsHandler,
   replayWebhookDeliveryHandler,
   rotateWebhookSecretHandler,
   sendTestEventHandler,
@@ -95,7 +96,7 @@ describe('rotateWebhookSecretHandler', () => {
         workspaceSlug: 'starter-lab',
         endpointId: 'wh_release'
       })
-    ).resolves.toBe('whsec_seed_rotated')
+    ).resolves.toMatch(/^whsec_[A-Za-z0-9+/]{43}=$/)
   })
 
   it('denies a plain member — webhook:rotateSecret is withheld from member', async () => {
@@ -192,5 +193,41 @@ describe('updateWebhookEndpointHandler — the mutating case', () => {
       enabled: false
     })
     expect(endpoint).toMatchObject({ id: 'wh_release', enabled: false })
+  })
+})
+
+describe('listWebhookDeliveryAttemptsHandler', () => {
+  beforeEach(() => {
+    actor.userId = OWNER
+  })
+
+  it('reads retained evidence for a workspace delivery', async () => {
+    const attempts = await listWebhookDeliveryAttemptsHandler({
+      workspaceSlug: 'starter-lab',
+      deliveryId: 'whd_seed_failed'
+    })
+    expect(attempts.length).toBeGreaterThan(0)
+    expect(attempts.every((attempt) => attempt.deliveryId === 'whd_seed_failed')).toBe(
+      true
+    )
+  })
+
+  it('does not reveal evidence to a member without webhook:list', async () => {
+    actor.userId = MEMBER
+    await expect(
+      listWebhookDeliveryAttemptsHandler({
+        workspaceSlug: 'starter-lab',
+        deliveryId: 'whd_seed_failed'
+      })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
+  })
+
+  it('returns no evidence for an unknown delivery', async () => {
+    await expect(
+      listWebhookDeliveryAttemptsHandler({
+        workspaceSlug: 'starter-lab',
+        deliveryId: 'whd_foreign'
+      })
+    ).resolves.toEqual([])
   })
 })

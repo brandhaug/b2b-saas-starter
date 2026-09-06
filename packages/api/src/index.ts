@@ -3,11 +3,15 @@ import {
   ApiToken,
   type ApiTokenRegistry as ApiTokenRegistryService,
   CreatedApiTokenSchema,
-  CreateApiTokenPayload
+  CreateApiTokenPayload,
+  ReplaceApiTokenPayload,
+  ReplacedApiTokenSchema
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   CapabilityUnavailable,
+  InvalidApiTokenInput,
+  ApiTokenNotRotatable,
   PlanLimitExceeded,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
@@ -19,7 +23,10 @@ import {
   WebhookEndpointNotFound,
   WebhookDeliveryNotFound
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import {
+  WebhookDelivery,
+  WebhookDeliveryAttempt
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import { WorkspaceExport } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import {
@@ -268,6 +275,17 @@ export const WorkspaceApi = HttpApiGroup.make('workspace')
     )
   )
   .add(
+    HttpApiEndpoint.get(
+      'webhook-delivery-attempts',
+      '/workspaces/:slug/webhooks/deliveries/:deliveryId/attempts',
+      {
+        params: DeliveryParams,
+        success: Schema.Array(WebhookDeliveryAttempt),
+        error: WORKSPACE_ERRORS
+      }
+    )
+  )
+  .add(
     HttpApiEndpoint.get('audit-events', '/workspaces/:slug/audit-events', {
       params: SlugParams,
       query: ListPageQuery,
@@ -300,7 +318,15 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
       params: SlugParams,
       payload: CreateApiTokenPayload,
       success: CreatedApiTokenSchema.pipe(HttpApiSchema.status(201)),
-      error: [PlanLimitExceeded, ...WORKSPACE_ERRORS]
+      error: [InvalidApiTokenInput, PlanLimitExceeded, ...WORKSPACE_ERRORS]
+    })
+  )
+  .add(
+    HttpApiEndpoint.post('replace', '/workspaces/:slug/api-tokens/:tokenId/replace', {
+      params: TokenIdParams,
+      payload: ReplaceApiTokenPayload,
+      success: ReplacedApiTokenSchema.pipe(HttpApiSchema.status(201)),
+      error: [InvalidApiTokenInput, ApiTokenNotRotatable, ...WORKSPACE_ERRORS]
     })
   )
   .add(

@@ -11,6 +11,8 @@ const token: ApiToken = {
   prefix: 'bsk_live_abcdefgh',
   scopes: ['read'],
   lastUsedAt: null,
+  expiresAt: null,
+  replacedByTokenId: null,
   createdAt: '2026-05-16T09:00:00.000Z'
 }
 
@@ -65,7 +67,7 @@ describe('ApiTokensPanel', () => {
 
   it('shows the empty state with no tokens', async () => {
     await renderPanel({ role: 'owner', tokens: [] })
-    expect(screen.getByText('No active tokens')).toBeTruthy()
+    expect(screen.getByText('No tokens')).toBeTruthy()
   })
 
   it('revokes on the second click and reports a failure once', async () => {
@@ -80,4 +82,15 @@ describe('ApiTokensPanel', () => {
       data: { workspaceSlug: 'starter-lab', tokenId: 'tok_ci' }
     })
   })
+})
+
+it('shows expired and replaced tokens without offering another replacement', async () => {
+  await renderPanel({
+    role: 'owner',
+    tokens: [
+      { ...token, expiresAt: '2000-01-01T00:00:00.000Z', replacedByTokenId: 'tok_new' }
+    ]
+  })
+  expect(screen.getByText(/Expired.*Replacement issued/)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull()
 })
