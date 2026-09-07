@@ -89,7 +89,8 @@ function run(mode: 'preview' | 'execute', overrides: Partial<RetentionPolicy> = 
   })
 }
 
-describe('retention on D1', () => {
+// Every case starts workerd and applies the real migrations before scanning D1.
+describe('retention on D1', { timeout: 30_000 }, () => {
   it.effect(
     'AC2: audit expiry and completed billing metadata preserve unrelated and unfinished records',
     () =>
