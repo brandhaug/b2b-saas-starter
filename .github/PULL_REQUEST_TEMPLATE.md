@@ -1,14 +1,22 @@
-## What
+<!-- Describe the final diff for a reviewer without the agent conversation. Remove prompts and empty optional sections. -->
 
-<!-- What does this PR change, and why? Link the issue if one exists. -->
+## Outcome
 
-## Checklist
+<!-- Link the issue/spec. Explain the problem and resulting behavior; map acceptance criteria to evidence or gaps. -->
 
-- [ ] `pnpm run check` and `pnpm run build` pass locally
-- [ ] Tests added or updated for behavioural changes
-- [ ] [CONTEXT.md](../CONTEXT.md) updated if new domain language was introduced
-- [ ] ADR added under [docs/adr](../docs/adr) if this is an architectural decision
+## Decisions
 
-## Notes for reviewers
+<!-- Optional: consequential assumptions, scope deviations, or trade-offs. Link CONTEXT.md/ADR updates when applicable. -->
 
-<!-- Anything that needs extra attention: trade-offs, follow-ups, screenshots. -->
+## Validation
+
+<!--
+Name the tested revision. Report commands and observed results, including
+pnpm run validate or the checks run separately. Explain skipped/failed checks
+and distinguish local evidence from CI. Link relevant regression tests.
+For UI changes, include reproduction steps and screenshots or recordings.
+-->
+
+## Risks and remaining work
+
+<!-- State unverified behavior, unresolved findings, merge blockers, and any reset/reseed/setup steps. Write "None known" if there are none. -->

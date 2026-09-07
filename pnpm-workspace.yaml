@@ -79,6 +79,7 @@ catalog:
   effect: 4.0.0-rc.112
   effectful-better-auth: 1.0.0
   eslint-plugin-better-tailwindcss: 4.7.0
+  fallow: 3.22.0
   jsdom: 30.0.1
   jose: 6.2.10
   lucide-react: 1.40.0

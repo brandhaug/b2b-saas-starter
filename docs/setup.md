@@ -15,6 +15,20 @@ pnpm run dev
 
 Open <http://localhost:3071>. The `.env` defaults work out of the box — optional providers (Stripe, Sentry, PostHog, Turnstile, email, AI) stay inactive until you fill in their variables. The [optional providers guide](../apps/web/content/docs/getting-started/optional-providers.mdx) covers each provider: exact variables, where the values come from, and how to verify activation.
 
+## Validation
+
+Install Chromium once, then run the final validation command:
+
+```bash
+pnpm exec playwright install chromium
+pnpm run validate
+```
+
+Validation runs `check`, build, generated Wrangler drift detection, and E2E. It
+migrates and seeds the local demo database and needs process/port access for
+Workers D1. E2E starts a fresh server on port 3097; set `E2E_PORT` to an unused
+port when validating several worktrees concurrently.
+
 ## Database
 
 Local D1 runs through Wrangler's Miniflare, no Cloudflare account needed:
@@ -50,6 +64,11 @@ Restart `pnpm run dev` afterwards so the dev shim re-attaches the binding.
 `db:migrate:local` / `db:migrate:remote` run `packages/db/scripts/migrate.ts`, which applies drizzle-kit's folder-style migrations (`packages/db/migrations/<timestamp_name>/migration.sql`) through `wrangler d1 execute` and records them in a `d1_migrations` table so re-runs skip already-applied migrations. (Wrangler's own `d1 migrations apply` only understands flat `*.sql` files, so it cannot be used here.)
 
 For remote migrations (`pnpm run db:generate` against remote metadata and `pnpm run db:migrate:remote`), set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and `CLOUDFLARE_D1_TOKEN` in `.env` — see `packages/db/drizzle.config.ts`.
+
+## Agent skills
+
+The implementation workflow and its supporting skills are included in the repo.
+See [shared skills](./agents/skills.md) for discovery, licenses, and updates.
 
 ## Deploying
 

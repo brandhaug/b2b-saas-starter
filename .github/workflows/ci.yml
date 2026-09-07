@@ -11,6 +11,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  # Superseded PR commits should not consume a runner. Pushes to master keep
+  # their run because the production deploy job is part of this workflow.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -20,8 +26,8 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run lint
       # Dead-code regression gate (the `dead-code` step of `pnpm run check`).
-      # fallow is not a workspace dependency, so it comes from npm.
-      - run: npm install -g fallow@3
+      # Fallow is pinned in the workspace catalog so local and CI runs use the
+      # same analyzer binary.
       - run: pnpm run dead-code
       # The wrangler configs are generated from infra/bindings.ts. Regenerating
       # them must be a no-op; a hand-edited config (or a spec change nobody
@@ -64,6 +70,15 @@ jobs:
             fi
             if [ "$attempt" -lt "$attempts" ]; then
               echo "::warning::e2e run failed (attempt $attempt/$attempts) — retrying"
+              # Playwright clears its default output directories at the start
+              # of the next run. Preserve this attempt before retrying so the
+              # artifact contains failures from both outer attempts.
+              if [ -d apps/web/test-results ]; then
+                cp -R apps/web/test-results "apps/web/test-results-attempt-$attempt"
+              fi
+              if [ -d apps/web/playwright-report ]; then
+                cp -R apps/web/playwright-report "apps/web/playwright-report-attempt-$attempt"
+              fi
               # A timed-out webServer can leave the dev server or its workerd
               # child holding :3071; clear them so the retry starts clean
               # instead of tripping --strictPort immediately.
@@ -72,6 +87,18 @@ jobs:
             fi
           done
           exit 1
+      - name: Upload Playwright results and traces
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results-${{ github.run_attempt }}
+          path: |
+            apps/web/test-results
+            apps/web/test-results-attempt-*
+            apps/web/playwright-report
+            apps/web/playwright-report-attempt-*
+          if-no-files-found: ignore
+          retention-days: 14
 
   deploy:
     if: >-

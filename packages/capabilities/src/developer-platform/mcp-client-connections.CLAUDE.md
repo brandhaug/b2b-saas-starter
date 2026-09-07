@@ -1,0 +1,1 @@
+mcp-client-connections.AGENTS.md
