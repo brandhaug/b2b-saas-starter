@@ -1,4 +1,5 @@
-import { Effect, Option } from 'effect'
+import { DateTime, Effect, Option } from 'effect'
+import { TestClock } from 'effect/testing'
 import { describe, expect, layer } from '@effect/vitest'
 
 import { NotificationFeed } from '../notifications/notification-feed.ts'
@@ -10,6 +11,7 @@ import {
 import { AuditEventLog } from './audit-event-log.ts'
 import {
   WorkspaceExports,
+  WORKSPACE_EXPORT_RETENTION_DAYS,
   type WorkspaceExportBucketBinding,
   type WorkspaceExportQueueBinding,
   type WorkspaceExportQueueMessage
@@ -86,6 +88,79 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
   })
 
   describe('lifecycle', () => {
+    it.effect('refuses issue and open exactly at the artifact cutoff', () =>
+      Effect.gen(function* () {
+        const fixedNow = DateTime.makeUnsafe('2026-09-01T10:00:00.000Z')
+        yield* TestClock.setTime(DateTime.toEpochMillis(fixedNow))
+        const ports = stubPorts()
+        const bindings = { workspaceExports: ports.workspaceExports }
+        const requested = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => exports.request),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) =>
+            exports.complete({
+              exportId: requested.id,
+              workspaceId: 'wrk_live',
+              archive
+            })
+          ),
+          undefined,
+          bindings
+        )
+        const link = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) =>
+            exports.issueDownloadLink({ exportId: requested.id })
+          ),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        if (Option.isNone(link)) {
+          expect.fail('expected a link before the artifact cutoff')
+          return
+        }
+        const params = linkParams(link.value.path)
+        const cutoff = DateTime.addDuration(
+          fixedNow,
+          `${WORKSPACE_EXPORT_RETENTION_DAYS} days`
+        )
+        yield* TestClock.setTime(DateTime.toEpochMillis(cutoff))
+        expect(
+          Option.isNone(
+            yield* inWorkspace(
+              'live-lab',
+              Effect.flatMap(WorkspaceExports, (exports) =>
+                exports.issueDownloadLink({ exportId: requested.id })
+              ),
+              { userId: 'usr_owner' },
+              bindings
+            )
+          )
+        ).toBe(true)
+        expect(
+          Option.isNone(
+            yield* inWorkspace(
+              'live-lab',
+              Effect.flatMap(WorkspaceExports, (exports) =>
+                exports.openDownload({ exportId: requested.id, ...params })
+              ),
+              undefined,
+              bindings
+            )
+          )
+        ).toBe(true)
+        // Physical R2 cleanup is independent from the public validity cutoff.
+        expect(ports.objects.has(`workspaces/wrk_live/${requested.id}.json.gz`)).toBe(
+          true
+        )
+      })
+    )
+
     it.effect('requests, completes, links, downloads, and audits an export', () =>
       Effect.gen(function* () {
         const ports = stubPorts()
@@ -259,6 +334,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
 
     it.effect('marks a pending export failed once, and only in its own workspace', () =>
       Effect.gen(function* () {
+        const fixedNow = DateTime.makeUnsafe('2026-09-02T10:00:00.000Z')
+        yield* TestClock.setTime(DateTime.toEpochMillis(fixedNow))
         const ports = stubPorts()
         const bindings = { workspaceExports: ports.workspaceExports }
         const requested = yield* inWorkspace(
@@ -301,7 +378,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         )
         expect(listed.find((row) => row.id === requested.id)).toMatchObject({
           status: 'failed',
-          failureReason: 'workspace_not_found'
+          failureReason: 'workspace_not_found',
+          completedAt: DateTime.formatIso(fixedNow)
         })
         const twice = yield* inWorkspace(
           'live-lab',

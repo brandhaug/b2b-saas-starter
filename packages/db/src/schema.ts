@@ -181,7 +181,10 @@ export const session = sqliteTable(
     // will not.
     activeOrganizationId: text('activeOrganizationId')
   },
-  (table) => [index('session_user_id_idx').on(table.userId)]
+  (table) => [
+    index('session_user_id_idx').on(table.userId),
+    index('session_expiry_idx').on(table.expiresAt, table.id)
+  ]
 )
 
 export const account = sqliteTable(
@@ -222,7 +225,10 @@ export const verification = sqliteTable(
     expiresAt: integer('expiresAt', { mode: 'timestamp' }).notNull(),
     ...authTimestamps()
   },
-  (table) => [index('verification_identifier_idx').on(table.identifier)]
+  (table) => [
+    index('verification_identifier_idx').on(table.identifier),
+    index('verification_expiry_idx').on(table.expiresAt, table.id)
+  ]
 )
 
 // Owned by Better Auth's `twoFactor` plugin — the export key must stay the
@@ -352,6 +358,8 @@ export const workspaceInvitations = sqliteTable(
     status: text('status', { enum: invitationStatuses }).default('pending').notNull(),
     expiresAt: integer('expiresAt', { mode: 'timestamp' }).notNull(),
     createdAt: authCreatedAt(),
+    // Database triggers stamp plugin-owned terminal transitions atomically.
+    terminalAt: integer('terminalAt', { mode: 'timestamp' }),
     inviterId: text('inviterId')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' })
@@ -359,7 +367,11 @@ export const workspaceInvitations = sqliteTable(
   (table) => [
     workspaceIdIndex('workspace_invitations', table.workspaceId),
     index('workspace_invitations_email_idx').on(table.email),
-    index('workspace_invitations_inviter_id_idx').on(table.inviterId)
+    index('workspace_invitations_inviter_id_idx').on(table.inviterId),
+    index('workspace_invitations_retention_idx').on(
+      sql`CASE WHEN status = 'pending' THEN expiresAt ELSE terminalAt END`,
+      table.id
+    )
   ]
 )
 
@@ -429,7 +441,12 @@ export const apiTokens = sqliteTable(
   },
   (table) => [
     workspaceIdIndex('api_tokens', table.workspaceId),
-    index('api_tokens_created_by_user_id_idx').on(table.createdByUserId)
+    index('api_tokens_created_by_user_id_idx').on(table.createdByUserId),
+    index('api_tokens_replaced_by_idx').on(table.replacedByTokenId),
+    index('api_tokens_retention_idx').on(
+      sql`CASE WHEN revoked_at IS NULL THEN expires_at WHEN expires_at IS NULL THEN revoked_at ELSE min(revoked_at, expires_at) END`,
+      table.id
+    )
   ]
 )
 
@@ -461,7 +478,13 @@ export const webhookEndpoints = sqliteTable(
     events: text('events', { mode: 'json' }).$type<ReadonlyArray<string>>().notNull(),
     createdAt: isoCreatedAt()
   },
-  (table) => [workspaceIdIndex('webhook_endpoints', table.workspaceId)]
+  (table) => [
+    workspaceIdIndex('webhook_endpoints', table.workspaceId),
+    index('webhook_endpoints_previous_secret_idx').on(
+      table.previousSecretExpiresAt,
+      table.id
+    )
+  ]
 )
 
 export const webhookDeliveries = sqliteTable(
@@ -494,7 +517,12 @@ export const webhookDeliveries = sqliteTable(
   },
   (table) => [
     index('webhook_deliveries_endpoint_id_idx').on(table.endpointId),
-    index('webhook_deliveries_retention_idx').on(table.lastAttemptAt, table.id)
+    index('webhook_deliveries_retention_idx').on(table.lastAttemptAt, table.id),
+    index('webhook_deliveries_recovery_idx').on(
+      table.status,
+      table.lastAttemptAt,
+      table.id
+    )
   ]
 )
 
@@ -547,7 +575,10 @@ export const notifications = sqliteTable(
     readAt: text('read_at'),
     createdAt: isoCreatedAt()
   },
-  (table) => [workspaceIdIndex('notifications', table.workspaceId)]
+  (table) => [
+    workspaceIdIndex('notifications', table.workspaceId),
+    index('notifications_retention_idx').on(table.createdAt, table.id)
+  ]
 )
 
 /**
@@ -595,7 +626,8 @@ export const auditEvents = sqliteTable(
       table.workspaceId,
       table.createdAt
     ),
-    index('audit_events_actor_user_id_idx').on(table.actorUserId)
+    index('audit_events_actor_user_id_idx').on(table.actorUserId),
+    index('audit_events_retention_idx').on(table.createdAt, table.id)
   ]
 )
 
@@ -629,7 +661,13 @@ export const workspaceExports = sqliteTable(
   },
   (table) => [
     workspaceIdIndex('workspace_exports', table.workspaceId),
-    index('workspace_exports_requested_by_user_id_idx').on(table.requestedByUserId)
+    index('workspace_exports_requested_by_user_id_idx').on(table.requestedByUserId),
+    index('workspace_exports_retention_idx').on(table.completedAt, table.id),
+    index('workspace_exports_secret_expiry_idx').on(
+      sql`CASE WHEN status = 'failed' THEN completed_at ELSE expires_at END`,
+      table.id
+    ),
+    index('workspace_exports_recovery_idx').on(table.status, table.createdAt, table.id)
   ]
 )
 
@@ -818,7 +856,8 @@ export const oauthAccessToken = sqliteTable(
     index('oauth_access_token_session_id_idx').on(table.sessionId),
     index('oauth_access_token_user_id_idx').on(table.userId),
     index('oauth_access_token_authorization_code_id_idx').on(table.authorizationCodeId),
-    index('oauth_access_token_refresh_id_idx').on(table.refreshId)
+    index('oauth_access_token_refresh_id_idx').on(table.refreshId),
+    index('oauth_access_token_expiry_idx').on(table.expiresAt, table.id)
   ]
 )
 
@@ -923,6 +962,10 @@ export const billingProviderEvents = sqliteTable(
     index('billing_provider_events_workspace_idx').on(
       table.workspaceId,
       table.receivedAt
+    ),
+    index('billing_provider_events_retention_idx').on(
+      sql`coalesce(resolved_at, completed_at)`,
+      table.id
     )
   ]
 )
@@ -994,7 +1037,8 @@ export const billingCheckoutClaims = sqliteTable(
       table.workspaceId,
       table.status,
       table.updatedAt
-    )
+    ),
+    index('billing_checkout_claims_retention_idx').on(table.updatedAt, table.id)
   ]
 )
 
@@ -1027,21 +1071,29 @@ export const oauthConsent = sqliteTable(
 )
 
 /** Replay guard for `private_key_jwt` client assertions (`jti` + expiry). */
-export const oauthClientAssertion = sqliteTable('oauth_client_assertion', {
-  id: id(),
-  expiresAt: integer('expiresAt', { mode: 'timestamp' }).notNull()
-})
+export const oauthClientAssertion = sqliteTable(
+  'oauth_client_assertion',
+  {
+    id: id(),
+    expiresAt: integer('expiresAt', { mode: 'timestamp' }).notNull()
+  },
+  (table) => [index('oauth_client_assertion_expiry_idx').on(table.expiresAt, table.id)]
+)
 
 /** Durable billing notice outbox, committed with the lifecycle projection. */
-export const billingNotices = sqliteTable('billing_notices', {
-  id: text('id').primaryKey(),
-  workspaceId: workspaceRef().notNull(),
-  noticeType: text('notice_type').notNull(),
-  title: text('title').notNull(),
-  message: text('message').notNull(),
-  createdAt: text('created_at').notNull(),
-  deliveredAt: text('delivered_at')
-})
+export const billingNotices = sqliteTable(
+  'billing_notices',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: workspaceRef().notNull(),
+    noticeType: text('notice_type').notNull(),
+    title: text('title').notNull(),
+    message: text('message').notNull(),
+    createdAt: text('created_at').notNull(),
+    deliveredAt: text('delivered_at')
+  },
+  (table) => [index('billing_notices_retention_idx').on(table.deliveredAt, table.id)]
+)
 
 /** Sanitized delivery evidence. Never stores message contents or credentials. */
 export const emailDeliveries = sqliteTable(
@@ -1082,6 +1134,19 @@ export const emailDeliveries = sqliteTable(
       table.acceptedAt,
       table.updatedAt
     ),
-    index('email_deliveries_status_created_idx').on(table.status, table.createdAt)
+    index('email_deliveries_status_created_idx').on(table.status, table.createdAt),
+    index('email_deliveries_retention_idx').on(table.createdAt, table.id)
   ]
 )
+
+/** Operator housekeeping cursors, separate from customer and recovery evidence. */
+export const retentionProgress = sqliteTable('retention_progress', {
+  recordClass: text('record_class').primaryKey(),
+  policyDigest: text('policy_digest').notNull(),
+  cursorClock: text('cursor_clock'),
+  cursorId: text('cursor_id'),
+  lastSuccessAt: text('last_success_at'),
+  lastEvaluatedAt: text('last_evaluated_at').notNull(),
+  hasMore: integer('has_more', { mode: 'boolean' }).notNull(),
+  failure: text('failure')
+})

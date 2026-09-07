@@ -4,10 +4,7 @@ import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/ema
 import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
-import {
-  type EmailDispatcher,
-  selectEmailDispatcherLayer
-} from '@b2b-saas-starter/email'
+import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import {
   AccountDeletedEmail,
   BackupCodesRotatedEmail,
@@ -72,8 +69,21 @@ function dispatch(input: {
   readonly subject: string
   readonly element: ReactElement
   readonly purpose?: 'security' | 'recovery' | 'verification'
+  /** Account deletion removes personal delivery evidence after the send. */
+  readonly track?: boolean
 }): Promise<void> {
   const dispatcher = Effect.gen(function* () {
+    const message = {
+      from: '',
+      to: input.to,
+      subject: input.subject,
+      element: input.element
+    }
+    if (input.track === false) {
+      const email = yield* EmailDispatcher
+      yield* email.send(message)
+      return
+    }
     const delivery = yield* EmailDelivery
     const userId = yield* delivery.resolveUserId(input.to)
     yield* dispatchTrackedEmail(
@@ -84,12 +94,7 @@ function dispatch(input: {
         userId,
         workspaceId: null
       },
-      {
-        from: '',
-        to: input.to,
-        subject: input.subject,
-        element: input.element
-      }
+      message
     )
   })
   // The capability runner supplies durable metadata storage and the request's
@@ -308,6 +313,7 @@ export function sendAccountDeletedEmail(input: {
 }): Promise<void> {
   const locale = input.locale ?? DEFAULT_LOCALE
   return dispatch({
+    track: false,
     to: input.email,
     subject: m.backend_email_subject_account_deleted({}, { locale }),
     element: AccountDeletedEmail({

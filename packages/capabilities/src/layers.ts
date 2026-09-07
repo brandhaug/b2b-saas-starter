@@ -60,6 +60,8 @@ import {
   type WorkspaceOnboarding
 } from './governance/workspace-onboarding.ts'
 import { type SecurityEvidenceSink } from './governance/security-recovery-evidence.ts'
+import { type Retention, SeedRetention } from './governance/retention.ts'
+import { LiveRetention } from './governance/retention.live.ts'
 import {
   type PlatformUserAdmin,
   type PlatformUserAdminBinding
@@ -142,6 +144,7 @@ export type CapabilityServices =
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceExports
+  | Retention
   | WorkspaceInvitations
   | WorkspaceLifecycle
   | WorkspaceMembership
@@ -219,6 +222,7 @@ const SeedEntitlements = SeedResourceEntitlements().pipe(
 )
 
 const SeedCore = Layer.mergeAll(
+  SeedRetention,
   SeedEmailDelivery(seedSystemUsers),
   // The mutating developer-platform capabilities write audit events and fan
   // out webhooks below their interface; the shared fixture audit log and the
@@ -373,6 +377,7 @@ export function makeLiveCapabilitiesLayer(
   const billing = LiveBilling(options.billing)
   const entitlements = LiveResourceEntitlements.pipe(Layer.provide(billing))
   return Layer.mergeAll(
+    LiveRetention,
     LiveEmailDelivery,
     LiveAccountLifecycle(options.accountLifecycleBinding, options.securityEvidence),
     LiveApiTokenRegistry(options.securityEvidence).pipe(

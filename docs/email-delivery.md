@@ -62,8 +62,8 @@ Records retain message and event identifiers, purpose, recipient, user/workspace
 association, timestamps, attempt count, and sanitized outcomes. They contain no
 rendered body, subject, OTP, secret link, raw SMTP response, or provider payload.
 Ordinary evidence expires after 30 days; unresolved failures have a 90-day cap.
-The daily background schedule prunes this evidence. These defaults are inputs to
-issue #290.
+The [retention policy](retention.md) governs scheduled pruning, operator previews
+and recovery approval.
 
 `starter.email.send.outcomes` counts application send outcomes by purpose and
 status. The email-event consumer reports lifecycle changes and processing failures

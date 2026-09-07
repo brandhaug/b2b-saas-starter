@@ -21,6 +21,7 @@ import { twoFactor } from 'better-auth/plugins/two-factor'
 import { username } from 'better-auth/plugins/username'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { Effect } from 'effect'
+import { isLocale } from '@b2b-saas-starter/i18n/locale'
 import {
   plugins,
   service,
@@ -129,6 +130,71 @@ function userDeleteOption(options: AuthConfigInterface) {
 }
 
 /**
+ * Better Auth's admin remove-user endpoint calls the internal adapter directly,
+ * so it bypasses `user.deleteUser`'s application hooks. The adapter still runs
+ * database delete hooks; route those hooks through the same lifecycle pair,
+ * but only for that endpoint. Self-service deletion already invokes the pair
+ * around its adapter call and must not run it a second time.
+ */
+// oxlint-disable effect/noAsyncFunction, effect/noThrowStatement, effect/noNewError -- Better Auth invokes these database hooks as plain Promise callbacks; the missing-lifecycle branch is an explicit fail-closed defect before the raw adapter delete.
+function userDeleteDatabaseHooks(options: AuthConfigInterface) {
+  return {
+    user: {
+      delete: {
+        before: async (
+          user: { readonly id: string },
+          context: {
+            readonly path: string
+            readonly request?: Request | undefined
+          } | null
+        ) => {
+          if (context?.path !== '/admin/remove-user') {
+            return
+          }
+          if (options.userDeleteHooks === undefined) {
+            // Better Auth's admin endpoint ignores a false return from the
+            // internal adapter and would report success, so throw before the
+            // raw user-row delete when the lifecycle seam is absent.
+            throw new Error('admin account deletion lifecycle is not configured')
+          }
+          await options.userDeleteHooks.beforeDelete(user, context.request)
+        },
+        after: async (
+          user: {
+            readonly id: string
+            readonly email: string
+            readonly locale?: unknown
+          },
+          context: {
+            readonly path: string
+            readonly request?: Request | undefined
+          } | null
+        ) => {
+          if (context?.path !== '/admin/remove-user') {
+            return
+          }
+          if (options.userDeleteHooks === undefined) {
+            return
+          }
+          if (isLocale(user.locale)) {
+            await options.userDeleteHooks.afterDelete(
+              { id: user.id, email: user.email, locale: user.locale },
+              context.request
+            )
+            return
+          }
+          await options.userDeleteHooks.afterDelete(
+            { id: user.id, email: user.email },
+            context.request
+          )
+        }
+      }
+    }
+  }
+}
+// oxlint-enable effect/noAsyncFunction, effect/noThrowStatement, effect/noNewError
+
+/**
  * Kept as a plain function returning a single (non-union) object type: the
  * plugins array is the literal that effectful-better-auth's inference reads,
  * and a union return type would poison `Instance<AuthOptions>`. The plugin
@@ -179,6 +245,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       enabled: false
     },
     databaseHooks: {
+      ...userDeleteDatabaseHooks(options),
       account: {
         // The linking audit port, assigned straight to Better Auth's hooks —
         // fires for every account row (credential included); the app's
@@ -439,7 +506,10 @@ export function makeAuthOptions(options: AuthConfigInterface) {
           },
           invitation: {
             modelName: 'workspaceInvitations',
-            fields: { organizationId: 'workspaceId' }
+            fields: { organizationId: 'workspaceId' },
+            additionalFields: {
+              terminalAt: { type: 'date', required: false, input: false }
+            }
           }
         }
       }),

@@ -27,7 +27,7 @@ The Better Auth instance and nothing else: options, plugin list, plugin↔schema
 
 **MCP OAuth** (ADR 0068). `AuthConfig.mcp` supplies the audience-bound `/mcp` URL and the outbound transport, both the app's, since Workers cannot run the Node transport. `/oauth/consent` is both post-login and consent hop, its workspace pick vouched for by `MCP_WORKSPACE_SELECTED_HEADER`; The access-token claim extension re-reads membership and the issuing client's consent ID/version from D1 on issuance and refresh. `mcp:write` requires explicit consent; the API worker rechecks the binding before writes.
 
-**Account deletion.** `deleteUser` stays disabled unless the app supplies `userDeleteHooks`; without them it strands sole-owner workspaces and trips restricting FKs. The order is the design (ADR 0059): password, `beforeDelete`, user row, `afterDelete`.
+**Account deletion.** `deleteUser` stays disabled unless the app supplies `userDeleteHooks`; without them it strands sole-owner workspaces and trips restricting FKs. Self-service follows the design order (ADR 0059): password, `beforeDelete`, user row, `afterDelete`. Better Auth's `/admin/remove-user` bypasses that pair, so its `user` database delete hooks call the same lifecycle pair only for that endpoint.
 
 ## Anti-patterns
 

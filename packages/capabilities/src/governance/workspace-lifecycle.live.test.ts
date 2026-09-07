@@ -89,6 +89,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             )
             const event = rows.find((row) => row.targetId === created.id)
             expect(event?.workspaceId).toBeNull()
+            expect(event?.metadata).toEqual({})
 
             const remaining = yield* Effect.flatMap(Database, (database) =>
               database.select().from(workspaces).where(eq(workspaces.id, created.id))

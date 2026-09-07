@@ -30,7 +30,8 @@ import { runCapabilities } from '../capabilities'
 
 /** Runs an account-lifecycle effect with the web app's binding. */
 export type AccountLifecycleRunner = <A, E>(
-  effect: Effect.Effect<A, E, AccountLifecycle>
+  effect: Effect.Effect<A, E, AccountLifecycle>,
+  request?: Request
 ) => Promise<A>
 
 export type AccountDeletedEmailInput = {
@@ -55,7 +56,8 @@ export function makeUserDeleteHooks(deps: {
       const plan = await deps.runAccountLifecycle(
         Effect.flatMap(AccountLifecycle, (lifecycle) =>
           lifecycle.prepareDeletion(user.id)
-        )
+        ),
+        request
       )
       if (request !== undefined) {
         plans.set(request, plan)
@@ -75,7 +77,8 @@ export function makeUserDeleteHooks(deps: {
         .runAccountLifecycle(
           Effect.flatMap(AccountLifecycle, (lifecycle) =>
             lifecycle.recordDeleted({ userId: user.id, plan })
-          )
+          ),
+          request
         )
         // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejected promise's value is `unknown` by construction; errorMessage is the diagnostic parser
         .catch((error: unknown) => {
@@ -115,14 +118,19 @@ export function makeUserDeleteHooks(deps: {
  */
 export function defaultUserDeleteHooks(): UserDeleteHooks {
   return makeUserDeleteHooks({
-    runAccountLifecycle: async (effect) => {
+    runAccountLifecycle: async (effect, request) => {
       // Imported at call time, never at module scope: this module sits on the
       // auth runtime's import path, and the binding pulls the Better Auth
       // server instance in through `plugin-call`.
-      const { webAccountLifecycleBinding } = await import('./account-binding')
+      const { webAccountLifecycleBinding, webAdminAccountLifecycleBinding } =
+        await import('./account-binding')
       const { makeSecurityEvidenceSink } = await import('./security-evidence-sink')
       return runCapabilities(effect, {
-        accountLifecycleBinding: webAccountLifecycleBinding,
+        accountLifecycleBinding:
+          request !== undefined &&
+          new URL(request.url).pathname.endsWith('/admin/remove-user')
+            ? webAdminAccountLifecycleBinding
+            : webAccountLifecycleBinding,
         securityEvidence: makeSecurityEvidenceSink()
       })
     },

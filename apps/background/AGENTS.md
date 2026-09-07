@@ -45,4 +45,4 @@ Per queue the outcome table is the contract; the non-obvious parts:
 - `signatureHeaderValue` owns the signature format: Standard Webhooks HMAC-SHA256 over `"<deliveryId>.<unix>.<rawBody>"`, one space-separated `v1,<base64>` per active secret, current first, two only inside a rotation's grace window (ADR 0062).
 - The SSRF guard runs at endpoint creation _and again at dispatch_; DNS rebinding is out of scope.
 
-- The existing daily schedule also calls webhook retention; digest and cleanup settle independently before the invocation reports either failure.
+- The hourly retention invocation owns scheduled cleanup, including webhook/email history. Keep its approval gate separate from the daily digest; see [retention](../../packages/capabilities/src/governance/retention.AGENTS.md).

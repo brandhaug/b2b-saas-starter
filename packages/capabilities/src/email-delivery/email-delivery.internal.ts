@@ -374,36 +374,30 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
   })
   const prune = Effect.fn('EmailDelivery.prune')(function* () {
     const now = yield* Clock.currentTimeMillis
-    let removed = 0
-    let pageSize = 1
-    while (pageSize > 0) {
-      const normal = yield* store.list({
-        statuses: ['queued', 'accepted', 'delivered', 'logged'],
-        createdBefore: iso(now - 30 * 24 * hour),
-        limit: 250
-      })
-      const unresolved = yield* store.list({
-        statuses: ['failed', 'suppressed', 'ambiguous', 'temporary_failure', 'delayed'],
-        createdBefore: iso(now - 90 * 24 * hour),
-        limit: 250
-      })
-      const expired = [...normal, ...unresolved]
-      pageSize = expired.length
-      if (expired.length === 0) {
-        return removed
-      }
-      const changed = yield* store.remove(expired)
-      if (changed === 0) {
-        return yield* Effect.fail(
-          new CapabilityUnavailable({
-            capability: 'EmailDelivery',
-            reason: 'Concurrent delivery updates prevented retention progress'
-          })
-        )
-      }
-      removed += changed
+    const normal = yield* store.list({
+      statuses: ['queued', 'accepted', 'delivered', 'logged'],
+      createdBefore: iso(now - 30 * 24 * hour),
+      limit: 250
+    })
+    const unresolved = yield* store.list({
+      statuses: ['failed', 'suppressed', 'ambiguous', 'temporary_failure', 'delayed'],
+      createdBefore: iso(now - 90 * 24 * hour),
+      limit: 250
+    })
+    const expired = [...normal, ...unresolved]
+    if (expired.length === 0) {
+      return 0
     }
-    return removed
+    const changed = yield* store.remove(expired)
+    if (changed === 0) {
+      return yield* Effect.fail(
+        new CapabilityUnavailable({
+          capability: 'EmailDelivery',
+          reason: 'Concurrent delivery updates prevented retention progress'
+        })
+      )
+    }
+    return changed
   })
   const trackedAttempt: EmailDelivery['Service']['trackedAttempt'] = Effect.fn(
     'EmailDelivery.trackedAttempt'

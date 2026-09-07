@@ -1,4 +1,5 @@
 import * as Alchemy from 'alchemy'
+import * as Output from 'alchemy/Output'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
 import * as Redacted from 'effect/Redacted'
@@ -10,6 +11,8 @@ import {
   notificationDigestRetryCron,
   emailEventsConsumerSettings,
   billingReconciliationCron,
+  retentionCleanupCron,
+  retentionTargetKey,
   notificationEmailConsumerSettings,
   productionStage,
   queueBindingKeys,
@@ -363,7 +366,10 @@ export const Stack = Alchemy.Stack(
         BETTER_AUTH_URL,
         ...emailBinding,
         ...workspaceExportBindings,
-        ...providerEnv
+        ...providerEnv,
+        RETENTION_DATABASE_TARGET: Output.map(db.databaseId, (databaseId) =>
+          retentionTargetKey('remote', stage, databaseId)
+        )
       },
       ...workerDefaults,
       placement: smartPlacement,
@@ -372,7 +378,8 @@ export const Stack = Alchemy.Stack(
       crons: [
         notificationDigestCron,
         notificationDigestRetryCron,
-        billingReconciliationCron
+        billingReconciliationCron,
+        retentionCleanupCron
       ]
     })
 

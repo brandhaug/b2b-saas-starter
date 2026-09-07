@@ -1,6 +1,8 @@
 import {
   apiTokens,
   auditEvents,
+  emailDeliveries,
+  notifications,
   user,
   workspaceMembers,
   workspaces
@@ -149,7 +151,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         ])
         yield* db.insert(workspaces).values([
           { id: 'wrk_mixed_solo', slug: 'mixed-solo', name: 'Mixed Solo' },
-          { id: 'wrk_mixed_shared', slug: 'mixed-shared', name: 'Mixed Shared' }
+          { id: 'wrk_mixed_shared', slug: 'mixed-shared', name: 'Mixed Shared' },
+          { id: 'wrk_unrelated', slug: 'unrelated', name: 'Unrelated' }
         ])
         yield* db.insert(workspaceMembers).values([
           {
@@ -194,6 +197,104 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
           tokenHash: 'hash_mixed_created',
           scopes: ['read'],
           createdByUserId: 'usr_mixed',
+          createdAt: '2026-07-03T09:00:00.000Z'
+        })
+        yield* db.insert(emailDeliveries).values([
+          {
+            id: 'email_mixed_linked',
+            purpose: 'notification',
+            recipient: 'mixed@live.test',
+            userId: 'usr_mixed',
+            workspaceId: 'wrk_mixed_shared',
+            status: 'accepted',
+            createdAt: '2026-07-03T09:00:00.000Z',
+            updatedAt: '2026-07-03T09:00:00.000Z',
+            retryUntil: '2026-07-03T09:00:00.000Z',
+            nextAttemptAt: '2026-07-03T09:00:00.000Z',
+            attemptCount: 1,
+            uncertain: false,
+            revision: 1
+          },
+          {
+            id: 'email_mixed_unlinked',
+            purpose: 'notification',
+            recipient: 'mixed@live.test',
+            status: 'accepted',
+            createdAt: '2026-07-03T09:00:00.000Z',
+            updatedAt: '2026-07-03T09:00:00.000Z',
+            retryUntil: '2026-07-03T09:00:00.000Z',
+            nextAttemptAt: '2026-07-03T09:00:00.000Z',
+            attemptCount: 1,
+            uncertain: false,
+            revision: 1
+          },
+          {
+            id: 'email_other_recipient',
+            purpose: 'notification',
+            recipient: 'other@live.test',
+            status: 'accepted',
+            createdAt: '2026-07-03T09:00:00.000Z',
+            updatedAt: '2026-07-03T09:00:00.000Z',
+            retryUntil: '2026-07-03T09:00:00.000Z',
+            nextAttemptAt: '2026-07-03T09:00:00.000Z',
+            attemptCount: 1,
+            uncertain: false,
+            revision: 1
+          }
+        ])
+        yield* db.insert(notifications).values([
+          {
+            id: 'notification_mixed_personal',
+            userId: 'usr_mixed',
+            workspaceId: 'wrk_mixed_shared',
+            title: 'Personal notice',
+            message: 'For Mixed Owner',
+            createdAt: '2026-07-03T09:00:00.000Z'
+          },
+          {
+            id: 'notification_mixed_other',
+            userId: 'usr_co_owner',
+            workspaceId: 'wrk_mixed_shared',
+            title: 'Shared notice',
+            message: 'For Co Owner',
+            createdAt: '2026-07-03T09:00:00.000Z'
+          }
+        ])
+        yield* db.insert(auditEvents).values({
+          id: 'aud_mixed_identity',
+          workspaceId: 'wrk_mixed_shared',
+          actorUserId: 'usr_mixed',
+          actorType: 'user',
+          eventType: 'workspace_member.added',
+          targetType: 'workspace_member',
+          targetId: 'usr_co_owner',
+          metadata: {
+            email: 'mixed@live.test',
+            name: 'Mixed Owner',
+            nested: { email: 'mixed@live.test' }
+          },
+          createdAt: '2026-07-03T09:00:00.000Z'
+        })
+        yield* db.insert(auditEvents).values({
+          id: 'aud_mixed_recipient',
+          workspaceId: 'wrk_mixed_shared',
+          actorUserId: 'usr_co_owner',
+          actorType: 'user',
+          eventType: 'workspace_invitation.sent',
+          targetType: 'workspace_invitation',
+          targetId: 'inv_mixed',
+          metadata: { email: 'mixed@live.test', role: 'member' },
+          createdAt: '2026-07-03T09:00:00.000Z'
+        })
+        yield* db.insert(auditEvents).values({
+          id: 'aud_unrelated_name_prose',
+          workspaceId: 'wrk_unrelated',
+          actorUserId: 'usr_co_owner',
+          actorType: 'user',
+          eventType: 'workspace.note.created',
+          targetType: 'workspace',
+          targetId: 'wrk_unrelated',
+          metadata: { message: 'Mixed Owner submitted a request' },
           createdAt: '2026-07-03T09:00:00.000Z'
         })
 
@@ -276,6 +377,42 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
           database.select().from(apiTokens).where(eq(apiTokens.id, 'tok_mixed_created'))
         )
         expect(detachedToken[0]?.createdByUserId).toBeNull()
+
+        const deliveries = yield* Effect.flatMap(Database, (database) =>
+          database.select().from(emailDeliveries)
+        )
+        expect(deliveries.map((row) => row.id)).toEqual(['email_other_recipient'])
+        const remainingNotifications = yield* Effect.flatMap(Database, (database) =>
+          database.select().from(notifications)
+        )
+        expect(remainingNotifications.map((row) => row.id)).toEqual([
+          'notification_mixed_other'
+        ])
+        const scrubbedAudit = yield* Effect.flatMap(Database, (database) =>
+          database
+            .select()
+            .from(auditEvents)
+            .where(eq(auditEvents.id, 'aud_mixed_identity'))
+        )
+        expect(scrubbedAudit[0]?.actorUserId).toBeNull()
+        expect(scrubbedAudit[0]?.metadata).toEqual({})
+        const scrubbedRecipientAudit = yield* Effect.flatMap(Database, (database) =>
+          database
+            .select()
+            .from(auditEvents)
+            .where(eq(auditEvents.id, 'aud_mixed_recipient'))
+        )
+        expect(scrubbedRecipientAudit[0]?.actorUserId).toBe('usr_co_owner')
+        expect(scrubbedRecipientAudit[0]?.metadata).toEqual({ role: 'member' })
+        const unrelatedAudit = yield* Effect.flatMap(Database, (database) =>
+          database
+            .select()
+            .from(auditEvents)
+            .where(eq(auditEvents.id, 'aud_unrelated_name_prose'))
+        )
+        expect(unrelatedAudit[0]?.metadata).toEqual({
+          message: 'Mixed Owner submitted a request'
+        })
 
         // The account row itself is gone (the fake's store half), and the
         // `account.deleted` event survived it, actorless.

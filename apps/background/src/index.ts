@@ -12,6 +12,7 @@ import {
   billingQueueName,
   billingDeadLetterQueueName,
   billingReconciliationCron,
+  retentionCleanupCron,
   notificationDigestCron,
   notificationDigestRetryCron,
   emailEventsQueueName,
@@ -26,12 +27,11 @@ import { reconcileBillingEffect } from './billing-reconciliation.ts'
 import { sendNotificationEmail } from './notification-email-consumer.ts'
 import { consumeEmailEvent } from './email-events-consumer.ts'
 import { monitorOperationalHealth } from './monitoring.ts'
-import { cleanEmailHistory } from './email-retention.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
 import { deliverSeatSync } from './seat-sync-consumer.ts'
 import { recoverBillingDeadLetter } from './billing-dead-letter-consumer.ts'
 import { deliverWebhook, recordDeadLetter } from './webhook-consumer.ts'
-import { cleanWebhookHistory } from './webhook-retention.ts'
+import { cleanRetention } from './retention.ts'
 import { consumeBatch, runInvocation, type Env } from './queue-consumer.ts'
 
 export default Sentry.withSentry((env: Env) => makeSentryOptions('background', env), {
@@ -92,13 +92,13 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
     }
     const daily = controller.cron === notificationDigestCron
     const reconciliation = controller.cron === billingReconciliationCron
+    const retention = controller.cron === retentionCleanupCron
     let effects: Array<Effect.Effect<void, unknown, never>> = []
     if (daily) {
-      effects = [
-        Effect.asVoid(sendDailyDigest(env, controller.scheduledTime)),
-        cleanWebhookHistory(env, controller.scheduledTime),
-        cleanEmailHistory(env, controller.scheduledTime)
-      ]
+      effects = [Effect.asVoid(sendDailyDigest(env, controller.scheduledTime))]
+    }
+    if (retention) {
+      effects = [cleanRetention(env, controller.scheduledTime)]
     }
     if (controller.cron === notificationDigestRetryCron) {
       effects = [
@@ -118,6 +118,8 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
       monitorSlug = 'b2b-saas-starter-background-digest'
     } else if (reconciliation) {
       monitorSlug = 'b2b-saas-starter-background-billing-reconciliation'
+    } else if (retention) {
+      monitorSlug = 'b2b-saas-starter-background-retention'
     }
     return withCronMonitor(monitorSlug, () =>
       runInvocation(

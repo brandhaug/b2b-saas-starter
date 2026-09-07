@@ -216,7 +216,7 @@ export function SeedWorkspaceLifecycle(options: {
               eventType: 'workspace.deleted',
               targetType: 'workspace',
               targetId: removed.id,
-              metadata: { name: removed.name, slug: removed.slug }
+              metadata: {}
             })
           }
         })
@@ -324,7 +324,7 @@ export function LiveWorkspaceLifecycle(
             eventType: 'workspace.deleted',
             targetType: 'workspace',
             targetId: removed.id,
-            metadata: { name: removed.name, slug: removed.slug }
+            metadata: {}
           })
         })
       }

@@ -1,4 +1,5 @@
 import { DateTime, Effect, Layer, Option } from 'effect'
+import { TestClock } from 'effect/testing'
 import { describe, expect, it } from '@effect/vitest'
 
 import { SeedLayer } from '../layers.ts'
@@ -85,6 +86,41 @@ describe('SeedWorkspaceExports', () => {
         exportId: seedWorkspaceExportFixture.id
       })
       expect(Option.isSome(link)).toBe(true)
+    }).pipe(Effect.provide(ownerLayer))
+  )
+
+  it.effect('refuses issue and open exactly at the artifact cutoff', () =>
+    Effect.gen(function* () {
+      const exports = yield* WorkspaceExports
+      const fixture = (yield* exports.list).find(
+        (row) => row.id === seedWorkspaceExportFixture.id
+      )
+      if (!fixture || fixture.expiresAt === null) {
+        expect.fail('expected the seeded export horizon')
+        return
+      }
+      const cutoff = DateTime.makeUnsafe(fixture.expiresAt)
+      // Pin the test clock immediately before the pre-existing fixture's
+      // horizon. The fixture is constructed by the layer before the test body.
+      yield* TestClock.setTime(
+        DateTime.toEpochMillis(DateTime.subtractDuration(cutoff, '1 millis'))
+      )
+      const link = yield* exports.issueDownloadLink({ exportId: fixture.id })
+      if (Option.isNone(link)) {
+        expect.fail('expected a link before the artifact cutoff')
+        return
+      }
+      const params = linkParams(link.value.path)
+
+      // The archive and its secret still exist; application validity is the
+      // cutoff that matters even before asynchronous physical cleanup runs.
+      yield* TestClock.setTime(DateTime.toEpochMillis(cutoff))
+      expect(
+        Option.isNone(yield* exports.issueDownloadLink({ exportId: fixture.id }))
+      ).toBe(true)
+      expect(
+        Option.isNone(yield* exports.openDownload({ exportId: fixture.id, ...params }))
+      ).toBe(true)
     }).pipe(Effect.provide(ownerLayer))
   )
 

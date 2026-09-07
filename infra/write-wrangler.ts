@@ -2,6 +2,8 @@ import { writeFileSync } from 'node:fs'
 import {
   apiRateLimits,
   billingReconciliationCron,
+  retentionCleanupCron,
+  retentionTargetKey,
   billingDeadLetterQueueName,
   billingConsumerSettings,
   billingQueueName,
@@ -282,12 +284,20 @@ export const wranglerConfigs: ReadonlyArray<{
         crons: [
           notificationDigestCron,
           notificationDigestRetryCron,
-          billingReconciliationCron
+          billingReconciliationCron,
+          retentionCleanupCron
         ]
       },
       // Links in notification emails point at the web app; local dev has no
       // alchemy to forward the deploy value.
-      vars: { BETTER_AUTH_URL: 'http://localhost:3071' }
+      vars: {
+        BETTER_AUTH_URL: 'http://localhost:3071',
+        RETENTION_DATABASE_TARGET: retentionTargetKey(
+          'local',
+          'local',
+          D1_DATABASE_NAME
+        )
+      }
     }
   }
 ]

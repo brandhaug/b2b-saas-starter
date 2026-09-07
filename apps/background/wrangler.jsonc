@@ -99,9 +99,10 @@
     }
   ],
   "triggers": {
-    "crons": ["0 8 * * *", "*/15 8-14 * * *", "* * * * *"]
+    "crons": ["0 8 * * *", "*/15 8-14 * * *", "* * * * *", "0 * * * *"]
   },
   "vars": {
-    "BETTER_AUTH_URL": "http://localhost:3071"
+    "BETTER_AUTH_URL": "http://localhost:3071",
+    "RETENTION_DATABASE_TARGET": "local:local:b2b-saas-starter"
   }
 }

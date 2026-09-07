@@ -178,6 +178,20 @@ export const notificationDigestCron = '0 8 * * *'
  */
 export const billingReconciliationCron = '* * * * *'
 
+/** Hourly bounded retention preview/cleanup. Destructive mode remains gated
+ * by recovery verification and an explicit operator setting. */
+export const retentionCleanupCron = '0 * * * *'
+
+/** Policy approvals bind to both the deployment stage and the concrete D1
+ * resource, so copied retention settings cannot enable cleanup elsewhere. */
+export function retentionTargetKey(
+  kind: 'local' | 'remote',
+  deployment: string,
+  database: string
+): string {
+  return `${kind}:${deployment}:${database}`
+}
+
 /**
  * Binding key names: the env-facing half of a queue binding. The physical
  * queue names above are single-sourced already; these keys are the other

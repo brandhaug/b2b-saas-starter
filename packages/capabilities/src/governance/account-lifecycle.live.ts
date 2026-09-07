@@ -1,12 +1,16 @@
-import { Database } from '@b2b-saas-starter/db/service'
+import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
 import {
   apiTokens,
   auditEvents,
+  emailDeliveries,
+  notifications,
+  type JsonValue,
+  user,
   workspaceMembers,
   workspaces
 } from '@b2b-saas-starter/db/schema'
 import { Effect, Layer } from 'effect'
-import { asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
 
 import { AccountDeletionBlocked, AccountDeletionRejected } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
@@ -20,6 +24,7 @@ import {
   type MembershipForDeletion
 } from './account-lifecycle.ts'
 import { AuditEventLog } from './audit-event-log.ts'
+import { decodeAuditEventMetadata } from './audit-event-metadata.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   recordSecurityEvidence,
@@ -36,6 +41,23 @@ const { callBinding } = makeBindingCaller<
   Rejected: AccountDeletionRejected
 })
 
+// oxlint-disable anti-slop/no-runtime-typeof -- persisted JSON has already crossed Drizzle's typed boundary; this recursive walk only finds an exact email value before the allowlist decoder runs.
+function metadataContainsExactEmail(value: JsonValue, email: string): boolean {
+  if (typeof value === 'string') {
+    return value === email
+  }
+  if (Array.isArray(value)) {
+    return value.some((entry) => metadataContainsExactEmail(entry, email))
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.values(value).some((entry) =>
+      metadataContainsExactEmail(entry, email)
+    )
+  }
+  return false
+}
+// oxlint-enable anti-slop/no-runtime-typeof
+
 /**
  * D1-backed account lifecycle, driven from the auth surface's delete endpoint.
  *
@@ -50,10 +72,11 @@ const { callBinding } = makeBindingCaller<
 export function LiveAccountLifecycle(
   binding?: AccountLifecycleBinding,
   securityEvidence?: SecurityEvidenceSink
-): Layer.Layer<AccountLifecycle, never, Database | AuditEventLog> {
+): Layer.Layer<AccountLifecycle, never, Database | RawD1 | AuditEventLog> {
   return Layer.effect(AccountLifecycle)(
     Effect.gen(function* () {
       const db = yield* Database
+      const d1 = yield* RawD1
       const audit = yield* AuditEventLog
 
       const unavailable = orUnavailable('account-lifecycle')
@@ -123,6 +146,19 @@ export function LiveAccountLifecycle(
             new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
           )
         }
+        const accountRows = yield* unavailable(
+          db
+            .select({ email: user.email })
+            .from(user)
+            .where(eq(user.id, userId))
+            .limit(1)
+        )
+        const account = accountRows[0]
+        if (!account) {
+          return yield* Effect.fail(
+            new AccountDeletionRejected({ reason: 'unknown_user' })
+          )
+        }
         // Wire steps carry no internal row ids, so the leave binding reads the
         // membership row id from the kept memberships, keyed by workspace.
         const stepByWorkspace = new Map(
@@ -153,10 +189,7 @@ export function LiveAccountLifecycle(
               eventType: 'workspace.deleted',
               targetType: 'workspace',
               targetId: workspaceId,
-              metadata: {
-                name: workspace.name,
-                slug: workspace.slug
-              }
+              metadata: {}
             })
           } else {
             yield* callBinding(binding, (bound) =>
@@ -184,18 +217,105 @@ export function LiveAccountLifecycle(
             })
           }
         }
+        // Personal delivery and notification rows are account data. The
+        // foreign-key cascades cover linked rows when the user disappears;
+        // remove them here as well so unlinked delivery evidence for this
+        // mailbox cannot outlive the explicit deletion.
+        yield* unavailable(
+          db.delete(notifications).where(eq(notifications.userId, userId))
+        )
+        yield* unavailable(
+          db
+            .delete(emailDeliveries)
+            .where(
+              or(
+                eq(emailDeliveries.userId, userId),
+                and(
+                  isNull(emailDeliveries.userId),
+                  eq(emailDeliveries.recipient, account.email)
+                )
+              )
+            )
+        )
+        // Retained audit rows keep the event identity and timestamp, but do
+        // not keep copied account identity. The indexed actor query covers
+        // rows that reference the account directly; the target query covers
+        // rows that identify it by user id; the metadata predicate narrows the
+        // remaining scan to rows that contain the exact mailbox text. The
+        // recursive equality check rejects copied prose that merely mentions
+        // the address, and no display-name substring is treated as identity.
+        // Process a bounded page at a time. The keyset cursor remains stable
+        // while actor ids and metadata are scrubbed, and each page's updates
+        // commit as one D1 batch instead of one round trip per audit row.
+        const auditPageSize = 100
+        let lastAuditId: string | undefined
+        let hasMoreAuditRows = true
+        while (hasMoreAuditRows) {
+          const auditPredicate = or(
+            eq(auditEvents.actorUserId, userId),
+            eq(auditEvents.targetId, userId),
+            sql`instr(${auditEvents.metadata}, ${account.email}) > 0`
+          )
+          let auditWhere = auditPredicate
+          if (lastAuditId !== undefined) {
+            auditWhere = and(gt(auditEvents.id, lastAuditId), auditPredicate)
+          }
+          const auditRows = yield* unavailable(
+            db
+              .select({
+                id: auditEvents.id,
+                actorUserId: auditEvents.actorUserId,
+                targetId: auditEvents.targetId,
+                metadata: auditEvents.metadata
+              })
+              .from(auditEvents)
+              .where(auditWhere)
+              .orderBy(asc(auditEvents.id))
+              .limit(auditPageSize)
+          )
+          if (auditRows.length === 0) {
+            break
+          }
+          const statements = []
+          for (const row of auditRows) {
+            const attributed = row.actorUserId === userId
+            const containsEmail = metadataContainsExactEmail(
+              row.metadata,
+              account.email
+            )
+            if (!attributed && row.targetId !== userId && !containsEmail) {
+              continue
+            }
+            // The audit metadata decoder is a positive allowlist. Applying it
+            // to affected rows removes copied names, addresses and payloads
+            // while retaining safe facts such as role, status and size.
+            const nextMetadata = decodeAuditEventMetadata(row.metadata)
+            let actorUserId = row.actorUserId
+            if (attributed) {
+              actorUserId = null
+            }
+            statements.push(
+              db
+                .update(auditEvents)
+                .set({
+                  actorUserId,
+                  metadata: nextMetadata
+                })
+                .where(eq(auditEvents.id, row.id))
+            )
+          }
+          if (statements.length > 0) {
+            yield* unavailable(batch(statements).pipe(Effect.provideService(RawD1, d1)))
+          }
+          lastAuditId = auditRows.at(-1)?.id
+          hasMoreAuditRows = auditRows.length === auditPageSize
+        }
         // Detach the references that would outlive the account but block its
         // row's deletion: both columns carry a restricting foreign key to
         // `user.id` (no cascade, on purpose — history and attribution survive
         // as system rows). The audit rows keep describing what happened; the
         // tokens stay live or revoked as their workspace decides. Runs after
         // the loop so a blocked plan detaches nothing.
-        yield* unavailable(
-          db
-            .update(auditEvents)
-            .set({ actorUserId: null })
-            .where(eq(auditEvents.actorUserId, userId))
-        )
         yield* unavailable(
           db
             .update(apiTokens)

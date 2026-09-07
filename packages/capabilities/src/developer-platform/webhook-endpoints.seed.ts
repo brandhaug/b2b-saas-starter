@@ -497,7 +497,12 @@ export function SeedWebhookEndpoints(
             const expired = new Set(
               deliveries
                 .filter(
-                  (row) => row.lastAttemptAt !== null && row.lastAttemptAt < cutoff
+                  (row) =>
+                    row.lastAttemptAt !== null &&
+                    row.lastAttemptAt < cutoff &&
+                    ['delivered', 'failed_permanent', 'dead_lettered'].includes(
+                      row.status
+                    )
                 )
                 .toSorted((a, b) =>
                   (a.lastAttemptAt ?? '').localeCompare(b.lastAttemptAt ?? '')

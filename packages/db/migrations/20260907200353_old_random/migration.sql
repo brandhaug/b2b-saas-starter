@@ -1,0 +1,1 @@
+CREATE INDEX `webhook_deliveries_recovery_idx` ON `webhook_deliveries` (`status`,`last_attempt_at`,`id`);

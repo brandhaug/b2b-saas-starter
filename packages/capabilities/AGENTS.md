@@ -18,6 +18,7 @@ Read the capability’s adjacent `<capability>.AGENTS.md` before changing its co
 | notifications      | [`notification-feed`](src/notifications/notification-feed.AGENTS.md), [`notification-preferences`](src/notifications/notification-preferences.AGENTS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 Operator monitoring reads are documented in [operational-health](src/governance/operational-health.AGENTS.md).
+Retention policy, approval and cleanup changes use [retention](src/governance/retention.AGENTS.md).
 
 Package-level modules that are not capabilities:
 
