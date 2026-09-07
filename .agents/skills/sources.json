@@ -1,0 +1,70 @@
+{
+  "code-review": {
+    "repository": "https://github.com/mattpocock/skills",
+    "revision": "3cca18b368ae95cdbdebbff572ccafa662551015",
+    "path": "skills/engineering/code-review",
+    "licensePath": "LICENSE"
+  },
+  "codebase-design": {
+    "repository": "https://github.com/mattpocock/skills",
+    "revision": "3cca18b368ae95cdbdebbff572ccafa662551015",
+    "path": "skills/engineering/codebase-design",
+    "licensePath": "LICENSE"
+  },
+  "effect": {
+    "repository": "https://github.com/kitlangton/skills",
+    "revision": "22c35cb7fd29f931789253fc3c8eb142f2863a8a",
+    "path": "skills/effect",
+    "licensePath": "LICENSE"
+  },
+  "effect-service-design": {
+    "repository": "https://github.com/dmmulroy/skills",
+    "revision": "8603380821fee6a77c82639f364ce8fe4f5a92be",
+    "path": "effect-service-design",
+    "licensePath": "LICENSE"
+  },
+  "grilling": {
+    "repository": "https://github.com/mattpocock/skills",
+    "revision": "3cca18b368ae95cdbdebbff572ccafa662551015",
+    "path": "skills/productivity/grilling",
+    "licensePath": "LICENSE"
+  },
+  "impeccable": {
+    "repository": "https://github.com/pbakaus/impeccable",
+    "revision": "dbdc470e70dbbda69f9b78ee38bc38ea1d3560b9",
+    "path": ".agents/skills/impeccable",
+    "licensePath": "LICENSE",
+    "additionalLicenses": [
+      {
+        "repository": "https://github.com/qq15725/modern-screenshot",
+        "revision": "792d6db7411839c62940a6e930161f8e376e817f",
+        "path": "LICENSE",
+        "destination": "licenses/modern-screenshot.LICENSE"
+      },
+      {
+        "repository": "https://github.com/ehmo/platform-design-skills",
+        "revision": "dc2be825d8b439caea78e9eaa8fb3ac23b0ff3e9",
+        "path": "LICENSE",
+        "destination": "licenses/platform-design-skills.LICENSE"
+      }
+    ]
+  },
+  "tdd": {
+    "repository": "https://github.com/mattpocock/skills",
+    "revision": "3cca18b368ae95cdbdebbff572ccafa662551015",
+    "path": "skills/engineering/tdd",
+    "licensePath": "LICENSE"
+  },
+  "thermo-nuclear-code-quality-review": {
+    "repository": "https://github.com/cursor/plugins",
+    "revision": "93b00b89ef425a9c1bac0d0b317dfc49c930ac99",
+    "path": "cursor-team-kit/skills/thermo-nuclear-code-quality-review",
+    "licensePath": "cursor-team-kit/LICENSE"
+  },
+  "to-tickets": {
+    "repository": "https://github.com/mattpocock/skills",
+    "revision": "3cca18b368ae95cdbdebbff572ccafa662551015",
+    "path": "skills/engineering/to-tickets",
+    "licensePath": "LICENSE"
+  }
+}

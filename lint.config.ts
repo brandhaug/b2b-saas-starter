@@ -488,6 +488,8 @@ const { lint = {} } = defineConfig({
       builtin: true
     },
     ignorePatterns: [
+      '.agents/skills/impeccable/scripts/**',
+      '.claude/skills/**',
       'node_modules/**',
       '.context/**',
       'dist/**',

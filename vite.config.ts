@@ -24,6 +24,17 @@ export default defineConfig({
     printWidth: 88,
     indentStyle: 'tab',
     ignorePatterns: [
+      // Preserve upstream skill snapshots and their Claude aliases.
+      '.agents/skills/code-review/**',
+      '.agents/skills/codebase-design/**',
+      '.agents/skills/effect/**',
+      '.agents/skills/effect-service-design/**',
+      '.agents/skills/grilling/**',
+      '.agents/skills/impeccable/**',
+      '.agents/skills/tdd/**',
+      '.agents/skills/thermo-nuclear-code-quality-review/**',
+      '.agents/skills/to-tickets/**',
+      '.claude/skills/**',
       '**/routeTree.gen.*',
       '**/*.d.ts',
       'packages/i18n/src/generated/**',

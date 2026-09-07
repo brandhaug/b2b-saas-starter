@@ -65,6 +65,11 @@ Restart `pnpm run dev` afterwards so the dev shim re-attaches the binding.
 
 For remote migrations (`pnpm run db:generate` against remote metadata and `pnpm run db:migrate:remote`), set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and `CLOUDFLARE_D1_TOKEN` in `.env` — see `packages/db/drizzle.config.ts`.
 
+## Agent skills
+
+The implementation workflow and its supporting skills are included in the repo.
+See [shared skills](./agents/skills.md) for discovery, licenses, and updates.
+
 ## Deploying
 
 Deployment is Alchemy IaC via `pnpm run deploy` (root `alchemy.run.ts`). Required env: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`. Everything else is optional and degrades to inactive.
