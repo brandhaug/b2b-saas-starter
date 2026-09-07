@@ -1,7 +1,7 @@
 import { statusLabel } from '@/lib/value-labels'
 import { useState, useTransition } from 'react'
 import { type GlobalWebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { DataTable, type DataTableColumnDef } from './data-table'
+import { DataTable, DataTableContent, type DataTableColumnDef } from './data-table'
 import { Panel } from './page/panel'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -151,11 +151,11 @@ export function AdminFailedDeliveries({
       <DataTable
         columns={columns()}
         data={page.items}
-        pageSize={20}
-        pager={false}
         tableLabel={m.failed_webhook_deliveries()}
         emptyMessage={m.no_terminal_webhook_failures()}
-      />
+      >
+        <DataTableContent />
+      </DataTable>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" disabled={pending} onClick={() => load()}>
           {m.refresh_newest()}

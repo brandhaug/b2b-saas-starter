@@ -3,7 +3,7 @@ import { Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { KeyRoundIcon, MailIcon } from 'lucide-react'
 import { type SsoRoutingDecision } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
-import { AuthCardForm } from '@/components/auth/auth-card-form'
+import { AuthCardForm, AuthNoticeCard } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
 import { DemoCredentialsFooter } from '@/components/auth/demo-credentials-footer'
@@ -298,22 +298,32 @@ export function SignInPage({
   })
 
   if (mode === 'link') {
+    if (linkSent) {
+      return (
+        <AuthNoticeCard
+          title={m.sign_in_with_email_link()}
+          description={m.email_link_description()}
+          error={submitError}
+          footer={signInFooter({ mode, redirect, socialProviders })}
+        >
+          <p role="alert" className="text-sm text-muted-foreground">
+            {linkSentMessage()}
+          </p>
+        </AuthNoticeCard>
+      )
+    }
     return (
       <AuthCardForm
         title={m.sign_in_with_email_link()}
         description={m.email_link_description()}
-        // The sent state is a confirmation, not a form — no wrapper, no
-        // hydration signal needed.
-        form={linkSent ? null : linkForm}
+        form={linkForm}
         submit={
-          linkSent ? undefined : (
-            <AuthSubmitButton
-              form={linkForm}
-              icon={<MailIcon className="size-4" />}
-              label={m.email_me_sign_in_link()}
-              submittingLabel={m.sending()}
-            />
-          )
+          <AuthSubmitButton
+            form={linkForm}
+            icon={<MailIcon className="size-4" />}
+            label={m.email_me_sign_in_link()}
+            submittingLabel={m.sending()}
+          />
         }
         error={submitError}
         notice={ssoNotice ?? twoFactorNotice}
@@ -323,45 +333,39 @@ export function SignInPage({
           socialProviders
         })}
       >
-        {linkSent ? (
-          <p role="alert" className="text-sm text-muted-foreground">
-            {linkSentMessage()}
-          </p>
-        ) : (
-          <>
-            <linkForm.Field name="email" validators={{ onChange: emailValidator }}>
-              {(field) => (
-                <FormTextField
-                  name={field.name}
-                  label={m.form_email()}
-                  type="email"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  value={field.state.value}
-                  errors={field.state.meta.errors}
-                  onBlur={field.handleBlur}
-                  onChange={field.handleChange}
-                  required
-                />
-              )}
-            </linkForm.Field>
-            {turnstileSiteKey === null ? null : (
-              <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+        <>
+          <linkForm.Field name="email" validators={{ onChange: emailValidator }}>
+            {(field) => (
+              <FormTextField
+                name={field.name}
+                label={m.form_email()}
+                type="email"
+                placeholder="you@example.com"
+                autoComplete="email"
+                value={field.state.value}
+                errors={field.state.meta.errors}
+                onBlur={field.handleBlur}
+                onChange={field.handleChange}
+                required
+              />
             )}
-            <Button
-              type="button"
-              variant="link"
-              onClick={() => {
-                setSubmitError(null)
-                setLinkSent(false)
-                setMode('password')
-              }}
-              className="justify-start p-0 text-sm"
-            >
-              {m.public_auth_sign_in_with_password_instead()}
-            </Button>
-          </>
-        )}
+          </linkForm.Field>
+          {turnstileSiteKey === null ? null : (
+            <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+          )}
+          <Button
+            type="button"
+            variant="link"
+            onClick={() => {
+              setSubmitError(null)
+              setLinkSent(false)
+              setMode('password')
+            }}
+            className="justify-start p-0 text-sm"
+          >
+            {m.public_auth_sign_in_with_password_instead()}
+          </Button>
+        </>
       </AuthCardForm>
     )
   }

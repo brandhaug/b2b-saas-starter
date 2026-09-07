@@ -3,7 +3,7 @@ import {
   type BillingSynchronizationStatus
 } from '@b2b-saas-starter/capabilities/billing/billing'
 import { Check, Minus, ExternalLink } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -90,12 +90,7 @@ export function PublicBillingPlans({
           <PlanTile
             key={plan.id}
             plan={plan}
-            currentPlanId={null}
-            canManageBilling={false}
-            stripeConfigured={stripeConfigured}
-            pendingPlan={null}
-            onUpgrade={() => undefined}
-            showExamplePrice={!stripeConfigured}
+            priceNote={stripeConfigured ? null : m.billing_example_price()}
           />
         ))}
       </div>
@@ -271,13 +266,22 @@ export function BillingPlans({
             <PlanTile
               key={plan.id}
               plan={plan}
-              currentPlanId={currentPlanId}
-              canManageBilling={canManageBilling}
-              stripeConfigured={stripeConfigured}
-              pendingPlan={upgrade.pendingInput ?? null}
-              onUpgrade={() => upgrade.run(plan.id)}
-              showExamplePrice={!stripeConfigured}
-            />
+              badge={
+                plan.id === currentPlanId ? (
+                  <Badge variant="neutral">{m.common_current()}</Badge>
+                ) : null
+              }
+              priceNote={stripeConfigured ? null : m.billing_example_price()}
+            >
+              <PlanAction
+                plan={plan}
+                currentPlanId={currentPlanId}
+                canManageBilling={canManageBilling}
+                stripeConfigured={stripeConfigured}
+                pendingPlan={upgrade.pendingInput ?? null}
+                onUpgrade={() => upgrade.run(plan.id)}
+              />
+            </PlanTile>
           ))}
         </div>
       </Panel>
@@ -291,33 +295,23 @@ export function BillingPlans({
  */
 function PlanTile({
   plan,
-  currentPlanId,
-  canManageBilling,
-  stripeConfigured,
-  pendingPlan,
-  onUpgrade,
-  showExamplePrice = false
+  badge,
+  priceNote,
+  children
 }: {
   readonly plan: BillingPlan
-  readonly currentPlanId: string | null
-  readonly canManageBilling: boolean
-  readonly stripeConfigured: boolean
-  readonly pendingPlan: string | null
-  readonly onUpgrade: () => void
-  readonly showExamplePrice?: boolean
+  readonly badge?: ReactNode
+  readonly priceNote: ReactNode
+  readonly children?: ReactNode
 }) {
   return (
     <div className="grid gap-2 rounded-none border border-border bg-muted p-4 content-start">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-semibold">{plan.name}</h3>
-        {plan.id === currentPlanId ? (
-          <Badge variant="neutral">{m.common_current()}</Badge>
-        ) : null}
+        {badge}
       </div>
       <p className="text-2xl font-semibold">{planPrice(plan)}</p>
-      {showExamplePrice ? (
-        <p className="text-xs text-muted-foreground">{m.billing_example_price()}</p>
-      ) : null}
+      {priceNote ? <p className="text-xs text-muted-foreground">{priceNote}</p> : null}
       <p className="text-sm text-muted-foreground">{planDescription(plan)}</p>
       <ul className="grid gap-1 text-sm text-muted-foreground">
         <EntitlementRow
@@ -337,14 +331,7 @@ function PlanTile({
           limit={plan.limits.webhookEndpoints}
         />
       </ul>
-      <PlanAction
-        plan={plan}
-        currentPlanId={currentPlanId}
-        canManageBilling={canManageBilling}
-        stripeConfigured={stripeConfigured}
-        pendingPlan={pendingPlan}
-        onUpgrade={onUpgrade}
-      />
+      {children}
     </div>
   )
 }

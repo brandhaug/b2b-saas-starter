@@ -19,6 +19,7 @@ import {
   useTable,
   type CellData,
   type ColumnDef,
+  type ReactTable,
   type RowData,
   type SortingState
 } from '@tanstack/react-table'
@@ -34,10 +35,10 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/lib/format-date'
+import { DataTableContext, useDataTableContext } from './data-table-context'
 
 const STICKY_CLASSES = 'sticky left-0 z-10 bg-card group-hover:bg-muted/50'
 
-/** Keep identifiers and request-local timestamps in mono tabular figures. */
 function isDate(cell: ReactNode | Date): cell is Date {
   return Object.prototype.toString.call(cell) === '[object Date]'
 }
@@ -46,8 +47,6 @@ function formatDateCell(value: Date) {
   return <span className="font-mono tabular-nums">{formatDateTime(value)}</span>
 }
 
-// v9 registers features explicitly (prerequisites before their slots). The
-// registered `sortFns` are the ones `sortFn: 'auto'` can resolve for a column.
 const dataTableFeatures = tableFeatures({
   columnFilteringFeature,
   filteredRowModel: createFilteredRowModel(),
@@ -61,14 +60,10 @@ const dataTableFeatures = tableFeatures({
   },
   rowPaginationFeature,
   paginatedRowModel: createPaginatedRowModel(),
-  // `row.getVisibleCells()` lives on this feature.
   columnVisibilityFeature
 })
 
-/** The feature set every `DataTable` column definition is typed against. */
 export type DataTableFeatures = typeof dataTableFeatures
-
-/** `ColumnDef` bound to `DataTable`'s feature set — use it in consumers. */
 export type DataTableColumnDef<TData extends RowData> = ColumnDef<
   DataTableFeatures,
   TData,
@@ -76,9 +71,7 @@ export type DataTableColumnDef<TData extends RowData> = ColumnDef<
 >
 
 type SortState = {
-  /** Appended to the sort button's accessible name. */
   readonly label: (input: { column: string }) => string
-  /** The `aria-sort` value for the header cell. */
   readonly aria: 'ascending' | 'descending' | 'none'
   readonly glyph: string | null
 }
@@ -89,8 +82,7 @@ const SORT_STATE = {
   false: { label: m.shell_table_sort, aria: 'none', glyph: null }
 } satisfies Record<'asc' | 'desc' | 'false', SortState>
 
-/** A column's header titles its sort button only when it is a plain string. */
-// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- column definitions arrive untyped from the table's public API; this probe is the parse step
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 function headerTitleOf(header: unknown, fallback: string): string {
   return typeof header === 'string' ? header : fallback
 }
@@ -99,34 +91,161 @@ function headerTitleOf(header: unknown, fallback: string): string {
 type DataTableProps<TData extends RowData> = {
   readonly columns: ReadonlyArray<DataTableColumnDef<TData>>
   readonly data: ReadonlyArray<TData>
-  /** Renders the global filter input above the table. */
-  readonly filter?: boolean
-  readonly filterPlaceholder?: string
   readonly pageSize?: number
   readonly emptyMessage?: string
-  /** Accessible name for the underlying `<table>` element. */
   readonly tableLabel?: string
-  /** Whether to render the count footer with the Previous/Next pager (default true). */
-  readonly pager?: boolean
+  readonly children: ReactNode
+}
+
+function DataTableTable<TData extends RowData>({
+  columns,
+  emptyMessage,
+  tableLabel,
+  table
+}: {
+  readonly columns: ReadonlyArray<DataTableColumnDef<TData>>
+  readonly emptyMessage: string
+  readonly tableLabel: string | undefined
+  readonly table: ReactTable<DataTableFeatures, TData>
+}) {
+  const rowModel = table.getRowModel()
+  return (
+    <Table aria-label={tableLabel}>
+      <TableHeader>
+        {table.getHeaderGroups().map((group) => (
+          <TableRow key={group.id}>
+            {group.headers.map((header) => {
+              const canSort = header.column.getCanSort()
+              const sortDir = header.column.getIsSorted()
+              const columnTitle = headerTitleOf(
+                header.column.columnDef.header,
+                header.column.id
+              )
+              const sortState = SORT_STATE[sortDir === false ? 'false' : sortDir]
+              const isSticky = header.column.columnDef.meta?.sticky === true
+              const label = flexRender(
+                header.column.columnDef.header,
+                header.getContext()
+              )
+              return (
+                <TableHead
+                  key={header.id}
+                  aria-sort={canSort ? sortState.aria : undefined}
+                  className={cn(isSticky && STICKY_CLASSES)}
+                >
+                  {canSort && label !== null ? (
+                    <Button
+                      variant="ghost"
+                      onClick={header.column.getToggleSortingHandler()}
+                      aria-label={sortState.label({ column: columnTitle })}
+                    >
+                      {label}
+                      {sortState.glyph}
+                    </Button>
+                  ) : (
+                    label
+                  )}
+                </TableHead>
+              )
+            })}
+          </TableRow>
+        ))}
+      </TableHeader>
+      <TableBody>
+        {rowModel.rows.length === 0 ? (
+          <TableRow>
+            <TableCell
+              colSpan={columns.length}
+              className="text-center text-sm text-muted-foreground"
+            >
+              {emptyMessage}
+            </TableCell>
+          </TableRow>
+        ) : (
+          rowModel.rows.map((row) => (
+            <TableRow key={row.id} className="group">
+              {row.getVisibleCells().map((cell) => {
+                const isSticky = cell.column.columnDef.meta?.sticky === true
+                const rendered = flexRender(
+                  cell.column.columnDef.cell,
+                  cell.getContext()
+                )
+                return (
+                  <TableCell key={cell.id} className={cn(isSticky && STICKY_CLASSES)}>
+                    {isDate(rendered) ? formatDateCell(rendered) : rendered}
+                  </TableCell>
+                )
+              })}
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </Table>
+  )
+}
+
+export function DataTableFilter({ placeholder }: { readonly placeholder?: string }) {
+  const { state, actions } = useDataTableContext()
+  const label = placeholder ?? m.shell_table_filter()
+  return (
+    <Input
+      value={state.globalFilter}
+      onChange={(event) => actions.setGlobalFilter(event.target.value)}
+      placeholder={label}
+      className="max-w-xs"
+      aria-label={placeholder ?? m.shell_table_filter_rows()}
+    />
+  )
+}
+
+export function DataTablePagination() {
+  const { state, actions, meta } = useDataTableContext()
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <span aria-live="polite">
+        {m.shell_table_page({
+          count: meta.filteredCount,
+          rows: formatNumber(meta.filteredCount, getLocale()),
+          page: formatNumber(state.pagination.pageIndex + 1, getLocale()),
+          pages: formatNumber(meta.pageCount, getLocale())
+        })}
+      </span>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={actions.previousPage}
+          disabled={!meta.canPreviousPage}
+        >
+          {m.shell_table_previous()}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={actions.nextPage}
+          disabled={!meta.canNextPage}
+        >
+          {m.shell_table_next()}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function DataTableContent() {
+  return useDataTableContext().meta.content
 }
 
 export function DataTable<TData extends RowData>({
   columns,
   data,
-  filter = false,
-  filterPlaceholder,
-  pageSize = 10,
+  pageSize,
   emptyMessage = m.shell_table_empty(),
   tableLabel,
-  pager = true
+  children
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
-
-  // `useTable` keys its internal state on input identities. Consumers pass
-  // module-scope constants or stable loader arrays, so the props are handed
-  // straight through — copying (`[...data]`) would re-allocate (and
-  // re-notify) every render.
   const table = useTable({
     features: dataTableFeatures,
     data,
@@ -134,128 +253,41 @@ export function DataTable<TData extends RowData>({
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
-    initialState: { pagination: { pageIndex: 0, pageSize } }
+    manualPagination: pageSize === undefined,
+    initialState: {
+      pagination: { pageIndex: 0, pageSize: pageSize ?? 10 }
+    }
   })
-
   const filteredCount = table.getFilteredRowModel().rows.length
-
   return (
-    <div className="grid gap-3">
-      {filter ? (
-        <Input
-          value={globalFilter}
-          onChange={(event) => setGlobalFilter(event.target.value)}
-          placeholder={filterPlaceholder ?? m.shell_table_filter()}
-          className="max-w-xs"
-          aria-label={filterPlaceholder ?? m.shell_table_filter_rows()}
-        />
-      ) : null}
-      <Table aria-label={tableLabel}>
-        <TableHeader>
-          {table.getHeaderGroups().map((group) => (
-            <TableRow key={group.id}>
-              {group.headers.map((header) => {
-                const canSort = header.column.getCanSort()
-                const sortDir = header.column.getIsSorted()
-                // A column's header is either a plain title or a render
-                // function; only the first can label the sort button, so fall
-                // back to the column id for the latter.
-                const columnTitle = headerTitleOf(
-                  header.column.columnDef.header,
-                  header.column.id
-                )
-                const sortState = SORT_STATE[sortDir === false ? 'false' : sortDir]
-                const isSticky = header.column.columnDef.meta?.sticky === true
-                const label = flexRender(
-                  header.column.columnDef.header,
-                  header.getContext()
-                )
-                return (
-                  <TableHead
-                    key={header.id}
-                    aria-sort={canSort ? sortState.aria : undefined}
-                    className={cn(isSticky && STICKY_CLASSES)}
-                  >
-                    {canSort && label !== null ? (
-                      <Button
-                        variant="ghost"
-                        onClick={header.column.getToggleSortingHandler()}
-                        aria-label={sortState.label({ column: columnTitle })}
-                      >
-                        {label}
-                        {sortState.glyph}
-                      </Button>
-                    ) : (
-                      label
-                    )}
-                  </TableHead>
-                )
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length === 0 ? (
-            <TableRow>
-              <TableCell
-                colSpan={columns.length}
-                className="text-center text-sm text-muted-foreground"
-              >
-                {emptyMessage}
-              </TableCell>
-            </TableRow>
-          ) : (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} className="group">
-                {row.getVisibleCells().map((cell) => {
-                  const isSticky = cell.column.columnDef.meta?.sticky === true
-                  const rendered = flexRender(
-                    cell.column.columnDef.cell,
-                    cell.getContext()
-                  )
-                  return (
-                    <TableCell key={cell.id} className={cn(isSticky && STICKY_CLASSES)}>
-                      {isDate(rendered) ? formatDateCell(rendered) : rendered}
-                    </TableCell>
-                  )
-                })}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-      {pager ? (
-        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          {/* Live: filter/pagination changes announce the new count, as the
-              audit trail's count already does. */}
-          <span aria-live="polite">
-            {m.shell_table_page({
-              count: filteredCount,
-              rows: formatNumber(filteredCount, getLocale()),
-              page: formatNumber(table.state.pagination.pageIndex + 1, getLocale()),
-              pages: formatNumber(table.getPageCount(), getLocale())
-            })}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              {m.shell_table_previous()}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              {m.shell_table_next()}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <DataTableContext
+      value={{
+        state: { sorting, globalFilter, pagination: table.state.pagination },
+        actions: {
+          setGlobalFilter: (filterValue: string) => {
+            setGlobalFilter(filterValue)
+            table.setPageIndex(0)
+          },
+          previousPage: () => table.previousPage(),
+          nextPage: () => table.nextPage()
+        },
+        meta: {
+          filteredCount,
+          pageCount: table.getPageCount(),
+          canPreviousPage: table.getCanPreviousPage(),
+          canNextPage: table.getCanNextPage(),
+          content: (
+            <DataTableTable
+              columns={columns}
+              emptyMessage={emptyMessage}
+              tableLabel={tableLabel}
+              table={table}
+            />
+          )
+        }
+      }}
+    >
+      <div className="grid gap-3">{children}</div>
+    </DataTableContext>
   )
 }

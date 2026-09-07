@@ -8,11 +8,11 @@ import {
   type RequestPasswordReset
 } from '@/components/auth/auth-client-ports'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
-import { EmailCodeExchange } from '@/components/auth/email-code-exchange'
+import { EmailCodeExchangePage } from '@/components/auth/email-code-exchange'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
-import { AuthCardForm } from '@/components/auth/auth-card-form'
+import { AuthCardForm, AuthNoticeCard } from '@/components/auth/auth-card-form'
 import { authClient } from '@/lib/auth-client'
 import { authErrorCopy } from '@/lib/auth-error-copy'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -94,7 +94,7 @@ export function ForgotPasswordPage({
 
   if (stage === 'code') {
     return (
-      <EmailCodeExchange
+      <EmailCodeExchangePage
         purpose="forget-password"
         email={email}
         title={m.enter_your_code()}
@@ -176,34 +176,53 @@ export function ForgotPasswordPage({
     )
   }
 
+  if (stage === 'link-sent') {
+    return (
+      <AuthNoticeCard
+        title={m.reset_your_password()}
+        description={m.reset_password_description()}
+        footer={
+          <p className="text-center text-sm text-muted-foreground">
+            {m.remembered_it()}{' '}
+            <Link to="/sign-in" className="text-primary underline underline-offset-4">
+              {m.form_sign_in()}
+            </Link>
+          </p>
+        }
+      >
+        <p role="alert" className="text-sm text-muted-foreground">
+          {SENT_MESSAGE()}
+        </p>
+      </AuthNoticeCard>
+    )
+  }
+
   return (
     <AuthCardForm
       title={m.reset_your_password()}
       description={m.reset_password_description()}
       // The link-sent stage is a confirmation, not a form — no wrapper, no
       // hydration signal needed.
-      form={stage === 'form' ? form : null}
+      form={form}
       submit={
-        stage === 'form' ? (
-          <div className="grid gap-3">
-            <AuthSubmitButton
-              form={form}
-              icon={<MailQuestionIcon className="size-4" />}
-              label={m.form_send_reset_link()}
-              submittingLabel={m.sending()}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={!form.state.canSubmit || form.state.isSubmitting}
-              onClick={() => {
-                void sendCode()
-              }}
-            >
-              {m.email_code_instead()}
-            </Button>
-          </div>
-        ) : undefined
+        <div className="grid gap-3">
+          <AuthSubmitButton
+            form={form}
+            icon={<MailQuestionIcon className="size-4" />}
+            label={m.form_send_reset_link()}
+            submittingLabel={m.sending()}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!form.state.canSubmit || form.state.isSubmitting}
+            onClick={() => {
+              void sendCode()
+            }}
+          >
+            {m.email_code_instead()}
+          </Button>
+        </div>
       }
       error={submitError}
       footer={
@@ -215,28 +234,22 @@ export function ForgotPasswordPage({
         </p>
       }
     >
-      {stage === 'link-sent' ? (
-        <p role="alert" className="text-sm text-muted-foreground">
-          {SENT_MESSAGE()}
-        </p>
-      ) : (
-        <form.Field name="email" validators={{ onChange: emailValidator }}>
-          {(field) => (
-            <FormTextField
-              name={field.name}
-              label={m.form_email()}
-              type="email"
-              placeholder="you@example.com"
-              autoComplete="email"
-              value={field.state.value}
-              errors={field.state.meta.errors}
-              onBlur={field.handleBlur}
-              onChange={field.handleChange}
-              required
-            />
-          )}
-        </form.Field>
-      )}
+      <form.Field name="email" validators={{ onChange: emailValidator }}>
+        {(field) => (
+          <FormTextField
+            name={field.name}
+            label={m.form_email()}
+            type="email"
+            placeholder="you@example.com"
+            autoComplete="email"
+            value={field.state.value}
+            errors={field.state.meta.errors}
+            onBlur={field.handleBlur}
+            onChange={field.handleChange}
+            required
+          />
+        )}
+      </form.Field>
     </AuthCardForm>
   )
 }

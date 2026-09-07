@@ -64,7 +64,7 @@ function DashboardDemo(data: WorkspaceDashboardPayload) {
       data={data}
       // The actorless demo carries no dismiss control anywhere, so the
       // checklist must not claim one in its member note.
-      dismissalNote={false}
+      dismissalHint={null}
       ports={{
         listNotifications: demoListNotifications(data.notifications),
         markNotificationsRead: demoMarkNotificationsRead

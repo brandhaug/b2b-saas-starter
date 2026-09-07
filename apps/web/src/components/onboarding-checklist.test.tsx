@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react'
 import { type WorkspaceProgressProjection } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
@@ -23,7 +24,7 @@ async function renderChecklist(
   viewer: { readonly role: 'owner' | 'member' },
   dismiss: DismissOnboardingChecklist,
   data: WorkspaceProgressProjection = progress,
-  dismissalNote?: boolean
+  dismissalHint?: ReactNode
 ) {
   return renderWithRouter(
     <OnboardingChecklist
@@ -31,7 +32,7 @@ async function renderChecklist(
       progress={data}
       viewer={viewer}
       dismiss={dismiss}
-      {...(dismissalNote === undefined ? {} : { dismissalNote })}
+      {...(dismissalHint === undefined ? {} : { dismissalHint })}
     />,
     {
       path: '/workspaces/starter-lab',
@@ -81,7 +82,7 @@ describe('OnboardingChecklist', () => {
       { role: 'member' },
       vi.fn(async () => true),
       progress,
-      false
+      null
     )
     expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
     expect(

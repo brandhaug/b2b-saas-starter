@@ -28,31 +28,16 @@ const alertVariants = cva(
   }
 )
 
-/**
- * A direct child that is an element without a `data-slot` prop is an icon —
- * every named child here (title, description, action) carries its slot, and
- * the cva grid reserves the first column for a direct-child `<svg>`.
- */
-function hasIconChild(children: React.ReactNode): boolean {
-  // A direct child that is not one of the named slots is the icon: every
-  // named child (title/description/action) is a known component here, so
-  // the cva grid's `has-[>svg]` column gets exactly one candidate.
-  return React.Children.toArray(children).some(
-    (child) =>
-      React.isValidElement(child) &&
-      child.type !== AlertTitle &&
-      child.type !== AlertDescription &&
-      child.type !== AlertAction
-  )
-}
-
 function Alert({
   className,
   variant,
   children,
+  icon = variant === 'destructive' ? <CircleAlertIcon aria-hidden="true" /> : null,
   ...props
-}: React.ComponentProps<'div'> & VariantProps<typeof alertVariants>) {
-  const showDefaultIcon = variant === 'destructive' && !hasIconChild(children)
+}: React.ComponentProps<'div'> &
+  VariantProps<typeof alertVariants> & {
+    readonly icon?: React.ReactNode
+  }) {
   return (
     <div
       data-slot="alert"
@@ -60,7 +45,7 @@ function Alert({
       className={cn(alertVariants({ variant }), className)}
       {...props}
     >
-      {showDefaultIcon ? <CircleAlertIcon aria-hidden="true" /> : null}
+      {icon}
       {children}
     </div>
   )

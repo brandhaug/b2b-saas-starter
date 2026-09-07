@@ -4,7 +4,7 @@ import {
 } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { Link } from '@tanstack/react-router'
 import { CircleCheckIcon, CircleIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useServerAction } from '@/hooks/use-server-action'
@@ -105,17 +105,17 @@ export function OnboardingChecklist({
   progress,
   viewer,
   dismiss = dismissOnboardingChecklistServerFn,
-  dismissalNote = true
+  dismissalHint = m.onboarding_dismiss_owner_note()
 }: {
   readonly workspaceSlug: string
   readonly progress: WorkspaceProgressProjection
   readonly viewer: Viewer
   readonly dismiss?: DismissOnboardingChecklist
   /**
-   * Off on the read-only demo, where the note would name a dismiss control
-   * the page does not carry.
+   * Optional explanation for viewers without dismissal permission.
+   * The read-only demo supplies null because it has no dismiss control.
    */
-  readonly dismissalNote?: boolean | undefined
+  readonly dismissalHint?: ReactNode
 }) {
   const [justDismissed, setJustDismissed] = useState(false)
   const canDismiss = viewerCan(viewer, { onboarding: ['dismiss'] })
@@ -193,10 +193,8 @@ export function OnboardingChecklist({
           )
         })}
       </ul>
-      {canDismiss || !dismissalNote ? null : (
-        <p className="text-xs text-muted-foreground">
-          {m.onboarding_dismiss_owner_note()}
-        </p>
+      {canDismiss || !dismissalHint ? null : (
+        <p className="text-xs text-muted-foreground">{dismissalHint}</p>
       )}
       <ActionFeedback error={dismissal.error} />
     </Panel>

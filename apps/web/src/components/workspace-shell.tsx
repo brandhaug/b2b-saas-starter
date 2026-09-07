@@ -1,5 +1,5 @@
 import { SupportDetails } from '@/components/support-details'
-import { type ReactNode, useEffect, useState, use } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import {
   BellIcon,
@@ -32,10 +32,9 @@ import {
 } from '@/components/ui/sheet'
 import { useServerAction } from '@/hooks/use-server-action'
 import { authClient } from '@/lib/auth-client'
-import { SearchButton } from '@/components/command-palette'
+import { SearchButton, CommandPaletteProvider } from '@/components/command-palette'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { ActionFeedback } from '@/components/page/action-feedback'
-import { CommandPaletteContext } from '@/lib/command-palette-context'
 import { useImpersonation, type StopImpersonating } from '@/lib/impersonation'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import {
@@ -115,18 +114,6 @@ export function WorkspaceShell({
     },
     { failureMessage: m.auth_sign_out_failed(), invalidate: false }
   )
-  // Publish the viewer and system role to the command palette for as long as
-  // this shell is mounted, so its workspace and admin entries match what the
-  // signed-in role can open (and vanish on public pages, where no shell runs).
-  const palette = use(CommandPaletteContext)
-  useEffect(() => {
-    palette?.setViewer(viewer)
-    palette?.setSystemRole(systemRole ?? null)
-    return () => {
-      palette?.setViewer(null)
-      palette?.setSystemRole(null)
-    }
-  }, [palette, viewer, systemRole])
   const directory = useWorkspaceDirectory()
   // The header names the workspace on every page. The directory carries the
   // display name; the slug is the fallback when the page's payload has none.
@@ -151,124 +138,126 @@ export function WorkspaceShell({
     rememberWorkspace(router, { slug: workspaceSlug, name: workspaceName })
   }, [router, workspaceSlug, workspaceName])
   return (
-    <div className="grid min-h-dvh bg-background lg:grid-cols-[16rem_1fr]">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary px-3 py-2 text-sm focus:text-primary-foreground"
-      >
-        {m.common_skip_to_content()}
-      </a>
-      <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
-        <WorkspaceNav
-          workspace={sidebarWorkspace}
-          viewer={viewer}
-          systemRole={systemRole}
-        />
-      </aside>
-      <div className="min-w-0">
-        {impersonation === null ? null : (
-          <ImpersonationBanner
-            impersonation={impersonation}
-            {...(stopImpersonating === undefined ? {} : { stopImpersonating })}
+    <CommandPaletteProvider viewer={viewer} systemRole={systemRole}>
+      <div className="grid min-h-dvh bg-background lg:grid-cols-[16rem_1fr]">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary px-3 py-2 text-sm focus:text-primary-foreground"
+        >
+          {m.common_skip_to_content()}
+        </a>
+        <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
+          <WorkspaceNav
+            workspace={sidebarWorkspace}
+            viewer={viewer}
+            systemRole={systemRole}
           />
-        )}
-        <div>
-          <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
-            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-              <SheetTrigger
-                render={
-                  <Button variant="ghost" size="icon" className="lg:hidden">
-                    <MenuIcon className="size-5" />
-                    <span className="sr-only">{m.common_open_navigation()}</span>
-                  </Button>
-                }
-              />
-              <SheetContent
-                side="left"
-                className="flex flex-col gap-0 bg-sidebar text-sidebar-foreground border-sidebar-border"
-              >
-                <SheetHeader>
-                  <SheetTitle className="sr-only">
-                    {m.common_workspace_navigation()}
-                  </SheetTitle>
-                  <SheetDescription className="sr-only">
-                    {m.switch_workspace_sections()}
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="p-4">
-                  <WorkspaceNav
-                    workspace={sidebarWorkspace}
-                    viewer={viewer}
-                    systemRole={systemRole}
-                    onNavigate={() => setMobileNavOpen(false)}
-                  />
-                </div>
-              </SheetContent>
-            </Sheet>
-            {workspaceSlug === null ? (
-              <div className="min-w-0 flex-1" />
-            ) : (
-              <Link
-                to="/workspaces/$workspaceSlug"
-                params={{ workspaceSlug }}
-                className="min-w-0 flex-1 truncate text-sm font-medium hover:underline underline-offset-2"
-                title={workspaceName ?? workspaceSlug}
-              >
-                {workspaceName}
-              </Link>
-            )}
-            <LanguageSwitcher />
-            <SearchButton />
-            {unreadCount === undefined ? null : (
-              // The badge is the notification feed's one always-visible entry
-              // point: it lands on the user-level notifications route, where
-              // the unread kinds are managed — same count, same label, now
-              // clickable.
-              <Badge
-                variant="neutral"
-                className="gap-1 font-mono tabular-nums"
-                render={
-                  <Link
-                    to="/account/notifications"
-                    aria-label={m.unread_notifications({ count: unreadCount })}
-                  />
-                }
-              >
-                <BellIcon className="size-3" />
-                {unreadCount}
-              </Badge>
-            )}
-            <UserMenu
-              workspaceSlug={workspaceSlug}
-              signingOut={signingOut}
-              systemRole={systemRole}
+        </aside>
+        <div className="min-w-0">
+          {impersonation === null ? null : (
+            <ImpersonationBanner
+              impersonation={impersonation}
+              {...(stopImpersonating === undefined ? {} : { stopImpersonating })}
             />
-          </header>
-          {signingOut.error === null ? null : (
-            <div className="border-b border-border px-4 py-2 sm:px-6">
-              <ActionFeedback error={signingOut.error} />
-            </div>
           )}
-        </div>
-        {/* One content width for every shell page — the page body centers at
-            `max-w-4xl` instead of each page picking its own column. */}
-        <main id="main-content" className="px-4 py-6 sm:px-6">
-          <div className="mx-auto grid w-full max-w-4xl gap-6">
-            {children}
-            <footer className="border-t border-border pt-6">
-              <SupportDetails
-                routeName={workspaceSlug === null ? 'application' : 'workspace'}
-                workspaceId={
-                  workspaceSlug === null
-                    ? undefined
-                    : findWorkspace(directory, workspaceSlug)?.id
-                }
+          <div>
+            <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
+              <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                <SheetTrigger
+                  render={
+                    <Button variant="ghost" size="icon" className="lg:hidden">
+                      <MenuIcon className="size-5" />
+                      <span className="sr-only">{m.common_open_navigation()}</span>
+                    </Button>
+                  }
+                />
+                <SheetContent
+                  side="left"
+                  className="flex flex-col gap-0 bg-sidebar text-sidebar-foreground border-sidebar-border"
+                >
+                  <SheetHeader>
+                    <SheetTitle className="sr-only">
+                      {m.common_workspace_navigation()}
+                    </SheetTitle>
+                    <SheetDescription className="sr-only">
+                      {m.switch_workspace_sections()}
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="p-4">
+                    <WorkspaceNav
+                      workspace={sidebarWorkspace}
+                      viewer={viewer}
+                      systemRole={systemRole}
+                      onNavigate={() => setMobileNavOpen(false)}
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+              {workspaceSlug === null ? (
+                <div className="min-w-0 flex-1" />
+              ) : (
+                <Link
+                  to="/workspaces/$workspaceSlug"
+                  params={{ workspaceSlug }}
+                  className="min-w-0 flex-1 truncate text-sm font-medium hover:underline underline-offset-2"
+                  title={workspaceName ?? workspaceSlug}
+                >
+                  {workspaceName}
+                </Link>
+              )}
+              <LanguageSwitcher />
+              <SearchButton />
+              {unreadCount === undefined ? null : (
+                // The badge is the notification feed's one always-visible entry
+                // point: it lands on the user-level notifications route, where
+                // the unread kinds are managed — same count, same label, now
+                // clickable.
+                <Badge
+                  variant="neutral"
+                  className="gap-1 font-mono tabular-nums"
+                  render={
+                    <Link
+                      to="/account/notifications"
+                      aria-label={m.unread_notifications({ count: unreadCount })}
+                    />
+                  }
+                >
+                  <BellIcon className="size-3" />
+                  {unreadCount}
+                </Badge>
+              )}
+              <UserMenu
+                workspaceSlug={workspaceSlug}
+                signingOut={signingOut}
+                systemRole={systemRole}
               />
-            </footer>
+            </header>
+            {signingOut.error === null ? null : (
+              <div className="border-b border-border px-4 py-2 sm:px-6">
+                <ActionFeedback error={signingOut.error} />
+              </div>
+            )}
           </div>
-        </main>
+          {/* One content width for every shell page — the page body centers at
+            `max-w-4xl` instead of each page picking its own column. */}
+          <main id="main-content" className="px-4 py-6 sm:px-6">
+            <div className="mx-auto grid w-full max-w-4xl gap-6">
+              {children}
+              <footer className="border-t border-border pt-6">
+                <SupportDetails
+                  routeName={workspaceSlug === null ? 'application' : 'workspace'}
+                  workspaceId={
+                    workspaceSlug === null
+                      ? undefined
+                      : findWorkspace(directory, workspaceSlug)?.id
+                  }
+                />
+              </footer>
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </CommandPaletteProvider>
   )
 }
 

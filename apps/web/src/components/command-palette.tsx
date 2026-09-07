@@ -10,13 +10,16 @@ import { useClientValue } from '@/lib/client-only-value'
 import { type Viewer } from '@/lib/permissions'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-export function CommandPaletteProvider({ children }: { readonly children: ReactNode }) {
+export function CommandPaletteProvider({
+  children,
+  viewer = null,
+  systemRole = null
+}: {
+  readonly children: ReactNode
+  readonly viewer?: Viewer
+  readonly systemRole?: string | null | undefined
+}) {
   const [open, setOpen] = useState(false)
-  // The workspace viewer and system role, set by `WorkspaceShell` while it is
-  // mounted (see the effect there). The dialog reads them to filter its
-  // workspace and admin entries to what the signed-in role can actually open.
-  const [viewer, setViewer] = useState<Viewer | null>(null)
-  const [systemRole, setSystemRole] = useState<string | null>(null)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -32,12 +35,12 @@ export function CommandPaletteProvider({ children }: { readonly children: ReactN
 
   return (
     <CommandPaletteContext
-      value={{ open, setOpen, viewer, setViewer, systemRole, setSystemRole }}
+      value={{ state: { open }, actions: { setOpen }, meta: { viewer, systemRole } }}
     >
       {children}
       {open ? (
         <Suspense fallback={null}>
-          <CommandPaletteDialog open={open} onOpenChange={setOpen} />
+          <CommandPaletteDialog />
         </Suspense>
       ) : null}
     </CommandPaletteContext>
@@ -77,7 +80,7 @@ export function SearchButton() {
       <Button
         variant="outline"
         size="icon"
-        onClick={() => value?.setOpen(true)}
+        onClick={() => value?.actions.setOpen(true)}
         onMouseEnter={preloadCommandPalette}
         onFocus={preloadCommandPalette}
         aria-label={m.common_search()}
@@ -87,7 +90,7 @@ export function SearchButton() {
       </Button>
       <Button
         variant="outline"
-        onClick={() => value?.setOpen(true)}
+        onClick={() => value?.actions.setOpen(true)}
         onMouseEnter={preloadCommandPalette}
         onFocus={preloadCommandPalette}
         aria-label={m.common_search()}

@@ -94,46 +94,18 @@ type EmailCodeFormApi = ReactFormExtendedApi<
  * (`authErrorCopy`, the shared code table, with each flow's fallback) — so
  * the routes only supply the ports and the copy.
  *
- * `layout` picks the chrome: `"page"` renders both steps as standalone
- * `AuthCardForm`s (title + description per step, the footer slots); `"card"`
- * renders one `Card` with a single heading for embedding in a page that
- * already has a layout, with the resend row inside the form like the
- * verify-email page always showed it.
- *
  * `email` presets the address (the reset flow collects it in its fused
  * request form, so its exchange starts on the code step); without it the
  * flow starts on the email step.
  */
-export function EmailCodeExchange({
-  purpose,
-  send = sendEmailCodeWithAuthClient,
-  verify,
-  onVerified,
-  layout = 'page',
-  email,
-  title,
-  emailTitle = m.form_email_code(),
-  emailDescription,
-  emailFooter,
-  codeSentNotice,
-  codeSentNoticeFor,
-  codeSubmitLabel,
-  codeSubmittingLabel,
-  codeSubmitIcon,
-  codeFooter,
-  verifyErrorFallback = m.public_auth_verification_failed(),
-  renderExtraFields,
-  differentEmailLabel = m.use_different_email(),
-  onDifferentEmail
-}: {
+type EmailCodeExchangeProps = {
   readonly purpose: EmailCodePurpose
   readonly send?: SendEmailCode
   readonly verify: VerifyEmailCode
   readonly onVerified: () => void
-  readonly layout?: 'page' | 'card'
   /** A code was already sent here — start on the code step. */
   readonly email?: string
-  /** The code step's heading (the card's only heading in `card` layout). */
+  /** The code step's heading. */
   readonly title: string
   readonly emailTitle?: string
   readonly emailDescription?: string
@@ -145,17 +117,28 @@ export function EmailCodeExchange({
   readonly codeSubmitLabel: string
   readonly codeSubmittingLabel: string
   readonly codeSubmitIcon?: ReactNode
-  /** Rendered under the resend row in the card footer (`page` layout). */
+  /** Rendered under the resend row in the page footer. */
   readonly codeFooter?: ReactNode
   readonly verifyErrorFallback?: string
-  /** Extra fields between the code input and the submit button (the reset
-   * flow's password pair), rendered against the shared code form. */
+  /** Extra fields between the code input and the submit button. */
   readonly renderExtraFields?: (form: EmailCodeFormApi) => ReactNode
   readonly differentEmailLabel?: string
-  /** Overrides the built-in return to the email step (the reset flow goes
-   * back to its fused request form instead). */
+  /** Overrides the built-in return to the email step. */
   readonly onDifferentEmail?: () => void
-}) {
+}
+
+function useEmailCodeExchange({
+  purpose,
+  send = sendEmailCodeWithAuthClient,
+  verify,
+  onVerified,
+  email,
+  codeSentNotice,
+  codeSentNoticeFor,
+  verifyErrorFallback = m.public_auth_verification_failed(),
+  differentEmailLabel = m.use_different_email(),
+  onDifferentEmail
+}: EmailCodeExchangeProps) {
   const [step, setStep] = useState<'email' | 'code'>(
     email === undefined ? 'email' : 'code'
   )
@@ -245,162 +228,180 @@ export function EmailCodeExchange({
     </div>
   )
 
-  if (step === 'email') {
-    if (layout === 'card') {
-      return (
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle as="h2">{title}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <form
-              onSubmit={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                void emailForm.handleSubmit()
-              }}
-              className="grid gap-4"
-            >
-              <emailForm.Field name="email" validators={{ onChange: emailValidator }}>
-                {(field) => (
-                  <FormTextField
-                    name={field.name}
-                    label={m.form_email()}
-                    type="email"
-                    placeholder={m.email_placeholder()}
-                    autoComplete="email"
-                    value={field.state.value}
-                    errors={field.state.meta.errors}
-                    onBlur={field.handleBlur}
-                    onChange={field.handleChange}
-                    required
-                  />
-                )}
-              </emailForm.Field>
-              <AuthSubmitButton
-                form={emailForm}
-                icon={<MailIcon className="size-4" />}
-                label={emailTitle}
-                submittingLabel={m.sending()}
-              />
-              {submitError ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {submitError}
-                </p>
-              ) : null}
-            </form>
-          </CardContent>
-        </Card>
-      )
-    }
+  return { step, emailForm, codeForm, submitError, sentNotice, resendRow }
+}
+
+function EmailStepField({
+  form
+}: {
+  readonly form: ReturnType<typeof useEmailCodeExchange>['emailForm']
+}) {
+  return (
+    <form.Field name="email" validators={{ onChange: emailValidator }}>
+      {(field) => (
+        <FormTextField
+          name={field.name}
+          label={m.form_email()}
+          type="email"
+          placeholder={m.email_placeholder()}
+          autoComplete="email"
+          value={field.state.value}
+          errors={field.state.meta.errors}
+          onBlur={field.handleBlur}
+          onChange={field.handleChange}
+          required
+        />
+      )}
+    </form.Field>
+  )
+}
+
+function CodeStepFields({
+  form,
+  renderExtraFields
+}: {
+  readonly form: EmailCodeFormApi
+  readonly renderExtraFields: ((form: EmailCodeFormApi) => ReactNode) | undefined
+}) {
+  return (
+    <>
+      <form.Field name="code" validators={{ onChange: sixDigitCodeValidator }}>
+        {(field) => (
+          <OtpCodeInput
+            value={field.state.value}
+            onChange={field.handleChange}
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- the code step has exactly one field group, so focusing its first cell cannot surprise anyone mid-task
+            autoFocus
+          />
+        )}
+      </form.Field>
+      {renderExtraFields?.(form)}
+    </>
+  )
+}
+
+export function EmailCodeExchangePage(props: EmailCodeExchangeProps) {
+  const {
+    title,
+    emailTitle = m.form_email_code(),
+    emailDescription,
+    emailFooter,
+    codeSubmitLabel,
+    codeSubmittingLabel,
+    codeSubmitIcon,
+    codeFooter,
+    renderExtraFields
+  } = props
+  const exchange = useEmailCodeExchange(props)
+  if (exchange.step === 'email') {
     return (
       <AuthCardForm
         title={emailTitle}
         description={emailDescription}
-        form={emailForm}
+        form={exchange.emailForm}
         submit={
           <AuthSubmitButton
-            form={emailForm}
+            form={exchange.emailForm}
             icon={<MailIcon className="size-4" />}
             label={emailTitle}
-            submittingLabel="Sending…"
+            submittingLabel={m.sending()}
           />
         }
-        error={submitError}
+        error={exchange.submitError}
         footer={emailFooter}
       >
-        <emailForm.Field name="email" validators={{ onChange: emailValidator }}>
-          {(field) => (
-            <FormTextField
-              name={field.name}
-              label={m.form_email()}
-              type="email"
-              placeholder={m.email_placeholder()}
-              autoComplete="email"
-              value={field.state.value}
-              errors={field.state.meta.errors}
-              onBlur={field.handleBlur}
-              onChange={field.handleChange}
-              required
-            />
-          )}
-        </emailForm.Field>
+        <EmailStepField form={exchange.emailForm} />
       </AuthCardForm>
     )
   }
-
-  const codeField = (
-    <codeForm.Field name="code" validators={{ onChange: sixDigitCodeValidator }}>
-      {(field) => (
-        <OtpCodeInput
-          value={field.state.value}
-          onChange={field.handleChange}
-          // oxlint-disable-next-line jsx-a11y/no-autofocus -- the code step has exactly one field group, so focusing its first cell cannot surprise anyone mid-task
-          autoFocus
-        />
-      )}
-    </codeForm.Field>
-  )
-
-  if (layout === 'card') {
-    return (
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle as="h2">{title}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              void codeForm.handleSubmit()
-            }}
-            className="grid gap-4"
-          >
-            <p className="text-sm text-muted-foreground">{sentNotice}</p>
-            {codeField}
-            {renderExtraFields?.(codeForm)}
-            {resendRow}
-            <AuthSubmitButton
-              form={codeForm}
-              icon={codeSubmitIcon ?? <ShieldCheckIcon className="size-4" />}
-              label={codeSubmitLabel}
-              submittingLabel={codeSubmittingLabel}
-            />
-            {submitError ? (
-              <p role="alert" className="text-sm text-destructive">
-                {submitError}
-              </p>
-            ) : null}
-          </form>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
     <AuthCardForm
       title={title}
-      description={sentNotice}
-      form={codeForm}
+      description={exchange.sentNotice}
+      form={exchange.codeForm}
       submit={
         <AuthSubmitButton
-          form={codeForm}
+          form={exchange.codeForm}
           icon={codeSubmitIcon ?? <ShieldCheckIcon className="size-4" />}
           label={codeSubmitLabel}
           submittingLabel={codeSubmittingLabel}
         />
       }
-      error={submitError}
+      error={exchange.submitError}
       footer={
         <div className="grid gap-3">
-          {resendRow}
+          {exchange.resendRow}
           {codeFooter}
         </div>
       }
     >
-      {codeField}
-      {renderExtraFields?.(codeForm)}
+      <CodeStepFields form={exchange.codeForm} renderExtraFields={renderExtraFields} />
     </AuthCardForm>
+  )
+}
+
+export function EmailCodeExchangeCard(props: EmailCodeExchangeProps) {
+  const {
+    title,
+    emailTitle = m.form_email_code(),
+    codeSubmitLabel,
+    codeSubmittingLabel,
+    codeSubmitIcon,
+    renderExtraFields
+  } = props
+  const exchange = useEmailCodeExchange(props)
+  const submit =
+    exchange.step === 'email' ? (
+      <AuthSubmitButton
+        form={exchange.emailForm}
+        icon={<MailIcon className="size-4" />}
+        label={emailTitle}
+        submittingLabel={m.sending()}
+      />
+    ) : (
+      <AuthSubmitButton
+        form={exchange.codeForm}
+        icon={codeSubmitIcon ?? <ShieldCheckIcon className="size-4" />}
+        label={codeSubmitLabel}
+        submittingLabel={codeSubmittingLabel}
+      />
+    )
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle as="h2">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            void (exchange.step === 'email'
+              ? exchange.emailForm.handleSubmit()
+              : exchange.codeForm.handleSubmit())
+          }}
+          className="grid gap-4"
+        >
+          {exchange.step === 'email' ? (
+            <EmailStepField form={exchange.emailForm} />
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">{exchange.sentNotice}</p>
+              <CodeStepFields
+                form={exchange.codeForm}
+                renderExtraFields={renderExtraFields}
+              />
+              {exchange.resendRow}
+            </>
+          )}
+          {submit}
+          {exchange.submitError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {exchange.submitError}
+            </p>
+          ) : null}
+        </form>
+      </CardContent>
+    </Card>
   )
 }

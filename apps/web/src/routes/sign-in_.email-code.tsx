@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import { EmailCodeExchange } from '@/components/auth/email-code-exchange'
+import { EmailCodeExchangePage } from '@/components/auth/email-code-exchange'
 import { pageTitle } from '@/components/page/page-title'
 import { authClient } from '@/lib/auth-client'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
@@ -33,7 +33,7 @@ export function EmailCodeSignInPage({
 }) {
   const router = useRouter()
   return (
-    <EmailCodeExchange
+    <EmailCodeExchangePage
       purpose="sign-in"
       verify={({ email, otp }) => authClient.signIn.emailOtp({ email, otp })}
       onVerified={() => {

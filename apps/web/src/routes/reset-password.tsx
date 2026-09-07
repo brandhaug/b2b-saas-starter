@@ -3,7 +3,7 @@ import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { KeyRoundIcon } from 'lucide-react'
-import { AuthCardForm } from '@/components/auth/auth-card-form'
+import { AuthCardForm, AuthNoticeCard } from '@/components/auth/auth-card-form'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
 import { passwordValidator } from '@/components/auth/auth-validators'
 import { FormTextField } from '@/components/form-text-field'
@@ -64,9 +64,8 @@ export function ResetPasswordPage({
   // state for every failure, same rule as the invitation accept page.
   if (!token || error) {
     return (
-      <AuthCardForm
+      <AuthNoticeCard
         title={m.reset_link_unusable()}
-        form={null}
         footer={
           <p className="text-center text-sm text-muted-foreground">
             <Link
@@ -79,7 +78,7 @@ export function ResetPasswordPage({
         }
       >
         <p className="text-sm text-muted-foreground">{m.reset_link_invalid()}</p>
-      </AuthCardForm>
+      </AuthNoticeCard>
     )
   }
 

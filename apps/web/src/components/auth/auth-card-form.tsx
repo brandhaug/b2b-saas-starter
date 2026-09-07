@@ -22,9 +22,7 @@ export type SubscribableForm = {
  * The e2e hydration signal is set here by construction: every auth form gets
  * `data-hydrated` once React hydrates, with no per-route copy to forget.
  *
- * `form` may be `null` for a card that carries no form (e.g. the sent
- * confirmation on forgot-password); the children then render without a
- * `<form>` wrapper.
+ * Use AuthNoticeCard for confirmations and other content without a form.
  */
 export function AuthCardForm({
   title,
@@ -38,8 +36,7 @@ export function AuthCardForm({
 }: {
   readonly title: string
   readonly description?: ReactNode
-  /** `null` renders the children without a `<form>` wrapper. */
-  readonly form: SubscribableForm | null
+  readonly form: SubscribableForm
   /** The submit control — an `<AuthSubmitButton>` in practice. */
   readonly submit?: ReactNode
   /** Submit failure message; rendered as a destructive alert inside the form. */
@@ -53,23 +50,80 @@ export function AuthCardForm({
   // Hydration signal for e2e: interacting before React hydrates falls through
   // to a native GET submit, so the smoke test waits for this attribute.
   const hydrated = useClientValue(() => true, false)
+  return (
+    <AuthCardShell title={title} description={description} footer={footer}>
+      <form
+        data-hydrated={hydrated ? 'true' : undefined}
+        onSubmit={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          void form.handleSubmit()
+        }}
+        className="grid gap-4"
+      >
+        {children}
+        {submit}
+        <AuthErrorAlert error={error} />
+        {notice ? (
+          <Alert>
+            <AlertDescription>{notice}</AlertDescription>
+          </Alert>
+        ) : null}
+      </form>
+    </AuthCardShell>
+  )
+}
+
+export function AuthNoticeCard({
+  title,
+  description,
+  error,
+  footer,
+  children
+}: {
+  readonly title: string
+  readonly description?: ReactNode
+  readonly error?: string | null
+  readonly footer?: ReactNode
+  readonly children: ReactNode
+}) {
+  return (
+    <AuthCardShell title={title} description={description} footer={footer}>
+      <div className="grid gap-4">
+        {children}
+        <AuthErrorAlert error={error} />
+      </div>
+    </AuthCardShell>
+  )
+}
+
+function AuthErrorAlert({ error }: { readonly error: string | null | undefined }) {
   const errorRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (error) {
       errorRef.current?.focus()
     }
   }, [error])
-  // One alert for both branches: a card without a form (the consent page)
-  // still has errors to show.
-  const errorAlert = error ? (
+  return error ? (
     <Alert ref={errorRef} tabIndex={-1} variant="destructive">
       <AlertDescription>{error}</AlertDescription>
     </Alert>
   ) : null
+}
+
+function AuthCardShell({
+  title,
+  description,
+  footer,
+  children
+}: {
+  readonly title: string
+  readonly description?: ReactNode
+  readonly footer?: ReactNode
+  readonly children: ReactNode
+}) {
   return (
     <PublicLayout>
-      {/* `flex-1` fills the space PublicLayout's `min-h-dvh flex-col` leaves
-          between the header and its `mt-auto` footer — no hardcoded chrome height. */}
       <main
         id="main-content"
         className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
@@ -82,31 +136,7 @@ export function AuthCardForm({
             ) : null}
           </CardHeader>
           <CardContent className="grid gap-4">
-            {form === null ? (
-              <div className="grid gap-4">
-                {children}
-                {errorAlert}
-              </div>
-            ) : (
-              <form
-                data-hydrated={hydrated ? 'true' : undefined}
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  void form.handleSubmit()
-                }}
-                className="grid gap-4"
-              >
-                {children}
-                {submit}
-                {errorAlert}
-                {notice ? (
-                  <Alert>
-                    <AlertDescription>{notice}</AlertDescription>
-                  </Alert>
-                ) : null}
-              </form>
-            )}
+            {children}
             {footer}
             <p className="text-center text-sm text-muted-foreground">
               <Link to="/help" reloadDocument className="underline underline-offset-4">

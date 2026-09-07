@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, use } from 'react'
 import { type WorkspaceListItemProjection } from '@b2b-saas-starter/capabilities/workspace-projections'
 
 /**
@@ -14,7 +14,7 @@ export type WorkspaceDirectory = ReadonlyArray<WorkspaceListItemProjection>
 export const WorkspaceDirectoryContext = createContext<WorkspaceDirectory | null>(null)
 
 export function useWorkspaceDirectory(): WorkspaceDirectory | null {
-  return useContext(WorkspaceDirectoryContext)
+  return use(WorkspaceDirectoryContext)
 }
 
 /**

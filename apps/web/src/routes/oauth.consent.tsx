@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { PlugZapIcon } from 'lucide-react'
-import { AuthCardForm } from '@/components/auth/auth-card-form'
+import { AuthNoticeCard } from '@/components/auth/auth-card-form'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -148,14 +148,13 @@ export function OAuthConsentPage({
   }
 
   return (
-    <AuthCardForm
+    <AuthNoticeCard
       title={m.oauth_connect_title({ client: clientName })}
       description={
         payload.client?.uri
           ? m.oauth_connect_with_uri({ uri: payload.client.uri })
           : m.oauth_connect_without_uri()
       }
-      form={null}
       error={error}
     >
       {request === null ? (
@@ -235,6 +234,6 @@ export function OAuthConsentPage({
           </div>
         </>
       )}
-    </AuthCardForm>
+    </AuthNoticeCard>
   )
 }
