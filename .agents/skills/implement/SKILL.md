@@ -39,8 +39,9 @@ user request.
    If a supporting skill is missing, follow [skills setup](../../../docs/agents/skills.md).
 4. Docs and mechanical edits get one targeted reviewer. For behavior changes, use
    `code-review` against a fixed base/head and the agreed spec, with its separate
-   Standards and Spec reviewers. Apply `thermo-nuclear-code-quality-review` for
-   concrete architectural concerns or an explicit request.
+   Standards and Spec reviewers. Have the Standards reviewer apply
+   `thermo-nuclear-code-quality-review` in the same pass and deduplicate overlapping
+   findings. Keep Spec independent; run a separate deep audit only on explicit request.
 5. Consolidate findings before assigning fixes. Structural suggestions need a
    concrete benefit. Independently recheck accepted repairs and affected callers;
    repeat the broader review only when design or behavior changes substantially.
