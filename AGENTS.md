@@ -8,7 +8,7 @@ Cloudflare-first B2B SaaS starter. Public site showcases the repo; app demonstra
 
 No production users. Refactor freely, rename, and drop stored shapes. No backwards compatibility, deprecation paths, or old-data shims.
 
-For issue/spec work, follow the [implement skill](.agents/skills/implement/SKILL.md). For ticket context, read [issue-tracker.md](docs/agents/issue-tracker.md).
+For issue/spec implementation, follow the [implement skill](.agents/skills/implement/SKILL.md). For ticket context, read [issue-tracker.md](docs/agents/issue-tracker.md).
 
 ## Intent Node Index
 
@@ -28,11 +28,11 @@ For issue/spec work, follow the [implement skill](.agents/skills/implement/SKILL
 | Typed SDK         | [packages/sdk/AGENTS.md](packages/sdk/AGENTS.md)                     |
 | Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md) |
 
-Capabilities have leaf nodes.
-
 ## Setup
 
-Use [Vite+](https://viteplus.dev) for pinned Node and pnpm. Run `vp install`, `pnpm run check`, and `pnpm run validate`; use `vp run`, `vp fmt`, and `vp lint`. Toolchain versions live in the workspace catalog and move through `vp upgrade`.
+Use [Vite+](https://viteplus.dev) for pinned Node and pnpm. Install with `vp install`; use `vp run`, `vp fmt`, and `vp lint`. Toolchain versions live in the workspace catalog and move through `vp upgrade`.
+
+Run `pnpm run check` before committing and after `check:fix`; the pre-commit hook only formats. Run `pnpm run validate` before PR handoff; see [prerequisites](docs/setup.md#validation). For Codex, Claude Code, or OpenCode skills, follow [shared skills setup](docs/agents/skills.md).
 
 ## Rules
 
@@ -47,9 +47,7 @@ Use [Vite+](https://viteplus.dev) for pinned Node and pnpm. Run `vp install`, `p
 
 ## Agent execution
 
-- Delegated workers get a compact brief with acceptance criteria, owned files, and relevant pointers. Do not pass the full conversation; use no inherited turns unless the task truly depends on them.
-- Use the configured cheaper sibling for bounded work. Luna is the default browser verifier: run one deterministic smoke path, cap it at roughly 8–12 browser actions, and stop on the first failure. Prefer existing Playwright coverage for repeatable regression checks.
-- Read only the intent nodes and skill branches needed for the task. Save verbose command output to a log and inspect a bounded summary.
+Read only the intent nodes and skill branches needed for the task. Save verbose command output to a log and inspect summaries and failures.
 
 ## Commit & Release Conventions
 

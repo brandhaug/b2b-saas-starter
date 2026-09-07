@@ -1,7 +1,8 @@
 # Shared skills
 
-The repo owns `.agents/skills/implement`; `.claude/skills` links to the same
-collection. Supporting skills are installed globally, outside this checkout.
+The repo owns `.agents/skills/implement`. Codex and OpenCode read that directory;
+Claude Code reads it through the `.claude/skills` symlink. `CLAUDE.md` links to
+`AGENTS.md` for shared repo instructions. Supporting skills install globally.
 
 ## Setup
 
@@ -23,6 +24,11 @@ Claude Code gives personal skills precedence over project skills with matching
 names. If you have a global `implement`, remove that conflicting installation or
 explicitly direct the agent to this repo's skill.
 
+In any host, ask: "Use `.agents/skills/implement/SKILL.md` to implement issue #123."
+The workflow uses the session's provider and available tools. Configure a cheaper
+worker model in your host if desired; the workflow falls back to the session
+model, or local execution when delegation is unavailable.
+
 ## Updates
 
 Ask an agent to update the pinned commits in `scripts/agent-skills.json`, review
@@ -37,5 +43,6 @@ Updates replace only installations owned by this installer that have not been
 edited locally. Resolve reported personal-installation conflicts manually.
 Global updates affect every project that uses those skills.
 
-Discovery: [Claude Code](https://code.claude.com/docs/en/skills),
+Discovery: [Codex](https://learn.chatgpt.com/docs/build-skills),
+[Claude Code](https://code.claude.com/docs/en/skills),
 [OpenCode](https://opencode.ai/docs/skills/).
