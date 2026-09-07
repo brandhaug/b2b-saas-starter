@@ -125,17 +125,17 @@ export const webhookDeadLetterQueueName = 'b2b-saas-starter-webhooks-dlq'
  * The seat-sync queue. Membership and invitation mutations enqueue one
  * message per change; the background worker consumes it and mirrors the
  * member count onto the Stripe subscription item (`Billing.syncSeats`), so a
- * membership mutation never awaits Stripe. No dead-letter queue on purpose:
- * sync is self-healing — the next mutation re-syncs, and the
- * `customer.subscription.updated` webhook reconciles any drift — so an
- * exhausted message can be dropped rather than replayed.
+ * membership mutation never awaits Stripe. Exhausted deliveries go to the
+ * billing dead-letter queue, where reconciliation recovers the workspace even
+ * when no later mutation or webhook arrives.
  */
 export const billingQueueName = 'b2b-saas-starter-billing'
+export const billingDeadLetterQueueName = 'b2b-saas-starter-billing-dlq'
 
 export const billingConsumerSettings: QueueConsumerSettings = {
   batchSize: 10,
   maxConcurrency: 2,
-  maxRetries: 3,
+  maxRetries: 6,
   maxWaitTimeMs: 5000,
   retryDelay: 30
 }
@@ -157,6 +157,13 @@ export const notificationEmailQueueName = 'b2b-saas-starter-notification-emails'
  * Notifications per recipient. Alchemy and wrangler both read this constant.
  */
 export const notificationDigestCron = '0 8 * * *'
+
+/**
+ * Bounded billing repair pass (ADR 0075): runs often enough to keep normal
+ * convergence under fifteen minutes while remaining inactive in the worker
+ * when Stripe is not configured.
+ */
+export const billingReconciliationCron = '* * * * *'
 
 /**
  * Binding key names: the env-facing half of a queue binding. The physical
@@ -355,6 +362,7 @@ export type StageResourceNames = {
   readonly webhookDeadLetterQueue: string
   /** The seat-sync queue (ADR 0060). */
   readonly billingQueue: string
+  readonly billingDeadLetterQueue: string
   readonly workspaceExportQueue: string
   readonly workspaceExportBucket: string
   readonly notificationEmailQueue: string
@@ -374,6 +382,7 @@ export function stageResourceNames(stage: string): StageResourceNames {
       webhookQueue: webhookQueueName,
       webhookDeadLetterQueue: webhookDeadLetterQueueName,
       billingQueue: billingQueueName,
+      billingDeadLetterQueue: billingDeadLetterQueueName,
       workspaceExportQueue: workspaceExportQueueName,
       workspaceExportBucket: workspaceExportBucketName,
       notificationEmailQueue: notificationEmailQueueName,
@@ -387,6 +396,7 @@ export function stageResourceNames(stage: string): StageResourceNames {
     webhookQueue: `${prefix}-webhooks`,
     webhookDeadLetterQueue: `${prefix}-webhooks-dlq`,
     billingQueue: `${prefix}-billing`,
+    billingDeadLetterQueue: `${prefix}-billing-dlq`,
     workspaceExportQueue: `${prefix}-workspace-exports`,
     workspaceExportBucket: `${prefix}-workspace-exports`,
     notificationEmailQueue: `${prefix}-notification-emails`,

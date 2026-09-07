@@ -1,9 +1,13 @@
+import { useQuery } from '@tanstack/react-query'
+import {
+  loadWorkspaceBillingServerFn,
+  type WorkspaceBillingPayload
+} from '@/lib/server/billing'
 import { PageHeader } from '@/components/page/page-header'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { BillingPlans } from '@/components/workspace-billing'
 import { viewerCan } from '@/lib/permissions'
-import { type WorkspaceBillingPayload } from '@/lib/server/billing'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
@@ -17,7 +21,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  */
 export function WorkspaceBillingPage({
   workspaceSlug,
-  data,
+  data: initialData,
   systemRole
 }: {
   readonly workspaceSlug: string
@@ -25,6 +29,17 @@ export function WorkspaceBillingPage({
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
 }) {
+  const { data } = useQuery({
+    queryKey: ['workspace-billing', workspaceSlug],
+    queryFn: () => loadWorkspaceBillingServerFn({ data: { workspaceSlug } }),
+    initialData,
+    refetchInterval: (query) => {
+      if (!query.state.data?.stripeConfigured) {
+        return false
+      }
+      return query.state.data.synchronization.status === 'pending' ? 10_000 : 30_000
+    }
+  })
   const canManageBilling =
     data.viewer !== null && viewerCan(data.viewer, { organization: ['update'] })
   return (
@@ -44,6 +59,7 @@ export function WorkspaceBillingPage({
         currentPlanId={data.currentPlanId}
         plans={data.plans}
         stripeConfigured={data.stripeConfigured}
+        synchronization={data.synchronization}
         canManageBilling={canManageBilling}
       />
     </WorkspaceShell>

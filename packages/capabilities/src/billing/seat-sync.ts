@@ -31,7 +31,22 @@ const SEAT_SYNC_REASONS = [
 ] as const
 export type SeatSyncReason = (typeof SEAT_SYNC_REASONS)[number]
 
-const SeatSyncReasonSchema = Schema.Literals(SEAT_SYNC_REASONS)
+/** Queue-only reason used by the authenticated operator recovery command. */
+export const OPERATOR_RETRY_REASON = 'operator_retry'
+export type SeatSyncQueueReason = SeatSyncReason | typeof OPERATOR_RETRY_REASON
+
+/** Provider identifiers an operator can attach to an audited recovery retry. */
+export const SeatSyncRecoveryEvidence = Schema.Struct({
+  customerId: Schema.optionalKey(Schema.String),
+  checkoutSessionId: Schema.optionalKey(Schema.String)
+})
+export type SeatSyncRecoveryEvidence = typeof SeatSyncRecoveryEvidence.Type
+
+// oxlint-disable-next-line effect/noAs -- `as const` preserves the wire-literal tuple
+const SeatSyncQueueReasonSchema = Schema.Literals([
+  ...SEAT_SYNC_REASONS,
+  OPERATOR_RETRY_REASON
+] as const)
 
 /**
  * Message enqueued per membership-changing mutation. The background worker's
@@ -43,7 +58,9 @@ const SeatSyncReasonSchema = Schema.Literals(SEAT_SYNC_REASONS)
 export const SeatSyncQueueMessage = Schema.Struct({
   kind: Schema.Literal('billing.seat_sync'),
   workspaceId: Schema.String,
-  reason: SeatSyncReasonSchema,
+  reason: SeatSyncQueueReasonSchema,
+  operatorId: Schema.optionalKey(Schema.String),
+  recovery: Schema.optionalKey(SeatSyncRecoveryEvidence),
   traceparent: Schema.optionalKey(Schema.String)
 })
 export type SeatSyncQueueMessage = typeof SeatSyncQueueMessage.Type

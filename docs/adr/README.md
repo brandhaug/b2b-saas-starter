@@ -38,6 +38,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0032 — Workspace outbound webhooks](./0032-workspace-outbound-webhooks.md)
 - [0054 — System Admin impersonation](./0054-system-admin-impersonation.md)
 - [0060 — Seat-based billing with queue-decoupled seat sync](./0060-seat-based-billing-with-queue-decoupled-seat-sync.md)
+- [0075: Durable billing synchronization](./0075-durable-billing-synchronization.md)
 - [0062 — Webhook operator tooling: replay as linked rows and rotation with a signing grace window](./0062-webhook-operator-tooling-replay-and-rotation-grace.md)
 - [0073 — Standard Webhooks and delivery attempt history](./0073-standard-webhooks-and-delivery-attempt-history.md)
 - [0066 — Derived workspace onboarding checklist](./0066-derived-workspace-onboarding-checklist.md)

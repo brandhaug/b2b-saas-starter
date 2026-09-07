@@ -32,7 +32,8 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
           {
             unreadCount,
             plan: billing.currentPlan,
-            stripeConfigured: billing.configured
+            stripeConfigured: billing.configured,
+            synchronization: billing.synchronizationStatus
           },
           { concurrency: 'unbounded' }
         ),
@@ -41,7 +42,8 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
           unreadCount: segments.unreadCount,
           plans: PLANS,
           currentPlanId: segments.plan.id,
-          stripeConfigured: segments.stripeConfigured
+          stripeConfigured: segments.stripeConfigured,
+          synchronization: segments.synchronization
         })
       )
     )

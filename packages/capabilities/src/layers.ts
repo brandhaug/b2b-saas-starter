@@ -77,7 +77,8 @@ import {
 
 // billing
 import { type Billing } from './billing/billing.ts'
-import { LiveBilling, type LiveBillingOptions } from './billing/billing.live.ts'
+import { type BillingOptions } from './billing/billing-config.ts'
+import { LiveBilling } from './billing/billing.live.ts'
 import { SeedBilling } from './billing/billing.seed.ts'
 import {
   LiveSeatSyncPublisher,
@@ -277,7 +278,7 @@ export type CapabilityBindings = {
    * surface keeps working — the same provider-light posture `webhookQueue`
    * takes (CLAUDE.md rule 3).
    */
-  readonly billing?: LiveBillingOptions | undefined
+  readonly billing?: BillingOptions | undefined
   /**
    * Adapter onto the organization plugin's member endpoints. Absent, membership
    * reads still work and mutations fail `CapabilityUnavailable` — the same

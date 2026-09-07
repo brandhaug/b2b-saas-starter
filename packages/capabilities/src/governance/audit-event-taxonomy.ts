@@ -68,6 +68,7 @@ export const AUDIT_EVENT_TYPES = [
   'billing.portal_opened',
   'billing.plan_changed',
   'billing.seats_changed',
+  'billing.sync_retry_requested',
   // notifications — a user changed how one kind reaches them by email
   'notification_preference.changed',
   // account lifecycle over the auth catchall

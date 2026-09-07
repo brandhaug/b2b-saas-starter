@@ -95,6 +95,11 @@ describe('AdminFailedDeliveries', () => {
       'Could not load failed deliveries.'
     )
     expect(screen.getByText('dead_lettered')).toBeTruthy()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Older failures' }).hasAttribute('disabled')
+      ).toBe(false)
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Older failures' }))
     await screen.findByText('No terminal webhook failures on this page.')
     expect(loadFailedDeliveriesServerFn).toHaveBeenLastCalledWith({

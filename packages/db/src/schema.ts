@@ -1,6 +1,9 @@
 import {
   auditActorTypes,
   accountLocales,
+  billingCheckoutStatuses,
+  billingProviderEventStatuses,
+  billingSynchronizationStatuses,
   deliveryStatuses,
   deliveryAttemptPhases,
   invitationStatuses,
@@ -25,6 +28,9 @@ import {
 export {
   adminSystemRole,
   accountLocales,
+  billingCheckoutStatuses,
+  billingProviderEventStatuses,
+  billingSynchronizationStatuses,
   apiTokenScopes,
   auditActorTypes,
   deliveryStatuses,
@@ -45,7 +51,10 @@ export {
   type NotificationKind,
   type SsoProvisionedRoleValue,
   type SystemRoleValue,
-  type WorkspaceExportStatus
+  type WorkspaceExportStatus,
+  type BillingCheckoutStatus,
+  type BillingProviderEventStatus,
+  type BillingSynchronizationStatus
 } from './enums.ts'
 /**
  * What a `mode: 'json'` text column can hold: exactly what
@@ -817,18 +826,129 @@ export const oauthAccessToken = sqliteTable(
  * workspace, written only by the billing capability from provider events;
  * a workspace without a row has never checked out.
  */
-export const workspaceSubscriptions = sqliteTable('workspace_subscriptions', {
+export const workspaceSubscriptions = sqliteTable(
+  'workspace_subscriptions',
+  {
+    workspaceId: workspaceRef().primaryKey(),
+    stripeCustomerId: text('stripe_customer_id').notNull(),
+    // Null once the subscription is deleted: the customer survives (invoices
+    // stay reachable in the portal), the seat item does not.
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    stripeSubscriptionItemId: text('stripe_subscription_item_id'),
+    // The quantity Stripe last reported. `syncSeats` compares the member count
+    // against this before calling the provider.
+    seatQuantity: integer('seat_quantity').default(0).notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (table) => [
+    // One Stripe customer belongs to one workspace in this baseline. A
+    // violation is surfaced as durable conflict evidence instead of repaired.
+    uniqueIndex('workspace_subscriptions_stripe_customer_idx').on(
+      table.stripeCustomerId
+    )
+  ]
+)
+
+/**
+ * Minimal, replay-safe evidence for one inbound Stripe event. The raw webhook
+ * body is intentionally not retained: Stripe can be queried during recovery,
+ * while this row is enough to deduplicate, inspect, and retry processing.
+ */
+export const billingProviderEvents = sqliteTable(
+  'billing_provider_events',
+  {
+    id: id(),
+    providerEventId: text('provider_event_id').unique().notNull(),
+    eventType: text('event_type').notNull(),
+    providerCreatedAt: text('provider_created_at'),
+    // Provider evidence survives workspace deletion for the retention window;
+    // the workspace link is cleared while the event identity remains inspectable.
+    workspaceId: text('workspace_id').references(() => workspaces.id, {
+      onDelete: 'set null'
+    }),
+    stripeCustomerId: text('stripe_customer_id'),
+    stripeSubscriptionId: text('stripe_subscription_id'),
+    status: text('status', { enum: billingProviderEventStatuses })
+      .default('processing')
+      .notNull(),
+    outcome: text('outcome'),
+    failureReason: text('failure_reason'),
+    attemptCount: integer('attempt_count').default(1).notNull(),
+    receivedAt: text('received_at').notNull(),
+    completedAt: text('completed_at'),
+    resolvedAt: text('resolved_at'),
+    updatedAt: text('updated_at').notNull()
+  },
+  (table) => [
+    index('billing_provider_events_status_idx').on(table.status, table.updatedAt),
+    index('billing_provider_events_workspace_idx').on(
+      table.workspaceId,
+      table.receivedAt
+    )
+  ]
+)
+
+/**
+ * Per-workspace convergence state. `leaseFence` is monotonically increasing;
+ * a stale worker can never commit after another worker has claimed the lease.
+ */
+export const billingSynchronization = sqliteTable('billing_synchronization', {
   workspaceId: workspaceRef().primaryKey(),
-  stripeCustomerId: text('stripe_customer_id').notNull(),
-  // Null once the subscription is deleted: the customer survives (invoices
-  // stay reachable in the portal), the seat item does not.
-  stripeSubscriptionId: text('stripe_subscription_id'),
-  stripeSubscriptionItemId: text('stripe_subscription_item_id'),
-  // The quantity Stripe last reported. `syncSeats` compares the member count
-  // against this before calling the provider.
-  seatQuantity: integer('seat_quantity').default(0).notNull(),
+  status: text('status', { enum: billingSynchronizationStatuses })
+    .default('pending')
+    .notNull(),
+  desiredSeatQuantity: integer('desired_seat_quantity'),
+  observedSeatQuantity: integer('observed_seat_quantity'),
+  lastSyncedAt: text('last_synced_at'),
+  lastAttemptAt: text('last_attempt_at'),
+  unresolvedSince: text('unresolved_since'),
+  failureCount: integer('failure_count').default(0).notNull(),
+  nextAttemptAt: text('next_attempt_at'),
+  failureReason: text('failure_reason'),
+  conflictReason: text('conflict_reason'),
+  leaseOwner: text('lease_owner'),
+  leaseFence: integer('lease_fence').default(0).notNull(),
+  leaseExpiresAt: text('lease_expires_at'),
   updatedAt: text('updated_at').notNull()
 })
+
+/**
+ * Durable checkout handoff. A pending/created row lets an interrupted request
+ * safely reuse a Stripe session instead of creating another subscription.
+ */
+export const billingCheckoutClaims = sqliteTable(
+  'billing_checkout_claims',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    planId: text('plan_id').notNull(),
+    idempotencyKey: text('idempotency_key').unique().notNull(),
+    priceId: text('price_id').notNull(),
+    quantity: integer('quantity').notNull(),
+    successUrl: text('success_url').notNull(),
+    cancelUrl: text('cancel_url').notNull(),
+    status: text('status', { enum: billingCheckoutStatuses })
+      .default('pending')
+      .notNull(),
+    stripeSessionId: text('stripe_session_id'),
+    checkoutUrl: text('checkout_url'),
+    attemptCount: integer('attempt_count').default(1).notNull(),
+    failureReason: text('failure_reason'),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('billing_checkout_claims_workspace_open_idx')
+      .on(table.workspaceId)
+      .where(sql`${table.status} in ('pending', 'created')`),
+    index('billing_checkout_claims_workspace_status_idx').on(
+      table.workspaceId,
+      table.status,
+      table.updatedAt
+    )
+  ]
+)
 
 /**
  * One user's standing consent to one MCP Client. `referenceId` is the chosen

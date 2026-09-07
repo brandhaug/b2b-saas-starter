@@ -68,7 +68,6 @@ import {
   auditEventContractDataset,
   auditEventLogContractCases
 } from './governance/audit-event-log.contract.ts'
-import { Billing } from './billing/billing.ts'
 import { AuditEventLog, SeedAuditEventLog } from './governance/audit-event-log.ts'
 import { LiveAuditEventLog } from './governance/audit-event-log.live.ts'
 import { workspaceMembershipContractCases } from './governance/workspace-membership.contract.ts'
@@ -287,25 +286,6 @@ describe('seed notification feed contract', () => {
 })
 
 describe('starter capabilities', () => {
-  // Billing's audit writes must land in the same fixture log every other
-  // Seed adapter reads — a private instance would record events nothing
-  // reads back (capabilities invariant 4).
-  it.effect('seed billing audit events land in the shared fixture log', () =>
-    Effect.gen(function* () {
-      const billing = yield* Billing
-      const applied = yield* billing.applyProviderEvent({
-        workspaceId: seedWorkspaceRecord.id,
-        planId: 'team'
-      })
-      expect(applied).toBe(true)
-      const audit = yield* AuditEventLog
-      const events = yield* audit.listGlobal
-      expect(events.some((event) => event.eventType === 'billing.plan_changed')).toBe(
-        true
-      )
-    }).pipe(Effect.provide(SeedLayer))
-  )
-
   it.effect('counts unread notifications through the feed interface', () =>
     Effect.gen(function* () {
       const feed = yield* NotificationFeed

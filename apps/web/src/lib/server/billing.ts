@@ -1,3 +1,4 @@
+import { type BillingSynchronizationStatus } from '@b2b-saas-starter/capabilities/billing/billing'
 import { type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
@@ -28,6 +29,7 @@ export type WorkspaceBillingPayload = {
   readonly currentPlanId: string
   /** True when the Billing capability has its provider wired. */
   readonly stripeConfigured: boolean
+  readonly synchronization: BillingSynchronizationStatus
 }
 
 const WorkspaceBillingInput = Schema.Struct({

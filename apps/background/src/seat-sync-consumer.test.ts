@@ -1,9 +1,14 @@
 import {
   Billing,
+  type ReconcileWorkspaceInput,
   type SeatSyncResult
 } from '@b2b-saas-starter/capabilities/billing/billing'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { SeatSyncQueueMessage } from '@b2b-saas-starter/capabilities/billing/seat-sync'
+import {
+  AuditEventLog,
+  type RecordAuditEventInput
+} from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
@@ -26,25 +31,46 @@ type SyncCall = { readonly workspaceId: string; readonly reason: string }
 
 function stubBilling(
   calls: Array<SyncCall>,
-  result: () => Effect.Effect<SeatSyncResult, CapabilityUnavailable>
+  result: () => Effect.Effect<SeatSyncResult, CapabilityUnavailable>,
+  reconciles: Array<ReconcileWorkspaceInput> = []
 ) {
   return Layer.succeed(Billing)({
     configured: Effect.succeed(false),
     currentPlan: Effect.die('not used here'),
+    synchronizationStatus: Effect.die('not used here'),
+    processProviderEvent: () => Effect.die('not used here'),
+    reconcileWorkspace: (input) =>
+      Effect.sync(() => {
+        reconciles.push(input)
+        return { workspaceId: input.workspaceId, outcome: 'current', drift: [] }
+      }),
+    reconcileBatch: () => Effect.die('not used here'),
     startCheckout: () => Effect.die('not used here'),
     startPortalSession: () => Effect.die('not used here'),
-    applyProviderEvent: () => Effect.die('not used here'),
-    applySubscriptionEvent: () => Effect.die('not used here'),
     syncSeats: (input: SyncCall) =>
       Effect.tap(result(), () => Effect.sync(() => calls.push(input)))
   })
 }
 
-function run(body: unknown, billing: Layer.Layer<Billing>) {
+function stubAudit(calls: Array<RecordAuditEventInput>) {
+  return Layer.succeed(AuditEventLog)({
+    get: () => Effect.die('unused in seat-sync tests'),
+    list: () => Effect.die('unused in seat-sync tests'),
+    listGlobal: Effect.die('unused in seat-sync tests'),
+    record: (input) => Effect.sync(() => calls.push(input)),
+    prepareRecord: () => Effect.die('unused in seat-sync tests')
+  })
+}
+
+function run(
+  body: unknown,
+  billing: Layer.Layer<Billing>,
+  audit: Array<RecordAuditEventInput> = []
+) {
   return Effect.map(
     processSeatSyncMessage(
       readDelivery(SeatSyncQueueMessage, { id: 'qmsg_seat', body, attempts: 0 })
-    ).pipe(Effect.provide(billing)),
+    ).pipe(Effect.provide(Layer.mergeAll(billing, stubAudit(audit)))),
     (outcome) => ({ outcome })
   )
 }
@@ -53,6 +79,13 @@ const message = {
   kind: 'billing.seat_sync',
   workspaceId: 'wrk_starter',
   reason: 'member_added'
+}
+
+const operatorRetryMessage = {
+  kind: 'billing.seat_sync',
+  workspaceId: 'wrk_starter',
+  reason: 'operator_retry',
+  operatorId: 'operator@example.com'
 }
 
 describe('readDelivery', () => {
@@ -110,6 +143,86 @@ describe('processSeatSyncMessage', () => {
         stubBilling([], () => Effect.succeed({ outcome: 'synced', quantity: 5 }))
       )
       expect(outcome).toBe<DeliveryOutcome>('ack')
+    })
+  )
+
+  it.effect('records an operator retry before reconciliation', () =>
+    Effect.gen(function* () {
+      const audit: Array<RecordAuditEventInput> = []
+      const { outcome } = yield* run(
+        operatorRetryMessage,
+        stubBilling([], () => Effect.die('syncSeats must not run for operator retry')),
+        audit
+      )
+      expect(outcome).toBe<DeliveryOutcome>('ack')
+      expect(audit).toMatchObject([
+        {
+          workspaceId: 'wrk_starter',
+          actorType: 'system',
+          eventType: 'billing.sync_retry_requested',
+          targetId: 'wrk_starter',
+          metadata: {
+            operatorId: 'operator@example.com',
+            reason: 'operator_retry'
+          }
+        }
+      ])
+    })
+  )
+
+  it.effect('forwards operator recovery evidence and records it in the audit', () =>
+    Effect.gen(function* () {
+      const reconciles: Array<ReconcileWorkspaceInput> = []
+      const audit: Array<RecordAuditEventInput> = []
+      const { outcome } = yield* run(
+        {
+          ...operatorRetryMessage,
+          recovery: {
+            customerId: 'cus_starter',
+            checkoutSessionId: 'cs_starter'
+          }
+        },
+        stubBilling(
+          [],
+          () => Effect.die('syncSeats must not run for operator retry'),
+          reconciles
+        ),
+        audit
+      )
+      expect(outcome).toBe<DeliveryOutcome>('ack')
+      expect(reconciles).toEqual([
+        {
+          workspaceId: 'wrk_starter',
+          reason: 'operator_retry',
+          recovery: {
+            customerId: 'cus_starter',
+            checkoutSessionId: 'cs_starter'
+          }
+        }
+      ])
+      expect(audit[0]?.metadata).toMatchObject({
+        customerId: 'cus_starter',
+        checkoutSessionId: 'cs_starter'
+      })
+    })
+  )
+
+  it.effect('acks an operator retry without identity without syncing', () =>
+    Effect.gen(function* () {
+      const calls: Array<SyncCall> = []
+      const audit: Array<RecordAuditEventInput> = []
+      const { outcome } = yield* run(
+        {
+          kind: 'billing.seat_sync',
+          workspaceId: 'wrk_starter',
+          reason: 'operator_retry'
+        },
+        stubBilling(calls, () => Effect.die('not reached')),
+        audit
+      )
+      expect(outcome).toBe<DeliveryOutcome>('ack')
+      expect(calls).toEqual([])
+      expect(audit).toEqual([])
     })
   )
 

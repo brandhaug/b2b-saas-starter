@@ -863,5 +863,8 @@
   ],
   "token_update_clients_expiry": "Oppdater klientene dine før det gamle tokenet utløper {time}.",
   "view_attempt_history": "Vis forsøkshistorikk",
-  "hide_attempt_history": "Skjul forsøkshistorikk"
+  "hide_attempt_history": "Skjul forsøkshistorikk",
+  "billing_sync_pending": "Faktureringen venter på oppdatering. Det sist bekreftede abonnementet gjelder til synkroniseringen er ferdig.",
+  "billing_sync_delayed": "Oppdateringen av faktureringen er forsinket. Vi prøver automatisk på nytt. Det sist bekreftede abonnementet vises ovenfor.",
+  "billing_sync_conflict": "Faktureringen må gjennomgås. Kontakt brukerstøtte for å avklare abonnementsdetaljene. Det sist bekreftede abonnementet vises ovenfor."
 }

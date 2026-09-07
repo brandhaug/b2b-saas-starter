@@ -8,7 +8,7 @@ import {
   UserAdminRejected,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
-import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing.live'
+import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing-config'
 import {
   selectCapabilitiesLayer,
   selectWorkspaceLayer,
