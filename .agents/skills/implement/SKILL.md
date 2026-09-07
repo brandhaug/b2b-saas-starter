@@ -12,11 +12,14 @@ user request.
    Preserve AC IDs through tests and the PR. Use `grilling` for unresolved product
    decisions and `to-tickets` for independently verifiable slices.
 2. Use the host's available delegation tools and configured model IDs. Keep the
-   session's provider unless the user requests a switch. Use a cheaper same-provider
-   model for bounded implementation, review, and browser work when available;
-   otherwise inherit the session model. Keep coordination and final decisions in
-   the main session. If delegation is unavailable, work locally and report that
-   review was not independent.
+   session's provider unless the user requests a switch. For bounded implementation,
+   review, and browser work, prefer GLM 5.3 → GLM 5.3 Flash, Claude Opus → Sonnet,
+   Codex Astra → Luna. Resolve these pairings through the host's configured model
+   IDs or worker profiles and select the worker model explicitly. For other models,
+   use a configured cheaper same-provider model. Inherit the session model only
+   after checking that no suitable worker model is available, and report the fallback.
+   Keep coordination and final decisions in the main session. If delegation is
+   unavailable, work locally and report that review was not independent.
    Give workers compact briefs with ACs, owned files, and relevant pointers.
    Start with fresh context where supported; include conversation history only
    when the task depends on it. Keep tiny tasks local. Default to one implementation
