@@ -62,7 +62,9 @@ jobs:
       - name: Run workspace tests
         env:
           TEST_FILTER: ${{ matrix.filter }}
-        run: vp run --filter "$TEST_FILTER" --fail-if-no-match test
+        # The root test script recursively runs workspace tests. Exclude that
+        # orchestration script so each package executes in exactly one group.
+        run: vp run --filter "$TEST_FILTER" --filter '!b2b-saas-starter' --fail-if-no-match test
       - name: Run script tests
         if: ${{ matrix.name == 'packages' }}
         run: pnpm run test:scripts
