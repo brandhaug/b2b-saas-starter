@@ -1,12 +1,14 @@
 # B2B SaaS Starter
 
-Cloudflare-first B2B SaaS starter. The public site showcases the repository itself; the authenticated app is a reference implementation for workspaces, members/RBAC, API/MCP, email, webhooks, notifications, audit, and admin.
+Cloudflare-first B2B SaaS starter. Public site showcases the repo; app demonstrates workspaces.
 
 [CONTEXT.md](./CONTEXT.md) holds the domain language, [ARCHITECTURE.md](./ARCHITECTURE.md) the system map and security model, [DESIGN.md](./DESIGN.md) the visual identity, [docs/adr](./docs/adr) the decisions.
 
 ## Project posture
 
-Nothing here is in production use. Refactor freely, rename what reads wrong, and drop stored shapes rather than migrating them. No backwards compatibility, no deprecation path, no shims for old data.
+No production users. Refactor freely, rename, and drop stored shapes. No backwards compatibility, deprecation paths, or old-data shims.
+
+For issue/spec implementation, follow the repo's [implement skill](.agents/skills/implement/SKILL.md), including delegation, review, PR creation, and readiness verification. For specifications, ticketing, and review context, read [issue-tracker.md](docs/agents/issue-tracker.md).
 
 ## Intent Node Index
 
@@ -26,11 +28,11 @@ Nothing here is in production use. Refactor freely, rename what reads wrong, and
 | Typed SDK         | [packages/sdk/AGENTS.md](packages/sdk/AGENTS.md)                     |
 | Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md) |
 
-Each capability under `packages/capabilities/src/<context>/` has a leaf node beside its source; the package node holds the map.
+Capabilities have leaf nodes; the package node maps them.
 
 ## Setup
 
-Requires the [Vite+ CLI](https://viteplus.dev) (`vp`, >= 0.3.0), which provides the Node runtime and the pinned pnpm.
+Requires [Vite+](https://viteplus.dev) (`vp`, >= 0.3.0), providing Node and pinned pnpm.
 
 ```bash
 vp install
@@ -40,22 +42,22 @@ pnpm run check      # typecheck + lint + format:check + dead-code + test
 
 - pnpm only; versions single-sourced in the `catalog` block of `pnpm-workspace.yaml`, referenced as `"catalog:"`. Toolchain versions (`vite`, `vitest`, `oxlint`, `oxfmt`) move with `vp upgrade`, never by hand.
 - Task runner is Vite Task (`vp run`), formatting `vp fmt`, linting `vp lint`.
-- The pre-commit hook only formats. Run `pnpm run check` before committing; PR Gate enforces the same bar. `pnpm run check:fix` applies lint and format fixes; re-run `check` after it.
+- The pre-commit hook only formats. Run `pnpm run check` before committing; re-run after `check:fix`. CI intentionally excludes formatting. Final validation: `pnpm run validate`, prerequisites in [docs/setup.md](docs/setup.md#validation).
 
-## Cross-Cutting Rules
+## Rules
 
 1. Effect v4 typed errors, services, schemas, and HTTP API contracts for application behavior.
 2. Business use cases live in `packages/capabilities`. Route handlers and UI components do not duplicate behavior.
 3. Provider-light local development: an optional provider whose env vars are unset stays inactive instead of failing the app.
 4. Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, Alchemy.
 5. Borrow interaction patterns from other products, never their domain language.
-6. No new architecture (games, PWA, realtime, Durable Objects) without a concrete starter use case.
-7. Every declaration merge goes in a `.d.ts` file. `declare module 'x'` needs a top-level import; `declare global` and `declare namespace` need none. Enforced by `starter/no-interface-merge-outside-dts` and `starter/no-mismatched-augmentation-context`; examples in `apps/web/src/router-register.d.ts` and `apps/web/src/worker-env.d.ts`.
-8. Seed (in-memory) and Live (D1) adapters stay equivalent for the demo identity. `packages/capabilities/src/seed-fixture.ts` is the one source for `usr_demo` / `starter-lab`; `scripts/seed.ts` adds only the password. Client-side navigation resolves membership against the fixture, so a user present in one layer only 404s on SPA navigation while full-page loads succeed.
+6. No new architecture (games, PWA, realtime, Durable Objects) without a starter use case.
+7. Declaration merges belong in `.d.ts`. `declare module 'x'` needs a top-level import; `declare global` and `declare namespace` need none. Examples: `apps/web/src/router-register.d.ts`, `apps/web/src/worker-env.d.ts`.
+8. Seed and Live adapters stay equivalent for the demo identity. `packages/capabilities/src/seed-fixture.ts` owns `usr_demo` / `starter-lab`; `scripts/seed.ts` adds only the password. SPA membership uses the fixture; identity drift can break navigation while full-page loads succeed.
 
 ## Commit & Release Conventions
 
-- When creating or updating a PR, read [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) and use it to structure the body. Fill it from the final diff and observed validation results, remove instructional comments and unused optional sections, and pass the completed body via `--body-file`.
+- Create/update PR bodies from [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md), the final diff, and observed validation. Remove prompts and unused optional sections; pass the completed body via `--body-file`.
 - Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/) (`type(scope): subject`); PR Gate rejects non-conforming titles. Breaking changes use `!` or a `BREAKING CHANGE:` footer.
 - release-please opens `chore(master): release ...` PRs from merged commits; merging one tags and publishes.
 - `CLAUDE.md` is a symlink to this file.
