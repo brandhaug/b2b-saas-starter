@@ -73,6 +73,94 @@ function fixture(t: TestContext) {
   return { root, home, repo, skill, source, destination, alias, run, commit }
 }
 
+function impeccableFixture(t: TestContext) {
+  const f = fixture(t)
+  fs.mkdirSync(join(f.skill, 'scripts'), { recursive: true })
+  fs.writeFileSync(join(f.skill, 'scripts/VERSION'), '0.1.3\n')
+  fs.writeFileSync(
+    join(f.skill, 'scripts/impeccable'),
+    '#!/bin/sh\nif [ "$1" = engine-probe ]; then\n  mkdir -p "$IMPECCABLE_HOME/bin/0.1.3"\n  printf cached > "$IMPECCABLE_HOME/bin/0.1.3/engine"\n  printf "impeccable-engine 0.1.3\\n"\n  exit 0\nfi\nexit 0\n',
+    { mode: 0o755 }
+  )
+  const source = f.source
+  source.revision = f.commit()
+  source.path = 'skills/example'
+  function runImpeccable(update = false) {
+    return setup(f.home, update, { impeccable: source })
+  }
+  const destination = join(f.home, '.agents/skills/impeccable')
+  const alias = join(f.home, '.claude/skills/impeccable')
+  return { ...f, source, destination, alias, run: runImpeccable }
+}
+
+await test('bootstraps the pinned Impeccable engine into the selected home', (t) => {
+  const f = impeccableFixture(t)
+  const originalHome = process.env.HOME
+  assert.equal(f.run(), 0)
+  assert.equal(process.env.HOME, originalHome)
+  assert.equal(
+    fs.readFileSync(join(f.home, '.impeccable/bin/0.1.3/engine'), 'utf8'),
+    'cached'
+  )
+})
+
+await test('engine bootstrap failure preserves the previous install and state', (t) => {
+  const f = impeccableFixture(t)
+  assert.equal(f.run(), 0)
+  const before = digest(f.destination)
+  const stateBefore = fs.readFileSync(
+    join(f.home, '.agents/skill-install-state.json'),
+    'utf8'
+  )
+  fs.writeFileSync(
+    join(f.skill, 'scripts/impeccable'),
+    '#!/bin/sh\nprintf "no\\n"\nexit 23\n',
+    { mode: 0o755 }
+  )
+  f.source.revision = f.commit()
+  assert.equal(f.run(true), 1)
+  assert.equal(digest(f.destination), before)
+  assert.equal(
+    fs.readFileSync(join(f.home, '.agents/skill-install-state.json'), 'utf8'),
+    stateBefore
+  )
+  assert.equal(fs.realpathSync(f.alias), fs.realpathSync(f.destination))
+})
+
+await test('rejects a successful probe for the wrong engine version', (t) => {
+  const f = impeccableFixture(t)
+  fs.writeFileSync(
+    join(f.skill, 'scripts/impeccable'),
+    '#!/bin/sh\nprintf "impeccable-engine 0.1.2\\n"\n',
+    { mode: 0o755 }
+  )
+  f.source.revision = f.commit()
+  assert.equal(f.run(), 1)
+  assert.equal(fs.existsSync(f.destination), false)
+})
+
+await test('does not execute a modified managed launcher on rerun', (t) => {
+  const f = impeccableFixture(t)
+  assert.equal(f.run(), 0)
+  fs.rmSync(join(f.home, '.impeccable'), { recursive: true })
+  fs.writeFileSync(
+    join(f.destination, 'scripts/impeccable'),
+    '#!/bin/sh\nmkdir -p "$IMPECCABLE_HOME/should-not-exist"\nexit 0\n',
+    { mode: 0o755 }
+  )
+  assert.equal(f.run(), 1)
+  assert.equal(fs.existsSync(join(f.home, '.impeccable')), false)
+})
+
+await test('managed Impeccable reruns repair a missing engine cache', (t) => {
+  const f = impeccableFixture(t)
+  assert.equal(f.run(), 0)
+  fs.rmSync(join(f.home, '.impeccable'), { recursive: true })
+  fs.rmSync(f.repo, { recursive: true })
+  assert.equal(f.run(), 0)
+  assert.equal(fs.existsSync(join(f.home, '.impeccable/bin/0.1.3/engine')), true)
+})
+
 await test('copies pinned content, supporting files, licenses, modes and Claude alias', (t) => {
   const f = fixture(t)
   fs.writeFileSync(join(f.skill, 'SKILL.md'), 'Newer instructions')
