@@ -56,8 +56,8 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.waitForURL(/\/workspaces/)
-  await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
-  await expect(page.locator('header select')).toBeEnabled()
+  await page.locator('html[data-authenticated="true"]').waitFor()
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
 
   // Register from /account with a user-chosen name; the virtual authenticator
   // resolves the ceremony the button starts. The "No passkeys yet" copy only
@@ -65,6 +65,7 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   // it is also the guard against a pre-hydration click falling through to a
   // native form submit.
   await page.goto('/account')
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await expect(page.getByRole('heading', { name: 'Passkeys', level: 2 })).toBeVisible()
   await expect(page.getByText(/No passkeys yet/)).toBeVisible()
   await page.getByLabel('Name a new passkey').fill('E2E key')
@@ -93,12 +94,13 @@ test('registers, renames, signs in with, and removes a passkey', async ({
     .click({ timeout: 10_000 })
     .catch(() => undefined)
   await page.waitForURL(/\/workspaces/, { timeout: 15_000 })
-  await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
-  await expect(page.locator('header select')).toBeEnabled()
+  await page.locator('html[data-authenticated="true"]').waitFor()
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
 
   // Remove the passkey and land back on the empty state. The row's reappearance
   // after the full page load is again the hydration wait.
   await page.goto('/account')
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await expect(page.getByText('Renamed key')).toBeVisible({ timeout: 15_000 })
   await page.getByRole('button', { name: 'Remove Renamed key passkey' }).click()
   await page.getByRole('button', { name: 'Remove passkey' }).click()

@@ -10,6 +10,8 @@ export default defineConfig({
   // Compiler joined the dev pipeline (#135). On a cold CI runner that bill
   // alone ate the old 30s budget before hydration could finish.
   timeout: 90_000,
+  // Hydration is setup: its Locator.waitFor calls use the test budget above.
+  // Assertions after the page becomes interactive keep this shorter deadline.
   expect: { timeout: 5000 },
   // One retry in CI: the remaining variance is dev-server warm-up, not app
   // behaviour, and a rerun lands on an already-warm transform cache.

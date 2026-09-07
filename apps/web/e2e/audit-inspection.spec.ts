@@ -21,13 +21,13 @@ async function signIn(page: Page, email = 'demo@starter.local') {
   await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.waitForURL((url) => url.pathname === auditPath)
-  await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
+  await page.locator('html[data-authenticated="true"]').waitFor()
   if (email === 'engineer@example.com') {
     await expect(
       page.getByRole('heading', { name: 'Audit access denied' })
     ).toBeVisible()
   } else {
-    await expect(page.locator('header select')).toBeEnabled()
+    await page.locator('header select:enabled').waitFor({ state: 'attached' })
   }
 }
 

@@ -14,8 +14,8 @@ async function signIn(page: Page, email: string, redirect: string): Promise<void
   await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.waitForURL((url) => url.pathname === redirect)
-  await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
-  await expect(page.locator('header select')).toBeEnabled()
+  await page.locator('html[data-authenticated="true"]').waitFor()
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
 }
 
 test.beforeEach(async ({ context }, testInfo) => {

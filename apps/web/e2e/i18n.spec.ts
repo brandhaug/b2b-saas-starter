@@ -90,7 +90,7 @@ test('saved account language and time zone override browser preferences in a new
   // oxlint-disable-next-line effect/noTryCatch -- Playwright owns the temporary account lifecycle; cleanup must run after any assertion failure
   try {
     await page.goto('/account')
-    await expect(page.locator('html')).toHaveAttribute('data-authenticated', 'true')
+    await page.locator('html[data-authenticated="true"]').waitFor()
     await page.locator('select[name="locale"]').selectOption('nb')
     await page.locator('input[name="timeZone"]').fill('Europe/Oslo')
     await page.getByRole('button', { name: 'Save preferences', exact: true }).click()
@@ -143,7 +143,7 @@ test('saved account language and time zone override browser preferences in a new
 test('the language picker works in the Norwegian mobile menu', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/nb/faq')
-  await expect(page.locator('header select')).toBeEnabled({ timeout: 30_000 })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Åpne meny', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('combobox', { name: 'Språk', exact: true }).selectOption('en')
