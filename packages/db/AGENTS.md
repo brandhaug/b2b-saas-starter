@@ -19,7 +19,9 @@ Edit `schema.ts`, run `db:generate`, commit schema and migration together (drizz
 
 After a squash a stale local D1 cannot be migrated onto, its `d1_migrations` table naming deleted migrations: delete `packages/db/.wrangler/state/v3/d1`, re-run `db:migrate:local` and `db:seed`, restart `pnpm run dev` (ADR 0049).
 
-Deployed databases converge instead of resetting: both deploy workflows run `scripts/baseline.ts` first, recording a migration in Alchemy's `__alchemy_migrations` bookkeeping as applied only when every table it creates already exists. Alchemy keys appliedness by folder name, so without the baseline every squash rename would re-run the squashed migration and die on `CREATE TABLE`. A database that does not exist remotely yet — a PR stage on its first push, since baseline runs before the stage's first deploy, or a freshly deleted prod DB — is skipped: the deploy then creates it and applies every migration. A squash of work the deployed database never received cannot converge. Pre-production databases can be reset with explicit target confirmation. Customer-data deployments keep incremental migrations and follow [operations recovery](../../docs/operations.md); never destroy/reseed as migration repair.
+Deploy workflows run `scripts/baseline.ts` before Alchemy to reconcile folder-name bookkeeping after squashes. It records table-creating migrations only when every created table exists; missing remote databases are skipped and created during deploy. Squashes containing undeployed work cannot converge. Pre-production resets require explicit target confirmation. Customer-data deployments keep incremental migrations and follow [operations recovery](../../docs/operations.md); never destroy/reseed as migration repair.
+
+Drizzle is pinned to a prerelease in the workspace catalog. Check current v1 docs and the installed driver source before changing APIs; stable-version examples may differ. Verify Effect D1 behavior separately from `drizzle-orm/d1`.
 
 ## Anti-patterns
 
@@ -36,6 +38,7 @@ The three workspace tables are the `organization` plugin's (ADR 0051): starter n
 
 D1 gotchas:
 
+- Index child foreign-key columns, reusing the leftmost prefix of an existing non-partial composite index when possible. Preserve unique and partial constraints even when another index covers their columns. Verify index changes with `EXPLAIN QUERY PLAN` against migrated local D1; assert indexed access, not an exact index name.
 - No native boolean: `integer({ mode: 'boolean' })`. JSON columns are `text` with a `$type`, parsed on read; never write the string.
 - Timestamps split by ownership, not age: Better Auth tables (core and plugin-owned) store epoch seconds, starter tables ISO strings. Reading `workspaces.createdAt` as ISO is a stale contract.
 - FKs cascade from `workspaces.id`, but the audit log keeps removed-workspace rows as `workspaceId: null` system events. Keep that asymmetry.

@@ -65,6 +65,39 @@ const createdAtFixture = new Date('2026-08-15T09:00:00.000Z')
 const expiresAtFixture = new Date('2026-08-17T09:00:00.000Z')
 
 describe('migrations', () => {
+  describe.each([
+    {
+      lookup: 'notifications for an account',
+      query: 'SELECT id FROM notifications WHERE user_id = ?'
+    },
+    {
+      lookup: 'SSO connections for an account',
+      query: 'SELECT id FROM workspace_sso_connections WHERE userId = ?'
+    },
+    {
+      lookup: 'pending billing notices for a workspace',
+      query:
+        'SELECT * FROM billing_notices WHERE workspace_id = ? AND delivered_at IS NULL'
+    },
+    {
+      lookup: 'resources for an OAuth client',
+      query: 'SELECT id FROM oauth_client_resource WHERE clientId = ?'
+    }
+  ])('$lookup', ({ query }) => {
+    it.live('uses an indexed search', () =>
+      Effect.gen(function* () {
+        const plan = yield* Effect.promise(() =>
+          test.d1
+            .prepare(`EXPLAIN QUERY PLAN ${query}`)
+            .bind('lookup-id')
+            .all<{ detail: string }>()
+        )
+        expect(plan.results.some((row) => row.detail.startsWith('SEARCH '))).toBe(true)
+        expect(plan.results.some((row) => row.detail.startsWith('SCAN '))).toBe(false)
+      })
+    )
+  })
+
   it.live('rejects audit inserts that omit invocation provenance', () =>
     Effect.gen(function* () {
       yield* Effect.promise(() =>
