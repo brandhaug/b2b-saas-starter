@@ -23,8 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - name: Test PR readiness helper
-        run: bash .github/scripts/pr-readiness.test.sh
       - run: pnpm run typecheck
       - run: pnpm run lint
       # Dead-code regression gate (the `dead-code` step of `pnpm run check`).

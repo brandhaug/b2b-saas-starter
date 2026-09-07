@@ -17,32 +17,17 @@ Open <http://localhost:3071>. The `.env` defaults work out of the box — option
 
 ## Validation
 
-After installing dependencies, install Chromium once:
+Install Chromium once, then run the final validation command:
 
 ```bash
 pnpm exec playwright install chromium
+pnpm run validate
 ```
 
-Run `pnpm run validate` before handing off a completed implementation. It runs
-`check`, build, generated Wrangler drift detection, PR-readiness helper tests,
-local D1 migration and seeding, and E2E. It needs local process/port access for
-Workers D1 tests. The readiness helper tests use a fake GitHub CLI and need `jq`;
-they do not access GitHub. Fallow comes from the pinned workspace dependencies.
-
-Validation creates or updates the local demo database. It starts a fresh E2E
-server on port 3097, with server reuse disabled. Override `E2E_PORT` when another
-worktree uses that port. A local development server is not validation evidence.
-
-CI intentionally omits formatting. It runs application checks, builds, generated
-config verification, and E2E separately. Failed Playwright attempts retain their
-results and traces as workflow artifacts, including failures before an outer
-retry. PR CI runs cancel superseded commits; production deploys remain serialized.
-
-The read-only `bash .github/scripts/pr-readiness.sh <pr> [expected-head-sha]`
-helper needs authenticated `gh` and `jq`. It reports ready, pending, or blocked
-as JSON and checks that the PR head stays unchanged during the query. It never
-pushes, merges, or changes GitHub settings. See the repo's
-[implement workflow](../.agents/skills/implement/SKILL.md) for review and repair.
+Validation runs `check`, build, generated Wrangler drift detection, and E2E. It
+migrates and seeds the local demo database and needs process/port access for
+Workers D1. E2E starts a fresh server on port 3097; set `E2E_PORT` to an unused
+port when validating several worktrees concurrently.
 
 ## Database
 
