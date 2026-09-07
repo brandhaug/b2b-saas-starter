@@ -140,7 +140,8 @@ describe('workspace export consumer (workers pool)', () => {
         expect(exportRow?.status).toBe('failed')
         expect(exportRow?.failure_reason).toBe('workspace_not_found')
         expect(exportRow?.object_key).toBeNull()
-        expect(exportRow?.completed_at).toBeNull()
+        // A recorded terminal outcome starts the failed job's retention clock.
+        expect(exportRow?.completed_at).toEqual(expect.any(String))
         // The row points at no archive: nothing was ever built or stored for
         // this export (the ready test above proves the write path works).
       })
