@@ -196,8 +196,8 @@ catalogs:
       specifier: 0.9.12
       version: 0.9.12
     posthog-js:
-      specifier: 1.425.1
-      version: 1.425.1
+      specifier: 1.426.2
+      version: 1.426.2
     posthog-node:
       specifier: 5.51.4
       version: 5.51.4
@@ -596,7 +596,7 @@ importers:
         version: 11.17.2
       posthog-js:
         specifier: 'catalog:'
-        version: 1.425.1(@types/react@19.2.18)(react@19.2.8)
+        version: 1.426.2(@types/react@19.2.18)(react@19.2.8)
       qrcode.react:
         specifier: 'catalog:'
         version: 4.2.0(react@19.2.8)
@@ -3868,9 +3868,6 @@ packages:
 
   '@posthog/core@1.50.5':
     resolution: {integrity: sha512-afEchuShDaVIoxAIj76kDZQ1DhfesDmgfVp+mtTzsA3wlc8DF5uoz8YjuTjnxOicWkpP5HCDqYidK/1kT125Cg==}
-
-  '@posthog/types@1.407.1':
-    resolution: {integrity: sha512-WhbkXPC2rgylXqmxHqv70ffI3k+KxyR6s7DBIfr5NvIqHkxp6v0pk31D/jbz0DNVbzwkLjyll2pxr4FNbJiYzg==}
 
   '@posthog/types@1.409.0':
     resolution: {integrity: sha512-239umoaZVb2GBaXeEyJpwFvjhrrChJH8NHCwiao23EBSu3NA6EN0MTMoaHSmMEf4yjiXEFFoYJA6FjJAXF5HGA==}
@@ -8409,8 +8406,8 @@ packages:
     resolution: {integrity: sha512-8RyVklq0owXUTa4xlpzu4l9AaVKIdQvAcOHZWaMh98HgySsUtxRVf/chRe3dsSLqb6i40BzGRzEUddRaI+9TSw==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.425.1:
-    resolution: {integrity: sha512-GfdAUf402Prjt3ofkj4dh4k/m1SkYvgCeASyWj1xxcIVT7QnB9gGsslDwAZBZ6Wrtwxkq91gFbpSo/v633Q+1w==}
+  posthog-js@1.426.2:
+    resolution: {integrity: sha512-dYs3GTLn3NxQIqsxIdMPsvJcnn9515YkTKHxuxrtMmnduIWiIoXdR5aqdd0GWjP2cx6cEVYO3OxZ8U/1bOVFBQ==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       react: '>=16.8.0'
@@ -11878,13 +11875,11 @@ snapshots:
 
   '@posthog/core@1.49.2':
     dependencies:
-      '@posthog/types': 1.407.1
+      '@posthog/types': 1.409.0
 
   '@posthog/core@1.50.5':
     dependencies:
       '@posthog/types': 1.409.0
-
-  '@posthog/types@1.407.1': {}
 
   '@posthog/types@1.409.0': {}
 
@@ -16572,7 +16567,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.425.1(@types/react@19.2.18)(react@19.2.8):
+  posthog-js@1.426.2(@types/react@19.2.18)(react@19.2.8):
     dependencies:
       '@posthog/browser-common': 0.7.2
       '@posthog/core': 1.50.5
