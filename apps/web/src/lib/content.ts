@@ -7,7 +7,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  *  No Pricing entry: the starter is MIT and does not sell plans — the plan
  *  vocabulary lives in the capability catalog and the billing docs. */
 type PublicLink = {
-  readonly to: '/docs' | '/blog' | '/faq'
+  readonly to: '/docs' | '/blog' | '/faq' | '/help'
   readonly label: string
 }
 
@@ -15,7 +15,8 @@ export function publicLinks(): ReadonlyArray<PublicLink> {
   return [
     { to: '/docs', label: m.docs() },
     { to: '/blog', label: m.blog() },
-    { to: '/faq', label: m.faq() }
+    { to: '/faq', label: m.faq() },
+    { to: '/help', label: m.public_meta_support() }
   ]
 }
 

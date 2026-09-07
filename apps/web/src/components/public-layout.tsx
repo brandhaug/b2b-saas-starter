@@ -69,6 +69,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
                   <Link
                     key={link.to}
                     to={link.to}
+                    reloadDocument={link.to === '/help'}
                     onClick={() => setMobileNavOpen(false)}
                     className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
@@ -104,6 +105,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
               <Link
                 key={link.to}
                 to={link.to}
+                reloadDocument={link.to === '/help'}
                 className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 {link.label}

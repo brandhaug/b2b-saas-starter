@@ -93,9 +93,11 @@ describe('WorkspaceShell', () => {
     // The banner reads the route's `session` context (what `requireSession`
     // puts there), so the test renders under a route carrying one.
     const { router } = await renderShell({ routeContext: sessionContext('usr_admin') })
-    const banner = screen.getByRole('status')
-    expect(banner.textContent).toContain('Product Engineer')
-    expect(banner.textContent).toContain('engineer@example.com')
+    const banner = screen
+      .getAllByRole('status')
+      .find((status) => status.textContent.includes('Product Engineer'))
+    expect(banner?.textContent).toContain('Product Engineer')
+    expect(banner?.textContent).toContain('engineer@example.com')
     fireEvent.click(screen.getByRole('button', { name: 'Stop impersonating' }))
     await waitFor(() => expect(stopImpersonating).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(router.state.location.pathname).toBe('/admin'))

@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react'
 import {
   CreditCardIcon,
+  HelpCircleIcon,
   HistoryIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
@@ -25,7 +26,7 @@ export type WorkspaceNavTarget =
   | '/workspaces/$workspaceSlug/webhooks'
 
 /** Nav targets outside any workspace: the user-level rows. */
-export type YouNavTarget = '/account' | '/admin'
+export type YouNavTarget = '/account' | '/admin' | '/help'
 
 /**
  * The section a row renders under. Rows sharing a group render beneath one
@@ -160,6 +161,13 @@ export function youNav(): ReadonlyArray<YouNavRow> {
       icon: <ShieldIcon className="size-4" />,
       exact: true,
       adminOnly: true
+    },
+    {
+      to: '/help',
+      label: m.public_meta_support(),
+      group: m.nav_you_group(),
+      icon: <HelpCircleIcon className="size-4" />,
+      exact: true
     }
   ]
 }
