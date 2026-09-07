@@ -5,20 +5,22 @@ import { parseArgs } from 'node:util'
 
 import { LiveRetention } from '@b2b-saas-starter/capabilities/governance/retention.live'
 import {
-  approveRetentionPolicy,
   Retention,
   RetentionPolicy,
   RetentionResult as RetentionResultSchema,
+  type RetentionPolicy as RetentionPolicyType,
+  type RetentionResult
+} from '@b2b-saas-starter/capabilities/governance/retention'
+import {
+  approveRetentionPolicy,
   retentionPolicyDigest,
   retentionPolicyFromEnv,
-  type RetentionPolicy as RetentionPolicyType,
-  type RetentionResult,
   validateRetentionPolicy
-} from '@b2b-saas-starter/capabilities/governance/retention'
+} from '@b2b-saas-starter/capabilities/governance/retention-policy'
 import { RawD1, type D1Binding } from '@b2b-saas-starter/db/service'
 import { Effect, Layer, Option, Schema } from 'effect'
 import { getPlatformProxy } from 'wrangler'
-import { retentionTargetKey } from '../infra/bindings.ts'
+import { retentionTargetKey, stageResourceNames } from '../infra/bindings.ts'
 
 type Environment = Readonly<Record<string, string | undefined>>
 
@@ -156,8 +158,9 @@ function parseCli(rawArgs: ReadonlyArray<string>): Options {
     const database = required(value(parsed.values.database), '--database <D1 UUID>')
     const deployment = required(
       value(parsed.values.deployment),
-      '--deployment <stage or database name>'
+      '--deployment <Alchemy stage>'
     )
+    stageResourceNames(deployment)
     return {
       command,
       output,
@@ -186,7 +189,7 @@ function parseCli(rawArgs: ReadonlyArray<string>): Options {
     }
   }
   throw new Error(
-    'usage: retention-operator.ts preview (--local | --remote --database <D1 UUID> --deployment <name>) [--output <preview.json>] | approve --artifact <preview.json> --confirm <policy digest> --confirm-target <target key> --recovery-evidence <reference> [--output <approval.json>]'
+    'usage: retention-operator.ts preview (--local | --remote --database <D1 UUID> --deployment <Alchemy stage>) [--output <preview.json>] | approve --artifact <preview.json> --confirm <policy digest> --confirm-target <target key> --recovery-evidence <reference> [--output <approval.json>]'
   )
 }
 
@@ -253,7 +256,7 @@ async function openDatabase(
         d1_databases: [
           {
             binding: 'DB',
-            database_name: target.deployment,
+            database_name: stageResourceNames(target.deployment).database,
             database_id: target.database,
             remote: true
           }

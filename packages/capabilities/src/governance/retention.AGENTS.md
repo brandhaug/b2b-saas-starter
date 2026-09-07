@@ -8,6 +8,10 @@ call the same implementation; they do not carry their own cleanup SQL.
 
 ## Patterns & Pitfalls
 
+- `retention.ts` defines the service contract and result schemas;
+  `retention-policy.ts` owns defaults, validation, approval, and environment
+  decoding; `retention.seed.ts` and `retention.live.ts` provide the adapters.
+
 - Approval binds the policy version, durations, budget and database target. Any
   eligibility change must invalidate old approval by changing the policy version.
 - Every rule's clock expression must match its database index. Scan protected

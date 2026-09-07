@@ -5,12 +5,8 @@ import { DateTime, Effect, Layer, Schema } from 'effect'
 import { describe, expect } from 'vite-plus/test'
 
 import { LiveRetention } from './retention.live.ts'
-import {
-  Retention,
-  retentionPolicyDigest,
-  RETENTION_DEFAULTS,
-  type RetentionPolicy
-} from './retention.ts'
+import { Retention, type RetentionPolicy } from './retention.ts'
+import { retentionPolicyDigest, RETENTION_DEFAULTS } from './retention-policy.ts'
 
 const now = DateTime.makeUnsafe('2026-09-07T12:00:00.000Z')
 const encodePreview = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))

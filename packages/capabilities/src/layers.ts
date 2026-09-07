@@ -60,8 +60,9 @@ import {
   type WorkspaceOnboarding
 } from './governance/workspace-onboarding.ts'
 import { type SecurityEvidenceSink } from './governance/security-recovery-evidence.ts'
-import { type Retention, SeedRetention } from './governance/retention.ts'
+import { type Retention } from './governance/retention.ts'
 import { LiveRetention } from './governance/retention.live.ts'
+import { SeedRetention } from './governance/retention.seed.ts'
 import {
   type PlatformUserAdmin,
   type PlatformUserAdminBinding

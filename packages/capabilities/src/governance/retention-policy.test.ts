@@ -2,17 +2,15 @@ import { Effect } from 'effect'
 import { it } from '@effect/vitest'
 import { describe, expect } from 'vite-plus/test'
 
+import { emptyCounts, type RetentionPolicy, type RetentionResult } from './retention.ts'
 import {
   approveRetentionPolicy,
-  emptyCounts,
   RETENTION_DEFAULTS,
   retentionPolicyDigest,
   retentionPolicyFromEnv,
-  type RetentionPolicy,
-  type RetentionResult,
   validateRetentionPolicy,
   validateRetentionPolicyTarget
-} from './retention.ts'
+} from './retention-policy.ts'
 
 const policy: RetentionPolicy = {
   ...RETENTION_DEFAULTS,

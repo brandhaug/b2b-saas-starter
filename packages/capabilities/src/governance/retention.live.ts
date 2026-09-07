@@ -6,12 +6,11 @@ import {
   emptyCounts,
   Retention,
   RetentionPolicyError,
-  retentionPolicyDigest,
   type RetentionResult,
   type RetentionRuleResult,
-  type RetentionRunInput,
-  validateRetentionPolicy
+  type RetentionRunInput
 } from './retention.ts'
+import { retentionPolicyDigest, validateRetentionPolicy } from './retention-policy.ts'
 import { retentionRules, type RetentionRule } from './retention-rules.ts'
 
 type Candidate = { id: string; clock: string | number; eligible: number }

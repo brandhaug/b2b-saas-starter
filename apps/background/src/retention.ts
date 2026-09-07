@@ -1,9 +1,11 @@
 import {
   Retention,
-  retentionPolicyFromEnv,
-  type RetentionPolicyError,
-  validateRetentionPolicyTarget
+  type RetentionPolicyError
 } from '@b2b-saas-starter/capabilities/governance/retention'
+import {
+  retentionPolicyFromEnv,
+  validateRetentionPolicyTarget
+} from '@b2b-saas-starter/capabilities/governance/retention-policy'
 import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import {
   selectCapabilitiesLayer,
@@ -112,6 +114,7 @@ export function cleanRetention(env: Env, scheduledTime: number) {
       }
       const result = attempt.success
       yield* Effect.annotateLogsScoped({
+        mode: result.mode,
         status: result.status,
         target: databaseTarget,
         candidates: result.candidates,

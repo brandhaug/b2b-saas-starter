@@ -18,6 +18,7 @@ import {
   type AccountLifecycleBinding
 } from './account-lifecycle.ts'
 import { accountLifecycleContractCases } from './account-lifecycle.contract.ts'
+import { makeAdminAccountLifecycleBinding } from './account-lifecycle-admin.live.ts'
 import { CapabilityUnavailable } from '../errors.ts'
 import { makeLiveCapabilitiesLayer, type CapabilityServices } from '../layers.ts'
 import { type StarterEnv } from '../runtime.ts'
@@ -433,6 +434,51 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
           workspacesDeleted: 1
         })
       })
+  )
+
+  it.effect('admin binding tears down the target rows through D1', () =>
+    Effect.gen(function* () {
+      const db = yield* Database
+      const d1 = yield* TestD1
+      yield* db.insert(user).values({
+        id: 'usr_admin_binding',
+        email: 'admin-binding@live.test',
+        name: 'Admin Binding'
+      })
+      yield* db.insert(workspaces).values({
+        id: 'wrk_admin_binding',
+        slug: 'admin-binding',
+        name: 'Admin Binding'
+      })
+      yield* db.insert(workspaceMembers).values({
+        id: 'mem_admin_binding',
+        workspaceId: 'wrk_admin_binding',
+        userId: 'usr_admin_binding',
+        role: 'member'
+      })
+
+      const binding = makeAdminAccountLifecycleBinding(d1)
+      yield* Effect.promise(() =>
+        binding.leaveWorkspace({
+          workspaceId: 'wrk_admin_binding',
+          memberId: 'mem_admin_binding'
+        })
+      )
+      const members = yield* db
+        .select()
+        .from(workspaceMembers)
+        .where(eq(workspaceMembers.id, 'mem_admin_binding'))
+      expect(members).toHaveLength(0)
+
+      yield* Effect.promise(() =>
+        binding.deleteWorkspace({ workspaceId: 'wrk_admin_binding' })
+      )
+      const remaining = yield* db
+        .select()
+        .from(workspaces)
+        .where(eq(workspaces.id, 'wrk_admin_binding'))
+      expect(remaining).toHaveLength(0)
+    })
   )
 
   it.effect('fails as unavailable when no binding is configured', () =>
