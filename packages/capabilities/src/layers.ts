@@ -1,5 +1,5 @@
 import { type Database, type RawD1 } from '@b2b-saas-starter/db/service'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Ref } from 'effect'
 import { type EmailDelivery } from './email-delivery/email-delivery.ts'
 import { SeedEmailDelivery } from './email-delivery/email-delivery.seed.ts'
 import { LiveEmailDelivery } from './email-delivery/email-delivery.live.ts'
@@ -22,6 +22,7 @@ import {
 } from './developer-platform/webhook-publisher.ts'
 
 // governance
+import { type Workspace } from './governance/workspace-identity.ts'
 import {
   type AccountLifecycle,
   type AccountLifecycleBinding
@@ -167,6 +168,12 @@ export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 const SeedGovernance = Layer.unwrap(
   Effect.gen(function* () {
     const roster = yield* makeSeedRoster(seedMembers)
+    const catalog = yield* Ref.make<ReadonlyArray<Workspace>>([seedWorkspaceRecord])
+    const suspension = SeedWorkspaceSuspension({
+      workspace: seedWorkspaceRecord,
+      catalog,
+      systemUsers: seedSystemUsers
+    }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications))
     return Layer.mergeAll(
       // The account-lifecycle seed shares the roster so the ownership rule
       // reads the same membership state the membership and invitation seeds
@@ -174,12 +181,12 @@ const SeedGovernance = Layer.unwrap(
       // provided on the merged layer below.
       SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
         Layer.provide(SeedAuditLog),
-        Layer.provide(SeedSuspension)
+        Layer.provide(suspension)
       ),
       SeedWorkspaceInvitations({ roster, workspace: seedWorkspaceRecord }),
       SeedWorkspaceMembership(roster, seedWorkspaceRecord),
-      SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
-        Layer.provide(SeedSuspension)
+      SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord, catalog }).pipe(
+        Layer.provide(suspension)
       ),
       /**
        * Billing rides the governance seed so its audit writes land in the
@@ -190,7 +197,7 @@ const SeedGovernance = Layer.unwrap(
         roster,
         workspacePlans: { [seedWorkspaceRecord.id]: seedWorkspaceRecord.planId }
       }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications)),
-      SeedSuspension
+      suspension
     )
   })
 )
@@ -224,11 +231,6 @@ const SeedNotifications = Layer.merge(
     members: seedMembers
   }).pipe(Layer.provide(Layer.merge(SeedPreferences, SeedAccountPrefs)))
 )
-
-const SeedSuspension = SeedWorkspaceSuspension({
-  workspace: seedWorkspaceRecord,
-  systemUsers: seedSystemUsers
-}).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications))
 
 const SeedEntitlements = SeedResourceEntitlements().pipe(
   Layer.provide(SeedGovernance),

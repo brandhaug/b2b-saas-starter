@@ -102,8 +102,8 @@ const { callBinding } = makeBindingCaller<
 })
 
 /**
- * In-memory lifecycle, never Better Auth. Created workspaces land in a local
- * `Ref`; renames and removals act on the fixture workspace resolved by the
+ * In-memory lifecycle, never Better Auth. Workspace identities live in a shared
+ * catalog; renames and removals act on the workspace resolved by the
  * seed `WorkspaceContext`, mirroring how the live adapter acts on the one the
  * live context resolves. The shared roster receives the creator as owner so
  * the membership fixtures stay consistent with the new workspace.
@@ -117,10 +117,13 @@ const { callBinding } = makeBindingCaller<
 export function SeedWorkspaceLifecycle(options: {
   readonly roster?: SeedRoster | undefined
   readonly workspace: Workspace
+  readonly catalog?: Ref.Ref<ReadonlyArray<Workspace>> | undefined
 }): Layer.Layer<WorkspaceLifecycle, never, WorkspaceSuspensionService> {
   return Layer.effect(WorkspaceLifecycle)(
     Effect.gen(function* () {
-      const created = yield* Ref.make<ReadonlyArray<CreatedWorkspace>>([])
+      const catalog =
+        options.catalog ??
+        (yield* Ref.make<ReadonlyArray<Workspace>>([options.workspace]))
       const suspension = yield* WorkspaceSuspensionService
 
       const requireAvailableSlug = Effect.fnUntraced(function* (
@@ -137,11 +140,11 @@ export function SeedWorkspaceLifecycle(options: {
       return {
         create: (input) =>
           Effect.gen(function* () {
-            const existing = yield* Ref.get(created)
-            yield* requireAvailableSlug(input.slug, [
-              options.workspace.slug,
-              ...existing.map((each) => each.slug)
-            ])
+            const existing = yield* Ref.get(catalog)
+            yield* requireAvailableSlug(
+              input.slug,
+              existing.map((each) => each.slug)
+            )
             const id = yield* newCapabilityId('wrk')
             const workspace: CreatedWorkspace = {
               id,
@@ -149,7 +152,7 @@ export function SeedWorkspaceLifecycle(options: {
               name: input.name,
               planId: 'starter'
             }
-            yield* Ref.update(created, (rows) => [...rows, workspace])
+            yield* Ref.update(catalog, (rows) => [...rows, workspace])
             if (options.roster) {
               yield* Ref.update(options.roster, (members) => [
                 ...members,
@@ -180,8 +183,8 @@ export function SeedWorkspaceLifecycle(options: {
             const ctx = yield* WorkspaceContext
             yield* suspension.requireAllowed(ctx.workspace.id, 'product')
             const renamed: Workspace = { ...ctx.workspace, name: input.name }
-            yield* Ref.update(created, (rows) => {
-              const next: Array<CreatedWorkspace> = []
+            yield* Ref.update(catalog, (rows) => {
+              const next: Array<Workspace> = []
               for (const each of rows) {
                 if (each.id === ctx.workspace.id) {
                   next.push({ ...each, name: input.name })
@@ -208,7 +211,7 @@ export function SeedWorkspaceLifecycle(options: {
           // Captured before the delete, as in Live: the audit event must
           // still name what was removed.
           const removed = ctx.workspace
-          yield* Ref.update(created, (rows) =>
+          yield* Ref.update(catalog, (rows) =>
             rows.filter((each) => each.id !== ctx.workspace.id)
           )
           // Unscoped on purpose, matching Live: the trail stays readable

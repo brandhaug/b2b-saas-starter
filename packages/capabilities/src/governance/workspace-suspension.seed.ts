@@ -14,8 +14,19 @@ import {
   validateSuspensionTransition
 } from './workspace-suspension.internal.ts'
 
+function active(workspaceId: string): WorkspaceSuspension {
+  return {
+    workspaceId,
+    status: 'active',
+    customerExplanation: null,
+    changedAt: null,
+    changedByUserId: null
+  }
+}
+
 export function SeedWorkspaceSuspension(options: {
   readonly workspace: Workspace
+  readonly catalog?: Ref.Ref<ReadonlyArray<Workspace>> | undefined
   readonly systemUsers: ReadonlyArray<SystemUserAccount>
   readonly initial?: WorkspaceSuspension | undefined
 }): Layer.Layer<WorkspaceSuspensionService, never, AuditEventLog | NotificationFeed> {
@@ -24,31 +35,33 @@ export function SeedWorkspaceSuspension(options: {
       const audit = yield* AuditEventLog
       const feed = yield* NotificationFeed
       const lock = yield* Semaphore.make(1)
-      const state = yield* Ref.make<WorkspaceSuspension>(
-        options.initial ?? {
-          workspaceId: options.workspace.id,
-          status: 'active',
-          customerExplanation: null,
-          changedAt: null,
-          changedByUserId: null
-        }
-      )
+      const catalog =
+        options.catalog ??
+        (yield* Ref.make<ReadonlyArray<Workspace>>([options.workspace]))
+      const initial = new Map<string, WorkspaceSuspension>()
+      if (options.initial) {
+        initial.set(options.initial.workspaceId, options.initial)
+      }
+      const state = yield* Ref.make<ReadonlyMap<string, WorkspaceSuspension>>(initial)
       const get = Effect.fn('WorkspaceSuspension.get')(function* (workspaceId: string) {
-        const current = yield* Ref.get(state)
-        if (current.workspaceId !== workspaceId) {
+        const known = yield* Ref.get(catalog)
+        if (!known.some((workspace) => workspace.id === workspaceId)) {
           return yield* new WorkspaceSuspended({ workspaceId })
         }
-        return current
+        const current = yield* Ref.get(state)
+        return current.get(workspaceId) ?? active(workspaceId)
       })
       return WorkspaceSuspensionService.of({
-        list: Effect.map(Ref.get(state), (current) => [
-          {
-            id: options.workspace.id,
-            slug: options.workspace.slug,
-            name: options.workspace.name,
-            suspension: current
-          }
-        ]),
+        list: Effect.gen(function* () {
+          const known = yield* Ref.get(catalog)
+          const current = yield* Ref.get(state)
+          return known.map((workspace) => ({
+            id: workspace.id,
+            slug: workspace.slug,
+            name: workspace.name,
+            suspension: current.get(workspace.id) ?? active(workspace.id)
+          }))
+        }),
         get,
         requireAllowed: Effect.fn('WorkspaceSuspension.requireAllowed')(
           function* (workspaceId, operation) {
@@ -101,7 +114,9 @@ export function SeedWorkspaceSuspension(options: {
               targetId: next.workspaceId,
               metadata: { customerExplanation: next.customerExplanation }
             })
-            yield* Ref.set(state, next)
+            yield* Ref.update(state, (states) =>
+              new Map(states).set(next.workspaceId, next)
+            )
             yield* notice.publish
             return next
           },

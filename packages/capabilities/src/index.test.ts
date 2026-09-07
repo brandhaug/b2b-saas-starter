@@ -80,6 +80,7 @@ import {
 import { AccountLifecycle } from './governance/account-lifecycle.ts'
 import { SeedAccountLifecycle } from './governance/account-lifecycle.seed.ts'
 import { SeedWorkspaceSuspension } from './governance/workspace-suspension.seed.ts'
+import { WorkspaceSuspensionService } from './governance/workspace-suspension.ts'
 import { SeedAccountPreferences } from './governance/account-preferences.ts'
 import {
   CONTRACT_EXPIRED_AT,
@@ -811,6 +812,43 @@ describe('seed workspace lifecycle deletion', () => {
     name: 'Doomed',
     planId: 'starter'
   }
+
+  it.effect('applies suspension and reactivation to a newly created workspace', () =>
+    Effect.gen(function* () {
+      const lifecycle = yield* WorkspaceLifecycle
+      const suspension = yield* WorkspaceSuspensionService
+      const created = yield* lifecycle.create({
+        name: 'New Lab',
+        slug: 'new-suspended-lab',
+        userId: 'usr_demo'
+      })
+      yield* suspension.transition({
+        workspaceId: created.id,
+        action: 'suspend',
+        actor: { userId: 'usr_demo' },
+        internalReason: 'Review',
+        customerExplanation: 'Contact support.'
+      })
+      const blocked = yield* Effect.result(
+        Effect.provide(lifecycle.remove, testWorkspaceContext(created))
+      )
+      expect(blocked).toMatchObject({
+        _tag: 'Failure',
+        failure: { _tag: 'WorkspaceSuspended' }
+      })
+      expect((yield* suspension.get('wrk_starter')).status).toBe('active')
+      yield* suspension.transition({
+        workspaceId: created.id,
+        action: 'unsuspend',
+        actor: { userId: 'usr_demo' },
+        internalReason: 'Resolved'
+      })
+      yield* Effect.provide(lifecycle.remove, testWorkspaceContext(created))
+      expect(
+        (yield* suspension.list).some((workspace) => workspace.id === created.id)
+      ).toBe(false)
+    }).pipe(Effect.provide(SeedLayer))
+  )
 
   it.effect('removes a created workspace from its own context', () =>
     Effect.gen(function* () {

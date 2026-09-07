@@ -261,7 +261,6 @@ export function SeedWorkspaceExports(options: {
         issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(
           function* (input: { readonly exportId: string }) {
             const ctx = yield* WorkspaceContext
-            yield* requireProduct(ctx.workspace.id)
             const row = rows.find(
               (candidate) =>
                 candidate.record.id === input.exportId &&
@@ -270,6 +269,7 @@ export function SeedWorkspaceExports(options: {
             if (!row) {
               return Option.none()
             }
+            yield* requireProduct(ctx.workspace.id)
             return yield* issueWorkspaceExportDownloadLink({
               downloadSecret: row.downloadSecret,
               record: row.record,

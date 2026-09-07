@@ -233,11 +233,11 @@ export function LiveWorkspaceExports(
         issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(
           function* (input: { readonly exportId: string }) {
             const ctx = yield* WorkspaceContext
-            yield* requireProduct(ctx.workspace.id)
             const found = yield* findRow(input.exportId)
             if (!found || found.row.workspaceId !== ctx.workspace.id) {
               return Option.none()
             }
+            yield* requireProduct(ctx.workspace.id)
             return yield* issueWorkspaceExportDownloadLink({
               downloadSecret: found.row.downloadSecret,
               record: toRecord(found.row),
