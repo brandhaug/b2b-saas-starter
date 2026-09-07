@@ -1,6 +1,10 @@
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import {
+  type CapabilityUnavailable,
+  type WorkspaceSuspended
+} from '@b2b-saas-starter/capabilities/errors'
+import { type WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { type WorkspaceViewer } from '@/lib/permissions'
@@ -22,8 +26,8 @@ import { requireWorkspacePermission } from './authorize'
  */
 export type WorkspacePageFrame<Payload> = Effect.Effect<
   Payload,
-  AuthorizationDenied | CapabilityUnavailable,
-  CapabilityServices | WorkspaceContext | Scope.Scope
+  AuthorizationDenied | CapabilityUnavailable | WorkspaceSuspended,
+  CapabilityServices | WorkspaceContext | WorkspaceSuspensionService | Scope.Scope
 >
 
 /**
@@ -50,8 +54,8 @@ export function workspacePage<Segment, E, R>(
   segment: (ctx: WorkspaceContextInterface) => Effect.Effect<Segment, E, R>
 ): Effect.Effect<
   Segment & { readonly viewer: WorkspaceViewer | null },
-  E | AuthorizationDenied,
-  R | WorkspaceContext | Scope.Scope
+  E | AuthorizationDenied | CapabilityUnavailable | WorkspaceSuspended,
+  R | WorkspaceContext | WorkspaceSuspensionService | Scope.Scope
 > {
   return Effect.gen(function* () {
     yield* requireWorkspacePermission(gate)

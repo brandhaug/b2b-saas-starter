@@ -15,6 +15,7 @@ import {
   type ApiTokenNotRotatable,
   type CapabilityUnavailable,
   type PlanLimitExceeded,
+  type WorkspaceSuspended,
   type WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
@@ -30,6 +31,7 @@ import { type InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/developer
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { type WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { workspaceOverview } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
@@ -52,6 +54,7 @@ import { type HttpApiEndpoint } from 'effect/unstable/httpapi'
 export type CapabilityReadError =
   | AuthorizationDenied
   | WorkspaceNotFound
+  | WorkspaceSuspended
   | CapabilityUnavailable
 
 /**
@@ -61,6 +64,7 @@ export type CapabilityReadError =
  * carry them across the SDK's promise seam (see `mcp.ts`).
  */
 export type CapabilityReadServices =
+  | WorkspaceSuspensionService
   | NotificationFeed
   | WorkspaceMembership
   | ApiTokenRegistry
@@ -262,6 +266,7 @@ export function readOperations(): ReadonlyArray<WorkspaceReadOperation> {
 
 /** Expected mutation failures; each concrete row retains its inferred subset. */
 export type CapabilityMutationError =
+  | WorkspaceSuspended
   | AuthorizationDenied
   | InvalidApiTokenInput
   | ApiTokenNotRotatable
@@ -275,6 +280,7 @@ export type CapabilityMutationError =
 
 /** Stable services, separate from the request's workspace, actor and scope. */
 export type CapabilityMutationServices =
+  | WorkspaceSuspensionService
   | ApiTokenRegistry
   | WebhookEndpoints
   | WorkspaceExports

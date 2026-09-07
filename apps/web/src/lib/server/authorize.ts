@@ -4,9 +4,13 @@ import {
   type PermissionRequest
 } from '@b2b-saas-starter/authz/client'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
-import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { Effect, type Scope } from 'effect'
+import {
+  WorkspaceSuspensionService,
+  workspaceSuspensionOperationForPermission,
+  type WorkspaceSuspensionOperation
+} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import { Effect } from 'effect'
 
 /**
  * The web app's enforcement point, and the session counterpart of the API
@@ -23,13 +27,32 @@ import { Effect, type Scope } from 'effect'
  * the public showcase loader — pass no actor and must not call this at all.
  */
 export function requireWorkspacePermission(
-  permission: PermissionRequest
-): Effect.Effect<void, AuthorizationDenied, WorkspaceContext | Scope.Scope> {
+  permission: PermissionRequest,
+  operation: WorkspaceSuspensionOperation = workspaceSuspensionOperationForPermission(
+    permission
+  )
+) {
   return Effect.gen(function* () {
     const ctx = yield* WorkspaceContext
-    return yield* requirePermission(
+    yield* requirePermission(
       ctx.actor ? memberPrincipal(ctx.actor.role) : null,
       permission
+    )
+    yield* requireWorkspaceAccess(operation)
+  })
+}
+
+/** Recovery retains normal RBAC; SSO repair during suspension is owner-only. */
+function requireWorkspaceAccess(operation: WorkspaceSuspensionOperation) {
+  return Effect.gen(function* () {
+    const ctx = yield* WorkspaceContext
+    const suspension = yield* WorkspaceSuspensionService
+    const canRepairSso =
+      ctx.actor !== null &&
+      authorize(memberPrincipal(ctx.actor.role), { organization: ['delete'] }).success
+    yield* suspension.requireAllowed(
+      ctx.workspace.id,
+      operation === 'sso_recovery' && !canRepairSso ? 'product' : operation
     )
   })
 }
@@ -51,7 +74,7 @@ export function requireWorkspacePermission(
 export function whenPermitted<A, E, R>(
   permission: PermissionRequest,
   effect: Effect.Effect<A, E, R>
-): Effect.Effect<A | null, E, R | WorkspaceContext> {
+) {
   return Effect.gen(function* () {
     if (!(yield* permitted(permission))) {
       return null
@@ -66,10 +89,20 @@ export function whenPermitted<A, E, R>(
  * two of its steps for an actor without `apiToken:list` and `webhook:list`.
  * Same pure `authorize()`, same no-actor denial.
  */
-export function permitted(
-  permission: PermissionRequest
-): Effect.Effect<boolean, never, WorkspaceContext> {
-  return Effect.map(WorkspaceContext, (ctx) =>
-    ctx.actor ? authorize(memberPrincipal(ctx.actor.role), permission).success : false
-  )
+export function permitted(permission: PermissionRequest) {
+  return Effect.gen(function* () {
+    const ctx = yield* WorkspaceContext
+    if (
+      ctx.actor === null ||
+      !authorize(memberPrincipal(ctx.actor.role), permission).success
+    ) {
+      return false
+    }
+    return yield* requireWorkspaceAccess(
+      workspaceSuspensionOperationForPermission(permission)
+    ).pipe(
+      Effect.as(true),
+      Effect.catchTag('WorkspaceSuspended', () => Effect.succeed(false))
+    )
+  })
 }

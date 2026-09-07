@@ -14,6 +14,10 @@ import {
 } from './security-recovery-evidence.ts'
 import { type SeedRoster } from './workspace-membership.ts'
 import { Workspace, fabricateSeedMember, toWorkspace } from './workspace-identity.ts'
+import {
+  WorkspaceSuspensionService,
+  type WorkspaceSuspended
+} from './workspace-suspension.ts'
 
 export const CreatedWorkspace = Schema.Struct({
   ...Workspace.fields,
@@ -47,7 +51,7 @@ type WorkspaceLifecycleInterface = {
     readonly name: string
   }) => Effect.Effect<
     Workspace,
-    CapabilityUnavailable | WorkspaceChangeRejected,
+    CapabilityUnavailable | WorkspaceChangeRejected | WorkspaceSuspended,
     WorkspaceContext
   >
 
@@ -58,7 +62,7 @@ type WorkspaceLifecycleInterface = {
    */
   readonly remove: Effect.Effect<
     void,
-    CapabilityUnavailable | WorkspaceChangeRejected,
+    CapabilityUnavailable | WorkspaceChangeRejected | WorkspaceSuspended,
     WorkspaceContext
   >
 }
@@ -113,10 +117,11 @@ const { callBinding } = makeBindingCaller<
 export function SeedWorkspaceLifecycle(options: {
   readonly roster?: SeedRoster | undefined
   readonly workspace: Workspace
-}): Layer.Layer<WorkspaceLifecycle> {
+}): Layer.Layer<WorkspaceLifecycle, never, WorkspaceSuspensionService> {
   return Layer.effect(WorkspaceLifecycle)(
     Effect.gen(function* () {
       const created = yield* Ref.make<ReadonlyArray<CreatedWorkspace>>([])
+      const suspension = yield* WorkspaceSuspensionService
 
       const requireAvailableSlug = Effect.fnUntraced(function* (
         slug: string,
@@ -198,6 +203,7 @@ export function SeedWorkspaceLifecycle(options: {
           }),
         remove: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
+          yield* suspension.requireAllowed(ctx.workspace.id, 'product')
           // Captured before the delete, as in Live: the audit event must
           // still name what was removed.
           const removed = ctx.workspace
@@ -228,11 +234,16 @@ export function SeedWorkspaceLifecycle(options: {
 export function LiveWorkspaceLifecycle(
   binding?: WorkspaceLifecycleBinding,
   securityEvidence?: SecurityEvidenceSink
-): Layer.Layer<WorkspaceLifecycle, never, Database | AuditEventLog> {
+): Layer.Layer<
+  WorkspaceLifecycle,
+  never,
+  Database | AuditEventLog | WorkspaceSuspensionService
+> {
   return Layer.effect(WorkspaceLifecycle)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
+      const suspension = yield* WorkspaceSuspensionService
 
       const unavailable = orUnavailable('workspace-lifecycle')
 
@@ -302,6 +313,7 @@ export function LiveWorkspaceLifecycle(
           }),
         remove: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
+          yield* suspension.requireAllowed(ctx.workspace.id, 'product')
           // Captured before the delete: once the row is gone, so are its
           // cascaded children, and the audit event must still name what was
           // removed.

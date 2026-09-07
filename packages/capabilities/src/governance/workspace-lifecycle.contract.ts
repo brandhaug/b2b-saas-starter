@@ -1,6 +1,10 @@
 import { Effect } from 'effect'
 import { type ContractExpect } from './contract-expect.ts'
-import { type CapabilityUnavailable, type WorkspaceChangeRejected } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  type WorkspaceChangeRejected,
+  type WorkspaceSuspended
+} from '../errors.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'
@@ -29,7 +33,7 @@ export type LifecycleContractCase = {
   readonly name: string
   readonly assert: Effect.Effect<
     void,
-    CapabilityUnavailable | WorkspaceChangeRejected,
+    CapabilityUnavailable | WorkspaceChangeRejected | WorkspaceSuspended,
     WorkspaceLifecycle | WorkspaceContext | AuditEventLog
   >
 }

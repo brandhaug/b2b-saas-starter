@@ -22,6 +22,29 @@ export class CapabilityUnavailable extends Schema.TaggedError<CapabilityUnavaila
   { httpApiStatus: 503 }
 ) {}
 
+/** Ordinary workspace work is unavailable while platform suspension is active. */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call
+export class WorkspaceSuspended extends Schema.TaggedError<WorkspaceSuspended>()(
+  'WorkspaceSuspended',
+  { workspaceId: Schema.String },
+  { httpApiStatus: 403 }
+) {
+  override get message() {
+    return 'This workspace is temporarily unavailable.'
+  }
+}
+
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call
+export class WorkspaceSuspensionUnauthorized extends Schema.TaggedError<WorkspaceSuspensionUnauthorized>()(
+  'WorkspaceSuspensionUnauthorized',
+  {},
+  { httpApiStatus: 403 }
+) {
+  override get message() {
+    return 'Only a non-impersonating System Admin may change workspace suspension.'
+  }
+}
+
 /** An account preference value that cannot be applied, such as an invalid
  * IANA timezone. The caller can correct it without retrying storage. */
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory, not an Error constructor

@@ -2,6 +2,10 @@ import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import { formatDateTime } from '@b2b-saas-starter/i18n/format'
 import { Schema } from 'effect'
+import {
+  isSecurityNotificationKind,
+  type NotificationKind
+} from './notification-kinds.ts'
 
 /**
  * Durable data for a system notification. The event name is stable while its
@@ -62,6 +66,11 @@ const SsoTestFailedEvent = Schema.Struct({
   domain: Schema.String,
   reasonCode: Schema.String
 })
+const WorkspaceSuspensionChangedEvent = Schema.Struct({
+  type: Schema.Literal('workspace.suspension_changed'),
+  status: Schema.Literals(['active', 'suspended']),
+  customerExplanation: Schema.NullOr(Schema.String)
+})
 
 /** Schema used at the JSON storage and HTTP boundary for durable events. */
 export const NotificationEventSchema = Schema.Union([
@@ -74,7 +83,8 @@ export const NotificationEventSchema = Schema.Union([
   BillingPlanChangedEvent,
   WorkspaceMemberJoinedEvent,
   ApiTokenCreatedEvent,
-  SsoTestFailedEvent
+  SsoTestFailedEvent,
+  WorkspaceSuspensionChangedEvent
 ])
 export type SystemNotificationEvent = typeof NotificationEventSchema.Type
 export type NotificationEvent = SystemNotificationEvent
@@ -99,7 +109,24 @@ export function renderNotificationCopy(
   if (notification.event === undefined) {
     return { title: notification.title, message: notification.message }
   }
+  // Recovery notices carry a marker for suspension policy, while their copy
+  // is supplied by the transition capability and should remain localized by
+  // that caller rather than being replaced here.
+  if (notification.event.type === 'workspace.suspension_changed') {
+    return renderNotificationEvent(notification.event, locale, timeZone)
+  }
   return renderNotificationEvent(notification.event, locale, timeZone)
+}
+
+/** Security and suspension state notices remain deliverable during suspension. */
+export function isAllowedDuringWorkspaceSuspension(input: {
+  readonly kind: NotificationKind
+  readonly event?: SystemNotificationEvent | undefined
+}): boolean {
+  return (
+    isSecurityNotificationKind(input.kind) ||
+    input.event?.type === 'workspace.suspension_changed'
+  )
 }
 
 /** Render an event with the recipient's current locale, including old rows. */
@@ -110,6 +137,38 @@ export function renderNotificationEvent(
 ): RenderedNotificationEvent {
   const options = { locale }
   switch (event.type) {
+    case 'workspace.suspension_changed': {
+      let customerExplanation = ''
+      if (event.customerExplanation !== null) {
+        customerExplanation = ` ${event.customerExplanation}`
+      }
+      let title =
+        m.backend_email_notification_event_workspace_suspension_changed_active_title(
+          {},
+          options
+        )
+      let message =
+        m.backend_email_notification_event_workspace_suspension_changed_active_message(
+          {},
+          options
+        )
+      if (event.status === 'suspended') {
+        title =
+          m.backend_email_notification_event_workspace_suspension_changed_suspended_title(
+            {},
+            options
+          )
+        message =
+          m.backend_email_notification_event_workspace_suspension_changed_suspended_message(
+            { customerExplanation },
+            options
+          )
+      }
+      return {
+        title,
+        message
+      }
+    }
     case 'webhook.permanent': {
       return {
         title: m.backend_email_notification_event_webhook_permanent_title({}, options),

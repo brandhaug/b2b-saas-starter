@@ -331,7 +331,10 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
       })
     )
   })
-  const abandon = Effect.fn('EmailDelivery.abandon')(function* (id: string) {
+  const abandon = Effect.fn('EmailDelivery.abandon')(function* (
+    id: string,
+    reason = 'no_longer_relevant'
+  ) {
     for (let attempt = 0; attempt < 8; attempt++) {
       const old = yield* store.get(id)
       if (!old || terminal(old)) {
@@ -343,7 +346,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
           {
             ...old,
             status: 'failed',
-            reason: 'no_longer_relevant',
+            reason,
             revision: old.revision + 1,
             updatedAt: iso(now)
           },

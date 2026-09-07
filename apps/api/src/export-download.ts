@@ -90,6 +90,12 @@ export function exportDownloadLayer(env: ApiEnv) {
           }
         })
       }).pipe(
+        Effect.catchTag('WorkspaceSuspended', () =>
+          Effect.annotateLogsScoped({
+            outcome: 'not_found',
+            skipReason: 'workspace_suspended'
+          }).pipe(Effect.as(notFound))
+        ),
         // A rate-limited or unavailable download is still a plain response on
         // this non-contract route; the wide event above carries the failure.
         Effect.catchTag('RateLimited', (error) => Effect.succeed(guardResponse(error))),

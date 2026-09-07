@@ -6,6 +6,8 @@ import {
   MembershipChangeRejected,
   PlanLimitExceeded,
   UserAdminRejected,
+  WorkspaceSuspended,
+  WorkspaceSuspensionUnauthorized,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
 import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing-config'
@@ -101,6 +103,14 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
     if (error instanceof AuthorizationDenied) {
       // oxlint-disable-next-line effect/noThrowStatement -- carries the 403 across the Promise boundary with a message the calling form can display
       throw new ForbiddenError(error.reason)
+    }
+    if (error instanceof WorkspaceSuspended) {
+      // oxlint-disable-next-line effect/noThrowStatement -- stable, private-detail-free suspension denial across the Promise boundary
+      throw new UiError('workspace_suspended', {}, 'Workspace access is suspended.')
+    }
+    if (error instanceof WorkspaceSuspensionUnauthorized) {
+      // oxlint-disable-next-line effect/noThrowStatement -- admin authority refusal crosses the Promise boundary as the existing safe permission error
+      throw new ForbiddenError('denied')
     }
     if (error instanceof PlanLimitExceeded) {
       // oxlint-disable-next-line effect/noThrowStatement -- carries the entitlement refusal across the Promise boundary with the upgrade hint the form shows

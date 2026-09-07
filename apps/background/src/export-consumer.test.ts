@@ -15,6 +15,10 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import {
+  WorkspaceSuspended,
+  WorkspaceSuspensionService
+} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
   testWorkspaceContext,
@@ -161,9 +165,26 @@ function run(
     readonly attempts?: number
     readonly resolve?: ResolveWorkspace
     readonly failing?: boolean
+    readonly suspended?: boolean
   } = {}
 ) {
   const recorded: Recorded = { completed: [], failed: [] }
+  const activeSuspension = Layer.succeed(WorkspaceSuspensionService)({
+    list: Effect.succeed([]),
+    get: () => Effect.die('unused'),
+    requireAllowed: () => Effect.void,
+    transition: () => Effect.die('unused')
+  })
+  let suspensionLayer = activeSuspension
+  if (options.suspended) {
+    suspensionLayer = Layer.succeed(WorkspaceSuspensionService)({
+      list: Effect.succeed([]),
+      get: () => Effect.die('unused'),
+      requireAllowed: () =>
+        Effect.fail(new WorkspaceSuspended({ workspaceId: 'wrk_1' })),
+      transition: () => Effect.die('unused')
+    })
+  }
   return processWorkspaceExportMessage(
     readDelivery(WorkspaceExportQueueMessage, {
       id: 'qmsg_export',
@@ -173,7 +194,11 @@ function run(
     options.resolve ?? resolveLab
   ).pipe(
     Effect.provide(
-      Layer.mergeAll(stubExports(recorded), stubReads(options.failing ?? false))
+      Layer.mergeAll(
+        stubExports(recorded),
+        stubReads(options.failing ?? false),
+        suspensionLayer
+      )
     ),
     Effect.map((outcome) => ({ outcome, recorded }))
   )
@@ -191,6 +216,17 @@ describe('processWorkspaceExportMessage', () => {
       // A real gzip container: magic bytes first.
       expect([...(completed?.archive.subarray(0, 2) ?? [])]).toEqual([0x1f, 0x8b])
       expect(completed?.archive.length).toBeGreaterThan(22)
+    })
+  )
+
+  it.effect('settles a queued export while suspended', () =>
+    Effect.gen(function* () {
+      const { outcome, recorded } = yield* run(message, { suspended: true })
+      expect(outcome).toBe('ack')
+      expect(recorded.completed).toHaveLength(0)
+      expect(recorded.failed).toEqual([
+        expect.objectContaining({ reason: 'workspace_suspended' })
+      ])
     })
   )
 

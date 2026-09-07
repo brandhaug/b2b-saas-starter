@@ -45,6 +45,10 @@ import {
 import { notifyCredentialChangedEffect } from '@/lib/server/credential-change-notification'
 import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
 import { recordEvidence } from '@/lib/server/security-evidence-sink'
+import {
+  isOrganizationProductAction,
+  suspendedOrganizationResponse
+} from '@/lib/server/auth-organization-suspension'
 
 /**
  * The credential-change sender, bound to the provider-light email dispatcher:
@@ -123,7 +127,8 @@ async function readPreHandlerContext(
   const audited =
     needsPreHandlerActor(exchange) || exchange.pathname.endsWith('/unlink-account')
   const guarded = impersonationForbiddenAction(exchange) !== null
-  if (!audited && !guarded) {
+  const organization = isOrganizationProductAction(exchange)
+  if (!audited && !guarded && !organization) {
     return { session: undefined, audit: undefined }
   }
   // The clone is taken before the handler runs — Better Auth consumes the
@@ -234,6 +239,13 @@ async function handleAuth(request: Request): Promise<Response> {
         const { session, audit: context } = yield* Effect.promise(() =>
           readPreHandlerContext(request, exchange)
         )
+        const suspensionResponse = yield* Effect.promise(() =>
+          suspendedOrganizationResponse(request, exchange, session)
+        )
+        if (suspensionResponse !== null) {
+          yield* Effect.annotateLogsScoped({ outcome: 'workspace_suspended' })
+          return suspensionResponse
+        }
         // An impersonation session may not change the account's password,
         // second factor or email, or delete it (ADR 0054). Decided by the
         // capability's guard, answered here before Better Auth sees the request.

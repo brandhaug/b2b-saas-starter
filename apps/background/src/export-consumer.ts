@@ -17,6 +17,7 @@ import {
   WorkspaceExportQueueMessage,
   WorkspaceExports
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { DateTime, Effect, type Layer, Result, type Scope } from 'effect'
 
@@ -66,7 +67,10 @@ export function processWorkspaceExportMessage(
 ): Effect.Effect<
   DeliveryOutcome,
   CapabilityUnavailable,
-  WorkspaceExports | WorkspaceExportSnapshotServices | Scope.Scope
+  | WorkspaceExports
+  | WorkspaceExportSnapshotServices
+  | WorkspaceSuspensionService
+  | Scope.Scope
 > {
   return Effect.gen(function* () {
     if (delivery.kind === 'malformed') {
@@ -83,7 +87,27 @@ export function processWorkspaceExportMessage(
       workspaceSlug: message.workspaceSlug
     })
     const exports = yield* WorkspaceExports
-
+    const suspension = yield* WorkspaceSuspensionService
+    {
+      const allowed = yield* Effect.result(
+        suspension.requireAllowed(message.workspaceId, 'product')
+      )
+      if (Result.isFailure(allowed) && allowed.failure._tag === 'WorkspaceSuspended') {
+        yield* exports.fail({
+          exportId: message.exportId,
+          workspaceId: message.workspaceId,
+          reason: 'workspace_suspended'
+        })
+        yield* Effect.annotateLogsScoped({
+          outcome: 'skipped',
+          skipReason: 'workspace_suspended'
+        })
+        return 'ack' satisfies DeliveryOutcome
+      }
+      if (Result.isFailure(allowed)) {
+        return yield* Effect.fail(allowed.failure)
+      }
+    }
     const built = yield* Effect.result(
       Effect.gen(function* () {
         const snapshot = yield* collectWorkspaceExportSnapshot({
@@ -171,7 +195,9 @@ export function processWorkspaceExportMessage(
     }
     yield* Effect.annotateLogsScoped({ outcome, sizeBytes: built.success.length })
     return 'ack' satisfies DeliveryOutcome
-  })
+  }).pipe(
+    Effect.catchTag('WorkspaceSuspended', () => Effect.succeed<DeliveryOutcome>('ack'))
+  )
 }
 
 /**

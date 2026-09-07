@@ -172,7 +172,10 @@ export async function startCheckoutHandler(
   return runWorkspaceCapabilities(
     input.workspaceSlug,
     Effect.gen(function* () {
-      yield* requireWorkspacePermission({ organization: ['update'] })
+      yield* requireWorkspacePermission(
+        { organization: ['update'] },
+        'billing_recovery'
+      )
       const billing = yield* Billing
       const backTo = `${base}/workspaces/${encodeURIComponent(input.workspaceSlug)}/billing`
       return yield* billing.startCheckout({
@@ -199,7 +202,10 @@ export async function startPortalSessionHandler(
   return runWorkspaceCapabilities(
     input.workspaceSlug,
     Effect.gen(function* () {
-      yield* requireWorkspacePermission({ organization: ['update'] })
+      yield* requireWorkspacePermission(
+        { organization: ['update'] },
+        'billing_recovery'
+      )
       const billing = yield* Billing
       return yield* billing.startPortalSession({
         returnUrl: `${base}/workspaces/${encodeURIComponent(input.workspaceSlug)}/billing`

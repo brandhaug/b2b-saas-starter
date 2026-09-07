@@ -186,6 +186,7 @@ describe('webhook consumer (workers pool)', () => {
         const result = yield* Effect.promise(() =>
           consume(webhookQueueName, [webhookMessage('qmsg_ok')])
         )
+
         // The runtime explicitly acked the message — per-message, with no
         // batch-level ops riding along.
         expect(result.ackAll).toBe(false)
@@ -233,6 +234,42 @@ describe('webhook consumer (workers pool)', () => {
         expect(
           yield* Effect.promise(() => rows('select * from notifications'))
         ).toStrictEqual([])
+      })
+    ))
+
+  it('settles a queued webhook during suspension and never replays it after recovery', () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port
+    Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.promise(() =>
+          db()
+            .prepare(
+              "update workspaces set suspensionStatus = 'suspended' where id = ?"
+            )
+            .bind(WORKSPACE_ID)
+            .run()
+        )
+        const suspended = yield* Effect.promise(() =>
+          consume(webhookQueueName, [webhookMessage('qmsg_suspended')])
+        )
+        expect(suspended.retryBatch.retry).toBe(false)
+        expect(outbound).toHaveLength(0)
+        const terminal = yield* Effect.promise(() =>
+          row('select * from webhook_deliveries where id = ?', 'whd_qmsg_suspended')
+        )
+        expect(terminal?.status).toBe('failed_permanent')
+        expect(terminal?.failure_reason).toBe('workspace_suspended')
+
+        yield* Effect.promise(() =>
+          db()
+            .prepare("update workspaces set suspensionStatus = 'active' where id = ?")
+            .bind(WORKSPACE_ID)
+            .run()
+        )
+        yield* Effect.promise(() =>
+          consume(webhookQueueName, [webhookMessage('qmsg_suspended')])
+        )
+        expect(outbound).toHaveLength(0)
       })
     ))
 

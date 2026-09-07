@@ -50,6 +50,22 @@ const blockedPlan: AccountDeletionPlan = {
   canDelete: false
 }
 
+const suspendedPlan: AccountDeletionPlan = {
+  steps: [
+    {
+      workspace: {
+        id: 'wrk_paused',
+        slug: 'paused-lab',
+        name: 'Paused Lab',
+        planId: 'starter'
+      },
+      role: 'owner',
+      action: 'blocked_suspended_workspace'
+    }
+  ],
+  canDelete: false
+}
+
 describe('DeleteAccountPanel', () => {
   it('sends the password after the confirm step and leaves for /sign-in', async () => {
     const assign = vi.fn()
@@ -102,6 +118,17 @@ describe('DeleteAccountPanel', () => {
     )
     screen.getByText(/Transfer ownership first/i)
     screen.getByRole('link', { name: 'Acme Lab' })
+    expect(screen.queryByLabelText('Password')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Delete account' })).toBeNull()
+  })
+
+  it('names a suspended workspace and directs the user to support', async () => {
+    await renderWithRouter(<DeleteAccountPanel plan={suspendedPlan} />, {
+      path: '/account'
+    })
+    screen.getByText(
+      'Paused Lab is suspended. Contact support before deleting your account.'
+    )
     expect(screen.queryByLabelText('Password')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Delete account' })).toBeNull()
   })

@@ -100,6 +100,11 @@ export type DeliveryStatus = (typeof deliveryStatuses)[number]
 export const workspaceExportStatuses = ['pending', 'ready', 'failed'] as const
 export type WorkspaceExportStatus = (typeof workspaceExportStatuses)[number]
 
+/** Durable workspace suspension state. */
+// oxlint-disable-next-line effect/noAs -- literal enum tuple
+export const workspaceSuspensionStatuses = ['active', 'suspended'] as const
+export type WorkspaceSuspensionStatus = (typeof workspaceSuspensionStatuses)[number]
+
 /** Durable Stripe-provider event processing state. */
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const billingProviderEventStatuses = [

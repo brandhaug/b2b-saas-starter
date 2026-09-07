@@ -97,6 +97,7 @@ export function SeedWorkspaceInvitations(options: {
               }
               return Option.some({
                 ...found,
+                workspaceId: options.workspace.id,
                 workspaceSlug: options.workspace.slug,
                 workspaceName: options.workspace.name
               })

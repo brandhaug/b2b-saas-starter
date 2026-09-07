@@ -65,7 +65,8 @@ export function ApiTokensPanel({
   viewer,
   revokeToken = revokeApiTokenServerFn,
   createToken,
-  replaceToken
+  replaceToken,
+  creation = 'visible'
 }: {
   readonly workspaceSlug: string
   readonly tokens: ReadonlyArray<ApiToken>
@@ -73,6 +74,7 @@ export function ApiTokensPanel({
   readonly revokeToken?: RevokeApiToken
   readonly replaceToken?: ReplaceApiToken
   readonly createToken?: CreateApiToken
+  readonly creation?: 'visible' | 'hidden'
 }) {
   const router = useRouter()
   const now = useSyncExternalStore(subscribeClock, clockSnapshot, serverClockSnapshot)
@@ -81,7 +83,8 @@ export function ApiTokensPanel({
   // commit — the same two-step pattern the settings page's delete uses.
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
-  const canCreate = viewerCan(viewer, { apiToken: ['create'] })
+  const canCreate =
+    creation === 'visible' && viewerCan(viewer, { apiToken: ['create'] })
   const canRevoke = viewerCan(viewer, { apiToken: ['revoke'] })
 
   // The loader owns the list, so the hook re-runs it on success rather than
@@ -102,19 +105,21 @@ export function ApiTokensPanel({
 
   return (
     <Panel>
-      <CreateSection
-        allowed={canCreate}
-        title={m.tokens_create_title()}
-        deniedReason={m.token_mint_denied()}
-      >
-        <ApiTokenForm
-          workspaceSlug={workspaceSlug}
-          onCreated={async () => {
-            await router.invalidate()
-          }}
-          {...(createToken === undefined ? {} : { createToken })}
-        />
-      </CreateSection>
+      {creation === 'visible' ? (
+        <CreateSection
+          allowed={canCreate}
+          title={m.tokens_create_title()}
+          deniedReason={m.token_mint_denied()}
+        >
+          <ApiTokenForm
+            workspaceSlug={workspaceSlug}
+            onCreated={async () => {
+              await router.invalidate()
+            }}
+            {...(createToken === undefined ? {} : { createToken })}
+          />
+        </CreateSection>
+      ) : null}
 
       {replacing ? (
         <ApiTokenReplacementForm

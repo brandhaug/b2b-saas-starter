@@ -83,7 +83,7 @@ function toWorkspaceRef(row: WorkspaceRow | null): NotificationWorkspace | null 
   if (row === null) {
     return null
   }
-  return { slug: row.slug, name: row.name }
+  return { id: row.id, slug: row.slug, name: row.name }
 }
 
 // Broadcast rows (userId IS NULL) are visible to everyone in the workspace;
@@ -134,19 +134,19 @@ export function LiveNotificationFeed(
 
       /** The workspace's owners, as email recipients. */
       function ownersOf(
-        workspaceId: string
+        workspaceId: string,
+        audience: 'owners' | 'owners_and_admins' = 'owners'
       ): Effect.Effect<ReadonlyArray<EmailQueueRecipient>, CapabilityUnavailable> {
+        let roleCondition = eq(workspaceMembers.role, 'owner')
+        if (audience === 'owners_and_admins') {
+          roleCondition = inArray(workspaceMembers.role, ['owner', 'admin'])
+        }
         return unavailable(
           db
             .select({ user })
             .from(workspaceMembers)
             .innerJoin(user, eq(user.id, workspaceMembers.userId))
-            .where(
-              and(
-                eq(workspaceMembers.workspaceId, workspaceId),
-                eq(workspaceMembers.role, 'owner')
-              )
-            )
+            .where(and(eq(workspaceMembers.workspaceId, workspaceId), roleCondition))
         ).pipe(Effect.map((rows) => rows.map((row) => toRecipient(row.user))))
       }
 
@@ -405,7 +405,7 @@ export function LiveNotificationFeed(
           }),
         notifyWorkspaceOwners: (input) =>
           Effect.gen(function* () {
-            const owners = yield* ownersOf(input.workspaceId)
+            const owners = yield* ownersOf(input.workspaceId, input.audience)
             if (owners.length === 0) {
               return
             }
@@ -421,7 +421,14 @@ export function LiveNotificationFeed(
               created.push({
                 owner,
                 row: {
-                  id: yield* newCapabilityId('not'),
+                  id: yield* (() => {
+                    if (input.deduplicationKey === undefined) {
+                      return newCapabilityId('not')
+                    }
+                    return Effect.succeed(
+                      `not:${input.workspaceId}:${owner.userId}:${input.deduplicationKey}`
+                    )
+                  })(),
                   workspaceId: input.workspaceId,
                   userId: owner.userId,
                   kind: input.kind,
@@ -434,7 +441,10 @@ export function LiveNotificationFeed(
               })
             }
             yield* unavailable(
-              db.insert(notifications).values(created.map(({ row }) => row))
+              db
+                .insert(notifications)
+                .values(created.map(({ row }) => row))
+                .onConflictDoNothing({ target: notifications.id })
             )
             // One enqueue per row: a notification id addresses one (row,
             // recipient) pair, so each owner's email resolves against their

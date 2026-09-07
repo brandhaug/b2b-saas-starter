@@ -142,6 +142,7 @@ export function LiveWorkspaceInvitations(
             Effect.map(
               Option.map((row) => ({
                 ...toInvitation(row.invitation),
+                workspaceId: row.workspace.id,
                 workspaceSlug: row.workspace.slug,
                 workspaceName: row.workspace.name
               }))

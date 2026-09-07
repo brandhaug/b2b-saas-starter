@@ -9,7 +9,7 @@ Self-service account deletion and the workspace teardown it implies (ADR 0059). 
 - `planDeletion(userId)` never mutates, so the account page can name the workspaces needing an owner first.
 - `prepareDeletion(userId)` runs the teardown (leave, delete, detach) and fails `AccountDeletionBlocked` (409, carrying the blocking workspaces) without touching anything if a step is blocked.
 - `deleteAccount` plans, gates, then hands off to the store; a refusal there (wrong password, no credential) is `AccountDeletionRejected` (409).
-- `planAccountDeletion` is the shared rule, per membership, in precedence order: sole member gives `delete_workspace`, sole owner of a shared workspace `blocked_sole_owner` (the plugin refuses that leave too), otherwise `leave`. One blocked workspace blocks the account; `deletionMetadata` yields counts, never workspace names.
+- `planAccountDeletion` is the shared rule, per membership, in precedence order: sole member in a suspended workspace gives `blocked_suspended_workspace`, other sole member gives `delete_workspace`, sole owner of a shared workspace `blocked_sole_owner` (the plugin refuses that leave too), otherwise `leave`. One blocked workspace blocks the account; `deletionMetadata` yields counts, never workspace names.
 - Audits `workspace.deleted` with `workspaceId: null` (the real id cascades away), `workspace_member.removed` with `metadata.reason: 'account_deleted'`, and an actorless `account.deleted` naming the account in `targetId`.
 - Without an `AccountLifecycleBinding` the plan still reads; teardown fails `CapabilityUnavailable('no_account_lifecycle_binding')`.
 

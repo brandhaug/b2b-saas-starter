@@ -2,6 +2,10 @@ import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit
 import { type SystemRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type WorkspaceWithMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { type GlobalWebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import {
+  type WorkspaceSuspension,
+  type WorkspaceSuspensionSummary
+} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { WORKSPACE_ROLES } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
@@ -70,6 +74,31 @@ export type FailedDeliveriesPayload = {
   readonly items: ReadonlyArray<GlobalWebhookDelivery>
   readonly nextCursor: string | null
 }
+
+export type AdminWorkspace = WorkspaceSuspensionSummary
+
+const WorkspaceSuspensionInput = Schema.Struct({
+  workspaceId: Schema.NonEmptyString,
+  action: Schema.Literals(['suspend', 'unsuspend']),
+  internalReason: Schema.NonEmptyString,
+  customerExplanation: Schema.optionalKey(Schema.String)
+})
+
+export type WorkspaceSuspensionInput = typeof WorkspaceSuspensionInput.Type
+
+export const listAdminWorkspacesServerFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<ReadonlyArray<AdminWorkspace>> => {
+    const { listAdminWorkspacesHandler } = await import('./admin.effects')
+    return listAdminWorkspacesHandler()
+  }
+)
+
+export const transitionAdminWorkspaceServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(WorkspaceSuspensionInput))
+  .handler(async ({ data }): Promise<WorkspaceSuspension> => {
+    const { transitionAdminWorkspaceHandler } = await import('./admin.effects')
+    return transitionAdminWorkspaceHandler(data)
+  })
 
 /**
  * System-level user list for `/admin`, via the `PlatformUserAdmin`

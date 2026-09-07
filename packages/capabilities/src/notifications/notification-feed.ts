@@ -90,6 +90,9 @@ export type NotifyUserInput = {
  */
 export type NotifyWorkspaceOwnersInput = {
   readonly workspaceId: string
+  /** Defaults to owners for existing producers; suspension notices include admins. */
+  readonly audience?: 'owners' | 'owners_and_admins' | undefined
+  readonly deduplicationKey?: string | undefined
   readonly kind: NotificationKind
   readonly title: string
   readonly message: string
@@ -106,6 +109,8 @@ export type NotificationRecipient = {
 }
 
 export type NotificationWorkspace = {
+  /** Stable identity for actorless background policy checks. */
+  readonly id: string
   readonly slug: string
   readonly name: string
 }

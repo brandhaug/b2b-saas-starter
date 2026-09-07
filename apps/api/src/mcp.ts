@@ -3,6 +3,7 @@ import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/w
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { mcpMutationOperations } from './mcp-mutations.ts'
 import { clientKey } from '@b2b-saas-starter/rate-limit'
@@ -278,6 +279,9 @@ function textResult(data: unknown): CallToolResult {
  */
 function failureText(error: ToolFailure): string {
   switch (error._tag) {
+    case 'WorkspaceSuspended': {
+      return 'WorkspaceSuspended: workspace access is suspended. Contact a workspace owner or administrator.'
+    }
     case 'AuthorizationDenied': {
       return `denied: ${error.reason}`
     }
@@ -330,6 +334,16 @@ function failureText(error: ToolFailure): string {
 function outcomeToToolResult(outcome: ToolOutcome): CallToolResult {
   if (Result.isSuccess(outcome)) {
     return textResult(outcome.success)
+  }
+  if (outcome.failure._tag === 'WorkspaceSuspended') {
+    return new CallToolResult({
+      content: [{ type: 'text', text: failureText(outcome.failure) }],
+      structuredContent: {
+        _tag: 'WorkspaceSuspended',
+        workspaceId: outcome.failure.workspaceId
+      },
+      isError: true
+    })
   }
   return new CallToolResult({
     content: [{ type: 'text', text: failureText(outcome.failure) }],
@@ -462,6 +476,7 @@ function registerTools(env: ApiEnv) {
         WorkspaceMembership,
         ApiTokenRegistry,
         WebhookEndpoints,
+        WorkspaceSuspensionService,
         AuditEventLog
       )
     )
@@ -542,6 +557,7 @@ function registerMutationTools(env: ApiEnv) {
         ApiTokenRegistry,
         WebhookEndpoints,
         WorkspaceExports,
+        WorkspaceSuspensionService,
         RateLimiter,
         OAuthTokenVerifier,
         McpClientConnections

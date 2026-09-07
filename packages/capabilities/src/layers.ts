@@ -75,6 +75,9 @@ import {
 } from './governance/workspace-export.live.ts'
 import { SeedWorkspaceExports } from './governance/workspace-export.seed.ts'
 import { type WorkspaceExports } from './governance/workspace-export.ts'
+import { type WorkspaceSuspensionService } from './governance/workspace-suspension.ts'
+import { LiveWorkspaceSuspension } from './governance/workspace-suspension.live.ts'
+import { SeedWorkspaceSuspension } from './governance/workspace-suspension.seed.ts'
 import { LiveSsoConnections } from './governance/workspace-sso-connections.live.ts'
 import { SeedSsoConnections } from './governance/workspace-sso-connections.seed.ts'
 import {
@@ -150,6 +153,7 @@ export type CapabilityServices =
   | WorkspaceLifecycle
   | WorkspaceMembership
   | WorkspaceOnboarding
+  | WorkspaceSuspensionService
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
@@ -169,11 +173,14 @@ const SeedGovernance = Layer.unwrap(
       // write, and it writes its audit events into the shared fixture log
       // provided on the merged layer below.
       SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
-        Layer.provide(SeedAuditLog)
+        Layer.provide(SeedAuditLog),
+        Layer.provide(SeedSuspension)
       ),
       SeedWorkspaceInvitations({ roster, workspace: seedWorkspaceRecord }),
       SeedWorkspaceMembership(roster, seedWorkspaceRecord),
-      SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord }),
+      SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
+        Layer.provide(SeedSuspension)
+      ),
       /**
        * Billing rides the governance seed so its audit writes land in the
        * same fixture log every other capability reads, and its seat counts
@@ -182,7 +189,8 @@ const SeedGovernance = Layer.unwrap(
       SeedBilling({
         roster,
         workspacePlans: { [seedWorkspaceRecord.id]: seedWorkspaceRecord.planId }
-      }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications))
+      }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications)),
+      SeedSuspension
     )
   })
 )
@@ -216,6 +224,11 @@ const SeedNotifications = Layer.merge(
     members: seedMembers
   }).pipe(Layer.provide(Layer.merge(SeedPreferences, SeedAccountPrefs)))
 )
+
+const SeedSuspension = SeedWorkspaceSuspension({
+  workspace: seedWorkspaceRecord,
+  systemUsers: seedSystemUsers
+}).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications))
 
 const SeedEntitlements = SeedResourceEntitlements().pipe(
   Layer.provide(SeedGovernance),
@@ -374,6 +387,10 @@ export function makeLiveCapabilitiesLayer(
   }).pipe(Layer.provide(preferences))
   const billing = LiveBilling(options.billing)
   const entitlements = LiveResourceEntitlements.pipe(Layer.provide(billing))
+  const suspension = LiveWorkspaceSuspension.pipe(
+    Layer.provide(LiveAuditEventLog),
+    Layer.provide(feed)
+  )
   return Layer.mergeAll(
     LiveRetention,
     LiveEmailDelivery,
@@ -391,10 +408,13 @@ export function makeLiveCapabilitiesLayer(
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
     LiveWorkspaceMembership(options.memberBinding, options.securityEvidence),
-    LiveWorkspaceLifecycle(options.lifecycleBinding, options.securityEvidence),
+    LiveWorkspaceLifecycle(options.lifecycleBinding, options.securityEvidence).pipe(
+      Layer.provide(suspension)
+    ),
     LivePlatformUserAdmin(options.userAdminBinding),
     LiveWorkspaceOnboarding,
-    LiveWorkspaceExports(options.workspaceExports),
+    LiveWorkspaceExports(options.workspaceExports).pipe(Layer.provide(suspension)),
+    suspension,
     seatSyncPublisher
   ).pipe(
     Layer.provide(LiveAuditEventLog),

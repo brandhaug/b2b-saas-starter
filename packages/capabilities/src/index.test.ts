@@ -63,10 +63,7 @@ import {
   SeedNotificationPreferences
 } from './notifications/notification-preferences.ts'
 import { testWorkspaceContext, type Actor } from './workspace-context.ts'
-import {
-  SeedWorkspaceLifecycle,
-  WorkspaceLifecycle
-} from './governance/workspace-lifecycle.ts'
+import { WorkspaceLifecycle } from './governance/workspace-lifecycle.ts'
 import { workspaceLifecycleContractCases } from './governance/workspace-lifecycle.contract.ts'
 import {
   auditEventContractDataset,
@@ -82,6 +79,7 @@ import {
 } from './governance/account-lifecycle.contract.ts'
 import { AccountLifecycle } from './governance/account-lifecycle.ts'
 import { SeedAccountLifecycle } from './governance/account-lifecycle.seed.ts'
+import { SeedWorkspaceSuspension } from './governance/workspace-suspension.seed.ts'
 import { SeedAccountPreferences } from './governance/account-preferences.ts'
 import {
   CONTRACT_EXPIRED_AT,
@@ -833,7 +831,7 @@ describe('seed workspace lifecycle deletion', () => {
         userId: 'usr_newcomer'
       })
       expect(recreated.slug).toBe(created.slug)
-    }).pipe(Effect.provide(SeedWorkspaceLifecycle({ workspace: seedWorkspaceRecord })))
+    }).pipe(Effect.provide(SeedLayer))
   )
 })
 
@@ -918,11 +916,18 @@ function lifecycleLayerFor(
       // One fixture audit log shared by the capability and the case's
       // assertions — separate instances would each hold a private store.
       const audit = SeedAuditEventLog([], seedSystemUsers)
-      return Layer.merge(
+      const feed = seedFeed([])
+      const suspension = SeedWorkspaceSuspension({
+        workspace: seedWorkspaceRecord,
+        systemUsers: seedSystemUsers
+      }).pipe(Layer.provide(audit), Layer.provide(feed))
+      return Layer.mergeAll(
         audit,
         SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
-          Layer.provide(audit)
-        )
+          Layer.provide(audit),
+          Layer.provide(suspension)
+        ),
+        suspension
       )
     })
   )

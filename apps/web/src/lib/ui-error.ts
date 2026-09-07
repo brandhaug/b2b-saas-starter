@@ -4,6 +4,7 @@ import { createSerializationAdapter } from '@tanstack/react-router'
 export type UiErrorCode =
   | 'unavailable'
   | 'forbidden'
+  | 'workspace_suspended'
   | 'plan_limit'
   | 'membership_refused'
   | 'user_admin_refused'

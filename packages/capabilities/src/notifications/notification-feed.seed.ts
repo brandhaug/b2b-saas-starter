@@ -123,7 +123,11 @@ export function SeedNotificationFeed(
         if (!inWorkspace(row, fixture.workspace.id)) {
           return null
         }
-        return { slug: fixture.workspace.slug, name: fixture.workspace.name }
+        return {
+          id: fixture.workspace.id,
+          slug: fixture.workspace.slug,
+          name: fixture.workspace.name
+        }
       }
 
       function contextFor(
@@ -301,7 +305,11 @@ export function SeedNotificationFeed(
             if (input.workspaceId !== fixture.workspace.id) {
               return
             }
-            const owners = fixture.members.filter((member) => member.role === 'owner')
+            const owners = fixture.members.filter(
+              (member) =>
+                member.role === 'owner' ||
+                (input.audience === 'owners_and_admins' && member.role === 'admin')
+            )
             if (owners.length === 0) {
               return
             }
@@ -311,7 +319,14 @@ export function SeedNotificationFeed(
               created.push({
                 owner: recipientOf(owner),
                 row: {
-                  id: yield* newCapabilityId('not'),
+                  id: yield* (() => {
+                    if (input.deduplicationKey === undefined) {
+                      return newCapabilityId('not')
+                    }
+                    return Effect.succeed(
+                      `not:${input.workspaceId}:${owner.id}:${input.deduplicationKey}`
+                    )
+                  })(),
                   workspaceId: input.workspaceId,
                   userId: owner.id,
                   kind: input.kind,

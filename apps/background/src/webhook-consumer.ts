@@ -11,7 +11,8 @@ import {
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import { WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { type NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { currentTraceId, TRACE_HEADER } from '@b2b-saas-starter/logger'
 import { DateTime, Effect, Result, Schema, type Scope } from 'effect'
 import { HttpBody, HttpClient } from 'effect/unstable/http'
@@ -69,7 +70,11 @@ export function processWebhookMessage(
 ): Effect.Effect<
   DeliveryOutcome,
   CapabilityUnavailable,
-  WebhookEndpoints | NotificationFeed | HttpClient.HttpClient | Scope.Scope
+  | WebhookEndpoints
+  | NotificationFeed
+  | WorkspaceSuspensionService
+  | HttpClient.HttpClient
+  | Scope.Scope
 > {
   return Effect.gen(function* () {
     // A malformed body is terminal — mirroring how permanent delivery failures
@@ -109,6 +114,35 @@ export function processWebhookMessage(
         skipReason: 'not_dispatchable'
       })
       return 'ack' satisfies DeliveryOutcome
+    }
+    // A message queued before an administrative suspension must settle as a
+    // terminal refusal. Leaving it in the queue would retry forever, and
+    // replaying it on reactivation would violate the suspension boundary.
+    const suspension = yield* WorkspaceSuspensionService
+    {
+      const allowed = yield* Effect.result(
+        suspension.requireAllowed(message.workspaceId, 'product')
+      )
+      if (Result.isFailure(allowed)) {
+        if (allowed.failure._tag === 'WorkspaceSuspended') {
+          yield* webhooks.recordTerminalDeliveryAttempt({
+            deliveryId,
+            endpointId: target.id,
+            workspaceId: message.workspaceId,
+            eventType: message.eventType,
+            attempts,
+            status: 'failed_permanent',
+            failureReason: 'workspace_suspended',
+            payload: message.payload
+          })
+          yield* Effect.annotateLogsScoped({
+            outcome: 'skipped',
+            skipReason: 'workspace_suspended'
+          })
+          return 'ack' satisfies DeliveryOutcome
+        }
+        return yield* Effect.fail(allowed.failure)
+      }
     }
     yield* Effect.annotateLogsScoped({ endpointUrl: target.url })
     // Re-check the destination at dispatch time — an endpoint created before

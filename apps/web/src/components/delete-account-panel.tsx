@@ -59,7 +59,12 @@ export function DeleteAccountPanel({
   )
 
   if (!plan.canDelete) {
-    const blocked = plan.steps.filter((step) => step.action === 'blocked_sole_owner')
+    const blockedOwners = plan.steps.filter(
+      (step) => step.action === 'blocked_sole_owner'
+    )
+    const suspended = plan.steps.filter(
+      (step) => step.action === 'blocked_suspended_workspace'
+    )
     return (
       <section className="grid gap-4" aria-label={m.panel_delete_account()}>
         <div
@@ -71,9 +76,11 @@ export function DeleteAccountPanel({
             aria-hidden
           />
           <div className="grid gap-1 text-sm">
-            <p>{m.account_only_owner_warning({ count: blocked.length })}</p>
+            {blockedOwners.length > 0 ? (
+              <p>{m.account_only_owner_warning({ count: blockedOwners.length })}</p>
+            ) : null}
             <ul className="grid gap-1">
-              {blocked.map((step) => (
+              {blockedOwners.map((step) => (
                 <li key={step.workspace.id}>
                   <Link
                     to="/workspaces/$workspaceSlug/members"
@@ -82,6 +89,13 @@ export function DeleteAccountPanel({
                   >
                     {step.workspace.name}
                   </Link>
+                </li>
+              ))}
+              {suspended.map((step) => (
+                <li key={step.workspace.id}>
+                  {m.account_suspended_workspace_warning({
+                    workspace: step.workspace.name
+                  })}
                 </li>
               ))}
             </ul>

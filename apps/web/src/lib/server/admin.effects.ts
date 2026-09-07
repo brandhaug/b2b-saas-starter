@@ -12,6 +12,7 @@ import {
   WorkspaceMembership,
   type WorkspaceWithMembership
 } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { Effect } from 'effect'
 import { env } from 'cloudflare:workers'
@@ -31,7 +32,9 @@ import {
   type ReplayFailedDeliveryInput,
   type ReplayFailedDeliveryResult,
   type SystemUser,
-  type SystemUserInput
+  type SystemUserInput,
+  type AdminWorkspace,
+  type WorkspaceSuspensionInput
 } from './admin'
 import { requireRequestSession, UnauthorizedError } from './auth'
 import { webUserAdminBinding } from './user-admin-binding'
@@ -84,6 +87,34 @@ export async function listSystemUsersHandler(): Promise<ReadonlyArray<SystemUser
     role: account.systemRole,
     banned: account.banned
   }))
+}
+
+export async function listAdminWorkspacesHandler(): Promise<
+  ReadonlyArray<AdminWorkspace>
+> {
+  await requireAdminSession()
+  return runCapabilities(
+    Effect.flatMap(WorkspaceSuspensionService, (service) => service.list)
+  )
+}
+
+export async function transitionAdminWorkspaceHandler(input: WorkspaceSuspensionInput) {
+  const session = await requireAdminSession()
+  return runCapabilities(
+    Effect.gen(function* () {
+      const suspension = yield* WorkspaceSuspensionService
+      return yield* suspension.transition({
+        workspaceId: input.workspaceId,
+        action: input.action,
+        actor: {
+          userId: session.user.id,
+          impersonatedBy: session.session.impersonatedBy
+        },
+        internalReason: input.internalReason,
+        customerExplanation: input.customerExplanation
+      })
+    })
+  )
 }
 
 /**

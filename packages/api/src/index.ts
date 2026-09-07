@@ -13,6 +13,7 @@ import {
   InvalidApiTokenInput,
   ApiTokenNotRotatable,
   PlanLimitExceeded,
+  WorkspaceSuspended,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
 import {
@@ -161,6 +162,7 @@ const WORKSPACE_ERRORS = [
   InternalError,
   Unauthorized,
   AuthorizationDenied,
+  WorkspaceSuspended,
   RateLimited,
   CapabilityUnavailable
 ] as const
@@ -170,6 +172,7 @@ const PROTECTED_ERRORS = [
   InternalError,
   Unauthorized,
   AuthorizationDenied,
+  WorkspaceSuspended,
   RateLimited,
   CapabilityUnavailable
 ] as const

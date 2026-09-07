@@ -43,6 +43,8 @@ export const AUDIT_EVENT_TYPES = [
   'workspace.created',
   'workspace.renamed',
   'workspace.deleted',
+  'workspace.suspended',
+  'workspace.unsuspended',
   'workspace.onboarding_dismissed',
   // governance — workspace data export (ADR 0055)
   'workspace.export_requested',

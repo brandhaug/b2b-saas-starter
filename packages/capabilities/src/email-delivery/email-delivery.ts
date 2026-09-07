@@ -86,7 +86,8 @@ export type EmailDeliveryInterface = {
     token: string,
     outcome: SendOutcome
   ) => Result<void>
-  readonly abandon: (id: string) => Result<void>
+  /** Settle an unsent delivery with durable operator evidence. */
+  readonly abandon: (id: string, reason?: string) => Result<void>
   readonly applyProviderEvent: (
     event: EmailProviderEvent
   ) => Result<'updated' | 'ignored' | 'unmatched'>

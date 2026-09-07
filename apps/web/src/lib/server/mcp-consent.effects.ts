@@ -1,5 +1,6 @@
 import { MCP_CONSENT_PAGE, MCP_WORKSPACE_SELECTED_HEADER } from '@b2b-saas-starter/auth'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { Effect, Schema } from 'effect'
 
@@ -113,6 +114,16 @@ export async function grantOAuthConsentHandler(
   input: GrantOAuthConsentInput
 ): Promise<OAuthRedirect> {
   const session = await requireRequestSession()
+  await runCapabilities(
+    Effect.gen(function* () {
+      const workspaces = yield* listWorkspacesForUser(session.user.id)
+      if (!workspaces.some(({ workspace }) => workspace.id === input.workspaceId)) {
+        return
+      }
+      const suspension = yield* WorkspaceSuspensionService
+      yield* suspension.requireAllowed(input.workspaceId, 'product')
+    })
+  )
   await sessionCall((api, headers) =>
     api.setActiveOrganization({
       body: { organizationId: input.workspaceId },

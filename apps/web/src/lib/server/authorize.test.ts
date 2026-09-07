@@ -6,10 +6,14 @@ import {
   type Workspace,
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { Effect, type Scope } from 'effect'
+import { Effect, Layer } from 'effect'
+import { SeedLayer } from '@b2b-saas-starter/capabilities/layers'
+import { seedSystemUsers } from '@b2b-saas-starter/capabilities/seed-fixture'
+import { SeedWorkspaceSuspension } from '@b2b-saas-starter/capabilities/governance/workspace-suspension.seed'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { describe, expect, it } from '@effect/vitest'
 
-import { requireWorkspacePermission } from './authorize'
+import { permitted, requireWorkspacePermission } from './authorize'
 
 const workspace: Workspace = {
   id: 'wrk_test',
@@ -22,6 +26,11 @@ function actor(role: WorkspaceRole): Actor {
   return { userId: `usr_${role}`, role, systemRole: 'user' }
 }
 
+const suspensionLayer = SeedWorkspaceSuspension({
+  workspace,
+  systemUsers: seedSystemUsers
+}).pipe(Layer.provide(SeedLayer))
+
 /**
  * `requirePermission` annotates the request's wide event on denial, so it needs
  * a Scope. Server functions get one from `runWorkspaceCapabilities`; the
@@ -30,15 +39,99 @@ function actor(role: WorkspaceRole): Actor {
 function decide(
   actorOrNull: Actor | null,
   permission: Parameters<typeof requireWorkspacePermission>[0]
-): Effect.Effect<string, never, Scope.Scope> {
+) {
   return requireWorkspacePermission(permission).pipe(
     Effect.as('allowed'),
     Effect.catchTag('AuthorizationDenied', (error) => Effect.succeed(error.reason)),
-    Effect.provide(testWorkspaceContext(workspace, actorOrNull))
+    Effect.provide(testWorkspaceContext(workspace, actorOrNull)),
+    Effect.provide(suspensionLayer)
   )
 }
 
 describe('requireWorkspacePermission', () => {
+  it.effect(
+    'AC2/AC5: an existing session loses product access while permitted recovery remains available',
+    () =>
+      Effect.gen(function* () {
+        yield* requireWorkspacePermission({ apiToken: ['create'] })
+        const suspension = yield* WorkspaceSuspensionService
+        yield* suspension.transition({
+          workspaceId: workspace.id,
+          action: 'suspend',
+          actor: { userId: 'usr_demo' },
+          internalReason: 'Private operator reason',
+          customerExplanation: 'Please contact support.'
+        })
+        expect(
+          (yield* Effect.flip(requireWorkspacePermission({ apiToken: ['create'] })))
+            ._tag
+        ).toBe('WorkspaceSuspended')
+        expect(
+          (yield* Effect.flip(requireWorkspacePermission({ notification: ['read'] })))
+            ._tag
+        ).toBe('WorkspaceSuspended')
+        expect(yield* permitted({ notification: ['read'] })).toBe(false)
+        expect(yield* permitted({ apiToken: ['list'], webhook: ['list'] })).toBe(false)
+        yield* requireWorkspacePermission({ apiToken: ['revoke'] })
+        yield* requireWorkspacePermission({ sso: ['update'] })
+        yield* requireWorkspacePermission(
+          { organization: ['update'] },
+          'billing_recovery'
+        )
+        expect(
+          (yield* Effect.flip(requireWorkspacePermission({ organization: ['delete'] })))
+            ._tag
+        ).toBe('WorkspaceSuspended')
+        yield* suspension.transition({
+          workspaceId: workspace.id,
+          action: 'unsuspend',
+          actor: { userId: 'usr_demo' },
+          internalReason: 'Review complete'
+        })
+        yield* requireWorkspacePermission({ notification: ['read'] })
+      }).pipe(
+        Effect.provide(testWorkspaceContext(workspace, actor('owner'))),
+        Effect.provide(suspensionLayer)
+      )
+  )
+
+  it.effect(
+    'AC5: suspension recovery does not grant members billing or credential rights, or admins owner-only SSO repair',
+    () =>
+      Effect.gen(function* () {
+        const suspension = yield* WorkspaceSuspensionService
+        yield* suspension.transition({
+          workspaceId: workspace.id,
+          action: 'suspend',
+          actor: { userId: 'usr_demo' },
+          internalReason: 'Private operator reason',
+          customerExplanation: 'Please contact support.'
+        })
+        const memberContext = testWorkspaceContext(workspace, actor('member'))
+        expect(
+          (yield* Effect.flip(
+            requireWorkspacePermission({ apiToken: ['revoke'] }).pipe(
+              Effect.provide(memberContext)
+            )
+          ))._tag
+        ).toBe('AuthorizationDenied')
+        expect(
+          (yield* Effect.flip(
+            requireWorkspacePermission(
+              { organization: ['update'] },
+              'billing_recovery'
+            ).pipe(Effect.provide(memberContext))
+          ))._tag
+        ).toBe('AuthorizationDenied')
+        expect(
+          (yield* Effect.flip(
+            requireWorkspacePermission({ sso: ['update'] }).pipe(
+              Effect.provide(testWorkspaceContext(workspace, actor('admin')))
+            )
+          ))._tag
+        ).toBe('WorkspaceSuspended')
+      }).pipe(Effect.provide(suspensionLayer))
+  )
   it.effect('lets an owner create an API token', () =>
     Effect.gen(function* () {
       expect(yield* decide(actor('owner'), { apiToken: ['create'] })).toBe('allowed')
