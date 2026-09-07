@@ -35,6 +35,10 @@ type Source = {
 }
 type State = Record<string, { digest: string }>
 
+const IMPECCABLE_VERSION_FILE = join('scripts', 'VERSION')
+const IMPECCABLE_LAUNCHER = join('scripts', 'impeccable')
+const IMPECCABLE_WINDOWS_LAUNCHER = join('scripts', 'impeccable.cmd')
+
 function exists(path: string) {
   return lstatSync(path, { throwIfNoEntry: false }) !== undefined
 }
@@ -170,6 +174,55 @@ function prepare(
   }
 }
 
+function bootstrapImpeccable(stage: string, home: string) {
+  const launcher =
+    process.platform === 'win32'
+      ? join(stage, IMPECCABLE_WINDOWS_LAUNCHER)
+      : join(stage, IMPECCABLE_LAUNCHER)
+  const versionPath = join(stage, IMPECCABLE_VERSION_FILE)
+  if (!existsSync(launcher) || !existsSync(versionPath)) {
+    throw new Error('Impeccable skill is missing its launcher or VERSION file')
+  }
+  const version = readFileSync(versionPath, 'utf8').trim()
+  if (!/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error(`Invalid Impeccable engine version: ${version || '(empty)'}`)
+  }
+  const cache = join(home, '.impeccable', 'bin', version)
+  let output: string
+  try {
+    const windows = process.platform === 'win32'
+    output = execFileSync(
+      windows ? 'cmd.exe' : launcher,
+      windows ? ['/d', '/s', '/c', 'impeccable.cmd engine-probe'] : ['engine-probe'],
+      {
+        cwd: windows ? dirname(launcher) : undefined,
+        env: {
+          ...process.env,
+          IMPECCABLE_HOME: join(home, '.impeccable'),
+          IMPECCABLE_SKILL_DIR: stage,
+          IMPECCABLE_SELF: launcher,
+          IMPECCABLE_BIN: '',
+          IMPECCABLE_LAUNCHER_PROBE: ''
+        },
+        timeout: 180_000,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    ).trim()
+  } catch (error) {
+    throw new Error(
+      `Impeccable engine bootstrap failed for ${cache}; check network access and cache directory permissions, then rerun setup`,
+      { cause: error }
+    )
+  }
+  const expected = `impeccable-engine ${version}`
+  if (output !== expected) {
+    throw new Error(
+      `Impeccable engine bootstrap returned ${JSON.stringify(output)}; expected ${JSON.stringify(expected)}`
+    )
+  }
+}
+
 // oxlint-disable anti-slop/no-runtime-typeof -- Parse persisted JSON at this dependency-free bootstrap boundary before permitting global replacements.
 function readState(path: string) {
   const value: unknown = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {}
@@ -216,6 +269,12 @@ function install(
       throw new Error(`Unmanaged installation preserved: ${destination}`)
     }
     if (!update) {
+      if (name === 'impeccable') {
+        if (digest(destination) !== previous.digest) {
+          throw new Error(`Personal modifications preserved: ${destination}`)
+        }
+        bootstrapImpeccable(destination, home)
+      }
       if (!exists(alias)) {
         mkdirSync(dirname(alias), { recursive: true })
         symlinkSync(destination, alias)
@@ -235,6 +294,9 @@ function install(
   const stateTemporary = join(work, 'state.json')
   try {
     prepare(source, stage, cache, temporary)
+    if (name === 'impeccable') {
+      bootstrapImpeccable(stage, home)
+    }
     const entry = { digest: digest(stage) }
     if (present) {
       renameSync(destination, backup)
