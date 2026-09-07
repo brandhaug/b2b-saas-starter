@@ -91,6 +91,19 @@ export function processWebhookMessage(
     // terminal, so a never-dispatched row still resolves this message's
     // identity (one row per message, even when it dies pre-dispatch).
     const deliveryId = message.deliveryId
+    if (
+      yield* webhooks.isDeliverySettled({
+        deliveryId,
+        endpointId: message.endpointId,
+        workspaceId: message.workspaceId
+      })
+    ) {
+      yield* Effect.annotateLogsScoped({
+        outcome: 'skipped',
+        skipReason: 'delivery_settled'
+      })
+      return 'ack' satisfies DeliveryOutcome
+    }
     // The workspace ID from the message is verified inside the capability:
     // a cross-workspace mismatch resolves null, same as a disabled or deleted
     // endpoint, so no signing secret leaves the workspace that enqueued it.

@@ -722,6 +722,31 @@ export const LiveWebhookEndpoints: Layer.Layer<
           })
           return { signingSecret }
         }),
+      isDeliverySettled: (input) =>
+        Effect.gen(function* () {
+          const rows = yield* unavailable(
+            db
+              .select({ id: webhookDeliveries.id })
+              .from(webhookDeliveries)
+              .innerJoin(
+                webhookEndpoints,
+                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
+              )
+              .where(
+                and(
+                  eq(webhookDeliveries.id, input.deliveryId),
+                  eq(webhookEndpoints.id, input.endpointId),
+                  eq(webhookEndpoints.workspaceId, input.workspaceId),
+                  inArray(webhookDeliveries.status, [
+                    'delivered',
+                    ...TERMINAL_DELIVERY_STATUSES
+                  ])
+                )
+              )
+              .limit(1)
+          )
+          return rows.length > 0
+        }),
       getDispatchTarget: (endpointId, workspaceId) =>
         Effect.gen(function* () {
           const endpoint = yield* endpointRow(endpointId, workspaceId)

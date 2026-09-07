@@ -91,6 +91,7 @@ function stubEndpoints(
     listDeliveries: () => Effect.die('unused in delivery tests'),
     listGlobalDeliveries: () => Effect.die('unused in delivery tests'),
     replayDeliveryAsAdmin: () => Effect.die('unused in delivery tests'),
+    isDeliverySettled: () => Effect.succeed(false),
     getDispatchTarget: (endpointId, workspaceId) =>
       Effect.succeed(resolveTarget(dispatchTarget, endpointId, workspaceId)),
     recordDeliveryAttempt: (input) =>

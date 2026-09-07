@@ -258,7 +258,13 @@ describe('webhook consumer (workers pool)', () => {
           row('select * from webhook_deliveries where id = ?', 'whd_qmsg_suspended')
         )
         expect(terminal?.status).toBe('failed_permanent')
-        expect(terminal?.failure_reason).toBe('workspace_suspended')
+        const attempt = yield* Effect.promise(() =>
+          row(
+            'select * from webhook_delivery_attempts where delivery_id = ?',
+            'whd_qmsg_suspended'
+          )
+        )
+        expect(attempt?.failure_reason).toBe('workspace_suspended')
 
         yield* Effect.promise(() =>
           db()

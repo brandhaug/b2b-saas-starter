@@ -851,6 +851,21 @@ export function SeedWebhookEndpoints(
             })
             return { signingSecret: endpoint.signingSecret }
           }),
+        isDeliverySettled: (input) =>
+          Effect.sync(() => {
+            if (!endpointFor(input.endpointId, input.workspaceId)) {
+              return false
+            }
+            return deliveries.some(
+              (delivery) =>
+                delivery.id === input.deliveryId &&
+                delivery.endpointId === input.endpointId &&
+                (delivery.status === 'delivered' ||
+                  TERMINAL_DELIVERY_STATUSES.some(
+                    (status) => status === delivery.status
+                  ))
+            )
+          }),
         getDispatchTarget: (endpointId, workspaceId) =>
           Effect.gen(function* () {
             const endpoint = endpointFor(endpointId, workspaceId)

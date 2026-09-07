@@ -133,6 +133,7 @@ function stubReads(failing = false) {
       replayDelivery: () => unused,
       sendTestEvent: () => unused,
       rotateSecret: () => unused,
+      isDeliverySettled: () => Effect.succeed(false),
       getDispatchTarget: () => unused,
       recordDeliveryAttempt: () => unused,
       recordTerminalDeliveryAttempt: () => unused
