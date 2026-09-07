@@ -1,8 +1,14 @@
+import { databaseIsReady } from '@b2b-saas-starter/db/service'
+import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
+import { withHttpMonitor } from '@b2b-saas-starter/logger/providers'
+import { Effect } from 'effect'
 import { localizeRequest } from '@/lib/server/i18n-middleware'
 import { uiErrorAdapter } from '@/lib/ui-error'
 import { createMiddleware, createStart } from '@tanstack/react-start'
 import { runWebRequestScope } from '@/lib/observability'
 import { enforceRequiredEnvOnce } from '@/lib/server/env-gate'
+import { maintenanceResponse } from '@/lib/maintenance'
+import { env as cloudflareEnv } from 'cloudflare:workers'
 
 /**
  * One wide event per web request. Every server request — SSR document renders
@@ -14,12 +20,14 @@ import { enforceRequiredEnvOnce } from '@/lib/server/env-gate'
  */
 const observabilityMiddleware = createMiddleware({ type: 'request' }).server(
   ({ request, next, handlerType, serverFnMeta }) =>
-    runWebRequestScope(
-      { request, handlerType, serverFnId: serverFnMeta?.name },
-      async () => {
-        const result = await next()
-        return result.response
-      }
+    withHttpMonitor('web', () =>
+      runWebRequestScope(
+        { request, handlerType, serverFnId: serverFnMeta?.name },
+        async () => {
+          const result = await next()
+          return result.response
+        }
+      )
     )
 )
 
@@ -34,6 +42,27 @@ const configGateMiddleware = createMiddleware({ type: 'request' }).server(
   }
 )
 
+const maintenanceMiddleware = createMiddleware({ type: 'request' }).server(
+  ({ request, next }) => {
+    if (new URL(request.url).pathname === '/ready') {
+      return Effect.runPromise(
+        databaseIsReady(cloudflareEnv.DB).pipe(
+          Effect.map((available) => {
+            const ready =
+              available && !isMaintenanceMode(cloudflareEnv.MAINTENANCE_MODE)
+            return Response.json(
+              { status: ready ? 'ready' : 'not_ready' },
+              { status: ready ? 200 : 503 }
+            )
+          })
+        )
+      )
+    }
+    const response = maintenanceResponse(request, cloudflareEnv.MAINTENANCE_MODE)
+    return response === null ? next() : response
+  }
+)
+
 const localeMiddleware = createMiddleware({ type: 'request' }).server(
   ({ request, next }) =>
     localizeRequest(request, async () => {
@@ -44,5 +73,10 @@ const localeMiddleware = createMiddleware({ type: 'request' }).server(
 
 export const startInstance = createStart(() => ({
   serializationAdapters: [uiErrorAdapter],
-  requestMiddleware: [configGateMiddleware, observabilityMiddleware, localeMiddleware]
+  requestMiddleware: [
+    configGateMiddleware,
+    maintenanceMiddleware,
+    observabilityMiddleware,
+    localeMiddleware
+  ]
 }))

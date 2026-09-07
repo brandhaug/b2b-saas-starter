@@ -1,4 +1,4 @@
-import { starterEnv } from '@b2b-saas-starter/capabilities/runtime'
+import { starterEnv as capabilityStarterEnv } from '@b2b-saas-starter/capabilities/runtime'
 import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import {
   type WorkspaceExportBucketBinding,
@@ -12,6 +12,7 @@ import {
   type ApiRateLimitBindingName
 } from '@b2b-saas-starter/infra'
 import { type CloudflareRateLimit } from '@b2b-saas-starter/rate-limit'
+import { securityEvidenceSink } from './security-evidence.ts'
 
 /**
  * Binding name → binding type, one row per name `ApiBindingName` admits. The
@@ -47,6 +48,10 @@ export type ApiEnv = Partial<ServerEnv> &
   Readonly<Partial<{ [B in ApiBindingName]: ApiBindingTypes[B] }>>
 
 // Capability env: the D1 binding selects Live vs Seed, and the webhook queue
-// binding enables real fan-out. The projection lives beside `StarterEnv` in
-// the capabilities package; this re-export keeps the local import path stable.
-export { starterEnv }
+// binding enables real fan-out. Add the API-owned evidence sink at this boundary.
+export function starterEnv(env: ApiEnv) {
+  return {
+    ...capabilityStarterEnv(env),
+    securityEvidence: securityEvidenceSink(env)
+  }
+}

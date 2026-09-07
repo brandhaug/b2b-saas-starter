@@ -11,6 +11,7 @@ import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { webWorkspaceLifecycleBinding } from './workspace-binding'
+import { makeSecurityEvidenceSink } from './security-evidence-sink'
 import {
   type CreateWorkspaceInput,
   type DeleteWorkspaceInput,
@@ -87,7 +88,10 @@ export async function createWorkspaceHandler(
         userId: session.user.id
       })
     }),
-    { lifecycleBinding: webWorkspaceLifecycleBinding }
+    {
+      lifecycleBinding: webWorkspaceLifecycleBinding,
+      securityEvidence: makeSecurityEvidenceSink()
+    }
   )
 }
 
@@ -106,7 +110,10 @@ export async function renameWorkspaceHandler(
       return yield* lifecycle.rename({ name: input.name })
     }),
     { userId: session.user.id },
-    { lifecycleBinding: webWorkspaceLifecycleBinding }
+    {
+      lifecycleBinding: webWorkspaceLifecycleBinding,
+      securityEvidence: makeSecurityEvidenceSink()
+    }
   )
 }
 
@@ -122,6 +129,9 @@ export async function deleteWorkspaceHandler(
       yield* lifecycle.remove
     }),
     { userId: session.user.id },
-    { lifecycleBinding: webWorkspaceLifecycleBinding }
+    {
+      lifecycleBinding: webWorkspaceLifecycleBinding,
+      securityEvidence: makeSecurityEvidenceSink()
+    }
   )
 }

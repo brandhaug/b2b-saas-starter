@@ -59,6 +59,7 @@ import {
   SeedWorkspaceOnboarding,
   type WorkspaceOnboarding
 } from './governance/workspace-onboarding.ts'
+import { type SecurityEvidenceSink } from './governance/security-recovery-evidence.ts'
 import {
   type PlatformUserAdmin,
   type PlatformUserAdminBinding
@@ -280,6 +281,8 @@ export const SeedLayer: CapabilitiesLayer = Layer.merge(SeedCore, SeedExports)
  * an unset var).
  */
 export type CapabilityBindings = {
+  /** Independent append-only recovery evidence. Absent in local development. */
+  readonly securityEvidence?: SecurityEvidenceSink | undefined
   readonly webhookQueue?: WebhookQueueBinding | undefined
   /**
    * The seat-sync queue the membership and invitation mutations enqueue onto.
@@ -371,12 +374,15 @@ export function makeLiveCapabilitiesLayer(
   const entitlements = LiveResourceEntitlements.pipe(Layer.provide(billing))
   return Layer.mergeAll(
     LiveEmailDelivery,
-    LiveAccountLifecycle(options.accountLifecycleBinding),
-    LiveApiTokenRegistry.pipe(Layer.provide(billing), Layer.provide(entitlements)),
+    LiveAccountLifecycle(options.accountLifecycleBinding, options.securityEvidence),
+    LiveApiTokenRegistry(options.securityEvidence).pipe(
+      Layer.provide(billing),
+      Layer.provide(entitlements)
+    ),
     LiveAuditEventLog,
     billing,
     entitlements,
-    LiveMcpClientConnections,
+    LiveMcpClientConnections(options.securityEvidence),
     preferences,
     accountPreferences,
     feed,
@@ -384,8 +390,8 @@ export function makeLiveCapabilitiesLayer(
     LiveWebhookEndpoints.pipe(Layer.provide(billing), Layer.provide(entitlements)),
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
-    LiveWorkspaceMembership(options.memberBinding),
-    LiveWorkspaceLifecycle(options.lifecycleBinding),
+    LiveWorkspaceMembership(options.memberBinding, options.securityEvidence),
+    LiveWorkspaceLifecycle(options.lifecycleBinding, options.securityEvidence),
     LivePlatformUserAdmin(options.userAdminBinding),
     LiveWorkspaceOnboarding,
     LiveWorkspaceExports(options.workspaceExports),

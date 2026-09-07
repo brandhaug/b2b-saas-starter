@@ -39,11 +39,12 @@ export CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… CLOUDFLARE_WORKERS_SUB
 export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
 ALCHEMY_STAGE=pr-42 pnpm run deploy:stage
 ALCHEMY_STAGE=pr-42 pnpm run db:seed:stage
-ALCHEMY_STAGE=pr-42 pnpm run destroy:stage
+ALCHEMY_STAGE=pr-42 pnpm run destroy:stage \
+  --confirm-target="$CLOUDFLARE_ACCOUNT_ID/pr-42"
 ```
 
 The required secrets and the reasoning are in `docs/deploying.md` and ADR 0065.
 
 ## Rolling back
 
-`bun run destroy` (which is `bun alchemy.run.ts --destroy`) tears the entire stack down. Targeted rollbacks today go through redeploying a previous commit from CI; there is no versioned rollback flag in the starter's scripts.
+`pnpm run destroy --confirm-target="$CLOUDFLARE_ACCOUNT_ID/prod"` tears the entire stack down after checking the exact account and stage. Use Cloudflare's Worker version controls for a code rollback after confirming the previous release is compatible with the current schema and bindings. A database restore follows the recovery runbook and remains an operator action.

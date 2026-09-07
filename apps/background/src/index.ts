@@ -1,6 +1,7 @@
 import {
   makeSentryOptions,
-  wireWideEventProviders
+  wireWideEventProviders,
+  withCronMonitor
 } from '@b2b-saas-starter/logger/providers'
 import * as Sentry from '@sentry/cloudflare'
 import { Effect, Result } from 'effect'
@@ -18,11 +19,13 @@ import {
   webhookDeadLetterQueueName,
   workspaceExportQueueName
 } from '../../../infra/bindings.ts'
+import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import { buildWorkspaceExport } from './export-consumer.ts'
 import { sendDailyDigest } from './notification-digest.ts'
 import { reconcileBillingEffect } from './billing-reconciliation.ts'
 import { sendNotificationEmail } from './notification-email-consumer.ts'
 import { consumeEmailEvent } from './email-events-consumer.ts'
+import { monitorOperationalHealth } from './monitoring.ts'
 import { cleanEmailHistory } from './email-retention.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
 import { deliverSeatSync } from './seat-sync-consumer.ts'
@@ -37,6 +40,9 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
   // oxlint-disable-next-line effect/noAsyncFunction -- the Workers fetch handler contract is a plain async function; this is the platform adapter boundary
   async fetch(request: Request, env: Env): Promise<Response> {
     wireWideEventProviders(env)
+    if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
+      return Response.json({ error: 'maintenance_mode' }, { status: 503 })
+    }
     return handleStripeRequest(request, env)
   },
 
@@ -81,6 +87,9 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
   // visible to the worker's existing observability.
   scheduled(controller: ScheduledController, env: Env): Promise<void> {
     wireWideEventProviders(env)
+    if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
+      return Effect.runPromise(Effect.void)
+    }
     const daily = controller.cron === notificationDigestCron
     const reconciliation = controller.cron === billingReconciliationCron
     let effects: Array<Effect.Effect<void, unknown, never>> = []
@@ -98,18 +107,30 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
       ]
     }
     if (reconciliation) {
-      effects = [...effects, reconcileBillingEffect(env, controller.scheduledTime)]
+      effects = [
+        ...effects,
+        reconcileBillingEffect(env, controller.scheduledTime),
+        monitorOperationalHealth(env, controller.scheduledTime)
+      ]
     }
-    return runInvocation(
-      env,
-      Effect.all(effects, { concurrency: 'unbounded', mode: 'result' }).pipe(
-        Effect.flatMap((results) => {
-          const failed = results.find(Result.isFailure)
-          if (failed) {
-            return Effect.fail(failed.failure)
-          }
-          return Effect.void
-        })
+    let monitorSlug = 'b2b-saas-starter-background-digest-retry'
+    if (daily) {
+      monitorSlug = 'b2b-saas-starter-background-digest'
+    } else if (reconciliation) {
+      monitorSlug = 'b2b-saas-starter-background-billing-reconciliation'
+    }
+    return withCronMonitor(monitorSlug, () =>
+      runInvocation(
+        env,
+        Effect.all(effects, { concurrency: 'unbounded', mode: 'result' }).pipe(
+          Effect.flatMap((results) => {
+            const failed = results.find(Result.isFailure)
+            if (failed) {
+              return Effect.fail(failed.failure)
+            }
+            return Effect.void
+          })
+        )
       )
     )
   }

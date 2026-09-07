@@ -21,6 +21,10 @@ import {
 } from './account-lifecycle.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
+import {
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from './security-recovery-evidence.ts'
 import { toWorkspace } from './workspace-identity.ts'
 
 const { callBinding } = makeBindingCaller<
@@ -44,7 +48,8 @@ const { callBinding } = makeBindingCaller<
  * password never reaches a workspace.
  */
 export function LiveAccountLifecycle(
-  binding?: AccountLifecycleBinding
+  binding?: AccountLifecycleBinding,
+  securityEvidence?: SecurityEvidenceSink
 ): Layer.Layer<AccountLifecycle, never, Database | AuditEventLog> {
   return Layer.effect(AccountLifecycle)(
     Effect.gen(function* () {
@@ -134,6 +139,10 @@ export function LiveAccountLifecycle(
             yield* callBinding(binding, (bound) =>
               bound.deleteWorkspace({ workspaceId })
             )
+            yield* recordSecurityEvidence(
+              { kind: 'workspace_deleted', subjectId: workspaceId },
+              securityEvidence
+            )
             // A system event: `audit_events.workspace_id` cascades from the
             // row the binding just removed, so attributing the event to the
             // deleted workspace would delete it alongside its subject.
@@ -155,6 +164,14 @@ export function LiveAccountLifecycle(
                 workspaceId,
                 memberId: membership.memberId
               })
+            )
+            yield* recordSecurityEvidence(
+              {
+                kind: 'workspace_access_removed',
+                subjectId: userId,
+                workspaceId
+              },
+              securityEvidence
             )
             yield* audit.record({
               workspaceId,
@@ -192,18 +209,22 @@ export function LiveAccountLifecycle(
         readonly userId: string
         readonly plan: AccountDeletionPlan
       }) {
-        return audit.record({
-          workspaceId: null,
-          // Actorless on purpose: `audit_events.actor_user_id` restricts on
-          // `user.id`, and the actor row is gone by the time this runs — the
-          // event names the account in `targetId` instead. The actor type
-          // stays `user`: the account deleted itself.
-          actorUserId: null,
-          actorType: 'user',
-          eventType: 'account.deleted',
-          targetType: 'user',
-          targetId: input.userId,
-          metadata: deletionMetadata(input.plan)
+        return Effect.gen(function* () {
+          yield* recordSecurityEvidence(
+            { kind: 'account_deleted', subjectId: input.userId },
+            securityEvidence
+          )
+          yield* audit.record({
+            workspaceId: null,
+            // Actorless on purpose: `audit_events.actor_user_id` restricts on
+            // `user.id`, and the actor row is gone by the time this runs.
+            actorUserId: null,
+            actorType: 'user',
+            eventType: 'account.deleted',
+            targetType: 'user',
+            targetId: input.userId,
+            metadata: deletionMetadata(input.plan)
+          })
         })
       }
 

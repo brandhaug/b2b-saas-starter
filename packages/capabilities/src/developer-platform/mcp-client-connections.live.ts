@@ -11,6 +11,10 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import { type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
+import {
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from '../governance/security-recovery-evidence.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import {
@@ -66,157 +70,168 @@ function consentTokenWhere(
   return and(...conditions)
 }
 
-export const LiveMcpClientConnections: Layer.Layer<
-  McpClientConnections,
-  never,
-  Database | RawD1 | AuditEventLog
-> = Layer.effect(McpClientConnections)(
-  Effect.gen(function* () {
-    const db = yield* Database
-    const audit = yield* AuditEventLog
-    // The shared mutate+audit combinator (governance/audited-mutation.ts):
-    // one D1 batch, its zero-match skip, and the phantom-audit caveat.
-    const auditedMutation = yield* auditedMutations({
-      prepareAuditRecord: audit.prepareRecord,
-      unavailable
-    })
+export function LiveMcpClientConnections(
+  securityEvidence?: SecurityEvidenceSink
+): Layer.Layer<McpClientConnections, never, Database | RawD1 | AuditEventLog> {
+  return Layer.effect(McpClientConnections)(
+    Effect.gen(function* () {
+      const db = yield* Database
+      const audit = yield* AuditEventLog
+      // The shared mutate+audit combinator (governance/audited-mutation.ts):
+      // one D1 batch, its zero-match skip, and the phantom-audit caveat.
+      const auditedMutation = yield* auditedMutations({
+        prepareAuditRecord: audit.prepareRecord,
+        unavailable
+      })
 
-    return {
-      getGrant: Effect.fn('McpClientConnections.getGrant')(function* (input) {
-        const [grant] = yield* unavailable(
-          db
-            .select({
-              id: oauthConsent.id,
-              version: oauthConsent.grantVersion,
-              scopes: oauthConsent.scopes
-            })
-            .from(oauthConsent)
-            .innerJoin(oauthClient, eq(oauthConsent.clientId, oauthClient.clientId))
-            .where(
-              and(
-                eq(oauthConsent.userId, input.userId),
-                eq(oauthConsent.clientId, input.clientId),
-                eq(oauthConsent.referenceId, input.workspaceId),
-                eq(oauthClient.disabled, false)
-              )
-            )
-            .limit(1)
-        )
-        if (!grant) {
-          return null
-        }
-        return { binding: `${grant.id}:${grant.version}`, scopes: grant.scopes }
-      }),
-      describeClient: (clientId) =>
-        unavailable(
-          db
-            .select()
-            .from(oauthClient)
-            .where(eq(oauthClient.clientId, clientId))
-            .limit(1)
-        ).pipe(
-          Effect.map((rows) => {
-            const row = rows[0]
-            if (row === undefined) {
-              return null
-            }
-            return toClientSummary(row.clientId, row)
-          })
-        ),
-      listForUser: (userId) =>
-        unavailable(
-          db
-            .select({
-              consent: oauthConsent,
-              client: oauthClient,
-              workspace: workspaces
-            })
-            .from(oauthConsent)
-            .leftJoin(oauthClient, eq(oauthConsent.clientId, oauthClient.clientId))
-            .leftJoin(workspaces, eq(oauthConsent.referenceId, workspaces.id))
-            .where(eq(oauthConsent.userId, userId))
-            .orderBy(desc(oauthConsent.createdAt))
-        ).pipe(
-          Effect.map((rows) =>
-            rows.map((row): McpClientConnection => {
-              let workspace: McpClientConnection['workspace'] = null
-              if (row.workspace !== null) {
-                workspace = {
-                  id: row.workspace.id,
-                  slug: row.workspace.slug,
-                  name: row.workspace.name
-                }
-              }
-              return {
-                id: row.consent.id,
-                client: toClientSummary(row.consent.clientId, row.client),
-                workspace,
-                scopes: row.consent.scopes,
-                grantedAt: row.consent.createdAt.toISOString()
-              }
-            })
-          )
-        ),
-      recordGrant: (input) => audit.record(consentGrantedAuditEvent(input)),
-      revoke: (input) =>
-        Effect.gen(function* () {
-          // Ownership is part of the lookup, so another user's consent id
-          // matches nothing — and nothing is written. The workspace join
-          // resolves the consent's workspace in the same read: a consent can
-          // outlive its workspace (referenceId is deliberately FK-free), and
-          // the audit row must then carry no workspace — a dangling id would
-          // violate audit_events' FK and roll the whole revoke back.
-          const rows = yield* unavailable(
+      return {
+        getGrant: Effect.fn('McpClientConnections.getGrant')(function* (input) {
+          const [grant] = yield* unavailable(
             db
-              .select({ consent: oauthConsent, workspaceId: workspaces.id })
+              .select({
+                id: oauthConsent.id,
+                version: oauthConsent.grantVersion,
+                scopes: oauthConsent.scopes
+              })
               .from(oauthConsent)
-              .leftJoin(workspaces, eq(oauthConsent.referenceId, workspaces.id))
+              .innerJoin(oauthClient, eq(oauthConsent.clientId, oauthClient.clientId))
               .where(
                 and(
-                  eq(oauthConsent.id, input.connectionId),
-                  eq(oauthConsent.userId, input.userId)
+                  eq(oauthConsent.userId, input.userId),
+                  eq(oauthConsent.clientId, input.clientId),
+                  eq(oauthConsent.referenceId, input.workspaceId),
+                  eq(oauthClient.disabled, false)
                 )
               )
               .limit(1)
           )
-          const row = rows[0]
-          if (row === undefined) {
-            return false
+          if (!grant) {
+            return null
           }
-          const { consent, workspaceId } = row
-          const revokedAt = DateTime.toDate(yield* DateTime.now)
-          // The pre-check matched on this exact user, so the token revocations
-          // key off `input.userId` rather than the (typed-nullable) column.
-          const tokenScope = {
-            clientId: consent.clientId,
-            userId: input.userId,
-            referenceId: consent.referenceId
-          }
-          // Consent delete, token revocations and the audit row commit
-          // together: a client must not keep a working refresh token after
-          // the user revoked it, and the trail must say the revocation
-          // happened.
-          return yield* auditedMutation({
-            matched: Effect.succeed(true),
-            auditEvent: consentRevokedAuditEvent({
-              userId: input.userId,
+          return { binding: `${grant.id}:${grant.version}`, scopes: grant.scopes }
+        }),
+        describeClient: (clientId) =>
+          unavailable(
+            db
+              .select()
+              .from(oauthClient)
+              .where(eq(oauthClient.clientId, clientId))
+              .limit(1)
+          ).pipe(
+            Effect.map((rows) => {
+              const row = rows[0]
+              if (row === undefined) {
+                return null
+              }
+              return toClientSummary(row.clientId, row)
+            })
+          ),
+        listForUser: (userId) =>
+          unavailable(
+            db
+              .select({
+                consent: oauthConsent,
+                client: oauthClient,
+                workspace: workspaces
+              })
+              .from(oauthConsent)
+              .leftJoin(oauthClient, eq(oauthConsent.clientId, oauthClient.clientId))
+              .leftJoin(workspaces, eq(oauthConsent.referenceId, workspaces.id))
+              .where(eq(oauthConsent.userId, userId))
+              .orderBy(desc(oauthConsent.createdAt))
+          ).pipe(
+            Effect.map((rows) =>
+              rows.map((row): McpClientConnection => {
+                let workspace: McpClientConnection['workspace'] = null
+                if (row.workspace !== null) {
+                  workspace = {
+                    id: row.workspace.id,
+                    slug: row.workspace.slug,
+                    name: row.workspace.name
+                  }
+                }
+                return {
+                  id: row.consent.id,
+                  client: toClientSummary(row.consent.clientId, row.client),
+                  workspace,
+                  scopes: row.consent.scopes,
+                  grantedAt: row.consent.createdAt.toISOString()
+                }
+              })
+            )
+          ),
+        recordGrant: (input) => audit.record(consentGrantedAuditEvent(input)),
+        revoke: (input) =>
+          Effect.gen(function* () {
+            // Ownership is part of the lookup, so another user's consent id
+            // matches nothing — and nothing is written. The workspace join
+            // resolves the consent's workspace in the same read: a consent can
+            // outlive its workspace (referenceId is deliberately FK-free), and
+            // the audit row must then carry no workspace — a dangling id would
+            // violate audit_events' FK and roll the whole revoke back.
+            const rows = yield* unavailable(
+              db
+                .select({ consent: oauthConsent, workspaceId: workspaces.id })
+                .from(oauthConsent)
+                .leftJoin(workspaces, eq(oauthConsent.referenceId, workspaces.id))
+                .where(
+                  and(
+                    eq(oauthConsent.id, input.connectionId),
+                    eq(oauthConsent.userId, input.userId)
+                  )
+                )
+                .limit(1)
+            )
+            const row = rows[0]
+            if (row === undefined) {
+              return false
+            }
+            const { consent, workspaceId } = row
+            const revokedAt = DateTime.toDate(yield* DateTime.now)
+            // The pre-check matched on this exact user, so the token revocations
+            // key off `input.userId` rather than the (typed-nullable) column.
+            const tokenScope = {
               clientId: consent.clientId,
-              scopes: consent.scopes,
-              workspaceId
-            }),
-            write: () => [
-              db.delete(oauthConsent).where(eq(oauthConsent.id, consent.id)),
-              db
-                .update(oauthRefreshToken)
-                .set({ revoked: revokedAt })
-                .where(consentTokenWhere(oauthRefreshToken, tokenScope)),
-              db
-                .update(oauthAccessToken)
-                .set({ revoked: revokedAt })
-                .where(consentTokenWhere(oauthAccessToken, tokenScope))
-            ]
+              userId: input.userId,
+              referenceId: consent.referenceId
+            }
+            // Consent delete, token revocations and the audit row commit
+            // together: a client must not keep a working refresh token after
+            // the user revoked it, and the trail must say the revocation
+            // happened.
+            const revoked = yield* auditedMutation({
+              matched: Effect.succeed(true),
+              auditEvent: consentRevokedAuditEvent({
+                userId: input.userId,
+                clientId: consent.clientId,
+                scopes: consent.scopes,
+                workspaceId
+              }),
+              write: () => [
+                db.delete(oauthConsent).where(eq(oauthConsent.id, consent.id)),
+                db
+                  .update(oauthRefreshToken)
+                  .set({ revoked: revokedAt })
+                  .where(consentTokenWhere(oauthRefreshToken, tokenScope)),
+                db
+                  .update(oauthAccessToken)
+                  .set({ revoked: revokedAt })
+                  .where(consentTokenWhere(oauthAccessToken, tokenScope))
+              ]
+            })
+            if (revoked) {
+              yield* recordSecurityEvidence(
+                {
+                  kind: 'oauth_grant_revoked',
+                  subjectId: consent.id,
+                  workspaceId: consent.referenceId ?? undefined
+                },
+                securityEvidence
+              )
+            }
+            return revoked
           })
-        })
-    }
-  })
-)
+      }
+    })
+  )
+}

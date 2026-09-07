@@ -42,6 +42,7 @@ jobs:
       # packages/capabilities/vitest.config.ts) — fails on decay.
       - run: pnpm run test
       - run: pnpm run test:scripts
+      - run: pnpm run test:operations
       - run: pnpm run build
 
   e2e:
@@ -116,6 +117,10 @@ jobs:
           ENVIRONMENT: production
           # Optional — the SendEmail binding is skipped when unset (alchemy.run.ts).
           CLOUDFLARE_EMAIL_FROM: ${{ secrets.CLOUDFLARE_EMAIL_FROM }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          MAINTENANCE_MODE: ${{ vars.MAINTENANCE_MODE }}
+          SECURITY_EVIDENCE_URL: ${{ vars.SECURITY_EVIDENCE_URL }}
+          SECURITY_EVIDENCE_TOKEN: ${{ secrets.SECURITY_EVIDENCE_TOKEN }}
       # The workers.dev URLs are not known until deploy time: the account's
       # subdomain comes from the Cloudflare API, and the worker names come from
       # stageResourceNames in infra/bindings.ts (`prod` keeps the historical

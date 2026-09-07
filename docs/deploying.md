@@ -57,8 +57,7 @@ placeholders outright when `ENVIRONMENT=production`.
 ## GitHub Actions secrets
 
 The recommended path. The `deploy` job in
-[.github/workflows/ci.yml](../.github/workflows/ci.yml) runs only on
-manual `workflow_dispatch`, needs the `ci` and `e2e` jobs to pass first,
+[.github/workflows/ci.yml](../.github/workflows/ci.yml) runs on pushes to `master` and manual `workflow_dispatch`, needs the `ci` and `e2e` jobs to pass first,
 and reads its configuration from the `production`
 [environment](https://docs.github.com/en/actions/reference/environments).
 Create that environment (Settings → Environments → New environment),
@@ -85,7 +84,8 @@ serve on a placeholder secret, a placeholder URL, or a non-`https` URL.
 laptop deploy that never exports `ENVIRONMENT` still gets the production
 stance; exporting your own value overrides it.
 
-The workflow forwards exactly the variables in this table. To activate
+The workflow also forwards `SENTRY_DSN`, `MAINTENANCE_MODE`, and the independent
+security-evidence endpoint and token. See [operations setup](operations.md). To activate
 optional providers (Stripe, Sentry, PostHog, Turnstile, Workers AI or
 OpenAI, OTLP export), add each secret to the `production` environment and
 forward it in the deploy job's `env` block — the key lists and the
@@ -174,7 +174,7 @@ export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
 
 ALCHEMY_STAGE=pr-42 pnpm run deploy:stage     # provision + migrate
 ALCHEMY_STAGE=pr-42 pnpm run db:seed:stage    # seed the Seed Workspace
-ALCHEMY_STAGE=pr-42 pnpm run destroy:stage    # tear it down again
+ALCHEMY_STAGE=pr-42 pnpm run destroy:stage --confirm-target="$CLOUDFLARE_ACCOUNT_ID/pr-42"
 ```
 
 Pick any stage name matching `[a-z0-9]+([-_][a-z0-9]+)*`; only names of
@@ -199,23 +199,35 @@ otherwise deploys like production, so it needs `BETTER_AUTH_URL`.
 
 ## Ongoing deploys and rotation
 
-Merging to `master` does not deploy. Run the workflow again, or run
-`pnpm run deploy` locally with the production variables. To rotate a
-secret, update the value in the `production` environment (or your shell)
-and deploy again — Alchemy ships values as write-only Worker secrets, so
-they are never readable back from Cloudflare. To add a schema change,
-commit the generated migration; the deploy applies it to D1
-automatically. Deploys first run `db:baseline:remote`
-(`packages/db/scripts/baseline.ts`), which records a migration as applied
-only when every table it creates is already present — that is what lets a
-deploy survive the routine migration squashes, since Alchemy tracks
-applied migrations by folder name and every squash renames the folder. A
-squash of work the deployed database never received still fails the
-deploy loudly; the honest repair is a reset: `pnpm run destroy && pnpm
-run deploy`, then reseed.
+Merging to `master` deploys after CI and E2E pass. The workflow also supports
+manual dispatch. Adopters with customer data should protect the `production`
+environment with required operator approval and disable automatic deployment
+during incidents. Review schema changes before approving a deploy.
 
-To tear everything down, run `pnpm run destroy`. This deletes the
-database and its data.
+To rotate a secret, update it in the `production` environment and deploy again.
+Keep a separately recoverable copy in the operator's secret manager. Alchemy
+ships Worker secrets as write-only values, so account access alone cannot
+recover them.
+
+This repository has no production users and may squash migrations or reset
+throwaway stages. That development policy does not apply to an adopter's
+customer database. Preserve deployed migrations in your fork and add forward
+migrations. The current baseline script only compares table names; it does not
+prove that columns, indexes, constraints, or data transformations match. Do not
+use it to certify a customer database after a squash. Replace the automatic
+baseline step with reviewed migration history before customer deployment.
+
+For a failed migration, stop deployment and follow the
+[recovery decision path](operations.md#choose-the-recovery-action). Prefer a
+reviewed forward repair. Roll code back only when it remains compatible with
+the current schema. Restore D1 only after closing the shared system and
+accounting for writes and external effects since the restore point.
+Destroy/reseed is restricted to disposable environments.
+
+`pnpm run destroy --confirm-target="$CLOUDFLARE_ACCOUNT_ID/prod"` deletes
+the database and its data. The command refuses a missing or mismatched target
+confirmation. It is a teardown command, not a customer-data recovery procedure. Before first customer deployment,
+complete the [recovery and monitoring setup](operations.md) and isolated drill.
 
 ## Troubleshooting
 

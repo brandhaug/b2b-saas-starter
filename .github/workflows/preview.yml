@@ -90,7 +90,9 @@ jobs:
       - name: Resolve preview URLs
         run: node .github/scripts/preview-urls.ts
       - name: Destroy the stage
-        run: pnpm run destroy:stage
+        run: >-
+          pnpm run destroy:stage
+          --confirm-target="$CLOUDFLARE_ACCOUNT_ID/$ALCHEMY_STAGE"
       - name: Mark the stage's deployments inactive
         env:
           GH_TOKEN: ${{ github.token }}

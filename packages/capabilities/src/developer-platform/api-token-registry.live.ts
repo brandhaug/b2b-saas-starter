@@ -19,6 +19,10 @@ import { keysetResume } from '../internal/keyset-query.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
+import {
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from '../governance/security-recovery-evidence.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
@@ -61,354 +65,366 @@ function toTokenProjection(row: typeof apiTokens.$inferSelect): ApiToken {
   }
 }
 
-export const LiveApiTokenRegistry: Layer.Layer<
+export function LiveApiTokenRegistry(
+  securityEvidence?: SecurityEvidenceSink
+): Layer.Layer<
   ApiTokenRegistry,
   never,
   Database | RawD1 | Billing | AuditEventLog | WebhookPublisher | ResourceEntitlements
-> = Layer.effect(ApiTokenRegistry)(
-  Effect.gen(function* () {
-    const db = yield* Database
-    const billing = yield* Billing
-    const audit = yield* AuditEventLog
-    const publisher = yield* WebhookPublisher
-    const entitlements = yield* ResourceEntitlements
+> {
+  return Layer.effect(ApiTokenRegistry)(
+    Effect.gen(function* () {
+      const db = yield* Database
+      const billing = yield* Billing
+      const audit = yield* AuditEventLog
+      const publisher = yield* WebhookPublisher
+      const entitlements = yield* ResourceEntitlements
 
-    // The shared mutate+audit combinator — one implementation of the batched
-    // write, its zero-match skip, and the phantom-audit caveat (see
-    // governance/audited-mutation.ts).
-    const auditedMutation = yield* auditedMutations({
-      prepareAuditRecord: audit.prepareRecord,
-      unavailable
-    })
+      // The shared mutate+audit combinator — one implementation of the batched
+      // write, its zero-match skip, and the phantom-audit caveat (see
+      // governance/audited-mutation.ts).
+      const auditedMutation = yield* auditedMutations({
+        prepareAuditRecord: audit.prepareRecord,
+        unavailable
+      })
 
-    return {
-      list: Effect.gen(function* () {
-        const ctx = yield* WorkspaceContext
-        const rows = yield* unavailable(
-          db
-            .select()
-            .from(apiTokens)
-            .where(activeTokenWhere(undefined, ctx.workspace.id))
-            .orderBy(desc(apiTokens.createdAt))
-        )
-        return rows.map(toTokenProjection)
-      }),
-      listPage: (input) =>
-        Effect.gen(function* () {
+      return {
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
-          const limit = clampPageLimit(input?.limit)
-          const conditions: Array<SQL | undefined> = [
-            activeTokenWhere(undefined, ctx.workspace.id)
-          ]
-          // The SQL half of the keyset recipe lives in `keyset-query.ts`,
-          // shared with every other paged Live read.
-          const resume = keysetResume(
-            'desc',
-            { key: apiTokens.createdAt, id: apiTokens.id },
-            input?.cursor
-          )
-          if (resume.kind === 'empty') {
-            return { items: [], nextCursor: null }
-          }
-          if (resume.kind === 'resume') {
-            conditions.push(resume.condition)
-          }
-          // One row past the page cap, so `cutKeysetPage` can see whether
-          // the cap actually cut rows off before offering a cursor.
           const rows = yield* unavailable(
             db
               .select()
               .from(apiTokens)
-              .where(and(...conditions))
-              .orderBy(desc(apiTokens.createdAt), desc(apiTokens.id))
-              .limit(limit + 1)
+              .where(activeTokenWhere(undefined, ctx.workspace.id))
+              .orderBy(desc(apiTokens.createdAt))
           )
-          return cutKeysetPage(rows.map(toTokenProjection), limit, (token) => ({
-            key: token.createdAt,
-            id: token.id
-          }))
+          return rows.map(toTokenProjection)
         }),
-      create: Effect.fn('ApiTokenRegistry.create')(function* (input) {
-        const ctx = yield* WorkspaceContext
-        const now = yield* DateTime.now
-        const valid = yield* validateTokenCreation(input, DateTime.toEpochMillis(now))
-        // Entitlement gate: the workspace's plan caps token count. The
-        // rule and the counting both live in the billing capability, so no
-        // caller can forget the gate.
-        yield* assertWithinPlanLimitFor({
-          resource: 'api_token',
-          db,
-          capability: 'api-token-registry',
-          table: apiTokens,
-          where: and(
-            eq(apiTokens.workspaceId, ctx.workspace.id),
-            isNull(apiTokens.revokedAt),
-            isNull(apiTokens.replacedByTokenId),
-            or(
-              isNull(apiTokens.expiresAt),
-              gt(apiTokens.expiresAt, DateTime.formatIso(now))
-            )
-          )
-        }).pipe(Effect.provideService(Billing, billing))
-        const token = mintApiToken()
-        const createdAt = DateTime.formatIso(now)
-        const row = {
-          id: yield* newCapabilityId('tok'),
-          workspaceId: ctx.workspace.id,
-          name: valid.name,
-          tokenPrefix: token.slice(0, 17),
-          tokenHash: yield* Effect.promise(() => hashApiToken(token)),
-          scopes: valid.scopes,
-          expiresAt: valid.expiresAt ?? null,
-          replacedByTokenId: null,
-          lastUsedAt: null,
-          revokedAt: null,
-          createdAt,
-          createdByUserId: ctx.actor?.userId ?? null
-        }
-        // Insert + audit insert as one batch — the shared audited-mutation
-        // shape with an unconditional match.
-        yield* auditedMutation({
-          matched: Effect.succeed(true),
-          auditEvent: {
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
-            eventType: 'api_token.created',
-            targetType: 'api_token',
-            targetId: row.id,
-            metadata: {
-              name: valid.name,
-              scopes: valid.scopes,
-              expiresAt: row.expiresAt
-            }
-          },
-          write: () => db.insert(apiTokens).values(row)
-        })
-        // Fan-out sits beside the audit write, below the interface: the
-        // projection only — never the minted secret.
-        yield* publishWebhookEventWith(publisher, {
-          eventType: 'api_token.created',
-          payload: toTokenProjection(row)
-        })
-        return { ...toTokenProjection(row), token }
-      }),
-      replace: Effect.fn('ApiTokenRegistry.replace')(function* (input) {
-        const ctx = yield* WorkspaceContext
-        const source = yield* unavailable(
-          db
-            .select()
-            .from(apiTokens)
-            .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
-            .limit(1)
-        ).pipe(Effect.map((rows) => rows[0]))
-        if (!source) {
-          return yield* Effect.fail(
-            new ApiTokenNotRotatable({ tokenId: input.tokenId })
-          )
-        }
-        const now = yield* DateTime.now
-        const createdAt = DateTime.formatIso(now)
-        const plan = yield* planTokenReplacement(
-          toTokenProjection(source),
-          input,
-          DateTime.toEpochMillis(now)
-        )
-        const token = mintApiToken()
-        const row = {
-          id: yield* newCapabilityId('tok'),
-          workspaceId: ctx.workspace.id,
-          name: source.name,
-          tokenPrefix: token.slice(0, 17),
-          tokenHash: yield* Effect.promise(() => hashApiToken(token)),
-          scopes: plan.scopes,
-          expiresAt: plan.expiresAt,
-          replacedByTokenId: null,
-          lastUsedAt: null,
-          revokedAt: null,
-          createdAt,
-          createdByUserId: ctx.actor?.userId ?? null
-        }
-        // Claim the source and insert its replacement in one batch. The insert
-        // derives its mandatory workspace from that claim. If a concurrent revoke
-        // or replacement won, the scalar subquery returns NULL, failing NOT NULL
-        // and rolling back the entire batch, including its audit record.
-        let expiryUnchanged = isNull(apiTokens.expiresAt)
-        if (source.expiresAt !== null) {
-          expiryUnchanged = eq(apiTokens.expiresAt, source.expiresAt)
-        }
-        const eligible = and(
-          activeTokenWhere(source.id, ctx.workspace.id),
-          isNull(apiTokens.replacedByTokenId),
-          or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, createdAt)),
-          expiryUnchanged
-        )
-        const claimedWorkspace = sql<string>`(select workspace_id from api_tokens where id = ${source.id} and workspace_id = ${ctx.workspace.id} and replaced_by_token_id = ${row.id})`
-        const selectionWrite = yield* prepareTokenSelectionRotation(
-          ctx.workspace.id,
-          source.id,
-          row.id,
-          createdAt
-        ).pipe(Effect.provideService(Database, db))
-        yield* auditedMutation({
-          matched: Effect.succeed(true),
-          auditEvent: {
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
-            eventType: 'api_token.replaced',
-            targetType: 'api_token',
-            targetId: row.id,
-            metadata: {
-              previousTokenId: source.id,
-              replacementTokenId: row.id,
-              previousTokenExpiresAt: plan.previousTokenExpiresAt,
-              expiresAt: row.expiresAt,
-              scopes: row.scopes
-            }
-          },
-          write: () => {
-            const writes: Array<BatchStatement> = [
-              db
-                .update(apiTokens)
-                .set({
-                  expiresAt: plan.previousTokenExpiresAt,
-                  replacedByTokenId: row.id
-                })
-                .where(eligible),
-              db.insert(apiTokens).values({ ...row, workspaceId: claimedWorkspace })
+        listPage: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const limit = clampPageLimit(input?.limit)
+            const conditions: Array<SQL | undefined> = [
+              activeTokenWhere(undefined, ctx.workspace.id)
             ]
-            writes.push(selectionWrite)
-            return writes
-          }
-        })
-        yield* publishWebhookEventWith(publisher, {
-          eventType: 'api_token.created',
-          payload: toTokenProjection(row)
-        })
-        return {
-          ...toTokenProjection(row),
-          token,
-          previousTokenId: source.id,
-          previousTokenExpiresAt: plan.previousTokenExpiresAt
-        }
-      }),
-      revoke: (input) =>
-        Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          const revokedAt = yield* DateTime.now
-          // Update + audit insert as one batch; a token that is absent,
-          // foreign, or already revoked matches nothing and skips both — no
-          // phantom revocation.
-          const applied = yield* auditedMutation({
-            matched: unavailable(
+            // The SQL half of the keyset recipe lives in `keyset-query.ts`,
+            // shared with every other paged Live read.
+            const resume = keysetResume(
+              'desc',
+              { key: apiTokens.createdAt, id: apiTokens.id },
+              input?.cursor
+            )
+            if (resume.kind === 'empty') {
+              return { items: [], nextCursor: null }
+            }
+            if (resume.kind === 'resume') {
+              conditions.push(resume.condition)
+            }
+            // One row past the page cap, so `cutKeysetPage` can see whether
+            // the cap actually cut rows off before offering a cursor.
+            const rows = yield* unavailable(
               db
-                .select({ id: apiTokens.id })
+                .select()
                 .from(apiTokens)
-                .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
-                .limit(1)
-            ).pipe(Effect.map((rows) => rows.length > 0)),
+                .where(and(...conditions))
+                .orderBy(desc(apiTokens.createdAt), desc(apiTokens.id))
+                .limit(limit + 1)
+            )
+            return cutKeysetPage(rows.map(toTokenProjection), limit, (token) => ({
+              key: token.createdAt,
+              id: token.id
+            }))
+          }),
+        create: Effect.fn('ApiTokenRegistry.create')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const now = yield* DateTime.now
+          const valid = yield* validateTokenCreation(input, DateTime.toEpochMillis(now))
+          // Entitlement gate: the workspace's plan caps token count. The
+          // rule and the counting both live in the billing capability, so no
+          // caller can forget the gate.
+          yield* assertWithinPlanLimitFor({
+            resource: 'api_token',
+            db,
+            capability: 'api-token-registry',
+            table: apiTokens,
+            where: and(
+              eq(apiTokens.workspaceId, ctx.workspace.id),
+              isNull(apiTokens.revokedAt),
+              isNull(apiTokens.replacedByTokenId),
+              or(
+                isNull(apiTokens.expiresAt),
+                gt(apiTokens.expiresAt, DateTime.formatIso(now))
+              )
+            )
+          }).pipe(Effect.provideService(Billing, billing))
+          const token = mintApiToken()
+          const createdAt = DateTime.formatIso(now)
+          const row = {
+            id: yield* newCapabilityId('tok'),
+            workspaceId: ctx.workspace.id,
+            name: valid.name,
+            tokenPrefix: token.slice(0, 17),
+            tokenHash: yield* Effect.promise(() => hashApiToken(token)),
+            scopes: valid.scopes,
+            expiresAt: valid.expiresAt ?? null,
+            replacedByTokenId: null,
+            lastUsedAt: null,
+            revokedAt: null,
+            createdAt,
+            createdByUserId: ctx.actor?.userId ?? null
+          }
+          // Insert + audit insert as one batch — the shared audited-mutation
+          // shape with an unconditional match.
+          yield* auditedMutation({
+            matched: Effect.succeed(true),
             auditEvent: {
               workspaceId: ctx.workspace.id,
               actorUserId: ctx.actor?.userId ?? null,
               actorType: ctx.actorType,
-              eventType: 'api_token.revoked',
+              eventType: 'api_token.created',
               targetType: 'api_token',
-              targetId: input.tokenId,
-              metadata: {}
+              targetId: row.id,
+              metadata: {
+                name: valid.name,
+                scopes: valid.scopes,
+                expiresAt: row.expiresAt
+              }
             },
-            write: () =>
-              db
-                .update(apiTokens)
-                .set({ revokedAt: DateTime.formatIso(revokedAt) })
-                .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
+            write: () => db.insert(apiTokens).values(row)
           })
-          if (!applied) {
-            return false
-          }
+          // Fan-out sits beside the audit write, below the interface: the
+          // projection only — never the minted secret.
           yield* publishWebhookEventWith(publisher, {
-            eventType: 'api_token.revoked',
-            payload: { tokenId: input.tokenId }
+            eventType: 'api_token.created',
+            payload: toTokenProjection(row)
           })
-          return true
+          return { ...toTokenProjection(row), token }
         }),
-      verifyBearerToken: (token) =>
-        Effect.gen(function* () {
-          const tokenHash = yield* Effect.promise(() => hashApiToken(token))
-          const row = yield* unavailable(
+        replace: Effect.fn('ApiTokenRegistry.replace')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const source = yield* unavailable(
             db
-              .select({ token: apiTokens, workspace: workspaces })
+              .select()
               .from(apiTokens)
-              .innerJoin(workspaces, eq(apiTokens.workspaceId, workspaces.id))
-              .where(
-                and(eq(apiTokens.tokenHash, tokenHash), isNull(apiTokens.revokedAt))
-              )
+              .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
               .limit(1)
           ).pipe(Effect.map((rows) => rows[0]))
-          // An unknown or revoked token is the only failure here, and the API
-          // worker answers it 401. A known token that may not do what it asked
-          // is a separate 403 raised by `requirePermission` at the boundary.
-          const usedAt = yield* DateTime.now
-          if (
-            !row ||
-            tokenIsExpired(row.token.expiresAt, DateTime.toEpochMillis(usedAt))
-          ) {
+          if (!source) {
             return yield* Effect.fail(
-              new AuthorizationDenied({ reason: 'invalid_token' })
+              new ApiTokenNotRotatable({ tokenId: input.tokenId })
             )
           }
-          const workspaceTokens = yield* unavailable(
-            db
-              .select({ token: apiTokens })
-              .from(apiTokens)
-              .where(eq(apiTokens.workspaceId, row.workspace.id))
+          const now = yield* DateTime.now
+          const createdAt = DateTime.formatIso(now)
+          const plan = yield* planTokenReplacement(
+            toTokenProjection(source),
+            input,
+            DateTime.toEpochMillis(now)
           )
-          const byId = new Map(
-            workspaceTokens.map((candidate) => [candidate.token.id, candidate])
+          const token = mintApiToken()
+          const row = {
+            id: yield* newCapabilityId('tok'),
+            workspaceId: ctx.workspace.id,
+            name: source.name,
+            tokenPrefix: token.slice(0, 17),
+            tokenHash: yield* Effect.promise(() => hashApiToken(token)),
+            scopes: plan.scopes,
+            expiresAt: plan.expiresAt,
+            replacedByTokenId: null,
+            lastUsedAt: null,
+            revokedAt: null,
+            createdAt,
+            createdByUserId: ctx.actor?.userId ?? null
+          }
+          // Claim the source and insert its replacement in one batch. The insert
+          // derives its mandatory workspace from that claim. If a concurrent revoke
+          // or replacement won, the scalar subquery returns NULL, failing NOT NULL
+          // and rolling back the entire batch, including its audit record.
+          let expiryUnchanged = isNull(apiTokens.expiresAt)
+          if (source.expiresAt !== null) {
+            expiryUnchanged = eq(apiTokens.expiresAt, source.expiresAt)
+          }
+          const eligible = and(
+            activeTokenWhere(source.id, ctx.workspace.id),
+            isNull(apiTokens.replacedByTokenId),
+            or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, createdAt)),
+            expiryUnchanged
           )
-          let leafId = row.token.id
-          let current = row.token
-          while (current.replacedByTokenId !== null) {
-            const replacement = byId.get(current.replacedByTokenId)
-            if (!replacement) {
-              break
+          const claimedWorkspace = sql<string>`(select workspace_id from api_tokens where id = ${source.id} and workspace_id = ${ctx.workspace.id} and replaced_by_token_id = ${row.id})`
+          const selectionWrite = yield* prepareTokenSelectionRotation(
+            ctx.workspace.id,
+            source.id,
+            row.id,
+            createdAt
+          ).pipe(Effect.provideService(Database, db))
+          yield* auditedMutation({
+            matched: Effect.succeed(true),
+            auditEvent: {
+              workspaceId: ctx.workspace.id,
+              actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
+              eventType: 'api_token.replaced',
+              targetType: 'api_token',
+              targetId: row.id,
+              metadata: {
+                previousTokenId: source.id,
+                replacementTokenId: row.id,
+                previousTokenExpiresAt: plan.previousTokenExpiresAt,
+                expiresAt: row.expiresAt,
+                scopes: row.scopes
+              }
+            },
+            write: () => {
+              const writes: Array<BatchStatement> = [
+                db
+                  .update(apiTokens)
+                  .set({
+                    expiresAt: plan.previousTokenExpiresAt,
+                    replacedByTokenId: row.id
+                  })
+                  .where(eligible),
+                db.insert(apiTokens).values({ ...row, workspaceId: claimedWorkspace })
+              ]
+              writes.push(selectionWrite)
+              return writes
             }
-            leafId = replacement.token.id
-            current = replacement.token
-          }
-          const entitled = yield* entitlements.isActiveForWorkspace({
-            workspaceId: row.workspace.id,
-            resource: 'api_token',
-            resourceId: leafId
           })
-          if (!entitled) {
-            return yield* Effect.fail(
-              new AuthorizationDenied({ reason: 'invalid_token' })
-            )
-          }
-          // Bump `lastUsedAt` at most once per LAST_USED_WRITE_INTERVAL_MS.
-          // The per-request `api_token.used` audit event was removed: it did a
-          // second D1 write per request and flooded the governance log. The
-          // bump is best-effort telemetry — a transient write failure has no
-          // bearing on whether the token authenticates, so it is swallowed
-          // rather than failing an otherwise-valid request with 503.
-          if (
-            shouldBumpLastUsedAt(row.token.lastUsedAt, DateTime.toEpochMillis(usedAt))
-          ) {
-            yield* unavailable(
-              db
-                .update(apiTokens)
-                .set({ lastUsedAt: DateTime.formatIso(usedAt) })
-                .where(eq(apiTokens.id, row.token.id))
-            ).pipe(Effect.ignore)
-          }
+          yield* publishWebhookEventWith(publisher, {
+            eventType: 'api_token.created',
+            payload: toTokenProjection(row)
+          })
           return {
-            id: row.token.id,
-            workspaceId: row.workspace.id,
-            workspaceSlug: row.workspace.slug,
-            scopes: row.token.scopes
+            ...toTokenProjection(row),
+            token,
+            previousTokenId: source.id,
+            previousTokenExpiresAt: plan.previousTokenExpiresAt
           }
-        })
-    }
-  })
-)
+        }),
+        revoke: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const revokedAt = yield* DateTime.now
+            // Update + audit insert as one batch; a token that is absent,
+            // foreign, or already revoked matches nothing and skips both — no
+            // phantom revocation.
+            const applied = yield* auditedMutation({
+              matched: unavailable(
+                db
+                  .select({ id: apiTokens.id })
+                  .from(apiTokens)
+                  .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
+                  .limit(1)
+              ).pipe(Effect.map((rows) => rows.length > 0)),
+              auditEvent: {
+                workspaceId: ctx.workspace.id,
+                actorUserId: ctx.actor?.userId ?? null,
+                actorType: ctx.actorType,
+                eventType: 'api_token.revoked',
+                targetType: 'api_token',
+                targetId: input.tokenId,
+                metadata: {}
+              },
+              write: () =>
+                db
+                  .update(apiTokens)
+                  .set({ revokedAt: DateTime.formatIso(revokedAt) })
+                  .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
+            })
+            if (!applied) {
+              return false
+            }
+            yield* recordSecurityEvidence(
+              {
+                kind: 'api_token_revoked',
+                subjectId: input.tokenId,
+                workspaceId: ctx.workspace.id
+              },
+              securityEvidence
+            )
+            yield* publishWebhookEventWith(publisher, {
+              eventType: 'api_token.revoked',
+              payload: { tokenId: input.tokenId }
+            })
+            return true
+          }),
+        verifyBearerToken: (token) =>
+          Effect.gen(function* () {
+            const tokenHash = yield* Effect.promise(() => hashApiToken(token))
+            const row = yield* unavailable(
+              db
+                .select({ token: apiTokens, workspace: workspaces })
+                .from(apiTokens)
+                .innerJoin(workspaces, eq(apiTokens.workspaceId, workspaces.id))
+                .where(
+                  and(eq(apiTokens.tokenHash, tokenHash), isNull(apiTokens.revokedAt))
+                )
+                .limit(1)
+            ).pipe(Effect.map((rows) => rows[0]))
+            // An unknown or revoked token is the only failure here, and the API
+            // worker answers it 401. A known token that may not do what it asked
+            // is a separate 403 raised by `requirePermission` at the boundary.
+            const usedAt = yield* DateTime.now
+            if (
+              !row ||
+              tokenIsExpired(row.token.expiresAt, DateTime.toEpochMillis(usedAt))
+            ) {
+              return yield* Effect.fail(
+                new AuthorizationDenied({ reason: 'invalid_token' })
+              )
+            }
+            const workspaceTokens = yield* unavailable(
+              db
+                .select({ token: apiTokens })
+                .from(apiTokens)
+                .where(eq(apiTokens.workspaceId, row.workspace.id))
+            )
+            const byId = new Map(
+              workspaceTokens.map((candidate) => [candidate.token.id, candidate])
+            )
+            let leafId = row.token.id
+            let current = row.token
+            while (current.replacedByTokenId !== null) {
+              const replacement = byId.get(current.replacedByTokenId)
+              if (!replacement) {
+                break
+              }
+              leafId = replacement.token.id
+              current = replacement.token
+            }
+            const entitled = yield* entitlements.isActiveForWorkspace({
+              workspaceId: row.workspace.id,
+              resource: 'api_token',
+              resourceId: leafId
+            })
+            if (!entitled) {
+              return yield* Effect.fail(
+                new AuthorizationDenied({ reason: 'invalid_token' })
+              )
+            }
+            // Bump `lastUsedAt` at most once per LAST_USED_WRITE_INTERVAL_MS.
+            // The per-request `api_token.used` audit event was removed: it did a
+            // second D1 write per request and flooded the governance log. The
+            // bump is best-effort telemetry — a transient write failure has no
+            // bearing on whether the token authenticates, so it is swallowed
+            // rather than failing an otherwise-valid request with 503.
+            if (
+              shouldBumpLastUsedAt(row.token.lastUsedAt, DateTime.toEpochMillis(usedAt))
+            ) {
+              yield* unavailable(
+                db
+                  .update(apiTokens)
+                  .set({ lastUsedAt: DateTime.formatIso(usedAt) })
+                  .where(eq(apiTokens.id, row.token.id))
+              ).pipe(Effect.ignore)
+            }
+            return {
+              id: row.token.id,
+              workspaceId: row.workspace.id,
+              workspaceSlug: row.workspace.slug,
+              scopes: row.token.scopes
+            }
+          })
+      }
+    })
+  )
+}

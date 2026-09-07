@@ -7,6 +7,7 @@ import { Effect } from 'effect'
 import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { type RevokeInput } from './mcp-clients'
+import { makeSecurityEvidenceSink } from './security-evidence-sink'
 
 /**
  * The MCP-client connection effects and their server-only wiring, reached
@@ -42,6 +43,7 @@ export async function revokeMcpClientHandler(input: RevokeInput): Promise<boolea
   return runCapabilities(
     Effect.flatMap(McpClientConnections, (connections) =>
       connections.revoke({ userId: session.user.id, connectionId: input.connectionId })
-    )
+    ),
+    { securityEvidence: makeSecurityEvidenceSink() }
   )
 }

@@ -8,6 +8,10 @@ import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
+import {
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from './security-recovery-evidence.ts'
 import { type SeedRoster } from './workspace-membership.ts'
 import { Workspace, fabricateSeedMember, toWorkspace } from './workspace-identity.ts'
 
@@ -222,7 +226,8 @@ export function SeedWorkspaceLifecycle(options: {
 }
 
 export function LiveWorkspaceLifecycle(
-  binding?: WorkspaceLifecycleBinding
+  binding?: WorkspaceLifecycleBinding,
+  securityEvidence?: SecurityEvidenceSink
 ): Layer.Layer<WorkspaceLifecycle, never, Database | AuditEventLog> {
   return Layer.effect(WorkspaceLifecycle)(
     Effect.gen(function* () {
@@ -303,6 +308,10 @@ export function LiveWorkspaceLifecycle(
           const removed = ctx.workspace
           yield* callBinding(binding, (bound) =>
             bound.remove({ workspaceId: ctx.workspace.id })
+          )
+          yield* recordSecurityEvidence(
+            { kind: 'workspace_deleted', subjectId: removed.id },
+            securityEvidence
           )
           // Unscoped on purpose: `audit_events.workspace_id` cascades from
           // `workspaces.id`, so attributing this row to the deleted workspace

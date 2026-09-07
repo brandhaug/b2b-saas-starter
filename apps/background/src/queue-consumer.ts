@@ -6,7 +6,7 @@ import {
 import { type NotificationEmailQueueBinding } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { type SendEmailBinding } from '@b2b-saas-starter/email'
-import { type ServerEnv } from '@b2b-saas-starter/env/server'
+import { isMaintenanceMode, type ServerEnv } from '@b2b-saas-starter/env/server'
 import { type BackgroundBindingName } from '@b2b-saas-starter/infra'
 import {
   makeOtlpLayer,
@@ -14,6 +14,7 @@ import {
   WideEventLoggerLive,
   withTriggerScope
 } from '@b2b-saas-starter/logger'
+import { monitorQueueOutcome } from './monitoring.ts'
 import { Effect, Layer, ManagedRuntime, Result, Schema, type Scope } from 'effect'
 import { FetchHttpClient, type HttpClient } from 'effect/unstable/http'
 
@@ -215,6 +216,14 @@ export function consumeBatch(
     message: Message<unknown>
   ) => Effect.Effect<DeliveryOutcome, never, HttpClient.HttpClient>
 ): Promise<void> {
+  if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
+    // Keep messages in Cloudflare Queues while an operator restores the
+    // shared database. Acking here would silently discard customer work.
+    for (const message of batch.messages) {
+      message.retry({ delaySeconds: 60 })
+    }
+    return Effect.runPromise(Effect.void)
+  }
   return runInvocation(
     env,
     // The batch loop adds no requirements of its own, so the loop's context is
@@ -225,6 +234,7 @@ export function consumeBatch(
       batch.messages,
       (message) =>
         perMessage(message).pipe(
+          Effect.tap((outcome) => monitorQueueOutcome(batch.queue, message, outcome)),
           Effect.flatMap((outcome) =>
             Effect.sync(() => {
               if (outcome === 'ack') {

@@ -871,7 +871,7 @@ describe('bearer verification write throttling', () => {
       Layer.provide(feed),
       Layer.provide(layerFromD1(fake.binding))
     )
-    const layer = LiveApiTokenRegistry.pipe(
+    const layer = LiveApiTokenRegistry().pipe(
       Layer.provide(billing),
       Layer.provide(LiveAuditEventLog),
       Layer.provide(LiveWebhookPublisher()),

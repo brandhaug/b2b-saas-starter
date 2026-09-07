@@ -379,6 +379,9 @@ importers:
       '@b2b-saas-starter/capabilities':
         specifier: workspace:*
         version: link:../../packages/capabilities
+      '@b2b-saas-starter/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@b2b-saas-starter/env':
         specifier: workspace:*
         version: link:../../packages/env
@@ -428,6 +431,9 @@ importers:
       '@b2b-saas-starter/capabilities':
         specifier: workspace:*
         version: link:../../packages/capabilities
+      '@b2b-saas-starter/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@b2b-saas-starter/email':
         specifier: workspace:*
         version: link:../../packages/email

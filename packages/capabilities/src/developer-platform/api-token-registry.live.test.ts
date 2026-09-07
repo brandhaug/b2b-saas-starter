@@ -15,6 +15,10 @@ import {
 import { apiTokenRegistryContractCases } from './api-token-registry.contract.ts'
 import { ApiTokenRegistry } from './api-token-registry.ts'
 import { LiveApiTokenRegistry } from './api-token-registry.live.ts'
+import {
+  type SecurityEvidenceRecord,
+  type SecurityEvidenceSink
+} from '../governance/security-recovery-evidence.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'live api token registry',
@@ -104,6 +108,37 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           })
       )
     }
+    it.effect('records independent evidence after a canonical token revocation', () =>
+      Effect.gen(function* () {
+        const records: Array<SecurityEvidenceRecord> = []
+        const sink: SecurityEvidenceSink = {
+          append: (record) => {
+            records.push(record)
+            return Promise.resolve()
+          },
+          reportGap: () => Promise.resolve()
+        }
+        yield* inWorkspace(
+          'dev-contract-lab',
+          Effect.gen(function* () {
+            const registry = yield* ApiTokenRegistry
+            const created = yield* registry.create({
+              name: 'recovery evidence',
+              scopes: ['read']
+            })
+            expect(yield* registry.revoke({ tokenId: created.id })).toBe(true)
+            expect(records).toMatchObject([
+              {
+                kind: 'api_token_revoked',
+                subjectId: created.id,
+                workspaceId: 'wrk_dev_contract',
+                source: 'live'
+              }
+            ])
+          }).pipe(Effect.provide(Layer.fresh(LiveApiTokenRegistry(sink))))
+        )
+      })
+    )
     it.effect(
       'a revoke after the source read prevents the replacement batch from committing',
       () =>
@@ -149,7 +184,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                   })
                 }).pipe(
                   Effect.provide(
-                    Layer.fresh(LiveApiTokenRegistry).pipe(Layer.provide(racingAudit))
+                    Layer.fresh(LiveApiTokenRegistry()).pipe(Layer.provide(racingAudit))
                   ),
                   Effect.provideService(Database, db),
                   Effect.provideService(RawD1, d1)

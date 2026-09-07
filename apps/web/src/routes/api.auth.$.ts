@@ -13,13 +13,18 @@ import {
 } from '@/lib/rate-limit'
 import { runCapabilities } from '@/lib/capabilities'
 import {
+  exchangeRow,
   needsPreHandlerActor,
   type AuthExchange,
   type CredentialChange
 } from '@/lib/server/auth-audit/exchanges'
 import { recordAuthAudit } from '@/lib/server/auth-audit/record'
 import { recordSsoSignInAudit } from '@/lib/server/auth-audit/sso-sign-in'
-import { type AuthAuditContext } from '@/lib/server/auth-audit/shared'
+import {
+  readAndReportBody,
+  readRequestUserId,
+  type AuthAuditContext
+} from '@/lib/server/auth-audit/shared'
 import {
   enforceSsoRequired,
   refuseDisabledConnection
@@ -39,6 +44,7 @@ import {
 } from '@/lib/server/auth-emails'
 import { notifyCredentialChangedEffect } from '@/lib/server/credential-change-notification'
 import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
+import { recordEvidence } from '@/lib/server/security-evidence-sink'
 
 /**
  * The credential-change sender, bound to the provider-light email dispatcher:
@@ -114,7 +120,8 @@ async function readPreHandlerContext(
   // The social callbacks are GET rows with a session actor — the only GETs
   // that need one — so the method guard lives in `needsPreHandlerActor`'s row
   // lookup, not here.
-  const audited = needsPreHandlerActor(exchange)
+  const audited =
+    needsPreHandlerActor(exchange) || exchange.pathname.endsWith('/unlink-account')
   const guarded = impersonationForbiddenAction(exchange) !== null
   if (!audited && !guarded) {
     return { session: undefined, audit: undefined }
@@ -298,6 +305,61 @@ async function handleAuth(request: Request): Promise<Response> {
           sendCredentialChangeEmail,
           context
         )
+        if (finalResponse.ok) {
+          const row = exchangeRow(exchange)
+          let evidence:
+            | {
+                readonly kind:
+                  | 'account_deleted'
+                  | 'credential_changed'
+                  | 'sessions_revoked'
+                readonly subjectId: string
+              }
+            | undefined
+          if (row?.notifyOnSuccess !== undefined && context !== undefined) {
+            evidence = { kind: 'credential_changed', subjectId: context.actorUserId }
+          } else if (
+            exchange.pathname.endsWith('/admin/remove-user') ||
+            exchange.pathname.endsWith('/admin/set-user-password') ||
+            exchange.pathname.endsWith('/admin/revoke-user-session') ||
+            exchange.pathname.endsWith('/admin/revoke-user-sessions')
+          ) {
+            const target = context?.request
+              ? yield* readAndReportBody(readRequestUserId(context.request))
+              : null
+            if (target !== null) {
+              let kind: 'account_deleted' | 'credential_changed' | 'sessions_revoked' =
+                'credential_changed'
+              if (exchange.pathname.endsWith('/admin/remove-user')) {
+                kind = 'account_deleted'
+              } else if (exchange.pathname.includes('/revoke-user-')) {
+                kind = 'sessions_revoked'
+              }
+              evidence = {
+                kind,
+                subjectId: target
+              }
+            }
+          } else if (
+            exchange.pathname.endsWith('/sign-out') ||
+            exchange.pathname.endsWith('/user/revoke-session') ||
+            exchange.pathname.endsWith('/user/revoke-sessions')
+          ) {
+            if (context !== undefined) {
+              evidence = { kind: 'sessions_revoked', subjectId: context.actorUserId }
+            }
+          } else if (exchange.pathname.endsWith('/reset-password')) {
+            // Better Auth's anonymous reset response names no user. `*` makes
+            // restore sanitation invalidate every restored credential rather
+            // than risk reopening the password that this request replaced.
+            evidence = { kind: 'credential_changed', subjectId: '*' }
+          } else if (exchange.pathname.endsWith('/unlink-account') && context) {
+            evidence = { kind: 'credential_changed', subjectId: context.actorUserId }
+          }
+          if (evidence !== undefined) {
+            yield* recordEvidence(evidence.kind, evidence.subjectId)
+          }
+        }
         // A gate refusal is this exchange's outcome; 'ok' would lie about a
         // session the gate just revoked. `finalResponse` carries either
         // story: it is the refusal itself when one replaced the handler's
