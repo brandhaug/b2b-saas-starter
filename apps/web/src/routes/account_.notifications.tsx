@@ -30,10 +30,14 @@ export const Route = createFileRoute('/account_/notifications')({
     const session = await requireSession(location.href)
     return { session }
   },
-  loader: async () => ({
-    ...(await loadNotificationPreferencesServerFn()),
-    deliveries: await loadOwnEmailDeliveryServerFn()
-  }),
+  loader: async () => {
+    // oxlint-disable-next-line effect/noNewPromise -- parallel client-safe server-fn calls; importing Effect here would ship its runtime
+    const [preferences, deliveries] = await Promise.all([
+      loadNotificationPreferencesServerFn(),
+      loadOwnEmailDeliveryServerFn()
+    ])
+    return { ...preferences, deliveries }
+  },
   component: AccountNotificationsRoute,
   head: () => ({ meta: [{ title: pageTitle(m.notification_preferences()) }] })
 })

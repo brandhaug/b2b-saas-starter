@@ -48,7 +48,7 @@ export function WebhookDeliveryTimeline({
         className="justify-self-start"
         aria-expanded={expanded}
         aria-controls={historyId}
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setExpanded((current) => !current)}
       >
         {expanded ? m.hide_attempt_history() : m.view_attempt_history()}
       </Button>

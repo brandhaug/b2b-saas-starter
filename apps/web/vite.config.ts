@@ -236,7 +236,12 @@ export default defineConfig(({ command, mode }) => {
         // Email templates are invoked directly (no React dispatcher) when
         // rendering HTML, so compiler-inserted hooks crash there.
         babel({
-          exclude: /packages[/\\]email[/\\]/,
+          // A custom exclude replaces the plugin defaults. Keep vendor and
+          // Rolldown runtime exclusions so dev does not recompile dependencies.
+          exclude: [
+            /[/\\]node_modules[/\\]|^\0rolldown\/runtime\.js$/,
+            /packages[/\\]email[/\\]/
+          ],
           presets: [reactCompilerPreset()]
         }),
         cloudflareWorkersDeployPlugin(

@@ -36,17 +36,15 @@ export function ClientTelemetry({
 }: {
   readonly config: ClientTelemetryConfig
 }) {
+  const { sentryDsn, posthogKey, posthogHost } = config
   useEffect(() => {
-    // Explicit annotation: the cleanup closure mutates this after return, so
-    // control-flow analysis must not narrow it to `false`.
-    let cancelled: boolean = false
-    void (async () => {
-      if (config.sentryDsn) {
+    let cancelled = false
+    async function initializeSentry() {
+      if (sentryDsn) {
         const Sentry = await loadSentry()
-        // oxlint-disable-next-line typescript/no-unnecessary-condition -- the cleanup closure mutates `cancelled` after this runs
         if (!cancelled && Sentry.getClient() === undefined) {
           Sentry.init({
-            dsn: config.sentryDsn,
+            dsn: sentryDsn,
             // 100% traces would sample every browser session — an order of
             // magnitude noisier (and pricier) than the server's per-request
             // sampling. Errors stay at the SDK default (100%).
@@ -56,22 +54,26 @@ export function ClientTelemetry({
           })
         }
       }
-      if (config.posthogKey) {
+    }
+    async function initializePosthog() {
+      if (posthogKey) {
         const posthog = await loadPosthog()
-        // oxlint-disable-next-line eslint/no-underscore-dangle, typescript/no-unnecessary-condition -- PostHog's own readiness flag; the cleanup closure mutates `cancelled` after this runs
+        // oxlint-disable-next-line eslint/no-underscore-dangle -- PostHog's own readiness flag
         if (!cancelled && !posthog.__loaded) {
-          posthog.init(config.posthogKey, {
-            api_host: config.posthogHost ?? 'https://us.i.posthog.com',
+          posthog.init(posthogKey, {
+            api_host: posthogHost ?? 'https://us.i.posthog.com',
             capture_pageview: 'history_change',
             capture_pageleave: true,
             persistence: 'localStorage+cookie'
           })
         }
       }
-    })()
+    }
+    // oxlint-disable-next-line effect/noNewPromise -- independent browser SDK imports; Effect must stay out of the client bundle
+    void Promise.all([initializeSentry(), initializePosthog()])
     return () => {
       cancelled = true
     }
-  }, [config])
+  }, [sentryDsn, posthogKey, posthogHost])
   return null
 }

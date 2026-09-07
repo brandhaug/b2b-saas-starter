@@ -21,10 +21,14 @@ export const Route = createFileRoute('/sign-in')({
   // only (env-gated: with nothing configured the loader answers an empty list
   // and `null`, and the page renders exactly what it did before either
   // existed).
-  loader: async () => ({
-    socialProviders: await getSocialProviderIds(),
-    turnstileSiteKey: await getTurnstileSiteKey()
-  }),
+  loader: async () => {
+    // oxlint-disable-next-line effect/noNewPromise -- parallel client-safe server-fn calls; importing Effect here would ship its runtime
+    const [socialProviders, turnstileSiteKey] = await Promise.all([
+      getSocialProviderIds(),
+      getTurnstileSiteKey()
+    ])
+    return { socialProviders, turnstileSiteKey }
+  },
   component: SignInRoute,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_sign_in()) }] })
 })

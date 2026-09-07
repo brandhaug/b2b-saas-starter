@@ -1,4 +1,5 @@
 import { lazy, type ComponentType } from 'react'
+import { createServerFn } from '@tanstack/react-start'
 
 import { type MdxComponentProps } from '@/components/mdx-link'
 import { contentJsonLd } from '@/lib/json-ld'
@@ -28,35 +29,21 @@ type PostModule = {
 }
 
 // No `eager`: the compiled MDX must not ride the importing route's chunk.
-// oxlint-disable effect/noNewPromise -- this module is the promise boundary between router loaders (promise-shaped) and the Effect-native content; same exemption as packages/logger/src/providers.ts
 const modules = import.meta.glob<PostModule>('../../content/blog/*.mdx')
 
-function getSlugFromPath(path: string): string {
-  return path.replace('../../content/blog/', '').replace('.mdx', '')
-}
+/** Server-only metadata enumeration; the browser must not import every MDX body. */
+const loadAllPostMetaServerFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<ReadonlyArray<PostMeta>> => {
+    const { loadAllPostMetaHandler } = await import('./blog.effects')
+    return loadAllPostMetaHandler()
+  }
+)
 
 let metaPromise: Promise<ReadonlyArray<PostMeta>> | undefined
 
-async function loadAllPostMeta(): Promise<ReadonlyArray<PostMeta>> {
-  const entries = Object.entries(modules)
-  const metas = await Promise.all(
-    entries.map(async ([path, load]) => {
-      const mod = await load()
-      return {
-        slug: getSlugFromPath(path),
-        frontmatter: mod.frontmatter
-      } satisfies PostMeta
-    })
-  )
-  return metas.toSorted(
-    (a, b) =>
-      new Date(b.frontmatter.date).getTime() - new Date(a.frontmatter.date).getTime()
-  )
-}
-
 /** Every post's metadata, newest first. */
 export function getAllPostMeta(): Promise<ReadonlyArray<PostMeta>> {
-  metaPromise ??= loadAllPostMeta()
+  metaPromise ??= loadAllPostMetaServerFn()
   return metaPromise
 }
 

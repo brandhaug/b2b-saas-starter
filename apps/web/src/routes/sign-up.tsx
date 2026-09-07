@@ -26,10 +26,14 @@ export const Route = createFileRoute('/sign-up')({
   validateSearch: redirectSearch,
   // Both server-only reads: the Turnstile site key and the active provider
   // ids are fetched in the loader; `null`/empty keeps their UI unmounted.
-  loader: async () => ({
-    turnstileSiteKey: await getTurnstileSiteKey(),
-    socialProviders: await getSocialProviderIds()
-  }),
+  loader: async () => {
+    // oxlint-disable-next-line effect/noNewPromise -- parallel client-safe server-fn calls; importing Effect here would ship its runtime
+    const [turnstileSiteKey, socialProviders] = await Promise.all([
+      getTurnstileSiteKey(),
+      getSocialProviderIds()
+    ])
+    return { turnstileSiteKey, socialProviders }
+  },
   component: SignUpRoute,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_sign_up()) }] })
 })
