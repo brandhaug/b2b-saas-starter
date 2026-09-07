@@ -8,7 +8,7 @@ Cloudflare-first B2B SaaS starter. Public site showcases the repo; app demonstra
 
 No production users. Refactor freely, rename, and drop stored shapes. No backwards compatibility, deprecation paths, or old-data shims.
 
-For issue/spec implementation, follow the repo's [implement skill](.agents/skills/implement/SKILL.md), including delegation, review, PR creation, and readiness verification. For specifications, ticketing, and review context, read [issue-tracker.md](docs/agents/issue-tracker.md).
+For issue/spec implementation, follow the [implement skill](.agents/skills/implement/SKILL.md). For ticket context, read [issue-tracker.md](docs/agents/issue-tracker.md).
 
 ## Intent Node Index
 
@@ -28,21 +28,11 @@ For issue/spec implementation, follow the repo's [implement skill](.agents/skill
 | Typed SDK         | [packages/sdk/AGENTS.md](packages/sdk/AGENTS.md)                     |
 | Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md) |
 
-Capabilities have leaf nodes; the package node maps them.
-
 ## Setup
 
-Requires [Vite+](https://viteplus.dev) (`vp`, >= 0.3.0), providing Node and pinned pnpm.
+Use [Vite+](https://viteplus.dev) for pinned Node and pnpm. Install with `vp install`; use `vp run`, `vp fmt`, and `vp lint`. Toolchain versions live in the workspace catalog and move through `vp upgrade`.
 
-```bash
-vp install
-pnpm run dev        # web on http://localhost:3071
-pnpm run check      # typecheck + lint + format:check + dead-code + test
-```
-
-- pnpm only; versions single-sourced in the `catalog` block of `pnpm-workspace.yaml`, referenced as `"catalog:"`. Toolchain versions (`vite`, `vitest`, `oxlint`, `oxfmt`) move with `vp upgrade`, never by hand.
-- Task runner is Vite Task (`vp run`), formatting `vp fmt`, linting `vp lint`.
-- The pre-commit hook only formats. Run `pnpm run check` before committing; re-run after `check:fix`. CI intentionally excludes formatting. Final validation: `pnpm run validate`, prerequisites in [docs/setup.md](docs/setup.md#validation).
+Run `pnpm run check` before committing and after `check:fix`; the pre-commit hook only formats. Run `pnpm run validate` before PR handoff; see [prerequisites](docs/setup.md#validation). For Codex, Claude Code, or OpenCode skills, follow [shared skills setup](docs/agents/skills.md).
 
 ## Rules
 
@@ -52,12 +42,14 @@ pnpm run check      # typecheck + lint + format:check + dead-code + test
 4. Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, Alchemy.
 5. Borrow interaction patterns from other products, never their domain language.
 6. No new architecture (games, PWA, realtime, Durable Objects) without a starter use case.
-7. Declaration merges belong in `.d.ts`. `declare module 'x'` needs a top-level import; `declare global` and `declare namespace` need none. Examples: `apps/web/src/router-register.d.ts`, `apps/web/src/worker-env.d.ts`.
+7. Declaration merges belong in `.d.ts`; module declarations need a top-level import.
 8. Seed and Live adapters stay equivalent for the demo identity. `packages/capabilities/src/seed-fixture.ts` owns `usr_demo` / `starter-lab`; `scripts/seed.ts` adds only the password. SPA membership uses the fixture; identity drift can break navigation while full-page loads succeed.
+
+## Agent execution
+
+Read only the intent nodes and skill branches needed for the task. Save verbose command output to a log and inspect summaries and failures.
 
 ## Commit & Release Conventions
 
 - Create/update PR bodies from [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md), the final diff, and observed validation. Remove prompts and unused optional sections; pass the completed body via `--body-file`.
 - Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/) (`type(scope): subject`); PR Gate rejects non-conforming titles. Breaking changes use `!` or a `BREAKING CHANGE:` footer.
-- release-please opens `chore(master): release ...` PRs from merged commits; merging one tags and publishes.
-- `CLAUDE.md` is a symlink to this file.
