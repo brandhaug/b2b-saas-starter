@@ -1,0 +1,6 @@
+{
+  "files": ["src/routes/__root.tsx"],
+  "insertBefore": "<Scripts",
+  "commentSyntax": "jsx",
+  "cspChecked": true
+}

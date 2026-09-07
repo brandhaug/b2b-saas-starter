@@ -27,3 +27,6 @@ packages/i18n/.generated/
 
 # Sandbox-local pnpm cache
 .pnpm-store/
+
+# Impeccable's machine-local app discovery
+/.impeccable/live/app-root.json
