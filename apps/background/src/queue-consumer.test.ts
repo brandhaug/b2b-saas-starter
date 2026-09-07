@@ -16,7 +16,10 @@ describe('consumeBatch', () => {
     } satisfies Message<unknown>
     const batch = {
       queue: 'test',
-      messages: [message]
+      messages: [message],
+      metadata: { metrics: { backlogCount: 0, backlogBytes: 0 } },
+      retryAll: vi.fn(),
+      ackAll: vi.fn()
     } satisfies MessageBatch<unknown>
 
     return Effect.tryPromise(() =>
