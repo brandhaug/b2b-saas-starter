@@ -62,7 +62,10 @@ token slots and one webhook slot. The selection is a logical allow-list over
 current eligible resources. Token verification, REST/MCP authorization, and
 queued webhook dispatch re-check it at execution time, so existing credentials
 and queued work cannot bypass a downgrade. Creation admission reads the same
-deadline-aware Billing decision.
+deadline-aware Billing decision through Resource entitlements, which owns admission
+counts as well as execution eligibility. Token admission counts current unrevoked,
+unexpired replacement leaves. Webhook admission counts all stored endpoints,
+while dispatch eligibility considers enabled endpoints.
 
 Lifecycle state and its audit/outbox commit do not wait for notice delivery.
 Payment-failure, grace-expiry, and recovery notices have independent retryable

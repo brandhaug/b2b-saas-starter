@@ -22,6 +22,7 @@ import { failureTag } from '../internal/failure-tag.ts'
 import { ResourceEntitlements } from './resource-entitlements.ts'
 import {
   resourceEntitlementsContract,
+  resourceAdmissionContract,
   resourceDeadlineCases
 } from './resource-entitlements.contract.ts'
 
@@ -56,6 +57,36 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         })
       )
     }
+    it.effect(
+      'Live resource admission releases token states and retains disabled webhook slots',
+      () =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db.delete(apiTokens).where(eq(apiTokens.workspaceId, 'wrk_live'))
+          yield* db
+            .delete(webhookEndpoints)
+            .where(eq(webhookEndpoints.workspaceId, 'wrk_live'))
+          yield* db
+            .delete(workspaceResourceSelections)
+            .where(eq(workspaceResourceSelections.workspaceId, 'wrk_live'))
+          yield* db
+            .delete(workspaceSubscriptions)
+            .where(eq(workspaceSubscriptions.workspaceId, 'wrk_live'))
+          yield* db.insert(workspaceSubscriptions).values({
+            workspaceId: 'wrk_live',
+            stripeCustomerId: 'cus_admission',
+            stripeSubscriptionId: 'sub_admission',
+            subscribedPlanId: 'starter',
+            updatedAt: '2026-09-01T00:00:00.000Z',
+            status: 'active',
+            paymentVerified: true,
+            lastPaymentAt: '2026-09-01T00:00:00.000Z'
+          })
+          yield* inWorkspace('live-lab', resourceAdmissionContract(expect), {
+            userId: 'usr_owner'
+          })
+        })
+    )
     it.effect('malformed stored selection fails in the typed channel', () =>
       Effect.gen(function* () {
         const d1 = yield* RawD1

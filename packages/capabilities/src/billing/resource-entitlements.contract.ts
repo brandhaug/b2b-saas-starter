@@ -118,6 +118,15 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     )
     yield* endpoints.update({ endpointId: first.endpoint.id, enabled: false })
     expect((yield* entitlements.getSelection()).webhookEndpointIds).toEqual([])
+    // Disabled endpoints stop dispatching but remain stored and consume the
+    // creation slot.
+    expect(
+      failureTag(
+        yield* Effect.exit(
+          endpoints.create({ url: 'https://example.com/disabled-slot', events: [] })
+        )
+      )
+    ).toBe('PlanLimitExceeded')
     expect(
       yield* endpoints.getDispatchTarget(first.endpoint.id, ctx.workspace.id)
     ).toBeNull()
@@ -166,5 +175,73 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
       apiTokenIds: [],
       webhookEndpointIds: []
     })
+  })
+}
+
+/** Admission-only contract against an empty Starter workspace. */
+export function resourceAdmissionContract(expect: typeof VitestExpect) {
+  return Effect.gen(function* () {
+    yield* TestClock.setTime(Date.parse('2026-09-01T00:00:00.000Z'))
+    const tokens = yield* ApiTokenRegistry
+    const endpoints = yield* WebhookEndpoints
+    const a = yield* tokens.create({
+      name: 'expires',
+      scopes: ['read'],
+      expiresAt: '2026-09-03T00:00:00.000Z'
+    })
+    const b = yield* tokens.create({ name: 'replace-me', scopes: ['read'] })
+    expect(
+      failureTag(yield* Effect.exit(tokens.create({ name: 'full', scopes: ['read'] })))
+    ).toBe('PlanLimitExceeded')
+
+    yield* tokens.revoke({ tokenId: a.id })
+    const c = yield* tokens.create({ name: 'after-revoke', scopes: ['read'] })
+    const replacement = yield* tokens.replace({
+      tokenId: b.id,
+      scopes: ['read'],
+      overlapSeconds: 60
+    })
+    expect(
+      failureTag(
+        yield* Effect.exit(tokens.create({ name: 'rotated-full', scopes: ['read'] }))
+      )
+    ).toBe('PlanLimitExceeded')
+    yield* tokens.revoke({ tokenId: replacement.id })
+    yield* tokens.create({ name: 'after-replacement-revoke', scopes: ['read'] })
+
+    yield* tokens.revoke({ tokenId: c.id })
+    const expiring = yield* tokens.create({
+      name: 'expires-for-admission',
+      scopes: ['read'],
+      expiresAt: '2026-09-03T00:00:00.000Z'
+    })
+    expect(expiring.expiresAt).toBe('2026-09-03T00:00:00.000Z')
+    expect(
+      failureTag(
+        yield* Effect.exit(tokens.create({ name: 'before-expiry', scopes: ['read'] }))
+      )
+    ).toBe('PlanLimitExceeded')
+    yield* TestClock.setTime(Date.parse('2026-09-03T00:00:00.000Z'))
+    yield* tokens.create({ name: 'after-expiry', scopes: ['read'] })
+
+    const first = yield* endpoints.create({
+      url: 'https://example.com/first',
+      events: []
+    })
+    expect(
+      failureTag(
+        yield* Effect.exit(
+          endpoints.create({ url: 'https://example.com/second', events: [] })
+        )
+      )
+    ).toBe('PlanLimitExceeded')
+    yield* endpoints.update({ endpointId: first.endpoint.id, enabled: false })
+    expect(
+      failureTag(
+        yield* Effect.exit(
+          endpoints.create({ url: 'https://example.com/disabled', events: [] })
+        )
+      )
+    ).toBe('PlanLimitExceeded')
   })
 }

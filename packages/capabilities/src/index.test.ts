@@ -117,9 +117,10 @@ describe('seed developer-platform contract', () => {
     SeedWebhookEndpoints([]).pipe(
       Layer.provide(auditLog),
       Layer.provide(publisher),
+      // Capture the feed this contract reads before SeedLayer supplies its own.
+      Layer.provide(notificationFeed),
       Layer.provide(SeedLayer),
-      Layer.provide(SeedResourceEntitlements().pipe(Layer.provide(SeedLayer))),
-      Layer.provide(notificationFeed)
+      Layer.provide(SeedResourceEntitlements().pipe(Layer.provide(SeedLayer)))
     ),
     notificationFeed
   )

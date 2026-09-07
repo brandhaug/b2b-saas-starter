@@ -224,10 +224,7 @@ const SeedCore = Layer.mergeAll(
   // out webhooks below their interface; the shared fixture audit log and the
   // no-op Seed publisher are provided once on the merged layer so every member
   // sees the same instances.
-  SeedApiTokenRegistry(seedApiTokens).pipe(
-    Layer.provide(SeedGovernance),
-    Layer.provide(SeedEntitlements)
-  ),
+  SeedApiTokenRegistry(seedApiTokens).pipe(Layer.provide(SeedEntitlements)),
   SeedEntitlements,
   SeedAuditLog,
   SeedMcpClientConnections({
@@ -243,7 +240,7 @@ const SeedCore = Layer.mergeAll(
     seedDeliveries,
     undefined,
     seedDeliveryAttempts
-  ).pipe(Layer.provide(SeedGovernance), Layer.provide(SeedEntitlements)),
+  ).pipe(Layer.provide(SeedEntitlements)),
   SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships),
@@ -375,10 +372,7 @@ export function makeLiveCapabilitiesLayer(
   return Layer.mergeAll(
     LiveEmailDelivery,
     LiveAccountLifecycle(options.accountLifecycleBinding, options.securityEvidence),
-    LiveApiTokenRegistry(options.securityEvidence).pipe(
-      Layer.provide(billing),
-      Layer.provide(entitlements)
-    ),
+    LiveApiTokenRegistry(options.securityEvidence).pipe(Layer.provide(entitlements)),
     LiveAuditEventLog,
     billing,
     entitlements,
@@ -387,7 +381,7 @@ export function makeLiveCapabilitiesLayer(
     accountPreferences,
     feed,
     LiveSsoConnections(options.ssoBinding),
-    LiveWebhookEndpoints.pipe(Layer.provide(billing), Layer.provide(entitlements)),
+    LiveWebhookEndpoints.pipe(Layer.provide(entitlements)),
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
     LiveWorkspaceMembership(options.memberBinding, options.securityEvidence),

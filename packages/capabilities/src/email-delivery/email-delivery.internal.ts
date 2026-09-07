@@ -5,6 +5,7 @@ import { WorkspaceContext } from '../workspace-context.ts'
 import {
   EmailDelivery,
   type ClaimEmail,
+  type EmailCompletionDecision,
   type EmailDeliveryRecord,
   type EmailProviderEvent,
   type SendOutcome
@@ -237,6 +238,30 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
       })
     )
   })
+  const completionDecision = Effect.fn('EmailDelivery.completionDecision')(function* (
+    id: string
+  ) {
+    const record = yield* store.get(id)
+    if (
+      record === null ||
+      !['queued', 'temporary_failure', 'ambiguous'].includes(record.status)
+    ) {
+      return {
+        outcome: 'ack',
+        status: record?.status ?? 'skipped'
+      } satisfies EmailCompletionDecision
+    }
+    const now = yield* Clock.currentTimeMillis
+    const due = Math.min(
+      Date.parse(record.nextAttemptAt),
+      Date.parse(record.retryUntil)
+    )
+    return {
+      outcome: 'retry_pending',
+      status: record.status,
+      retryAfterSeconds: Math.max(1, Math.ceil((due - now) / 1000))
+    } satisfies EmailCompletionDecision
+  })
   const applyProviderEvent = Effect.fn('EmailDelivery.applyProviderEvent')(function* (
     event: EmailProviderEvent
   ) {
@@ -438,6 +463,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
   })
   return EmailDelivery.of({
     trackedAttempt,
+    completionDecision,
     claim,
     recordOutcome,
     abandon,

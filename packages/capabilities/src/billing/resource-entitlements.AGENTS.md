@@ -1,6 +1,6 @@
 # Resource entitlements
 
-Creation admission and execution use Billing's request-time plan, including deadlines. Keep `plan-catalog.ts` pure; workspace context proves identity, not current paid access.
+This module owns creation counts and execution eligibility against Billing's request-time Effective Plan. Token admission counts current unrevoked, unexpired replacement leaves. Webhook admission counts all stored endpoints; execution counts enabled endpoints. Keep these purposes distinct. Workspace context proves identity, not current paid access.
 
 ## Contracts and ownership
 

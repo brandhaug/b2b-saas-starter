@@ -5,7 +5,7 @@ import {
 } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Schema } from 'effect'
-import { and, eq, gt, isNull, or, sql } from 'drizzle-orm'
+import { and, count, eq, gt, isNull, or, sql } from 'drizzle-orm'
 import { Billing } from './billing.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
@@ -22,10 +22,19 @@ import {
   resourceIds
 } from './resource-selection-policy.ts'
 import { ResourceEntitlements } from './resource-entitlements.ts'
+import { assertWithinPlanLimit } from './resource-admission.ts'
 
 const decodeSelection = Schema.decodeUnknownEffect(ResourceSelection)
 const encodeIds = Schema.encodeSync(Schema.fromJsonString(Schema.Array(Schema.String)))
 const unavailable = orUnavailable('resource-entitlements')
+function eligibleTokenWhere(workspaceId: string, now: string) {
+  return and(
+    eq(apiTokens.workspaceId, workspaceId),
+    isNull(apiTokens.revokedAt),
+    isNull(apiTokens.replacedByTokenId),
+    or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, now))
+  )
+}
 const readSelection = Effect.fn('ResourceSelections.read')(function* (
   workspaceId: string
 ) {
@@ -78,14 +87,7 @@ export const LiveResourceEntitlements: Layer.Layer<
           db
             .select({ id: apiTokens.id })
             .from(apiTokens)
-            .where(
-              and(
-                eq(apiTokens.workspaceId, workspaceId),
-                isNull(apiTokens.revokedAt),
-                isNull(apiTokens.replacedByTokenId),
-                or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, now))
-              )
-            )
+            .where(eligibleTokenWhere(workspaceId, now))
         ),
         unavailable(
           db
@@ -138,6 +140,30 @@ export const LiveResourceEntitlements: Layer.Layer<
       )
     })
     return ResourceEntitlements.of({
+      admitCreation: Effect.fn('ResourceEntitlements.admitCreation')(function* (input) {
+        const workspaceId = (yield* WorkspaceContext).workspace.id
+        const now = DateTime.formatIso(yield* DateTime.now)
+        let rows
+        if (input.resource === 'api_token') {
+          rows = yield* unavailable(
+            db
+              .select({ value: count() })
+              .from(apiTokens)
+              .where(eligibleTokenWhere(workspaceId, now))
+          )
+        } else {
+          rows = yield* unavailable(
+            db
+              .select({ value: count() })
+              .from(webhookEndpoints)
+              .where(eq(webhookEndpoints.workspaceId, workspaceId))
+          )
+        }
+        const used = rows[0]?.value ?? 0
+        yield* assertWithinPlanLimit({ ...input, used }).pipe(
+          Effect.provideService(Billing, billing)
+        )
+      }),
       getSelection,
       getSelectionForWorkspace,
       summarize,

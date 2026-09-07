@@ -2,10 +2,8 @@ import {
   SeedResourceInventory,
   SeedResourceInventoryLayer
 } from '../billing/resource-inventory.seed.ts'
-import { Billing } from '../billing/billing.ts'
 import { DateTime, Effect, Layer } from 'effect'
 
-import { assertWithinPlanLimit } from '../billing/resource-admission.ts'
 import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
 import { ApiTokenNotRotatable, AuthorizationDenied } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -40,12 +38,11 @@ export function SeedApiTokenRegistry(
 ): Layer.Layer<
   ApiTokenRegistry,
   never,
-  Billing | AuditEventLog | WebhookPublisher | ResourceEntitlements
+  AuditEventLog | WebhookPublisher | ResourceEntitlements
 > {
   return Layer.effect(
     ApiTokenRegistry,
     Effect.gen(function* () {
-      const billing = yield* Billing
       const audit = yield* AuditEventLog
       const publisher = yield* WebhookPublisher
       const entitlements = yield* ResourceEntitlements
@@ -122,14 +119,7 @@ export function SeedApiTokenRegistry(
           const ctx = yield* WorkspaceContext
           const now = yield* DateTime.now
           const valid = yield* validateTokenCreation(input, DateTime.toEpochMillis(now))
-          yield* assertWithinPlanLimit({
-            resource: 'api_token',
-            used: activeIn(ctx.workspace.id).filter(
-              (entry) =>
-                entry.token.replacedByTokenId === null &&
-                !tokenIsExpired(entry.token.expiresAt, DateTime.toEpochMillis(now))
-            ).length
-          }).pipe(Effect.provideService(Billing, billing))
+          yield* entitlements.admitCreation({ resource: 'api_token' })
           const token = mintApiToken()
           const created: ApiToken = {
             id: yield* newCapabilityId('tok'),
