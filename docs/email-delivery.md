@@ -47,6 +47,7 @@ and complaints. See [suppression lists](https://developers.cloudflare.com/email-
 
 Instant notification retries last at most 24 hours from notification creation.
 Digest retries revisit the same 08:00 UTC window every 15 minutes for six hours.
+The 14:00 hour settles expired attempts without sending them again.
 Each attempt rechecks current preferences, permissions, unread state, and recipient
 details. An unknown send outcome waits before a bounded retry. That policy can
 produce a duplicate when Cloudflare accepted a send whose response was lost.

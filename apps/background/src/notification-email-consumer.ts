@@ -12,13 +12,12 @@ import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import {
   type EmailDispatcher,
-  selectEmailDispatcherLayer,
-  type EmailSendError
+  selectEmailDispatcherLayer
 } from '@b2b-saas-starter/email'
 import { notificationEmailFor } from '@b2b-saas-starter/email/notification-emails'
 import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
 import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
-import { Effect, Layer, type Scope } from 'effect'
+import { Clock, Effect, Layer, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
 import {
@@ -48,7 +47,7 @@ export function processNotificationEmailMessage(
   appUrl: string
 ): Effect.Effect<
   DeliveryOutcome,
-  CapabilityUnavailable | EmailSendError,
+  CapabilityUnavailable,
   | NotificationFeed
   | NotificationPreferences
   | EmailDispatcher
@@ -64,10 +63,13 @@ export function processNotificationEmailMessage(
       return ack
     }
     const { notificationId, recipientUserId } = delivery.message
+    const messageId = `notification:${notificationId}:${recipientUserId}`
+    const history = yield* EmailDelivery
     yield* Effect.annotateLogsScoped({ notificationId, recipientUserId })
     const feed = yield* NotificationFeed
     const context = yield* feed.loadForEmail(notificationId, recipientUserId)
     if (context === null) {
+      yield* history.abandon(messageId)
       yield* Effect.annotateLogsScoped({
         outcome: 'skipped',
         skipReason: 'not_deliverable'
@@ -79,6 +81,7 @@ export function processNotificationEmailMessage(
     const preferences = yield* NotificationPreferences
     const channel = yield* preferences.resolve(recipientUserId, kind)
     if (channel !== 'instant') {
+      yield* history.abandon(messageId)
       yield* Effect.annotateLogsScoped({
         outcome: 'skipped',
         skipReason: `channel_${channel}`
@@ -93,7 +96,6 @@ export function processNotificationEmailMessage(
       context.recipient.timeZone ?? 'UTC'
     )
     const workspaceName = context.workspace?.name ?? null
-    const messageId = `notification:${notificationId}:${recipientUserId}`
     yield* dispatchTrackedEmail(
       {
         id: messageId,
@@ -133,14 +135,10 @@ export function processNotificationEmailMessage(
           renderError: 'template_failed'
         }).pipe(Effect.as(ack))
       ),
-      Effect.catchTag('EmailSendError', (error) => {
-        if (error.failureKind === 'permanent' || error.failureKind === 'suppressed') {
-          return Effect.succeed(ack)
-        }
-        return Effect.fail(error)
-      })
+      // The tracked attempt persisted its sanitized failure. Its next due time
+      // below controls queue delivery, including transient and ambiguous sends.
+      Effect.catchTag('EmailSendError', () => Effect.succeed(ack))
     )
-    const history = yield* EmailDelivery
     const record = yield* history.get(messageId)
     // A concurrent attempt or an ambiguous send keeps its queue message alive
     // until the capability's lease/backoff permits the next bounded attempt.
@@ -149,7 +147,12 @@ export function processNotificationEmailMessage(
       ['queued', 'temporary_failure', 'ambiguous'].includes(record.status)
     ) {
       yield* Effect.annotateLogsScoped({ outcome: 'retry_pending' })
-      return 'retry'
+      const now = yield* Clock.currentTimeMillis
+      const due = Math.min(
+        Date.parse(record.nextAttemptAt),
+        Date.parse(record.retryUntil)
+      )
+      return { retryAfterSeconds: Math.max(1, Math.ceil((due - now) / 1000)) }
     }
     yield* Effect.annotateLogsScoped({ outcome: record?.status ?? 'skipped' })
     return ack
@@ -179,5 +182,19 @@ export function sendNotificationEmail(
         )
       )
     )
-  })
+  }).pipe(
+    Effect.map((outcome) => {
+      if (outcome === 'retry') {
+        // Store failures have no persisted due time yet. Keep those queue
+        // attempts spread far enough apart to cover the full retry window.
+        return {
+          retryAfterSeconds: Math.min(
+            3600,
+            60 * 2 ** Math.min(envelope.attempts - 1, 6)
+          )
+        }
+      }
+      return outcome
+    })
+  )
 }

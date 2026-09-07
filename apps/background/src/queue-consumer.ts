@@ -125,7 +125,7 @@ export function queueParentSpan<M extends { traceparent?: string | undefined }>(
 }
 
 /** What a consumer tells the batch loop to do with one message. */
-export type DeliveryOutcome = 'ack' | 'retry'
+export type DeliveryOutcome = 'ack' | 'retry' | { readonly retryAfterSeconds: number }
 
 // One fetch client and one logger set per isolate: neither performs I/O on
 // behalf of a single invocation, so both are safe to memoize for the isolate's
@@ -229,8 +229,10 @@ export function consumeBatch(
             Effect.sync(() => {
               if (outcome === 'ack') {
                 message.ack()
-              } else {
+              } else if (outcome === 'retry') {
                 message.retry({ delaySeconds: backoffSeconds(message.attempts) })
+              } else {
+                message.retry({ delaySeconds: outcome.retryAfterSeconds })
               }
             })
           )

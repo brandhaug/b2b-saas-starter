@@ -3,10 +3,8 @@ import {
   type ClaimEmail,
   type SendOutcome
 } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
-import { Effect, Metric } from 'effect'
+import { Effect } from 'effect'
 import { EmailDispatcher, type EmailMessage, type EmailSendError } from './index.ts'
-
-const outcomes = Metric.counter('starter.email.send.outcomes')
 
 function failedOutcome(error: EmailSendError): SendOutcome {
   switch (error.failureKind) {
@@ -19,8 +17,7 @@ function failedOutcome(error: EmailSendError): SendOutcome {
     case 'transient': {
       return { status: 'temporary_failure', reason: 'transport_unavailable' }
     }
-    case 'ambiguous':
-    case undefined: {
+    case 'ambiguous': {
       return { status: 'ambiguous', reason: 'timeout' }
     }
   }
@@ -32,44 +29,25 @@ export const dispatchTrackedEmail = Effect.fn('Email.dispatchTracked')(function*
   message: EmailMessage
 ) {
   const delivery = yield* EmailDelivery
-  const claim = yield* delivery.claim(input)
-  if (claim === null) {
-    return { status: 'skipped' } satisfies { status: 'skipped' }
-  }
   const dispatcher = yield* EmailDispatcher
-  const result = yield* dispatcher.send(message).pipe(
-    Effect.tapError((error) => {
-      let outcome: SendOutcome = { status: 'failed', reason: 'provider_rejected' }
+  return yield* delivery.trackedAttempt(
+    input,
+    Effect.suspend(() => dispatcher.send(message)).pipe(
+      Effect.map((result) => {
+        if (result.mode === 'cloudflare-email') {
+          return {
+            status: 'accepted',
+            providerMessageId: result.providerMessageId ?? null
+          } satisfies SendOutcome
+        }
+        return { status: 'logged' } satisfies SendOutcome
+      })
+    ),
+    (error): SendOutcome => {
       if (error._tag === 'EmailSendError') {
-        outcome = failedOutcome(error)
+        return failedOutcome(error)
       }
-      return delivery.recordOutcome(input.id, claim.token, outcome).pipe(
-        Effect.andThen(
-          Metric.update(
-            Metric.withAttributes(outcomes, {
-              purpose: input.purpose,
-              status: outcome.status
-            }),
-            1
-          )
-        )
-      )
-    })
-  )
-  let outcome: SendOutcome = { status: 'logged' }
-  if (result.mode === 'cloudflare-email') {
-    outcome = {
-      status: 'accepted',
-      providerMessageId: result.providerMessageId ?? null
+      return { status: 'failed', reason: 'provider_rejected' }
     }
-  }
-  yield* delivery.recordOutcome(input.id, claim.token, outcome)
-  yield* Metric.update(
-    Metric.withAttributes(outcomes, {
-      purpose: input.purpose,
-      status: outcome.status
-    }),
-    1
   )
-  return { status: outcome.status }
 })

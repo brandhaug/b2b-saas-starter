@@ -1,4 +1,4 @@
-import { Clock, DateTime, Effect } from 'effect'
+import { Clock, DateTime, Effect, Ref } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { type expect as vitestExpect } from '@effect/vitest'
 import { testWorkspaceContext } from '../workspace-context.ts'
@@ -6,7 +6,9 @@ import {
   EmailDelivery,
   canResendInvitation,
   isDeliveryUnconfirmed,
-  type ClaimEmail
+  type ClaimEmail,
+  type EmailProviderEvent,
+  type SendOutcome
 } from './email-delivery.ts'
 
 function input(
@@ -23,6 +25,180 @@ function input(
 }
 export function emailDeliveryContractCases(expect: typeof vitestExpect) {
   return [
+    {
+      name: 'AC3: a late accepted receipt survives lease renewal and a newer failed attempt',
+      assert: Effect.gen(function* () {
+        const delivery = yield* EmailDelivery
+        const request = input('late-provider-acceptance')
+        const original = yield* delivery.claim(request)
+        if (!original) {
+          expect.fail('expected original claim')
+        }
+        yield* TestClock.adjust('5 minutes')
+        const renewed = yield* delivery.claim(request)
+        if (!renewed) {
+          expect.fail('expected renewed claim')
+        }
+        yield* delivery.recordOutcome(request.id, renewed.token, {
+          status: 'temporary_failure',
+          reason: 'transport_unavailable'
+        })
+        yield* delivery.recordOutcome(request.id, original.token, {
+          status: 'accepted',
+          providerMessageId: 'late-provider-id'
+        })
+        yield* delivery.recordOutcome(request.id, renewed.token, {
+          status: 'failed',
+          reason: 'provider_rejected'
+        })
+        const record = yield* delivery.get(request.id)
+        expect(record?.status).toBe('accepted')
+        expect(record?.providerMessageId).toBe('late-provider-id')
+        expect(record?.acceptedAt).not.toBeNull()
+        expect(record?.uncertain).toBe(true)
+        yield* TestClock.adjust('10 minutes')
+        expect(yield* delivery.claim(request)).toBeNull()
+      })
+    },
+    {
+      name: 'AC4: relevance cancellation stops retries while preserving racing or known acceptance',
+      assert: Effect.gen(function* () {
+        const delivery = yield* EmailDelivery
+        const request = input('cancelled-in-flight')
+        const claim = yield* delivery.claim(request)
+        if (!claim) {
+          expect.fail('expected claim')
+        }
+        yield* delivery.abandon(request.id)
+        expect((yield* delivery.get(request.id))?.reason).toBe('no_longer_relevant')
+        expect(yield* delivery.claim(request)).toBeNull()
+        yield* delivery.recordOutcome(request.id, claim.token, {
+          status: 'accepted',
+          providerMessageId: 'accepted-during-cancel'
+        })
+        yield* delivery.abandon(request.id)
+        expect((yield* delivery.get(request.id))?.status).toBe('accepted')
+        const failed = yield* delivery.claim(input('cancelled-transient'))
+        if (!failed) {
+          expect.fail('expected claim')
+        }
+        yield* delivery.recordOutcome('cancelled-transient', failed.token, {
+          status: 'temporary_failure',
+          reason: 'transport_unavailable'
+        })
+        yield* delivery.abandon('cancelled-transient')
+        expect((yield* delivery.get('cancelled-transient'))?.reason).toBe(
+          'no_longer_relevant'
+        )
+      })
+    },
+    {
+      name: 'AC3: tracked attempts preserve typed failures and never call the transport after acceptance',
+      assert: Effect.gen(function* () {
+        const delivery = yield* EmailDelivery
+        const calls = yield* Ref.make(0)
+        const attempt = Ref.update(calls, (count) => count + 1).pipe(
+          Effect.as({
+            status: 'accepted',
+            providerMessageId: 'tracked-provider'
+          } satisfies SendOutcome)
+        )
+        expect(
+          yield* delivery.trackedAttempt(input('tracked'), attempt, () => ({
+            status: 'failed',
+            reason: 'provider_rejected'
+          }))
+        ).toEqual({ status: 'accepted' })
+        expect(
+          yield* delivery.trackedAttempt(input('tracked'), attempt, () => ({
+            status: 'failed',
+            reason: 'provider_rejected'
+          }))
+        ).toEqual({ status: 'skipped' })
+        expect(yield* Ref.get(calls)).toBe(1)
+        const failure = yield* delivery
+          .trackedAttempt(input('tracked-failure'), Effect.fail('try-later'), () => ({
+            status: 'temporary_failure',
+            reason: 'transport_unavailable'
+          }))
+          .pipe(Effect.flip)
+        expect(failure).toBe('try-later')
+        expect((yield* delivery.get('tracked-failure'))?.status).toBe(
+          'temporary_failure'
+        )
+      })
+    },
+    {
+      name: 'AC3: a complaint strengthens an existing failure and cannot be overwritten by weaker evidence',
+      assert: Effect.gen(function* () {
+        const delivery = yield* EmailDelivery
+        const claim = yield* delivery.claim(input('complaint-precedence'))
+        if (!claim) {
+          expect.fail('expected claim')
+        }
+        yield* delivery.recordOutcome('complaint-precedence', claim.token, {
+          status: 'accepted',
+          providerMessageId: 'complaint-provider'
+        })
+        const event = {
+          messageId: 'complaint-provider',
+          recipient: 'owner@live.test',
+          status: 'failed',
+          reason: 'temporary_failure',
+          occurredAt: '2026-09-07T00:00:00Z',
+          eventId: 'temporary-failed'
+        } satisfies EmailProviderEvent
+        expect(yield* delivery.applyProviderEvent(event)).toBe('updated')
+        const complaint = {
+          ...event,
+          reason: 'complaint',
+          eventId: 'strong-complaint'
+        } satisfies EmailProviderEvent
+        expect(yield* delivery.applyProviderEvent(complaint)).toBe('updated')
+        expect((yield* delivery.get('complaint-precedence'))?.reason).toBe('complaint')
+        expect(yield* delivery.applyProviderEvent(complaint)).toBe('ignored')
+        expect(
+          yield* delivery.applyProviderEvent({
+            ...event,
+            reason: 'hard_bounce',
+            eventId: 'weaker-bounce'
+          })
+        ).toBe('ignored')
+        expect(
+          yield* delivery.applyProviderEvent({
+            ...event,
+            status: 'delivered',
+            eventId: 'late-delivery'
+          })
+        ).toBe('ignored')
+        expect((yield* delivery.get('complaint-precedence'))?.reason).toBe('complaint')
+      })
+    },
+    {
+      name: 'AC6: one retention pass drains more than one page in each evidence category',
+      assert: Effect.gen(function* () {
+        const delivery = yield* EmailDelivery
+        for (let index = 0; index < 251; index++) {
+          for (const purpose of ['normal', 'unresolved']) {
+            const request = input(`retention-backlog-${purpose}-${index}`)
+            const claim = yield* delivery.claim(request)
+            if (!claim) {
+              expect.fail('expected retention fixture claim')
+            }
+            let outcome: SendOutcome = { status: 'logged' }
+            if (purpose === 'unresolved') {
+              outcome = { status: 'failed', reason: 'provider_rejected' }
+            }
+            yield* delivery.recordOutcome(request.id, claim.token, outcome)
+          }
+        }
+        yield* TestClock.adjust('90 days')
+        expect(yield* delivery.prune()).toBeGreaterThanOrEqual(502)
+        expect(yield* delivery.get('retention-backlog-normal-250')).toBeNull()
+        expect(yield* delivery.get('retention-backlog-unresolved-250')).toBeNull()
+        expect(yield* delivery.prune()).toBe(0)
+      })
+    },
     {
       name: 'AC1: invitation reads exclude personal recovery and another workspace, with safe resend policy',
       assert: Effect.gen(function* () {

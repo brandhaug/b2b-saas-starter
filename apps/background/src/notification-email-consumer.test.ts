@@ -180,8 +180,11 @@ describe('processNotificationEmailMessage', () => {
 
   it.effect('surfaces a send failure so the queue retries', () =>
     Effect.gen(function* () {
-      const error = yield* Effect.flip(run(context, message, { fail: true }))
-      expect(error._tag).toBe('EmailSendError')
+      const result = yield* run(context, message, { fail: true })
+      expect(result).toEqual({
+        outcome: { retryAfterSeconds: 60 },
+        sent: []
+      })
     })
   )
 
@@ -226,15 +229,13 @@ describe('processNotificationEmailMessage', () => {
     Effect.gen(function* () {
       const sent: Array<EmailMessage> = []
       const preferences = yield* NotificationPreferences
-      const first = yield* Effect.result(
-        processNotificationEmailMessage(
-          readDelivery(NotificationEmailQueueMessage, {
-            id: 'q1',
-            body: message,
-            attempts: 1
-          }),
-          'https://app.test'
-        )
+      const first = yield* processNotificationEmailMessage(
+        readDelivery(NotificationEmailQueueMessage, {
+          id: 'q1',
+          body: message,
+          attempts: 1
+        }),
+        'https://app.test'
       )
       yield* preferences.set({
         userId: 'usr_owner',
@@ -249,7 +250,7 @@ describe('processNotificationEmailMessage', () => {
         }),
         'https://app.test'
       )
-      expect(first._tag).toBe('Failure')
+      expect(first).toEqual({ retryAfterSeconds: 60 })
       expect(second).toBe('ack')
       expect(sent).toHaveLength(0)
     }).pipe(
@@ -264,12 +265,13 @@ describe('processNotificationEmailMessage', () => {
     )
   )
 
-  it.effect('does not retry a transient notification after its 24-hour window', () =>
-    Effect.gen(function* () {
-      yield* TestClock.setTime(Date.UTC(2026, 8, 3, 8, 0, 0))
-      const sent: Array<EmailMessage> = []
-      const first = yield* Effect.result(
-        processNotificationEmailMessage(
+  it.effect(
+    'schedules transient notification retries until the 24-hour window expires',
+    () =>
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.UTC(2026, 8, 2, 10, 0, 0))
+        const sent: Array<EmailMessage> = []
+        let outcome = yield* processNotificationEmailMessage(
           readDelivery(NotificationEmailQueueMessage, {
             id: 'q1',
             body: message,
@@ -277,29 +279,33 @@ describe('processNotificationEmailMessage', () => {
           }),
           'https://app.test'
         )
-      )
-      yield* TestClock.adjust(Duration.hours(25))
-      const second = yield* processNotificationEmailMessage(
-        readDelivery(NotificationEmailQueueMessage, {
-          id: 'q1',
-          body: message,
-          attempts: 2
-        }),
-        'https://app.test'
-      )
-      expect(first._tag).toBe('Failure')
-      expect(second).toBe('ack')
-      expect(sent).toHaveLength(0)
-    }).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          stubFeed(context),
-          SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
-          stubDispatcher([], true),
-          SeedEmailDelivery()
+        let attempt = 1
+        while (outcome !== 'ack' && outcome !== 'retry') {
+          yield* TestClock.adjust(Duration.seconds(outcome.retryAfterSeconds))
+          attempt += 1
+          outcome = yield* processNotificationEmailMessage(
+            readDelivery(NotificationEmailQueueMessage, {
+              id: 'q1',
+              body: message,
+              attempts: attempt
+            }),
+            'https://app.test'
+          )
+        }
+        expect(outcome).toBe('ack')
+        expect(attempt).toBeGreaterThan(1)
+        expect(attempt).toBeLessThan(300)
+        expect(sent).toHaveLength(0)
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            stubFeed(context),
+            SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
+            stubDispatcher([], true),
+            SeedEmailDelivery()
+          )
         )
       )
-    )
   )
 })
 

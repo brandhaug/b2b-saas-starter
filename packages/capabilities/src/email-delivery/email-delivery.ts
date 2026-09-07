@@ -58,12 +58,22 @@ export const EmailProviderEvent = Schema.Struct({
 export type EmailProviderEvent = typeof EmailProviderEvent.Type
 type Result<A> = Effect.Effect<A, CapabilityUnavailable>
 export type EmailDeliveryInterface = {
+  readonly trackedAttempt: <A extends SendOutcome, E, R>(
+    input: ClaimEmail,
+    attempt: Effect.Effect<A, E, R>,
+    classifyFailure: (error: E) => SendOutcome
+  ) => Effect.Effect<
+    { readonly status: A['status'] | 'skipped' },
+    E | CapabilityUnavailable,
+    R
+  >
   readonly claim: (input: ClaimEmail) => Result<{ readonly token: string } | null>
   readonly recordOutcome: (
     id: string,
     token: string,
     outcome: SendOutcome
   ) => Result<void>
+  readonly abandon: (id: string) => Result<void>
   readonly applyProviderEvent: (
     event: EmailProviderEvent
   ) => Result<'updated' | 'ignored' | 'unmatched'>
@@ -107,7 +117,8 @@ export function canResendInvitation(record: EmailDeliveryRecord | null): boolean
     return true
   }
   return (
-    record.status !== 'suppressed' &&
+    record.acceptedAt === null &&
+    ['failed', 'temporary_failure', 'ambiguous'].includes(record.status) &&
     !['provider_rejected', 'hard_bounce', 'complaint', 'provider_suppressed'].includes(
       record.reason ?? ''
     )

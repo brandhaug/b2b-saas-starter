@@ -70,7 +70,11 @@ export async function sendInvitationHandler(
         role: input.role
       })
 
-      return yield* dispatchInvitation(invitation, ctx.workspace)
+      return yield* dispatchInvitation(
+        invitation,
+        ctx.workspace,
+        `invitation:${invitation.id}:0`
+      )
     }).pipe(Effect.provide(emailDispatcherLayer())),
     { userId: session.user.id },
     { invitationBinding: webInvitationBinding }
@@ -96,7 +100,8 @@ const limitInvitationSend = Effect.fn('Invitation.limitSend')(
 
 const dispatchInvitation = Effect.fn('Invitation.dispatch')(function* (
   invitation: Invitation,
-  workspace: { readonly id: string; readonly name: string }
+  workspace: { readonly id: string; readonly name: string },
+  deliveryId: string
 ) {
   const inviteUrl = `${requestOrigin()}/invitations/accept?invitation=${invitation.id}`
   const preferences = yield* AccountPreferencesService
@@ -107,7 +112,7 @@ const dispatchInvitation = Effect.fn('Invitation.dispatch')(function* (
   const result = yield* Effect.result(
     dispatchTrackedEmail(
       {
-        id: crypto.randomUUID(),
+        id: deliveryId,
         purpose: 'invitation',
         recipient: invitation.email,
         userId,
@@ -164,7 +169,19 @@ export async function resendInvitationHandler(
         )
       }
       const ctx = yield* WorkspaceContext
-      return yield* dispatchInvitation(invitation, ctx.workspace)
+      // Concurrent requests that observed the same failure claim the same next
+      // message. Hashing keeps the ID bounded across repeated manual retries.
+      let deliveryId = `invitation:${invitation.id}:0`
+      if (latest !== null) {
+        const digest = yield* Effect.promise(() =>
+          crypto.subtle.digest('SHA-256', new TextEncoder().encode(latest.id))
+        )
+        const digestId = Array.from(new Uint8Array(digest), (byte) =>
+          byte.toString(16).padStart(2, '0')
+        ).join('')
+        deliveryId = `invitation:${invitation.id}:retry:${digestId}`
+      }
+      return yield* dispatchInvitation(invitation, ctx.workspace, deliveryId)
     }).pipe(Effect.provide(emailDispatcherLayer())),
     { userId: session.user.id }
   )

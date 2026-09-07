@@ -15,6 +15,9 @@ pnpm run dev
 
 Open <http://localhost:3071>. The `.env` defaults work out of the box — optional providers (Stripe, Sentry, PostHog, Turnstile, email, AI) stay inactive until you fill in their variables. The [optional providers guide](../apps/web/content/docs/getting-started/optional-providers.mdx) covers each provider: exact variables, where the values come from, and how to verify activation.
 
+For transactional email, complete the [delivery-event setup and smoke test](email-delivery.md)
+after configuring the sender domain.
+
 ## Validation
 
 Install Chromium once, then run the final validation command:

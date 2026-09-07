@@ -1,6 +1,6 @@
 import { emailDeliveries, user } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
-import { and, desc, eq, inArray, lte, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lte, or, sql, type SQL } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
 import { orUnavailable } from '../internal/unavailable.ts'
 import { EmailDelivery } from './email-delivery.ts'
@@ -47,11 +47,15 @@ export const LiveEmailDelivery = Layer.effect(
         if (filter.statuses !== undefined) {
           conditions.push(inArray(emailDeliveries.status, [...filter.statuses]))
         }
+        let order = [desc(emailDeliveries.createdAt), desc(emailDeliveries.id)]
+        if (filter.createdBefore !== undefined) {
+          order = [asc(emailDeliveries.createdAt), asc(emailDeliveries.id)]
+        }
         return yield* db
           .select()
           .from(emailDeliveries)
           .where(and(...conditions))
-          .orderBy(desc(emailDeliveries.createdAt), desc(emailDeliveries.id))
+          .orderBy(...order)
           .limit(filter.limit ?? 100)
           .pipe(unavailable)
       }),

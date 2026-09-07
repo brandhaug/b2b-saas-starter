@@ -75,57 +75,36 @@ function isTrustedEvent(
   )
 }
 
-function providerStatus(
+type NormalizedProviderOutcome = Pick<EmailProviderEvent, 'status'> &
+  Partial<Pick<EmailProviderEvent, 'reason'>>
+
+function providerOutcome(
   event: CloudflareEmailSendingEvent
-): EmailProviderEvent['status'] | undefined {
+): NormalizedProviderOutcome | undefined {
   switch (event.type) {
     case 'cf.email.sending.message.delivered': {
-      return 'delivered'
+      return { status: 'delivered' }
     }
     case 'cf.email.sending.message.deferred': {
-      return 'delayed'
-    }
-    case 'cf.email.sending.message.bounced':
-    case 'cf.email.sending.message.failed':
-    case 'cf.email.sending.message.complained': {
-      return 'failed'
-    }
-    case 'cf.email.sending.message.rejected': {
-      if (event.payload.rejection?.reason === 'suppressed') {
-        return 'suppressed'
-      }
-      return 'failed'
-    }
-    default: {
-      return undefined
-    }
-  }
-}
-
-function providerReason(
-  event: CloudflareEmailSendingEvent
-): EmailProviderEvent['reason'] | undefined {
-  switch (event.type) {
-    case 'cf.email.sending.message.deferred': {
-      return 'temporary_failure'
+      return { status: 'delayed', reason: 'temporary_failure' }
     }
     case 'cf.email.sending.message.bounced': {
       if (event.payload.bounce?.type === 'hard') {
-        return 'hard_bounce'
+        return { status: 'failed', reason: 'hard_bounce' }
       }
-      return 'temporary_failure'
+      return { status: 'failed', reason: 'temporary_failure' }
     }
     case 'cf.email.sending.message.failed': {
-      return 'provider_rejected'
+      return { status: 'failed', reason: 'provider_rejected' }
     }
     case 'cf.email.sending.message.rejected': {
       if (event.payload.rejection?.reason === 'suppressed') {
-        return 'provider_suppressed'
+        return { status: 'suppressed', reason: 'provider_suppressed' }
       }
-      return 'provider_rejected'
+      return { status: 'failed', reason: 'provider_rejected' }
     }
     case 'cf.email.sending.message.complained': {
-      return 'complaint'
+      return { status: 'failed', reason: 'complaint' }
     }
     default: {
       return undefined
@@ -135,20 +114,19 @@ function providerReason(
 
 function toProviderEvent(
   event: CloudflareEmailSendingEvent,
-  status: EmailProviderEvent['status']
+  outcome: NormalizedProviderOutcome
 ): EmailProviderEvent {
-  const reason = providerReason(event)
   const base = {
     eventId: event.payload.eventId,
     messageId: event.payload.messageId,
     recipient: normalized(event.payload.recipient),
-    status,
+    status: outcome.status,
     occurredAt: event.metadata.eventTimestamp
   }
-  if (reason === undefined) {
+  if (outcome.reason === undefined) {
     return base
   }
-  return { ...base, reason }
+  return { ...base, reason: outcome.reason }
 }
 
 /**
@@ -182,8 +160,8 @@ export function processEmailEventMessage(
     }
 
     const event = delivery.message
-    const status = providerStatus(event)
-    if (status === undefined) {
+    const outcome = providerOutcome(event)
+    if (outcome === undefined) {
       yield* Effect.annotateLogsScoped({
         outcome: 'skipped',
         skipReason: 'unsupported_event'
@@ -202,15 +180,15 @@ export function processEmailEventMessage(
 
     const emailDelivery = yield* EmailDelivery
     const applied = yield* emailDelivery.applyProviderEvent(
-      toProviderEvent(event, status)
+      toProviderEvent(event, outcome)
     )
     if (applied === 'updated') {
-      yield* Effect.annotateLogsScoped({ outcome: 'applied', status })
-      yield* recordEventMetric(status)
+      yield* Effect.annotateLogsScoped({ outcome: 'applied', status: outcome.status })
+      yield* recordEventMetric(outcome.status)
       return 'ack' satisfies DeliveryOutcome
     }
     if (applied === 'ignored') {
-      yield* Effect.annotateLogsScoped({ outcome: 'ignored', status })
+      yield* Effect.annotateLogsScoped({ outcome: 'ignored', status: outcome.status })
       yield* recordEventMetric('ignored')
       return 'ack' satisfies DeliveryOutcome
     }

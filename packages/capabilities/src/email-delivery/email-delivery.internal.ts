@@ -1,4 +1,4 @@
-import { Clock, DateTime, Effect } from 'effect'
+import { Clock, DateTime, Effect, Metric } from 'effect'
 import { randomHex } from '../crypto.ts'
 import { CapabilityUnavailable } from '../errors.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -43,6 +43,7 @@ export type DeliveryStore = {
 }
 const hour = 3_600_000
 const lease = 5 * 60_000
+const outcomes = Metric.counter('starter.email.send.outcomes')
 function iso(time: number) {
   return DateTime.formatIso(DateTime.makeUnsafe(time))
 }
@@ -65,6 +66,21 @@ function retryDuration(purpose: ClaimEmail['purpose']) {
   }
   if (purpose === 'digest') {
     return 6 * hour
+  }
+  return 0
+}
+function reasonRank(reason: string | null): number {
+  if (reason === 'complaint') {
+    return 4
+  }
+  if (reason === 'hard_bounce') {
+    return 3
+  }
+  if (reason === 'provider_suppressed') {
+    return 2
+  }
+  if (reason === 'provider_rejected') {
+    return 1
   }
   return 0
 }
@@ -164,7 +180,16 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     // A competing event wins the CAS; retry against that event without regressing it.
     for (let attempt = 0; attempt < 8; attempt++) {
       const old = yield* store.get(id)
-      if (!old || old.token !== token || terminal(old)) {
+      if (!old) {
+        return
+      }
+      if (old.acceptedAt !== null || old.status === 'logged') {
+        return
+      }
+      // A late transport receipt proves submission even after another claim took
+      // the lease. Only failed/ambiguous outcomes remain fenced to their attempt.
+      const confirmed = outcome.status === 'accepted' || outcome.status === 'logged'
+      if (!confirmed && (old.token !== token || terminal(old))) {
         return
       }
       const now = yield* Clock.currentTimeMillis
@@ -172,7 +197,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
       if (status === 'temporary_failure' && retryDuration(old.purpose) === 0) {
         status = 'failed'
       }
-      let acceptedAt = old.acceptedAt
+      let acceptedAt: string | null = old.acceptedAt
       let providerMessageId = old.providerMessageId
       let reason: string | null = null
       let delay = Math.min(hour, 60_000 * 2 ** Math.min(old.attemptCount - 1, 6))
@@ -195,7 +220,10 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
         acceptedAt,
         providerMessageId,
         reason,
-        uncertain: old.uncertain || outcome.status === 'ambiguous',
+        uncertain:
+          old.uncertain ||
+          outcome.status === 'ambiguous' ||
+          (confirmed && old.token !== token),
         nextAttemptAt: iso(now + delay)
       }
       if (yield* store.put(row, old.revision)) {
@@ -237,7 +265,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
         failed: 4,
         suppressed: 5
       }
-      if (rank[event.status] <= rank[old.status]) {
+      if (rank[event.status] < rank[old.status]) {
         return 'ignored'
       }
       const now = yield* Clock.currentTimeMillis
@@ -247,6 +275,15 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
       }
       if (reason === null && event.status === 'suppressed') {
         reason = 'provider_suppressed'
+      }
+      if (
+        rank[event.status] === rank[old.status] &&
+        reasonRank(reason) <= reasonRank(old.reason)
+      ) {
+        return 'ignored'
+      }
+      if (reasonRank(old.reason) > reasonRank(reason)) {
+        reason = old.reason
       }
       const row: StoredDelivery = {
         ...old,
@@ -266,6 +303,35 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
       new CapabilityUnavailable({
         capability: 'EmailDelivery',
         reason: 'Concurrent delivery events exhausted the persistence attempt limit'
+      })
+    )
+  })
+  const abandon = Effect.fn('EmailDelivery.abandon')(function* (id: string) {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const old = yield* store.get(id)
+      if (!old || terminal(old)) {
+        return
+      }
+      const now = yield* Clock.currentTimeMillis
+      if (
+        yield* store.put(
+          {
+            ...old,
+            status: 'failed',
+            reason: 'no_longer_relevant',
+            revision: old.revision + 1,
+            updatedAt: iso(now)
+          },
+          old.revision
+        )
+      ) {
+        return
+      }
+    }
+    return yield* Effect.fail(
+      new CapabilityUnavailable({
+        capability: 'EmailDelivery',
+        reason: 'Concurrent delivery updates prevented cancellation'
       })
     )
   })
@@ -308,21 +374,73 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
   })
   const prune = Effect.fn('EmailDelivery.prune')(function* () {
     const now = yield* Clock.currentTimeMillis
-    const normal = yield* store.list({
-      statuses: ['queued', 'accepted', 'delivered', 'logged'],
-      createdBefore: iso(now - 30 * 24 * hour),
-      limit: 250
-    })
-    const unresolved = yield* store.list({
-      statuses: ['failed', 'suppressed', 'ambiguous', 'temporary_failure', 'delayed'],
-      createdBefore: iso(now - 90 * 24 * hour),
-      limit: 250
-    })
-    return yield* store.remove([...normal, ...unresolved])
+    let removed = 0
+    let pageSize = 1
+    while (pageSize > 0) {
+      const normal = yield* store.list({
+        statuses: ['queued', 'accepted', 'delivered', 'logged'],
+        createdBefore: iso(now - 30 * 24 * hour),
+        limit: 250
+      })
+      const unresolved = yield* store.list({
+        statuses: ['failed', 'suppressed', 'ambiguous', 'temporary_failure', 'delayed'],
+        createdBefore: iso(now - 90 * 24 * hour),
+        limit: 250
+      })
+      const expired = [...normal, ...unresolved]
+      pageSize = expired.length
+      if (expired.length === 0) {
+        return removed
+      }
+      const changed = yield* store.remove(expired)
+      if (changed === 0) {
+        return yield* Effect.fail(
+          new CapabilityUnavailable({
+            capability: 'EmailDelivery',
+            reason: 'Concurrent delivery updates prevented retention progress'
+          })
+        )
+      }
+      removed += changed
+    }
+    return removed
+  })
+  const trackedAttempt: EmailDelivery['Service']['trackedAttempt'] = Effect.fn(
+    'EmailDelivery.trackedAttempt'
+  )(function* <A extends SendOutcome, E, R>(
+    input: ClaimEmail,
+    attempt: Effect.Effect<A, E, R>,
+    classifyFailure: (error: E) => SendOutcome
+  ) {
+    const claimed = yield* claim(input)
+    if (claimed === null) {
+      return { status: 'skipped' } satisfies { status: 'skipped' }
+    }
+    const token = claimed.token
+    function record(outcome: SendOutcome) {
+      return recordOutcome(input.id, token, outcome).pipe(
+        Effect.andThen(
+          Metric.update(
+            Metric.withAttributes(outcomes, {
+              purpose: input.purpose,
+              status: outcome.status
+            }),
+            1
+          )
+        )
+      )
+    }
+    const outcome = yield* attempt.pipe(
+      Effect.tapError((error) => record(classifyFailure(error)))
+    )
+    yield* record(outcome)
+    return { status: outcome.status }
   })
   return EmailDelivery.of({
+    trackedAttempt,
     claim,
     recordOutcome,
+    abandon,
     applyProviderEvent,
     get,
     listForUser,

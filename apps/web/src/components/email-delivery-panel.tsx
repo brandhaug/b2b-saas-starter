@@ -60,6 +60,56 @@ function purposeLabel(purpose: EmailDeliveryRow['purpose']) {
   }
 }
 
+function failureReason(reason: string | null) {
+  switch (reason) {
+    case null: {
+      return null
+    }
+    case 'hard_bounce': {
+      return m.email_delivery_reason_hard_bounce()
+    }
+    case 'complaint': {
+      return m.email_delivery_reason_complaint()
+    }
+    case 'provider_suppressed': {
+      return m.email_delivery_reason_suppressed()
+    }
+    case 'provider_rejected': {
+      return m.email_delivery_reason_rejected()
+    }
+    case 'temporary_failure': {
+      return m.email_delivery_reason_temporary()
+    }
+    case 'transport_unavailable': {
+      return m.email_delivery_reason_unavailable()
+    }
+    case 'timeout': {
+      return m.email_delivery_reason_timeout()
+    }
+    case 'retry_window_expired': {
+      return m.email_delivery_reason_expired()
+    }
+    case 'no_longer_relevant': {
+      return m.email_delivery_reason_irrelevant()
+    }
+    default: {
+      return null
+    }
+  }
+}
+
+function DeliveryStatus({ record }: { readonly record: EmailDeliveryRow }) {
+  const reason = failureReason(record.reason)
+  return (
+    <div className="grid gap-1">
+      <span>{deliveryStatus(record)}</span>
+      {reason === null ? null : (
+        <span className="text-sm text-muted-foreground">{reason}</span>
+      )}
+    </div>
+  )
+}
+
 function deliveryColumns(): Array<DataTableColumnDef<EmailDeliveryRow>> {
   return [
     {
@@ -80,7 +130,7 @@ function deliveryColumns(): Array<DataTableColumnDef<EmailDeliveryRow>> {
     {
       accessorKey: 'status',
       header: m.status(),
-      cell: ({ row }) => deliveryStatus(row.original)
+      cell: ({ row }) => <DeliveryStatus record={row.original} />
     },
     {
       accessorKey: 'updatedAt',

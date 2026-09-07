@@ -224,4 +224,58 @@ describe('processEmailEventMessage', () => {
       })
     )
   )
+
+  it.effect('lets a later complaint strengthen a prior soft-bounce outcome', () =>
+    withSeed(
+      Effect.gen(function* () {
+        const emailDelivery = yield* EmailDelivery
+        const claim = yield* emailDelivery.claim({
+          id: 'email_complaint',
+          purpose: 'notification',
+          recipient,
+          userId: 'usr_1',
+          workspaceId: null
+        })
+        expect(claim).not.toBeNull()
+        if (claim === null) {
+          return
+        }
+        yield* emailDelivery.recordOutcome('email_complaint', claim.token, {
+          status: 'accepted',
+          providerMessageId: 'msg_complaint'
+        })
+
+        const bounced = yield* processEmailEventMessage(
+          delivery(
+            event({
+              type: 'cf.email.sending.message.bounced',
+              eventId: 'evt_soft_bounce',
+              messageId: 'msg_complaint',
+              bounceType: 'soft'
+            })
+          ),
+          { CLOUDFLARE_EMAIL_FROM: from }
+        )
+        const complained = yield* processEmailEventMessage(
+          delivery(
+            event({
+              type: 'cf.email.sending.message.complained',
+              eventId: 'evt_complaint',
+              messageId: 'msg_complaint'
+            })
+          ),
+          { CLOUDFLARE_EMAIL_FROM: from }
+        )
+        const record = yield* emailDelivery.get('email_complaint')
+
+        expect(bounced).toBe('ack')
+        expect(complained).toBe('ack')
+        expect(record).toMatchObject({
+          status: 'failed',
+          reason: 'complaint',
+          lastEventId: 'evt_complaint'
+        })
+      })
+    )
+  )
 })

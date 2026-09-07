@@ -71,8 +71,8 @@ export class EmailSendError extends Schema.TaggedError<EmailSendError>()(
     message: Schema.String,
     to: Schema.String,
     subject: Schema.String,
-    /** Optional for compatibility with injected dispatcher implementations. */
-    failureKind: Schema.optional(EmailSendFailureKind),
+    /** Every send failure is classified before it leaves the transport. */
+    failureKind: EmailSendFailureKind,
     /** Cloudflare's stable error code, when the provider supplied one. */
     providerCode: Schema.optional(Schema.String)
   }

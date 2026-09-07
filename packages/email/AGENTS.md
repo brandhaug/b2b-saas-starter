@@ -11,11 +11,12 @@
 - `SendEmailBinding` is structural, not workers-types' `SendEmail`; both worker env declarations name it, so the shapes never assign.
 - `NOTIFICATION_EMAIL_TEMPLATES` is `satisfies`-pinned to `NotificationKind`: a new DB enum kind is a type error until a template exists. Never loosen it to an index signature.
 - Every template needs a `PreviewProps` static: the tests and react-email's preview server (`pnpm -C packages/email dev`) read it.
+- `./tracked` adapts dispatcher results and errors into sanitized outcomes for [`EmailDelivery.trackedAttempt`](../capabilities/src/email-delivery/email-delivery.AGENTS.md). The capability owns claims, persisted outcomes and metrics; keep that sequencing out of transport adapters.
 
 ## Usage Patterns
 
 - `apps/web/src/lib/server/auth-emails.ts` adapts Better Auth callbacks (`packages/auth` declares the `AuthEmailSender` port, unable to import this sibling) and selects the layer once per isolate; `apps/background` per invocation (ADR 0061).
-- Send failures are the caller's: invitations downgrade to `delivered: false`, auth callbacks propagate.
+- Send receipts distinguish local logging from provider acceptance. Neither proves recipient-server delivery; only correlated provider events do. Auth callbacks propagate failures, while invitation callers return sanitized send status.
 - Log mode logs the rendered text in full: a flow that emails a link is unfinishable if the log drops it.
 
 ## Anti-patterns

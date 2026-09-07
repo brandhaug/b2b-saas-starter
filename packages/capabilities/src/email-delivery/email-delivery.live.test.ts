@@ -6,6 +6,9 @@ import { LIVE_SUITE_TIMEOUT, TestDatabase } from '../testing/live-harness.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live email delivery', (it) => {
   for (const test of emailDeliveryContractCases(expect)) {
-    it.effect(test.name, () => test.assert.pipe(Effect.provide(LiveEmailDelivery)))
+    // The retention contract creates 502 messages through the public capability.
+    it.effect(test.name, () => test.assert.pipe(Effect.provide(LiveEmailDelivery)), {
+      timeout: 30_000
+    })
   }
 })

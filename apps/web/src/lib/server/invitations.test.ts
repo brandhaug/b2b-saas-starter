@@ -83,7 +83,8 @@ vi.mock('./auth-emails', async (importOriginal) => ({
             new EmailSendError({
               message: 'provider_rejected',
               to: message.to,
-              subject: message.subject
+              subject: message.subject,
+              failureKind: 'permanent'
             })
           )
         }

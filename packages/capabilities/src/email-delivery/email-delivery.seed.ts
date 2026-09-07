@@ -17,6 +17,10 @@ export function SeedEmailDelivery(
       ),
       list: Effect.fn('SeedEmailDelivery.list')((filter) => {
         const statuses = new Set(filter.statuses)
+        let direction = -1
+        if (filter.createdBefore !== undefined) {
+          direction = 1
+        }
         return Effect.sync(() =>
           [...rows.values()]
             .filter(
@@ -37,7 +41,8 @@ export function SeedEmailDelivery(
             )
             .toSorted(
               (a, b) =>
-                b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)
+                direction *
+                (a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
             )
             .slice(0, filter.limit ?? 100)
         )

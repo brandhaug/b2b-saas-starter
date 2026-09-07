@@ -161,8 +161,8 @@ export const emailEventsConsumerSettings: QueueConsumerSettings = {
   retryDelay: 60
 }
 
-// Retry the same daily window for six hours after the 08:00 digest.
-export const notificationDigestRetryCron = '*/15 8-13 * * *'
+// The 14:00 hour also settles expired attempts; claims stop sending at 14:00.
+export const notificationDigestRetryCron = '*/15 8-14 * * *'
 
 /**
  * The daily digest schedule (ADR 0061): 08:00 UTC, one `scheduled` invocation
