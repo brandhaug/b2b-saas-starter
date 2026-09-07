@@ -12,6 +12,8 @@ import {
   billingDeadLetterQueueName,
   billingReconciliationCron,
   notificationDigestCron,
+  notificationDigestRetryCron,
+  emailEventsQueueName,
   notificationEmailQueueName,
   webhookDeadLetterQueueName,
   workspaceExportQueueName
@@ -20,6 +22,8 @@ import { buildWorkspaceExport } from './export-consumer.ts'
 import { sendDailyDigest } from './notification-digest.ts'
 import { reconcileBillingEffect } from './billing-reconciliation.ts'
 import { sendNotificationEmail } from './notification-email-consumer.ts'
+import { consumeEmailEvent } from './email-events-consumer.ts'
+import { cleanEmailHistory } from './email-retention.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
 import { deliverSeatSync } from './seat-sync-consumer.ts'
 import { recoverBillingDeadLetter } from './billing-dead-letter-consumer.ts'
@@ -43,6 +47,12 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
   // `dead_lettered` evidence is not lost to a store blip.
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     wireWideEventProviders(env)
+    if (
+      batch.queue === emailEventsQueueName ||
+      /^b2b-saas-starter-[a-z0-9_-]+-email-events$/.test(batch.queue)
+    ) {
+      return consumeBatch(env, batch, (message) => consumeEmailEvent(message, env))
+    }
     if (batch.queue === webhookDeadLetterQueueName) {
       return consumeBatch(env, batch, (message) => recordDeadLetter(message, env))
     }
@@ -77,7 +87,14 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
     if (daily) {
       effects = [
         Effect.asVoid(sendDailyDigest(env, controller.scheduledTime)),
-        cleanWebhookHistory(env, controller.scheduledTime)
+        cleanWebhookHistory(env, controller.scheduledTime),
+        cleanEmailHistory(env, controller.scheduledTime)
+      ]
+    }
+    if (controller.cron === notificationDigestRetryCron) {
+      effects = [
+        ...effects,
+        Effect.asVoid(sendDailyDigest(env, controller.scheduledTime))
       ]
     }
     if (reconciliation) {

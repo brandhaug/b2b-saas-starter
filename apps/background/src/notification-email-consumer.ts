@@ -11,11 +11,13 @@ import { notificationKindLabel } from '@b2b-saas-starter/capabilities/notificati
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import {
-  EmailDispatcher,
+  type EmailDispatcher,
   selectEmailDispatcherLayer,
   type EmailSendError
 } from '@b2b-saas-starter/email'
 import { notificationEmailFor } from '@b2b-saas-starter/email/notification-emails'
+import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
+import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
 import { Effect, Layer, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
@@ -47,7 +49,11 @@ export function processNotificationEmailMessage(
 ): Effect.Effect<
   DeliveryOutcome,
   CapabilityUnavailable | EmailSendError,
-  NotificationFeed | NotificationPreferences | EmailDispatcher | Scope.Scope
+  | NotificationFeed
+  | NotificationPreferences
+  | EmailDispatcher
+  | EmailDelivery
+  | Scope.Scope
 > {
   return Effect.gen(function* () {
     if (delivery.kind === 'malformed') {
@@ -79,7 +85,6 @@ export function processNotificationEmailMessage(
       })
       return ack
     }
-    const dispatcher = yield* EmailDispatcher
     const locale: Locale = context.recipient.locale ?? DEFAULT_LOCALE
     const kindLabel = notificationKindLabel(kind, locale)
     const copy = renderNotificationCopy(
@@ -88,8 +93,18 @@ export function processNotificationEmailMessage(
       context.recipient.timeZone ?? 'UTC'
     )
     const workspaceName = context.workspace?.name ?? null
-    yield* dispatcher
-      .send({
+    const messageId = `notification:${notificationId}:${recipientUserId}`
+    yield* dispatchTrackedEmail(
+      {
+        id: messageId,
+        purpose: 'notification',
+        recipient: context.recipient.email,
+        userId: recipientUserId,
+        workspaceId: null,
+        referenceId: notificationId,
+        queuedAt: context.notification.createdAt
+      },
+      {
         to: context.recipient.email,
         subject: m.backend_email_subject_notification(
           { kindLabel, title: copy.title },
@@ -104,22 +119,39 @@ export function processNotificationEmailMessage(
           preferencesUrl: preferencesUrl(appUrl, kind),
           locale
         })
+      }
+    ).pipe(
+      // A render failure is a deterministic template bug: redelivery can
+      // never fix it and this queue has no DLQ, so an identical retry would
+      // burn every attempt and drop the email silently. Terminal like a
+      // malformed body — annotate the wide event and ack. A send failure
+      // keeps its error channel and rides the queue's backoff.
+      Effect.catchTag('EmailRenderError', () =>
+        Effect.annotateLogsScoped({
+          outcome: 'skipped',
+          skipReason: 'render_failed',
+          renderError: 'template_failed'
+        }).pipe(Effect.as(ack))
+      ),
+      Effect.catchTag('EmailSendError', (error) => {
+        if (error.failureKind === 'permanent' || error.failureKind === 'suppressed') {
+          return Effect.succeed(ack)
+        }
+        return Effect.fail(error)
       })
-      .pipe(
-        // A render failure is a deterministic template bug: redelivery can
-        // never fix it and this queue has no DLQ, so an identical retry would
-        // burn every attempt and drop the email silently. Terminal like a
-        // malformed body — annotate the wide event and ack. A send failure
-        // keeps its error channel and rides the queue's backoff.
-        Effect.catchTag('EmailRenderError', (error) =>
-          Effect.annotateLogsScoped({
-            outcome: 'skipped',
-            skipReason: 'render_failed',
-            renderError: error.message
-          }).pipe(Effect.as(ack))
-        )
-      )
-    yield* Effect.annotateLogsScoped({ outcome: 'sent' })
+    )
+    const history = yield* EmailDelivery
+    const record = yield* history.get(messageId)
+    // A concurrent attempt or an ambiguous send keeps its queue message alive
+    // until the capability's lease/backoff permits the next bounded attempt.
+    if (
+      record &&
+      ['queued', 'temporary_failure', 'ambiguous'].includes(record.status)
+    ) {
+      yield* Effect.annotateLogsScoped({ outcome: 'retry_pending' })
+      return 'retry'
+    }
+    yield* Effect.annotateLogsScoped({ outcome: record?.status ?? 'skipped' })
     return ack
   })
 }

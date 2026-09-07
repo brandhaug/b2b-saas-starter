@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { InvitationPanel } from '@/components/invitation-panel'
+import { EmailDeliveryPanel } from '@/components/email-delivery-panel'
 import { MembersPanel } from '@/components/members-panel'
 import { PageHeader } from '@/components/page/page-header'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
@@ -77,7 +78,11 @@ export function WorkspaceMembersPage({
           workspaceSlug={workspaceSlug}
           viewer={viewer}
           invitations={invitations}
+          emailDeliveries={data.emailDeliveries ?? []}
         />
+      )}
+      {data.emailDeliveries === null ? null : (
+        <EmailDeliveryPanel records={data.emailDeliveries} />
       )}
     </WorkspaceShell>
   )

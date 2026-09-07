@@ -144,12 +144,25 @@ export const billingConsumerSettings: QueueConsumerSettings = {
  * Instant notification emails: one message per (Notification, recipient) whose
  * channel preference is `instant`. Produced by the web and API workers (any
  * surface that creates a Notification) and consumed by the background worker,
- * which renders and sends the email. No dead-letter queue on purpose: a
- * message that exhausts its retries is dropped, and the recipient still sees
- * the Notification in the feed and, when they take the digest, in the next
- * digest email.
+ * which renders and sends the email. Durable delivery records preserve send
+ * outcomes; the capability stops retries after 24 hours or provider acceptance.
  */
 export const notificationEmailQueueName = 'b2b-saas-starter-notification-emails'
+
+// Only Cloudflare Email Sending subscriptions produce onto this queue.
+// No application Worker receives a producer binding.
+export const emailEventsQueueName = 'b2b-saas-starter-email-events'
+export const emailEventsDeadLetterQueueName = 'b2b-saas-starter-email-events-dlq'
+export const emailEventsConsumerSettings: QueueConsumerSettings = {
+  batchSize: 10,
+  maxConcurrency: 2,
+  maxRetries: 12,
+  maxWaitTimeMs: 5000,
+  retryDelay: 60
+}
+
+// Retry the same daily window for six hours after the 08:00 digest.
+export const notificationDigestRetryCron = '*/15 8-13 * * *'
 
 /**
  * The daily digest schedule (ADR 0061): 08:00 UTC, one `scheduled` invocation
@@ -366,6 +379,8 @@ export type StageResourceNames = {
   readonly workspaceExportQueue: string
   readonly workspaceExportBucket: string
   readonly notificationEmailQueue: string
+  readonly emailEventsQueue: string
+  readonly emailEventsDeadLetterQueue: string
   readonly worker: (app: WorkerApp) => string
 }
 
@@ -386,6 +401,8 @@ export function stageResourceNames(stage: string): StageResourceNames {
       workspaceExportQueue: workspaceExportQueueName,
       workspaceExportBucket: workspaceExportBucketName,
       notificationEmailQueue: notificationEmailQueueName,
+      emailEventsQueue: emailEventsQueueName,
+      emailEventsDeadLetterQueue: emailEventsDeadLetterQueueName,
       worker: (app) => `b2b-saas-starter-${app}`
     }
   }
@@ -400,6 +417,8 @@ export function stageResourceNames(stage: string): StageResourceNames {
     workspaceExportQueue: `${prefix}-workspace-exports`,
     workspaceExportBucket: `${prefix}-workspace-exports`,
     notificationEmailQueue: `${prefix}-notification-emails`,
+    emailEventsQueue: `${prefix}-email-events`,
+    emailEventsDeadLetterQueue: `${prefix}-email-events-dlq`,
     worker: (app) => `${prefix}-${app}`
   }
 }
@@ -449,6 +468,6 @@ export const workspaceExportConsumerSettings: QueueConsumerSettings = {
 export const notificationEmailConsumerSettings: QueueConsumerSettings = {
   batchSize: 10,
   maxConcurrency: 2,
-  maxRetries: 3,
+  maxRetries: 100,
   maxWaitTimeMs: 5000
 }

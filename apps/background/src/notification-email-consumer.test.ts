@@ -4,18 +4,22 @@ import {
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { NotificationEmailQueueMessage } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import {
+  NotificationPreferences,
   SeedNotificationPreferences,
   type SeedNotificationPreference
 } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { SeedEmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery.seed'
 import {
   EmailDispatcher,
+  type EmailDeliveryResult,
   EmailSendError,
   type EmailMessage
 } from '@b2b-saas-starter/email'
 import { render } from '@react-email/render'
 import { describe, expect, it } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
+import { Duration, Effect, Layer } from 'effect'
+import { TestClock } from 'effect/testing'
 
 import { processNotificationEmailMessage } from './notification-email-consumer.ts'
 import { readDelivery } from './queue-consumer.ts'
@@ -53,7 +57,8 @@ function stubFeed(
 
 function stubDispatcher(
   sent: Array<EmailMessage>,
-  fail = false
+  fail = false,
+  providerAccepted = false
 ): Layer.Layer<EmailDispatcher> {
   return Layer.succeed(EmailDispatcher)({
     send: (message) => {
@@ -62,13 +67,26 @@ function stubDispatcher(
           new EmailSendError({
             message: 'boom',
             to: message.to,
-            subject: message.subject
+            subject: message.subject,
+            failureKind: 'transient'
           })
         )
       }
       return Effect.sync(() => {
         sent.push(message)
-        return { mode: 'log', to: message.to, subject: message.subject }
+        if (providerAccepted) {
+          return {
+            mode: 'cloudflare-email',
+            to: message.to,
+            subject: message.subject,
+            providerMessageId: 'provider_notification_1'
+          } satisfies EmailDeliveryResult
+        }
+        return {
+          mode: 'log',
+          to: message.to,
+          subject: message.subject
+        } satisfies EmailDeliveryResult
       })
     }
   })
@@ -103,7 +121,12 @@ function run(
     'https://app.test'
   ).pipe(
     Effect.provide(
-      Layer.mergeAll(stubFeed(found), preferences, stubDispatcher(sent, options.fail))
+      Layer.mergeAll(
+        stubFeed(found),
+        preferences,
+        stubDispatcher(sent, options.fail),
+        SeedEmailDelivery()
+      )
     ),
     Effect.map((outcome) => ({ outcome, sent }))
   )
@@ -160,6 +183,123 @@ describe('processNotificationEmailMessage', () => {
       const error = yield* Effect.flip(run(context, message, { fail: true }))
       expect(error._tag).toBe('EmailSendError')
     })
+  )
+
+  it.effect(
+    'does not resend a provider-accepted notification on queue redelivery',
+    () => {
+      const sent: Array<EmailMessage> = []
+      return Effect.gen(function* () {
+        const first = yield* processNotificationEmailMessage(
+          readDelivery(NotificationEmailQueueMessage, {
+            id: 'q1',
+            body: message,
+            attempts: 1
+          }),
+          'https://app.test'
+        )
+        const second = yield* processNotificationEmailMessage(
+          readDelivery(NotificationEmailQueueMessage, {
+            id: 'q1',
+            body: message,
+            attempts: 2
+          }),
+          'https://app.test'
+        )
+        expect(first).toBe('ack')
+        expect(second).toBe('ack')
+        expect(sent).toHaveLength(1)
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            stubFeed(context),
+            SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
+            stubDispatcher(sent, false, true),
+            SeedEmailDelivery()
+          )
+        )
+      )
+    }
+  )
+
+  it.effect('rechecks preferences before retrying a transient failure', () =>
+    Effect.gen(function* () {
+      const sent: Array<EmailMessage> = []
+      const preferences = yield* NotificationPreferences
+      const first = yield* Effect.result(
+        processNotificationEmailMessage(
+          readDelivery(NotificationEmailQueueMessage, {
+            id: 'q1',
+            body: message,
+            attempts: 1
+          }),
+          'https://app.test'
+        )
+      )
+      yield* preferences.set({
+        userId: 'usr_owner',
+        kind: 'api_token.created',
+        channel: 'off'
+      })
+      const second = yield* processNotificationEmailMessage(
+        readDelivery(NotificationEmailQueueMessage, {
+          id: 'q1',
+          body: message,
+          attempts: 2
+        }),
+        'https://app.test'
+      )
+      expect(first._tag).toBe('Failure')
+      expect(second).toBe('ack')
+      expect(sent).toHaveLength(0)
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          stubFeed(context),
+          SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
+          stubDispatcher([], true),
+          SeedEmailDelivery()
+        )
+      )
+    )
+  )
+
+  it.effect('does not retry a transient notification after its 24-hour window', () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Date.UTC(2026, 8, 3, 8, 0, 0))
+      const sent: Array<EmailMessage> = []
+      const first = yield* Effect.result(
+        processNotificationEmailMessage(
+          readDelivery(NotificationEmailQueueMessage, {
+            id: 'q1',
+            body: message,
+            attempts: 1
+          }),
+          'https://app.test'
+        )
+      )
+      yield* TestClock.adjust(Duration.hours(25))
+      const second = yield* processNotificationEmailMessage(
+        readDelivery(NotificationEmailQueueMessage, {
+          id: 'q1',
+          body: message,
+          attempts: 2
+        }),
+        'https://app.test'
+      )
+      expect(first._tag).toBe('Failure')
+      expect(second).toBe('ack')
+      expect(sent).toHaveLength(0)
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          stubFeed(context),
+          SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
+          stubDispatcher([], true),
+          SeedEmailDelivery()
+        )
+      )
+    )
   )
 })
 

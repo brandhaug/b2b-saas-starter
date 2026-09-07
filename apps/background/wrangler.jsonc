@@ -78,8 +78,17 @@
         "queue": "b2b-saas-starter-notification-emails",
         "max_batch_size": 10,
         "max_batch_timeout": 5,
-        "max_retries": 3,
+        "max_retries": 100,
         "max_concurrency": 2
+      },
+      {
+        "queue": "b2b-saas-starter-email-events",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 12,
+        "max_concurrency": 2,
+        "retry_delay": 60,
+        "dead_letter_queue": "b2b-saas-starter-email-events-dlq"
       }
     ]
   },
@@ -90,7 +99,7 @@
     }
   ],
   "triggers": {
-    "crons": ["0 8 * * *", "* * * * *"]
+    "crons": ["0 8 * * *", "*/15 8-13 * * *", "* * * * *"]
   },
   "vars": {
     "BETTER_AUTH_URL": "http://localhost:3071"

@@ -47,6 +47,7 @@ describe('loadWorkspaceMembersHandler', () => {
     expect(payload.members.map((member) => member.id)).toContain('usr_dev')
     // An owner holds `invitation:create`, so the invitation list is real data.
     expect(payload.invitations).toBeInstanceOf(Array)
+    expect(payload.emailDeliveries).toBeInstanceOf(Array)
   })
 
   it('shows a plain member the roster but withholds the invitations', async () => {
@@ -57,6 +58,7 @@ describe('loadWorkspaceMembersHandler', () => {
     // Denied by the matrix — and denied server-side, so the invitation list
     // never reaches the serialized loader payload at all.
     expect(payload.invitations).toBeNull()
+    expect(payload.emailDeliveries).toBeNull()
   })
 })
 

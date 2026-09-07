@@ -3,9 +3,11 @@ import { render } from '@react-email/render'
 import { describe, expect, it, vi } from '@effect/vitest'
 import {
   EmailDispatcher,
+  EmailSendError,
   LogEmailDispatcherLayer,
   makeCloudflareEmailDispatcherLayer,
   type SendEmailBinding,
+  type SendEmailResult,
   type SendEmailBuilderArgs
 } from './index.ts'
 import {
@@ -39,8 +41,8 @@ describe('EmailDispatcher', () => {
   )
 
   it.effect('renders both html and text, then forwards to the binding', () => {
-    const send = vi.fn<(message: SendEmailBuilderArgs) => Promise<void>>(() =>
-      Promise.resolve()
+    const send = vi.fn<(message: SendEmailBuilderArgs) => Promise<SendEmailResult>>(
+      () => Promise.resolve({ messageId: 'cfmsg_123' })
     )
     const binding: SendEmailBinding = { send }
 
@@ -65,7 +67,51 @@ describe('EmailDispatcher', () => {
       expect(sent?.html).toContain('https://example.com/accept')
       expect(sent?.text?.toLowerCase()).toContain('acme')
       expect(result.mode).toBe('cloudflare-email')
+      expect(result.providerMessageId).toBe('cfmsg_123')
     }).pipe(Effect.provide(makeCloudflareEmailDispatcherLayer(binding)))
+  })
+
+  it.effect('classifies and sanitizes provider failures', () => {
+    const cases = [
+      { code: 'E_RECIPIENT_SUPPRESSED', kind: 'suppressed' },
+      { code: 'E_SENDER_NOT_VERIFIED', kind: 'permanent' },
+      { code: 'E_RATE_LIMIT_EXCEEDED', kind: 'transient' },
+      { code: undefined, kind: 'ambiguous' }
+    ] satisfies ReadonlyArray<{
+      readonly code: string | undefined
+      readonly kind: 'suppressed' | 'permanent' | 'transient' | 'ambiguous'
+    }>
+
+    return Effect.gen(function* () {
+      for (const { code, kind } of cases) {
+        function rejection() {
+          if (code === undefined) {
+            return Promise.reject(new Error('secret recipient and rendered body'))
+          }
+          return Promise.reject({ code, message: 'secret recipient and rendered body' })
+        }
+        const send = vi.fn(rejection)
+        const error = yield* Effect.flip(
+          Effect.gen(function* () {
+            const dispatcher = yield* EmailDispatcher
+            yield* dispatcher.send({
+              from: 'noreply@example.com',
+              to: 'user@example.com',
+              subject: 'Failure test',
+              element: WorkspaceInvitationEmail({
+                workspaceName: 'Acme',
+                inviteUrl: 'https://example.com/accept'
+              })
+            })
+          }).pipe(Effect.provide(makeCloudflareEmailDispatcherLayer({ send })))
+        )
+
+        expect(error).toBeInstanceOf(EmailSendError)
+        if (error._tag === 'EmailSendError') {
+          expect(error.failureKind).toBe(kind)
+        }
+      }
+    })
   })
 })
 
@@ -118,8 +164,8 @@ describe('OneTimeCodeEmail', () => {
 
 describe('MagicLinkEmail', () => {
   it.effect('renders html and text that both carry the sign-in link', () => {
-    const send = vi.fn<(message: SendEmailBuilderArgs) => Promise<void>>(() =>
-      Promise.resolve()
+    const send = vi.fn<(message: SendEmailBuilderArgs) => Promise<SendEmailResult>>(
+      () => Promise.resolve({ messageId: 'cfmsg_magic_link' })
     )
 
     return Effect.gen(function* () {

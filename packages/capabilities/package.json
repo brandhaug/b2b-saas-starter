@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./email-delivery/*": "./src/email-delivery/*.ts",
     "./billing/*": "./src/billing/*.ts",
     "./developer-platform/*": "./src/developer-platform/*.ts",
     "./governance/*": "./src/governance/*.ts",

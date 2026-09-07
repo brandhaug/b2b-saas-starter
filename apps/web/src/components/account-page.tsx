@@ -1,5 +1,6 @@
 import { LocalePreferences } from '@/components/locale-preferences'
 import { type ReactNode } from 'react'
+import { Link } from '@tanstack/react-router'
 import { DeleteAccountPanel } from '@/components/delete-account-panel'
 import { NotificationPreferencesPanel } from '@/components/notification-preferences-panel'
 import { TwoFactorPanel } from '@/components/two-factor-panel'
@@ -101,6 +102,12 @@ export function AccountPage({
           description={m.panel_email_notifications_description()}
         >
           <NotificationPreferencesPanel preferences={preferences} />
+          <Link
+            to="/account/notifications"
+            className="text-sm underline underline-offset-4"
+          >
+            {m.email_delivery_title()}
+          </Link>
         </Panel>
       )}
 

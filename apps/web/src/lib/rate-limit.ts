@@ -74,6 +74,7 @@ const AUTH_SIGN_IN_SUFFIXES = [
   // `/email-otp/request-password-reset` land here — the same reuse-by-suffix
   // the audit exchange table applies to this pair.
   '/request-password-reset',
+  '/send-verification-email',
   '/email-otp/reset-password'
 ]
 

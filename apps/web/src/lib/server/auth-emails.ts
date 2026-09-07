@@ -1,8 +1,13 @@
 import { type AuthEmailSender, type OneTimeCodePurpose } from '@b2b-saas-starter/auth'
 import { AccountPreferencesService } from '@b2b-saas-starter/capabilities/governance/account-preferences'
+import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
-import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
+import {
+  type EmailDispatcher,
+  selectEmailDispatcherLayer
+} from '@b2b-saas-starter/email'
 import {
   AccountDeletedEmail,
   BackupCodesRotatedEmail,
@@ -18,7 +23,6 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { Effect, type Layer } from 'effect'
 import { type ReactElement } from 'react'
 
-import { webRuntime } from '../observability'
 import { runCapabilities } from '../capabilities'
 
 /**
@@ -33,9 +37,8 @@ import { runCapabilities } from '../capabilities'
  * end to end locally without an email provider — the link or code lands in
  * the console log instead of an inbox.
  *
- * Unlike the invitation send, a send failure here is not downgraded to a
- * `delivered: false` result: Better Auth's endpoints have no honest "sent but
- * not really" response, so the rejection propagates and the endpoint fails.
+ * Auth send failures propagate to Better Auth after their sanitized outcome
+ * is recorded. Public recovery presentation still uses its generic response.
  * The log-mode dispatcher never fails; only a real, broken `EMAIL` binding
  * can, and failing loudly there is the honest behavior.
  */
@@ -68,20 +71,30 @@ function dispatch(input: {
   readonly to: string
   readonly subject: string
   readonly element: ReactElement
+  readonly purpose?: 'security' | 'recovery' | 'verification'
 }): Promise<void> {
-  const dispatcher = Effect.flatMap(EmailDispatcher, (service) =>
-    service.send({
-      from: '',
-      to: input.to,
-      subject: input.subject,
-      element: input.element
-    })
-  )
-  // `webRuntime`, like every other server run in this app: the dispatcher's
-  // own `email.dispatched` line then goes out through the app's console JSON
-  // logger instead of Effect's default one. A rejection still propagates — the
-  // auth endpoints have no honest "sent but not really" response.
-  return webRuntime.runPromise(
+  const dispatcher = Effect.gen(function* () {
+    const delivery = yield* EmailDelivery
+    const userId = yield* delivery.resolveUserId(input.to)
+    yield* dispatchTrackedEmail(
+      {
+        id: crypto.randomUUID(),
+        purpose: input.purpose ?? 'security',
+        recipient: input.to,
+        userId,
+        workspaceId: null
+      },
+      {
+        from: '',
+        to: input.to,
+        subject: input.subject,
+        element: input.element
+      }
+    )
+  })
+  // The capability runner supplies durable metadata storage and the request's
+  // observability scope. Rendered content remains in this invocation.
+  return runCapabilities(
     Effect.asVoid(dispatcher).pipe(Effect.provide(emailDispatcherLayer()))
   )
 }
@@ -122,6 +135,13 @@ const ONE_TIME_CODE_SUBJECTS = {
   'change-email': 'change_email_code'
 } satisfies Record<OneTimeCodePurpose, OneTimeCodeSubjectKey>
 
+const ONE_TIME_CODE_PURPOSES = {
+  'sign-in': 'security',
+  'email-verification': 'verification',
+  'forget-password': 'recovery',
+  'change-email': 'security'
+} satisfies Record<OneTimeCodePurpose, 'security' | 'verification' | 'recovery'>
+
 export function oneTimeCodeSubject(
   type: Parameters<AuthEmailSender['sendOneTimeCode']>[0]['type'],
   locale: Locale
@@ -152,12 +172,14 @@ export function makeAuthEmailSender(): AuthEmailSender {
   return {
     sendResetPassword: ({ user, url }) =>
       dispatch({
+        purpose: 'recovery',
         to: user.email,
         subject: m.backend_email_subject_reset_password({}, { locale: localeOf(user) }),
         element: PasswordResetEmail({ url, locale: localeOf(user) })
       }),
     sendVerificationEmail: ({ user, url }) =>
       dispatch({
+        purpose: 'verification',
         to: user.email,
         subject: m.backend_email_subject_verify_email({}, { locale: localeOf(user) }),
         element: EmailVerificationEmail({ url, locale: localeOf(user) })
@@ -165,6 +187,7 @@ export function makeAuthEmailSender(): AuthEmailSender {
     sendOneTimeCode: async ({ email, otp, type }) => {
       const locale = await recipientLocale(email)
       return dispatch({
+        purpose: ONE_TIME_CODE_PURPOSES[type],
         to: email,
         subject: oneTimeCodeSubject(type, locale),
         element: OneTimeCodeEmail({ code: otp, purpose: type, locale })

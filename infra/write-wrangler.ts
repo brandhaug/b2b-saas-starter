@@ -6,6 +6,10 @@ import {
   billingConsumerSettings,
   billingQueueName,
   notificationDigestCron,
+  notificationDigestRetryCron,
+  emailEventsQueueName,
+  emailEventsDeadLetterQueueName,
+  emailEventsConsumerSettings,
   notificationEmailConsumerSettings,
   notificationEmailQueueName,
   queueBindingKeys,
@@ -264,12 +268,23 @@ export const wranglerConfigs: ReadonlyArray<{
           ),
           consumer(billingDeadLetterQueueName, webhookDlqConsumerSettings),
           // Sends one instant notification email per queue message.
-          consumer(notificationEmailQueueName, notificationEmailConsumerSettings)
+          consumer(notificationEmailQueueName, notificationEmailConsumerSettings),
+          consumer(
+            emailEventsQueueName,
+            emailEventsConsumerSettings,
+            emailEventsDeadLetterQueueName
+          )
         ]
       },
       r2_buckets: [workspaceExportBucket],
       // The daily notification digest (ADR 0061).
-      triggers: { crons: [notificationDigestCron, billingReconciliationCron] },
+      triggers: {
+        crons: [
+          notificationDigestCron,
+          notificationDigestRetryCron,
+          billingReconciliationCron
+        ]
+      },
       // Links in notification emails point at the web app; local dev has no
       // alchemy to forward the deploy value.
       vars: { BETTER_AUTH_URL: 'http://localhost:3071' }

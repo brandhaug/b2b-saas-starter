@@ -1,7 +1,7 @@
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 import { failureMessage } from '@b2b-saas-starter/failure'
 import { render } from '@react-email/render'
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, Layer, Option, Schema } from 'effect'
 import { type ReactElement } from 'react'
 
 const EmailDeliveryMode = Schema.Literals(['cloudflare-email', 'log'])
@@ -21,9 +21,19 @@ export type EmailMessage = {
 export const EmailDeliveryResult = Schema.Struct({
   mode: EmailDeliveryMode,
   to: Schema.String,
-  subject: Schema.String
+  subject: Schema.String,
+  /** The provider's acceptance ID. Log mode has no provider ID. */
+  providerMessageId: Schema.optional(Schema.String)
 })
 export type EmailDeliveryResult = typeof EmailDeliveryResult.Type
+
+export const EmailSendFailureKind = Schema.Literals([
+  'permanent',
+  'transient',
+  'ambiguous',
+  'suppressed'
+])
+export type EmailSendFailureKind = typeof EmailSendFailureKind.Type
 
 export type SendEmailBuilderArgs = {
   readonly from: string
@@ -34,14 +44,18 @@ export type SendEmailBuilderArgs = {
 }
 
 /**
- * Structural subset of Cloudflare's `SendEmail` binding. Resolving to `void`:
- * the real binding resolves an `EmailSendResult` that this package never reads —
- * a send either resolved or rejected, and `EmailSendError` carries the latter.
+ * Structural subset of Cloudflare's `SendEmail` binding. The structured
+ * Workers API returns an `EmailSendResult` containing the provider message ID;
+ * the dispatcher preserves it for delivery-event correlation.
  * Worker envs declare this port rather than workers-types' `SendEmail`, so the
  * two shapes are never assigned across.
  */
 export type SendEmailBinding = {
-  readonly send: (message: SendEmailBuilderArgs) => Promise<void>
+  readonly send: (message: SendEmailBuilderArgs) => Promise<SendEmailResult>
+}
+
+export type SendEmailResult = {
+  readonly messageId: string
 }
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
@@ -53,7 +67,15 @@ class EmailRenderError extends Schema.TaggedError<EmailRenderError>()(
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class EmailSendError extends Schema.TaggedError<EmailSendError>()(
   'EmailSendError',
-  { message: Schema.String, to: Schema.String, subject: Schema.String }
+  {
+    message: Schema.String,
+    to: Schema.String,
+    subject: Schema.String,
+    /** Optional for compatibility with injected dispatcher implementations. */
+    failureKind: Schema.optional(EmailSendFailureKind),
+    /** Cloudflare's stable error code, when the provider supplied one. */
+    providerCode: Schema.optional(Schema.String)
+  }
 ) {}
 
 type EmailDispatcherInterface = {
@@ -80,6 +102,88 @@ function renderMessage(
       catch: (cause) => new EmailRenderError({ message: failureMessage(cause) })
     })
     return { html, text }
+  })
+}
+
+const ProviderFailure = Schema.Struct({
+  code: Schema.Literals([
+    'E_RECIPIENT_SUPPRESSED',
+    'E_VALIDATION_ERROR',
+    'E_FIELD_MISSING',
+    'E_TOO_MANY_RECIPIENTS',
+    'E_TOO_MANY_ATTACHMENTS',
+    'E_SENDER_NOT_VERIFIED',
+    'E_RECIPIENT_NOT_ALLOWED',
+    'E_SENDER_DOMAIN_NOT_AVAILABLE',
+    'E_CONTENT_TOO_LARGE',
+    'E_HEADER_NOT_ALLOWED',
+    'E_HEADER_USE_API_FIELD',
+    'E_HEADER_VALUE_INVALID',
+    'E_HEADER_VALUE_TOO_LONG',
+    'E_HEADER_NAME_INVALID',
+    'E_HEADERS_TOO_LARGE',
+    'E_HEADERS_TOO_MANY',
+    'E_RATE_LIMIT_EXCEEDED',
+    'E_DAILY_LIMIT_EXCEEDED',
+    'E_DELIVERY_FAILED',
+    'E_INTERNAL_SERVER_ERROR'
+  ])
+})
+const decodeProviderFailure = Schema.decodeUnknownOption(ProviderFailure)
+
+function classifyProviderFailure(
+  code: typeof ProviderFailure.Type.code | undefined
+): EmailSendFailureKind {
+  switch (code) {
+    case 'E_RECIPIENT_SUPPRESSED': {
+      return 'suppressed'
+    }
+    case 'E_VALIDATION_ERROR':
+    case 'E_FIELD_MISSING':
+    case 'E_TOO_MANY_RECIPIENTS':
+    case 'E_TOO_MANY_ATTACHMENTS':
+    case 'E_SENDER_NOT_VERIFIED':
+    case 'E_RECIPIENT_NOT_ALLOWED':
+    case 'E_SENDER_DOMAIN_NOT_AVAILABLE':
+    case 'E_CONTENT_TOO_LARGE':
+    case 'E_HEADER_NOT_ALLOWED':
+    case 'E_HEADER_USE_API_FIELD':
+    case 'E_HEADER_VALUE_INVALID':
+    case 'E_HEADER_VALUE_TOO_LONG':
+    case 'E_HEADER_NAME_INVALID':
+    case 'E_HEADERS_TOO_LARGE':
+    case 'E_HEADERS_TOO_MANY': {
+      return 'permanent'
+    }
+    case 'E_RATE_LIMIT_EXCEEDED':
+    case 'E_DAILY_LIMIT_EXCEEDED':
+    case 'E_DELIVERY_FAILED': {
+      return 'transient'
+    }
+    case 'E_INTERNAL_SERVER_ERROR':
+    case undefined: {
+      // A rejected request may have reached the provider. Retrying an
+      // unknown failure is therefore an explicitly ambiguous send.
+      return 'ambiguous'
+    }
+  }
+}
+
+function sendFailure(cause: unknown, to: string, subject: string): EmailSendError {
+  const code = decodeProviderFailure(cause).pipe(
+    Option.map((failure) => failure.code),
+    Option.getOrUndefined
+  )
+  const failureKind = classifyProviderFailure(code)
+  return new EmailSendError({
+    // Provider messages can contain recipient or payload details. Persist only
+    // this stable, non-sensitive summary; callers can use providerCode for
+    // diagnostics without retaining raw provider bodies.
+    message: `email send failed: ${failureKind}`,
+    to,
+    subject,
+    failureKind,
+    providerCode: code
   })
 }
 
@@ -120,13 +224,14 @@ export function makeCloudflareEmailDispatcherLayer(
         if (!from) {
           return yield* Effect.fail(
             new EmailSendError({
-              message: 'missing sender address',
+              message: 'email send failed: permanent',
               to: message.to,
-              subject: message.subject
+              subject: message.subject,
+              failureKind: 'permanent'
             })
           )
         }
-        yield* Effect.tryPromise({
+        const result = yield* Effect.tryPromise({
           try: () =>
             binding.send({
               from,
@@ -135,22 +240,19 @@ export function makeCloudflareEmailDispatcherLayer(
               text,
               html
             }),
-          catch: (cause) =>
-            new EmailSendError({
-              message: failureMessage(cause),
-              to: message.to,
-              subject: message.subject
-            })
+          catch: (cause) => sendFailure(cause, message.to, message.subject)
         })
         yield* Effect.log('email.dispatched', {
           mode: 'cloudflare-email',
           to: message.to,
-          subject: message.subject
+          subject: message.subject,
+          providerMessageId: result.messageId
         })
         return EmailDeliveryResult.make({
           mode: 'cloudflare-email',
           to: message.to,
-          subject: message.subject
+          subject: message.subject,
+          providerMessageId: result.messageId
         })
       })
   })

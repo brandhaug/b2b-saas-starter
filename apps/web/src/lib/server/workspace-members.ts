@@ -1,6 +1,7 @@
 import { type SeatUsage } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
 import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
+import { type EmailDeliveryRow } from './email-delivery'
 import { WORKSPACE_ROLES, type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
@@ -36,6 +37,7 @@ export type WorkspaceMembersPayload = {
   readonly unreadCount: number
   readonly members: ReadonlyArray<Member>
   readonly invitations: ReadonlyArray<Invitation> | null
+  readonly emailDeliveries: ReadonlyArray<EmailDeliveryRow> | null
   /**
    * How the roster sits against the plan's seat terms — the members page's
    * upgrade prompt reads this. Computed from the resolved workspace's plan,

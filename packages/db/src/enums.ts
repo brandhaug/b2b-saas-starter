@@ -202,3 +202,25 @@ export type NotificationChannel = (typeof notificationChannels)[number]
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const deliveryAttemptPhases = ['http', 'terminal'] as const
+
+// oxlint-disable-next-line effect/noAs -- stored vocabulary
+export const emailPurposes = [
+  'verification',
+  'recovery',
+  'security',
+  'invitation',
+  'notification',
+  'digest'
+] as const
+// oxlint-disable-next-line effect/noAs -- stored vocabulary
+export const emailDeliveryStatuses = [
+  'queued',
+  'accepted',
+  'delivered',
+  'delayed',
+  'failed',
+  'suppressed',
+  'ambiguous',
+  'temporary_failure',
+  'logged'
+] as const

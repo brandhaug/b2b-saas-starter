@@ -7,6 +7,8 @@ import {
   billingConsumerSettings,
   isPreviewStage,
   notificationDigestCron,
+  notificationDigestRetryCron,
+  emailEventsConsumerSettings,
   billingReconciliationCron,
   notificationEmailConsumerSettings,
   productionStage,
@@ -259,6 +261,15 @@ export const Stack = Alchemy.Stack(
       'notification-email-queue',
       { name: names.notificationEmailQueue }
     )
+    const emailEventsQueue = yield* Cloudflare.Queues.Queue('email-events-queue', {
+      name: names.emailEventsQueue
+    })
+    const emailEventsDeadLetterQueue = yield* Cloudflare.Queues.Queue(
+      'email-events-dlq',
+      {
+        name: names.emailEventsDeadLetterQueue
+      }
+    )
 
     // Only provision the SendEmail binding when a verified sender is
     // configured — without it the email module stays inactive instead of
@@ -358,7 +369,11 @@ export const Stack = Alchemy.Stack(
       placement: smartPlacement,
       // The daily notification digest (ADR 0061) — same constant the
       // generated wrangler.jsonc carries under `triggers.crons`.
-      crons: [notificationDigestCron, billingReconciliationCron]
+      crons: [
+        notificationDigestCron,
+        notificationDigestRetryCron,
+        billingReconciliationCron
+      ]
     })
 
     if (workspaceExportQueue) {
@@ -403,6 +418,12 @@ export const Stack = Alchemy.Stack(
       queueId: notificationEmailQueue.queueId,
       scriptName: background.workerName,
       settings: notificationEmailConsumerSettings
+    })
+    yield* Cloudflare.Queues.Consumer('email-events-consumer', {
+      queueId: emailEventsQueue.queueId,
+      scriptName: background.workerName,
+      deadLetterQueue: emailEventsDeadLetterQueue.queueName,
+      settings: emailEventsConsumerSettings
     })
 
     const web = yield* Cloudflare.Website.Vite('web', {

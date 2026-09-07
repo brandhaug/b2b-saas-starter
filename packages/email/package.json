@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./tracked": "./src/tracked.ts",
     "./templates": "./src/templates.tsx",
     "./notification-templates": "./src/notification-templates.tsx",
     "./notification-emails": "./src/notification-emails.ts"
@@ -15,6 +16,7 @@
     "dev": "email dev --dir src"
   },
   "dependencies": {
+    "@b2b-saas-starter/capabilities": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/failure": "workspace:*",

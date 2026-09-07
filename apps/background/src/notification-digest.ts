@@ -18,7 +18,12 @@ import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifica
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import { formatDateTime } from '@b2b-saas-starter/i18n/format'
-import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
+import {
+  type EmailDispatcher,
+  selectEmailDispatcherLayer
+} from '@b2b-saas-starter/email'
+import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
+import { type EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
 import {
   NotificationDigestEmail,
   type DigestItem
@@ -126,26 +131,30 @@ export type DigestRunSummary = {
 }
 
 /**
- * One digest run: cut the 24-hour window ending now (read from `Clock`, so a
- * test freezes it), collect every unread pair, resolve each recipient's
- * preferences once, group, and send one email per recipient with at least one
- * digest item. A failed send is counted and logged, never retried within the
- * run — the next morning's digest is the retry.
+ * Re-read the window's unread notifications and current preferences on every
+ * pass. The stable window/user identity prevents resending accepted digests;
+ * later scheduled passes retry unresolved sends within the six-hour limit.
  */
 export function runNotificationDigest(
-  appUrl: string
+  appUrl: string,
+  windowEnd?: string
 ): Effect.Effect<
   DigestRunSummary,
   CapabilityUnavailable,
-  NotificationFeed | NotificationPreferences | EmailDispatcher | Scope.Scope
+  | NotificationFeed
+  | NotificationPreferences
+  | EmailDispatcher
+  | EmailDelivery
+  | Scope.Scope
 > {
   return Effect.gen(function* () {
     const now = yield* DateTime.now
-    const until = DateTime.formatIso(now)
-    const since = DateTime.formatIso(DateTime.subtractDuration(now, DIGEST_WINDOW))
+    const until = windowEnd ?? DateTime.formatIso(now)
+    const since = DateTime.formatIso(
+      DateTime.subtractDuration(DateTime.makeUnsafe(until), DIGEST_WINDOW)
+    )
     const feed = yield* NotificationFeed
     const preferences = yield* NotificationPreferences
-    const dispatcher = yield* EmailDispatcher
 
     const candidates = yield* feed.listDigestCandidates({ since, until })
 
@@ -173,29 +182,41 @@ export function runNotificationDigest(
     let sent = 0
     let failed = 0
     for (const digest of digests) {
+      const { userId } = digest.recipient
       const outcome = yield* Effect.result(
-        dispatcher.send({
-          to: digest.recipient.email,
-          subject: m.backend_email_subject_digest(
-            { count: digest.items.length },
-            { locale: digest.recipient.locale ?? DEFAULT_LOCALE }
-          ),
-          element: NotificationDigestEmail({
-            recipientName: digest.recipient.name,
-            items: digest.items,
-            openUrl: `${appUrl}/workspaces`,
-            preferencesUrl: preferencesUrl(appUrl),
-            locale: digest.recipient.locale ?? DEFAULT_LOCALE
-          })
-        })
+        dispatchTrackedEmail(
+          {
+            id: `digest:${until}:${userId}`,
+            purpose: 'digest',
+            recipient: digest.recipient.email,
+            userId,
+            workspaceId: null,
+            referenceId: until,
+            queuedAt: until
+          },
+          {
+            to: digest.recipient.email,
+            subject: m.backend_email_subject_digest(
+              { count: digest.items.length },
+              { locale: digest.recipient.locale ?? DEFAULT_LOCALE }
+            ),
+            element: NotificationDigestEmail({
+              recipientName: digest.recipient.name,
+              items: digest.items,
+              openUrl: `${appUrl}/workspaces`,
+              preferencesUrl: preferencesUrl(appUrl),
+              locale: digest.recipient.locale ?? DEFAULT_LOCALE
+            })
+          }
+        )
       )
-      if (Result.isSuccess(outcome)) {
+      if (Result.isSuccess(outcome) && outcome.success.status !== 'skipped') {
         sent += 1
-      } else {
+      } else if (Result.isFailure(outcome)) {
         failed += 1
         yield* Effect.logError('notification_digest.send_failed', {
-          to: digest.recipient.email,
-          reason: outcome.failure.message
+          userId,
+          reason: outcome.failure._tag
         })
       }
     }
@@ -214,11 +235,8 @@ export function runNotificationDigest(
 }
 
 /**
- * The `scheduled` entry: real layers plus a `notification_digest` wide event.
- * Sends are counted, never fatal, so a run that fails sent nothing — a bounded
- * retry of the whole run is safe (the reads are its only failure channel).
- * Two jittered retries ride out a transient store blip; after that the run
- * rejects and the failed cron invocation is recorded by the platform.
+ * The daily and retry schedules share the same 08:00 UTC window. Durable
+ * claims protect accepted sends when a store failure repeats the pass.
  */
 export function sendDailyDigest(
   env: Env,
@@ -231,7 +249,10 @@ export function sendDailyDigest(
       env,
       metadata: { scheduledTime }
     },
-    runNotificationDigest(appUrlFrom(env)).pipe(
+    runNotificationDigest(
+      appUrlFrom(env),
+      `${DateTime.formatIso(DateTime.makeUnsafe(scheduledTime)).slice(0, 10)}T08:00:00.000Z`
+    ).pipe(
       Effect.provide(
         Layer.merge(
           selectCapabilitiesLayer(starterEnv(env)),
