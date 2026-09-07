@@ -3,8 +3,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./email-delivery/*": "./src/email-delivery/*.ts",
-    "./billing/*": "./src/billing/*.ts",
     "./developer-platform/*": "./src/developer-platform/*.ts",
     "./governance/*": "./src/governance/*.ts",
     "./internal/keyset-cursor": "./src/internal/keyset-cursor.ts",
@@ -17,7 +15,8 @@
     "./seed-fixture": "./src/seed-fixture.ts",
     "./testing/live-harness": "./src/testing/live-harness.ts",
     "./workspace-context": "./src/workspace-context.ts",
-    "./workspace-projections": "./src/workspace-projections.ts"
+    "./workspace-projections": "./src/workspace-projections.ts",
+    "./billing-adapters": "./src/billing-adapters.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -26,7 +25,9 @@
   },
   "dependencies": {
     "@b2b-saas-starter/authz": "workspace:*",
+    "@b2b-saas-starter/billing": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
+    "@b2b-saas-starter/email-delivery": "workspace:*",
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/failure": "workspace:*",
     "@b2b-saas-starter/i18n": "workspace:*",

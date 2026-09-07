@@ -1,3 +1,4 @@
+import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
 import { DateTime, Effect, Layer, Option } from 'effect'
 import { TestClock } from 'effect/testing'
 import { describe, expect, it } from '@effect/vitest'
@@ -28,9 +29,9 @@ import { SeedWebhookPublisher } from '../developer-platform/webhook-publisher.ts
 import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
 import { SeedAccountPreferences } from './account-preferences.ts'
-import { SeedSeatSyncPublisher } from '../billing/seat-sync.ts'
-import { SeedBilling } from '../billing/billing.seed.ts'
-import { SeedResourceEntitlements } from '../billing/resource-entitlements.seed.ts'
+import { SeedSeatSyncPublisher } from '@b2b-saas-starter/billing/seat-sync'
+import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
+import { SeedResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.seed'
 import { makeSeedRoster, SeedWorkspaceMembership } from './workspace-membership.ts'
 import { SeedWorkspaceInvitations } from './workspace-invitations.seed.ts'
 import { failureTag } from '../internal/failure-tag.ts'
@@ -405,8 +406,14 @@ describe('collectWorkspaceExportSnapshot — the audit walk bound', () => {
       )
       const billing = SeedBilling({
         workspacePlans: { [seedWorkspaceRecord.id]: 'team' }
-      }).pipe(Layer.provide(audit), Layer.provide(feed))
+      }).pipe(
+        Layer.provide(BillingAuditLayer),
+        Layer.provide(BillingNotificationLayer),
+        Layer.provide(audit),
+        Layer.provide(feed)
+      )
       const entitlements = SeedResourceEntitlements().pipe(
+        Layer.provide(BillingAuditLayer),
         Layer.provide(billing),
         Layer.provide(audit)
       )

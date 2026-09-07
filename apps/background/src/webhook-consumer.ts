@@ -10,7 +10,7 @@ import {
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-attempt-completion'
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import { WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { type NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { currentTraceId, TRACE_HEADER } from '@b2b-saas-starter/logger'

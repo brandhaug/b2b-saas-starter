@@ -8,8 +8,10 @@ import { type EffectDatabase } from '@b2b-saas-starter/db/service'
 import { Effect, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 
-import { type CapabilityUnavailable } from '../errors.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 
 /**
  * Workspace identity vocabulary: the role literals, the `Workspace` and

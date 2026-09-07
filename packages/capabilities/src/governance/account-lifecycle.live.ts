@@ -11,7 +11,7 @@ import { Effect, Layer } from 'effect'
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm'
 
 import { AccountDeletionBlocked, AccountDeletionRejected } from '../errors.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   AccountLifecycle,
   blockingWorkspaces,

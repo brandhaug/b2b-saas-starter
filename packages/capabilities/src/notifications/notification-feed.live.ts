@@ -24,9 +24,12 @@ import {
 import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
 
-import { type CapabilityUnavailable } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+
 import { WorkspaceContext, type Actor } from '../workspace-context.ts'
 import {
   enqueueInstantEmails,

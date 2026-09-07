@@ -3,8 +3,10 @@ import { auditEvents, type JsonValue } from '@b2b-saas-starter/db/schema'
 import { Effect } from 'effect'
 import { and, asc, eq, gt, or, sql } from 'drizzle-orm'
 
-import { type CapabilityUnavailable } from '../errors.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { decodeAuditEventMetadata } from './audit-event-metadata.ts'
 
 // oxlint-disable anti-slop/no-runtime-typeof -- persisted JSON has already crossed Drizzle's typed boundary; this recursive walk only finds an exact email value before the allowlist decoder runs.

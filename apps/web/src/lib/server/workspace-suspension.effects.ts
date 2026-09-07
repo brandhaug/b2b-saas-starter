@@ -2,7 +2,7 @@ import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/gover
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { SsoConnections } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
-import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 import { authorize, memberPrincipal } from '@b2b-saas-starter/authz/client'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { Effect } from 'effect'

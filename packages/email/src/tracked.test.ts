@@ -1,8 +1,8 @@
 import {
   EmailDelivery,
   type ClaimEmail
-} from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
-import { SeedEmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery.seed'
+} from '@b2b-saas-starter/email-delivery/email-delivery'
+import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
 import { describe, expect, it, vi } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 

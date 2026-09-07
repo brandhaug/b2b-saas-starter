@@ -1,8 +1,6 @@
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import {
-  CapabilityUnavailable,
-  WorkspaceSuspended
-} from '@b2b-saas-starter/capabilities/errors'
+import { WorkspaceSuspended } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Schema } from 'effect'
 
 /**

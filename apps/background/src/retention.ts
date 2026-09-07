@@ -6,7 +6,7 @@ import {
   retentionPolicyFromEnv,
   validateRetentionPolicyTarget
 } from '@b2b-saas-starter/capabilities/governance/retention-policy'
-import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   selectCapabilitiesLayer,
   starterEnv

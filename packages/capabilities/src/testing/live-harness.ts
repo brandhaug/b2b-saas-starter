@@ -34,8 +34,9 @@ import {
   type CapabilityServices
 } from '../layers.ts'
 import { type StarterEnv } from '../runtime.ts'
-import { liveWorkspaceContext, type WorkspaceContext } from '../workspace-context.ts'
-import { type CapabilityUnavailable, type WorkspaceNotFound } from '../errors.ts'
+import { liveWorkspaceContext, type WorkspaceServices } from '../workspace-context.ts'
+import { type WorkspaceNotFound } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 /**
  * The shared fixture for the `*.live.test.ts` suites: one provisioned local D1
@@ -289,7 +290,11 @@ export const LIVE_SUITE_TIMEOUT = '120 seconds'
  */
 export function inWorkspace<A, E>(
   slug: string,
-  effect: Effect.Effect<A, E, WorkspaceContext | CapabilityServices | Database | RawD1>,
+  effect: Effect.Effect<
+    A,
+    E,
+    WorkspaceServices | CapabilityServices | Database | RawD1
+  >,
   actor?: { readonly userId: string },
   bindings: CapabilityBindings = {}
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {

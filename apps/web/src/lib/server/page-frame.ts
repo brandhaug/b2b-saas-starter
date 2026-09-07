@@ -1,9 +1,7 @@
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import {
-  type CapabilityUnavailable,
-  type WorkspaceSuspended
-} from '@b2b-saas-starter/capabilities/errors'
+import { type WorkspaceSuspended } from '@b2b-saas-starter/capabilities/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'

@@ -2,7 +2,7 @@ import {
   selectCapabilitiesLayer,
   starterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   NotificationFeed,
   type DigestCandidate,
@@ -26,7 +26,7 @@ import {
   selectEmailDispatcherLayer
 } from '@b2b-saas-starter/email'
 import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
-import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import {
   NotificationDigestEmail,

@@ -1,10 +1,7 @@
 import { Context, type Effect, Schema } from 'effect'
 
-import {
-  type AccountDeletionBlocked,
-  type AccountDeletionRejected,
-  type CapabilityUnavailable
-} from '../errors.ts'
+import { type AccountDeletionBlocked, type AccountDeletionRejected } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Workspace, WorkspaceRole } from './workspace-identity.ts'
 
 /**

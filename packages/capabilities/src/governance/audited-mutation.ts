@@ -1,7 +1,7 @@
 import { batch, type BatchStatement, RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 
-import { type CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type RecordAuditEventInput } from './audit-event-log.ts'
 
 /**

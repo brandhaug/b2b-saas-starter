@@ -10,7 +10,7 @@ import {
   type Member,
   type Workspace
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { SeedSeatSyncPublisher } from '@b2b-saas-starter/capabilities/billing/seat-sync'
+import { SeedSeatSyncPublisher } from '@b2b-saas-starter/billing/seat-sync'
 import { SeedNotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed.seed'
 import { SeedNotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'

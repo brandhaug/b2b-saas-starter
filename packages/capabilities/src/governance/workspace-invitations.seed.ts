@@ -2,7 +2,10 @@ import { DateTime, Effect, Layer, Option, Ref } from 'effect'
 
 import { MembershipChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
+import {
+  publishSeatSyncWith,
+  SeatSyncPublisher
+} from '@b2b-saas-starter/billing/seat-sync'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { fabricateSeedMember, type Workspace } from './workspace-identity.ts'
 import { type SeedRoster } from './workspace-membership.ts'

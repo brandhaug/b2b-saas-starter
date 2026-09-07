@@ -1,7 +1,7 @@
 import { Effect, Fiber } from 'effect'
 import { TestClock } from 'effect/testing'
 import { describe, expect, it } from '@effect/vitest'
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   makeTurnstileVerifier,
   type SiteverifyCaller,

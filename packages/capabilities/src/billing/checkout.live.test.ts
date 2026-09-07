@@ -5,24 +5,27 @@ import {
   workspaceSubscriptions
 } from '@b2b-saas-starter/db/schema'
 import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
-import { DateTime, Effect } from 'effect'
+import { DateTime, Effect, Layer } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { eq } from 'drizzle-orm'
 import { expect, layer } from '@effect/vitest'
 
-import { CapabilityUnavailable } from '../errors.ts'
+import {
+  CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
 import {
   inWorkspace,
   LIVE_SUITE_TIMEOUT,
   TestDatabase
 } from '../testing/live-harness.ts'
-import { makeBillingLease } from './billing-lease.ts'
-import { makeBillingSyncStore } from './billing-sync-store.ts'
-import { Billing } from './billing.ts'
-import { makeDurableCheckout } from './checkout.live.ts'
-import { updateStripeSubscriptionItemQuantity } from './stripe.ts'
+import { makeBillingLease } from '@b2b-saas-starter/billing/billing-lease'
+import { makeBillingSyncStore } from '@b2b-saas-starter/billing/billing-sync-store'
+import { Billing } from '@b2b-saas-starter/billing/billing'
+import { makeDurableCheckout } from '@b2b-saas-starter/billing/checkout.live'
+import { updateStripeSubscriptionItemQuantity } from '@b2b-saas-starter/billing/stripe'
 
 import {
   baseClaim,
@@ -149,7 +152,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
             expect(fixture.state.checkoutIdempotencyKeys[1]).toBe(
               fixture.state.checkoutIdempotencyKeys[0]
             )
-          }),
+          }).pipe(
+            Effect.provide(Layer.merge(BillingAuditLayer, BillingNotificationLayer))
+          ),
           { userId: 'usr_owner' }
         )
       )
@@ -218,7 +223,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
             expect(claim?.stripeSessionId).toBe('cs_checkout')
             expect(claim?.quantity).toBe(1)
             expect(claim?.successUrl).toBe('https://example.test/success')
-          }),
+          }).pipe(
+            Effect.provide(Layer.merge(BillingAuditLayer, BillingNotificationLayer))
+          ),
           { userId: 'usr_owner' }
         )
       )

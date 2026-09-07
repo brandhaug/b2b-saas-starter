@@ -1,12 +1,13 @@
+import { BillingAuditLayer, BillingNotificationLayer } from './billing-adapters.ts'
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { type Member } from './governance/workspace-identity.ts'
 import { SeedLayer } from './layers.ts'
-import { SeedBilling } from './billing/billing.seed.ts'
-import { SeedResourceEntitlements } from './billing/resource-entitlements.seed.ts'
-import { LiveBilling } from './billing/billing.live.ts'
-import { LiveResourceEntitlements } from './billing/resource-entitlements.live.ts'
+import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
+import { SeedResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.seed'
+import { LiveBilling } from '@b2b-saas-starter/billing/billing.live'
+import { LiveResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.live'
 import {
   demoMemberIdentity,
   demoUserIdentity,
@@ -17,7 +18,7 @@ import {
   seedWorkspaceRecord
 } from './seed-fixture.ts'
 import { SeedWorkspaceInvitations } from './governance/workspace-invitations.seed.ts'
-import { SeedSeatSyncPublisher } from './billing/seat-sync.ts'
+import { SeedSeatSyncPublisher } from '@b2b-saas-starter/billing/seat-sync'
 import {
   makeSeedRoster,
   SeedWorkspaceMembership,
@@ -111,15 +112,24 @@ describe('seed developer-platform contract', () => {
       Layer.provide(auditLog),
       Layer.provide(publisher),
       Layer.provide(SeedLayer),
-      Layer.provide(SeedResourceEntitlements().pipe(Layer.provide(SeedLayer)))
+      Layer.provide(
+        SeedResourceEntitlements().pipe(
+          Layer.provide(BillingAuditLayer),
+          Layer.provide(SeedLayer)
+        )
+      )
     ),
     SeedWebhookEndpoints([]).pipe(
       Layer.provide(auditLog),
       Layer.provide(publisher),
-      // Capture the feed this contract reads before SeedLayer supplies its own.
       Layer.provide(notificationFeed),
       Layer.provide(SeedLayer),
-      Layer.provide(SeedResourceEntitlements().pipe(Layer.provide(SeedLayer)))
+      Layer.provide(
+        SeedResourceEntitlements().pipe(
+          Layer.provide(BillingAuditLayer),
+          Layer.provide(SeedLayer)
+        )
+      )
     ),
     notificationFeed
   )
@@ -214,9 +224,19 @@ describe('seed developer-platform plan-limit contract', () => {
       Layer.provide(auditLog),
       Layer.provide(SeedWebhookPublisher),
       Layer.provide(
-        SeedBilling().pipe(Layer.provide(auditLog), Layer.provide(seedFeed([])))
+        SeedBilling().pipe(
+          Layer.provide(BillingAuditLayer),
+          Layer.provide(BillingNotificationLayer),
+          Layer.provide(auditLog),
+          Layer.provide(seedFeed([]))
+        )
       ),
-      Layer.provide(SeedResourceEntitlements().pipe(Layer.provide(SeedLayer)))
+      Layer.provide(
+        SeedResourceEntitlements().pipe(
+          Layer.provide(BillingAuditLayer),
+          Layer.provide(SeedLayer)
+        )
+      )
     )
   )
   for (const contractCase of planLimitContractCases(expect)) {
@@ -536,12 +556,23 @@ describe('webhook endpoint workspace scoping', () => {
 
   function foreignEndpointLayer(fake: ReturnType<typeof makeFakeD1>) {
     const entitlements = LiveResourceEntitlements.pipe(
-      Layer.provide(LiveBilling()),
+      Layer.provide(BillingAuditLayer),
+      Layer.provide(
+        LiveBilling().pipe(
+          Layer.provide(BillingAuditLayer),
+          Layer.provide(BillingNotificationLayer)
+        )
+      ),
       Layer.provide(layerFromD1(fake.binding))
     )
     return Layer.merge(
       LiveWebhookEndpoints.pipe(
-        Layer.provide(LiveBilling()),
+        Layer.provide(
+          LiveBilling().pipe(
+            Layer.provide(BillingAuditLayer),
+            Layer.provide(BillingNotificationLayer)
+          )
+        ),
         Layer.provide(entitlements),
         Layer.provide(LiveAuditEventLog),
         Layer.provide(
@@ -904,6 +935,8 @@ describe('bearer verification write throttling', () => {
       Layer.provide(layerFromD1(fake.binding))
     )
     const billing = LiveBilling().pipe(
+      Layer.provide(BillingAuditLayer),
+      Layer.provide(BillingNotificationLayer),
       Layer.provide(LiveAuditEventLog),
       Layer.provide(feed),
       Layer.provide(layerFromD1(fake.binding))
@@ -914,6 +947,7 @@ describe('bearer verification write throttling', () => {
       Layer.provide(LiveWebhookPublisher()),
       Layer.provide(
         LiveResourceEntitlements.pipe(
+          Layer.provide(BillingAuditLayer),
           Layer.provide(billing),
           Layer.provide(LiveAuditEventLog),
           Layer.provide(layerFromD1(fake.binding))

@@ -3,11 +3,8 @@ import { Effect } from 'effect'
 import { AccountLifecycle } from './account-lifecycle.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { type ContractExpect } from './contract-expect.ts'
-import {
-  type AccountDeletionBlocked,
-  type AccountDeletionRejected,
-  type CapabilityUnavailable
-} from '../errors.ts'
+import { type AccountDeletionBlocked, type AccountDeletionRejected } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { failureTag } from '../internal/failure-tag.ts'
 
 /**

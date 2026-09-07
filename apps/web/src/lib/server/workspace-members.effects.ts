@@ -1,10 +1,10 @@
-import { seatUsage } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
-import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
+import { seatUsage } from '@b2b-saas-starter/billing/plan-catalog'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { WorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { Effect } from 'effect'
-import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import { listInvitationEmailHistory } from '@b2b-saas-starter/capabilities/governance/invitation-email-history'
 import { deliveryRows } from './email-delivery.effects'
 
 import { runWorkspaceCapabilities } from '../capabilities'
@@ -53,12 +53,7 @@ const membersPayload: WorkspacePageFrame<WorkspaceMembersPayload> = workspacePag
           ),
           emailDeliveries: whenPermitted(
             { invitation: ['create'] },
-            Effect.gen(function* () {
-              const delivery = yield* EmailDelivery
-              return yield* delivery
-                .listInvitations()
-                .pipe(Effect.flatMap(deliveryRows))
-            })
+            listInvitationEmailHistory().pipe(Effect.flatMap(deliveryRows))
           )
         },
         { concurrency: 'unbounded' }

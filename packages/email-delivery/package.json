@@ -1,0 +1,30 @@
+{
+  "name": "@b2b-saas-starter/email-delivery",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./email-delivery": "./src/email-delivery.ts",
+    "./email-delivery.live": "./src/email-delivery.live.ts",
+    "./email-delivery.seed": "./src/email-delivery.seed.ts",
+    "./email-delivery.contract": "./src/email-delivery.contract.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run --coverage"
+  },
+  "dependencies": {
+    "@b2b-saas-starter/db": "workspace:*",
+    "@b2b-saas-starter/failure": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}

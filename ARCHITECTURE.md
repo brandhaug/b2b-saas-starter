@@ -35,11 +35,11 @@ Cloudflare Worker for queue- and cron-backed work: outbound webhook delivery wit
 
 ### `packages/capabilities`
 
-Effect application layer for workspace and starter use cases. This keeps web, API, MCP, background, and tests aligned.
+Effect application layer for workspace and starter use cases. It composes the billing and email-delivery packages with workspace identity, audit, and notification services. Web, API, MCP, background workers, and tests use the same composition.
 
-### Billing lifecycle and entitlements
+### `packages/billing`
 
-`packages/capabilities/src/billing` owns the billing decision used by web,
+`packages/billing` owns the billing decision used by web,
 REST, MCP, and background work. Stripe is authoritative for the verified
 subscription and price. D1 retains the subscribed plan, payment evidence,
 period and cancellation state, and synchronization evidence needed for
@@ -85,6 +85,10 @@ Better Auth factory with email/password, username, TanStack Start cookies, and t
 ### `packages/authz`
 
 Statements, static roles, the API-token scope mapping, and the `requirePermission` guard. Pure — no database, no auth instance — so it sits below both `auth` and `capabilities` and neither of those two imports the other. See [`packages/authz/AGENTS.md`](./packages/authz/AGENTS.md).
+
+### `packages/email-delivery`
+
+Transactional email claims, fenced send attempts, sanitized provider evidence, and retention. Seed and Live adapters share the same contract. Identity-keyed reads accept explicit user or workspace ids; capabilities supplies verified workspace context for invitation history. The package depends on persistence and shared failures, with no dependency on capabilities or email rendering.
 
 ### `packages/email`
 

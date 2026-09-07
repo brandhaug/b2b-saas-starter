@@ -5,7 +5,7 @@ import { and, desc, eq } from 'drizzle-orm'
 
 import { MembershipChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'

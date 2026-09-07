@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { type CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { WorkspaceContext } from '../workspace-context.ts'

@@ -5,10 +5,13 @@ import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
 import { eq, sql, type SQL } from 'drizzle-orm'
 
-import { AccountPreferencesRejected, type CapabilityUnavailable } from '../errors.ts'
+import { AccountPreferencesRejected } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { AuditEventLog, type RecordAuditEventInput } from './audit-event-log.ts'
 import { auditedMutations } from './audited-mutation.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
 
 export const AccountLocale = Schema.Literals(accountLocales)
 export type AccountLocale = Locale

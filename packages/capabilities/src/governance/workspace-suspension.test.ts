@@ -1,7 +1,7 @@
 import { Effect, Layer, Ref } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { SeedWorkspaceSuspension } from './workspace-suspension.seed.ts'
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 import { workspaceSuspensionContractCases } from './workspace-suspension.contract.ts'
 import { AuditEventLog } from './audit-event-log.ts'

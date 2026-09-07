@@ -3,7 +3,7 @@ import {
   testItem,
   testSubscriptionFields,
   paidInvoice
-} from './provider-test-fixtures.ts'
+} from '@b2b-saas-starter/billing/provider-test-fixtures'
 import {
   auditEvents,
   billingCheckoutClaims,
@@ -25,8 +25,11 @@ import {
   LIVE_SUITE_TIMEOUT,
   TestDatabase
 } from '../testing/live-harness.ts'
-import { Billing, type ProcessProviderEventInput } from './billing.ts'
-import { type StripeSubscriptionResponse } from './stripe.ts'
+import {
+  Billing,
+  type ProcessProviderEventInput
+} from '@b2b-saas-starter/billing/billing'
+import { type StripeSubscriptionResponse } from '@b2b-saas-starter/billing/stripe'
 
 const workspaceId = 'wrk_live'
 const customerId = 'cus_sync'

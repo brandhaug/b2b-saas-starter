@@ -1,11 +1,8 @@
 import { workspaceSuspensionStatuses } from '@b2b-saas-starter/db/enums'
 import { Context, type Effect, Schema } from 'effect'
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
-import {
-  type CapabilityUnavailable,
-  WorkspaceSuspended,
-  WorkspaceSuspensionUnauthorized
-} from '../errors.ts'
+import { WorkspaceSuspended, WorkspaceSuspensionUnauthorized } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 export const WorkspaceSuspensionStatus = Schema.Literals(workspaceSuspensionStatuses)
 export type WorkspaceSuspensionStatus = typeof WorkspaceSuspensionStatus.Type

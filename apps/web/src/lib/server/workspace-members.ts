@@ -1,4 +1,4 @@
-import { type SeatUsage } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+import { type SeatUsage } from '@b2b-saas-starter/billing/plan-catalog'
 import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { type EmailDeliveryRow } from './email-delivery'

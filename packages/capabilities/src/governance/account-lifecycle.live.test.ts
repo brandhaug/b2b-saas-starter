@@ -20,7 +20,7 @@ import {
 import { accountLifecycleContractCases } from './account-lifecycle.contract.ts'
 import { makeAdminAccountLifecycleBinding } from './account-lifecycle-admin.live.ts'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { makeLiveCapabilitiesLayer, type CapabilityServices } from '../layers.ts'
 import { type StarterEnv } from '../runtime.ts'
 import {

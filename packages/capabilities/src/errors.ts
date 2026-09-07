@@ -15,13 +15,6 @@ export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()(
   { httpApiStatus: 404 }
 ) {}
 
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class CapabilityUnavailable extends Schema.TaggedError<CapabilityUnavailable>()(
-  'CapabilityUnavailable',
-  { capability: Schema.String, reason: Schema.String },
-  { httpApiStatus: 503 }
-) {}
-
 /** Ordinary workspace work is unavailable while platform suspension is active. */
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call
 export class WorkspaceSuspended extends Schema.TaggedError<WorkspaceSuspended>()(

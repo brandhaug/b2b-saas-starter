@@ -2,7 +2,7 @@ import {
   selectCapabilitiesLayer,
   starterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { NotificationEmailQueueMessage } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
@@ -20,7 +20,7 @@ import {
 } from '@b2b-saas-starter/email'
 import { notificationEmailFor } from '@b2b-saas-starter/email/notification-emails'
 import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
-import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { Effect, Layer, Result, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'

@@ -14,10 +14,8 @@ import {
 } from '@b2b-saas-starter/authz/client'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import {
-  CapabilityUnavailable,
-  type WorkspaceSuspended
-} from '@b2b-saas-starter/capabilities/errors'
+import { type WorkspaceSuspended } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { selectWorkspaceContextLayer } from '@b2b-saas-starter/capabilities/runtime'
 import {
   WorkspaceContext,

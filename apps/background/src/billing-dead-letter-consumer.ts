@@ -1,6 +1,6 @@
-import { BillingQueueMessage } from '@b2b-saas-starter/capabilities/billing/seat-sync'
-import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
-import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing-config'
+import { SeatSyncQueueMessage } from '@b2b-saas-starter/billing/seat-sync'
+import { Billing } from '@b2b-saas-starter/billing/billing'
+import { billingOptionsFromEnv } from '@b2b-saas-starter/billing/billing-config'
 import {
   selectCapabilitiesLayer,
   starterEnv
@@ -23,7 +23,7 @@ import {
  * audited retry trail without an unauthenticated HTTP recovery endpoint.
  */
 export function processBillingDeadLetterMessage(
-  delivery: QueueDelivery<typeof BillingQueueMessage.Type>
+  delivery: QueueDelivery<typeof SeatSyncQueueMessage.Type>
 ): Effect.Effect<DeliveryOutcome, unknown, Billing | Scope.Scope> {
   return Effect.as(
     Effect.gen(function* () {
@@ -35,22 +35,6 @@ export function processBillingDeadLetterMessage(
         return
       }
       const billing = yield* Billing
-      if (delivery.message.kind === 'billing.provider_event') {
-        const result = yield* billing.processProviderEvent({
-          providerEventId: delivery.message.providerEventId,
-          eventType: delivery.message.eventType,
-          providerCreatedAt: delivery.message.providerCreatedAt,
-          workspaceId: delivery.message.workspaceId,
-          subscription: delivery.message.subscription
-        })
-        yield* Effect.annotateLogsScoped({
-          outcome: 'terminal',
-          providerEventId: delivery.message.providerEventId,
-          recovery: 'provider_event',
-          billingOutcome: result.outcome
-        })
-        return
-      }
       const result = yield* billing.reconcileWorkspace({
         workspaceId: delivery.message.workspaceId
       })
@@ -69,7 +53,7 @@ export function recoverBillingDeadLetter(
   envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
-  const delivery = readDelivery(BillingQueueMessage, envelope)
+  const delivery = readDelivery(SeatSyncQueueMessage, envelope)
   return consumerInvocation(env, {
     event: 'billing_dead_letter',
     delivery,

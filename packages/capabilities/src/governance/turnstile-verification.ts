@@ -1,5 +1,5 @@
 import { Context, Effect, Result, Schedule, Schema } from 'effect'
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 /**
  * Cloudflare Turnstile server-side verification (ADR 0031). The widget proves
  * a human filled the form; this capability asks Cloudflare's `siteverify`

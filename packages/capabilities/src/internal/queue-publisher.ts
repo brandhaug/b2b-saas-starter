@@ -1,9 +1,11 @@
 import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { Effect } from 'effect'
 
-import { type CapabilityUnavailable } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { withTraceparent } from './traceparent.ts'
-import { orUnavailable } from './unavailable.ts'
 
 /**
  * The queue-port half every single-send producer below a capability shares:

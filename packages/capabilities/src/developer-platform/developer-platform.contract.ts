@@ -5,11 +5,9 @@ import { Effect, Exit } from 'effect'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { failureTag } from '../internal/failure-tag.ts'
-import {
-  type CapabilityUnavailable,
-  type PlanLimitExceeded,
-  type InvalidApiTokenInput
-} from '../errors.ts'
+import { type InvalidApiTokenInput } from '../errors.ts'
+import { type PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type InvalidWebhookUrl } from './webhook-url.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { ApiTokenRegistry } from './api-token-registry.ts'

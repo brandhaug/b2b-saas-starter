@@ -1,7 +1,5 @@
-import {
-  type CapabilityUnavailable,
-  type WorkspaceSuspended
-} from '@b2b-saas-starter/capabilities/errors'
+import { type WorkspaceSuspended } from '@b2b-saas-starter/capabilities/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   WorkspaceExports,
   type WorkspaceExport

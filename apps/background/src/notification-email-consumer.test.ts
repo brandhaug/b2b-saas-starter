@@ -13,8 +13,8 @@ import {
   WorkspaceSuspended,
   WorkspaceSuspensionService
 } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
-import { SeedEmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery.seed'
-import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
+import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import {
   EmailDispatcher,
   type EmailDeliveryResult,

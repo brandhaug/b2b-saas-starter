@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Deferred, Effect, Layer, ManagedRuntime } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/runtime'
-import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import { listInvitationEmailHistory } from '@b2b-saas-starter/capabilities/governance/invitation-email-history'
 import { EmailDispatcher, EmailSendError } from '@b2b-saas-starter/email'
 import { fixtureSession } from '@/test/fixture-session'
 import { sendInvitationHandler, resendInvitationHandler } from './invitations.effects'
@@ -117,9 +117,7 @@ describe('durable invitation resend (#285)', () => {
       )
     ).toBe(true)
     expect(sendCount).toBe(2)
-    const records = await runtime.runPromise(
-      Effect.flatMap(EmailDelivery, (history) => history.listInvitations())
-    )
+    const records = await runtime.runPromise(listInvitationEmailHistory())
     expect(records).toHaveLength(2)
     expect(records.filter((record) => record.acceptedAt !== null)).toHaveLength(1)
   })

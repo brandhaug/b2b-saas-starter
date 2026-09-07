@@ -1,8 +1,9 @@
+import { BillingAuditLayer, BillingNotificationLayer } from './billing-adapters.ts'
 import { type Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect, Layer, Ref } from 'effect'
-import { type EmailDelivery } from './email-delivery/email-delivery.ts'
-import { SeedEmailDelivery } from './email-delivery/email-delivery.seed.ts'
-import { LiveEmailDelivery } from './email-delivery/email-delivery.live.ts'
+import { type EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
+import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
+import { LiveEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.live'
 
 // developer-platform
 import { LiveApiTokenRegistry } from './developer-platform/api-token-registry.live.ts'
@@ -87,19 +88,19 @@ import {
 } from './governance/workspace-sso-connections.ts'
 
 // billing
-import { type Billing } from './billing/billing.ts'
-import { type ResourceEntitlements } from './billing/resource-entitlements.ts'
-import { LiveResourceEntitlements } from './billing/resource-entitlements.live.ts'
-import { SeedResourceEntitlements } from './billing/resource-entitlements.seed.ts'
-import { type BillingOptions } from './billing/billing-config.ts'
-import { LiveBilling } from './billing/billing.live.ts'
-import { SeedBilling } from './billing/billing.seed.ts'
+import { type Billing } from '@b2b-saas-starter/billing/billing'
+import { type ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
+import { LiveResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.live'
+import { SeedResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.seed'
+import { type BillingOptions } from '@b2b-saas-starter/billing/billing-config'
+import { LiveBilling } from '@b2b-saas-starter/billing/billing.live'
+import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
 import {
   LiveSeatSyncPublisher,
   SeedSeatSyncPublisher,
   type SeatSyncPublisher,
   type SeatSyncQueueBinding
-} from './billing/seat-sync.ts'
+} from '@b2b-saas-starter/billing/seat-sync'
 
 // notifications
 import { type NotificationEmailQueueBinding } from './notifications/notification-email-queue.ts'
@@ -194,7 +195,7 @@ const SeedGovernance = Layer.unwrap(
        * read the same roster the membership adapters mutate.
        */
       SeedBilling({
-        roster,
+        members: Ref.get(roster),
         workspacePlans: { [seedWorkspaceRecord.id]: seedWorkspaceRecord.planId }
       }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications)),
       suspension
@@ -244,7 +245,10 @@ const SeedCore = Layer.mergeAll(
   // out webhooks below their interface; the shared fixture audit log and the
   // no-op Seed publisher are provided once on the merged layer so every member
   // sees the same instances.
-  SeedApiTokenRegistry(seedApiTokens).pipe(Layer.provide(SeedEntitlements)),
+  SeedApiTokenRegistry(seedApiTokens).pipe(
+    Layer.provide(SeedEntitlements),
+    Layer.provide(SeedGovernance)
+  ),
   SeedEntitlements,
   SeedAuditLog,
   SeedMcpClientConnections({
@@ -260,7 +264,7 @@ const SeedCore = Layer.mergeAll(
     seedDeliveries,
     undefined,
     seedDeliveryAttempts
-  ).pipe(Layer.provide(SeedEntitlements)),
+  ).pipe(Layer.provide(SeedEntitlements), Layer.provide(SeedGovernance)),
   SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships),
@@ -283,7 +287,12 @@ const SeedExports = SeedWorkspaceExports({
   fixture: seedWorkspaceExportFixture
 }).pipe(Layer.provide(SeedCore))
 
-export const SeedLayer: CapabilitiesLayer = Layer.merge(SeedCore, SeedExports)
+// oxlint-disable effect/noAs,typescript/no-unsafe-type-assertion,anti-slop/require-safety-comment-for-type-assertion
+// SAFETY: SeedExports is built by providing SeedCore, so the merged layer supplies every capability service and has no runtime requirements.
+export const SeedLayer = Layer.merge(
+  SeedCore,
+  SeedExports
+) /* SAFETY: SeedExports is built by providing SeedCore, so all runtime requirements are supplied. */ as CapabilitiesLayer
 
 /**
  * The optional provider ports and option bags `makeLiveCapabilitiesLayer`
@@ -386,7 +395,9 @@ export function makeLiveCapabilitiesLayer(
   // the same instance every other consumer reads.
   const feed = LiveNotificationFeed({
     emailQueue: options.notificationEmailQueue
-  }).pipe(Layer.provide(preferences))
+  }).pipe(Layer.provide(preferences), (notificationLayer) =>
+    BillingNotificationLayer.pipe(Layer.provideMerge(notificationLayer))
+  )
   const billing = LiveBilling(options.billing)
   const entitlements = LiveResourceEntitlements.pipe(Layer.provide(billing))
   const suspension = LiveWorkspaceSuspension.pipe(
@@ -397,7 +408,10 @@ export function makeLiveCapabilitiesLayer(
     LiveRetention,
     LiveEmailDelivery,
     LiveAccountLifecycle(options.accountLifecycleBinding, options.securityEvidence),
-    LiveApiTokenRegistry(options.securityEvidence).pipe(Layer.provide(entitlements)),
+    LiveApiTokenRegistry(options.securityEvidence).pipe(
+      Layer.provide(entitlements),
+      Layer.provide(billing)
+    ),
     LiveAuditEventLog,
     billing,
     entitlements,
@@ -406,7 +420,7 @@ export function makeLiveCapabilitiesLayer(
     accountPreferences,
     feed,
     LiveSsoConnections(options.ssoBinding),
-    LiveWebhookEndpoints.pipe(Layer.provide(entitlements)),
+    LiveWebhookEndpoints.pipe(Layer.provide(entitlements), Layer.provide(billing)),
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
     LiveWorkspaceMembership(options.memberBinding, options.securityEvidence),
@@ -419,7 +433,7 @@ export function makeLiveCapabilitiesLayer(
     suspension,
     seatSyncPublisher
   ).pipe(
-    Layer.provide(LiveAuditEventLog),
+    Layer.provide(BillingAuditLayer.pipe(Layer.provideMerge(LiveAuditEventLog))),
     // The user-admin capability notifies the impersonated user below its
     // interface, the export adapter notifies the requester below its, and the
     // webhook capability's dead-letter notification rides the same provide —

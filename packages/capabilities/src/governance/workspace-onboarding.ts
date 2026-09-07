@@ -3,8 +3,11 @@ import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Ref } from 'effect'
 import { and, eq, isNull } from 'drizzle-orm'
 
-import { type CapabilityUnavailable } from '../errors.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
+
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { auditedMutations } from './audited-mutation.ts'

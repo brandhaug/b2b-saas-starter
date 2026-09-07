@@ -1,7 +1,8 @@
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 
-import { CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
+import { MembershipChangeRejected } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   inWorkspace,
   LIVE_SUITE_TIMEOUT,

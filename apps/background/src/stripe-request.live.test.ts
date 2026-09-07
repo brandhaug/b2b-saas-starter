@@ -1,6 +1,6 @@
 import { billingProviderEvents } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
-import { type SeatSyncQueueBinding } from '@b2b-saas-starter/capabilities/billing/seat-sync'
+import { type SeatSyncQueueBinding } from '@b2b-saas-starter/billing/seat-sync'
 import { Effect } from 'effect'
 import { eq } from 'drizzle-orm'
 import { expect, layer } from '@effect/vitest'

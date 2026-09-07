@@ -3,7 +3,7 @@ import {
   isDeliveryUnconfirmed,
   canResendInvitation,
   type EmailDeliveryRecord
-} from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+} from '@b2b-saas-starter/email-delivery/email-delivery'
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { Clock, Effect } from 'effect'
 import { runCapabilities } from '../capabilities'

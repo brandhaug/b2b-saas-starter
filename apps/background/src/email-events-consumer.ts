@@ -5,8 +5,8 @@ import {
 import {
   EmailDelivery,
   type EmailProviderEvent
-} from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+} from '@b2b-saas-starter/email-delivery/email-delivery'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import { Effect, Metric, Schema, type Scope } from 'effect'
 

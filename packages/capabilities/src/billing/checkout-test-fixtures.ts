@@ -3,7 +3,7 @@ import {
   testItem,
   testSubscriptionFields,
   paidInvoice
-} from './provider-test-fixtures.ts'
+} from '@b2b-saas-starter/billing/provider-test-fixtures'
 // oxlint-disable effect/noNewPromise, effect/noThrowStatement, effect/noNewError, vitest/require-mock-type-parameters
 
 import {
@@ -14,16 +14,20 @@ import {
   workspaceSubscriptions
 } from '@b2b-saas-starter/db/schema'
 import { Database, type EffectDatabase, type RawD1 } from '@b2b-saas-starter/db/service'
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import { vi } from 'vite-plus/test'
 
-import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import { AuditEventLog as BillingAuditEventLog } from '@b2b-saas-starter/billing/ports'
+import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { inWorkspace } from '../testing/live-harness.ts'
-import { makeBillingLease } from './billing-lease.ts'
-import { makeBillingSyncStore } from './billing-sync-store.ts'
-import { makeDurableCheckout, type DurableCheckoutInput } from './checkout.live.ts'
+import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
+import { makeBillingLease } from '@b2b-saas-starter/billing/billing-lease'
+import { makeBillingSyncStore } from '@b2b-saas-starter/billing/billing-sync-store'
+import {
+  makeDurableCheckout,
+  type DurableCheckoutInput
+} from '@b2b-saas-starter/billing/checkout.live'
 
 export const workspaceId = 'wrk_live'
 // oxlint-disable-next-line react-doctor/no-secrets-in-client-code -- provider key is an inert live-test fixture
@@ -396,7 +400,7 @@ export function durable<A, E>(
     'live-lab',
     Effect.gen(function* () {
       const db = yield* Database
-      const audit = yield* AuditEventLog
+      const audit = yield* BillingAuditEventLog
       const leases = yield* makeBillingLease()
       const syncStore = yield* makeBillingSyncStore()
       const checkout = makeDurableCheckout({
@@ -407,7 +411,7 @@ export function durable<A, E>(
         recordFailure: syncStore.fail
       })
       return yield* run(checkout, db)
-    }),
+    }).pipe(Effect.provide(Layer.merge(BillingAuditLayer, BillingNotificationLayer))),
     { userId: 'usr_owner' }
   )
 }
@@ -422,5 +426,3 @@ export function withStripe<A, E, R>(
     () => Effect.sync(() => vi.unstubAllGlobals())
   )
 }
-
-export type Fixture = ReturnType<typeof stripeFixture>

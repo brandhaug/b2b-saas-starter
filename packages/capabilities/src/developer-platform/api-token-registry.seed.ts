@@ -1,10 +1,13 @@
 import {
   SeedResourceInventory,
   SeedResourceInventoryLayer
-} from '../billing/resource-inventory.seed.ts'
+} from '@b2b-saas-starter/billing/resource-inventory.seed'
+import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 import { DateTime, Effect, Layer } from 'effect'
 
-import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
+import { assertWithinPlanLimit } from '@b2b-saas-starter/billing/resource-admission'
+import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import { ApiTokenNotRotatable, AuthorizationDenied } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
@@ -38,11 +41,12 @@ export function SeedApiTokenRegistry(
 ): Layer.Layer<
   ApiTokenRegistry,
   never,
-  AuditEventLog | WebhookPublisher | ResourceEntitlements
+  Billing | AuditEventLog | WebhookPublisher | ResourceEntitlements
 > {
   return Layer.effect(
     ApiTokenRegistry,
     Effect.gen(function* () {
+      const billing = yield* Billing
       const audit = yield* AuditEventLog
       const publisher = yield* WebhookPublisher
       const entitlements = yield* ResourceEntitlements
@@ -119,7 +123,17 @@ export function SeedApiTokenRegistry(
           const ctx = yield* WorkspaceContext
           const now = yield* DateTime.now
           const valid = yield* validateTokenCreation(input, DateTime.toEpochMillis(now))
-          yield* entitlements.admitCreation({ resource: 'api_token' })
+          yield* assertWithinPlanLimit({
+            resource: 'api_token',
+            used: activeIn(ctx.workspace.id).filter(
+              (entry) =>
+                entry.token.replacedByTokenId === null &&
+                !tokenIsExpired(entry.token.expiresAt, DateTime.toEpochMillis(now))
+            ).length
+          }).pipe(
+            Effect.provideService(Billing, billing),
+            Effect.provideService(BillingWorkspaceContext, ctx)
+          )
           const token = mintApiToken()
           const created: ApiToken = {
             id: yield* newCapabilityId('tok'),

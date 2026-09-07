@@ -1,9 +1,10 @@
 import { Effect } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { type expect } from '@effect/vitest'
-import { type CapabilityUnavailable, type WorkspaceNotFound } from '../errors.ts'
-import { type SubscriptionStatus } from './billing.ts'
-import { type PaymentEvidence } from './billing-state.ts'
+import { type WorkspaceNotFound } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { type SubscriptionStatus } from '@b2b-saas-starter/billing/billing'
+import { type PaymentEvidence } from '@b2b-saas-starter/billing/billing-state'
 
 export type LifecycleSnapshot = {
   readonly status: SubscriptionStatus

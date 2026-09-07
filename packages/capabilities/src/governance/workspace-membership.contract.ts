@@ -1,6 +1,7 @@
 import { Effect } from 'effect'
 import { type ContractExpect } from './contract-expect.ts'
-import { type CapabilityUnavailable, type MembershipChangeRejected } from '../errors.ts'
+import { type MembershipChangeRejected } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { failureTag } from '../internal/failure-tag.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'

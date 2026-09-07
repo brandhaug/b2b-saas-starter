@@ -4,9 +4,12 @@ import { Effect, Layer, Option } from 'effect'
 import { and, eq } from 'drizzle-orm'
 
 import { MembershipChangeRejected } from '../errors.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { WorkspaceContext } from '../workspace-context.ts'
-import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
+import {
+  publishSeatSyncWith,
+  SeatSyncPublisher
+} from '@b2b-saas-starter/billing/seat-sync'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {

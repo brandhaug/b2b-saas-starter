@@ -7,7 +7,7 @@ import {
   seedWebhookEndpoints,
   seedDeliveries
 } from '@b2b-saas-starter/capabilities/seed-fixture'
-import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { expect, it } from '@effect/vitest'

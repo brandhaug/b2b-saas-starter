@@ -16,7 +16,7 @@ import {
   type SecurityEvidenceSink
 } from '../governance/security-recovery-evidence.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   consentGrantedAuditEvent,
   consentRevokedAuditEvent,

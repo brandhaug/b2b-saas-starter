@@ -1,4 +1,4 @@
-import { type BillingSynchronizationStatus } from '@b2b-saas-starter/capabilities/billing/billing'
+import { type BillingSynchronizationStatus } from '@b2b-saas-starter/billing/billing'
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import {
@@ -6,7 +6,7 @@ import {
   planById,
   resourceEntitlementSummary,
   type ResourceEntitlementSummary
-} from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+} from '@b2b-saas-starter/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { renderWithRouter } from '@/test/router-harness'
 import {

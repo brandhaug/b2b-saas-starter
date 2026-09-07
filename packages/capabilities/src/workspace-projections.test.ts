@@ -1,9 +1,10 @@
+import { BillingAuditLayer, BillingNotificationLayer } from './billing-adapters.ts'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
-import { SeedBilling } from './billing/billing.seed.ts'
-import { SeedResourceEntitlements } from './billing/resource-entitlements.seed.ts'
-import { SeedSeatSyncPublisher } from './billing/seat-sync.ts'
+import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
+import { SeedResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.seed'
+import { SeedSeatSyncPublisher } from '@b2b-saas-starter/billing/seat-sync'
 import { SeedApiTokenRegistry } from './developer-platform/api-token-registry.seed.ts'
 import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
 import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
@@ -75,8 +76,14 @@ function fixtureLayer(fixture: Fixture) {
       const billing = SeedBilling({
         stripeConfigured: fixture.stripeConfigured ?? false,
         workspacePlans: { [seedWorkspaceRecord.id]: seedWorkspaceRecord.planId }
-      }).pipe(Layer.provide(audit), Layer.provide(feed))
+      }).pipe(
+        Layer.provide(BillingAuditLayer),
+        Layer.provide(BillingNotificationLayer),
+        Layer.provide(audit),
+        Layer.provide(feed)
+      )
       const entitlements = SeedResourceEntitlements().pipe(
+        Layer.provide(BillingAuditLayer),
         Layer.provide(billing),
         Layer.provide(audit)
       )

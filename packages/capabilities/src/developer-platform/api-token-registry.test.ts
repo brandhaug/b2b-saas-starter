@@ -4,7 +4,7 @@ import { SeedLayer } from '../layers.ts'
 import { seedApiTokens, seedWorkspaceRecord } from '../seed-fixture.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
 import { SeedApiTokenRegistry } from './api-token-registry.seed.ts'
-import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
+import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import {
   ApiTokenRegistry,
   SEED_API_TOKEN,

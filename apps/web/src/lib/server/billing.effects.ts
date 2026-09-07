@@ -1,9 +1,5 @@
-import {
-  Billing,
-  type ReconcileResult
-} from '@b2b-saas-starter/capabilities/billing/billing'
-import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { ResourceEntitlements } from '@b2b-saas-starter/capabilities/billing/resource-entitlements'
+import { Billing } from '@b2b-saas-starter/billing/billing'
+import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { Effect } from 'effect'
@@ -12,7 +8,6 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type PortalInput,
@@ -215,42 +210,6 @@ export async function startPortalSessionHandler(
       return yield* billing.startPortalSession({
         returnUrl: `${base}/workspaces/${encodeURIComponent(input.workspaceSlug)}/billing`
       })
-    }),
-    { userId: session.user.id }
-  )
-}
-
-/**
- * Re-checks the authenticated workspace after Stripe sends the browser back.
- * The workspace id comes from the verified context, never from the request;
- * the slug only selects the workspace through the normal membership gate.
- */
-export async function reconcileCheckoutReturnHandler(
-  input: WorkspaceBillingInput
-): Promise<ReconcileResult> {
-  const session = await requireRequestSession()
-  return runWorkspaceCapabilities(
-    input.workspaceSlug,
-    Effect.gen(function* () {
-      yield* requireWorkspacePermission({ organization: ['update'] })
-      const context = yield* WorkspaceContext
-      const billing = yield* Billing
-      return yield* billing
-        .reconcileWorkspace({
-          workspaceId: context.workspace.id,
-          reason: 'checkout_return'
-        })
-        .pipe(
-          Effect.timeout('8 seconds'),
-          Effect.catchTag('TimeoutError', () =>
-            Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'billing',
-                reason: 'reconciliation_timeout'
-              })
-            )
-          )
-        )
     }),
     { userId: session.user.id }
   )

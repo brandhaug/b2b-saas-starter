@@ -1,8 +1,11 @@
 import { DateTime, Effect, Layer, Option, Result } from 'effect'
 
-import { type CapabilityUnavailable } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+
 import {
   NotificationFeed,
   type NotificationFeedInterface

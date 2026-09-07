@@ -1,10 +1,7 @@
 import { Effect } from 'effect'
 import { type ContractExpect } from './contract-expect.ts'
-import {
-  type CapabilityUnavailable,
-  type WorkspaceChangeRejected,
-  type WorkspaceSuspended
-} from '../errors.ts'
+import { type WorkspaceChangeRejected, type WorkspaceSuspended } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { failureTag } from '../internal/failure-tag.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'

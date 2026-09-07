@@ -1,5 +1,5 @@
 import { m } from '@b2b-saas-starter/i18n/messages'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   SsoConnections,
   type SsoConnection,

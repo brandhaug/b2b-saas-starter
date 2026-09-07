@@ -1,5 +1,5 @@
-import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
-import { SeedEmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery.seed'
+import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
+import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
 import { Effect, type Scope } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 

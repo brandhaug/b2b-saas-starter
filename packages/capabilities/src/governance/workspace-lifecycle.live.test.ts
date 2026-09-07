@@ -4,7 +4,7 @@ import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
 
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type CapabilityServices } from '../layers.ts'
 import {
   fakeLifecycleBinding,

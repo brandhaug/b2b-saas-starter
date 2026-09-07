@@ -10,7 +10,7 @@ import {
   type AccountLifecycleRunner
 } from './account-delete-hooks'
 
-import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 /**
  * The hooks are the app half of the store's delete sequencing, so the tests

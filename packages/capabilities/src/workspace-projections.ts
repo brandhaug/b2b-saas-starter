@@ -1,6 +1,6 @@
 import { Effect, Layer } from 'effect'
-import { Billing } from './billing/billing.ts'
-import { STARTER_PLAN } from './billing/plan-catalog.ts'
+import { Billing } from '@b2b-saas-starter/billing/billing'
+import { STARTER_PLAN } from '@b2b-saas-starter/billing/plan-catalog'
 import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
 import { WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
 import { type Workspace } from './governance/workspace-identity.ts'
@@ -10,8 +10,12 @@ import {
   NotificationFeed,
   type Notification
 } from './notifications/notification-feed.ts'
-import { type CapabilityUnavailable } from './errors.ts'
-import { memberToActor, WorkspaceContext } from './workspace-context.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import {
+  memberToActor,
+  WorkspaceContext,
+  type WorkspaceServices
+} from './workspace-context.ts'
 
 /**
  * Named read projections over the per-capability services.
@@ -190,7 +194,7 @@ export function workspaceProgress(
 ): Effect.Effect<
   WorkspaceProgressProjection,
   CapabilityUnavailable,
-  | WorkspaceContext
+  | WorkspaceServices
   | WorkspaceMembership
   | ApiTokenRegistry
   | WebhookEndpoints

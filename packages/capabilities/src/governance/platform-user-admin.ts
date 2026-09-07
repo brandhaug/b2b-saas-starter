@@ -1,10 +1,7 @@
 import { Context, Effect, Schema } from 'effect'
 
-import {
-  type CapabilityUnavailable,
-  ImpersonationForbidden,
-  UserAdminRejected
-} from '../errors.ts'
+import { ImpersonationForbidden, UserAdminRejected } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type NotificationKind } from '../notifications/notification-kinds.ts'
 import { type NotificationEvent } from '../notifications/notification-events.ts'
 import { SystemRole, type Member, type WorkspaceRole } from './workspace-identity.ts'

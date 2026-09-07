@@ -4,7 +4,7 @@ import { DateTime, Effect, Layer, Ref } from 'effect'
 
 import { type Member, type Workspace } from '../governance/workspace-identity.ts'
 import { AccountPreferencesService } from '../governance/account-preferences.ts'
-import { type CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
 import { seedMembers, seedWorkspaceRecord } from '../seed-fixture.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
