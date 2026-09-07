@@ -24,6 +24,8 @@ export default defineConfig({
     printWidth: 88,
     indentStyle: 'tab',
     ignorePatterns: [
+      // Canonical skills are formatted through .agents/skills.
+      '.claude/skills/**',
       '**/routeTree.gen.*',
       '**/*.d.ts',
       'packages/i18n/src/generated/**',

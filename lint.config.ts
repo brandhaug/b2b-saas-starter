@@ -488,6 +488,7 @@ const { lint = {} } = defineConfig({
       builtin: true
     },
     ignorePatterns: [
+      '.claude/skills/**',
       'node_modules/**',
       '.context/**',
       'dist/**',
@@ -777,7 +778,13 @@ const { lint = {} } = defineConfig({
         plugins: ['typescript', 'vitest', 'react']
       },
       {
-        files: ['scripts/**', 'packages/*/scripts/**', 'infra/**', 'alchemy.run.ts'],
+        files: [
+          'scripts/**',
+          '.github/scripts/**',
+          'packages/*/scripts/**',
+          'infra/**',
+          'alchemy.run.ts'
+        ],
         rules: {
           'no-console': 'off',
           'anti-slop/no-unknown-parameters': 'off',
@@ -796,6 +803,14 @@ const { lint = {} } = defineConfig({
           // Alchemy provisions optional resources with `yield*` inside a conditional. The
           // `let` + `if` alternative costs a mutable binding and an explicit annotation.
           'effect/noTernary': 'off'
+        }
+      },
+      {
+        files: ['scripts/setup-agent-skills.test.ts', '.github/scripts/*.test.ts'],
+        rules: {
+          // These CLIs and their tests run directly on Node 24, before app tooling.
+          'vitest/no-import-node-test': 'off',
+          'vitest/prefer-each': 'off'
         }
       },
       {

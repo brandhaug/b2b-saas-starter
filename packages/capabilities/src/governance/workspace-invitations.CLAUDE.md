@@ -1,0 +1,1 @@
+workspace-invitations.AGENTS.md

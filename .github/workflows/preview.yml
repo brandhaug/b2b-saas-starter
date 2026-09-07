@@ -47,7 +47,7 @@ jobs:
       - uses: ./.github/actions/setup
       - name: Resolve preview URLs
         id: urls
-        run: ./.github/scripts/preview-urls.sh
+        run: node .github/scripts/preview-urls.ts
       # Same squash-rename guard as the production deploy in ci.yml: a
       # long-lived PR's stage database records pre-squash migration names.
       # On a fresh stage database this is a no-op.
@@ -70,19 +70,7 @@ jobs:
       - name: Report the deployment
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          {
-            echo "### Preview stage \`$ALCHEMY_STAGE\`"
-            echo
-            echo '| Worker | URL |'
-            echo '| --- | --- |'
-            echo "| web | $WEB_URL |"
-            echo "| api | $API_URL/health |"
-            echo "| background | $BACKGROUND_URL |"
-            echo
-            echo "Deployed \`$GIT_COMMIT_SHA\`. The stage has its own D1 seeded with the Seed Workspace (\`starter-lab\`; demo sign-in in \`docs/setup.md\`). Env-gated providers (Turnstile, Stripe, Sentry, PostHog, email, AI) are off. The stage is destroyed when this PR closes."
-          } >> "$GITHUB_STEP_SUMMARY"
-          ./.github/scripts/preview-status.sh deployed
+        run: node .github/scripts/preview-status.ts deployed
 
   destroy:
     name: Destroy preview stage
@@ -100,10 +88,10 @@ jobs:
       # alchemy.run.ts resolves the stage's URLs at module scope even on
       # destroy, so the same inputs are needed here.
       - name: Resolve preview URLs
-        run: ./.github/scripts/preview-urls.sh
+        run: node .github/scripts/preview-urls.ts
       - name: Destroy the stage
         run: pnpm run destroy:stage
       - name: Mark the stage's deployments inactive
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./.github/scripts/preview-status.sh destroyed
+        run: node .github/scripts/preview-status.ts destroyed

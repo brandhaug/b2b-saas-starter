@@ -41,15 +41,4 @@ jobs:
       # the step retries with a pause instead of reporting an outage as an
       # advisory; a real high advisory still fails after all attempts.
       - name: Audit dependencies
-        run: |
-          attempts=3
-          for attempt in $(seq 1 "$attempts"); do
-            if pnpm audit --audit-level=high; then
-              exit 0
-            fi
-            if [ "$attempt" -lt "$attempts" ]; then
-              echo "::warning::audit failed (attempt $attempt/$attempts) — retrying in 60s"
-              sleep 60
-            fi
-          done
-          exit 1
+        run: node .github/scripts/run-check.ts audit

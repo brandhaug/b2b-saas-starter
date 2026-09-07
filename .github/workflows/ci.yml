@@ -11,6 +11,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  # Superseded PR commits should not consume a runner. Pushes to master keep
+  # their run because the production deploy job is part of this workflow.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -20,8 +26,8 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run lint
       # Dead-code regression gate (the `dead-code` step of `pnpm run check`).
-      # fallow is not a workspace dependency, so it comes from npm.
-      - run: npm install -g fallow@3
+      # Fallow is pinned in the workspace catalog so local and CI runs use the
+      # same analyzer binary.
       - run: pnpm run dead-code
       # The wrangler configs are generated from infra/bindings.ts. Regenerating
       # them must be a no-op; a hand-edited config (or a spec change nobody
@@ -35,6 +41,7 @@ jobs:
       # capabilities `test` script runs with --coverage (thresholds live in
       # packages/capabilities/vitest.config.ts) — fails on decay.
       - run: pnpm run test
+      - run: pnpm run test:scripts
       - run: pnpm run build
 
   e2e:
@@ -56,22 +63,19 @@ jobs:
       # retries never apply. Retry the run once: a second attempt lands on a
       # warm runner and a fresh server process.
       - name: Run e2e tests
-        run: |
-          attempts=2
-          for attempt in $(seq 1 "$attempts"); do
-            if pnpm run test:e2e; then
-              exit 0
-            fi
-            if [ "$attempt" -lt "$attempts" ]; then
-              echo "::warning::e2e run failed (attempt $attempt/$attempts) — retrying"
-              # A timed-out webServer can leave the dev server or its workerd
-              # child holding :3071; clear them so the retry starts clean
-              # instead of tripping --strictPort immediately.
-              pkill -f 'vite dev' 2>/dev/null || true
-              pkill -f workerd 2>/dev/null || true
-            fi
-          done
-          exit 1
+        run: node .github/scripts/run-check.ts e2e
+      - name: Upload Playwright results and traces
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results-${{ github.run_attempt }}
+          path: |
+            apps/web/test-results
+            apps/web/test-results-attempt-*
+            apps/web/playwright-report
+            apps/web/playwright-report-attempt-*
+          if-no-files-found: ignore
+          retention-days: 14
 
   deploy:
     if: >-
