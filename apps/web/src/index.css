@@ -292,6 +292,12 @@
   max-height: calc(100dvh - 4.5rem);
 }
 
+/* Alert dialogs keep a viewport gutter while allowing long confirmations to
+   scroll instead of positioning their actions outside the screen. */
+@utility max-h-dialog-inset {
+  max-height: calc(100dvh - 2rem);
+}
+
 /* Balanced ragged edges on every marketing heading, and a guaranteed
    focus indicator on links and buttons — many marketing CTAs are raw
    <a>/<Link> elements without component-level rings. */

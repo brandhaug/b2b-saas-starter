@@ -47,7 +47,7 @@ function AlertDialogContent({
         className={cn(
           // Slide/zoom motion is `motion-safe:`-gated; without it the dialog
           // simply appears.
-          'bg-background data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-full sm:max-w-sm -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border border-border p-6 shadow-lg duration-200',
+          'bg-background data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 fixed top-1/2 left-1/2 z-50 grid grid-cols-1 min-w-0 max-h-dialog-inset w-full max-w-dialog-inset -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-md border border-border p-6 shadow-lg duration-200 sm:max-w-sm wrap-anywhere',
           className
         )}
         {...props}
@@ -55,6 +55,19 @@ function AlertDialogContent({
         {children}
       </AlertDialogPrimitive.Popup>
     </AlertDialogPortal>
+  )
+}
+
+function AlertDialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="alert-dialog-footer"
+      className={cn(
+        'flex min-w-0 flex-wrap items-center justify-end gap-2 max-md:flex-col max-md:items-stretch [&>button]:break-words [&>button]:h-auto [&>button]:min-w-0 [&>button]:py-2 [&>button]:shrink [&>button]:whitespace-normal max-md:[&>button]:h-auto max-md:[&>button]:min-h-11 max-md:[&>button]:w-full',
+        className
+      )}
+      {...props}
+    />
   )
 }
 
@@ -88,7 +101,15 @@ function AlertDialogAction({
   return (
     <AlertDialogPrimitive.Close
       data-slot="alert-dialog-action"
-      render={<Button className={className} {...props} />}
+      render={
+        <Button
+          className={cn(
+            'h-auto min-h-9 min-w-0 shrink whitespace-normal break-words py-2 max-md:h-auto max-md:min-h-11',
+            className
+          )}
+          {...props}
+        />
+      }
     />
   )
 }
@@ -100,7 +121,16 @@ function AlertDialogCancel({
   return (
     <AlertDialogPrimitive.Close
       data-slot="alert-dialog-cancel"
-      render={<Button variant="outline" className={className} {...props} />}
+      render={
+        <Button
+          variant="outline"
+          className={cn(
+            'h-auto min-h-9 min-w-0 shrink whitespace-normal break-words py-2 max-md:h-auto max-md:min-h-11',
+            className
+          )}
+          {...props}
+        />
+      }
     />
   )
 }
@@ -113,6 +143,7 @@ export {
   AlertDialogContent,
   AlertDialogTitle,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogAction,
   AlertDialogCancel
 }

@@ -12,6 +12,7 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
@@ -126,14 +127,14 @@ export function SessionsPanel({
               <AlertDialogDescription>
                 {m.other_sessions_revoked()}
               </AlertDialogDescription>
-              <div className="flex justify-end gap-2">
+              <AlertDialogFooter>
                 <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => act.run(() => authClient.revokeOtherSessions())}
                 >
                   {m.sign_out()}
                 </AlertDialogAction>
-              </div>
+              </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         ) : undefined
@@ -195,7 +196,7 @@ export function SessionsPanel({
                       <AlertDialogDescription>
                         {m.public_auth_session_signed_out()}
                       </AlertDialogDescription>
-                      <div className="flex justify-end gap-2">
+                      <AlertDialogFooter>
                         <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() =>
@@ -206,7 +207,7 @@ export function SessionsPanel({
                         >
                           {m.revoke_session_action()}
                         </AlertDialogAction>
-                      </div>
+                      </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
                 )}

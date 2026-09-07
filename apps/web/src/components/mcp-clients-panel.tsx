@@ -7,6 +7,7 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
@@ -108,12 +109,12 @@ export function McpClientsPanel({
                           workspace: connection.workspace?.name ?? m.the_workspace()
                         })}
                       </AlertDialogDescription>
-                      <div className="flex justify-end gap-2">
+                      <AlertDialogFooter>
                         <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                         <AlertDialogAction onClick={() => act.run(connection.id)}>
                           {m.revoke_access()}
                         </AlertDialogAction>
-                      </div>
+                      </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
                 </ItemActions>

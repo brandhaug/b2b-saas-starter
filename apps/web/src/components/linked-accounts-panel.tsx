@@ -12,6 +12,7 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
@@ -122,7 +123,7 @@ export function LinkedAccountsPanel() {
                       <AlertDialogDescription>
                         {m.provider_unlinked_description()}
                       </AlertDialogDescription>
-                      <div className="flex justify-end gap-2">
+                      <AlertDialogFooter>
                         <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() =>
@@ -133,7 +134,7 @@ export function LinkedAccountsPanel() {
                         >
                           {m.unlink_action()}
                         </AlertDialogAction>
-                      </div>
+                      </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
                 ) : (

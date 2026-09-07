@@ -159,14 +159,14 @@ export function MembersPanel({
           const removing = removeMember.pendingInput?.userId === member.id
           return (
             <Item key={member.id} variant="outline" size="sm">
-              <ItemContent>
+              <ItemContent className="min-w-0">
                 <ItemTitle>{member.name}</ItemTitle>
                 <ItemDescription>{member.email}</ItemDescription>
                 {failedRow?.key === member.id ? (
                   <ActionFeedback error={failedRow.message} />
                 ) : null}
               </ItemContent>
-              <ItemActions>
+              <ItemActions className="ml-auto min-w-0 flex-wrap max-md:ml-0 max-md:basis-full max-md:justify-end">
                 <Badge variant={roleVariant(member.role)}>
                   {roleLabel(member.role)}
                 </Badge>

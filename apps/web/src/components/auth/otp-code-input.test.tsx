@@ -55,6 +55,43 @@ describe('OtpCodeInput', () => {
     expect(document.activeElement).toBe(cell(1))
   })
 
+  it('replaces the digit in the focused cell', async () => {
+    await renderWithRouter(<Harness />)
+    fireEvent.change(cell(0), { target: { value: '1' } })
+    fireEvent.change(cell(1), { target: { value: '2' } })
+    fireEvent.change(cell(2), { target: { value: '3' } })
+    fireEvent.change(cell(3), { target: { value: '4' } })
+    fireEvent.change(cell(4), { target: { value: '5' } })
+    fireEvent.change(cell(5), { target: { value: '6' } })
+
+    fireEvent.focus(cell(2))
+    fireEvent.change(cell(2), { target: { value: '9' } })
+
+    expect(cell(0).value).toBe('1')
+    expect(cell(1).value).toBe('2')
+    expect(cell(2).value).toBe('9')
+    expect(cell(3).value).toBe('4')
+    expect(cell(4).value).toBe('5')
+    expect(cell(5).value).toBe('6')
+    expect(document.activeElement).toBe(cell(3))
+  })
+
+  it('removes the focused digit on Backspace and shifts the suffix left', async () => {
+    await renderWithRouter(<Harness />)
+    fireEvent.change(cell(0), { target: { value: '1' } })
+    fireEvent.change(cell(1), { target: { value: '2' } })
+    fireEvent.change(cell(2), { target: { value: '3' } })
+    fireEvent.change(cell(3), { target: { value: '4' } })
+
+    fireEvent.keyDown(cell(2), { key: 'Backspace' })
+
+    expect(cell(0).value).toBe('1')
+    expect(cell(1).value).toBe('2')
+    expect(cell(2).value).toBe('4')
+    expect(cell(3).value).toBe('')
+    expect(document.activeElement).toBe(cell(1))
+  })
+
   it('fills from a pasted code and keeps only six digits', async () => {
     const onChange = vi.fn()
     await renderWithRouter(<Harness onChange={onChange} />)

@@ -8,6 +8,7 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
@@ -213,7 +214,7 @@ function DeleteSection({
               className="w-full"
             />
           </div>
-          <div className="flex justify-end gap-2">
+          <AlertDialogFooter>
             <AlertDialogCancel ref={cancelRef}>{m.common_cancel()}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
@@ -222,7 +223,7 @@ function DeleteSection({
             >
               {m.delete_workspace_permanently()}
             </AlertDialogAction>
-          </div>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
       {/* The dialog is gone by the time a failure lands, so it renders here,

@@ -6,6 +6,7 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
@@ -145,12 +146,12 @@ export function PasskeysPanel() {
                   <AlertDialogDescription>
                     {m.public_auth_remove_passkey_description()}
                   </AlertDialogDescription>
-                  <div className="flex justify-end gap-2">
+                  <AlertDialogFooter>
                     <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                     <AlertDialogAction onClick={() => remove.run({ id: row.id })}>
                       {m.remove_passkey_action()}
                     </AlertDialogAction>
-                  </div>
+                  </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
             </li>

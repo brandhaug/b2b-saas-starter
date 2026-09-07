@@ -13,6 +13,7 @@ import {
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -161,7 +162,7 @@ export function DeleteAccountPanel({
           <AlertDialogDescription>
             {m.delete_account_confirm_description()}
           </AlertDialogDescription>
-          <div className="flex justify-end gap-2">
+          <AlertDialogFooter>
             <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
@@ -172,7 +173,7 @@ export function DeleteAccountPanel({
             >
               {m.confirm_delete_account()}
             </AlertDialogAction>
-          </div>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </section>

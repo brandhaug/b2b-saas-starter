@@ -795,6 +795,7 @@
   "admin_audit_events": "Revisjonshendelser",
   "admin_no_audit_events": "Ingen revisjonshendelser.",
   "admin_load_workspaces": "Last inn arbeidsområder",
+  "admin_no_workspace_memberships": "{name} har ingen arbeidsområdemedlemskap.",
   "sso_routing": "ruting",
   "sso_test_passed": "Tilkoblingstesten var vellykket.",
   "sso_test_failed_status": "Tilkoblingstesten mislyktes.",
