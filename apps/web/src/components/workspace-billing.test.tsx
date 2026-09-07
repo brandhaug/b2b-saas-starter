@@ -48,7 +48,10 @@ async function renderPlans(options?: {
 describe('BillingPlans', () => {
   it('hands the portal URL to the browser when Stripe is configured', async () => {
     const assign = vi.fn()
-    vi.stubGlobal('location', { assign })
+    vi.stubGlobal('location', {
+      assign,
+      href: 'http://localhost/workspaces/starter-lab/billing'
+    })
     try {
       await renderPlans()
       fireEvent.click(screen.getByRole('button', { name: /manage billing/i }))

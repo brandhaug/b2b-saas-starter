@@ -2,6 +2,7 @@
  * The field validators shared by the auth forms. Kept out of
  * `auth-submit-button.tsx` so that file stays a components-only module.
  */
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The email validator: required, and shaped like an address. Deliberately
@@ -9,10 +10,10 @@
  */
 export function emailValidator({ value }: { value: string }): string | undefined {
   if (value.length === 0) {
-    return 'Email is required'
+    return m.public_auth_email_required()
   }
   if (!value.includes('@')) {
-    return 'Enter a valid email'
+    return m.public_auth_valid_email()
   }
   return
 }
@@ -25,10 +26,10 @@ export function emailValidator({ value }: { value: string }): string | undefined
  */
 export function passwordValidator({ value }: { value: string }): string | undefined {
   if (value.length < 12) {
-    return 'Password must be at least 12 characters'
+    return m.public_auth_password_min()
   }
   if (value.length > 256) {
-    return 'Password must be at most 256 characters'
+    return m.public_auth_password_max()
   }
   return
 }

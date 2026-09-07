@@ -7,8 +7,10 @@ import {
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
+import { LocalizedError } from '@/lib/localized-error'
 import { loadDemoWorkspaceServerFn } from '@/lib/server/demo-showcase'
 import { type WorkspaceDashboardPayload } from '@/lib/server/workspace-dashboard'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/demo')({
   // The same actorless, read-only read the homepage strip uses, pinned to the
@@ -24,7 +26,7 @@ export const Route = createFileRoute('/demo')({
   pendingComponent: RoutePending,
   component: DemoWorkspaceRoute,
   head: () => ({
-    meta: [{ title: pageTitle('Live demo', DEMO_WORKSPACE_SLUG) }]
+    meta: [{ title: pageTitle(m.public_meta_demo(), DEMO_WORKSPACE_SLUG) }]
   })
 })
 
@@ -49,12 +51,7 @@ function demoListNotifications(
 
 function demoMarkNotificationsRead(): Promise<number> {
   // oxlint-disable-next-line effect/noNewPromise -- the rejection is the feature: this message is the honest answer to a click the demo cannot honor, folded into the panel's error channel
-  return Promise.reject(
-    // oxlint-disable-next-line effect/noNewError -- same rejection: the port contract has no Effect channel to raise a tagged error through
-    new Error(
-      'The live demo is read-only. Clone the starter and sign in as demo@starter.local to interact.'
-    )
-  )
+  return Promise.reject(new LocalizedError(m.shell_demo_read_only()))
 }
 
 /**

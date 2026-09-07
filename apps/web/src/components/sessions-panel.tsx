@@ -5,7 +5,7 @@ import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-
 import { Button } from '@/components/ui/button'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Panel } from '@/components/page/panel'
-import { formatUtc } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +16,7 @@ import {
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * One Better Auth session row, narrowed to the fields this panel reads
@@ -43,10 +44,10 @@ export type SessionRowView = {
 
 function describeUserAgent(userAgent: string | null | undefined): string {
   if (!userAgent) {
-    return 'Unknown device'
+    return m.unknown_device()
   }
   if (userAgent.includes('iPhone') || userAgent.includes('Android')) {
-    return 'Mobile browser'
+    return m.mobile_browser()
   }
   if (userAgent.includes('Macintosh')) {
     return 'Mac'
@@ -57,7 +58,7 @@ function describeUserAgent(userAgent: string | null | undefined): string {
   if (userAgent.includes('Linux')) {
     return 'Linux'
   }
-  return 'Browser'
+  return m.browser()
 }
 
 function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowView> {
@@ -68,10 +69,10 @@ function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowV
     .map((session) => ({
       token: session.token,
       deviceLabel: describeUserAgent(session.userAgent),
-      // `formatUtc` pins locale and zone (en-US/UTC), like every other
+      // `formatTimestamp` pins locale and zone (en-US/UTC), like every other
       // timestamp — the ambient-locale call this replaced was the one
       // remaining hydration-unsafe formatter.
-      expiresLabel: formatUtc(session.expiresAt, { dateStyle: 'medium' }),
+      expiresLabel: formatTimestamp(session.expiresAt, { dateStyle: 'medium' }),
       ipAddress: session.ipAddress
     }))
 }
@@ -87,7 +88,6 @@ function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowV
  * `useAuthClientRows` owns the how (`hooks/use-auth-client-rows.ts`).
  */
 const SESSIONS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'sessions']
-const ACTION_FAILED = 'The change could not be made'
 
 export function SessionsPanel({
   currentSessionToken
@@ -98,40 +98,40 @@ export function SessionsPanel({
     queryKey: SESSIONS_QUERY_KEY,
     list: () => authClient.listSessions(),
     toRows: toViewModels,
-    loadFailedMessage: 'Could not load sessions'
+    loadFailedMessage: m.load_sessions_failed()
   })
   // The session list is this panel's own query, not a loader's, so the action
   // refetches it rather than invalidating the route.
   const act = useAuthClientAction({
     refetch,
     call: (action: () => Promise<AuthResult<unknown>>) =>
-      unwrapAuthResult(action, ACTION_FAILED),
-    failureMessage: ACTION_FAILED
+      unwrapAuthResult(action, m.session_action_failed()),
+    failureMessage: m.session_action_failed()
   })
 
   const othersExist = rows?.some((row) => row.token !== currentSessionToken)
 
   return (
     <Panel
-      title="Active sessions"
-      description="Every device currently signed in as you. Revoking a session signs it out immediately."
+      title={m.active_sessions()}
+      description={m.active_sessions_description()}
       actions={
         othersExist ? (
           <AlertDialog>
             <AlertDialogTrigger render={<Button variant="outline" />}>
-              Sign out everywhere else
+              {m.auth_sign_out_everywhere()}
             </AlertDialogTrigger>
             <AlertDialogContent>
-              <AlertDialogTitle>Sign out everywhere else?</AlertDialogTitle>
+              <AlertDialogTitle>{m.auth_sign_out_everywhere()}?</AlertDialogTitle>
               <AlertDialogDescription>
-                Every session except this device will be revoked.
+                {m.other_sessions_revoked()}
               </AlertDialogDescription>
               <div className="flex justify-end gap-2">
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => act.run(() => authClient.revokeOtherSessions())}
                 >
-                  Sign out
+                  {m.sign_out()}
                 </AlertDialogAction>
               </div>
             </AlertDialogContent>
@@ -168,12 +168,12 @@ export function SessionsPanel({
                   <p className="text-sm">
                     {row.deviceLabel}{' '}
                     {isCurrent ? (
-                      <span className="text-muted-foreground">· This device</span>
+                      <span className="text-muted-foreground">· {m.this_device()}</span>
                     ) : null}
                   </p>
                   <p className="text-xs font-mono tabular-nums text-muted-foreground">
-                    {row.ipAddress ? `${row.ipAddress} · ` : ''}Expires{' '}
-                    {row.expiresLabel}
+                    {row.ipAddress ? `${row.ipAddress} · ` : ''}
+                    {m.expires_label()} {row.expiresLabel}
                   </p>
                 </div>
                 {isCurrent ? null : (
@@ -182,21 +182,21 @@ export function SessionsPanel({
                       render={
                         <Button
                           variant="ghost"
-                          aria-label={`Revoke ${row.deviceLabel} session`}
+                          aria-label={m.revoke_session_named({ name: row.deviceLabel })}
                         />
                       }
                     >
-                      Revoke
+                      {m.action_revoke()}
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogTitle>
-                        Revoke the {row.deviceLabel} session?
+                        {m.revoke_session_named({ name: row.deviceLabel })}?
                       </AlertDialogTitle>
                       <AlertDialogDescription>
-                        That device will be signed out.
+                        {m.public_auth_session_signed_out()}
                       </AlertDialogDescription>
                       <div className="flex justify-end gap-2">
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() =>
                             act.run(() =>
@@ -204,7 +204,7 @@ export function SessionsPanel({
                             )
                           }
                         >
-                          Revoke session
+                          {m.revoke_session_action()}
                         </AlertDialogAction>
                       </div>
                     </AlertDialogContent>

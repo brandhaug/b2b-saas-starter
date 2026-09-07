@@ -181,7 +181,8 @@ describe('seed billing contract', () => {
 describe('seat pricing catalog', () => {
   it('prices the free plan flat with included seats and keeps it', () => {
     expect(STARTER_PLAN.pricing).toBe('flat')
-    expect(STARTER_PLAN.price).toBe('$0')
+    expect(STARTER_PLAN.price).toEqual({ amount: 0, currency: 'USD' })
+    expect(STARTER_PLAN.descriptionKey).toBe('shell_plan_starter_description')
     expect(STARTER_PLAN.limits.seats).toBe(3)
     expect(planById('team').pricing).toBe('per_seat')
     expect(planById('enterprise').pricing).toBe('flat')

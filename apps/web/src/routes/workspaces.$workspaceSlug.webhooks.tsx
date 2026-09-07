@@ -3,6 +3,7 @@ import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceWebhooksPage } from '@/components/workspace-webhooks-page'
 import { loadWorkspaceWebhooksServerFn } from '@/lib/server/webhooks'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there. The page's own read permission
@@ -15,7 +16,7 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/webhooks')({
   pendingComponent: RoutePending,
   component: WorkspaceWebhooksRoute,
   head: ({ params }) => ({
-    meta: [{ title: pageTitle('Webhooks', params.workspaceSlug) }]
+    meta: [{ title: pageTitle(m.public_meta_webhooks(), params.workspaceSlug) }]
   })
 })
 

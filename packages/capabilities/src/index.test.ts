@@ -79,6 +79,7 @@ import {
 } from './governance/account-lifecycle.contract.ts'
 import { AccountLifecycle } from './governance/account-lifecycle.ts'
 import { SeedAccountLifecycle } from './governance/account-lifecycle.seed.ts'
+import { SeedAccountPreferences } from './governance/account-preferences.ts'
 import {
   CONTRACT_EXPIRED_AT,
   workspaceInvitationsContractCases
@@ -234,10 +235,11 @@ describe('seed audit event log contract', () => {
  * so every feed fixture rides one empty preference store (defaults only).
  */
 function seedFeed(rows: ReadonlyArray<SeedNotification>) {
+  const audit = SeedAuditEventLog([])
+  const preferences = SeedNotificationPreferences([]).pipe(Layer.provide(audit))
+  const accountPreferences = SeedAccountPreferences([]).pipe(Layer.provide(audit))
   return SeedNotificationFeed(rows).pipe(
-    Layer.provide(
-      SeedNotificationPreferences([]).pipe(Layer.provide(SeedAuditEventLog([])))
-    )
+    Layer.provide(Layer.merge(preferences, accountPreferences))
   )
 }
 

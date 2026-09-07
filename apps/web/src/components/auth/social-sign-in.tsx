@@ -8,6 +8,7 @@ import {
   SOCIAL_PROVIDER_LABELS,
   loginMethodLabel
 } from '@/components/auth/social-provider-labels'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The provider marks, as inline SVG at the same 16px the other auth buttons
@@ -82,14 +83,18 @@ export function SocialSignInButtons({
               }}
             >
               <Icon />
-              Continue with {SOCIAL_PROVIDER_LABELS[provider]}
+              {m.public_auth_continue_with_provider({
+                provider: SOCIAL_PROVIDER_LABELS[provider]
+              })}
             </Button>
           )
         })}
       </div>
       <div className="flex items-center gap-3" aria-hidden="true">
         <span className="h-px flex-1 bg-border" />
-        <span className="text-xs text-muted-foreground">or continue with email</span>
+        <span className="text-xs text-muted-foreground">
+          {m.or_continue_with_email()}
+        </span>
         <span className="h-px flex-1 bg-border" />
       </div>
     </>
@@ -110,7 +115,7 @@ export function LastSignInMethodHint() {
   }
   return (
     <p className="text-xs text-muted-foreground">
-      Last signed in with {loginMethodLabel(method)}.
+      {m.public_auth_last_signed_in_with({ method: loginMethodLabel(method) })}
     </p>
   )
 }

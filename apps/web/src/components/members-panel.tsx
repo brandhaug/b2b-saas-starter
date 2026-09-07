@@ -1,3 +1,4 @@
+import { roleLabel } from '@/lib/value-labels'
 import {
   type Member,
   type WorkspaceRole
@@ -28,10 +29,7 @@ import {
 } from '@/lib/server/workspace-members'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
-
-const CHANGE_FAILED = 'Failed to change the role'
-const REMOVE_FAILED = 'Failed to remove the member'
-const LEAVE_FAILED = 'Failed to leave the workspace'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The workspace roster with per-member role change, removal, and the actor's
@@ -78,13 +76,13 @@ export function MembersPanel({
     ({ userId, role }: { readonly userId: string; readonly role: WorkspaceRole }) =>
       changeMemberRoleServerFn({ data: { workspaceSlug, userId, role } }),
     {
-      failureMessage: CHANGE_FAILED,
+      failureMessage: m.member_role_change_failed(),
       onSuccess: (_, { userId, role }) => {
         const member = members.find((candidate) => candidate.id === userId)
         toast.success(
           member === undefined
-            ? `Role changed to ${role}`
-            : `${member.name} is now ${role}`
+            ? m.workspace_role_changed({ role })
+            : m.workspace_role_changed_named({ name: member.name, role })
         )
       }
     }
@@ -94,13 +92,13 @@ export function MembersPanel({
     ({ userId }: { readonly userId: string }) =>
       removeMemberServerFn({ data: { workspaceSlug, userId } }),
     {
-      failureMessage: REMOVE_FAILED,
+      failureMessage: m.member_remove_failed(),
       onSuccess: (_, { userId }) => {
         const member = members.find((candidate) => candidate.id === userId)
         toast.success(
           member === undefined
-            ? 'Member removed'
-            : `${member.name} removed from the workspace`
+            ? m.workspace_member_removed()
+            : m.workspace_member_removed_named({ name: member.name })
         )
       }
     }
@@ -113,7 +111,7 @@ export function MembersPanel({
   const leaveWorkspace = useServerAction(
     () => leaveWorkspaceServerFn({ data: { workspaceSlug } }),
     {
-      failureMessage: LEAVE_FAILED,
+      failureMessage: m.member_leave_failed(),
       invalidate: false,
       onSuccess: () => window.location.assign('/workspaces')
     }
@@ -133,13 +131,11 @@ export function MembersPanel({
 
   if (members.length === 0) {
     return (
-      <Panel title="Roster" description="Everyone with access to this workspace.">
+      <Panel title={m.panel_roster()} description={m.panel_roster_description()}>
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>No members yet</EmptyTitle>
-            <EmptyDescription>
-              Send an invitation to add the first teammate.
-            </EmptyDescription>
+            <EmptyTitle>{m.empty_no_members()}</EmptyTitle>
+            <EmptyDescription>{m.empty_send_invitation()}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       </Panel>
@@ -147,7 +143,7 @@ export function MembersPanel({
   }
 
   return (
-    <Panel title="Roster" description="Everyone with access to this workspace.">
+    <Panel title={m.panel_roster()} description={m.panel_roster_description()}>
       <ItemGroup>
         {members.map((member) => {
           const isOwnRow = member.id === actorUserId
@@ -171,11 +167,13 @@ export function MembersPanel({
                 ) : null}
               </ItemContent>
               <ItemActions>
-                <Badge variant={roleVariant(member.role)}>{member.role}</Badge>
+                <Badge variant={roleVariant(member.role)}>
+                  {roleLabel(member.role)}
+                </Badge>
                 {isOwnRow ? (
                   <ConfirmButton
-                    label="Leave workspace"
-                    confirmLabel="Confirm leave"
+                    label={m.action_leave_workspace()}
+                    confirmLabel={m.action_confirm_leave()}
                     variant="ghost"
                     busy={leaveWorkspace.pending}
                     onConfirm={() => void leaveOnRow()}
@@ -185,7 +183,7 @@ export function MembersPanel({
                   <RoleChangeButtons
                     currentRole={member.role}
                     offerRoles={offerRoles}
-                    labelFor={(role) => `Make ${role}: ${member.name}`}
+                    labelFor={(role) => m.action_make_role({ role, name: member.name })}
                     disabled={changing}
                     busy={changing}
                     onChange={(role) => void changeRoleOnRow(member.id, role)}
@@ -193,8 +191,8 @@ export function MembersPanel({
                 ) : null}
                 {canRemove && !isOwnRow ? (
                   <ConfirmButton
-                    label="Remove"
-                    confirmLabel="Confirm remove"
+                    label={m.action_remove()}
+                    confirmLabel={m.action_confirm_remove()}
                     target={member.name}
                     armed={confirmingRemovalId === member.id}
                     busy={removing}
@@ -212,9 +210,7 @@ export function MembersPanel({
         })}
       </ItemGroup>
       {canManage ? null : (
-        <p className="text-xs text-muted-foreground">
-          Your role cannot change member roles.
-        </p>
+        <p className="text-xs text-muted-foreground">{m.workspace_role_denied()}</p>
       )}
     </Panel>
   )

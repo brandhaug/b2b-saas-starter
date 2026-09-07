@@ -1,4 +1,5 @@
 import { type UserDeleteHooks } from '@b2b-saas-starter/auth'
+import { type Locale } from '@b2b-saas-starter/i18n/locale'
 import {
   AccountLifecycle,
   deletionMetadata,
@@ -6,7 +7,7 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/account-lifecycle'
 import { Effect } from 'effect'
 
-import { causeMessage } from '../cause-message'
+import { errorMessage } from '@b2b-saas-starter/failure'
 import { runCapabilities } from '../capabilities'
 
 /**
@@ -32,11 +33,16 @@ export type AccountLifecycleRunner = <A, E>(
   effect: Effect.Effect<A, E, AccountLifecycle>
 ) => Promise<A>
 
-export type AccountDeletedEmailSender = (input: {
+export type AccountDeletedEmailInput = {
   readonly email: string
   readonly workspacesLeft: number
   readonly workspacesDeleted: number
-}) => Promise<void>
+  locale?: Locale | null
+}
+
+export type AccountDeletedEmailSender = (
+  input: AccountDeletedEmailInput
+) => Promise<void>
 
 export function makeUserDeleteHooks(deps: {
   readonly runAccountLifecycle: AccountLifecycleRunner
@@ -71,7 +77,7 @@ export function makeUserDeleteHooks(deps: {
             lifecycle.recordDeleted({ userId: user.id, plan })
           )
         )
-        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejected promise's value is `unknown` by construction; causeMessage is the parse step
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejected promise's value is `unknown` by construction; errorMessage is the diagnostic parser
         .catch((error: unknown) => {
           // The account row is already gone — the record cannot block it, but
           // a governance event silently lost is worth a line in the log. The
@@ -79,20 +85,25 @@ export function makeUserDeleteHooks(deps: {
           // background runner.
           Effect.runFork(
             Effect.logWarning(
-              `account.deleted audit event not recorded: ${causeMessage(error, 'no reason given')}`
+              `account.deleted audit event not recorded: ${errorMessage(error) ?? 'no reason given'}`
             )
           )
         })
-      await deps
-        .sendAccountDeletedEmail({
-          email: user.email,
-          ...deletionMetadata(plan)
-        })
-        .catch(() => {
-          // Swallowed by contract, like the two-factor notification: the
-          // deletion succeeded and the dispatcher's own wide event carries
-          // the failure.
-        })
+      const emailInput: AccountDeletedEmailInput = {
+        email: user.email,
+        ...deletionMetadata(plan)
+      }
+      // Better Auth passes the additional field from the row it is about to
+      // remove. Carry it across this hook boundary now; querying by email after
+      // deletion would lose the preference and race reuse.
+      if (user.locale !== undefined) {
+        emailInput.locale = user.locale
+      }
+      await deps.sendAccountDeletedEmail(emailInput).catch(() => {
+        // Swallowed by contract, like the two-factor notification: the
+        // deletion succeeded and the dispatcher's own wide event carries
+        // the failure.
+      })
     }
   }
 }

@@ -14,6 +14,7 @@ import {
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
 import { auditActorTypeLabel, auditEventLabel } from '@/lib/audit-labels'
 import { formatDateTime } from '@/lib/format-date'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export function AuditEventLink({ event }: { readonly event: AuditEvent }) {
   return (
@@ -24,7 +25,10 @@ export function AuditEventLink({ event }: { readonly event: AuditEvent }) {
       state={{ auditEventOpened: true }}
       resetScroll={false}
       className="inline-flex min-h-11 items-center rounded-md text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:min-h-9"
-      aria-label={`Inspect ${auditEventLabel(event.eventType)}, ${formatDateTime(event.createdAt)}`}
+      aria-label={m.inspect_audit_event({
+        event: auditEventLabel(event.eventType),
+        time: formatDateTime(event.createdAt)
+      })}
     >
       {auditEventLabel(event.eventType)}
     </Link>
@@ -40,12 +44,13 @@ export function AuditEventSheet({
   readonly event: AuditEventDetail | null
   readonly onClose: () => void
 }) {
-  const returnFocus = useRef<HTMLElement | null>(null)
+  // Store the stable event id instead of the current element. The audit list
+  // can be replaced when the detail loader resolves or history navigates;
+  // holding the old DOM node leaves Base UI with a disconnected focus target.
+  const returnFocusEventId = useRef<string | null>(null)
   useEffect(() => {
     if (eventId !== null) {
-      returnFocus.current =
-        document.getElementById(`audit-event-${eventId}`) ??
-        document.getElementById('audit-actor-filter')
+      returnFocusEventId.current = eventId
     }
   }, [eventId])
   return (
@@ -59,21 +64,25 @@ export function AuditEventSheet({
     >
       <SheetContent
         className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
-        finalFocus={returnFocus}
+        finalFocus={() => {
+          const eventLink =
+            returnFocusEventId.current === null
+              ? null
+              : document.getElementById(`audit-event-${returnFocusEventId.current}`)
+          return eventLink ?? document.getElementById('audit-actor-filter')
+        }}
       >
         <SheetHeader className="pr-16">
-          <SheetTitle>Audit event</SheetTitle>
-          <SheetDescription>Event details for this workspace.</SheetDescription>
+          <SheetTitle>{m.audit_event()}</SheetTitle>
+          <SheetDescription>{m.audit_event_description()}</SheetDescription>
         </SheetHeader>
         {event ? (
           <EventDetails event={event} />
         ) : (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>Event not found</EmptyTitle>
-              <EmptyDescription>
-                This event does not exist in this workspace or is no longer available.
-              </EmptyDescription>
+              <EmptyTitle>{m.empty_event_not_found()}</EmptyTitle>
+              <EmptyDescription>{m.mcp_event_unavailable()}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         )}
@@ -84,15 +93,15 @@ export function AuditEventSheet({
 
 function EventDetails({ event }: { readonly event: AuditEventDetail }) {
   const fields = [
-    ['Event', auditEventLabel(event.eventType)],
-    ['Event type', event.eventType],
-    ['Event ID', event.id],
-    ['Time (UTC)', event.createdAt],
-    ['Actor', event.actor],
-    ['Actor type', auditActorTypeLabel(event.actorType)],
-    ['Actor user ID', event.actorUserId ?? 'Not recorded'],
-    ['Target type', event.targetType],
-    ['Target ID', event.targetId ?? 'Not recorded']
+    [m.event_label(), auditEventLabel(event.eventType)],
+    [m.event_type_label(), event.eventType],
+    [m.event_id_label(), event.id],
+    [m.time_label(), event.createdAt],
+    [m.actor_label(), event.actor],
+    [m.actor_type_label(), auditActorTypeLabel(event.actorType)],
+    [m.actor_user_id_label(), event.actorUserId ?? m.not_recorded()],
+    [m.target_type_label(), event.targetType],
+    [m.target_id_label(), event.targetId ?? m.not_recorded()]
   ]
   return (
     <div className="grid min-w-0 gap-6 p-4 pt-0 text-sm">
@@ -104,19 +113,16 @@ function EventDetails({ event }: { readonly event: AuditEventDetail }) {
           </div>
         ))}
       </dl>
-      <section className="grid gap-2" aria-label="Permitted metadata">
-        <h3 className="font-medium">Metadata</h3>
+      <section className="grid gap-2" aria-label={m.permitted_metadata()}>
+        <h3 className="font-medium">{m.audit_metadata()}</h3>
         {Object.keys(event.metadata).length > 0 ? (
           <pre className="whitespace-pre-wrap bg-muted p-3 font-mono [overflow-wrap:anywhere]">
             {JSON.stringify(event.metadata, null, 2)}
           </pre>
         ) : (
-          <p className="text-muted-foreground">No permitted metadata recorded.</p>
+          <p className="text-muted-foreground">{m.audit_no_metadata()}</p>
         )}
-        <p className="text-muted-foreground">
-          Only approved operational fields are shown. Personal data, URLs, scopes, and
-          credentials are withheld.
-        </p>
+        <p className="text-muted-foreground">{m.audit_metadata_description()}</p>
       </section>
     </div>
   )

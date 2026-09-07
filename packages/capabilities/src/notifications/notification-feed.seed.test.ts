@@ -2,6 +2,10 @@ import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
 import { CapabilityUnavailable } from '../errors.ts'
+import {
+  AccountPreferencesService,
+  SeedAccountPreferences
+} from '../governance/account-preferences.ts'
 import { SeedAuditEventLog } from '../governance/audit-event-log.ts'
 import { seedMembers, seedWorkspaceRecord } from '../seed-fixture.ts'
 import { testWorkspaceContext, WorkspaceContext } from '../workspace-context.ts'
@@ -85,14 +89,15 @@ function feedFor(
     readonly channel: 'off' | 'instant' | 'digest'
   }> = []
 ) {
-  const prefs = SeedNotificationPreferences(preferences).pipe(
-    Layer.provide(SeedAuditEventLog([]))
-  )
+  const audit = SeedAuditEventLog([])
+  const prefs = SeedNotificationPreferences(preferences).pipe(Layer.provide(audit))
+  const accountPreferences = SeedAccountPreferences([]).pipe(Layer.provide(audit))
   return Layer.mergeAll(
     prefs,
+    accountPreferences,
     SeedNotificationFeed(seeded, fixture, {
       emailQueue: capturingQueue(enqueued)
-    }).pipe(Layer.provide(prefs))
+    }).pipe(Layer.provide(Layer.merge(prefs, accountPreferences)))
   )
 }
 
@@ -307,6 +312,50 @@ describe('seed notification feed: notifyWorkspaceOwners', () => {
 })
 
 describe('seed notification feed: email and digest reads', () => {
+  it.effect('reads current account preferences for digest recipients', () => {
+    const audit = SeedAuditEventLog([])
+    const accountPreferences = SeedAccountPreferences([
+      { userId: 'usr_demo', locale: null, timeZone: null }
+    ]).pipe(Layer.provide(audit))
+    const notificationPreferences = SeedNotificationPreferences([]).pipe(
+      Layer.provide(audit)
+    )
+    const feed = SeedNotificationFeed([], fixture).pipe(
+      Layer.provide(Layer.merge(accountPreferences, notificationPreferences))
+    )
+    const layer = Layer.mergeAll(
+      audit,
+      accountPreferences,
+      notificationPreferences,
+      feed
+    )
+    return Effect.gen(function* () {
+      const service = yield* AccountPreferencesService
+      const notifications = yield* NotificationFeed
+      yield* notifications.create({
+        workspaceId: seedWorkspaceRecord.id,
+        userId: 'usr_demo',
+        kind: 'announcement',
+        title: 'Notice',
+        message: 'Message'
+      })
+      yield* service.set({
+        userId: 'usr_demo',
+        locale: 'nb',
+        timeZone: 'Europe/Oslo'
+      })
+      const candidates = yield* notifications.listDigestCandidates({
+        since: '1970-01-01T00:00:00.000Z',
+        until: '2999-01-01T00:00:00.000Z'
+      })
+      expect(candidates[0]?.recipient).toMatchObject({
+        userId: 'usr_demo',
+        locale: 'nb',
+        timeZone: 'Europe/Oslo'
+      })
+    }).pipe(Effect.provide(layer))
+  })
+
   it.effect(
     'loadForEmail resolves the recipient, and null for read, unknown, or non-recipient',
     () =>

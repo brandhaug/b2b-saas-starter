@@ -3,6 +3,8 @@ import { seedKeysetPage } from '../internal/keyset-cursor.ts'
 import { DateTime, Effect, Layer, Ref } from 'effect'
 
 import { type Member, type Workspace } from '../governance/workspace-identity.ts'
+import { AccountPreferencesService } from '../governance/account-preferences.ts'
+import { type CapabilityUnavailable } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { seedMembers, seedWorkspaceRecord } from '../seed-fixture.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -48,16 +50,20 @@ const defaultFixture: SeedNotificationFeedFixture = {
  */
 type SeedRow = SeedNotification & { readonly workspaceId?: string }
 
+function recipientOf(member: Member): EmailQueueRecipient {
+  return {
+    userId: member.id,
+    email: member.email,
+    name: member.name
+  }
+}
+
 function inWorkspace(row: SeedRow, workspaceId: string): boolean {
   return row.workspaceId === undefined || row.workspaceId === workspaceId
 }
 
-function toRecipient(member: Member): EmailQueueRecipient {
-  return { userId: member.id, email: member.email, name: member.name }
-}
-
 function stripStorage(row: SeedRow): Notification {
-  return {
+  const base = {
     id: row.id,
     kind: row.kind,
     title: row.title,
@@ -65,16 +71,25 @@ function stripStorage(row: SeedRow): Notification {
     createdAt: row.createdAt,
     read: row.read
   }
+  if (row.event !== undefined) {
+    return { ...base, event: row.event }
+  }
+  return base
 }
 
 export function SeedNotificationFeed(
   seed: ReadonlyArray<SeedNotification>,
   fixture: SeedNotificationFeedFixture = defaultFixture,
   options: NotificationFeedOptions = {}
-): Layer.Layer<NotificationFeed, never, NotificationPreferences> {
+): Layer.Layer<
+  NotificationFeed,
+  never,
+  NotificationPreferences | AccountPreferencesService
+> {
   return Layer.effect(NotificationFeed)(
     Effect.gen(function* () {
       const preferences = yield* NotificationPreferences
+      const accountPreferences = yield* AccountPreferencesService
       const rows = yield* Ref.make<ReadonlyArray<SeedRow>>([...seed])
 
       // Who a row reaches: its target user, or every member for a broadcast.
@@ -85,13 +100,23 @@ export function SeedNotificationFeed(
           return []
         }
         if (row.userId === undefined || row.userId === null) {
-          return fixture.members.map(toRecipient)
+          return fixture.members.map(recipientOf)
         }
         const member = fixture.members.find((candidate) => candidate.id === row.userId)
         if (member === undefined) {
           return []
         }
-        return [toRecipient(member)]
+        return [recipientOf(member)]
+      }
+
+      function withCurrentPreferences(
+        recipient: EmailQueueRecipient
+      ): Effect.Effect<EmailQueueRecipient, CapabilityUnavailable> {
+        return Effect.map(accountPreferences.get(recipient.userId), (account) => ({
+          ...recipient,
+          locale: account.locale,
+          timeZone: account.timeZone
+        }))
       }
 
       function workspaceOf(row: SeedRow) {
@@ -194,6 +219,7 @@ export function SeedNotificationFeed(
               kind: input.kind,
               title: input.title,
               message: input.message,
+              event: input.event,
               createdAt,
               read: false
             }
@@ -218,6 +244,7 @@ export function SeedNotificationFeed(
               kind: 'announcement',
               title: input.title,
               message: input.message,
+              event: input.event,
               createdAt: DateTime.formatIso(yield* DateTime.now),
               read: false,
               userId: input.userId
@@ -243,6 +270,7 @@ export function SeedNotificationFeed(
               kind: input.kind,
               title: input.title,
               message: input.message,
+              event: input.event,
               createdAt: DateTime.formatIso(yield* DateTime.now),
               read: false
             }
@@ -251,7 +279,7 @@ export function SeedNotificationFeed(
             yield* enqueueInstantEmails(options.emailQueue, preferences, {
               notificationId: row.id,
               kind: input.kind,
-              recipients: [toRecipient(member)],
+              recipients: [recipientOf(member)],
               traceparent
             })
           }),
@@ -272,7 +300,7 @@ export function SeedNotificationFeed(
             const created: Array<{ row: SeedRow; owner: EmailQueueRecipient }> = []
             for (const owner of owners) {
               created.push({
-                owner: toRecipient(owner),
+                owner: recipientOf(owner),
                 row: {
                   id: yield* newCapabilityId('not'),
                   workspaceId: input.workspaceId,
@@ -280,6 +308,7 @@ export function SeedNotificationFeed(
                   kind: input.kind,
                   title: input.title,
                   message: input.message,
+                  event: input.event,
                   createdAt,
                   read: false
                 }
@@ -306,13 +335,14 @@ export function SeedNotificationFeed(
             if (row === undefined || row.read) {
               return null
             }
-            const recipient = recipientsOf(row).find(
+            const recipients = recipientsOf(row)
+            const recipient = recipients.find(
               (candidate) => candidate.userId === recipientUserId
             )
             if (recipient === undefined) {
               return null
             }
-            return contextFor(row, recipient)
+            return contextFor(row, yield* withCurrentPreferences(recipient))
           }),
         listDigestCandidates: (window) =>
           Effect.gen(function* () {
@@ -322,9 +352,14 @@ export function SeedNotificationFeed(
               if (row.read || !inDigestWindow(row.createdAt, window)) {
                 continue
               }
-              for (const recipient of recipientsOf(row)) {
-                candidates.push(contextFor(row, recipient))
-              }
+              const recipients = yield* Effect.forEach(
+                recipientsOf(row),
+                withCurrentPreferences,
+                { concurrency: 'unbounded' }
+              )
+              candidates.push(
+                ...recipients.map((recipient) => contextFor(row, recipient))
+              )
             }
             return candidates
           })

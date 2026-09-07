@@ -60,7 +60,9 @@ describe('ApiTokenReplacementForm', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show Replacement API token' }))
     expect(screen.getByText('bsk_replacement_secret')).toBeTruthy()
     expect(
-      screen.getByText(/old credential expires at 9\/6\/2026, 12:00:00 PM UTC/)
+      screen.getByText(
+        /Update your clients before the old credential expires at Sep 6, 2026, 12:00 PM UTC/
+      )
     ).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Close replacement' }))
     expect(onClose).toHaveBeenCalledOnce()
@@ -96,7 +98,7 @@ describe('ApiTokenReplacementForm', () => {
       target: { value: '60' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create replacement' }))
-    await screen.findByText('Token is no longer active')
+    await screen.findByText('Failed to replace token')
     expect(onReplaced).not.toHaveBeenCalled()
   })
 })

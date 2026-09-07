@@ -243,7 +243,7 @@ describe('SsoPanel', () => {
       target: { value: 'sekrit' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
-    expect(await screen.findByText('The identity provider refused')).toBeTruthy()
+    expect(await screen.findByText('Failed to add the connection')).toBeTruthy()
     expect(screen.getByLabelText('Email domain')).toHaveProperty(
       'value',
       'northwind.test'

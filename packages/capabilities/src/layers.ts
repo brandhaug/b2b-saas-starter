@@ -23,6 +23,11 @@ import {
   type AccountLifecycle,
   type AccountLifecycleBinding
 } from './governance/account-lifecycle.ts'
+import {
+  type AccountPreferencesService,
+  LiveAccountPreferences,
+  SeedAccountPreferences
+} from './governance/account-preferences.ts'
 import { SeedAccountLifecycle } from './governance/account-lifecycle.seed.ts'
 import { LiveAccountLifecycle } from './governance/account-lifecycle.live.ts'
 import { type AuditEventLog, SeedAuditEventLog } from './governance/audit-event-log.ts'
@@ -94,6 +99,7 @@ import {
 
 import {
   seedApiTokens,
+  seedAccountPreferences,
   seedAuditEvents,
   seedDeliveries,
   seedDeliveryAttempts,
@@ -113,6 +119,7 @@ import {
 
 export type CapabilityServices =
   | AccountLifecycle
+  | AccountPreferencesService
   | ApiTokenRegistry
   | AuditEventLog
   | Billing
@@ -170,6 +177,10 @@ const SeedGovernance = Layer.unwrap(
  */
 const SeedAuditLog = SeedAuditEventLog(seedAuditEvents, seedSystemUsers)
 
+const SeedAccountPrefs = SeedAccountPreferences(seedAccountPreferences).pipe(
+  Layer.provide(SeedAuditLog)
+)
+
 /**
  * One fixture preference store + feed, shared for the same reason as
  * `SeedAuditLog`: the feed resolves channels against the same preference store
@@ -186,7 +197,7 @@ const SeedNotifications = Layer.merge(
   SeedNotificationFeed(seedNotifications, {
     workspace: seedWorkspaceRecord,
     members: seedMembers
-  }).pipe(Layer.provide(SeedPreferences))
+  }).pipe(Layer.provide(Layer.merge(SeedPreferences, SeedAccountPrefs)))
 )
 
 const SeedCore = Layer.mergeAll(
@@ -201,6 +212,7 @@ const SeedCore = Layer.mergeAll(
     connections: seedMcpClientConnections
   }),
   SeedNotifications,
+  SeedAccountPrefs,
   SeedSeatSyncPublisher,
   SeedSsoConnections(seedSsoConnections),
   SeedWebhookEndpoints(
@@ -324,6 +336,9 @@ export function makeLiveCapabilitiesLayer(
   const seatSyncPublisher = LiveSeatSyncPublisher(options.seatSyncQueue)
   // Same one-instance rule for the preference store the feed resolves against.
   const preferences = LiveNotificationPreferences.pipe(Layer.provide(LiveAuditEventLog))
+  const accountPreferences = LiveAccountPreferences.pipe(
+    Layer.provide(LiveAuditEventLog)
+  )
   // And for the feed: a mergeAll member the shell reads AND the layer
   // `PlatformUserAdmin` is provided so its impersonation `notifyUser` lands in
   // the same instance every other consumer reads.
@@ -337,6 +352,7 @@ export function makeLiveCapabilitiesLayer(
     LiveBilling(options.billing),
     LiveMcpClientConnections,
     preferences,
+    accountPreferences,
     feed,
     LiveSsoConnections(options.ssoBinding),
     LiveWebhookEndpoints,

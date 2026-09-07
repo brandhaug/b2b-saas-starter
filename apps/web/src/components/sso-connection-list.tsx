@@ -24,6 +24,7 @@ import {
   type SsoTestResult,
   type UpdateSsoConnectionInput
 } from '@/lib/server/workspace-sso'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The list half of the SSO panel: the connections and their per-row verdicts.
@@ -54,7 +55,7 @@ export function ConnectionList({
 }) {
   return (
     <ListSection
-      title="Connections"
+      title={m.sso_connections()}
       footer={
         <>
           {/* Stacked, not merged: each mutation's failure renders in its own
@@ -68,11 +69,8 @@ export function ConnectionList({
       {connections.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>No SSO connections yet</EmptyTitle>
-            <EmptyDescription>
-              Add one above; sign-ins for its domain route to the IdP once an owner
-              enables it.
-            </EmptyDescription>
+            <EmptyTitle>{m.empty_no_sso()}</EmptyTitle>
+            <EmptyDescription>{m.sso_empty_description()}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -132,16 +130,16 @@ function ConnectionRow({
           {connection.protocol.toUpperCase()} · {connection.issuer}
           {connection.clientIdLastFour === null
             ? null
-            : ` · client …${connection.clientIdLastFour}`}
-          {' · joins as '}
-          {connection.defaultWorkspaceRole}
+            : ` · ${m.sso_connection_client({ id: connection.clientIdLastFour })}`}
+          {' · '}
+          {m.sso_connection_joins()} {connection.defaultWorkspaceRole}
         </ItemDescription>
         {testResult === null ? null : (
           <Alert variant={testResult.outcome === 'passed' ? 'default' : 'destructive'}>
             <AlertTitle>
               {testResult.outcome === 'passed'
-                ? 'Connection test passed.'
-                : 'Connection test failed.'}
+                ? m.sso_connection_test_passed()
+                : m.sso_connection_test_failed()}
             </AlertTitle>
             {testResult.outcome === 'failed' ? (
               <AlertDescription>{testResult.message}</AlertDescription>
@@ -151,7 +149,9 @@ function ConnectionRow({
       </ItemContent>
       <ItemActions className="flex-wrap">
         <Badge variant={connection.enabled ? 'ok' : 'neutral'}>
-          {connection.enabled ? 'routing' : 'disabled'}
+          {connection.enabled
+            ? m.sso_connection_routing()
+            : m.sso_connection_disabled()}
         </Badge>
         {canUpdate ? (
           <>
@@ -163,7 +163,7 @@ function ConnectionRow({
               {test.pendingInput === connection.id ? (
                 <Spinner data-icon="inline-start" />
               ) : null}
-              Test
+              {m.sso_connection_test()}
             </Button>
             <Button
               variant="ghost"
@@ -176,14 +176,16 @@ function ConnectionRow({
                 })
               }
             >
-              {connection.enabled ? 'Disable' : 'Enable'}
+              {connection.enabled
+                ? m.sso_connection_disable()
+                : m.sso_connection_enable()}
             </Button>
           </>
         ) : null}
         {canRemove ? (
           <ConfirmButton
-            label="Remove"
-            confirmLabel="Remove connection"
+            label={m.action_remove()}
+            confirmLabel={m.sso_connection_remove()}
             busy={remove.pendingInput === connection.id}
             onConfirm={() => remove.run(connection.id)}
             target={connection.domain}
@@ -208,7 +210,7 @@ function ConnectionRow({
             htmlFor={`require-sso-${connection.id}`}
             className="text-xs font-normal text-muted-foreground"
           >
-            Require SSO for this domain
+            {m.sso_connection_require()}
           </Label>
         </ItemActions>
       ) : null}

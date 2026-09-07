@@ -12,6 +12,7 @@ import {
   loadNotificationPreferencesServerFn
 } from '@/lib/server/notification-preferences'
 import { pickOptionalStrings } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * Where every notification email's unsubscribe link lands. A signed-in page,
@@ -28,7 +29,7 @@ export const Route = createFileRoute('/account_/notifications')({
   },
   loader: () => loadNotificationPreferencesServerFn(),
   component: AccountNotificationsRoute,
-  head: () => ({ meta: [{ title: pageTitle('Notification preferences') }] })
+  head: () => ({ meta: [{ title: pageTitle(m.notification_preferences()) }] })
 })
 
 function AccountNotificationsRoute() {
@@ -43,24 +44,23 @@ function AccountNotificationsRoute() {
   return (
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
       <PageHeader
-        title="Notification preferences"
-        description="Choose how each kind of notification reaches you by email."
+        title={m.notification_preferences()}
+        description={m.notification_preferences_description()}
       />
       {highlighted === undefined ? null : (
         <Alert>
           <AlertDescription>
-            You followed the link from a &ldquo;{highlighted.label}&rdquo; email. Pick
-            &ldquo;Off&rdquo; below to stop those emails, or choose the daily digest.
+            {m.notification_email_link_notice({ label: highlighted.label })}
           </AlertDescription>
         </Alert>
       )}
       <Panel
-        title="Email notifications"
+        title={m.panel_email_notifications()}
         footer={
           <p className="text-sm text-muted-foreground">
-            Signed in as {session.user.email}. Changes apply immediately.{' '}
+            {m.signed_in_as({ email: session.user.email })}{' '}
             <Link to="/account" className="underline">
-              Back to account
+              {m.back_to_account()}
             </Link>
             .
           </p>

@@ -33,12 +33,14 @@ import { join } from 'node:path'
  * - `capability.workspace` — the capabilities runtime's wide-event scope; the
  *   full workspace graph ships with it (the historical `capabilities-*.js`
  *   155 kB preload).
- * - `no_principal`, `insufficient_permission` — the authz/capabilities
+ * - `insufficient_permission` — the authz/capabilities
  *   `Schema.TaggedError` reason literals; a bare error-class pin (a client
  *   component importing `@b2b-saas-starter/authz/errors` at runtime) ships
- *   exactly these strings. `httpApiStatus` — the third literal on those
+ *   this string. `httpApiStatus` — the third literal on those
  *   classes — was rejected: the `/docs` effect-backbone pages quote it in
  *   MDX code samples, so it matches docs content chunks on a clean build.
+ *   `no_principal` is also used by the safe UI error translator, so it cannot
+ *   distinguish that browser code from the server error schema.
  * - `isMinLength` — a `Schema` filter combinator called as a property in
  *   capabilities/effects source; minification keeps the property name, so any
  *   Schema-using capability code that ships carries it.
@@ -76,7 +78,6 @@ const MARKERS = [
   'css-tree',
   '@b2b-saas-starter/email/templates',
   'capability.workspace',
-  'no_principal',
   'insufficient_permission',
   'isMinLength',
   'onExcessProperty',

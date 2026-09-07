@@ -5,7 +5,8 @@ import { createElement, Suspense, useRef } from 'react'
 import { mdxComponents } from '@/components/mdx-components'
 import { TableOfContents } from '@/components/table-of-contents'
 import { getPostComponent, loadPost, postJsonLd } from '@/lib/blog'
-import { formatUtc } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/_knowledge/blog/$slug')({
   // Metadata in the loader (serializable), component lazy-loaded below — see
@@ -67,7 +68,7 @@ function BlogPostPage() {
             className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeftIcon className="size-3" />
-            Back to blog
+            {m.public_knowledge_back_blog()}
           </Link>
 
           <header className="mb-8">
@@ -76,7 +77,7 @@ function BlogPostPage() {
               <span>{frontmatter.author}</span>
               <span>&middot;</span>
               <time dateTime={frontmatter.date}>
-                {formatUtc(frontmatter.date, {
+                {formatTimestamp(frontmatter.date, {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'
@@ -103,7 +104,7 @@ function BlogPostPage() {
               between lg and xl. */}
           <details className="mb-6 border border-border lg:hidden">
             <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
-              On this page
+              {m.public_knowledge_on_page()}
             </summary>
             <div className="px-3 pt-1 pb-3">
               <TableOfContents containerRef={articleRef} />
@@ -111,15 +112,22 @@ function BlogPostPage() {
           </details>
 
           {LazyArticle === undefined ? (
-            <p className="text-sm text-destructive">This post could not be loaded.</p>
+            <p className="text-sm text-destructive">
+              {m.public_knowledge_post_error()}
+            </p>
           ) : (
             <article
               ref={articleRef}
               /* Token-mapped prose colors — see docs.$category.$slug.tsx. */
+              lang="en"
               className="prose prose-lg max-w-none"
             >
               <Suspense
-                fallback={<p className="text-sm text-muted-foreground">Loading…</p>}
+                fallback={
+                  <p className="text-sm text-muted-foreground">
+                    {m.public_knowledge_loading()}
+                  </p>
+                }
               >
                 {/* createElement, not JSX: the component is resolved per post
                       at runtime, and React Compiler requires JSX component types

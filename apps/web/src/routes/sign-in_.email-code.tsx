@@ -1,12 +1,14 @@
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { EmailCodeExchange } from '@/components/auth/email-code-exchange'
+import { pageTitle } from '@/components/page/page-title'
 import { authClient } from '@/lib/auth-client'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/sign-in_/email-code')({
   validateSearch: redirectSearch,
   component: EmailCodeSignInRoute,
-  head: () => ({ meta: [{ title: 'Sign in with a code | B2B SaaS Starter' }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_email_code()) }] })
 })
 
 function EmailCodeSignInRoute() {
@@ -37,24 +39,22 @@ export function EmailCodeSignInPage({
       onVerified={() => {
         router.history.push(safeRedirect(redirect))
       }}
-      title="Enter your code"
-      emailTitle="Email me a code"
-      emailDescription="We will send a six-digit sign-in code to your email. It works once and expires in ten minutes."
-      codeSentNotice="We emailed a six-digit code. It expires in ten minutes."
-      codeSentNoticeFor={(email) =>
-        `We emailed a six-digit code to ${email}. It expires in ten minutes.`
-      }
-      codeSubmitLabel="Verify and sign in"
-      codeSubmittingLabel="Verifying…"
+      title={m.enter_your_code()}
+      emailTitle={m.form_email_code()}
+      emailDescription={m.public_auth_email_code_description()}
+      codeSentNotice={m.public_auth_email_code_sent()}
+      codeSentNoticeFor={(email) => m.public_auth_email_code_sent_to({ email })}
+      codeSubmitLabel={m.form_verify_sign_in()}
+      codeSubmittingLabel={m.verifying()}
       emailFooter={
         <p className="text-center text-sm text-muted-foreground">
-          Prefer your password?{' '}
+          {m.public_auth_prefer_password()}{' '}
           <Link
             to="/sign-in"
             search={redirect ? { redirect } : {}}
             className="text-primary underline underline-offset-4"
           >
-            Sign in that way
+            {m.public_auth_sign_in_that_way()}
           </Link>
         </p>
       }
@@ -65,7 +65,7 @@ export function EmailCodeSignInPage({
             search={redirect ? { redirect } : {}}
             className="text-primary underline underline-offset-4"
           >
-            Back to sign in
+            {m.public_auth_back_to_sign_in()}
           </Link>
         </p>
       }

@@ -6,6 +6,7 @@ import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { type WorkspaceMembersPayload } from '@/lib/server/workspace-members'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The workspace roster page. Lives beside the route file (not in it) so the
@@ -40,8 +41,8 @@ export function WorkspaceMembersPage({
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
-        title="Members"
-        description="Everyone with access to this workspace, and everyone on their way in."
+        title={m.nav_members()}
+        description={m.page_members_description()}
       />
       {/* The seat half of the plan gate, as a prompt rather than a refusal:
           the workspace may always add Members, but a flat plan past its
@@ -49,16 +50,17 @@ export function WorkspaceMembersPage({
       {seatUsage.overLimit ? (
         <Alert>
           <AlertDescription>
-            This workspace has {seatUsage.used} members, more than the{' '}
-            {seatUsage.included} seats its plan includes.{' '}
+            {m.members_seat_limit({
+              used: seatUsage.used,
+              included: seatUsage.included ?? 0
+            })}{' '}
             <Link
               to="/workspaces/$workspaceSlug/billing"
               params={{ workspaceSlug }}
               className="font-medium text-foreground underline underline-offset-4"
             >
-              Upgrade the plan
-            </Link>{' '}
-            to cover the whole team.
+              {m.upgrade_plan_to_cover_team()}
+            </Link>
           </AlertDescription>
         </Alert>
       ) : null}

@@ -21,14 +21,13 @@ import {
 } from '@/components/ui/item'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { ListSection } from '@/components/page/panel'
-import { formatUtc } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** The one server call this panel makes, as a port — a test drives it with a plain function. */
 export type RevokeMcpClient = (input: {
   readonly data: { readonly connectionId: string }
 }) => Promise<boolean>
-
-const REVOKE_FAILED = 'The connection could not be revoked'
 
 /**
  * The account page's connected MCP clients (ADR 0068): every OAuth consent the
@@ -45,23 +44,19 @@ export function McpClientsPanel({
 }) {
   const act = useServerAction(
     (connectionId: string) => revoke({ data: { connectionId } }),
-    { failureMessage: REVOKE_FAILED }
+    { failureMessage: m.mcp_connection_revoke_failed() }
   )
 
   return (
     <ListSection
-      title="Connected clients"
+      title={m.connected_clients()}
       footer={<ActionFeedback error={act.error} />}
     >
       {connections.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>No clients connected</EmptyTitle>
-            <EmptyDescription>
-              No MCP client is connected to your account. Add this starter's MCP server
-              in Claude or another MCP client and sign in when it asks; the connection
-              will show up here.
-            </EmptyDescription>
+            <EmptyTitle>{m.empty_no_clients()}</EmptyTitle>
+            <EmptyDescription>{m.mcp_empty_description()}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -82,13 +77,13 @@ export function McpClientsPanel({
                     ) : (
                       <span className="text-muted-foreground">
                         {' '}
-                        · workspace removed
+                        · {m.workspace_removed()}
                       </span>
                     )}
                   </ItemTitle>
                   <ItemDescription>
                     {connection.scopes.join(' ')} · since{' '}
-                    {formatUtc(connection.grantedAt, { dateStyle: 'medium' })}
+                    {formatTimestamp(connection.grantedAt, { dateStyle: 'medium' })}
                   </ItemDescription>
                 </ItemContent>
                 <ItemActions>
@@ -102,19 +97,21 @@ export function McpClientsPanel({
                         />
                       }
                     >
-                      Revoke
+                      {m.action_revoke()}
                     </AlertDialogTrigger>
                     <AlertDialogContent>
-                      <AlertDialogTitle>Revoke {label}?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        {m.revoke_named({ name: label })}?
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
-                        The client loses access to{' '}
-                        {connection.workspace?.name ?? 'the workspace'} now, including
-                        any token it still holds. It can ask to connect again.
+                        {m.mcp_revoke_description({
+                          workspace: connection.workspace?.name ?? m.the_workspace()
+                        })}
                       </AlertDialogDescription>
                       <div className="flex justify-end gap-2">
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                         <AlertDialogAction onClick={() => act.run(connection.id)}>
-                          Revoke access
+                          {m.revoke_access()}
                         </AlertDialogAction>
                       </div>
                     </AlertDialogContent>

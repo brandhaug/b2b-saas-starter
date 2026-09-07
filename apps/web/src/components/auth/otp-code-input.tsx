@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { Input } from '@/components/ui/input'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** The code length the email-otp plugin is configured with. */
 const CODE_LENGTH = 6
@@ -81,7 +82,10 @@ export function OtpCodeInput({
             autoComplete={index === 0 ? 'one-time-code' : 'off'}
             // iOS Safari zooms any focused input below 16px; the cells stay
             // at text-base (the md:text-sm shrink below is dropped for them).
-            aria-label={`Digit ${index + 1} of ${CODE_LENGTH}`}
+            aria-label={m.public_auth_otp_digit({
+              index: index + 1,
+              length: CODE_LENGTH
+            })}
             maxLength={CODE_LENGTH}
             disabled={disabled}
             // oxlint-disable-next-line jsx-a11y/no-autofocus -- the code step has exactly one field group, so focusing its first cell cannot surprise anyone mid-task

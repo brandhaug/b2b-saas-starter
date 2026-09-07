@@ -119,6 +119,32 @@ describe('user delete hooks', () => {
     ])
   })
 
+  it('carries the saved locale across deletion for the confirmation email', async () => {
+    const sent: Array<{ readonly locale?: string | null }> = []
+    const hooks = makeUserDeleteHooks({
+      runAccountLifecycle: makeRunner(fixtureLifecycle([])),
+      sendAccountDeletedEmail: async (input) => {
+        sent.push(input)
+      }
+    })
+    const request = new Request('https://starter.test/api/auth/delete-user', {
+      method: 'POST'
+    })
+    await hooks.beforeDelete({ id: 'usr_leaver' }, request)
+    await hooks.afterDelete(
+      { id: 'usr_leaver', email: 'martin@example.com', locale: 'nb' },
+      request
+    )
+    expect(sent).toEqual([
+      {
+        email: 'martin@example.com',
+        workspacesLeft: 1,
+        workspacesDeleted: 0,
+        locale: 'nb'
+      }
+    ])
+  })
+
   it('records and emails nothing when no before-hook plan exists for the request', async () => {
     const log: Array<string> = []
     const sent: Array<unknown> = []

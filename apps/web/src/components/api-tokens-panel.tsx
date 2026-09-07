@@ -22,11 +22,12 @@ import { ActionFeedback } from '@/components/page/action-feedback'
 import { CreateSection, ListSection, Panel } from '@/components/page/panel'
 import { Identifier } from '@/components/page/identifier'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
-import { formatUtcOr } from '@/lib/format-date'
+import { formatTimestampOr } from '@/lib/format-date'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { revokeApiTokenServerFn } from '@/lib/server/api-tokens'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { useServerAction } from '@/hooks/use-server-action'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 function subscribeClock(onChange: () => void) {
   const timer = window.setInterval(onChange, 1000)
@@ -38,8 +39,6 @@ function clockSnapshot() {
 function serverClockSnapshot() {
   return 0
 }
-
-const REVOKE_FAILED = 'Failed to revoke token'
 
 /**
  * Revoking a token, as a port. Injected rather than imported at the call site
@@ -89,7 +88,7 @@ export function ApiTokensPanel({
   // mirroring the revoked row into local state.
   const revoke = useServerAction(
     (tokenId: string) => revokeToken({ data: { workspaceSlug, tokenId } }),
-    { failureMessage: REVOKE_FAILED }
+    { failureMessage: m.api_token_revoke_failed() }
   )
 
   // A revoke failure renders on the token row that produced it and is
@@ -105,8 +104,8 @@ export function ApiTokensPanel({
     <Panel>
       <CreateSection
         allowed={canCreate}
-        title="Create a token"
-        deniedReason="Your role cannot mint tokens."
+        title={m.tokens_create_title()}
+        deniedReason={m.token_mint_denied()}
       >
         <ApiTokenForm
           workspaceSlug={workspaceSlug}
@@ -128,20 +127,18 @@ export function ApiTokensPanel({
         />
       ) : null}
       <ListSection
-        title="Tokens"
+        title={m.tokens_title()}
         footer={
           canRevoke ? undefined : (
-            <p className="text-xs text-muted-foreground">
-              Your role cannot revoke tokens.
-            </p>
+            <p className="text-xs text-muted-foreground">{m.token_revoke_denied()}</p>
           )
         }
       >
         {tokens.length === 0 ? (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>No tokens</EmptyTitle>
-              <EmptyDescription>Create one above to get started.</EmptyDescription>
+              <EmptyTitle>{m.empty_no_tokens()}</EmptyTitle>
+              <EmptyDescription>{m.empty_create_token()}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
@@ -154,15 +151,19 @@ export function ApiTokensPanel({
                     <Identifier>{token.prefix}…</Identifier>
                   </ItemTitle>
                   <ItemDescription>
-                    Created {formatUtcOr(token.createdAt, 'never')} · Last used{' '}
-                    {formatUtcOr(token.lastUsedAt, 'never')}
+                    {m.token_created_label()}{' '}
+                    {formatTimestampOr(token.createdAt, m.never())} ·{' '}
+                    {m.token_last_used_label()}{' '}
+                    {formatTimestampOr(token.lastUsedAt, m.never())}
                   </ItemDescription>
                   <ItemDescription>
                     {token.expiresAt !== null && Date.parse(token.expiresAt) <= now
-                      ? 'Expired'
-                      : 'Expires'}{' '}
-                    {formatUtcOr(token.expiresAt, 'never')}
-                    {token.replacedByTokenId === null ? null : ' · Replacement issued'}
+                      ? m.token_expired()
+                      : m.token_expires()}{' '}
+                    {formatTimestampOr(token.expiresAt, m.never())}
+                    {token.replacedByTokenId === null
+                      ? null
+                      : ` · ${m.token_replacement_issued()}`}
                   </ItemDescription>
                   <div className="flex flex-wrap gap-1">
                     {token.scopes.map((scope) => (
@@ -181,13 +182,13 @@ export function ApiTokensPanel({
                       disabled={replacing !== null}
                       onClick={() => setReplacing(token)}
                     >
-                      Replace
+                      {m.action_replace()}
                     </Button>
                   ) : null}
                   {canRevoke ? (
                     <ConfirmButton
-                      label="Revoke"
-                      confirmLabel="Confirm revoke"
+                      label={m.action_revoke()}
+                      confirmLabel={m.action_confirm_revoke()}
                       armed={confirmingId === token.id}
                       busy={revoke.pendingInput === token.id}
                       onArm={() => setConfirmingId(token.id)}

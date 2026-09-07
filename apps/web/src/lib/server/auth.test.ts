@@ -31,6 +31,8 @@ describe('toRouteSession', () => {
         banned: false,
         email: 'demo@starter.local',
         emailVerified: true,
+        locale: null,
+        timeZone: null,
         role: 'admin',
         twoFactorEnabled: false
       }
@@ -70,6 +72,8 @@ describe('toRouteSession', () => {
         banned: false,
         email: 'member@starter.local',
         emailVerified: true,
+        locale: null,
+        timeZone: null,
         twoFactorEnabled: false
       }
     } satisfies Parameters<typeof toRouteSession>[0])

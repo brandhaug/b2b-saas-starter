@@ -1,24 +1,23 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { getAllPostMeta } from '@/lib/blog'
-import { formatUtc } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/_knowledge/blog/')({
   loader: () => getAllPostMeta(),
   component: BlogIndexPage,
   head: () => ({
     meta: [
-      { title: pageTitle('Blog') },
+      { title: pageTitle(m.public_blog_title()) },
       {
         name: 'description',
-        content:
-          'Articles about the technology and library decisions in the B2B SaaS Starter.'
+        content: m.public_blog_description()
       },
-      { property: 'og:title', content: pageTitle('Blog') },
+      { property: 'og:title', content: pageTitle(m.public_blog_title()) },
       {
         property: 'og:description',
-        content:
-          'Articles about the technology and library decisions in the B2B SaaS Starter.'
+        content: m.public_blog_description()
       }
     ]
   })
@@ -30,9 +29,9 @@ function BlogIndexPage() {
   return (
     <div>
       <header className="mb-8">
-        <h1 className="text-3xl font-semibold">Blog</h1>
+        <h1 className="text-3xl font-semibold">{m.public_blog_title()}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Articles about the technology and library decisions in this starter.
+          {m.public_blog_description()}
         </p>
       </header>
 
@@ -54,7 +53,7 @@ function BlogIndexPage() {
               dateTime={post.frontmatter.date}
               className="mt-auto pt-2 text-xs text-muted-foreground"
             >
-              {formatUtc(post.frontmatter.date, {
+              {formatTimestamp(post.frontmatter.date, {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric'

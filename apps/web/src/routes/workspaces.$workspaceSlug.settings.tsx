@@ -3,6 +3,7 @@ import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceSettingsPage } from '@/components/workspace-settings-page'
 import { loadWorkspaceSettingsServerFn } from '@/lib/server/workspace-settings'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
@@ -15,7 +16,7 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
   pendingComponent: RoutePending,
   component: WorkspaceSettingsRoute,
   head: ({ params }) => ({
-    meta: [{ title: pageTitle('Settings', params.workspaceSlug) }]
+    meta: [{ title: pageTitle(m.public_meta_settings(), params.workspaceSlug) }]
   })
 })
 

@@ -18,11 +18,12 @@ import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
 import { authErrorCopy } from '@/lib/auth-error-copy'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/two-factor')({
   validateSearch: redirectSearch,
   component: TwoFactorRoute,
-  head: () => ({ meta: [{ title: pageTitle('Two-factor verification') }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_two_factor()) }] })
 })
 
 function TwoFactorRoute() {
@@ -58,7 +59,7 @@ export function TwoFactorChallengePage({
    */
   function finishChallenge(result: AuthResult): void {
     if (result.error) {
-      setSubmitError(authErrorCopy(result.error, 'Verification failed'))
+      setSubmitError(authErrorCopy(result.error, m.public_auth_verification_failed()))
       return
     }
     const continuation = oauthContinuationUrl(result.data)
@@ -102,7 +103,7 @@ export function TwoFactorChallengePage({
         checked={trustDevice}
         onCheckedChange={setTrustDevice}
       />
-      <Label htmlFor="trust-device">Trust this device for 30 days</Label>
+      <Label htmlFor="trust-device">{m.trust_device()}</Label>
     </div>
   )
 
@@ -119,22 +120,22 @@ export function TwoFactorChallengePage({
       }}
       className="justify-start p-0 text-sm"
     >
-      {method === 'totp' ? 'Use a backup code' : 'Use an authenticator code instead'}
+      {method === 'totp' ? m.use_backup_code() : m.use_authenticator_code()}
     </Button>
   )
 
   if (method === 'backup') {
     return (
       <AuthCardForm
-        title="Two-factor verification"
-        description="Enter one of the ten codes you saved when you set up two-factor authentication. Each code works once."
+        title={m.two_factor_verification()}
+        description={m.backup_code_description()}
         form={backupForm}
         submit={
           <AuthSubmitButton
             form={backupForm}
             icon={<ShieldCheckIcon className="size-4" />}
-            label="Verify and sign in"
-            submittingLabel="Verifying…"
+            label={m.form_verify_sign_in()}
+            submittingLabel={m.verifying()}
           />
         }
         error={submitError}
@@ -144,7 +145,7 @@ export function TwoFactorChallengePage({
           {(field) => (
             <FormTextField
               name={field.name}
-              label="Backup code"
+              label={m.form_backup_code()}
               autoComplete="off"
               placeholder="aB3dE-f9gH1"
               maxLength={11}
@@ -165,15 +166,15 @@ export function TwoFactorChallengePage({
 
   return (
     <AuthCardForm
-      title="Two-factor verification"
-      description="Enter the six-digit code from your authenticator app to finish signing in."
+      title={m.two_factor_verification()}
+      description={m.authenticator_code_description()}
       form={totpForm}
       submit={
         <AuthSubmitButton
           form={totpForm}
           icon={<ShieldCheckIcon className="size-4" />}
-          label="Verify and sign in"
-          submittingLabel="Verifying…"
+          label={m.form_verify_sign_in()}
+          submittingLabel={m.verifying()}
         />
       }
       error={submitError}
@@ -183,7 +184,7 @@ export function TwoFactorChallengePage({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Verification code"
+            label={m.form_verification_code()}
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="123456"

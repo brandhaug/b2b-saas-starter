@@ -4,7 +4,7 @@ import {
   validateDiscoveryDocument
 } from '@better-auth/sso'
 import { Effect, Option, Result, Schema } from 'effect'
-import { failureMessage } from '@b2b-saas-starter/failure'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 import { type OidcEndpoints } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 
@@ -58,10 +58,10 @@ export function resolveOidcIssuer(
   return Effect.gen(function* () {
     const document = yield* Effect.tryPromise({
       try: () => fetchDiscoveryDocument(discoveryUrl(issuer)),
-      catch: (error) =>
+      catch: () =>
         ({
           code: 'discovery_unreachable',
-          message: failureMessage(error)
+          message: m.server_discovery_unreachable()
         }) satisfies SsoValidationError
     })
     // Throws on an issuer mismatch or a missing required field; re-typed as
@@ -69,7 +69,7 @@ export function resolveOidcIssuer(
     const validated = yield* Effect.result(
       Effect.try({
         try: () => validateDiscoveryDocument(document, issuer),
-        catch: (error) => failureMessage(error)
+        catch: () => m.server_discovery_invalid()
       })
     )
     if (Result.isFailure(validated)) {
@@ -82,7 +82,7 @@ export function resolveOidcIssuer(
     if (Option.isNone(endpoints)) {
       return yield* Effect.fail({
         code: 'discovery_invalid',
-        message: 'The discovery document is missing required endpoints'
+        message: m.server_discovery_endpoints_missing()
       } satisfies SsoValidationError)
     }
     const resolved: OidcEndpoints = {
@@ -121,17 +121,17 @@ export function validateSamlMetadata(
           entryPoint: 'https://placeholder.invalid/sso',
           idpMetadata: { metadata: metadataXml }
         }),
-      catch: (error) =>
+      catch: () =>
         ({
           code: 'saml_metadata_invalid',
-          message: failureMessage(error)
+          message: m.server_metadata_invalid()
         }) satisfies SsoValidationError
     })
     const entryPoint = extractRedirectBindingUrl(metadataXml)
     if (entryPoint === null) {
       return yield* Effect.fail({
         code: 'saml_metadata_missing_entry_point',
-        message: 'The metadata declares no HTTP-Redirect SingleSignOnService binding'
+        message: m.server_metadata_binding_missing()
       } satisfies SsoValidationError)
     }
     return { entityId, entryPoint }

@@ -1,3 +1,4 @@
+import { m } from '@b2b-saas-starter/i18n/messages'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Command as CommandPrimitive } from 'cmdk'
 import { SearchIcon } from 'lucide-react'
@@ -134,7 +135,7 @@ function CommandDialog({
              Title. Base UI already sets role=dialog + aria-modal on the
              popup. */}
           <DialogPrimitive.Title className="sr-only">
-            Command menu
+            {m.shell_command_menu()}
           </DialogPrimitive.Title>
           <Command
             className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group]]:px-2"

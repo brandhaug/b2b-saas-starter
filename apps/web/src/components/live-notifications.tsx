@@ -31,9 +31,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
-
-const REFRESH_FAILED = 'Could not refresh notifications.'
-const MARK_READ_FAILED = 'Could not mark the notification read.'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type NotificationPreview = Pick<
   CapabilityNotification,
@@ -82,7 +80,7 @@ export function LiveNotifications({
   const mark = useServerAction(
     (ids: ReadonlyArray<string>) => markRead({ data: { workspaceSlug, ids } }),
     {
-      failureMessage: MARK_READ_FAILED,
+      failureMessage: m.notification_mark_read_failed(),
       // Default invalidation on purpose: the unread count lives in two
       // places — this query and the loader payload that badges the header and
       // feeds the attention list. The refetch updates the panel immediately;
@@ -91,7 +89,9 @@ export function LiveNotifications({
       onSuccess: (_, ids) => {
         void refetch()
         toast.success(
-          ids.length === 1 ? 'Marked as read' : `Marked ${ids.length} as read`
+          ids.length === 1
+            ? m.notification_marked_read()
+            : m.notifications_marked_count({ count: ids.length })
         )
       }
     }
@@ -106,7 +106,7 @@ export function LiveNotifications({
 
   return (
     <Panel
-      title="Notifications"
+      title={m.notifications_title()}
       actions={
         <>
           <Button
@@ -117,7 +117,7 @@ export function LiveNotifications({
               void refetch()
             }}
             disabled={isFetching}
-            aria-label="Refresh notifications"
+            aria-label={m.common_refresh_notifications()}
           >
             {isFetching ? (
               <Spinner data-icon="inline-start" />
@@ -133,11 +133,10 @@ export function LiveNotifications({
               onClick={() => void markRowsRead(unread, () => mark.runAsync(unread))}
             >
               {mark.pending ? <Spinner data-icon="inline-start" /> : null}
-              Mark all read
+              {m.notifications_mark_all_read()}
               <span className="sr-only">
                 {' '}
-                ({unread.length} unread notification
-                {unread.length === 1 ? '' : 's'})
+                {m.notifications_unread_count({ count: unread.length })}
               </span>
             </Button>
           )}
@@ -146,7 +145,11 @@ export function LiveNotifications({
       footer={
         // The query's own failure — a mark-read failure renders per row, so
         // the panel foot carries only the refresh channel.
-        error ? <ActionFeedback error={causeMessage(error, REFRESH_FAILED)} /> : null
+        error ? (
+          <ActionFeedback
+            error={causeMessage(error, m.notifications_refresh_failed())}
+          />
+        ) : null
       }
     >
       {data.length === 0 ? (
@@ -155,8 +158,8 @@ export function LiveNotifications({
             <EmptyMedia variant="icon">
               <BellIcon />
             </EmptyMedia>
-            <EmptyTitle>You're all caught up</EmptyTitle>
-            <EmptyDescription>No notifications yet.</EmptyDescription>
+            <EmptyTitle>{m.empty_all_caught_up()}</EmptyTitle>
+            <EmptyDescription>{m.empty_no_notifications()}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -198,10 +201,10 @@ export function LiveNotifications({
                 </ItemContent>
                 <ItemActions className="ml-auto self-center max-sm:basis-full max-sm:pt-1 max-sm:justify-end">
                   {notification.read ? (
-                    <Badge variant="neutral">Read</Badge>
+                    <Badge variant="neutral">{m.common_read()}</Badge>
                   ) : (
                     <>
-                      <Badge variant="info">New</Badge>
+                      <Badge variant="info">{m.common_new()}</Badge>
                       <Button
                         type="button"
                         variant="ghost"
@@ -211,9 +214,11 @@ export function LiveNotifications({
                             mark.runAsync([notification.id])
                           )
                         }
-                        aria-label={`Mark read: ${notification.title}`}
+                        aria-label={m.notifications_mark_read({
+                          title: notification.title
+                        })}
                       >
-                        Mark read
+                        {m.notification_mark_read_action()}
                       </Button>
                     </>
                   )}

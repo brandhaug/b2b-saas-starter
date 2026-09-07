@@ -5,6 +5,7 @@ import { authClient } from '@/lib/auth-client'
 import { requireSession } from '@/lib/server/auth'
 import { loadAccountPageServerFn } from '@/lib/server/account'
 import { loadMcpClientConnectionsServerFn } from '@/lib/server/mcp-clients'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // Account settings live outside the /workspaces subtree on purpose: they are
 // user-level, not workspace-level, so the route keeps its own session gate
@@ -28,7 +29,7 @@ export const Route = createFileRoute('/account')({
     return { ...account, connections }
   },
   component: AccountRoute,
-  head: () => ({ meta: [{ title: pageTitle('Account') }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_account()) }] })
 })
 
 /**

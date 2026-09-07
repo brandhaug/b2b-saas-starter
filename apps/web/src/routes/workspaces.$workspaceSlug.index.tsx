@@ -3,6 +3,7 @@ import { RoutePending } from '@/components/route-pending'
 import { WorkspaceDashboardPage } from '@/components/workspace-dashboard-page'
 import { pageTitle } from '@/components/page/page-title'
 import { loadWorkspaceDashboardServerFn } from '@/lib/server/workspace-dashboard'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
@@ -16,7 +17,7 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
   pendingComponent: RoutePending,
   component: WorkspaceDashboardRoute,
   head: ({ params }) => ({
-    meta: [{ title: pageTitle('Overview', params.workspaceSlug) }]
+    meta: [{ title: pageTitle(m.public_meta_overview(), params.workspaceSlug) }]
   })
 })
 

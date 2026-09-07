@@ -2,6 +2,7 @@ import { lazy, type ComponentType } from 'react'
 
 import { type MdxComponentProps } from '@/components/mdx-link'
 import { contentJsonLd } from '@/lib/json-ld'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 type BlogFrontmatter = {
   readonly title: string
@@ -115,6 +116,6 @@ export function postJsonLd(post: PostMeta): string {
       author: { '@type': 'Organization', name: author },
       keywords: tags.join(', ')
     },
-    breadcrumb: ['Home', 'Blog', title]
+    breadcrumb: [m.public_home(), m.public_blog_title(), title]
   })
 }

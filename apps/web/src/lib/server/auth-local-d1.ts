@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import {
   LOCAL_D1_UNAVAILABLE_ERROR_CODE,
-  LOCAL_D1_UNAVAILABLE_MESSAGE
+  localD1UnavailableMessage
 } from '../auth-error-copy'
 
 /**
@@ -53,7 +53,7 @@ export function localD1UnavailableResponse(): Response {
   return new Response(
     JSON.stringify({
       code: LOCAL_D1_UNAVAILABLE_ERROR_CODE,
-      message: LOCAL_D1_UNAVAILABLE_MESSAGE
+      message: localD1UnavailableMessage()
     }),
     { status: 503, headers: { 'content-type': 'application/json; charset=utf-8' } }
   )

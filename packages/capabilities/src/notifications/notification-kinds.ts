@@ -6,6 +6,8 @@ import {
   type NotificationKind as StoredNotificationKind
 } from '@b2b-saas-starter/db/enums'
 import { Schema } from 'effect'
+import * as m from '@b2b-saas-starter/i18n/messages'
+import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 
 /**
  * The notification vocabulary, lifted from the stored enums in
@@ -52,50 +54,75 @@ export function resolveChannel(
   return stored ?? defaultChannelFor(kind)
 }
 
-type NotificationKindDescription = {
-  readonly label: string
-  readonly description: string
+/** Human copy per kind, resolved in the account's current locale. */
+export function notificationKindLabel(
+  kind: NotificationKind,
+  locale: Locale = DEFAULT_LOCALE
+): string {
+  const options = { locale }
+  switch (kind) {
+    case 'api_token.created': {
+      return m.backend_email_notification_kind_api_token_created({}, options)
+    }
+    case 'api_token.revoked': {
+      return m.backend_email_notification_kind_api_token_revoked({}, options)
+    }
+    case 'workspace_member.role_changed': {
+      return m.backend_email_notification_kind_role_changed({}, options)
+    }
+    case 'two_factor.changed': {
+      return m.backend_email_notification_kind_two_factor_changed({}, options)
+    }
+    case 'webhook.delivery_failed': {
+      return m.backend_email_notification_kind_webhook_failed({}, options)
+    }
+    case 'workspace_member.joined': {
+      return m.backend_email_notification_kind_member_joined({}, options)
+    }
+    case 'billing.plan_changed': {
+      return m.backend_email_notification_kind_plan_changed({}, options)
+    }
+    case 'account.impersonated': {
+      return m.backend_email_notification_kind_impersonated({}, options)
+    }
+    case 'announcement': {
+      return m.backend_email_notification_kind_announcement({}, options)
+    }
+  }
 }
 
-/**
- * Human copy per kind, shared by the preferences UI and the email subjects so
- * the same words describe a kind everywhere the user meets it.
- */
-export const NOTIFICATION_KIND_DESCRIPTIONS = {
-  'api_token.created': {
-    label: 'API token created',
-    description: 'A new API token was minted in one of your workspaces.'
-  },
-  'api_token.revoked': {
-    label: 'API token revoked',
-    description: 'An API token in one of your workspaces was revoked.'
-  },
-  'workspace_member.role_changed': {
-    label: 'Your workspace role changed',
-    description: 'An owner or admin changed what you can do in a workspace.'
-  },
-  'two_factor.changed': {
-    label: 'Two-factor authentication changed',
-    description: 'Two-factor authentication was turned on or off for your account.'
-  },
-  'webhook.delivery_failed': {
-    label: 'Webhook delivery failed',
-    description: 'A webhook endpoint gave up after retries or rejected a delivery.'
-  },
-  'workspace_member.joined': {
-    label: 'Member joined',
-    description: 'Somebody accepted an invitation to one of your workspaces.'
-  },
-  'billing.plan_changed': {
-    label: 'Plan changed',
-    description: 'A workspace moved to a different plan.'
-  },
-  'account.impersonated': {
-    label: 'Account impersonated',
-    description: 'A System Admin signed in to your account for support.'
-  },
-  announcement: {
-    label: 'Announcements',
-    description: 'Workspace-wide notices from the starter or your workspace owners.'
+export function notificationKindDescription(
+  kind: NotificationKind,
+  locale: Locale = DEFAULT_LOCALE
+): string {
+  const options = { locale }
+  switch (kind) {
+    case 'api_token.created': {
+      return m.backend_email_notification_api_token_created_lead({}, options)
+    }
+    case 'api_token.revoked': {
+      return m.backend_email_notification_api_token_revoked_lead({}, options)
+    }
+    case 'workspace_member.role_changed': {
+      return m.backend_email_notification_role_changed_lead({}, options)
+    }
+    case 'two_factor.changed': {
+      return m.backend_email_notification_two_factor_changed_lead({}, options)
+    }
+    case 'webhook.delivery_failed': {
+      return m.backend_email_notification_webhook_failed_lead({}, options)
+    }
+    case 'workspace_member.joined': {
+      return m.backend_email_notification_member_joined_lead({}, options)
+    }
+    case 'billing.plan_changed': {
+      return m.backend_email_notification_plan_changed_lead({}, options)
+    }
+    case 'account.impersonated': {
+      return m.backend_email_notification_impersonated_lead({}, options)
+    }
+    case 'announcement': {
+      return m.backend_email_notification_announcement_lead({}, options)
+    }
   }
-} satisfies Readonly<Record<NotificationKind, NotificationKindDescription>>
+}

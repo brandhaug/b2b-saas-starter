@@ -18,6 +18,8 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet'
 import { publicLinks } from '@/lib/content'
+import { m } from '@b2b-saas-starter/i18n/messages'
+import { LanguageSwitcher } from '@/components/language-switcher'
 
 export function PublicLayout({ children }: { readonly children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -37,7 +39,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary px-3 py-2 text-sm focus:text-primary-foreground"
       >
-        Skip to content
+        {m.common_skip_to_content()}
       </a>
       <header className="sticky top-0 z-40 border-b border-border bg-background">
         {/* `gap-3` on the narrow bar: the wordmark is nowrap (P3), so the
@@ -46,19 +48,24 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger
               render={
-                <Button variant="ghost" size="icon" className="md:hidden">
+                <Button variant="ghost" size="icon" className="lg:hidden">
                   <MenuIcon className="size-5" />
-                  <span className="sr-only">Open menu</span>
+                  <span className="sr-only">{m.common_open_menu()}</span>
                 </Button>
               }
             />
             <SheetContent side="left" className="flex flex-col gap-0">
               <SheetHeader>
-                <SheetTitle>Menu</SheetTitle>
-                <SheetDescription className="sr-only">Site navigation</SheetDescription>
+                <SheetTitle>{m.common_menu()}</SheetTitle>
+                <SheetDescription className="sr-only">
+                  {m.common_site_navigation()}
+                </SheetDescription>
               </SheetHeader>
-              <nav aria-label="Site" className="flex flex-col gap-1 px-4 pb-4">
-                {publicLinks.map((link) => (
+              <nav
+                aria-label={m.common_site_navigation()}
+                className="flex flex-col gap-1 px-4 pb-4"
+              >
+                {publicLinks().map((link) => (
                   <Link
                     key={link.to}
                     to={link.to}
@@ -68,12 +75,14 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
                     {link.label}
                   </Link>
                 ))}
+                <LanguageSwitcher />
                 <Button
+                  nativeButton={false}
                   render={<Link to="/sign-in" />}
                   onClick={() => setMobileNavOpen(false)}
                   className="mt-2 max-md:w-full"
                 >
-                  Sign in
+                  {m.form_sign_in()}
                 </Button>
               </nav>
             </SheetContent>
@@ -87,8 +96,11 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             </span>
             B2B SaaS Starter
           </Link>
-          <nav aria-label="Site" className="ml-auto hidden items-center gap-1 md:flex">
-            {publicLinks.map((link) => (
+          <nav
+            aria-label={m.common_site_navigation()}
+            className="ml-auto hidden items-center gap-1 lg:flex"
+          >
+            {publicLinks().map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
@@ -99,27 +111,30 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             ))}
           </nav>
           <SearchButton />
+          <div className="hidden lg:block">
+            <LanguageSwitcher />
+          </div>
           <Button nativeButton={false} render={<Link to="/sign-in" />}>
-            Sign in
+            {m.form_sign_in()}
           </Button>
         </div>
       </header>
       {children}
       <footer className="mt-auto border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between">
-          <span>B2B SaaS Starter for Cloudflare-first teams.</span>
+          <span>{m.site_footer_tagline()}</span>
           <div className="flex flex-wrap gap-4">
             <Link
               to="/privacy"
               className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
             >
-              Privacy
+              {m.privacy()}
             </Link>
             <Link
               to="/terms"
               className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
             >
-              Terms
+              {m.terms()}
             </Link>
             {/* /changelog redirects to the repository's releases, so link
                 there directly — the footer should not bounce through a
@@ -130,8 +145,8 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
               rel="noopener noreferrer"
               className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
             >
-              Changelog
-              <span className="sr-only"> (opens in new tab)</span>
+              {m.changelog()}
+              <span className="sr-only">{m.common_opens_new_tab()}</span>
             </a>
           </div>
         </div>

@@ -6,7 +6,7 @@ import {
   workspaceMembers,
   workspaces
 } from '@b2b-saas-starter/db/schema'
-import { DateTime, Effect, Layer } from 'effect'
+import { DateTime, Effect, Layer, Schema } from 'effect'
 import {
   and,
   count,
@@ -39,14 +39,17 @@ import {
   type NotificationFeedOptions,
   type NotificationWorkspace
 } from './notification-feed.ts'
+import { NotificationEventSchema } from './notification-events.ts'
 import { NotificationPreferences } from './notification-preferences.ts'
 
 type NotificationRow = typeof notifications.$inferSelect
 type UserRow = typeof user.$inferSelect
 type WorkspaceRow = typeof workspaces.$inferSelect
 
+const decodeNotificationEvent = Schema.decodeUnknownOption(NotificationEventSchema)
+
 function toNotification(row: NotificationRow): Notification {
-  return {
+  const base = {
     id: row.id,
     kind: row.kind,
     title: row.title,
@@ -54,10 +57,26 @@ function toNotification(row: NotificationRow): Notification {
     createdAt: row.createdAt,
     read: row.readAt !== null
   }
+  if (row.event !== null) {
+    const event = decodeNotificationEvent(row.event)
+    if (event._tag === 'Some') {
+      return {
+        ...base,
+        event: event.value
+      }
+    }
+  }
+  return base
 }
 
 function toRecipient(row: UserRow): EmailQueueRecipient {
-  return { userId: row.id, email: row.email, name: row.name }
+  return {
+    userId: row.id,
+    email: row.email,
+    name: row.name,
+    locale: row.locale,
+    timeZone: row.timeZone
+  }
 }
 
 function toWorkspaceRef(row: WorkspaceRow | null): NotificationWorkspace | null {
@@ -279,6 +298,7 @@ export function LiveNotificationFeed(
               kind: input.kind,
               title: input.title,
               message: input.message,
+              event: input.event ?? null,
               readAt: null,
               createdAt
             }
@@ -307,6 +327,7 @@ export function LiveNotificationFeed(
                 kind: 'announcement',
                 title: input.title,
                 message: input.message,
+                event: input.event ?? null,
                 readAt: null,
                 createdAt
               })
@@ -333,6 +354,7 @@ export function LiveNotificationFeed(
                 kind: input.kind,
                 title: input.title,
                 message: input.message,
+                event: input.event ?? null,
                 readAt: null,
                 createdAt
               })
@@ -384,6 +406,7 @@ export function LiveNotificationFeed(
                   kind: input.kind,
                   title: input.title,
                   message: input.message,
+                  event: input.event ?? null,
                   readAt: null,
                   createdAt
                 }

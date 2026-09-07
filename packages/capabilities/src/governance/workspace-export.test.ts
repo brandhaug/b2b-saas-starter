@@ -26,6 +26,7 @@ import { SeedWebhookEndpoints } from '../developer-platform/webhook-endpoints.se
 import { SeedWebhookPublisher } from '../developer-platform/webhook-publisher.ts'
 import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
+import { SeedAccountPreferences } from './account-preferences.ts'
 import { SeedSeatSyncPublisher } from '../billing/seat-sync.ts'
 import { makeSeedRoster, SeedWorkspaceMembership } from './workspace-membership.ts'
 import { SeedWorkspaceInvitations } from './workspace-invitations.seed.ts'
@@ -357,7 +358,12 @@ describe('collectWorkspaceExportSnapshot — the audit walk bound', () => {
   ): Effect.Effect<Layer.Layer<WorkspaceContext | WorkspaceExportSnapshotServices>> {
     return Effect.map(makeSeedRoster(seedMembers), (roster) => {
       const feed = SeedNotificationFeed([]).pipe(
-        Layer.provide(SeedNotificationPreferences([]).pipe(Layer.provide(audit)))
+        Layer.provide(
+          Layer.merge(
+            SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
+            SeedAccountPreferences([]).pipe(Layer.provide(audit))
+          )
+        )
       )
       return Layer.mergeAll(
         audit,

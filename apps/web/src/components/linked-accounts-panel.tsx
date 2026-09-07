@@ -4,7 +4,8 @@ import { loginMethodLabel } from '@/components/auth/social-provider-labels'
 import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-rows'
 import { Button } from '@/components/ui/button'
 import { ActionFeedback } from '@/components/page/action-feedback'
-import { formatUtc } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +18,6 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 const ACCOUNTS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'linked-providers']
-const ACTION_FAILED = 'The provider could not be unlinked'
 
 /**
  * One linked sign-in method, narrowed to the fields the panel reads: `id` is
@@ -45,7 +45,7 @@ function toViewModels(
     .map((linked) => ({
       accountId: linked.id,
       methodLabel: loginMethodLabel(linked.providerId),
-      linkedLabel: formatUtc(linked.createdAt, { dateStyle: 'medium' })
+      linkedLabel: formatTimestamp(linked.createdAt, { dateStyle: 'medium' })
     }))
 }
 
@@ -64,13 +64,13 @@ export function LinkedAccountsPanel() {
     queryKey: ACCOUNTS_QUERY_KEY,
     list: () => authClient.listAccounts(),
     toRows: toViewModels,
-    loadFailedMessage: 'Could not load linked providers'
+    loadFailedMessage: m.load_linked_providers_failed()
   })
   const act = useAuthClientAction({
     refetch,
     call: (action: () => Promise<AuthResult<unknown>>) =>
-      unwrapAuthResult(action, ACTION_FAILED),
-    failureMessage: ACTION_FAILED
+      unwrapAuthResult(action, m.linked_account_unlink_failed()),
+    failureMessage: m.linked_account_unlink_failed()
   })
 
   const canUnlink = (rows?.length ?? 0) > 1
@@ -100,7 +100,7 @@ export function LinkedAccountsPanel() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">{row.methodLabel}</p>
                   <p className="text-xs font-mono tabular-nums text-muted-foreground">
-                    Linked {row.linkedLabel}
+                    {m.linked_label()} {row.linkedLabel}
                   </p>
                 </div>
                 {canUnlink ? (
@@ -109,19 +109,21 @@ export function LinkedAccountsPanel() {
                       render={
                         <Button
                           variant="ghost"
-                          aria-label={`Unlink ${row.methodLabel}`}
+                          aria-label={m.unlink_named({ name: row.methodLabel })}
                         />
                       }
                     >
-                      Unlink
+                      {m.unlink_action()}
                     </AlertDialogTrigger>
                     <AlertDialogContent>
-                      <AlertDialogTitle>Unlink {row.methodLabel}?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        {m.unlink_named({ name: row.methodLabel })}?
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
-                        That provider can no longer sign in to this account.
+                        {m.provider_unlinked_description()}
                       </AlertDialogDescription>
                       <div className="flex justify-end gap-2">
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() =>
                             act.run(() =>
@@ -129,14 +131,14 @@ export function LinkedAccountsPanel() {
                             )
                           }
                         >
-                          Unlink
+                          {m.unlink_action()}
                         </AlertDialogAction>
                       </div>
                     </AlertDialogContent>
                   </AlertDialog>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Add another sign-in method before removing this one
+                    {m.add_sign_in_method_before_removing()}
                   </p>
                 )}
               </li>

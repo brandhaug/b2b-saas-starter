@@ -1,0 +1,16 @@
+{
+  "server_assistant_unconfigured": "KI-assistenten er ikke aktivert i denne installasjonen. Sett WORKERS_AI_ENABLED=true med AI-bindingen, eller OPENAI_API_KEY, for å aktivere den.",
+  "server_assistant_unavailable": "Assistenten kunne ikke svare akkurat nå. Prøv igjen senere.",
+  "server_discovery_unreachable": "Kunne ikke hente oppdagelsesdokumentet. Kontroller utstederadressen og prøv igjen.",
+  "server_discovery_invalid": "Oppdagelsesdokumentet er ugyldig eller samsvarer ikke med utstederen.",
+  "server_discovery_endpoints_missing": "Oppdagelsesdokumentet mangler påkrevde endepunkter",
+  "server_metadata_invalid": "Kunne ikke lese metadataene fra identitetsleverandøren. Kontroller XML-innholdet og prøv igjen.",
+  "server_metadata_binding_missing": "Metadataene mangler en HTTP-Redirect-binding for SingleSignOnService",
+  "server_metadata_fetch_failed": "Kunne ikke hente metadataene",
+  "server_metadata_status": "Metadataadressen svarte med status {status}",
+  "server_sso_missing": "Denne tilkoblingen finnes ikke i arbeidsområdet",
+  "server_sso_endpoints_missing": "Den lagrede tilkoblingen mangler avklarte endepunkter",
+  "server_sso_metadata_missing": "Den lagrede tilkoblingen mangler metadata fra identitetsleverandøren",
+  "server_replay_queue_unconfigured": "Webhook-køen er ikke konfigurert. Ingen ny levering ble opprettet.",
+  "server_replay_refused": "Leveringen kunne ikke sendes på nytt. Kontroller at endepunktet er aktivert og hendelsen fortsatt er tilgjengelig."
+}

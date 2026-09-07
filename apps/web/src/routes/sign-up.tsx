@@ -18,6 +18,7 @@ import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 import { authErrorCopy } from '@/lib/auth-error-copy'
 import { TurnstileWidget } from '@/components/auth/turnstile-widget'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type { SignUpWithEmail } from '@/components/auth/auth-client-ports'
 
@@ -30,7 +31,7 @@ export const Route = createFileRoute('/sign-up')({
     socialProviders: await getSocialProviderIds()
   }),
   component: SignUpRoute,
-  head: () => ({ meta: [{ title: pageTitle('Create your account') }] })
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_sign_up()) }] })
 })
 
 /** Stable empty default: a fresh `[]` literal per render would defeat memoing. */
@@ -84,7 +85,7 @@ export function SignUpPage({
     onSubmit: async ({ value }) => {
       setSubmitError(null)
       if (turnstileSiteKey !== null && turnstileToken === null) {
-        setSubmitError('Complete the bot check before creating your account.')
+        setSubmitError(m.complete_bot_check())
         return
       }
       const result = await signUp({
@@ -98,7 +99,7 @@ export function SignUpPage({
         // are codes in the shared table, so the challenge-reset below is the
         // only thing this branch adds to the mapped copy.
         setTurnstileToken(null)
-        setSubmitError(authErrorCopy(result.error, 'Sign-up failed'))
+        setSubmitError(authErrorCopy(result.error, m.public_auth_sign_up_failed()))
         return
       }
       // Registration signs the user in (auto sign-in) and emails a
@@ -110,23 +111,23 @@ export function SignUpPage({
 
   return (
     <AuthCardForm
-      title="Create your account"
-      description="Sign up with email and password to run the starter on your own account. A verification email follows."
+      title={m.create_your_account()}
+      description={m.sign_up_description()}
       form={form}
       submit={
         <AuthSubmitButton
           form={form}
           icon={<UserPlusIcon className="size-4" />}
-          label="Create account"
-          submittingLabel="Creating account…"
+          label={m.form_create_account()}
+          submittingLabel={m.creating_account()}
         />
       }
       error={submitError}
       footer={
         <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
+          {m.already_have_account()}{' '}
           <Link to="/sign-in" className="text-primary underline underline-offset-4">
-            Sign in
+            {m.form_sign_in()}
           </Link>
         </p>
       }
@@ -137,13 +138,13 @@ export function SignUpPage({
         name="name"
         validators={{
           onChange: ({ value }) =>
-            value.trim().length === 0 ? 'Name is required' : undefined
+            value.trim().length === 0 ? m.name_required() : undefined
         }}
       >
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Name"
+            label={m.form_name()}
             type="text"
             placeholder="Ada Lovelace"
             autoComplete="name"
@@ -160,7 +161,7 @@ export function SignUpPage({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Email"
+            label={m.form_email()}
             type="email"
             placeholder="you@example.com"
             autoComplete="email"
@@ -177,7 +178,7 @@ export function SignUpPage({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Password"
+            label={m.form_password()}
             type="password"
             autoComplete="new-password"
             value={field.state.value}

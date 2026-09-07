@@ -4,6 +4,7 @@ import { WorkspaceShell } from '@/components/workspace-shell'
 import { BillingPlans } from '@/components/workspace-billing'
 import { viewerCan } from '@/lib/permissions'
 import { type WorkspaceBillingPayload } from '@/lib/server/billing'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The billing page. Lives beside the route file (not in it) so the route
@@ -35,8 +36,8 @@ export function WorkspaceBillingPage({
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
-        title="Billing"
-        description="Plan, entitlements, and checkout."
+        title={m.nav_billing()}
+        description={m.billing_description()}
       />
       <BillingPlans
         workspaceSlug={workspaceSlug}

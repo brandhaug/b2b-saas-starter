@@ -1,6 +1,7 @@
 import { Deferred, Effect } from 'effect'
 import { expect, test, type Page } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
+import { isolatedClientIp } from './test-isolation'
 
 function auditRequest(url: URL) {
   return (
@@ -20,10 +21,21 @@ async function signIn(page: Page, email = 'demo@starter.local') {
   await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.waitForURL((url) => url.pathname === auditPath)
+  await page.locator('html[data-authenticated="true"]').waitFor()
+  if (email === 'engineer@example.com') {
+    await expect(
+      page.getByRole('heading', { name: 'Audit access denied' })
+    ).toBeVisible()
+  } else {
+    await page.locator('header select:enabled').waitFor({ state: 'attached' })
+  }
 }
 
-test.beforeEach(() => {
+test.beforeEach(async ({ context }, testInfo) => {
   test.skip(!hasLocalD1State(), 'requires migrated and seeded local D1')
+  await context.setExtraHTTPHeaders({
+    'cf-connecting-ip': isolatedClientIp(testInfo.testId)
+  })
 })
 
 test('event links preserve filters, keyboard focus, and back/forward history', async ({

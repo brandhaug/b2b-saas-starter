@@ -7,6 +7,7 @@ import {
   NotificationFeed,
   type NotificationFeedInterface
 } from '../notifications/notification-feed.ts'
+import { type NotificationEvent } from '../notifications/notification-events.ts'
 import { testWorkspaceContext, WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, type AuditEventLogInterface } from './audit-event-log.ts'
 import {
@@ -79,8 +80,13 @@ function byRequestedAtDesc(a: SeedExportRow, b: SeedExportRow): number {
 function readyNotification(workspaceName: string, expiresAt: string) {
   return {
     title: 'Workspace export ready',
-    message: `Your export of ${workspaceName} is ready to download from workspace settings until ${expiresAt}.`
-  }
+    message: `Your export of ${workspaceName} is ready to download from workspace settings until ${expiresAt}.`,
+    event: {
+      type: 'workspace.export_ready',
+      workspaceName,
+      expiresAt
+    }
+  } satisfies { title: string; message: string; event: NotificationEvent }
 }
 
 /**

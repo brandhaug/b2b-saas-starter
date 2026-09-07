@@ -1,4 +1,7 @@
-import { type AuthEmailSender } from '@b2b-saas-starter/auth'
+import { type AuthEmailSender, type OneTimeCodePurpose } from '@b2b-saas-starter/auth'
+import { AccountPreferencesService } from '@b2b-saas-starter/capabilities/governance/account-preferences'
+import * as m from '@b2b-saas-starter/i18n/messages'
+import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import {
   AccountDeletedEmail,
@@ -16,6 +19,7 @@ import { Effect, type Layer } from 'effect'
 import { type ReactElement } from 'react'
 
 import { webRuntime } from '../observability'
+import { runCapabilities } from '../capabilities'
 
 /**
  * The adapter that lets Better Auth's account-lifecycle callbacks reach the
@@ -82,16 +86,62 @@ function dispatch(input: {
   )
 }
 
+function localeOf(value: { readonly locale?: Locale | null }): Locale {
+  return value.locale ?? DEFAULT_LOCALE
+}
+
+/** Existing accounts get their saved locale; unknown recipients stay English. */
+export async function recipientLocale(email: string): Promise<Locale> {
+  // OTP and magic-link callbacks receive only an address because Better Auth
+  // deliberately supports requests for accounts that do not exist yet.
+  // oxlint-disable-next-line effect/noTryCatch -- an unavailable preference read must not block an auth email; English is the guest fallback
+  try {
+    const preferences = await runCapabilities(
+      Effect.flatMap(AccountPreferencesService, (service) => service.getByEmail(email))
+    )
+    return preferences?.locale ?? DEFAULT_LOCALE
+  } catch {
+    return DEFAULT_LOCALE
+  }
+}
+
 /**
  * The subject lines for one-time codes, keyed by Better Auth's own OTP type.
  * A record rather than branches so the four flows sit next to each other.
  */
+type OneTimeCodeSubjectKey =
+  | 'sign_in_code'
+  | 'email_verification_code'
+  | 'password_reset_code'
+  | 'change_email_code'
+
 const ONE_TIME_CODE_SUBJECTS = {
-  'sign-in': 'Your sign-in code',
-  'email-verification': 'Your email verification code',
-  'forget-password': 'Your password reset code',
-  'change-email': 'Confirm your new email address'
-} satisfies Record<Parameters<AuthEmailSender['sendOneTimeCode']>[0]['type'], string>
+  'sign-in': 'sign_in_code',
+  'email-verification': 'email_verification_code',
+  'forget-password': 'password_reset_code',
+  'change-email': 'change_email_code'
+} satisfies Record<OneTimeCodePurpose, OneTimeCodeSubjectKey>
+
+export function oneTimeCodeSubject(
+  type: Parameters<AuthEmailSender['sendOneTimeCode']>[0]['type'],
+  locale: Locale
+): string {
+  const options = { locale }
+  switch (ONE_TIME_CODE_SUBJECTS[type]) {
+    case 'sign_in_code': {
+      return m.backend_email_subject_sign_in_code({}, options)
+    }
+    case 'email_verification_code': {
+      return m.backend_email_subject_email_verification_code({}, options)
+    }
+    case 'password_reset_code': {
+      return m.backend_email_subject_password_reset_code({}, options)
+    }
+    case 'change_email_code': {
+      return m.backend_email_subject_change_email_code({}, options)
+    }
+  }
+}
 
 /**
  * The `AuthEmailSender` the auth runtime provides. Subjects live here, beside
@@ -103,29 +153,33 @@ export function makeAuthEmailSender(): AuthEmailSender {
     sendResetPassword: ({ user, url }) =>
       dispatch({
         to: user.email,
-        subject: 'Reset your password',
-        element: PasswordResetEmail({ url })
+        subject: m.backend_email_subject_reset_password({}, { locale: localeOf(user) }),
+        element: PasswordResetEmail({ url, locale: localeOf(user) })
       }),
     sendVerificationEmail: ({ user, url }) =>
       dispatch({
         to: user.email,
-        subject: 'Verify your email address',
-        element: EmailVerificationEmail({ url })
+        subject: m.backend_email_subject_verify_email({}, { locale: localeOf(user) }),
+        element: EmailVerificationEmail({ url, locale: localeOf(user) })
       }),
-    sendOneTimeCode: ({ email, otp, type }) =>
-      dispatch({
+    sendOneTimeCode: async ({ email, otp, type }) => {
+      const locale = await recipientLocale(email)
+      return dispatch({
         to: email,
-        subject: ONE_TIME_CODE_SUBJECTS[type],
-        element: OneTimeCodeEmail({ code: otp, purpose: type })
-      }),
+        subject: oneTimeCodeSubject(type, locale),
+        element: OneTimeCodeEmail({ code: otp, purpose: type, locale })
+      })
+    },
     // The magic-link plugin's own callback shape — no `user`, because a link
     // can be requested for an address that has no account yet.
-    sendMagicLink: ({ email, url }) =>
-      dispatch({
+    sendMagicLink: async ({ email, url }) => {
+      const locale = await recipientLocale(email)
+      return dispatch({
         to: email,
-        subject: 'Your sign-in link',
-        element: MagicLinkEmail({ url })
-      }),
+        subject: m.backend_email_subject_sign_in_link({}, { locale }),
+        element: MagicLinkEmail({ url, locale })
+      })
+    },
     // `onPasswordReset`: fired after a link reset succeeded and every prior
     // session was revoked, so the email is the holder-facing record of a
     // takeover response having run — one template with the signed-in change,
@@ -133,8 +187,11 @@ export function makeAuthEmailSender(): AuthEmailSender {
     sendPasswordResetConfirmation: ({ user }) =>
       dispatch({
         to: user.email,
-        subject: 'Your password was reset',
-        element: PasswordChangedEmail({ via: 'reset' })
+        subject: m.backend_email_subject_password_reset_confirmation(
+          {},
+          { locale: localeOf(user) }
+        ),
+        element: PasswordChangedEmail({ via: 'reset', locale: localeOf(user) })
       })
   }
 }
@@ -145,14 +202,16 @@ export function makeAuthEmailSender(): AuthEmailSender {
  * dispatcher rejection never fails the enable/disable exchange it observes —
  * the caller swallows it.
  */
-export function sendTwoFactorChangedEmail(input: {
+export async function sendTwoFactorChangedEmail(input: {
   readonly email: string
   readonly enabled: boolean
+  readonly locale?: Locale | null
 }): Promise<void> {
+  const locale = input.locale ?? (await recipientLocale(input.email))
   return dispatch({
     to: input.email,
-    subject: 'Two-factor authentication changed',
-    element: TwoFactorChangedEmail({ enabled: input.enabled })
+    subject: m.backend_email_subject_two_factor_changed({}, { locale }),
+    element: TwoFactorChangedEmail({ enabled: input.enabled, locale })
   })
 }
 
@@ -160,19 +219,20 @@ export function sendTwoFactorChangedEmail(input: {
  * The passkey wording of the credential-change notification, on the same
  * best-effort contract as the two-factor one.
  */
-export function sendPasskeyChangedEmail(input: {
+export async function sendPasskeyChangedEmail(input: {
   readonly email: string
   readonly added: boolean
+  readonly locale?: Locale | null
 }): Promise<void> {
-  // Plain branches, like the template's own two wordings.
-  let subject = 'Passkey added to your account'
+  const locale = input.locale ?? (await recipientLocale(input.email))
+  let subject = m.backend_email_subject_passkey_added({}, { locale })
   if (!input.added) {
-    subject = 'Passkey removed from your account'
+    subject = m.backend_email_subject_passkey_removed({}, { locale })
   }
   return dispatch({
     to: input.email,
     subject,
-    element: PasskeyChangedEmail({ added: input.added })
+    element: PasskeyChangedEmail({ added: input.added, locale })
   })
 }
 
@@ -182,13 +242,15 @@ export function sendPasskeyChangedEmail(input: {
  * (`/change-password`) emails the account holder so a hijacked session
  * cannot swap the password out silently.
  */
-export function sendPasswordChangedEmail(input: {
+export async function sendPasswordChangedEmail(input: {
   readonly email: string
+  readonly locale?: Locale | null
 }): Promise<void> {
+  const locale = input.locale ?? (await recipientLocale(input.email))
   return dispatch({
     to: input.email,
-    subject: 'Your password was changed',
-    element: PasswordChangedEmail({ via: 'password-change' })
+    subject: m.backend_email_subject_password_changed({}, { locale }),
+    element: PasswordChangedEmail({ via: 'password-change', locale })
   })
 }
 
@@ -198,13 +260,15 @@ export function sendPasswordChangedEmail(input: {
  * recovery code, which the holder must hear about from somewhere other than
  * a locked-out sign-in.
  */
-export function sendBackupCodesRotatedEmail(input: {
+export async function sendBackupCodesRotatedEmail(input: {
   readonly email: string
+  readonly locale?: Locale | null
 }): Promise<void> {
+  const locale = input.locale ?? (await recipientLocale(input.email))
   return dispatch({
     to: input.email,
-    subject: 'Your two-factor recovery codes were replaced',
-    element: BackupCodesRotatedEmail()
+    subject: m.backend_email_subject_backup_codes_rotated({}, { locale }),
+    element: BackupCodesRotatedEmail({ locale })
   })
 }
 
@@ -217,13 +281,16 @@ export function sendAccountDeletedEmail(input: {
   readonly email: string
   readonly workspacesLeft: number
   readonly workspacesDeleted: number
+  readonly locale?: Locale | null
 }): Promise<void> {
+  const locale = input.locale ?? DEFAULT_LOCALE
   return dispatch({
     to: input.email,
-    subject: 'Your account was deleted',
+    subject: m.backend_email_subject_account_deleted({}, { locale }),
     element: AccountDeletedEmail({
       workspacesLeft: input.workspacesLeft,
-      workspacesDeleted: input.workspacesDeleted
+      workspacesDeleted: input.workspacesDeleted,
+      locale
     })
   })
 }

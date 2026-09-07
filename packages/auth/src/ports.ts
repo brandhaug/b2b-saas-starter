@@ -1,6 +1,7 @@
 import { type CimdOptions } from '@better-auth/cimd'
 import { type drizzle } from 'drizzle-orm/d1'
 import { Context } from 'effect'
+import { type Locale } from '@b2b-saas-starter/i18n/locale'
 
 /**
  * The package's structural ports and the `AuthConfig` service that carries
@@ -51,7 +52,7 @@ export type AuthEmailSender = {
  * passes more (`token`, the `Request`); a callback may ignore the rest.
  */
 export type AuthEmailCallback = (data: {
-  readonly user: { readonly email: string }
+  readonly user: { readonly email: string; readonly locale?: Locale | null }
   readonly url: string
 }) => Promise<void>
 
@@ -99,7 +100,7 @@ export type AuthMagicLinkCallback = (data: {
  * notification is a "this happened" email, never one with an action link.
  */
 export type AuthPasswordResetCallback = (data: {
-  readonly user: { readonly email: string }
+  readonly user: { readonly email: string; readonly locale?: Locale | null }
 }) => Promise<void>
 
 /**
@@ -229,7 +230,12 @@ export type UserDeleteHooks = {
     request: Request | undefined
   ) => Promise<void>
   readonly afterDelete: (
-    user: { readonly id: string; readonly email: string },
+    user: {
+      readonly id: string
+      readonly email: string
+      /** Persisted before deletion so the confirmation keeps its locale. */
+      readonly locale?: Locale | null
+    },
     request: Request | undefined
   ) => Promise<void>
 }

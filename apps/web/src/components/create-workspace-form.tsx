@@ -8,8 +8,7 @@ import { callServerFn } from '@/lib/server-call'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { validateWorkspaceName } from '@/lib/workspace-name'
-
-const CREATE_WORKSPACE_FAILED = 'Failed to create workspace'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 type WorkspaceValues = {
   name: string
@@ -30,7 +29,7 @@ function suggestSlug(name: string): string {
 
 function validateSlug(value: string): string | undefined {
   if (!/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(value)) {
-    return 'Use lowercase letters, digits, and hyphens; start and end with a letter or digit'
+    return m.workspace_slug_hint()
   }
   return
 }
@@ -64,7 +63,7 @@ export function CreateWorkspaceForm({
       setSubmitError(null)
       const outcome = await callServerFn(
         () => createWorkspace({ data: { name: value.name, slug: value.slug } }),
-        CREATE_WORKSPACE_FAILED
+        m.workspace_create_failed()
       )
       if (!outcome.ok) {
         setSubmitError(outcome.message)
@@ -91,7 +90,7 @@ export function CreateWorkspaceForm({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Workspace name"
+            label={m.form_workspace_name()}
             value={field.state.value}
             errors={field.state.meta.errors}
             onBlur={field.handleBlur}
@@ -112,7 +111,7 @@ export function CreateWorkspaceForm({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Workspace URL"
+            label={m.form_workspace_url()}
             value={field.state.value}
             errors={field.state.meta.errors}
             onBlur={field.handleBlur}
@@ -137,7 +136,7 @@ export function CreateWorkspaceForm({
             className="justify-self-start"
           >
             {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-            Create workspace
+            {m.form_create_workspace()}
           </Button>
         )}
       </form.Subscribe>

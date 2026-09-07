@@ -92,9 +92,12 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0017 — Deterministic seed workspace](./0017-deterministic-seed-workspace.md)
 - [0052 — Repo-local oxlint plugin for starter conventions](./0052-repo-local-oxlint-plugin.md)
 
+## Internationalization
+
+- [0074 — Account locales and shared message catalogs](./0074-account-locales-and-shared-message-catalogs.md)
+
 ## Deferred by default
 
 - [0021 — No initial PWA](./0021-no-initial-pwa.md)
 - [0028 — No initial file storage](./0028-no-initial-file-storage.md)
-- [0029 — No initial i18n](./0029-no-initial-i18n.md)
 - [0034 — No initial realtime transport](./0034-no-initial-realtime-transport.md)

@@ -22,6 +22,15 @@ export class CapabilityUnavailable extends Schema.TaggedError<CapabilityUnavaila
   { httpApiStatus: 503 }
 ) {}
 
+/** An account preference value that cannot be applied, such as an invalid
+ * IANA timezone. The caller can correct it without retrying storage. */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory, not an Error constructor
+export class AccountPreferencesRejected extends Schema.TaggedError<AccountPreferencesRejected>()(
+  'AccountPreferencesRejected',
+  { reason: Schema.String },
+  { httpApiStatus: 400 }
+) {}
+
 /**
  * A membership change the workspace refuses: an unknown user, a user who is
  * not a member, a role the plugin will not accept. The request was answerable

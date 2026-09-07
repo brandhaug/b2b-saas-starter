@@ -15,11 +15,12 @@ import { Button } from '@/components/ui/button'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { authClient } from '@/lib/auth-client'
 import { authErrorCopy } from '@/lib/auth-error-copy'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type { RequestPasswordReset } from '@/components/auth/auth-client-ports'
 
 export const Route = createFileRoute('/forgot-password')({
-  head: () => ({ meta: [{ title: pageTitle('Forgot password') }] }),
+  head: () => ({ meta: [{ title: pageTitle(m.public_meta_forgot_password()) }] }),
   component: ForgotPasswordRoute
 })
 
@@ -31,13 +32,15 @@ function ForgotPasswordRoute() {
 // whether or not the email exists (account enumeration defense), and the
 // screen must not know more than the endpoint does. Thirty minutes is the
 // window the auth config pins (`resetPasswordTokenExpiresIn: 60 * 30`).
-const SENT_MESSAGE =
-  'If this email exists in our system, check your inbox for a reset link. It expires in thirty minutes.'
+function SENT_MESSAGE() {
+  return m.reset_link_sent_notice()
+}
 
 // The code request endpoint holds the same non-disclosure contract, so the
 // code step echoes no address either.
-const CODE_SENT_MESSAGE =
-  'If this email exists in our system, check your inbox for a six-digit code. It expires in ten minutes.'
+function CODE_SENT_MESSAGE() {
+  return m.reset_code_sent_notice()
+}
 
 /**
  * The reset surface: the emailed link (primary) or a one-time code
@@ -64,7 +67,7 @@ export function ForgotPasswordPage({
       setSubmitError(null)
       const result = await requestReset({ email: value.email })
       if (result.error) {
-        setSubmitError(authErrorCopy(result.error, 'Request failed'))
+        setSubmitError(authErrorCopy(result.error, m.public_auth_request_failed()))
         return
       }
       setStage('link-sent')
@@ -82,7 +85,7 @@ export function ForgotPasswordPage({
     }
     const result = await authClient.emailOtp.requestPasswordReset({ email: address })
     if (result.error) {
-      setSubmitError(authErrorCopy(result.error, 'Could not send the code'))
+      setSubmitError(authErrorCopy(result.error, m.public_auth_send_code_failed()))
       return
     }
     setEmail(address)
@@ -94,12 +97,12 @@ export function ForgotPasswordPage({
       <EmailCodeExchange
         purpose="forget-password"
         email={email}
-        title="Enter your code"
-        codeSentNotice={CODE_SENT_MESSAGE}
-        codeSubmitLabel="Reset password"
-        codeSubmittingLabel="Resetting…"
+        title={m.enter_your_code()}
+        codeSentNotice={CODE_SENT_MESSAGE()}
+        codeSubmitLabel={m.form_reset_password()}
+        codeSubmittingLabel={m.resetting()}
         codeSubmitIcon={<KeyRoundIcon className="size-4" />}
-        verifyErrorFallback="Reset failed"
+        verifyErrorFallback={m.reset_failed()}
         // The resend re-asks the code endpoint — it takes only the address,
         // none of the shared send's purpose.
         send={({ email: address }) =>
@@ -116,7 +119,7 @@ export function ForgotPasswordPage({
           // The reset revokes every session, so a fresh sign-in is the only step.
           router.history.push('/sign-in')
         }}
-        differentEmailLabel="Use the link instead"
+        differentEmailLabel={m.use_link_instead()}
         onDifferentEmail={() => setStage('form')}
         renderExtraFields={(codeForm) => (
           <>
@@ -127,7 +130,7 @@ export function ForgotPasswordPage({
               {(field) => (
                 <FormTextField
                   name={field.name}
-                  label="New password"
+                  label={m.form_new_password()}
                   type="password"
                   autoComplete="new-password"
                   value={field.state.value}
@@ -144,10 +147,10 @@ export function ForgotPasswordPage({
               validators={{
                 onChange: ({ value, fieldApi }) => {
                   if (value.length === 0) {
-                    return 'Confirm your password'
+                    return m.form_confirm_password()
                   }
                   if (value !== fieldApi.form.getFieldValue('password')) {
-                    return 'Passwords do not match'
+                    return m.passwords_do_not_match()
                   }
                   return null
                 }
@@ -156,7 +159,7 @@ export function ForgotPasswordPage({
               {(field) => (
                 <FormTextField
                   name={field.name}
-                  label="Confirm password"
+                  label={m.form_confirm_password()}
                   type="password"
                   autoComplete="new-password"
                   value={field.state.value}
@@ -175,8 +178,8 @@ export function ForgotPasswordPage({
 
   return (
     <AuthCardForm
-      title="Reset your password"
-      description="Enter the email you sign in with and we will send a reset link, or a one-time code."
+      title={m.reset_your_password()}
+      description={m.reset_password_description()}
       // The link-sent stage is a confirmation, not a form — no wrapper, no
       // hydration signal needed.
       form={stage === 'form' ? form : null}
@@ -186,8 +189,8 @@ export function ForgotPasswordPage({
             <AuthSubmitButton
               form={form}
               icon={<MailQuestionIcon className="size-4" />}
-              label="Send reset link"
-              submittingLabel="Sending…"
+              label={m.form_send_reset_link()}
+              submittingLabel={m.sending()}
             />
             <Button
               type="button"
@@ -197,7 +200,7 @@ export function ForgotPasswordPage({
                 void sendCode()
               }}
             >
-              Email me a code instead
+              {m.email_code_instead()}
             </Button>
           </div>
         ) : undefined
@@ -205,23 +208,23 @@ export function ForgotPasswordPage({
       error={submitError}
       footer={
         <p className="text-center text-sm text-muted-foreground">
-          Remembered it after all?{' '}
+          {m.remembered_it()}{' '}
           <Link to="/sign-in" className="text-primary underline underline-offset-4">
-            Sign in
+            {m.form_sign_in()}
           </Link>
         </p>
       }
     >
       {stage === 'link-sent' ? (
         <p role="alert" className="text-sm text-muted-foreground">
-          {SENT_MESSAGE}
+          {SENT_MESSAGE()}
         </p>
       ) : (
         <form.Field name="email" validators={{ onChange: emailValidator }}>
           {(field) => (
             <FormTextField
               name={field.name}
-              label="Email"
+              label={m.form_email()}
               type="email"
               placeholder="you@example.com"
               autoComplete="email"

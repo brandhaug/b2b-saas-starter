@@ -46,14 +46,14 @@ import {
 } from '@/lib/workspace-directory'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import {
-  SHELL_NAV,
+  shellNav,
   isWorkspaceNavTarget,
   type WorkspaceNavGroup,
   type WorkspaceNavTarget,
   type YouNavTarget
 } from '@/lib/workspace-nav'
-
-const SIGN_OUT_FAILED = 'Sign-out failed'
+import { m } from '@b2b-saas-starter/i18n/messages'
+import { LanguageSwitcher } from '@/components/language-switcher'
 
 export { type StopImpersonating }
 
@@ -112,7 +112,7 @@ export function WorkspaceShell({
       rememberWorkspace(router, null)
       await router.navigate({ to: '/sign-in' })
     },
-    { failureMessage: SIGN_OUT_FAILED, invalidate: false }
+    { failureMessage: m.auth_sign_out_failed(), invalidate: false }
   )
   // Publish the viewer and system role to the command palette for as long as
   // this shell is mounted, so its workspace and admin entries match what the
@@ -155,7 +155,7 @@ export function WorkspaceShell({
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary px-3 py-2 text-sm focus:text-primary-foreground"
       >
-        Skip to content
+        {m.common_skip_to_content()}
       </a>
       <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
         <WorkspaceNav
@@ -178,7 +178,7 @@ export function WorkspaceShell({
                 render={
                   <Button variant="ghost" size="icon" className="lg:hidden">
                     <MenuIcon className="size-5" />
-                    <span className="sr-only">Open navigation</span>
+                    <span className="sr-only">{m.common_open_navigation()}</span>
                   </Button>
                 }
               />
@@ -187,9 +187,11 @@ export function WorkspaceShell({
                 className="flex flex-col gap-0 bg-sidebar text-sidebar-foreground border-sidebar-border"
               >
                 <SheetHeader>
-                  <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
+                  <SheetTitle className="sr-only">
+                    {m.common_workspace_navigation()}
+                  </SheetTitle>
                   <SheetDescription className="sr-only">
-                    Switch between workspace sections
+                    {m.switch_workspace_sections()}
                   </SheetDescription>
                 </SheetHeader>
                 <div className="p-4">
@@ -214,6 +216,7 @@ export function WorkspaceShell({
                 {workspaceName}
               </Link>
             )}
+            <LanguageSwitcher />
             <SearchButton />
             {unreadCount === undefined ? null : (
               // The badge is the notification feed's one always-visible entry
@@ -226,7 +229,7 @@ export function WorkspaceShell({
                 render={
                   <Link
                     to="/account/notifications"
-                    aria-label={`${unreadCount} unread notifications`}
+                    aria-label={m.unread_notifications({ count: unreadCount })}
                   />
                 }
               >
@@ -283,7 +286,7 @@ function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon" aria-label="Open user menu" />}
+        render={<Button variant="ghost" size="icon" aria-label={m.open_user_menu()} />}
       >
         <UserRoundIcon className="size-4" />
       </DropdownMenuTrigger>
@@ -292,7 +295,7 @@ function UserMenu({
           {/* The identity line: name and email, once the client session hook
               has answered; a quiet placeholder before that. */}
           <p className="truncate text-sm font-medium">
-            {session.data?.user.name ?? 'Signed in'}
+            {session.data?.user.name ?? m.signed_in()}
           </p>
           {session.data === null ? null : (
             <p className="truncate text-xs text-muted-foreground">
@@ -303,11 +306,13 @@ function UserMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => void router.navigate({ to: '/account' })}>
           <UserRoundIcon />
-          Account
+          {m.nav_account()}
         </DropdownMenuItem>
         {directory !== null && directory.length > 0 ? (
           <DropdownMenuSubmenu>
-            <DropdownMenuSubmenuTrigger>Switch workspace</DropdownMenuSubmenuTrigger>
+            <DropdownMenuSubmenuTrigger>
+              {m.common_switch_workspace()}
+            </DropdownMenuSubmenuTrigger>
             <DropdownMenuSubmenuContent>
               {directory.map(({ workspace }) => (
                 <DropdownMenuItem
@@ -329,7 +334,7 @@ function UserMenu({
         {admin ? (
           <DropdownMenuItem onClick={() => void router.navigate({ to: '/admin' })}>
             <ShieldIcon />
-            System admin
+            {m.nav_system_admin()}
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuSeparator />
@@ -338,7 +343,7 @@ function UserMenu({
           onClick={() => signingOut.run()}
         >
           <LogOutIcon />
-          Sign out
+          {m.sign_out()}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -391,7 +396,7 @@ function WorkspaceNav({
       )
     }
   }
-  for (const row of SHELL_NAV) {
+  for (const row of shellNav()) {
     if (row.adminOnly === true && systemRole !== 'admin') {
       continue
     }
@@ -454,7 +459,7 @@ function WorkspaceNav({
             onClick={onNavigate}
             className="flex w-full items-center justify-between gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 px-3 py-2 text-sm font-medium text-sidebar-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           >
-            Choose a workspace…
+            {m.workspace_choose()}
             <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
           </Link>
         ) : (
@@ -465,7 +470,7 @@ function WorkspaceNav({
           />
         )}
       </div>
-      <nav aria-label="Main" className="mt-6 grid gap-1">
+      <nav aria-label={m.main_navigation()} className="mt-6 grid gap-1">
         {navRows}
       </nav>
     </>

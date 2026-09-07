@@ -82,6 +82,6 @@ describe('CreateWorkspaceForm', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create workspace' }))
 
-    await screen.findByText('slug already in use')
+    await screen.findByText('Failed to create workspace')
   })
 })

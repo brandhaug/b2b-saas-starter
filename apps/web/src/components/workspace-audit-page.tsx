@@ -24,7 +24,7 @@ import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { Badge } from '@/components/ui/badge'
 import { DataTable, type DataTableColumnDef } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import { AUDIT_EVENT_FILTER_OPTIONS, auditActorTypeLabel } from '@/lib/audit-labels'
+import { auditActorTypeLabel, auditEventFilterOptions } from '@/lib/audit-labels'
 import { auditActorTypeVariant } from '@/lib/badge-variants'
 import {
   auditSearchFromFilters,
@@ -33,6 +33,7 @@ import {
   type WorkspaceAuditSearchUpdate
 } from '@/lib/audit-search'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import { formatDateTime } from '@/lib/format-date'
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 
@@ -52,54 +53,56 @@ const SELECT_CLASSES = 'max-w-52'
 
 // Column definitions are static — module scope keeps the cell renderers out of
 // the render body. The server owns collection order: newest first.
-const auditColumns: Array<DataTableColumnDef<AuditEvent>> = [
-  {
-    accessorKey: 'createdAt',
-    header: 'When',
-    enableSorting: false,
-    // The shared table timestamp, identical to the admin dashboard's.
-    cell: ({ row }) => (
-      <span className="font-mono text-muted-foreground whitespace-nowrap tabular-nums">
-        {formatDateTime(row.original.createdAt)}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'eventType',
-    header: 'Event',
-    enableSorting: false,
-    cell: ({ row }) => <AuditEventLink event={row.original} />
-  },
-  {
-    accessorKey: 'targetType',
-    header: 'Target',
-    enableSorting: false,
-    // Target ids are the long values — this wraps instead of forcing the
-    // table out to 700px on a phone, where the other columns clip.
-    cell: ({ row }) => (
-      <span className="text-muted-foreground break-words">
-        {row.original.targetType}
-        {row.original.targetId ? ` · ${row.original.targetId}` : ''}
-      </span>
-    )
-  },
-  {
-    accessorKey: 'actor',
-    header: 'Actor',
-    enableSorting: false,
-    // The joined display name alone cannot tell "the platform did this"
-    // from "an API token did" — both render as `system` when no user row
-    // joins — so the actor type rides beside it as a badge.
-    cell: ({ row }) => (
-      <span className="flex flex-wrap items-center gap-1.5 break-words">
-        {row.original.actor}{' '}
-        <Badge variant={auditActorTypeVariant(row.original.actorType)}>
-          {auditActorTypeLabel(row.original.actorType)}
-        </Badge>
-      </span>
-    )
-  }
-]
+function auditColumns(): Array<DataTableColumnDef<AuditEvent>> {
+  return [
+    {
+      accessorKey: 'createdAt',
+      header: m.when_label(),
+      enableSorting: false,
+      // The shared table timestamp, identical to the admin dashboard's.
+      cell: ({ row }) => (
+        <span className="font-mono text-muted-foreground whitespace-nowrap tabular-nums">
+          {formatDateTime(row.original.createdAt)}
+        </span>
+      )
+    },
+    {
+      accessorKey: 'eventType',
+      header: m.event_label(),
+      enableSorting: false,
+      cell: ({ row }) => <AuditEventLink event={row.original} />
+    },
+    {
+      accessorKey: 'targetType',
+      header: m.target_label(),
+      enableSorting: false,
+      // Target ids are the long values — this wraps instead of forcing the
+      // table out to 700px on a phone, where the other columns clip.
+      cell: ({ row }) => (
+        <span className="text-muted-foreground break-words">
+          {row.original.targetType}
+          {row.original.targetId ? ` · ${row.original.targetId}` : ''}
+        </span>
+      )
+    },
+    {
+      accessorKey: 'actor',
+      header: m.actor_label(),
+      enableSorting: false,
+      // The joined display name alone cannot tell "the platform did this"
+      // from "an API token did" — both render as `system` when no user row
+      // joins — so the actor type rides beside it as a badge.
+      cell: ({ row }) => (
+        <span className="flex flex-wrap items-center gap-1.5 break-words">
+          {row.original.actor}{' '}
+          <Badge variant={auditActorTypeVariant(row.original.actorType)}>
+            {auditActorTypeLabel(row.original.actorType)}
+          </Badge>
+        </span>
+      )
+    }
+  ]
+}
 
 export function WorkspaceAuditPage({
   workspaceSlug,
@@ -148,12 +151,12 @@ export function WorkspaceAuditPage({
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
-        title="Audit trail"
-        description="Everything this workspace has done, newest first."
+        title={m.nav_audit_trail()}
+        description={m.audit_trail_description()}
       />
       <Panel
-        title="Events"
-        description="Newest first, up to 100 events per server page."
+        title={m.events()}
+        description={m.audit_events_description()}
         actions={
           hasFilters ? (
             <Button variant="ghost" onClick={() => applySearch({})}>
@@ -172,7 +175,7 @@ export function WorkspaceAuditPage({
               }
             }}
             items={[
-              { value: '', label: 'All actors' },
+              { value: '', label: m.audit_all_actors() },
               ...actorOptions.map((option) => ({
                 value: option.id,
                 label: option.name
@@ -181,14 +184,14 @@ export function WorkspaceAuditPage({
           >
             <SelectTrigger
               id="audit-actor-filter"
-              aria-label="Filter by actor"
+              aria-label={m.audit_filter_actor()}
               className={SELECT_CLASSES}
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="">All actors</SelectItem>
+                <SelectItem value="">{m.audit_all_actors()}</SelectItem>
                 {actorOptions.map((option) => (
                   <SelectItem key={option.id} value={option.id}>
                     {option.name}
@@ -205,20 +208,23 @@ export function WorkspaceAuditPage({
               }
             }}
             items={[
-              { value: '', label: 'All events' },
-              ...AUDIT_EVENT_FILTER_OPTIONS.map((option) => ({
+              { value: '', label: m.audit_all_events() },
+              ...auditEventFilterOptions().map((option) => ({
                 value: option.value,
                 label: option.label
               }))
             ]}
           >
-            <SelectTrigger aria-label="Filter by event type" className={SELECT_CLASSES}>
+            <SelectTrigger
+              aria-label={m.audit_filter_event_type()}
+              className={SELECT_CLASSES}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="">All events</SelectItem>
-                {AUDIT_EVENT_FILTER_OPTIONS.map((option) => (
+                <SelectItem value="">{m.audit_all_events()}</SelectItem>
+                {auditEventFilterOptions().map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -271,10 +277,10 @@ export function WorkspaceAuditPage({
                 through the keyset button below, so a second, always-disabled
                 "Page 1 of 1" model would read as broken. */}
             <DataTable
-              columns={auditColumns}
+              columns={auditColumns()}
               data={events}
               pageSize={100}
-              tableLabel="Audit events, newest first"
+              tableLabel={m.audit_table_label()}
               pager={false}
             />
             <div className="flex items-center justify-end">
@@ -309,18 +315,13 @@ function EmptyTrail({ hasFilters }: { readonly hasFilters: boolean }) {
         </EmptyMedia>
         {hasFilters ? (
           <>
-            <EmptyTitle>No events match these filters</EmptyTitle>
-            <EmptyDescription>
-              Widen the date range or clear a filter to see more of the trail.
-            </EmptyDescription>
+            <EmptyTitle>{m.empty_no_events_filters()}</EmptyTitle>
+            <EmptyDescription>{m.audit_widen_or_clear()}</EmptyDescription>
           </>
         ) : (
           <>
-            <EmptyTitle>Nothing audited yet</EmptyTitle>
-            <EmptyDescription>
-              Actions in this workspace (tokens, webhooks, membership) appear here as
-              they happen.
-            </EmptyDescription>
+            <EmptyTitle>{m.empty_no_events()}</EmptyTitle>
+            <EmptyDescription>{m.audit_actions_appear()}</EmptyDescription>
           </>
         )}
       </EmptyHeader>

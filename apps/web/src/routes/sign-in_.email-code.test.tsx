@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, act } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import { authClient } from '@/lib/auth-client'
 import { EmailCodeSignInPage } from './sign-in_.email-code'
 
@@ -149,7 +150,7 @@ describe('EmailCodeSignInPage', () => {
 
       // The cooldown starts at 60 and the disabled label shows the wait.
       const counting = screen.getByRole<HTMLButtonElement>('button', {
-        name: /Resend code \(\d+s\)/
+        name: m.resend_code_in_seconds({ count: 60 })
       })
       expect(counting.disabled).toBe(true)
 

@@ -144,10 +144,17 @@ Secrets are wrapped in `effect/Redacted` in [`alchemy.run.ts`](./alchemy.run.ts)
 
 The two required vars get a runtime gate: `auditRequiredEnv` ([`packages/env/src/server.ts`](./packages/env/src/server.ts)) checks `BETTER_AUTH_SECRET` for absence, known placeholder values (the local-dev default, the test-shim default, Better Auth's own fallback), or sub-32-char length, and `BETTER_AUTH_URL` for absence or placeholder hosts (`.example.com`, `localhost`). The web worker — auth's only consumer — runs it once per isolate on the first request ([`apps/web/src/lib/server/env-gate.ts`](./apps/web/src/lib/server/env-gate.ts)): with `ENVIRONMENT=production` an insecure value fails every request with `InsecureProductionEnvError`; with any other `ENVIRONMENT` value it emits one `config.insecure` wide event (key names and reasons only) and keeps serving. An unset `ENVIRONMENT` means local development and stays silent — a deployment that bypasses alchemy must set `ENVIRONMENT` to get the gate. Deploying via alchemy already fails up front when a required var is missing (`requiredEnv`); the gate catches the values alchemy cannot judge.
 
+## Internationalization
+
+Shared Paraglide catalogs in `packages/i18n` serve English and Norwegian Bokmål
+across the web app and email. Public URLs identify the language; account
+preferences govern authenticated pages, recipient email, and time-zone display.
+Request-local state keeps concurrent SSR renders isolated. See
+[ADR 0074](./docs/adr/0074-account-locales-and-shared-message-catalogs.md).
+
 ## Explicit Non-Goals
 
 - No initial Durable Objects.
 - No initial PWA/offline service worker.
 - No initial file upload workflow. The one R2 bucket holds workspace export artifacts only (ADR 0055 carves it out of ADR 0028).
-- No initial i18n framework.
 - No initial realtime WebSocket/SSE transport.

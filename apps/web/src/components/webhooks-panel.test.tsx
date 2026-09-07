@@ -118,13 +118,13 @@ describe('WebhooksPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm disable' }))
     await waitFor(() => {
-      expect(screen.getByText('Endpoint already disabled')).toBeTruthy()
+      expect(screen.getByText('Could not disable endpoint.')).toBeTruthy()
     })
     // The failure renders inside the endpoint's row, not at the panel foot.
     const row = screen
       .getByText('https://example.com/hooks/b2b-starter')
       .closest('[role="listitem"]')
-    expect(row?.textContent).toContain('Endpoint already disabled')
+    expect(row?.textContent).toContain('Could not disable endpoint.')
   })
 })
 

@@ -1,7 +1,15 @@
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
+import { DEFAULT_LOCALE, isLocale } from '@b2b-saas-starter/i18n/locale'
+import { presentationSettings } from '../i18n'
+import { UiError } from '../ui-error'
 import { Auth, type Session } from '@b2b-saas-starter/auth'
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { notFound, redirect } from '@tanstack/react-router'
-import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
+import {
+  createIsomorphicFn,
+  createServerFn,
+  createServerOnlyFn
+} from '@tanstack/react-start'
 import { Effect } from 'effect'
 import { authRuntime } from '../auth-runtime'
 import { memoizePerRequest, withWebRequestScope } from '../observability'
@@ -19,7 +27,7 @@ import { currentRequest } from '../request-context'
 // two DB round-trips for one document request. Slots live on the request's
 // telemetry, so they survive Start re-wrapping the `Request` mid-flight —
 // which the old module-local WeakMap did not.
-const readSession = createServerOnlyFn((): Promise<Session | null> =>
+export const readOptionalSession = createServerOnlyFn((): Promise<Session | null> =>
   memoizePerRequest('auth.session', () =>
     authRuntime.runPromise(
       withWebRequestScope(
@@ -44,7 +52,9 @@ const readSession = createServerOnlyFn((): Promise<Session | null> =>
   )
 )
 
-const getSessionServerFn = createServerFn({ method: 'GET' }).handler(readSession)
+const getSessionServerFn = createServerFn({ method: 'GET' }).handler(
+  readOptionalSession
+)
 
 /**
  * The session projection route context carries. `beforeLoad` results are
@@ -91,6 +101,25 @@ export function toRouteSession(session: Session): RouteSession {
   }
 }
 
+/** Entering the app from a public translation must use the saved account settings. */
+const synchronizePresentation = createIsomorphicFn()
+  .server((_session: Session, _href: string) => undefined)
+  .client((session: Session, href: string) => {
+    const settings = presentationSettings()
+    const accountLocale = isLocale(session.user.locale)
+      ? session.user.locale
+      : DEFAULT_LOCALE
+    const localeChanged = accountLocale !== getLocale()
+    const zoneChanged =
+      session.user.timeZone !== null &&
+      session.user.timeZone !== undefined &&
+      session.user.timeZone !== settings.timeZone
+    if (localeChanged || zoneChanged || !settings.authenticated) {
+      // oxlint-disable-next-line effect/noThrowStatement -- full document navigation establishes account presentation before rendering gated content
+      throw redirect({ href, reloadDocument: true })
+    }
+  })
+
 /**
  * Route gate for `beforeLoad`. Redirects unauthenticated visitors to
  * `/sign-in` and returns the projected session so loaders can pass the actor
@@ -108,6 +137,7 @@ export async function requireSession(
     // oxlint-disable-next-line effect/noThrowStatement -- `throw redirect()` is TanStack Router's navigation control-flow API
     throw redirect({ to: '/sign-in', search: { redirect: redirectTo } })
   }
+  synchronizePresentation(session, redirectTo)
   return toRouteSession(session)
 }
 
@@ -134,9 +164,9 @@ export async function requireAdmin(redirectTo: string): Promise<RouteSession> {
  * errors back to the caller with `name`/`message` intact, so form callers
  * surface `message` directly (see `api-token-form.tsx`).
  */
-export class UnauthorizedError extends Error {
+export class UnauthorizedError extends UiError {
   constructor() {
-    super('Your session has expired. Sign in again and retry.')
+    super('unauthorized', {}, 'Your session has expired. Sign in again and retry.')
     this.name = 'UnauthorizedError'
   }
 }
@@ -150,7 +180,7 @@ export class UnauthorizedError extends Error {
  * redirect.
  */
 export async function requireRequestSession(): Promise<Session> {
-  const session = await readSession()
+  const session = await readOptionalSession()
   if (!session) {
     // oxlint-disable-next-line effect/noThrowStatement -- TanStack Start serializes a thrown server-fn error back to the caller; the returned Promise has no error channel
     throw new UnauthorizedError()

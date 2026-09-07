@@ -3,6 +3,7 @@ import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceBillingPage } from '@/components/workspace-billing-page'
 import { loadWorkspaceBillingServerFn } from '@/lib/server/billing'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
@@ -14,7 +15,7 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/billing')({
   pendingComponent: RoutePending,
   component: WorkspaceBillingRoute,
   head: ({ params }) => ({
-    meta: [{ title: pageTitle('Billing', params.workspaceSlug) }]
+    meta: [{ title: pageTitle(m.public_meta_billing(), params.workspaceSlug) }]
   })
 })
 

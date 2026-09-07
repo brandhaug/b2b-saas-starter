@@ -9,8 +9,11 @@ import { useServerAction } from '@/hooks/use-server-action'
 import { conditionalMediationAvailable } from '@/lib/webauthn-support'
 import { oauthContinuationUrl } from '@/lib/oauth-continuation'
 import { safeRedirect } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
-const PASSKEY_FAILED = 'Passkey sign-in failed'
+function passkeyFailed(): string {
+  return m.public_auth_passkey_sign_in_failed()
+}
 
 /**
  * The passkey sign-in block on the sign-in page: the button, its action, and
@@ -42,7 +45,7 @@ export function PasskeySignIn({
     async (input: { readonly autoFill?: boolean } | undefined) => {
       const result = await authClient.signIn.passkey(input)
       if (result.error) {
-        return authFailure(authErrorCopy(result.error, PASSKEY_FAILED))
+        return authFailure(authErrorCopy(result.error, passkeyFailed()))
       }
       // oxlint-disable-next-line typescript/no-unnecessary-condition -- a cancelled ceremony answers a success envelope with an empty body; the probe keeps the empty case from navigating
       if (result.data !== null && result.data !== undefined) {
@@ -58,7 +61,7 @@ export function PasskeySignIn({
         router.history.push(safeRedirect(redirect))
       }
     },
-    { failureMessage: PASSKEY_FAILED, invalidate: false }
+    { failureMessage: passkeyFailed(), invalidate: false }
   )
 
   // Conditional UI: where the browser supports passkey autofill, arm it on
@@ -98,7 +101,7 @@ export function PasskeySignIn({
         }}
       >
         <FingerprintIcon className="size-4" />
-        Sign in with a passkey
+        {m.public_auth_sign_in_with_passkey()}
       </Button>
       {/* Autofill-initiated failures stay silent (see the component doc): a
           preload that finds no passkey is the normal case, not an error the

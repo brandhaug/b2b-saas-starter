@@ -10,6 +10,7 @@ import { authClient } from '@/lib/auth-client'
 import { authFailure } from '@/lib/auth-result'
 import { authErrorCopy } from '@/lib/auth-error-copy'
 import { useServerAction } from '@/hooks/use-server-action'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The two-factor panel's flows, extracted from
@@ -23,10 +24,18 @@ import { useServerAction } from '@/hooks/use-server-action'
  * uncoded failures, never the rendered message itself.
  */
 
-const ENROLL_FAILED = 'Could not start setup'
-const VERIFY_FAILED = 'Invalid code'
-const DISABLE_FAILED = 'Could not turn off two-factor'
-const REGENERATE_FAILED = 'Could not regenerate backup codes'
+function enrollFailedMessage() {
+  return m.two_factor_setup_failed()
+}
+function verifyFailedMessage() {
+  return m.auth_invalid_code()
+}
+function disableFailedMessage() {
+  return m.two_factor_disable_failed()
+}
+function regenerateFailedMessage() {
+  return m.backup_codes_regenerate_failed()
+}
 
 /** The one-time reveal handed over when enrollment starts. */
 export type Enrollment = {
@@ -60,14 +69,14 @@ export function EnableFlow({
     async () => {
       const result = await authClient.twoFactor.enable({ password })
       if (result.error) {
-        return authFailure(authErrorCopy(result.error, ENROLL_FAILED))
+        return authFailure(authErrorCopy(result.error, enrollFailedMessage()))
       }
       // oxlint-disable typescript/no-unnecessary-condition -- the plugin calls a totp-less body a success; the probe is the wire-shape honesty the type does not carry
       const totpURI =
         result.data && 'totpURI' in result.data ? (result.data.totpURI ?? null) : null
       // oxlint-enable typescript/no-unnecessary-condition
       if (totpURI === null) {
-        return authFailure('Setup response was incomplete')
+        return authFailure(m.setup_response_incomplete())
       }
       // oxlint-disable typescript/no-unnecessary-condition -- same wire-shape honesty: the otp variant of the enable answer carries neither field
       const backupCodes =
@@ -78,15 +87,15 @@ export function EnableFlow({
       return { totpURI, backupCodes }
     },
     // Nothing here touches a loader, so nothing invalidates.
-    { failureMessage: ENROLL_FAILED, invalidate: false, onSuccess: onEnrolled }
+    { failureMessage: enrollFailedMessage(), invalidate: false, onSuccess: onEnrolled }
   )
 
   return (
     <>
       <PasswordForm
         id="twofactor-password-on"
-        label="Password"
-        submitLabel="Start setup"
+        label={m.form_password()}
+        submitLabel={m.start_setup()}
         value={password}
         busy={enroll.pending}
         onChange={setPassword}
@@ -122,31 +131,29 @@ export function EnrollmentFlow({
     async () => {
       const result = await authClient.twoFactor.verifyTotp({ code })
       return result.error
-        ? authFailure(authErrorCopy(result.error, VERIFY_FAILED))
+        ? authFailure(authErrorCopy(result.error, verifyFailedMessage()))
         : null
     },
-    { failureMessage: VERIFY_FAILED, invalidate: false, onSuccess: onVerified }
+    { failureMessage: verifyFailedMessage(), invalidate: false, onSuccess: onVerified }
   )
   const secretFromUri = parseSecretFromUri(enrollment.totpURI)
 
   return (
     <>
       <div className="flex flex-wrap items-start gap-6">
-        <figure aria-label="Two-factor secret QR code">
+        <figure aria-label={m.two_factor_qr_code()}>
           <QRCodeSVG value={enrollment.totpURI} size={144} />
-          <figcaption className="sr-only">Two-factor secret QR code</figcaption>
+          <figcaption className="sr-only">{m.two_factor_qr_code()}</figcaption>
         </figure>
         <div className="grid max-w-xs gap-1">
-          <p className="text-sm text-muted-foreground">
-            Or enter this secret manually:
-          </p>
+          <p className="text-sm text-muted-foreground">{m.enter_secret_manually()}</p>
           <Identifier>{secretFromUri}</Identifier>
         </div>
       </div>
       {enrollment.backupCodes !== null && enrollment.backupCodes.length > 0 ? (
         <BackupCodesSection
           codes={enrollment.backupCodes}
-          intro="Save these one-time backup codes now. They are shown only once:"
+          intro={m.backup_codes_save_once()}
         />
       ) : null}
       <form
@@ -163,7 +170,7 @@ export function EnrollmentFlow({
         className="grid gap-3"
       >
         <div className="grid gap-1.5">
-          <Label htmlFor="twofactor-code">Verification code</Label>
+          <Label htmlFor="twofactor-code">{m.form_verification_code()}</Label>
           <Input
             id="twofactor-code"
             inputMode="numeric"
@@ -175,7 +182,7 @@ export function EnrollmentFlow({
           />
         </div>
         <Button type="submit" className="w-fit" disabled={verify.pending}>
-          Verify code
+          {m.verify_code()}
         </Button>
       </form>
       <SubmitError message={invalidCode ?? verify.error} />
@@ -196,11 +203,11 @@ export function DisableFlow({
     async () => {
       const result = await authClient.twoFactor.disable({ password })
       return result.error
-        ? authFailure(authErrorCopy(result.error, DISABLE_FAILED))
+        ? authFailure(authErrorCopy(result.error, disableFailedMessage()))
         : null
     },
     {
-      failureMessage: DISABLE_FAILED,
+      failureMessage: disableFailedMessage(),
       invalidate: false,
       onSuccess: () => {
         setPassword('')
@@ -213,8 +220,8 @@ export function DisableFlow({
     <>
       <PasswordForm
         id="twofactor-password-off"
-        label="Password"
-        submitLabel="Turn off"
+        label={m.form_password()}
+        submitLabel={m.turn_off()}
         variant="outline"
         value={password}
         busy={turnOff.pending}
@@ -242,18 +249,18 @@ export function RegenerateFlow({ onStart }: { readonly onStart: () => void }) {
     async () => {
       const result = await authClient.twoFactor.generateBackupCodes({ password })
       if (result.error) {
-        return authFailure(authErrorCopy(result.error, REGENERATE_FAILED))
+        return authFailure(authErrorCopy(result.error, regenerateFailedMessage()))
       }
       // oxlint-disable typescript/no-unnecessary-condition -- regeneration can answer a body without the codes; the probe and the refusal below are that wire-shape honesty
       const backupCodes = result.data?.backupCodes ?? null
       if (backupCodes === null || backupCodes.length === 0) {
-        return authFailure('Regeneration response was incomplete')
+        return authFailure(m.regeneration_response_incomplete())
       }
       // oxlint-enable typescript/no-unnecessary-condition
       return backupCodes
     },
     {
-      failureMessage: REGENERATE_FAILED,
+      failureMessage: regenerateFailedMessage(),
       invalidate: false,
       onSuccess: (backupCodes: ReadonlyArray<string>) => {
         setPassword('')
@@ -269,8 +276,8 @@ export function RegenerateFlow({ onStart }: { readonly onStart: () => void }) {
       )}
       <PasswordForm
         id="twofactor-password-regen"
-        label="Confirm password"
-        submitLabel="Regenerate backup codes"
+        label={m.form_confirm_password()}
+        submitLabel={m.regenerate_backup_codes()}
         variant="outline"
         value={password}
         busy={regenerate.pending}
@@ -357,13 +364,10 @@ function BackupCodesSection({
 }) {
   return (
     <section
-      aria-label="Backup codes"
+      aria-label={m.backup_codes()}
       className="grid gap-2 rounded-sm border border-border bg-muted/40 p-4"
     >
-      <p className="text-sm font-medium">
-        {intro ??
-          'Save these one-time backup codes now. They are shown only once, and every previous code is now invalid:'}
-      </p>
+      <p className="text-sm font-medium">{intro ?? m.backup_codes_save_all_once()}</p>
       <ul className="flex flex-wrap gap-x-4 gap-y-1">
         {codes.map((backupCode) => (
           <li key={backupCode}>
@@ -373,7 +377,7 @@ function BackupCodesSection({
       </ul>
       {onDismiss ? (
         <Button type="button" variant="outline" className="w-fit" onClick={onDismiss}>
-          I saved my codes
+          {m.saved_my_codes()}
         </Button>
       ) : null}
     </section>

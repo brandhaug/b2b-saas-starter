@@ -17,11 +17,10 @@ import { ActionFeedback } from '@/components/page/action-feedback'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-rows'
 import { unwrapAuthResult } from '@/lib/auth-result'
-import { formatUtc } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 const PASSKEYS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'passkeys']
-const ACTION_FAILED = 'The change could not be made'
-const ADD_FAILED = 'Could not add the passkey'
 
 /** One Better Auth passkey row, as the panel reads it. */
 type PasskeyRecord = {
@@ -46,7 +45,7 @@ function describeLabel(passkey: PasskeyRecord): string {
   }
   // Unnamed credentials (a ceremony that carried no label) still need a row
   // the user can reason about; the honest label is just "Passkey".
-  return 'Passkey'
+  return m.passkey()
 }
 
 function toViewModels(passkeys: ReadonlyArray<PasskeyRecord>): Array<PasskeyRowView> {
@@ -56,7 +55,7 @@ function toViewModels(passkeys: ReadonlyArray<PasskeyRecord>): Array<PasskeyRowV
       id: passkey.id,
       label: describeLabel(passkey),
       synced: passkey.backedUp,
-      createdLabel: formatUtc(passkey.createdAt, { dateStyle: 'medium' })
+      createdLabel: formatTimestamp(passkey.createdAt, { dateStyle: 'medium' })
     }))
 }
 
@@ -74,7 +73,7 @@ export function PasskeysPanel() {
     queryKey: PASSKEYS_QUERY_KEY,
     list: () => authClient.passkey.listUserPasskeys(),
     toRows: toViewModels,
-    loadFailedMessage: 'Could not load passkeys'
+    loadFailedMessage: m.load_passkeys_failed()
   })
   // The passkey list is this panel's own query, so the action refetches it
   // rather than invalidating the route (same contract as SessionsPanel). The
@@ -83,8 +82,11 @@ export function PasskeysPanel() {
   const remove = useAuthClientAction({
     refetch,
     call: (input: { readonly id: string }) =>
-      unwrapAuthResult(() => authClient.passkey.deletePasskey(input), ACTION_FAILED),
-    failureMessage: ACTION_FAILED
+      unwrapAuthResult(
+        () => authClient.passkey.deletePasskey(input),
+        m.passkey_action_failed()
+      ),
+    failureMessage: m.passkey_action_failed()
   })
 
   return (
@@ -102,10 +104,7 @@ export function PasskeysPanel() {
       ) : null}
 
       {Array.isArray(rows) && rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No passkeys yet. Add one to sign in with a fingerprint, face, or security key
-          instead of a password.
-        </p>
+        <p className="text-sm text-muted-foreground">{m.no_passkeys_description()}</p>
       ) : null}
 
       {Array.isArray(rows) && rows.length > 0 ? (
@@ -118,8 +117,8 @@ export function PasskeysPanel() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm">{row.label}</p>
                 <p className="text-xs text-muted-foreground">
-                  {row.synced ? 'Synced passkey' : 'Device passkey'} · Added{' '}
-                  {row.createdLabel}
+                  {row.synced ? m.synced_passkey() : m.device_passkey()} ·{' '}
+                  {m.added_label()} {row.createdLabel}
                 </p>
               </div>
               <RenamePasskey
@@ -133,22 +132,23 @@ export function PasskeysPanel() {
                   render={
                     <Button
                       variant="ghost"
-                      aria-label={`Remove ${row.label} passkey`}
+                      aria-label={m.remove_passkey_named({ name: row.label })}
                     />
                   }
                 >
-                  Remove
+                  {m.action_remove()}
                 </AlertDialogTrigger>
                 <AlertDialogContent>
-                  <AlertDialogTitle>Remove the {row.label} passkey?</AlertDialogTitle>
+                  <AlertDialogTitle>
+                    {m.remove_passkey_named({ name: row.label })}?
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
-                    That passkey will no longer be able to sign in. If it is the only
-                    one, you will need your password (and two-factor code, if enabled).
+                    {m.public_auth_remove_passkey_description()}
                   </AlertDialogDescription>
                   <div className="flex justify-end gap-2">
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                     <AlertDialogAction onClick={() => remove.run({ id: row.id })}>
-                      Remove passkey
+                      {m.remove_passkey_action()}
                     </AlertDialogAction>
                   </div>
                 </AlertDialogContent>
@@ -185,11 +185,11 @@ function AddPasskeyForm({
       return unwrapAuthResult(
         () =>
           authClient.passkey.addPasskey(trimmed.length > 0 ? { name: trimmed } : {}),
-        ADD_FAILED
+        m.passkey_add_failed()
       )
     },
     {
-      failureMessage: ADD_FAILED,
+      failureMessage: m.passkey_add_failed(),
       invalidate: false,
       onSuccess: () => {
         setName('')
@@ -207,7 +207,7 @@ function AddPasskeyForm({
       className="grid gap-3 border-t border-border pt-4"
     >
       <div className="grid gap-1.5">
-        <Label htmlFor="passkey-name">Name a new passkey</Label>
+        <Label htmlFor="passkey-name">{m.form_passkey_name()}</Label>
         <Input
           id="passkey-name"
           placeholder="MacBook Touch ID"
@@ -217,12 +217,9 @@ function AddPasskeyForm({
         />
       </div>
       <Button type="submit" variant="outline" className="w-fit" disabled={add.pending}>
-        Add passkey
+        {m.add_passkey()}
       </Button>
-      <p className="text-xs text-muted-foreground">
-        Your browser will ask you to create the credential with a fingerprint, face,
-        PIN, or security key.
-      </p>
+      <p className="text-xs text-muted-foreground">{m.passkey_browser_prompt()}</p>
       <ActionFeedback error={add.error} />
     </form>
   )
@@ -247,10 +244,10 @@ function RenamePasskey({
     () =>
       unwrapAuthResult(
         () => authClient.passkey.updatePasskey({ id: row.id, name: name.trim() }),
-        ACTION_FAILED
+        m.passkey_action_failed()
       ),
     {
-      failureMessage: ACTION_FAILED,
+      failureMessage: m.passkey_action_failed(),
       invalidate: false,
       onSuccess: () => {
         setArmed(false)
@@ -263,10 +260,10 @@ function RenamePasskey({
     return (
       <Button
         variant="ghost"
-        aria-label={`Rename ${row.label} passkey`}
+        aria-label={m.rename_passkey_named({ name: row.label })}
         onClick={() => setArmed(true)}
       >
-        Rename
+        {m.rename_action()}
       </Button>
     )
   }
@@ -277,10 +274,10 @@ function RenamePasskey({
         rename.run()
       }}
       className="flex items-center gap-2"
-      aria-label={`Rename ${row.label} passkey`}
+      aria-label={m.rename_passkey_named({ name: row.label })}
     >
       <Label htmlFor={`passkey-rename-${row.id}`} className="sr-only">
-        New name
+        {m.new_name()}
       </Label>
       <Input
         id={`passkey-rename-${row.id}`}
@@ -291,7 +288,7 @@ function RenamePasskey({
         className="h-8 w-36"
       />
       <Button type="submit" variant="outline" disabled={rename.pending}>
-        Save
+        {m.save_action()}
       </Button>
       <Button
         type="button"
@@ -301,7 +298,7 @@ function RenamePasskey({
           setArmed(false)
         }}
       >
-        Cancel
+        {m.common_cancel()}
       </Button>
       <ActionFeedback error={rename.error} />
     </form>

@@ -103,10 +103,23 @@ function provisionedRoleOf(data: {
  * instead of a spread-with-undefined keys.
  */
 function userDeleteOption(options: AuthConfigInterface) {
+  const additionalFields = {
+    locale: {
+      type: 'string',
+      required: false,
+      input: false
+    },
+    timeZone: {
+      type: 'string',
+      required: false,
+      input: false
+    }
+  } satisfies Record<string, { type: 'string'; required: false; input: false }>
   if (options.userDeleteHooks === undefined) {
-    return { deleteUser: { enabled: false } }
+    return { additionalFields, deleteUser: { enabled: false } }
   }
   return {
+    additionalFields,
     deleteUser: {
       enabled: true,
       beforeDelete: options.userDeleteHooks.beforeDelete,

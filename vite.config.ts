@@ -23,7 +23,12 @@ export default defineConfig({
     trailingComma: 'none',
     printWidth: 88,
     indentStyle: 'tab',
-    ignorePatterns: ['**/routeTree.gen.*', '**/*.d.ts']
+    ignorePatterns: [
+      '**/routeTree.gen.*',
+      '**/*.d.ts',
+      'packages/i18n/src/generated/**',
+      'packages/i18n/.generated/**'
+    ]
   },
   // The lint block is the repo's largest piece of policy; it lives in
   // ./lint.config.ts so the decisions in it are readable. `vp` discovers only

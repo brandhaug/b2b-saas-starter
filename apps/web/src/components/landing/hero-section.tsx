@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { GithubIcon } from '@/components/icons/github'
 import { GITHUB_URL } from '@/components/landing/github-url'
 import { SETUP_STEPS } from '@/lib/toolchain'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 const BILL_OF_MATERIALS: ReadonlyArray<string> = [
   'TanStack Start',
@@ -30,18 +31,16 @@ function HeroSection() {
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] lg:items-end lg:gap-16">
           <div className="max-w-2xl">
             <p className="rise font-mono text-sm text-signal-ink">
-              A Cloudflare-first B2B SaaS starter
+              {m.landing_tagline()}
             </p>
             {/* `leading-display`: a display face at 5–6xl wants near-solid
                 leading; `leading-tight` (1.25) opened air between lines the
                 wordmark was never sized for. */}
             <h1 className="rise rise-2 mt-5 font-display text-balance text-5xl font-semibold leading-display sm:text-6xl">
-              The hard parts, already wired.
+              {m.landing_headline()}
             </h1>
             <p className="rise rise-3 mt-6 text-pretty text-lg text-muted-foreground">
-              Workspaces, auth, REST + MCP, webhooks, email, audit, and admin, typed
-              end-to-end and proven by a working reference app. It boots locally with
-              zero provider secrets.
+              {m.landing_description()}
             </p>
             <div className="rise rise-4 mt-9 flex flex-wrap items-center gap-3">
               {/* The demo tree renders the reference dashboard for the seed
@@ -51,7 +50,7 @@ function HeroSection() {
                   second at the fold read as a duplicate control, not a
                   choice. */}
               <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
-                Open the live demo
+                {m.action_open_demo()}
                 <ArrowRightIcon className="size-4" />
               </Button>
               <a
@@ -61,8 +60,8 @@ function HeroSection() {
                 className="inline-flex h-11 items-center gap-2 border border-border bg-background px-5 text-sm font-medium transition-colors hover:bg-muted"
               >
                 <GithubIcon className="size-4" />
-                View on GitHub
-                <span className="sr-only">(opens in new tab)</span>
+                {m.action_view_github()}
+                <span className="sr-only">{m.common_opens_new_tab()}</span>
               </a>
             </div>
           </div>
@@ -71,7 +70,7 @@ function HeroSection() {
               before it. `lib/toolchain.ts` holds them, and its test fails
               if they stop matching the quickstart verbatim. */}
           <ol
-            aria-label="Quickstart commands"
+            aria-label={m.landing_quickstart_commands()}
             className="rise rise-4 w-full max-w-sm justify-self-start border border-border bg-card font-mono text-xs lg:justify-self-stretch"
           >
             {SETUP_STEPS.map((step) => (

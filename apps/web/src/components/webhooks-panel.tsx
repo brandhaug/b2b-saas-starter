@@ -1,3 +1,4 @@
+import { statusLabel } from '@/lib/value-labels'
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { useState } from 'react'
@@ -25,7 +26,7 @@ import { Identifier } from '@/components/page/identifier'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { SecretReveal } from '@/components/secret-reveal'
 import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
-import { formatUtcOr } from '@/lib/format-date'
+import { formatTimestampOr } from '@/lib/format-date'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import {
   replayWebhookDeliveryServerFn,
@@ -40,9 +41,7 @@ import {
 } from '@/components/webhook-deliveries-drawer'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
-
-const DISABLE_FAILED = 'Failed to disable endpoint'
-const ROTATE_FAILED = 'Failed to rotate secret'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * Mutating an endpoint, as a port. Injected rather than imported at the call
@@ -78,26 +77,26 @@ function Deliveries({
         variant="ghost"
         size="xs"
         onClick={onOpenDrawer}
-        aria-label={`Deliveries (${deliveries.length})`}
+        aria-label={m.deliveries_count({ count: deliveries.length })}
       >
-        Deliveries ({deliveries.length})
+        {m.deliveries_count({ count: deliveries.length })}
       </Button>
       {deliveries.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No deliveries yet.</p>
+        <p className="text-xs text-muted-foreground">{m.empty_no_deliveries()}</p>
       ) : (
         <ul className="grid gap-1">
           {deliveries.slice(0, 3).map((delivery) => (
             <li key={delivery.id} className="flex flex-wrap items-center gap-2 text-xs">
               <Badge variant={webhookDeliveryStatusVariant(delivery.status)}>
-                {delivery.status}
+                {statusLabel(delivery.status)}
               </Badge>
               <span className="font-mono">{delivery.eventType}</span>
               <span className="text-muted-foreground">
-                attempt {delivery.attempts}
+                {m.attempt_count({ count: delivery.attempts })}
                 {delivery.responseStatus === null
                   ? ''
                   : ` · ${delivery.responseStatus}`}{' '}
-                · {formatUtcOr(delivery.lastAttemptAt, 'never')}
+                · {formatTimestampOr(delivery.lastAttemptAt, m.never())}
               </span>
             </li>
           ))}
@@ -160,9 +159,9 @@ export function WebhooksPanel({
         data: { workspaceSlug, endpointId, enabled: false }
       }),
     {
-      failureMessage: DISABLE_FAILED,
+      failureMessage: m.endpoint_disable_failed(),
       onSuccess: () => {
-        toast.success('Endpoint disabled')
+        toast.success(m.endpoint_disabled())
       }
     }
   )
@@ -170,7 +169,7 @@ export function WebhooksPanel({
   const rotate = useServerAction(
     (endpointId: string) => rotateSecret({ data: { workspaceSlug, endpointId } }),
     {
-      failureMessage: ROTATE_FAILED,
+      failureMessage: m.secret_rotate_failed(),
       onSuccess: (secret, endpointId) => {
         // No toast: the row's inline ok alert below is where the one-time
         // secret is revealed — the corner copy would announce the rotation
@@ -201,8 +200,8 @@ export function WebhooksPanel({
     <Panel>
       <CreateSection
         allowed={canCreate}
-        title="Register an endpoint"
-        deniedReason="Your role cannot register endpoints."
+        title={m.register_endpoint()}
+        deniedReason={m.endpoint_register_denied()}
       >
         <WebhookForm
           workspaceSlug={workspaceSlug}
@@ -211,14 +210,12 @@ export function WebhooksPanel({
         />
       </CreateSection>
 
-      <ListSection title="Endpoints">
+      <ListSection title={m.endpoints_title()}>
         {endpoints.length === 0 ? (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>No endpoints registered</EmptyTitle>
-              <EmptyDescription>
-                Create an endpoint to start receiving webhook events.
-              </EmptyDescription>
+              <EmptyTitle>{m.empty_no_endpoints()}</EmptyTitle>
+              <EmptyDescription>{m.create_endpoint_description()}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
@@ -233,13 +230,13 @@ export function WebhooksPanel({
                   <ItemTitle className="flex-wrap">
                     <Identifier>{endpoint.url}</Identifier>
                     {endpoint.enabled ? (
-                      <Badge variant="outline">enabled</Badge>
+                      <Badge variant="outline">{m.common_enabled()}</Badge>
                     ) : (
-                      <Badge variant="neutral">disabled</Badge>
+                      <Badge variant="neutral">{m.common_disabled()}</Badge>
                     )}
                   </ItemTitle>
                   <ItemDescription>
-                    Success rate {endpoint.successRate}%
+                    {m.success_rate({ rate: endpoint.successRate })}
                   </ItemDescription>
                   <div className="flex flex-wrap gap-1">
                     {endpoint.events.map((event) => (
@@ -259,8 +256,8 @@ export function WebhooksPanel({
                   <ItemActions className="flex-wrap">
                     {canDisable ? (
                       <ConfirmButton
-                        label="Disable"
-                        confirmLabel="Confirm disable"
+                        label={m.disable_action()}
+                        confirmLabel={m.confirm_disable()}
                         armed={confirmingId === endpoint.id}
                         busy={busyId === endpoint.id}
                         onArm={() => setConfirmingId(endpoint.id)}
@@ -277,7 +274,7 @@ export function WebhooksPanel({
                         {busyId === endpoint.id ? (
                           <Spinner data-icon="inline-start" />
                         ) : null}
-                        Rotate secret
+                        {m.rotate_secret()}
                       </Button>
                     ) : null}
                   </ItemActions>
@@ -294,18 +291,15 @@ export function WebhooksPanel({
                         the signing secret is visible, the same treatment the
                         API token form's reveal gets. */}
                     <Alert variant="ok">
-                      <AlertTitle>
-                        Secret rotated. Copy it now, it will not be shown again.
-                      </AlertTitle>
+                      <AlertTitle>{m.secret_rotated_copy_now()}</AlertTitle>
                       <AlertDescription>
                         <SecretReveal
                           secret={rotatedSecret.secret}
-                          label="Webhook secret"
+                          label={m.webhook_secret()}
                           className="flex items-center gap-2"
                         />
                         <p className="mt-2 text-xs text-muted-foreground">
-                          The replaced secret keeps signing deliveries for 24 hours, so
-                          your receiver can swap it in without dropping anything.
+                          {m.webhook_secret_rotation_description()}
                         </p>
                       </AlertDescription>
                     </Alert>

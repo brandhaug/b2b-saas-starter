@@ -4,6 +4,7 @@ import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
+import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
 // Named export rather than the identical default, so the local name matches
 // what the package exports.
@@ -109,6 +110,43 @@ function cloudflareWorkersDeployPlugin(
   }
 }
 
+// Domain catalogs live outside the web package so backend, email, and web
+// messages can share one generated Paraglide module. Compile them before Vite
+// resolves the application graph, and watch the source directories in dev so
+// a translation edit refreshes the page without requiring a separate process.
+function i18nCatalogPlugin(): PluginOption {
+  const i18nRoot = resolve(import.meta.dirname, '../../packages/i18n')
+  const messagesRoot = resolve(i18nRoot, 'messages')
+  const compileScript = resolve(i18nRoot, 'scripts/compile.mjs')
+
+  function compileCatalogs() {
+    execFileSync(process.execPath, [compileScript], {
+      cwd: i18nRoot,
+      stdio: 'inherit'
+    })
+  }
+
+  return {
+    name: 'b2b-starter:i18n-catalogs',
+    enforce: 'pre',
+    buildStart() {
+      compileCatalogs()
+    },
+    configureServer(server) {
+      server.watcher.add(messagesRoot)
+    },
+    handleHotUpdate({ file, server }) {
+      if (file !== messagesRoot && !file.startsWith(`${messagesRoot}/`)) {
+        return
+      }
+      compileCatalogs()
+      server.moduleGraph.invalidateAll()
+      server.ws.send({ type: 'full-reload' })
+      return []
+    }
+  }
+}
+
 export default defineConfig(({ command, mode }) => {
   const workersShim = resolveWorkersShim(command, mode)
   const workersShimAlias = workersShim
@@ -147,7 +185,12 @@ export default defineConfig(({ command, mode }) => {
     // storm) then flood the terminal — a dev process died at 1.67M log lines
     // this way. The D1-absent path now answers 503 instead of throwing, but
     // the forwarding itself stays off for this app.
-    server: { port: 3071, host: 'localhost', forwardConsole: false },
+    server: {
+      port: 3071,
+      host: 'localhost',
+      forwardConsole: false,
+      watch: { ignored: ['**/packages/i18n/src/generated/**'] }
+    },
     preview: { port: 3071, host: 'localhost' },
     resolve: {
       tsconfigPaths: true,
@@ -155,6 +198,7 @@ export default defineConfig(({ command, mode }) => {
     },
     plugins:
       lazyPlugins(() => [
+        i18nCatalogPlugin(),
         devtools(),
         tailwindcss(),
         // Route tests colocate with their route files; the generator would

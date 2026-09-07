@@ -14,6 +14,7 @@ import {
 } from '@/components/workspace-export-panel'
 import { viewerCan } from '@/lib/permissions'
 import { type WorkspaceSettingsPayload } from '@/lib/server/workspace-settings'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The workspace settings page. Lives beside the route file (not in it) so the
@@ -61,13 +62,13 @@ export function WorkspaceSettingsPage({
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
-        title="Workspace settings"
-        description="The workspace's name, and the decision to end it."
+        title={m.workspace_settings()}
+        description={m.workspace_settings_description()}
       />
       {/* Rename and delete are gated per action, not per page: an admin may
           rename but never delete, a member sees neither. The server functions
           enforce the same statements. */}
-      <Panel title="General">
+      <Panel title={m.nav_general()}>
         {canRename || canDelete ? (
           <WorkspaceGeneralSettings
             workspaceSlug={workspaceSlug}
@@ -84,22 +85,16 @@ export function WorkspaceSettingsPage({
                 })}
           />
         ) : (
-          <p className="text-xs text-muted-foreground">
-            Your role cannot change or delete the workspace.
-          </p>
+          <p className="text-xs text-muted-foreground">{m.workspace_manage_denied()}</p>
         )}
       </Panel>
       {/* Single sign-on (ADR 0069): the segment is absent for an actor
           without sso:list, and the panel degrades each control per statement
           (sso:create/update/remove) against the payload's viewer. */}
       {ssoConnections === null ? null : (
-        <Panel title="Single sign-on">
+        <Panel title={m.sso_title()}>
           <div className="grid gap-3">
-            <p className="text-sm text-muted-foreground">
-              Route one email domain to your identity provider. Sign-ins at that domain
-              go to the IdP once the connection is enabled; a first SSO sign-in creates
-              the member with the connection&apos;s default role.
-            </p>
+            <p className="text-sm text-muted-foreground">{m.sso_description()}</p>
             <SsoPanel
               workspaceSlug={workspaceSlug}
               connections={ssoConnections}
@@ -113,7 +108,7 @@ export function WorkspaceSettingsPage({
           deployment has no export bucket, the panel explains that instead of
           offering a button that would fail. */}
       {exports === null ? null : (
-        <Panel title="Data export">
+        <Panel title={m.data_export()}>
           <WorkspaceExportPanel
             workspaceSlug={workspaceSlug}
             segment={exports}

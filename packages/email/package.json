@@ -18,6 +18,7 @@
     "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/failure": "workspace:*",
+    "@b2b-saas-starter/i18n": "workspace:*",
     "@react-email/components": "catalog:",
     "@react-email/render": "catalog:",
     "effect": "catalog:",

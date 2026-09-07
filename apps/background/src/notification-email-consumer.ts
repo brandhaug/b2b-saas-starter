@@ -5,8 +5,11 @@ import {
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { NotificationEmailQueueMessage } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { NOTIFICATION_KIND_DESCRIPTIONS } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
+import { renderNotificationCopy } from '@b2b-saas-starter/capabilities/notifications/notification-events'
 import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
+import { notificationKindLabel } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
+import * as m from '@b2b-saas-starter/i18n/messages'
+import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import {
   EmailDispatcher,
   selectEmailDispatcherLayer,
@@ -77,19 +80,29 @@ export function processNotificationEmailMessage(
       return ack
     }
     const dispatcher = yield* EmailDispatcher
-    const kindLabel = NOTIFICATION_KIND_DESCRIPTIONS[kind].label
+    const locale: Locale = context.recipient.locale ?? DEFAULT_LOCALE
+    const kindLabel = notificationKindLabel(kind, locale)
+    const copy = renderNotificationCopy(
+      context.notification,
+      locale,
+      context.recipient.timeZone ?? 'UTC'
+    )
     const workspaceName = context.workspace?.name ?? null
     yield* dispatcher
       .send({
         to: context.recipient.email,
-        subject: `[B2B SaaS Starter] ${kindLabel}: ${context.notification.title}`,
+        subject: m.backend_email_subject_notification(
+          { kindLabel, title: copy.title },
+          { locale }
+        ),
         element: notificationEmailFor(kind, {
           kindLabel,
-          title: context.notification.title,
-          message: context.notification.message,
+          title: copy.title,
+          message: copy.message,
           workspaceName,
           openUrl: openUrlFor(appUrl, context),
-          preferencesUrl: preferencesUrl(appUrl, kind)
+          preferencesUrl: preferencesUrl(appUrl, kind),
+          locale
         })
       })
       .pipe(

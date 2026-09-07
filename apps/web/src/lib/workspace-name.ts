@@ -4,12 +4,14 @@
  * create/rename schemas enforce. Client-safe — no server imports — so both
  * forms can ship it to the browser.
  */
+import { m } from '@b2b-saas-starter/i18n/messages'
+
 export function validateWorkspaceName(value: string): string | undefined {
   if (value.trim().length === 0) {
-    return 'Workspace name is required'
+    return m.workspace_name_required()
   }
   if (value.length > 80) {
-    return 'Workspace name must be under 80 characters'
+    return m.workspace_name_maximum()
   }
   return
 }

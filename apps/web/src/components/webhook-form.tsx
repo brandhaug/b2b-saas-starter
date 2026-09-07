@@ -14,8 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { createWebhookEndpointServerFn } from '@/lib/server/webhooks'
 import { callServerFn } from '@/lib/server-call'
-
-const CREATE_WEBHOOK_FAILED = 'Failed to create webhook endpoint'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 type WebhookValues = {
   url: string
@@ -29,7 +28,7 @@ const DEFAULT_VALUES: WebhookValues = {
 
 function validateUrl(value: string): string | undefined {
   if (value.trim().length === 0) {
-    return 'Endpoint URL is required'
+    return m.endpoint_url_required()
   }
   return
 }
@@ -75,7 +74,7 @@ export function WebhookForm({
               events: value.events
             }
           }),
-        CREATE_WEBHOOK_FAILED
+        m.webhook_create_failed()
       )
 
       if (!outcome.ok) {
@@ -106,12 +105,12 @@ export function WebhookForm({
         {(field) => (
           <FormTextField
             name={field.name}
-            label="Endpoint URL"
+            label={m.endpoint_url()}
             value={field.state.value}
             errors={field.state.meta.errors}
             onBlur={field.handleBlur}
             onChange={field.handleChange}
-            placeholder="https://example.com/hooks/b2b-starter"
+            placeholder={m.endpoint_url_placeholder()}
           />
         )}
       </form.Field>
@@ -120,13 +119,13 @@ export function WebhookForm({
         name="events"
         validators={{
           onChange: ({ value }) =>
-            value.length === 0 ? 'Pick at least one event' : undefined
+            value.length === 0 ? m.webhook_event_required() : undefined
         }}
       >
         {(field) => (
           <CheckboxSetField
             name={field.name}
-            legend="Events"
+            legend={m.events()}
             options={WEBHOOK_EVENT_TYPES}
             value={field.state.value}
             errors={field.state.meta.errors}
@@ -148,7 +147,7 @@ export function WebhookForm({
             className="justify-self-start"
           >
             {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-            Create endpoint
+            {m.webhook_create_action()}
           </Button>
         )}
       </form.Subscribe>
@@ -158,9 +157,7 @@ export function WebhookForm({
         // secret is visible, the same treatment the API token form's reveal
         // and the rotated-secret alert get.
         <Alert variant="ok" className="justify-self-start">
-          <AlertTitle>
-            Endpoint created. Copy the signing secret now, it will not be shown again.
-          </AlertTitle>
+          <AlertTitle>{m.webhook_created_copy_notice()}</AlertTitle>
           <AlertDescription>
             <Identifier className="px-2 py-1">{created.signingSecret}</Identifier>
           </AlertDescription>

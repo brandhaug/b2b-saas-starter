@@ -32,8 +32,11 @@ type PlanPricing = 'flat' | 'per_seat'
 export type Plan = {
   readonly id: string
   readonly name: string
-  readonly price: string
-  readonly description: string
+  readonly price: { readonly amount: number; readonly currency: string } | null
+  readonly descriptionKey:
+    | 'shell_plan_starter_description'
+    | 'shell_plan_team_description'
+    | 'shell_plan_enterprise_description'
   /** How the plan bills: one flat subscription, or one seat price per Member. */
   readonly pricing: PlanPricing
   /**
@@ -71,8 +74,8 @@ export type Plan = {
 export const STARTER_PLAN: Plan = {
   id: 'starter',
   name: 'Starter',
-  price: '$0',
-  description: 'Local development and reference implementation review.',
+  price: { amount: 0, currency: 'USD' },
+  descriptionKey: 'shell_plan_starter_description',
   pricing: 'flat',
   limits: { apiTokens: 2, webhookEndpoints: 1, seats: 3 },
   stripePriceEnv: null,
@@ -84,8 +87,8 @@ export const PLANS: ReadonlyArray<Plan> = [
   {
     id: 'team',
     name: 'Team',
-    price: '$12/seat/mo',
-    description: 'The shape most B2B SaaS products adapt first.',
+    price: { amount: 12, currency: 'USD' },
+    descriptionKey: 'shell_plan_team_description',
     pricing: 'per_seat',
     limits: { apiTokens: null, webhookEndpoints: null, seats: null },
     stripePriceEnv: 'STRIPE_PRICE_ID_TEAM',
@@ -94,8 +97,8 @@ export const PLANS: ReadonlyArray<Plan> = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    price: 'Custom',
-    description: 'SAML, procurement, custom compliance, and support patterns.',
+    price: null,
+    descriptionKey: 'shell_plan_enterprise_description',
     pricing: 'flat',
     limits: { apiTokens: null, webhookEndpoints: null, seats: null },
     stripePriceEnv: null,

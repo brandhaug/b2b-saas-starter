@@ -1,3 +1,5 @@
+import * as m from '@b2b-saas-starter/i18n/messages'
+import { deLocalizeUrl, localizeUrl } from '@b2b-saas-starter/i18n/runtime'
 import { QueryClient } from '@tanstack/react-query'
 import { createRouter, Link } from '@tanstack/react-router'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
@@ -8,12 +10,10 @@ import { type SidebarWorkspace } from '@/lib/workspace-directory'
 function NotFound() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6">
-      <h1 className="text-2xl font-semibold">Page not found</h1>
-      <p className="text-sm text-muted-foreground">
-        The page you are looking for does not exist.
-      </p>
+      <h1 className="text-2xl font-semibold">{m.shell_not_found()}</h1>
+      <p className="text-sm text-muted-foreground">{m.shell_not_found_description()}</p>
       <Link to="/" className="text-sm underline underline-offset-4">
-        Go home
+        {m.shell_home()}
       </Link>
     </div>
   )
@@ -28,15 +28,13 @@ function RouteError({ error }: { readonly error: Error }) {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6">
       <h1 className="text-2xl font-semibold">
-        {degraded ? 'Temporarily unavailable' : 'Something went wrong'}
+        {degraded ? m.shell_unavailable() : m.shell_error()}
       </h1>
       <p className="max-w-md text-center text-sm text-muted-foreground">
-        {degraded
-          ? error.message
-          : 'An unexpected error occurred. Try again, and check the server logs if it persists.'}
+        {degraded ? m.shell_unavailable_description() : m.shell_error_description()}
       </p>
       <Link to="/" className="text-sm underline underline-offset-4">
-        Go home
+        {m.shell_home()}
       </Link>
     </div>
   )
@@ -58,6 +56,10 @@ export function getRouter() {
   }
   const router = createRouter({
     routeTree,
+    rewrite: {
+      input: ({ url }) => deLocalizeUrl(url),
+      output: ({ url }) => localizeUrl(url)
+    },
     defaultPreload: 'intent',
     defaultNotFoundComponent: NotFound,
     defaultErrorComponent: RouteError,

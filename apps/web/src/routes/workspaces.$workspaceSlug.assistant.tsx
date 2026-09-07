@@ -3,6 +3,7 @@ import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAssistantPage } from '@/components/workspace-assistant-page'
 import { askAssistantServerFn, loadAssistantPageServerFn } from '@/lib/server/assistant'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/workspaces/$workspaceSlug/assistant')({
   loader: ({ params }) =>
@@ -12,7 +13,7 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/assistant')({
   pendingComponent: RoutePending,
   component: WorkspaceAssistantRoute,
   head: ({ params }) => ({
-    meta: [{ title: pageTitle('AI assistant', params.workspaceSlug) }]
+    meta: [{ title: pageTitle(m.public_meta_assistant(), params.workspaceSlug) }]
   })
 })
 

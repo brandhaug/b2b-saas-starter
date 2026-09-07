@@ -11,6 +11,7 @@ import {
 import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
 import { type SeedNotification } from './notifications/notification-feed.ts'
 import { type SeedNotificationPreference } from './notifications/notification-preferences.ts'
+import { type SeedAccountPreference } from './governance/account-preferences.ts'
 import { type SeedWebhookEndpointFixture } from './developer-platform/webhook-endpoints.seed.ts'
 import {
   type SeedWebhookDeliveryFixture,
@@ -103,6 +104,27 @@ export const seedSystemUsers: ReadonlyArray<SystemUserAccount> = [
     banned: false
   }
 ]
+
+/** Account preferences are part of the account fixture, so auth email tests
+ * exercise a saved Bokmål recipient while the demo login remains English by
+ * default. */
+export const seedAccountPreferences: ReadonlyArray<SeedAccountPreference> =
+  seedSystemUsers.map((account) => {
+    if (account.id === 'usr_martin') {
+      return {
+        userId: account.id,
+        email: account.email,
+        locale: 'nb',
+        timeZone: 'Europe/Oslo'
+      }
+    }
+    return {
+      userId: account.id,
+      email: account.email,
+      locale: null,
+      timeZone: null
+    }
+  })
 
 /** The (workspace, user) pairs the seed `changeWorkspaceRole` treats as real. */
 export const seedUserAdminMemberships: ReadonlyArray<SeedMembership> = seedMembers.map(
@@ -457,6 +479,11 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     title: 'A System Admin accessed your account',
     message:
       'Martin Brandhaug started an impersonation session on your account. It ends when they stop it or after 60 minutes, and it cannot change your password, two-factor settings, or email.',
+    event: {
+      type: 'account.impersonated',
+      adminName: 'Martin Brandhaug',
+      minutes: 60
+    },
     createdAt: '2026-05-15T13:00:00.000Z',
     read: false,
     userId: 'usr_dev'
@@ -483,6 +510,12 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     title: 'Webhook delivery gave up',
     message:
       'https://example.com/webhooks/starter rejected api_token.created after six attempts.',
+    event: {
+      type: 'webhook.dead_letter',
+      endpointUrl: 'https://example.com/webhooks/starter',
+      eventType: 'api_token.created',
+      attempts: 6
+    },
     createdAt: '2026-05-16T07:30:00.000Z',
     read: false
   },
@@ -491,6 +524,12 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     kind: 'api_token.created',
     title: 'API token created',
     message: 'Ops Lead minted "MCP local client" with read and write scopes.',
+    event: {
+      type: 'api_token.created',
+      actorName: 'Ops Lead',
+      tokenName: 'MCP local client',
+      scopes: 'read and write'
+    },
     createdAt: '2026-05-16T06:00:00.000Z',
     read: true
   },
@@ -507,6 +546,7 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     kind: 'billing.plan_changed',
     title: 'Plan changed to Team',
     message: 'The workspace now serves the Team plan limits.',
+    event: { type: 'billing.plan_changed', planName: 'Team' },
     createdAt: '2026-05-13T10:05:00.000Z',
     read: true
   },
@@ -523,6 +563,12 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     kind: 'workspace_member.joined',
     title: 'Invitation accepted',
     message: 'Product Engineer joined Starter Lab as a member.',
+    event: {
+      type: 'workspace_member.joined',
+      memberName: 'Product Engineer',
+      workspaceName: 'Starter Lab',
+      role: 'member'
+    },
     createdAt: '2026-05-11T14:45:00.000Z',
     read: true
   }

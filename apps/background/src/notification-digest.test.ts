@@ -41,8 +41,8 @@ describe('buildDigests', () => {
   it('groups per recipient, keeps digest kinds only, newest first', () => {
     const digests = buildDigests(
       [
-        candidate(owner, 'n1', 'webhook.delivery_failed', '2026-09-02T10:00:00.000Z'),
-        candidate(owner, 'n2', 'announcement', '2026-09-02T12:00:00.000Z'),
+        candidate(owner, 'n1', 'webhook.delivery_failed', '2026-09-02T09:00:00.000Z'),
+        candidate(owner, 'n2', 'announcement', '2026-09-02T10:00:00.000Z'),
         // Security kind on its default: instant, so not in the digest.
         candidate(owner, 'n3', 'api_token.created', '2026-09-02T13:00:00.000Z'),
         candidate(member, 'n1', 'webhook.delivery_failed', '2026-09-02T10:00:00.000Z')

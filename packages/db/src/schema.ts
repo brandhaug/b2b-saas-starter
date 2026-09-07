@@ -1,5 +1,6 @@
 import {
   auditActorTypes,
+  accountLocales,
   deliveryStatuses,
   deliveryAttemptPhases,
   invitationStatuses,
@@ -23,6 +24,7 @@ import {
 
 export {
   adminSystemRole,
+  accountLocales,
   apiTokenScopes,
   auditActorTypes,
   deliveryStatuses,
@@ -37,6 +39,7 @@ export {
   workspaceRoles,
   type ApiTokenScopeValue,
   type AuditActorTypeValue,
+  type AccountLocale,
   type DeliveryStatus,
   type NotificationChannel,
   type NotificationKind,
@@ -139,6 +142,10 @@ export const user = sqliteTable('user', {
   twoFactorEnabled: integer('twoFactorEnabled', { mode: 'boolean' })
     .default(false)
     .notNull(),
+  // Optional account preferences. Null means the user has not selected a
+  // locale or timezone; callers apply the platform defaults (`en`/`UTC`).
+  locale: text('locale', { enum: accountLocales }),
+  timeZone: text('timeZone'),
   ...authTimestamps()
 })
 
@@ -522,6 +529,9 @@ export const notifications = sqliteTable(
     kind: text('kind', { enum: notificationKinds }).default('announcement').notNull(),
     title: text('title').notNull(),
     message: text('message').notNull(),
+    // Structured data for system notifications. Literal announcements use null;
+    // event renderers use the recipient's current locale for system events.
+    event: text('event', { mode: 'json' }).$type<JsonObject | null>(),
     readAt: text('read_at'),
     createdAt: isoCreatedAt()
   },

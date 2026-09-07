@@ -2,6 +2,7 @@ import { deliveryAttemptPhases } from '@b2b-saas-starter/db/enums'
 import { DateTime, Duration, Option, Schema } from 'effect'
 
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
+import { type NotificationEvent } from '../notifications/notification-events.ts'
 
 /** The JSON value type `Schema.Json` decodes — the payload column's contract. */
 export type Json = typeof Schema.Json.Type
@@ -448,6 +449,7 @@ export const terminalDeliveryAuditEventType = new Map<
 type NotificationCopy = {
   readonly title: string
   readonly message: string
+  readonly event: NotificationEvent
 }
 
 export function deadLetterNotification(input: {
@@ -457,7 +459,13 @@ export function deadLetterNotification(input: {
 }): NotificationCopy {
   return {
     title: 'Webhook delivery dead-lettered',
-    message: `${input.eventType} to ${input.url} failed ${input.attempts} attempts and was moved to the dead-letter queue. Replay it from the workspace webhooks page.`
+    message: `${input.eventType} to ${input.url} failed ${input.attempts} attempts and was moved to the dead-letter queue. Replay it from the workspace webhooks page.`,
+    event: {
+      type: 'webhook.dead_letter',
+      eventType: input.eventType,
+      endpointUrl: input.url,
+      attempts: input.attempts
+    }
   }
 }
 
@@ -475,11 +483,22 @@ export function failureLadderNotification(input: {
   if (reachedWebhookFailureThreshold(input.consecutiveFailures)) {
     return {
       title: 'Webhook endpoint auto-disabled',
-      message: `${target} was disabled after ${input.consecutiveFailures} consecutive failed deliveries. Re-enable it from the workspace webhooks page once the receiver is fixed.`
+      message: `${target} was disabled after ${input.consecutiveFailures} consecutive failed deliveries. Re-enable it from the workspace webhooks page once the receiver is fixed.`,
+      event: {
+        type: 'webhook.ladder_threshold',
+        target,
+        consecutiveFailures: input.consecutiveFailures
+      }
     }
   }
   return {
     title: 'Webhook endpoint failing',
-    message: `${target} has failed ${input.consecutiveFailures} deliveries in a row and will be disabled automatically after ${WEBHOOK_FAILURE_AUTO_DISABLE_AT} consecutive failures.`
+    message: `${target} has failed ${input.consecutiveFailures} deliveries in a row and will be disabled automatically after ${WEBHOOK_FAILURE_AUTO_DISABLE_AT} consecutive failures.`,
+    event: {
+      type: 'webhook.ladder_warning',
+      target,
+      consecutiveFailures: input.consecutiveFailures,
+      disableAt: WEBHOOK_FAILURE_AUTO_DISABLE_AT
+    }
   }
 }

@@ -9,11 +9,15 @@ import {
   type NotificationRecipient
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
-  NOTIFICATION_KIND_DESCRIPTIONS,
+  notificationKindLabel,
   type NotificationChannel,
   type NotificationKind
 } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
+import { renderNotificationCopy } from '@b2b-saas-starter/capabilities/notifications/notification-events'
 import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
+import * as m from '@b2b-saas-starter/i18n/messages'
+import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
+import { formatDateTime } from '@b2b-saas-starter/i18n/format'
 import { EmailDispatcher, selectEmailDispatcherLayer } from '@b2b-saas-starter/email'
 import {
   NotificationDigestEmail,
@@ -44,8 +48,17 @@ export type ChannelResolver = (
  * reads no clock, so the sender turns the ISO string it already holds into a
  * display line. UTC by construction — `DateTime.formatIso` writes UTC.
  */
-export function formatDigestTimestamp(createdAt: string): string {
-  return `${createdAt.slice(0, 16).replace('T', ' ')} UTC`
+export function formatDigestTimestamp(
+  createdAt: string,
+  locale: Locale = DEFAULT_LOCALE,
+  timeZone = 'UTC'
+): string {
+  return formatDateTime(
+    createdAt,
+    locale,
+    { dateStyle: 'medium', timeStyle: 'short' },
+    timeZone
+  )
 }
 
 /**
@@ -63,12 +76,20 @@ export function buildDigests(
     string,
     { recipient: NotificationRecipient; items: Array<DigestItem> }
   >()
-  for (const candidate of candidates) {
+  for (const candidate of candidates.toSorted((a, b) =>
+    b.notification.createdAt.localeCompare(a.notification.createdAt)
+  )) {
     const kind = candidate.notification.kind
     const { recipient } = candidate
     if (channelFor(recipient.userId, kind) !== 'digest') {
       continue
     }
+    const locale = recipient.locale ?? DEFAULT_LOCALE
+    const copy = renderNotificationCopy(
+      candidate.notification,
+      locale,
+      recipient.timeZone ?? 'UTC'
+    )
     let entry = byRecipient.get(recipient.userId)
     if (entry === undefined) {
       entry = { recipient, items: [] }
@@ -76,17 +97,21 @@ export function buildDigests(
     }
     entry.items.push({
       id: candidate.notification.id,
-      kindLabel: NOTIFICATION_KIND_DESCRIPTIONS[kind].label,
-      title: candidate.notification.title,
-      message: candidate.notification.message,
+      kindLabel: notificationKindLabel(kind, locale),
+      title: copy.title,
+      message: copy.message,
       workspaceName: candidate.workspace?.name ?? null,
-      createdAt: formatDigestTimestamp(candidate.notification.createdAt)
+      createdAt: formatDigestTimestamp(
+        candidate.notification.createdAt,
+        locale,
+        candidate.recipient.timeZone ?? 'UTC'
+      )
     })
   }
   return [...byRecipient.values()]
     .map((entry) => ({
       recipient: entry.recipient,
-      items: entry.items.toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
+      items: entry.items
     }))
     .toSorted((a, b) => a.recipient.email.localeCompare(b.recipient.email))
 }
@@ -151,12 +176,16 @@ export function runNotificationDigest(
       const outcome = yield* Effect.result(
         dispatcher.send({
           to: digest.recipient.email,
-          subject: `[B2B SaaS Starter] Your daily digest: ${String(digest.items.length)} unread`,
+          subject: m.backend_email_subject_digest(
+            { count: digest.items.length },
+            { locale: digest.recipient.locale ?? DEFAULT_LOCALE }
+          ),
           element: NotificationDigestEmail({
             recipientName: digest.recipient.name,
             items: digest.items,
             openUrl: `${appUrl}/workspaces`,
-            preferencesUrl: preferencesUrl(appUrl)
+            preferencesUrl: preferencesUrl(appUrl),
+            locale: digest.recipient.locale ?? DEFAULT_LOCALE
           })
         })
       )

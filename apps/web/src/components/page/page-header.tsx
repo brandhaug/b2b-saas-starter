@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The top of every page: an optional breadcrumb slot, the `h1`, its
@@ -23,7 +24,7 @@ export function PageHeader({
     <header className="grid gap-2">
       {breadcrumb === undefined ? null : (
         <nav
-          aria-label="Breadcrumb"
+          aria-label={m.public_knowledge_breadcrumb()}
           className="text-sm text-muted-foreground [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-foreground"
         >
           {breadcrumb}

@@ -12,6 +12,7 @@ import {
   getDocComponent,
   loadDoc
 } from '@/lib/docs'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/_knowledge/docs/$category/$slug')({
   // The loader resolves metadata (serializable) and decides existence; the
@@ -46,7 +47,7 @@ export const Route = createFileRoute('/_knowledge/docs/$category/$slug')({
       return {}
     }
     const { title, description, tags } = loaderData.frontmatter
-    const fullTitle = pageTitle(title, 'Documentation')
+    const fullTitle = pageTitle(title, m.public_docs_title())
 
     return {
       meta: [
@@ -87,11 +88,14 @@ function DocArticlePage() {
 
       <div className="flex gap-8">
         <div className="min-w-0 flex-1">
-          <nav aria-label="Breadcrumb" className="mb-6 text-xs text-muted-foreground">
+          <nav
+            aria-label={m.public_knowledge_breadcrumb()}
+            className="mb-6 text-xs text-muted-foreground"
+          >
             <ol className="flex flex-wrap items-center gap-1">
               <li>
                 <Link to="/docs" className="transition-colors hover:text-foreground">
-                  Documentation
+                  {m.public_docs_title()}
                 </Link>
               </li>
               <li aria-hidden="true">/</li>
@@ -126,7 +130,7 @@ function DocArticlePage() {
               between lg and xl. */}
           <details className="mb-6 border border-border lg:hidden">
             <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
-              On this page
+              {m.public_knowledge_on_page()}
             </summary>
             <div className="px-3 pt-1 pb-3">
               <TableOfContents containerRef={articleRef} />
@@ -135,7 +139,7 @@ function DocArticlePage() {
 
           {LazyArticle === undefined ? (
             <p className="text-sm text-destructive">
-              This article could not be loaded.
+              {m.public_knowledge_article_error()}
             </p>
           ) : (
             <article
@@ -145,10 +149,15 @@ function DocArticlePage() {
                  Catppuccin and can fail AA in dark mode. Prose headings sit
                  below the page h1's text-3xl — a section heading must never
                  outrank the title of the page it belongs to. */
+              lang="en"
               className="prose prose-lg max-w-3xl prose-h2:text-xl prose-h3:text-base"
             >
               <Suspense
-                fallback={<p className="text-sm text-muted-foreground">Loading…</p>}
+                fallback={
+                  <p className="text-sm text-muted-foreground">
+                    {m.public_knowledge_loading()}
+                  </p>
+                }
               >
                 {/* createElement, not JSX: the component is resolved per article at runtime, and React Compiler requires JSX component types to be static. */}
                 {createElement(LazyArticle, { components: mdxComponents })}
@@ -157,7 +166,7 @@ function DocArticlePage() {
           )}
 
           <nav
-            aria-label="Adjacent articles"
+            aria-label={m.public_knowledge_adjacent()}
             className="mt-12 flex items-center justify-between gap-4 border-t border-border pt-4"
           >
             {prev ? (

@@ -23,6 +23,7 @@ import {
   type SsoTestResult,
   type UpdateSsoConnectionInput
 } from '@/lib/server/workspace-sso'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The "Single sign-on" section of workspace settings (ADR 0069). Owners and
@@ -37,10 +38,18 @@ import {
  * OIDC and SAML fields, with the protocol deciding which middle third shows.
  */
 
-const CREATE_FAILED = 'Failed to add the connection'
-const UPDATE_FAILED = 'Failed to update the connection'
-const REMOVE_FAILED = 'Failed to remove the connection'
-const TEST_FAILED = 'The test could not run'
+function createFailedMessage() {
+  return m.sso_create_failed()
+}
+function updateFailedMessage() {
+  return m.sso_update_failed()
+}
+function removeFailedMessage() {
+  return m.sso_remove_failed()
+}
+function testFailedMessage() {
+  return m.sso_test_failed()
+}
 
 type SsoFormValues = {
   protocol: 'oidc' | 'saml'
@@ -66,20 +75,20 @@ const DEFAULT_VALUES: SsoFormValues = {
 
 function validateDomain(value: string): string | undefined {
   if (value.trim().length === 0) {
-    return 'Domain is required'
+    return m.sso_domain_required()
   }
   if (!/^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(value.trim())) {
-    return 'Enter the domain after the @, like acme.com'
+    return m.sso_domain_hint()
   }
   return
 }
 
 function validateIssuer(value: string): string | undefined {
   if (value.trim().length === 0) {
-    return 'Issuer URL is required'
+    return m.sso_issuer_required()
   }
   if (!value.startsWith('https://')) {
-    return 'The issuer must be an https URL'
+    return m.sso_issuer_https()
   }
   return
 }
@@ -90,7 +99,7 @@ function validateMetadataUrl(value: string): string | undefined {
     return
   }
   if (!value.startsWith('https://')) {
-    return 'The metadata URL must be an https URL'
+    return m.sso_metadata_https()
   }
   return
 }
@@ -105,7 +114,7 @@ function validateOneMetadataSource(value: SsoFormValues): string | undefined {
     return
   }
   if (value.metadataUrl.trim().length === 0 && value.metadataXml.trim().length === 0) {
-    return 'Add the metadata URL or paste the metadata XML'
+    return m.sso_metadata_required()
   }
   return
 }
@@ -138,7 +147,7 @@ function AddConnectionButton({ disabled }: { readonly disabled: boolean }) {
   return (
     <Button type="submit" disabled={disabled} className="justify-self-start">
       {disabled ? <Spinner data-icon="inline-start" /> : null}
-      Add connection
+      {m.sso_add_connection()}
     </Button>
   )
 }
@@ -153,7 +162,7 @@ function RoleRadioGroup({
 }) {
   return (
     <FieldSet>
-      <FieldLegend variant="label">Default role for new members</FieldLegend>
+      <FieldLegend variant="label">{m.sso_default_role()}</FieldLegend>
       <RadioGroup
         name="defaultWorkspaceRole"
         value={value}
@@ -162,11 +171,11 @@ function RoleRadioGroup({
       >
         <FieldLabel>
           <RadioGroupItem value="member" />
-          <span>member</span>
+          <span>{m.common_member()}</span>
         </FieldLabel>
         <FieldLabel>
           <RadioGroupItem value="admin" />
-          <span>admin</span>
+          <span>{m.common_admin()}</span>
         </FieldLabel>
       </RadioGroup>
     </FieldSet>
@@ -234,23 +243,23 @@ export function SsoPanel({
 
   const create = useServerAction(
     (value: SsoFormValues) => ports.create(toCreatePayload(workspaceSlug, value)),
-    { failureMessage: CREATE_FAILED }
+    { failureMessage: createFailedMessage() }
   )
 
   const update = useServerAction(
     (input: UpdateSsoConnectionInput) => ports.update(input),
-    { failureMessage: UPDATE_FAILED }
+    { failureMessage: updateFailedMessage() }
   )
 
   const remove = useServerAction(
     (providerId: string) => ports.remove({ workspaceSlug, providerId }),
-    { failureMessage: REMOVE_FAILED }
+    { failureMessage: removeFailedMessage() }
   )
 
   const test = useServerAction(
     (providerId: string) => ports.test({ workspaceSlug, providerId }),
     {
-      failureMessage: TEST_FAILED,
+      failureMessage: testFailedMessage(),
       onSuccess: (result, providerId) => setTestResult({ providerId, ...result })
     }
   )
@@ -272,8 +281,8 @@ export function SsoPanel({
     <div className="grid gap-5">
       <CreateSection
         allowed={canCreate}
-        title="Add a connection"
-        deniedReason="Your role cannot change single sign-on for this workspace."
+        title={m.sso_add_connection()}
+        deniedReason={m.sso_manage_denied()}
       >
         <form
           onSubmit={(event) => {
@@ -286,7 +295,7 @@ export function SsoPanel({
           <form.Field name="protocol">
             {(field) => (
               <FieldSet>
-                <FieldLegend variant="label">Protocol</FieldLegend>
+                <FieldLegend variant="label">{m.sso_protocol()}</FieldLegend>
                 <RadioGroup
                   name={field.name}
                   value={field.state.value}
@@ -297,11 +306,11 @@ export function SsoPanel({
                 >
                   <FieldLabel>
                     <RadioGroupItem value="oidc" />
-                    <span>OIDC</span>
+                    <span>{m.sso_oidc()}</span>
                   </FieldLabel>
                   <FieldLabel>
                     <RadioGroupItem value="saml" />
-                    <span>SAML</span>
+                    <span>{m.sso_saml()}</span>
                   </FieldLabel>
                 </RadioGroup>
               </FieldSet>
@@ -321,7 +330,7 @@ export function SsoPanel({
                     {(field) => (
                       <FormTextField
                         name={field.name}
-                        label="Issuer"
+                        label={m.sso_issuer()}
                         value={field.state.value}
                         errors={field.state.meta.errors}
                         onBlur={field.handleBlur}
@@ -334,7 +343,7 @@ export function SsoPanel({
                     {(field) => (
                       <FormTextField
                         name={field.name}
-                        label="Client ID"
+                        label={m.sso_client_id()}
                         value={field.state.value}
                         errors={field.state.meta.errors}
                         onBlur={field.handleBlur}
@@ -346,7 +355,7 @@ export function SsoPanel({
                     {(field) => (
                       <FormTextField
                         name={field.name}
-                        label="Client secret"
+                        label={m.sso_client_secret()}
                         type="password"
                         autoComplete="off"
                         value={field.state.value}
@@ -369,7 +378,7 @@ export function SsoPanel({
                     {(field) => (
                       <FormTextField
                         name={field.name}
-                        label="Metadata URL"
+                        label={m.sso_metadata_url()}
                         value={field.state.value}
                         errors={field.state.meta.errors}
                         onBlur={field.handleBlur}
@@ -381,7 +390,7 @@ export function SsoPanel({
                   <form.Field name="metadataXml">
                     {(field) => (
                       <div className="grid gap-2">
-                        <Label htmlFor={field.name}>Or paste the metadata XML</Label>
+                        <Label htmlFor={field.name}>{m.sso_metadata_xml()}</Label>
                         <Textarea
                           id={field.name}
                           name={field.name}
@@ -416,7 +425,7 @@ export function SsoPanel({
             {(field) => (
               <FormTextField
                 name={field.name}
-                label="Email domain"
+                label={m.sso_email_domain()}
                 value={field.state.value}
                 errors={field.state.meta.errors}
                 onBlur={field.handleBlur}

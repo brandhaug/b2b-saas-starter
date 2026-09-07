@@ -7,6 +7,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { authErrorCopy } from '@/lib/auth-error-copy'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export { type SendVerificationEmail }
 
@@ -33,11 +34,7 @@ export function EmailVerificationBanner({
       // (An <output> element is form-result semantics — wrong here.)
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- see above
       <Alert role="status">
-        <AlertDescription>
-          Verification email sent to{' '}
-          <code className="rounded-sm bg-muted px-1 py-0.5 text-xs">{email}</code>.
-          Check your inbox; the link expires in an hour.
-        </AlertDescription>
+        <AlertDescription>{m.workspace_verification_sent({ email })}</AlertDescription>
       </Alert>
     )
   }
@@ -46,7 +43,7 @@ export function EmailVerificationBanner({
     setSendError(null)
     const result = await sendVerificationEmail({ email })
     if (result.error) {
-      setSendError(authErrorCopy(result.error, 'Could not send the email'))
+      setSendError(authErrorCopy(result.error, m.public_auth_send_email_failed()))
       return
     }
     setSent(true)
@@ -60,7 +57,7 @@ export function EmailVerificationBanner({
       <MailWarningIcon />
       <AlertDescription className="flex flex-wrap items-center gap-3">
         <span className="flex-1">
-          Your email address is not verified yet.
+          {m.workspace_email_unverified()}
           {sendError ? (
             <span role="alert" className="text-destructive">
               {' '}
@@ -69,7 +66,7 @@ export function EmailVerificationBanner({
           ) : null}
         </span>
         <Button type="button" variant="outline" onClick={() => void resend()}>
-          Resend verification email
+          {m.workspace_resend_verification()}
         </Button>
       </AlertDescription>
     </Alert>

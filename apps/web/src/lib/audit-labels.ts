@@ -1,134 +1,106 @@
 import { AUDIT_EVENT_TYPES } from '@b2b-saas-starter/capabilities/governance/audit-event-taxonomy'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
-/** The human label map for audit event types (issue #87 resolution: web owns
- * the labels, the capabilities package owns the vocabulary). `Object.hasOwn`
- * keeps the lookup assertion-free and off the prototype chain: an unknown
- * event type — a row written after this map was written, or by a future
- * producer — prettifies from its snake_case verb rather than breaking the
- * page. */
-const EVENT_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  // developer-platform
-  'api_token.created': 'API token created',
-  'api_token.revoked': 'API token revoked',
-  'webhook_endpoint.created': 'Webhook endpoint created',
-  'webhook_endpoint.updated': 'Webhook endpoint updated',
-  'webhook_endpoint.deleted': 'Webhook endpoint deleted',
-  'webhook_endpoint.secret_rotated': 'Webhook secret rotated',
-  'webhook.delivery_failed': 'Webhook delivery failed',
-  'webhook.delivery_dead_lettered': 'Webhook delivery dead-lettered',
-  'webhook.delivery_replayed': 'Webhook delivery replayed',
-  'mcp_client.consent_granted': 'MCP client connected',
-  'mcp_client.consent_revoked': 'MCP client disconnected',
-  // governance — workspace lifecycle
-  'workspace.created': 'Workspace created',
-  'workspace.renamed': 'Workspace renamed',
-  'workspace.deleted': 'Workspace deleted',
-  'workspace.onboarding_dismissed': 'Onboarding checklist dismissed',
-  // governance — workspace data export
-  'workspace.export_requested': 'Workspace export requested',
-  'workspace.export_completed': 'Workspace export ready',
-  'workspace.export_downloaded': 'Workspace export downloaded',
-  // governance — membership
-  'workspace_member.added': 'Member added',
-  'workspace_member.removed': 'Member removed',
-  'workspace_member.role_changed': 'Member role changed',
-  // governance — invitations
-  'workspace_invitation.sent': 'Invitation sent',
-  'workspace_invitation.canceled': 'Invitation canceled',
-  'workspace_invitation.accepted': 'Invitation accepted',
-  // billing
-  'billing.checkout_started': 'Checkout started',
-  'billing.plan_changed': 'Plan changed',
-  // account lifecycle over the auth catchall
-  'auth.sign_in': 'Signed in',
-  'auth.sign_in_failed': 'Sign-in failed',
-  'auth.sign_up': 'Account created',
-  'auth.sign_up_failed': 'Account creation failed',
-  'auth.password_reset_requested': 'Password reset requested',
-  'auth.password_reset': 'Password reset',
-  'auth.password_reset_failed': 'Password reset failed',
-  'auth.email_verified': 'Email verified',
-  'auth.email_verification_failed': 'Email verification failed',
-  'auth.sign_out': 'Signed out',
-  'auth.sign_out_failed': 'Sign-out failed',
-  'auth.session_revoked': 'Session revoked',
-  'auth.session_revocation_failed': 'Session revocation failed',
-  'auth.two_factor_enabled': 'Two-factor enabled',
-  'auth.two_factor_enabled_failed': 'Two-factor enable failed',
-  'auth.two_factor_disabled': 'Two-factor disabled',
-  'auth.two_factor_disable_failed': 'Two-factor disable failed',
-  'auth.two_factor_verified': 'Two-factor code verified',
-  'auth.two_factor_verification_failed': 'Two-factor verification failed',
-  'auth.passkey_added': 'Passkey added',
-  'auth.passkey_added_failed': 'Passkey add failed',
-  'auth.passkey_removed': 'Passkey removed',
-  'auth.passkey_removed_failed': 'Passkey removal failed',
-  // social account linking
-  'auth.account_linked': 'Sign-in provider linked',
-  'auth.account_unlinked': 'Sign-in provider unlinked',
-  // Better Auth admin endpoints (system-level)
-  'system_admin.user_created': 'System user created',
-  'system_admin.user_creation_failed': 'System user creation failed',
-  'system_admin.user_removed': 'System user removed',
-  'system_admin.user_removal_failed': 'System user removal failed',
-  'system_admin.user_role_changed': 'System user role changed',
-  'system_admin.user_role_change_failed': 'System user role change failed',
-  'system_admin.user_banned': 'User banned',
-  'system_admin.user_ban_failed': 'User ban failed',
-  'system_admin.user_unbanned': 'User unbanned',
-  'system_admin.user_unban_failed': 'User unban failed',
-  'system_admin.user_password_set': 'User password set',
-  'system_admin.user_password_set_failed': 'User password set failed',
-  'system_admin.impersonation_started': 'Impersonation started',
-  'system_admin.impersonation_start_failed': 'Impersonation start failed',
-  'system_admin.impersonation_stopped': 'Impersonation stopped',
-  'system_admin.impersonation_stop_failed': 'Impersonation stop failed',
-  'system_admin.user_session_revoked': 'User session revoked',
-  'system_admin.user_session_revocation_failed': 'User session revocation failed'
+const EVENT_LABELS: Readonly<Record<string, () => string>> = Object.freeze({
+  'api_token.created': () => m.audit_api_token_created(),
+  'api_token.revoked': () => m.audit_api_token_revoked(),
+  'webhook_endpoint.created': () => m.audit_webhook_endpoint_created(),
+  'webhook_endpoint.updated': () => m.audit_webhook_endpoint_updated(),
+  'webhook_endpoint.deleted': () => m.audit_webhook_endpoint_deleted(),
+  'webhook_endpoint.secret_rotated': () => m.audit_webhook_secret_rotated(),
+  'webhook.delivery_failed': () => m.audit_webhook_delivery_failed(),
+  'webhook.delivery_dead_lettered': () => m.audit_webhook_delivery_dead_lettered(),
+  'webhook.delivery_replayed': () => m.audit_webhook_delivery_replayed(),
+  'mcp_client.consent_granted': () => m.audit_mcp_client_connected(),
+  'mcp_client.consent_revoked': () => m.audit_mcp_client_disconnected(),
+  'workspace.created': () => m.audit_workspace_created(),
+  'workspace.renamed': () => m.audit_workspace_renamed(),
+  'workspace.deleted': () => m.audit_workspace_deleted(),
+  'workspace.onboarding_dismissed': () => m.audit_onboarding_dismissed(),
+  'workspace.export_requested': () => m.audit_workspace_export_requested(),
+  'workspace.export_completed': () => m.audit_workspace_export_ready(),
+  'workspace.export_downloaded': () => m.audit_workspace_export_downloaded(),
+  'workspace_member.added': () => m.audit_member_added(),
+  'workspace_member.removed': () => m.audit_member_removed(),
+  'workspace_member.role_changed': () => m.audit_member_role_changed(),
+  'workspace_invitation.sent': () => m.audit_invitation_sent(),
+  'workspace_invitation.canceled': () => m.audit_invitation_canceled(),
+  'workspace_invitation.accepted': () => m.audit_invitation_accepted(),
+  'billing.checkout_started': () => m.audit_checkout_started(),
+  'billing.plan_changed': () => m.audit_plan_changed(),
+  'auth.sign_in': () => m.audit_signed_in(),
+  'auth.sign_in_failed': () => m.audit_sign_in_failed(),
+  'auth.sign_up': () => m.audit_account_created(),
+  'auth.sign_up_failed': () => m.audit_account_creation_failed(),
+  'auth.password_reset_requested': () => m.audit_password_reset_requested(),
+  'auth.password_reset': () => m.audit_password_reset(),
+  'auth.password_reset_failed': () => m.audit_password_reset_failed(),
+  'auth.email_verified': () => m.audit_email_verified(),
+  'auth.email_verification_failed': () => m.audit_email_verification_failed(),
+  'auth.sign_out': () => m.audit_signed_out(),
+  'auth.sign_out_failed': () => m.audit_sign_out_failed(),
+  'auth.session_revoked': () => m.audit_session_revoked(),
+  'auth.session_revocation_failed': () => m.audit_session_revocation_failed(),
+  'auth.two_factor_enabled': () => m.audit_two_factor_enabled(),
+  'auth.two_factor_enabled_failed': () => m.audit_two_factor_enable_failed(),
+  'auth.two_factor_disabled': () => m.audit_two_factor_disabled(),
+  'auth.two_factor_disable_failed': () => m.audit_two_factor_disable_failed(),
+  'auth.two_factor_verified': () => m.audit_two_factor_verified(),
+  'auth.two_factor_verification_failed': () => m.audit_two_factor_verification_failed(),
+  'auth.passkey_added': () => m.audit_passkey_added(),
+  'auth.passkey_added_failed': () => m.audit_passkey_add_failed(),
+  'auth.passkey_removed': () => m.audit_passkey_removed(),
+  'auth.passkey_removed_failed': () => m.audit_passkey_removal_failed(),
+  'auth.account_linked': () => m.audit_sign_in_provider_linked(),
+  'auth.account_unlinked': () => m.audit_sign_in_provider_unlinked(),
+  'system_admin.user_created': () => m.audit_system_user_created(),
+  'system_admin.user_creation_failed': () => m.audit_system_user_creation_failed(),
+  'system_admin.user_removed': () => m.audit_system_user_removed(),
+  'system_admin.user_removal_failed': () => m.audit_system_user_removal_failed(),
+  'system_admin.user_role_changed': () => m.audit_system_user_role_changed(),
+  'system_admin.user_role_change_failed': () =>
+    m.audit_system_user_role_change_failed(),
+  'system_admin.user_banned': () => m.audit_user_banned(),
+  'system_admin.user_ban_failed': () => m.audit_user_ban_failed(),
+  'system_admin.user_unbanned': () => m.audit_user_unbanned(),
+  'system_admin.user_unban_failed': () => m.audit_user_unban_failed(),
+  'system_admin.user_password_set': () => m.audit_user_password_set(),
+  'system_admin.user_password_set_failed': () => m.audit_user_password_set_failed(),
+  'system_admin.impersonation_started': () => m.audit_impersonation_started(),
+  'system_admin.impersonation_start_failed': () => m.audit_impersonation_start_failed(),
+  'system_admin.impersonation_stopped': () => m.audit_impersonation_stopped(),
+  'system_admin.impersonation_stop_failed': () => m.audit_impersonation_stop_failed(),
+  'system_admin.user_session_revoked': () => m.audit_user_session_revoked(),
+  'system_admin.user_session_revocation_failed': () =>
+    m.audit_user_session_revocation_failed()
 })
 
-/** Prettify fallback for an event type the map does not know yet. */
-function prettify(eventType: string): string {
-  const [, verb = eventType] = eventType.split('.')
+function prettify(value: string): string {
+  const [, verb = value] = value.split('.')
   const words = verb.replaceAll('_', ' ')
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
 export function auditEventLabel(eventType: string): string {
-  // `hasOwn`, not a bare index: a bare index walks the prototype chain and
-  // would happily return `Object.prototype.toString` for the event type
-  // "toString".
-  const known = Object.hasOwn(EVENT_LABELS, eventType)
-    ? EVENT_LABELS[eventType]
-    : undefined
-  return known ?? prettify(eventType)
+  return EVENT_LABELS[eventType]?.() ?? prettify(eventType)
 }
 
-/** The human label map for audit actor types, same ownership as the event labels. */
-const ACTOR_TYPE_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  user: 'User',
-  system: 'System',
-  api_token: 'API token'
+const ACTOR_TYPE_LABELS: Readonly<Record<string, () => string>> = Object.freeze({
+  user: () => m.audit_actor_user(),
+  system: () => m.audit_actor_system(),
+  api_token: () => m.audit_actor_api_token()
 })
 
-/** Who performed one audited event: a session user, the platform, or an API token. */
 export function auditActorTypeLabel(actorType: string): string {
-  const known = Object.hasOwn(ACTOR_TYPE_LABELS, actorType)
-    ? ACTOR_TYPE_LABELS[actorType]
-    : undefined
-  // Unknown values (a producer newer than this map) prettify from their
-  // snake_case spelling rather than breaking the page.
-  return known ?? prettify(actorType)
+  return ACTOR_TYPE_LABELS[actorType]?.() ?? prettify(actorType)
 }
 
-/**
- * The dropdown options for the event-type filter: every known type, sorted,
- * with their human labels.
- */
-export const AUDIT_EVENT_FILTER_OPTIONS: ReadonlyArray<{
+export function auditEventFilterOptions(): ReadonlyArray<{
   readonly value: string
   readonly label: string
-}> = AUDIT_EVENT_TYPES.map((eventType) => ({
-  value: eventType,
-  label: auditEventLabel(eventType)
-})).toSorted((a, b) => a.label.localeCompare(b.label))
+}> {
+  return AUDIT_EVENT_TYPES.map((eventType) => ({
+    value: eventType,
+    label: auditEventLabel(eventType)
+  })).toSorted((a, b) => a.label.localeCompare(b.label))
+}

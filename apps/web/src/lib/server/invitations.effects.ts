@@ -1,4 +1,5 @@
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { AccountPreferencesService } from '@b2b-saas-starter/capabilities/governance/account-preferences'
 import {
   requirePending,
   requireRecipient,
@@ -9,6 +10,8 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { EmailDispatcher } from '@b2b-saas-starter/email'
 import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/templates'
+import * as m from '@b2b-saas-starter/i18n/messages'
+import { DEFAULT_LOCALE } from '@b2b-saas-starter/i18n/locale'
 import { Effect, Option, Result } from 'effect'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requestOrigin } from './request-origin'
@@ -60,15 +63,24 @@ export async function sendInvitationHandler(
       // path is keyed by. The old `?workspace=<slug>` form could not
       // identify which invitation was being accepted.
       const inviteUrl = `${requestOrigin()}/invitations/accept?invitation=${invitation.id}`
+      const recipientPreferences = yield* Effect.flatMap(
+        AccountPreferencesService,
+        (preferences) => preferences.getByEmail(input.email)
+      )
+      const locale = recipientPreferences?.locale ?? DEFAULT_LOCALE
       const dispatcher = yield* EmailDispatcher
       const delivery = yield* Effect.result(
         dispatcher.send({
           from: '',
           to: input.email,
-          subject: `You are invited to ${ctx.workspace.name}`,
+          subject: m.backend_email_subject_invitation(
+            { workspaceName: ctx.workspace.name },
+            { locale }
+          ),
           element: WorkspaceInvitationEmail({
             workspaceName: ctx.workspace.name,
-            inviteUrl
+            inviteUrl,
+            locale
           })
         })
       )

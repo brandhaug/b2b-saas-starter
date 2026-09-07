@@ -92,7 +92,7 @@ describe('AdminFailedDeliveries', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Older failures' }))
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
-      'Session expired'
+      'Could not load failed deliveries.'
     )
     expect(screen.getByText('dead_lettered')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Older failures' }))
@@ -114,7 +114,7 @@ describe('AdminFailedDeliveries', () => {
     render(<AdminFailedDeliveries initialPage={initialPage} />)
     fireEvent.click(screen.getByRole('button', { name: 'Replay whd_terminal' }))
     expect(
-      await screen.findByText(/Queue unavailable.*pending copy may already exist/)
+      await screen.findByText(/Replay failed\. A pending copy may already exist\./)
     ).toBeTruthy()
     expect(screen.queryByText(/Queued as/)).toBeNull()
   })

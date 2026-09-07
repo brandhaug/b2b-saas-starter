@@ -37,6 +37,7 @@ import { type Invitation } from '@b2b-saas-starter/capabilities/governance/works
  * Real clock on purpose: plain `it`, not `it.effect`.
  */
 const INVITEE = 'invitee@example.com'
+const BOKMAL_RECIPIENT = 'martin@example.com'
 
 const env = vi.hoisted(() => ({
   userId: 'usr_demo',
@@ -124,6 +125,17 @@ describe('sendInvitationHandler', () => {
       role: 'admin'
     })
     expect(sent.inviteUrl).toBe(`/invitations/accept?invitation=${sent.invitation.id}`)
+  })
+
+  it('uses the saved recipient locale for an invitation email', async () => {
+    const sent = await sendInvitationHandler({
+      workspaceSlug: 'starter-lab',
+      email: BOKMAL_RECIPIENT,
+      role: 'member'
+    })
+    expect(sent.delivered).toBe(true)
+    expect(env.outbox[0]?.subject).toBe('Du er invitert til Starter Lab')
+    expect(JSON.stringify(env.outbox[0]?.element)).toContain('Bli med i Starter Lab')
   })
 
   it('reports a failed send without losing the invitation', async () => {

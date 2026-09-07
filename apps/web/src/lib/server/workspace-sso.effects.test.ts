@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { SeedAccountPreferences } from '@b2b-saas-starter/capabilities/governance/account-preferences'
 import {
   makeSeedRoster,
   SeedWorkspaceMembership
@@ -207,7 +208,12 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
           ),
           SeedNotificationFeed([]).pipe(
             Layer.provide(
-              SeedNotificationPreferences([]).pipe(Layer.provide(SeedAuditEventLog([])))
+              Layer.merge(
+                SeedNotificationPreferences([]).pipe(
+                  Layer.provide(SeedAuditEventLog([]))
+                ),
+                SeedAccountPreferences([]).pipe(Layer.provide(SeedAuditEventLog([])))
+              )
             )
           )
         )

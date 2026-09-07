@@ -1,14 +1,16 @@
 import { Link, Section, Text } from '@react-email/components'
 import { type ReactNode } from 'react'
+import * as m from '@b2b-saas-starter/i18n/messages'
+import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import { ActionLink, EmailLayout } from './templates.tsx'
 
 /**
  * What every notification email is rendered from. The Notification's own
  * `title` and `message` are the body; the kind picks the template, which adds
  * the preview line, heading, and the sentence that says why this email exists.
- * `kindLabel` is the kind's shared copy (`NOTIFICATION_KIND_DESCRIPTIONS`), so
- * the subject, the email heading, and the preview line all use the same words
- * the preferences UI uses. `preferencesUrl` is the unsubscribe link: it lands
+ * `kindLabel` is the kind's shared localized copy, so the subject, the email
+ * heading, and the preview line all use the same words the preferences UI uses.
+ * `preferencesUrl` is the unsubscribe link: it lands
  * on the signed-in `/account/notifications` page with the kind preselected,
  * so one click turns that kind off without touching the rest.
  */
@@ -21,6 +23,7 @@ export type NotificationEmailProps = {
   /** Absolute link into the app: the workspace dashboard, or the account page. */
   readonly openUrl: string
   readonly preferencesUrl: string
+  readonly locale?: Locale | undefined
 }
 
 type NotificationBodyProps = NotificationEmailProps & {
@@ -29,30 +32,106 @@ type NotificationBodyProps = NotificationEmailProps & {
   readonly action: string
 }
 
+type NotificationCopy = { readonly lead: string; readonly action: string }
+
+function notificationCopy(kind: string, locale: Locale): NotificationCopy {
+  const options = { locale }
+  switch (kind) {
+    case 'api_token.created': {
+      return {
+        lead: m.backend_email_notification_api_token_created_lead({}, options),
+        action: m.backend_email_notification_api_token_created_action({}, options)
+      }
+    }
+    case 'api_token.revoked': {
+      return {
+        lead: m.backend_email_notification_api_token_revoked_lead({}, options),
+        action: m.backend_email_notification_api_token_revoked_action({}, options)
+      }
+    }
+    case 'workspace_member.role_changed': {
+      return {
+        lead: m.backend_email_notification_role_changed_lead({}, options),
+        action: m.backend_email_notification_role_changed_action({}, options)
+      }
+    }
+    case 'two_factor.changed': {
+      return {
+        lead: m.backend_email_notification_two_factor_changed_lead({}, options),
+        action: m.backend_email_notification_two_factor_changed_action({}, options)
+      }
+    }
+    case 'webhook.delivery_failed': {
+      return {
+        lead: m.backend_email_notification_webhook_failed_lead({}, options),
+        action: m.backend_email_notification_webhook_failed_action({}, options)
+      }
+    }
+    case 'workspace_member.joined': {
+      return {
+        lead: m.backend_email_notification_member_joined_lead({}, options),
+        action: m.backend_email_notification_member_joined_action({}, options)
+      }
+    }
+    case 'billing.plan_changed': {
+      return {
+        lead: m.backend_email_notification_plan_changed_lead({}, options),
+        action: m.backend_email_notification_plan_changed_action({}, options)
+      }
+    }
+    case 'account.impersonated': {
+      return {
+        lead: m.backend_email_notification_impersonated_lead({}, options),
+        action: m.backend_email_notification_impersonated_action({}, options)
+      }
+    }
+    default: {
+      return {
+        lead: m.backend_email_notification_announcement_lead({}, options),
+        action: m.backend_email_notification_announcement_action({}, options)
+      }
+    }
+  }
+}
+
 /**
  * The shared footer of every notification email: why it arrived and how to
  * stop it. The link is the unsubscribe path required of every notification
  * email — it points at the preferences page, never at a one-click endpoint,
  * so no unauthenticated URL can change a preference.
  */
-function NotificationFooter({ preferencesUrl }: { readonly preferencesUrl: string }) {
+function NotificationFooter({
+  preferencesUrl,
+  locale = DEFAULT_LOCALE
+}: {
+  readonly preferencesUrl: string
+  readonly locale?: Locale | undefined
+}) {
   return (
     <Text className="text-xs text-gray-500 mt-8">
-      You receive this email because of your notification preferences.{' '}
+      {m.backend_email_notification_footer({}, { locale })}{' '}
       <Link href={preferencesUrl} className="text-brand underline">
-        Change how you get these emails or unsubscribe
+        {m.backend_email_notification_footer_link({}, { locale })}
       </Link>
       .
     </Text>
   )
 }
 
-function WorkspaceLine({ workspaceName }: { readonly workspaceName: string | null }) {
+function WorkspaceLine({
+  workspaceName,
+  locale
+}: {
+  readonly workspaceName: string | null
+  readonly locale: Locale
+}) {
   if (workspaceName === null) {
     return null
   }
   return (
-    <Text className="text-sm text-gray-500 mt-2 mb-0">Workspace: {workspaceName}</Text>
+    <Text className="text-sm text-gray-500 mt-2 mb-0">
+      {m.backend_email_notification_workspace({ workspaceName }, { locale })}
+    </Text>
   )
 }
 
@@ -64,110 +143,74 @@ function NotificationBody({
   message,
   workspaceName,
   openUrl,
-  preferencesUrl
+  preferencesUrl,
+  locale: requestedLocale
 }: NotificationBodyProps) {
+  const locale = requestedLocale ?? DEFAULT_LOCALE
   return (
-    <EmailLayout preview={kindLabel} heading={kindLabel}>
+    <EmailLayout preview={kindLabel} heading={kindLabel} locale={locale}>
       <Text className="text-base text-gray-700 mt-4">{lead}</Text>
       <Section className="bg-gray-50 rounded-md px-4 py-3 mt-4">
         <Text className="text-base font-medium text-gray-900 m-0">{title}</Text>
         <Text className="text-sm text-gray-700 mt-1 mb-0">{message}</Text>
-        <WorkspaceLine workspaceName={workspaceName} />
+        <WorkspaceLine workspaceName={workspaceName} locale={locale} />
       </Section>
-      <ActionLink href={openUrl} label={action} />
-      <NotificationFooter preferencesUrl={preferencesUrl} />
+      <ActionLink href={openUrl} label={action} locale={locale} />
+      <NotificationFooter preferencesUrl={preferencesUrl} locale={locale} />
     </EmailLayout>
   )
 }
 
+function propsLocale(locale: Locale | undefined): Locale {
+  return locale ?? DEFAULT_LOCALE
+}
+
 export function ApiTokenCreatedEmail(props: NotificationEmailProps) {
-  return (
-    <NotificationBody
-      {...props}
-      lead="Somebody minted a new API token in a workspace you belong to. If nobody on your team did this, revoke it now."
-      action="Review API tokens"
-    />
-  )
+  const copy = notificationCopy('api_token.created', propsLocale(props.locale))
+  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
 }
 
 export function ApiTokenRevokedEmail(props: NotificationEmailProps) {
-  return (
-    <NotificationBody
-      {...props}
-      lead="An API token in a workspace you belong to no longer works. Integrations that used it will start failing."
-      action="Review API tokens"
-    />
-  )
+  const copy = notificationCopy('api_token.revoked', propsLocale(props.locale))
+  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
 }
 
 export function MemberRoleChangedEmail(props: NotificationEmailProps) {
-  return (
-    <NotificationBody
-      {...props}
-      lead="An owner or admin changed what you can do in this workspace."
-      action="Open the workspace"
-    />
+  const copy = notificationCopy(
+    'workspace_member.role_changed',
+    propsLocale(props.locale)
   )
+  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
 }
 
 export function TwoFactorChangedNotificationEmail(props: NotificationEmailProps) {
-  return (
-    <NotificationBody
-      {...props}
-      lead="Two-factor authentication was turned on or off for your account. If that was not you, reset your password now."
-      action="Review account security"
-    />
-  )
+  const copy = notificationCopy('two_factor.changed', propsLocale(props.locale))
+  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
 }
 
 export function WebhookDeliveryFailedEmail(props: NotificationEmailProps) {
-  return (
-    <NotificationBody
-      {...props}
-      lead="A webhook endpoint rejected a delivery or gave up after retries. The delivery history has the response codes."
-      action="Open webhook endpoints"
-    />
-  )
+  const copy = notificationCopy('webhook.delivery_failed', propsLocale(props.locale))
+  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
 }
 
 export function MemberJoinedEmail(props: NotificationEmailProps) {
-  return (
-    <NotificationBody
-      {...props}
-      lead="Somebody accepted an invitation to a workspace you belong to."
-      action="See members"
-    />
-  )
+  const copy = notificationCopy('workspace_member.joined', propsLocale(props.locale))
+  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
 }
 
 export function PlanChangedEmail(props: NotificationEmailProps) {
-  return (
-    <NotificationBody
-      {...props}
-      lead="A workspace you belong to is on a different plan. Limits and entitlements follow the new plan from now on."
-      action="Open billing"
-    />
-  )
+  const copy = notificationCopy('billing.plan_changed', propsLocale(props.locale))
+  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
 }
 
 export function AccountImpersonatedEmail(props: NotificationEmailProps) {
-  return (
-    <NotificationBody
-      {...props}
-      lead="A System Admin opened an impersonation session on your account for support. It is recorded in the audit trail and cannot change your password, two-factor settings, or email."
-      action="Review account security"
-    />
-  )
+  const copy = notificationCopy('account.impersonated', propsLocale(props.locale))
+  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
 }
 
 export function AnnouncementEmail(props: NotificationEmailProps) {
-  return (
-    <NotificationBody
-      {...props}
-      lead="A notice for everyone in the workspace."
-      action="Open the workspace"
-    />
-  )
+  const copy = notificationCopy('announcement', propsLocale(props.locale))
+  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
 }
 
 const previewNotification = {
@@ -219,6 +262,7 @@ export type NotificationDigestEmailProps = {
   readonly items: ReadonlyArray<DigestItem>
   readonly openUrl: string
   readonly preferencesUrl: string
+  readonly locale?: Locale | undefined
 }
 
 function digestRowHeading(item: DigestItem): string {
@@ -252,27 +296,39 @@ export function NotificationDigestEmail({
   recipientName,
   items,
   openUrl,
-  preferencesUrl
+  preferencesUrl,
+  locale = DEFAULT_LOCALE
 }: NotificationDigestEmailProps) {
-  let countLine = `${items.length} unread notifications from the last 24 hours.`
+  let countLine = m.backend_email_notification_digest_many(
+    { count: items.length },
+    { locale }
+  )
   if (items.length === 1) {
-    countLine = 'One unread notification from the last 24 hours.'
+    countLine = m.backend_email_notification_digest_one({}, { locale })
   }
   return (
     <EmailLayout
-      preview={`Your daily digest: ${countLine}`}
-      heading="Your daily notification digest"
+      preview={m.backend_email_subject_digest({ count: items.length }, { locale })}
+      heading={m.backend_email_notification_digest_heading({}, { locale })}
+      locale={locale}
     >
       <Text className="text-base text-gray-700 mt-4">
-        Hi {recipientName}, {countLine}
+        {m.backend_email_notification_digest_greeting(
+          { recipientName, countLine },
+          { locale }
+        )}
       </Text>
       <Section className="mt-4">
         {items.map((item) => (
           <DigestRow key={item.id} item={item} />
         ))}
       </Section>
-      <ActionLink href={openUrl} label="Open your workspaces" />
-      <NotificationFooter preferencesUrl={preferencesUrl} />
+      <ActionLink
+        href={openUrl}
+        label={m.backend_email_notification_digest_open({}, { locale })}
+        locale={locale}
+      />
+      <NotificationFooter preferencesUrl={preferencesUrl} locale={locale} />
     </EmailLayout>
   )
 }

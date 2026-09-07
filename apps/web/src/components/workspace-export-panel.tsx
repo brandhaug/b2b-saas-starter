@@ -1,3 +1,4 @@
+import { statusLabel } from '@/lib/value-labels'
 import { type WorkspaceExport } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { toast } from 'sonner'
 
@@ -16,13 +17,14 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { useServerAction } from '@/hooks/use-server-action'
 import { workspaceExportStatusVariant } from '@/lib/badge-variants'
-import { formatUtc, formatUtcOr } from '@/lib/format-date'
+import { formatTimestamp, formatTimestampOr } from '@/lib/format-date'
 import {
   requestWorkspaceExportServerFn,
   type WorkspaceExportsSegment
 } from '@/lib/server/workspace-exports'
-
-const REQUEST_FAILED = 'Failed to request the export'
+import { m } from '@b2b-saas-starter/i18n/messages'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
+import { formatNumber } from '@b2b-saas-starter/i18n/format'
 
 /** Requesting an export, as a port — same shape as `RevokeApiToken`. */
 export type RequestWorkspaceExport = (input: {
@@ -36,7 +38,7 @@ function formatSize(sizeBytes: number | null): string {
   if (sizeBytes < 1024) {
     return ` · ${sizeBytes} B`
   }
-  return ` · ${(sizeBytes / 1024).toFixed(1)} KB`
+  return ` · ${formatNumber(sizeBytes / 1024, getLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KB`
 }
 
 /**
@@ -59,22 +61,17 @@ export function WorkspaceExportPanel({
   // The loader owns the list, so the hook re-runs it on success rather than
   // mirroring the new row into local state.
   const request = useServerAction(() => requestExport({ data: { workspaceSlug } }), {
-    failureMessage: REQUEST_FAILED,
+    failureMessage: m.export_request_failed(),
     onSuccess: () => {
       // The row's pending badge is the fuller story; this only confirms the
       // workspace accepted the request.
-      toast.success('Export requested')
+      toast.success(m.export_requested())
     }
   })
 
   return (
     <div className="grid gap-4">
-      <p className="text-sm text-muted-foreground">
-        A gzipped JSON document of members, invitations, API token metadata, webhook
-        endpoints with their deliveries, audit events, notifications, and the workspace
-        record, with a README section describing every field. Archives are kept for
-        seven days.
-      </p>
+      <p className="text-sm text-muted-foreground">{m.export_description()}</p>
       {segment.availability.available ? (
         <Button
           type="button"
@@ -83,7 +80,7 @@ export function WorkspaceExportPanel({
           className="justify-self-start"
         >
           {request.pending ? <Spinner /> : null}
-          Request export
+          {m.request_export()}
         </Button>
       ) : (
         <p className="text-xs text-muted-foreground">{segment.availability.reason}</p>
@@ -91,10 +88,8 @@ export function WorkspaceExportPanel({
       {segment.exports.length === 0 ? (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>No exports yet</EmptyTitle>
-            <EmptyDescription>
-              Requested exports appear here with a download link once they are built.
-            </EmptyDescription>
+            <EmptyTitle>{m.empty_no_exports()}</EmptyTitle>
+            <EmptyDescription>{m.export_empty_description()}</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -103,18 +98,23 @@ export function WorkspaceExportPanel({
             <Item key={row.id} variant="outline" size="sm">
               <ItemContent>
                 <ItemTitle>
-                  Requested {formatUtc(row.requestedAt)}
+                  {m.export_requested_at({ time: formatTimestamp(row.requestedAt) })}
                   <Badge variant={workspaceExportStatusVariant(row.status)}>
-                    {row.status}
+                    {statusLabel(row.status)}
                   </Badge>
                 </ItemTitle>
                 <ItemDescription>
                   {row.status === 'ready'
-                    ? `Available until ${formatUtcOr(row.expiresAt, 'unknown')}${formatSize(row.sizeBytes)}`
+                    ? m.export_available_until({
+                        time: formatTimestampOr(row.expiresAt, m.unknown_value())
+                      }) + formatSize(row.sizeBytes)
                     : null}
-                  {row.status === 'pending' ? 'Building in the background.' : null}
+                  {row.status === 'pending' ? m.export_building() : null}
                   {row.status === 'failed'
-                    ? `Failed${row.failureReason === null ? '' : `: ${row.failureReason}`}`
+                    ? m.export_failed({
+                        reason:
+                          row.failureReason === null ? '' : `: ${row.failureReason}`
+                      })
                     : null}
                 </ItemDescription>
               </ItemContent>
@@ -128,11 +128,11 @@ export function WorkspaceExportPanel({
                       <a
                         href={row.downloadUrl}
                         download
-                        aria-label="Download archive"
+                        aria-label={m.action_download_archive()}
                       />
                     }
                   >
-                    Download archive
+                    {m.action_download_archive()}
                   </Button>
                 </ItemActions>
               )}

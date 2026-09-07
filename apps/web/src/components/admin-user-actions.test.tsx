@@ -87,7 +87,7 @@ describe('AdminUserActions', () => {
     listWorkspaces.mockRejectedValue(new Error('Admin session expired'))
     await renderActions()
     fireEvent.click(screen.getByRole('button', { name: /Load workspaces/ }))
-    await screen.findByText('Admin session expired')
+    await screen.findByText('Failed to load workspaces')
   })
 
   it('explains a workspace refusal instead of a generic role-change failure', async () => {

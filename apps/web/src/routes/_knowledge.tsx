@@ -6,11 +6,12 @@ import {
 import { PublicLayout } from '@/components/public-layout'
 import { getAllPostMeta, type PostMeta } from '@/lib/blog'
 import {
-  DOC_CATEGORIES,
   DOC_CATEGORY_ORDER,
+  docCategoryName,
   getAllDocMeta,
   type DocMeta
 } from '@/lib/docs'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/_knowledge')({
   // Article metadata only — the compiled MDX itself loads per article (see
@@ -87,7 +88,7 @@ function SectionLinks({ section, docs, posts, currentPath }: SectionLinksProps) 
             aria-current={isCurrent ? 'page' : undefined}
             className={knowledgeLinkClasses(isCurrent)}
           >
-            Frequently asked questions
+            {m.public_faq_title()}
           </Link>
         </li>
       </ul>
@@ -104,7 +105,7 @@ function SectionLinks({ section, docs, posts, currentPath }: SectionLinksProps) 
         return (
           <li key={slug} className="mt-2 first:mt-0">
             <p className="px-2 pb-0.5 text-2xs text-muted-foreground">
-              {DOC_CATEGORIES[slug]}
+              {docCategoryName(slug)}
             </p>
             <ul className="flex flex-col gap-0.5">
               {articles.map((article) => {
@@ -154,11 +155,11 @@ function KnowledgeLayout() {
             the same nav instead. */}
         <details className="w-full border border-border md:hidden">
           <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
-            Knowledge sections
+            {m.public_knowledge_sections()}
           </summary>
           <div className="flex flex-col gap-4 px-3 pt-1 pb-3">
             <SectionSwitcher current={section} />
-            <nav aria-label="Knowledge">
+            <nav aria-label={m.public_knowledge_nav()}>
               <SectionLinks
                 section={section}
                 docs={docs}
@@ -176,7 +177,10 @@ function KnowledgeLayout() {
               `max-h-dvh` left the last 72px unreachable past the fold. */}
           <div className="sticky top-18 flex max-h-below-header flex-col gap-4">
             <SectionSwitcher current={section} />
-            <nav aria-label="Knowledge" className="flex-1 overflow-y-auto pr-1 pb-4">
+            <nav
+              aria-label={m.public_knowledge_nav()}
+              className="flex-1 overflow-y-auto pr-1 pb-4"
+            >
               <SectionLinks
                 section={section}
                 docs={docs}

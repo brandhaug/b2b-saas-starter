@@ -13,7 +13,8 @@ import {
   type AskAssistantOutcome,
   type AssistantPagePayload
 } from '@/lib/server/assistant'
-import { ASSISTANT_UNCONFIGURED_MESSAGE } from '@/lib/assistant-copy'
+import { assistantUnconfiguredMessage } from '@/lib/assistant-copy'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The one server call this page makes, as a port. Injected rather than
@@ -65,7 +66,7 @@ function TranscriptBody({
     return (
       // `aria-live`: the reply arrives long after the submit, and without a
       // live region it lands silently for a screen reader.
-      <ol className="grid gap-3" aria-label="Conversation" aria-live="polite">
+      <ol className="grid gap-3" aria-label={m.conversation()} aria-live="polite">
         {transcript.map((item) => (
           <TranscriptBubble key={item.id} item={item} />
         ))}
@@ -74,10 +75,7 @@ function TranscriptBody({
   }
   if (canUseAssistant) {
     return (
-      <p className="text-muted-foreground text-sm">
-        Ask a question about this workspace. Answers come from the model configured on
-        this deployment.
-      </p>
+      <p className="text-muted-foreground text-sm">{m.assistant_question_empty()}</p>
     )
   }
   return null
@@ -88,7 +86,7 @@ function TranscriptBubble({ item }: { readonly item: TranscriptEntry }) {
   return (
     <li className="grid gap-1">
       <div className="text-muted-foreground text-xs font-medium">
-        {isUser ? 'You' : 'Assistant'}
+        {isUser ? m.assistant_you() : m.assistant_label()}
       </div>
       <div
         className={
@@ -158,7 +156,7 @@ export function WorkspaceAssistantPage({
     setTranscript((entries) => [
       ...entries,
       outcomeOrRejection === null
-        ? entry('assistant', 'The assistant could not be reached. Try again.')
+        ? entry('assistant', m.assistant_unreachable())
         : outcomeToEntry(outcomeOrRejection)
     ])
   }
@@ -171,16 +169,16 @@ export function WorkspaceAssistantPage({
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
-        title="AI assistant"
-        description="Ask about this workspace."
+        title={m.ai_assistant()}
+        description={m.ask_workspace_description()}
       />
       <Panel
-        title="Assistant"
+        title={m.nav_assistant()}
         actions={
           canUseAssistant ? (
-            <Badge variant="info">Connected</Badge>
+            <Badge variant="info">{m.workspace_connected()}</Badge>
           ) : (
-            <Badge variant="outline">Not enabled</Badge>
+            <Badge variant="outline">{m.workspace_not_enabled()}</Badge>
           )
         }
       >
@@ -194,25 +192,25 @@ export function WorkspaceAssistantPage({
             }}
           >
             <Textarea
-              aria-label="Your question"
+              aria-label={m.your_question()}
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               maxLength={2000}
               rows={3}
-              placeholder="e.g. Summarize what changed recently"
+              placeholder={m.assistant_placeholder()}
               disabled={pending}
             />
             <div className="flex justify-end">
               <Button type="submit" disabled={pending || question.trim().length === 0}>
                 {pending ? <Spinner data-icon="inline-start" /> : null}
-                Ask
+                {m.ask_action()}
               </Button>
             </div>
           </form>
         ) : (
           <Empty>
             <EmptyHeader>
-              <EmptyDescription>{ASSISTANT_UNCONFIGURED_MESSAGE}</EmptyDescription>
+              <EmptyDescription>{assistantUnconfiguredMessage()}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         )}

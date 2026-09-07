@@ -2,7 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
 import { type PostMeta } from '@/lib/blog'
 import { type DocMeta } from '@/lib/docs'
-import { formatUtc } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 function KnowledgeSection({
   recentDocs,
@@ -15,17 +16,15 @@ function KnowledgeSection({
   return (
     <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
       <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
-        The reasoning is checked in.
+        {m.public_knowledge_heading()}
       </h2>
       <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-        Docs, FAQ, and blog are versioned MDX in the repo, searched from generated
-        indexes, no CMS. The blog explains why each technology call was made, and
-        releases are cut by release-please.
+        {m.public_knowledge_description()}
       </p>
       <div className="mt-12 grid gap-x-20 gap-y-14 lg:grid-cols-2">
         <div>
           <p className="border-b border-border pb-3 font-mono text-xs text-muted-foreground">
-            docs/
+            {m.public_knowledge_docs()}
           </p>
           <ul>
             {recentDocs.map((doc) => (
@@ -51,7 +50,7 @@ function KnowledgeSection({
         </div>
         <div>
           <p className="border-b border-border pb-3 font-mono text-xs text-muted-foreground">
-            blog/
+            {m.public_knowledge_blog()}
           </p>
           <ul>
             {recentPosts.map((post) => (
@@ -66,7 +65,7 @@ function KnowledgeSection({
                       {post.frontmatter.title}
                     </span>
                     <time className="shrink-0 font-mono text-xs text-muted-foreground">
-                      {formatUtc(post.frontmatter.date, {
+                      {formatTimestamp(post.frontmatter.date, {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric'

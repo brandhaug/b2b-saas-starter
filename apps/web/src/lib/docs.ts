@@ -2,6 +2,7 @@ import { lazy, type ComponentType } from 'react'
 
 import { type MdxComponentProps } from '@/components/mdx-link'
 import { contentJsonLd } from '@/lib/json-ld'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 type DocFrontmatter = {
   readonly title: string
@@ -149,7 +150,29 @@ export function isDocCategory(value: string): value is DocCategory {
 
 /** The display name for a category, falling back to the raw URL segment. */
 export function docCategoryName(category: string): string {
-  return isDocCategory(category) ? DOC_CATEGORIES[category] : category
+  if (!isDocCategory(category)) {
+    return category
+  }
+  switch (category) {
+    case 'getting-started': {
+      return m.public_docs_category_getting_started()
+    }
+    case 'architecture': {
+      return m.public_docs_category_architecture()
+    }
+    case 'capability-interfaces': {
+      return m.public_docs_category_capability_interfaces()
+    }
+    case 'integrations': {
+      return m.public_docs_category_integrations()
+    }
+    case 'operations': {
+      return m.public_docs_category_operations()
+    }
+    case 'governance': {
+      return m.public_docs_category_governance()
+    }
+  }
 }
 
 export const DOC_CATEGORY_ORDER: ReadonlyArray<DocCategory> = [
@@ -193,6 +216,11 @@ export function docJsonLd(article: DocMeta): string {
       description,
       keywords: (tags ?? []).join(', ')
     },
-    breadcrumb: ['Home', 'Documentation', docCategoryName(article.category), title]
+    breadcrumb: [
+      m.public_home(),
+      m.public_docs_title(),
+      docCategoryName(article.category),
+      title
+    ]
   })
 }

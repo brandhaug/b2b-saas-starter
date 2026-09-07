@@ -1,3 +1,4 @@
+import { roleLabel, statusLabel } from '@/lib/value-labels'
 import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { useState } from 'react'
@@ -33,9 +34,7 @@ import { useServerAction } from '@/hooks/use-server-action'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { EMAIL_PATTERN } from '@/lib/email-pattern'
 import { invitationStatusVariant } from '@/lib/badge-variants'
-
-const SEND_FAILED = 'Failed to send the invitation'
-const CANCEL_FAILED = 'Failed to cancel the invitation'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 type InvitationValues = {
   email: string
@@ -49,10 +48,10 @@ const DEFAULT_INVITATION_VALUES: InvitationValues = {
 
 function validateEmail(value: string): string | undefined {
   if (value.trim().length === 0) {
-    return 'Email is required'
+    return m.email_required()
   }
   if (!EMAIL_PATTERN.test(value)) {
-    return 'Enter a valid email address'
+    return m.auth_invalid_email()
   }
   return
 }
@@ -82,7 +81,7 @@ export function InvitationPanel({
         data: { workspaceSlug, email: value.email, role: value.role }
       }),
     {
-      failureMessage: SEND_FAILED,
+      failureMessage: m.invitation_send_failed(),
       onSuccess: (result) => {
         // No toast: the inline ok alert below carries the delivery verdict
         // and the invite link — a second, poorer copy of the same news in
@@ -96,15 +95,15 @@ export function InvitationPanel({
     (invitationId: string) =>
       cancelInvitationServerFn({ data: { workspaceSlug, invitationId } }),
     {
-      failureMessage: CANCEL_FAILED,
+      failureMessage: m.invitation_cancel_failed(),
       onSuccess: (_, invitationId) => {
         const invitation = invitations.find(
           (candidate) => candidate.id === invitationId
         )
         toast.success(
           invitation === undefined
-            ? 'Invitation canceled'
-            : `Invitation for ${invitation.email} canceled`
+            ? m.workspace_invitation_canceled()
+            : m.workspace_invitation_canceled_named({ email: invitation.email })
         )
       }
     }
@@ -126,13 +125,13 @@ export function InvitationPanel({
 
   return (
     <Panel
-      title="Invitations"
-      description="Invite someone by email; they join once they open the link and accept."
+      title={m.panel_invitations()}
+      description={m.panel_invitations_description()}
     >
       <CreateSection
         allowed={canInvite}
-        title="Invite a member"
-        deniedReason="Your role cannot invite members."
+        title={m.form_invite_member()}
+        deniedReason={m.workspace_invite_denied()}
       >
         <form
           onSubmit={(event) => {
@@ -149,7 +148,7 @@ export function InvitationPanel({
             {(field) => (
               <FormTextField
                 name={field.name}
-                label="Invite by email"
+                label={m.form_invite_by_email()}
                 value={field.state.value}
                 errors={field.state.meta.errors}
                 onBlur={field.handleBlur}
@@ -162,7 +161,7 @@ export function InvitationPanel({
           <form.Field name="role">
             {(field) => (
               <FieldSet>
-                <FieldLegend variant="label">Role</FieldLegend>
+                <FieldLegend variant="label">{m.common_role()}</FieldLegend>
                 <RadioGroup
                   name={field.name}
                   value={field.state.value}
@@ -172,7 +171,7 @@ export function InvitationPanel({
                   {WORKSPACE_ROLES.map((role) => (
                     <FieldLabel key={role}>
                       <RadioGroupItem value={role} />
-                      <span>{role}</span>
+                      <span>{roleLabel(role)}</span>
                     </FieldLabel>
                   ))}
                 </RadioGroup>
@@ -193,7 +192,7 @@ export function InvitationPanel({
                 className="justify-self-start"
               >
                 {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-                Send invitation
+                {m.form_send_invitation()}
               </Button>
             )}
           </form.Subscribe>
@@ -202,8 +201,10 @@ export function InvitationPanel({
             <Alert variant="ok" className="justify-self-stretch">
               <AlertTitle>
                 {sent.delivered
-                  ? `Invitation sent to ${sent.invitation.email}.`
-                  : `Invitation created for ${sent.invitation.email}, but the email could not be sent; share this link instead.`}
+                  ? m.workspace_invitation_sent({ email: sent.invitation.email })
+                  : m.workspace_invitation_created_unsent({
+                      email: sent.invitation.email
+                    })}
               </AlertTitle>
               <AlertDescription>
                 <Identifier>{sent.inviteUrl}</Identifier>
@@ -214,14 +215,12 @@ export function InvitationPanel({
         </form>
       </CreateSection>
 
-      <ListSection title="Pending invitations">
+      <ListSection title={m.pending_invitations()}>
         {invitations.length === 0 ? (
           <Empty>
             <EmptyHeader>
-              <EmptyTitle>No invitations yet</EmptyTitle>
-              <EmptyDescription>
-                Sent invitations wait here until they are accepted or canceled.
-              </EmptyDescription>
+              <EmptyTitle>{m.empty_no_invitations()}</EmptyTitle>
+              <EmptyDescription>{m.empty_sent_invitations()}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
@@ -230,14 +229,14 @@ export function InvitationPanel({
               <Item key={invitation.id} variant="outline" size="sm">
                 <ItemContent>
                   <ItemTitle>{invitation.email}</ItemTitle>
-                  <ItemDescription>{invitation.role}</ItemDescription>
+                  <ItemDescription>{roleLabel(invitation.role)}</ItemDescription>
                   {failedRow?.key === invitation.id ? (
                     <ActionFeedback error={failedRow.message} />
                   ) : null}
                 </ItemContent>
                 <ItemActions>
                   <Badge variant={invitationStatusVariant(invitation.status)}>
-                    {invitation.status}
+                    {statusLabel(invitation.status)}
                   </Badge>
                   {invitation.status === 'pending' ? (
                     <Button
@@ -252,7 +251,7 @@ export function InvitationPanel({
                       {cancel.pendingInput === invitation.id ? (
                         <Spinner data-icon="inline-start" />
                       ) : null}
-                      Cancel
+                      {m.common_cancel()}
                     </Button>
                   ) : null}
                 </ItemActions>

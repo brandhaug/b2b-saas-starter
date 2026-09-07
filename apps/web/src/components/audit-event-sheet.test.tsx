@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { AuditEventSheet } from './audit-event-sheet'
 import { renderWithRouter } from '@/test/router-harness'
@@ -31,5 +31,40 @@ describe('AuditEventSheet', () => {
     expect(document.querySelector('script')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(close).toHaveBeenCalledOnce()
+  })
+
+  it('restores focus to a replacement event link after the list rerenders', async () => {
+    const close = vi.fn()
+    const first = render(
+      <>
+        <a key="original" id="audit-event-aud_1" href="/audit?event=aud_1">
+          Original event link
+        </a>
+        <AuditEventSheet eventId="aud_1" event={null} onClose={close} />
+      </>
+    )
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy())
+
+    first.rerender(
+      <>
+        <a key="replacement" id="audit-event-aud_1" href="/audit?event=aud_1">
+          Replacement event link
+        </a>
+        <AuditEventSheet eventId="aud_1" event={null} onClose={close} />
+      </>
+    )
+    const replacement = document.getElementById('audit-event-aud_1')
+    expect(replacement).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    first.rerender(
+      <>
+        <a key="replacement" id="audit-event-aud_1" href="/audit?event=aud_1">
+          Replacement event link
+        </a>
+        <AuditEventSheet eventId={null} event={null} onClose={close} />
+      </>
+    )
+
+    await waitFor(() => expect(document.activeElement).toBe(replacement))
   })
 })

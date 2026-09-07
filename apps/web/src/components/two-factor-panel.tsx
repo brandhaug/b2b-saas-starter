@@ -7,6 +7,7 @@ import {
   RegenerateFlow,
   type Enrollment
 } from '@/components/auth/two-factor-flows'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * Account-level two-factor management: enable (password → one-time QR/secret
@@ -37,13 +38,13 @@ export function TwoFactorPanel({
 
   if (enrollment !== null) {
     return (
-      <PanelFrame heading="Set up your authenticator" tone="primary">
+      <PanelFrame heading={m.setup_authenticator()} tone="primary">
         <EnrollmentFlow
           enrollment={enrollment}
           onStart={clearStatus}
           onVerified={() => {
             setEnrollment(null)
-            setStatusMessage('Two-factor authentication is now on.')
+            setStatusMessage(m.two_factor_now_on())
           }}
         />
         <StatusMessage message={statusMessage} />
@@ -53,18 +54,18 @@ export function TwoFactorPanel({
 
   if (twoFactorEnabled) {
     return (
-      <PanelFrame heading="Status" tone="primary">
+      <PanelFrame heading={m.status()} tone="primary">
         <p className="text-sm text-muted-foreground">
           {/* Status dot, from the status vocabulary: on = ok. */}
           <span
             className="mr-2 inline-block size-2 rounded-full bg-status-ok"
             aria-hidden="true"
           />
-          On. Codes are required at sign-in.
+          {m.two_factor_on_description()}
         </p>
         <DisableFlow
           onStart={clearStatus}
-          onDisabled={() => setStatusMessage('Two-factor authentication is now off.')}
+          onDisabled={() => setStatusMessage(m.auth_two_factor_off())}
         />
         <RegenerateFlow onStart={clearStatus} />
         <StatusMessage message={statusMessage} />
@@ -73,14 +74,14 @@ export function TwoFactorPanel({
   }
 
   return (
-    <PanelFrame heading="Turn on" tone="muted">
+    <PanelFrame heading={m.turn_on()} tone="muted">
       <p className="text-sm text-muted-foreground">
         {/* Status dot: off = neutral outline, not a second gray. */}
         <span
           className="mr-2 inline-block size-2 rounded-full border border-border"
           aria-hidden="true"
         />
-        Off. Add an authenticator-app code to sign-in.
+        {m.two_factor_off_description()}
       </p>
       <EnableFlow onStart={clearStatus} onEnrolled={setEnrollment} />
       <StatusMessage message={statusMessage} />
@@ -99,7 +100,7 @@ function PanelFrame({
   readonly children: ReactNode
 }) {
   return (
-    <section className="grid gap-4" aria-label="Two-factor authentication">
+    <section className="grid gap-4" aria-label={m.panel_two_factor()}>
       <header className="flex items-center gap-2">
         <ShieldCheckIcon
           className={

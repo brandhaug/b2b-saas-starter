@@ -1,3 +1,4 @@
+import { m } from '@b2b-saas-starter/i18n/messages'
 import {
   AuditEventLog,
   type AuditEvent
@@ -136,7 +137,7 @@ export async function replayFailedDeliveryHandler(
   if (env.DB !== undefined && env.WEBHOOK_QUEUE === undefined) {
     return {
       status: 'refused',
-      reason: 'Webhook queue is not configured. No replay was created.'
+      reason: m.server_replay_queue_unconfigured()
     }
   }
   // This server-only path includes WEBHOOK_QUEUE. The shared web read runner
@@ -155,10 +156,10 @@ export async function replayFailedDeliveryHandler(
           deliveryId: result.deliveryId
         } satisfies ReplayFailedDeliveryResult
       }).pipe(
-        Effect.catchTag('WebhookDispatchRejected', (error) =>
+        Effect.catchTag('WebhookDispatchRejected', () =>
           Effect.succeed({
             status: 'refused',
-            reason: error.reason
+            reason: m.server_replay_refused()
           } satisfies ReplayFailedDeliveryResult)
         ),
         Effect.mapError(

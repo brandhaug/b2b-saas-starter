@@ -9,6 +9,7 @@ import {
   type GrantConsent
 } from '@/routes/oauth.consent'
 import { renderWithRouter } from '@/test/router-harness'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The consent page's ports are plain functions, so the test asserts the two
 // outcomes the user sees — a redirect to the provider's answer, or a reason
@@ -139,7 +140,7 @@ describe('OAuthConsentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Allow access/ }))
     await waitFor(() => {
       const alert = screen.getByRole('alert')
-      expect(alert.textContent).toContain('authorization collapsed')
+      expect(alert.textContent).toContain(m.oauth_grant_failed())
       expect(assign).not.toHaveBeenCalled()
     })
   })

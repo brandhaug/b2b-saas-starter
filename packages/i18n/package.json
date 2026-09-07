@@ -1,0 +1,30 @@
+{
+  "name": "@b2b-saas-starter/i18n",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./messages": "./src/messages.ts",
+    "./runtime": "./src/runtime.ts",
+    "./server": "./src/server.ts",
+    "./locale": "./src/locale.ts",
+    "./format": "./src/format.ts",
+    "./routes": "./routes.json"
+  },
+  "scripts": {
+    "generate": "node scripts/compile.mjs",
+    "build": "node scripts/compile.mjs && tsc --noEmit",
+    "typecheck": "node scripts/compile.mjs && tsc --noEmit",
+    "test": "node scripts/compile.mjs && vp test run --passWithNoTests"
+  },
+  "dependencies": {
+    "@inlang/paraglide-js": "catalog:"
+  },
+  "devDependencies": {
+    "@inlang/plugin-message-format": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}
