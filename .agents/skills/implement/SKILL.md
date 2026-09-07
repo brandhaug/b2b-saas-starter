@@ -11,11 +11,15 @@ user request.
 1. Read the issue and comments using [tracker guidance](../../../docs/agents/issue-tracker.md).
    Preserve AC IDs through tests and the PR. Use grilling for unresolved product
    decisions and `to-tickets` for multiple independently verifiable slices.
-2. Use frontier models for orchestration/review and Luna for bounded implementation
-   and fixes unless the user chooses otherwise. Delegate complete tasks with
-   focused briefs: ACs, owned files, and relevant context pointers. Settle shared
-   interfaces once and assign one writer to shared wiring. Keep tiny tasks local
-   when delegation would cost more context than the work.
+2. Keep the active session's provider and model routing stable across orchestration,
+   review, and workers, regardless of host application. Use the main model for
+   orchestration/review and a configured cheaper sibling for bounded work:
+   GLM 5.3 → GLM 5.3 Flash, Claude Opus → Sonnet, Codex Astra → Luna.
+   Resolve names through the host's configured aliases; inherit the main model
+   if a same-provider worker is unavailable. Switch providers only on user request.
+   Delegate complete tasks with focused briefs: ACs, owned files, and relevant
+   context pointers. Settle shared interfaces once and assign one writer to shared
+   wiring. Keep tiny tasks local when delegation would cost more context than the work.
 3. Apply `effect` with [repo examples](../../../docs/agents/effect-examples.md),
    `codebase-design` for module interfaces, `effect-service-design` for service
    ownership/Layers, and `impeccable` for UI. Use `tdd` at agreed behavior seams.
