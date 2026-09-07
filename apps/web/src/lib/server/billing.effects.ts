@@ -1,17 +1,21 @@
 import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
-import { PLANS } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+import { ResourceEntitlements } from '@b2b-saas-starter/capabilities/billing/resource-entitlements'
+import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { Effect } from 'effect'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 
-import { runWorkspaceCapabilities } from '../capabilities'
+import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
-import { requireWorkspacePermission } from './authorize'
+import { requireWorkspacePermission, whenPermitted } from './authorize'
 import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type PortalInput,
   type StartCheckoutInput,
   type WorkspaceBillingInput,
-  type WorkspaceBillingPayload
+  type WorkspaceBillingPayload,
+  type SelectResourcesInput,
+  type PublicPricingPayload
 } from './billing'
 
 /**
@@ -33,18 +37,69 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
             unreadCount,
             plan: billing.currentPlan,
             stripeConfigured: billing.configured,
-            synchronization: billing.synchronizationStatus
+            synchronization: billing.synchronizationStatus,
+            lifecycle: billing.lifecycleStatus,
+            plans: Effect.match(billing.displayedPlans, {
+              onFailure: () => null,
+              onSuccess: (plans) => plans
+            }),
+            resourceSelection: Effect.flatMap(ResourceEntitlements, (resources) =>
+              resources.getSelection()
+            ),
+            apiTokenEntitlements: Effect.flatMap(ResourceEntitlements, (resources) =>
+              resources.summarize({ resource: 'api_token' })
+            ),
+            webhookEntitlements: Effect.flatMap(ResourceEntitlements, (resources) =>
+              resources.summarize({ resource: 'webhook_endpoint' })
+            ),
+            apiTokens: whenPermitted(
+              { apiToken: ['list'] },
+              Effect.flatMap(ApiTokenRegistry, (registry) => registry.list)
+            ),
+            webhookEndpoints: whenPermitted(
+              { webhook: ['list'] },
+              Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)
+            )
           },
           { concurrency: 'unbounded' }
         ),
-        (segments) => ({
-          workspaceName: ctx.workspace.name,
-          unreadCount: segments.unreadCount,
-          plans: PLANS,
-          currentPlanId: segments.plan.id,
-          stripeConfigured: segments.stripeConfigured,
-          synchronization: segments.synchronization
-        })
+        (segments) => {
+          const apiTokenIds = new Set(segments.apiTokenEntitlements.eligibleIds)
+          const webhookEndpointIds = new Set(segments.webhookEntitlements.eligibleIds)
+          return {
+            workspaceName: ctx.workspace.name,
+            unreadCount: segments.unreadCount,
+            plans: segments.plans ?? [],
+            pricingUnavailable: segments.plans === null,
+            currentPlanId: segments.plan.id,
+            stripeConfigured: segments.stripeConfigured,
+            synchronization: segments.synchronization,
+            lifecycle: segments.lifecycle,
+            resourceSelection: segments.resourceSelection,
+            apiTokens:
+              segments.apiTokens?.reduce<
+                Array<{ readonly id: string; readonly name: string }>
+              >((eligible, { id, name }) => {
+                if (apiTokenIds.has(id)) {
+                  eligible.push({ id, name })
+                }
+                return eligible
+              }, []) ?? [],
+            webhookEndpoints:
+              segments.webhookEndpoints?.reduce<
+                Array<{ readonly id: string; readonly url: string }>
+              >((eligible, { id, url }) => {
+                if (webhookEndpointIds.has(id)) {
+                  eligible.push({ id, url })
+                }
+                return eligible
+              }, []) ?? [],
+            resourceEntitlements: {
+              apiTokens: segments.apiTokenEntitlements,
+              webhookEndpoints: segments.webhookEntitlements
+            }
+          }
+        }
       )
     )
 )
@@ -56,6 +111,51 @@ export async function loadWorkspaceBillingHandler(
   return runWorkspaceCapabilities(input.workspaceSlug, billingPayload, {
     userId: session.user.id
   })
+}
+
+export async function selectBillingResourcesHandler(
+  input: SelectResourcesInput
+): Promise<{
+  readonly apiTokenIds: ReadonlyArray<string>
+  readonly webhookEndpointIds: ReadonlyArray<string>
+}> {
+  const session = await requireRequestSession()
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ organization: ['update'] })
+      const resources = yield* ResourceEntitlements
+      return yield* resources.select({
+        apiTokenIds: input.apiTokenIds,
+        webhookEndpointIds: input.webhookEndpointIds
+      })
+    }),
+    { userId: session.user.id }
+  )
+}
+
+export async function loadPublicPricingHandler(): Promise<PublicPricingPayload> {
+  return runCapabilities(
+    Effect.flatMap(Billing, (billing) =>
+      Effect.map(
+        Effect.all(
+          {
+            plans: Effect.match(billing.displayedPlans, {
+              onFailure: () => null,
+              onSuccess: (plans) => plans
+            }),
+            stripeConfigured: billing.configured
+          },
+          { concurrency: 'unbounded' }
+        ),
+        (value) => ({
+          plans: value.plans ?? [],
+          pricingUnavailable: value.plans === null,
+          stripeConfigured: value.stripeConfigured
+        })
+      )
+    )
+  )
 }
 
 /**

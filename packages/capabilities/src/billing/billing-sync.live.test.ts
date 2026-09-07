@@ -1,4 +1,10 @@
 import {
+  testPrice,
+  testItem,
+  testSubscriptionFields,
+  paidInvoice
+} from './provider-test-fixtures.ts'
+import {
   auditEvents,
   billingCheckoutClaims,
   billingProviderEvents,
@@ -33,11 +39,12 @@ function subscription(
   overrides: Partial<StripeSubscriptionResponse> = {}
 ): StripeSubscriptionResponse {
   return {
+    ...testSubscriptionFields,
     id: subscriptionId,
     customer: customerId,
     status: 'active',
     metadata: { workspaceId },
-    items: { data: [{ id: 'si_sync', quantity: 1, price: { id: 'price_team' } }] },
+    items: { data: [{ ...testItem }] },
     ...overrides
   }
 }
@@ -89,6 +96,34 @@ function stripeFixture() {
         { status: 503 }
       )
     }
+    if (url.pathname.startsWith('/v1/prices/')) {
+      return Response.json(testPrice)
+    }
+    if (url.pathname === '/v1/invoices/in_paid') {
+      return Response.json(
+        paidInvoice(
+          state.subscriptions.find(
+            (row) => row.status !== 'canceled' && row.status !== 'incomplete_expired'
+          ) ?? subscription()
+        )
+      )
+    }
+    if (url.pathname === '/v1/invoices') {
+      const selected = state.subscriptions.find(
+        (row) => row.id === url.searchParams.get('subscription')
+      )
+      const data = []
+      if (selected !== undefined) {
+        data.push(paidInvoice(selected))
+      }
+      return Response.json({
+        data,
+        has_more: false
+      })
+    }
+    if (url.pathname === '/v1/events') {
+      return Response.json({ data: [], has_more: false })
+    }
     if (url.pathname === '/v1/customers/search') {
       const data = []
       if (state.customerWorkspaceId !== undefined) {
@@ -122,7 +157,14 @@ function stripeFixture() {
             customer: 'cus_other',
             metadata: { workspaceId: 'wrk_other' },
             items: {
-              data: [{ id: 'si_other', quantity: 0, price: { id: 'price_team' } }]
+              data: [
+                {
+                  ...testItem,
+                  id: 'si_other',
+                  quantity: 0,
+                  price: { ...testPrice, id: 'price_team' }
+                }
+              ]
             }
           })
         ],
@@ -397,7 +439,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             state.subscriptions = [
               subscription({
                 items: {
-                  data: [{ id: 'si_sync', quantity: 99, price: { id: 'price_team' } }]
+                  data: [
+                    {
+                      ...testItem,
+                      id: 'si_sync',
+                      quantity: 99,
+                      price: { ...testPrice, id: 'price_team' }
+                    }
+                  ]
                 }
               })
             ]
@@ -420,7 +469,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             state.subscriptions = [
               subscription({
                 items: {
-                  data: [{ id: 'si_sync', quantity: 1, price: { id: 'price_unknown' } }]
+                  data: [
+                    {
+                      ...testItem,
+                      id: 'si_sync',
+                      quantity: 1,
+                      price: { ...testPrice, id: 'price_unknown' }
+                    }
+                  ]
                 }
               })
             ]
@@ -518,7 +574,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             state.subscriptions = [
               subscription({
                 items: {
-                  data: [{ id: 'si_sync', quantity: 8, price: { id: 'price_team' } }]
+                  data: [
+                    {
+                      ...testItem,
+                      id: 'si_sync',
+                      quantity: 8,
+                      price: { ...testPrice, id: 'price_team' }
+                    }
+                  ]
                 }
               })
             ]

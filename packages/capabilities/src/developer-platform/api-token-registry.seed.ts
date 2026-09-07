@@ -1,6 +1,12 @@
-import { DateTime, Effect, Layer, Semaphore } from 'effect'
+import {
+  SeedResourceInventory,
+  SeedResourceInventoryLayer
+} from '../billing/resource-inventory.seed.ts'
+import { Billing } from '../billing/billing.ts'
+import { DateTime, Effect, Layer } from 'effect'
 
-import { assertWithinPlanLimit } from '../billing/plan-catalog.ts'
+import { assertWithinPlanLimit } from '../billing/resource-admission.ts'
+import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
 import { ApiTokenNotRotatable, AuthorizationDenied } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
@@ -31,13 +37,20 @@ type SeedTokenEntry = {
 
 export function SeedApiTokenRegistry(
   seed: ReadonlyArray<ApiToken>
-): Layer.Layer<ApiTokenRegistry, never, AuditEventLog | WebhookPublisher> {
+): Layer.Layer<
+  ApiTokenRegistry,
+  never,
+  Billing | AuditEventLog | WebhookPublisher | ResourceEntitlements
+> {
   return Layer.effect(
     ApiTokenRegistry,
     Effect.gen(function* () {
+      const billing = yield* Billing
       const audit = yield* AuditEventLog
       const publisher = yield* WebhookPublisher
-      const lock = yield* Semaphore.make(1)
+      const entitlements = yield* ResourceEntitlements
+      const inventory = yield* SeedResourceInventory
+      const lock = inventory.lock
       const mutation = lock.withPermits(1)
       const entries = yield* Effect.forEach(seed, (token) =>
         Effect.gen(function* () {
@@ -58,6 +71,37 @@ export function SeedApiTokenRegistry(
           (entry) => entry.workspaceId === workspaceId && entry.revokedAt === null
         )
       }
+      inventory.registerTokenResolver((workspaceId, id) => {
+        const seen = new Set<string>()
+        let current = id
+        while (!seen.has(current)) {
+          seen.add(current)
+          const currentId = current
+          const row = store.find(
+            (entry) => entry.workspaceId === workspaceId && entry.token.id === currentId
+          )
+          if (!row || row.token.replacedByTokenId === null) {
+            return current
+          }
+          current = row.token.replacedByTokenId
+        }
+        return current
+      })
+      inventory.registerTokens((workspaceId, now, includeUnavailable) => {
+        const ids: Array<string> = []
+        for (const entry of store) {
+          if (
+            entry.workspaceId === workspaceId &&
+            (includeUnavailable ||
+              (entry.revokedAt === null &&
+                entry.token.replacedByTokenId === null &&
+                !tokenIsExpired(entry.token.expiresAt, now)))
+          ) {
+            ids.push(entry.token.id)
+          }
+        }
+        return ids
+      })
       return ApiTokenRegistry.of({
         list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
@@ -85,7 +129,7 @@ export function SeedApiTokenRegistry(
                 entry.token.replacedByTokenId === null &&
                 !tokenIsExpired(entry.token.expiresAt, DateTime.toEpochMillis(now))
             ).length
-          })
+          }).pipe(Effect.provideService(Billing, billing))
           const token = mintApiToken()
           const created: ApiToken = {
             id: yield* newCapabilityId('tok'),
@@ -179,6 +223,7 @@ export function SeedApiTokenRegistry(
             workspaceSlug: ctx.workspace.slug,
             revokedAt: null
           })
+          inventory.rotateToken(ctx.workspace.id, input.tokenId, created.id)
           // Replacement is a credential creation; the existing webhook vocabulary stays stable.
           yield* publishWebhookEventWith(publisher, {
             eventType: 'api_token.created',
@@ -232,6 +277,27 @@ export function SeedApiTokenRegistry(
                 new AuthorizationDenied({ reason: 'invalid_token' })
               )
             }
+            let leaf = entry
+            const storeById = new Map(
+              store.map((candidate) => [candidate.token.id, candidate])
+            )
+            while (leaf.token.replacedByTokenId !== null) {
+              const next = storeById.get(leaf.token.replacedByTokenId)
+              if (next === undefined) {
+                break
+              }
+              leaf = next
+            }
+            const allowed = yield* entitlements.isActiveForWorkspace({
+              workspaceId: entry.workspaceId,
+              resource: 'api_token',
+              resourceId: leaf.token.id
+            })
+            if (!allowed) {
+              return yield* Effect.fail(
+                new AuthorizationDenied({ reason: 'invalid_token' })
+              )
+            }
             if (
               shouldBumpLastUsedAt(entry.token.lastUsedAt, DateTime.toEpochMillis(now))
             ) {
@@ -247,5 +313,5 @@ export function SeedApiTokenRegistry(
         )
       })
     })
-  )
+  ).pipe(Layer.provide(SeedResourceInventoryLayer))
 }

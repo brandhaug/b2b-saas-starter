@@ -2,6 +2,7 @@ import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
 import { SeedBilling } from './billing/billing.seed.ts'
+import { SeedResourceEntitlements } from './billing/resource-entitlements.seed.ts'
 import { SeedSeatSyncPublisher } from './billing/seat-sync.ts'
 import { SeedApiTokenRegistry } from './developer-platform/api-token-registry.seed.ts'
 import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
@@ -42,6 +43,20 @@ import { workspaceProgress } from './workspace-projections.ts'
 
 const OWNER: Actor = { userId: demoUserIdentity.id, role: 'owner', systemRole: 'admin' }
 
+function seedFeed() {
+  const audit = SeedAuditEventLog([])
+  return SeedNotificationFeed([]).pipe(
+    Layer.provide(
+      Layer.merge(
+        SeedNotificationPreferences(seedNotificationPreferences).pipe(
+          Layer.provide(audit)
+        ),
+        SeedAccountPreferences([]).pipe(Layer.provide(audit))
+      )
+    )
+  )
+}
+
 type Fixture = {
   readonly members?: ReadonlyArray<Member>
   readonly tokens?: typeof seedApiTokens
@@ -56,6 +71,15 @@ function fixtureLayer(fixture: Fixture) {
   return Layer.unwrap(
     Effect.gen(function* () {
       const roster = yield* makeSeedRoster(fixture.members ?? [demoUserIdentity])
+      const feed = seedFeed()
+      const billing = SeedBilling({
+        stripeConfigured: fixture.stripeConfigured ?? false,
+        workspacePlans: { [seedWorkspaceRecord.id]: seedWorkspaceRecord.planId }
+      }).pipe(Layer.provide(audit), Layer.provide(feed))
+      const entitlements = SeedResourceEntitlements().pipe(
+        Layer.provide(billing),
+        Layer.provide(audit)
+      )
       // `null` is a real value here (no actor), so `??` would be wrong.
       let actor: Actor | null = OWNER
       if (fixture.actor !== undefined) {
@@ -69,17 +93,21 @@ function fixtureLayer(fixture: Fixture) {
         ),
         SeedApiTokenRegistry(fixture.tokens ?? []).pipe(
           Layer.provide(audit),
-          Layer.provide(SeedWebhookPublisher)
+          Layer.provide(SeedWebhookPublisher),
+          Layer.provide(SeedLayer),
+          Layer.provide(entitlements)
         ),
         SeedWebhookEndpoints(fixture.webhooks ?? []).pipe(
           Layer.provide(audit),
           Layer.provide(SeedWebhookPublisher),
+          Layer.provide(SeedLayer),
+          Layer.provide(entitlements),
           // The webhook capability records dead-letter notifications below its
           // interface, so the Seed adapter needs the feed even when the
           // projection under test never reads one. The feed resolves email
           // channels against a preference store, provided here the same way.
           Layer.provide(
-            SeedNotificationFeed([]).pipe(
+            feed.pipe(
               Layer.provide(
                 Layer.merge(
                   SeedNotificationPreferences(seedNotificationPreferences).pipe(
@@ -91,9 +119,7 @@ function fixtureLayer(fixture: Fixture) {
             )
           )
         ),
-        SeedBilling({ stripeConfigured: fixture.stripeConfigured ?? false }).pipe(
-          Layer.provide(audit)
-        ),
+        billing,
         SeedWorkspaceOnboarding(fixture.onboarding ?? {}).pipe(Layer.provide(audit))
       )
     })

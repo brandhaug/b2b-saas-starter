@@ -36,6 +36,9 @@ type RecordedCalls = {
 function recordingBilling(calls: RecordedCalls) {
   return Layer.succeed(Billing)({
     configured: Effect.succeed(false),
+    currentPlanForWorkspace: () => Effect.die('unused'),
+    lifecycleStatus: Effect.die('unused'),
+    displayedPlans: Effect.die('unused'),
     currentPlan: Effect.die('not used here'),
     synchronizationStatus: Effect.die('not used here'),
     reconcileWorkspace: () => Effect.die('not used here'),
@@ -243,3 +246,61 @@ describe('processStripeEvent', () => {
     })
   )
 })
+
+it.effect(
+  'routes invoice recovery, payment action and asynchronous checkout through verified synchronization',
+  () =>
+    Effect.gen(function* () {
+      const calls: RecordedCalls = { plans: [], subscriptions: [], events: [] }
+      const invoiceTypes = [
+        'invoice.paid',
+        'invoice.payment_succeeded',
+        'invoice.payment_failed',
+        'invoice.payment_action_required'
+      ]
+      for (const type of invoiceTypes) {
+        yield* processStripeEvent(
+          payloadOf({
+            id: `evt_${type}`,
+            created: 1_788_739_200,
+            type,
+            data: {
+              object: {
+                id: 'in_current',
+                customer: 'cus_lifecycle',
+                parent: { subscription_details: { subscription: 'sub_lifecycle' } }
+              }
+            }
+          })
+        ).pipe(Effect.scoped, Effect.provide(recordingBilling(calls)))
+      }
+      for (const type of [
+        'checkout.session.async_payment_succeeded',
+        'checkout.session.async_payment_failed'
+      ]) {
+        yield* processStripeEvent(
+          payloadOf({
+            id: `evt_${type}`,
+            created: 1_788_739_200,
+            type,
+            data: {
+              object: {
+                id: 'cs_async',
+                customer: 'cus_lifecycle',
+                subscription: 'sub_lifecycle'
+              }
+            }
+          })
+        ).pipe(Effect.scoped, Effect.provide(recordingBilling(calls)))
+      }
+      expect(calls.events).toHaveLength(6)
+      expect(
+        calls.events.every(
+          (event) =>
+            event.subscription?.customerId === 'cus_lifecycle' &&
+            event.subscription.subscriptionId === 'sub_lifecycle'
+        )
+      ).toBe(true)
+      expect(calls.plans).toHaveLength(0)
+    })
+)

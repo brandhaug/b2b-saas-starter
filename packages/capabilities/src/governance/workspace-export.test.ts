@@ -28,6 +28,8 @@ import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
 import { SeedAccountPreferences } from './account-preferences.ts'
 import { SeedSeatSyncPublisher } from '../billing/seat-sync.ts'
+import { SeedBilling } from '../billing/billing.seed.ts'
+import { SeedResourceEntitlements } from '../billing/resource-entitlements.seed.ts'
 import { makeSeedRoster, SeedWorkspaceMembership } from './workspace-membership.ts'
 import { SeedWorkspaceInvitations } from './workspace-invitations.seed.ts'
 import { failureTag } from '../internal/failure-tag.ts'
@@ -365,17 +367,29 @@ describe('collectWorkspaceExportSnapshot — the audit walk bound', () => {
           )
         )
       )
+      const billing = SeedBilling({
+        workspacePlans: { [seedWorkspaceRecord.id]: 'team' }
+      }).pipe(Layer.provide(audit), Layer.provide(feed))
+      const entitlements = SeedResourceEntitlements().pipe(
+        Layer.provide(billing),
+        Layer.provide(audit)
+      )
       return Layer.mergeAll(
         audit,
         testWorkspaceContext(seedWorkspaceRecord),
         feed,
+        billing,
         SeedApiTokenRegistry([]).pipe(
           Layer.provide(audit),
-          Layer.provide(SeedWebhookPublisher)
+          Layer.provide(SeedWebhookPublisher),
+          Layer.provide(SeedLayer),
+          Layer.provide(entitlements)
         ),
         SeedWebhookEndpoints([]).pipe(
           Layer.provide(audit),
           Layer.provide(SeedWebhookPublisher),
+          Layer.provide(SeedLayer),
+          Layer.provide(entitlements),
           Layer.provide(feed)
         ),
         SeedWorkspaceInvitations({

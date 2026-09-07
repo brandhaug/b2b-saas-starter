@@ -1,19 +1,33 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { loadPublicPricingServerFn } from '@/lib/server/billing'
+import { PublicLayout } from '@/components/public-layout'
+import { PublicBillingPlans } from '@/components/workspace-billing'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
- * The starter is MIT — it does not sell plans, so there is no pricing page.
- * The real plan vocabulary (Starter / Team / Enterprise with entitlement
- * ceilings) is the `PLANS` constant in
- * `packages/capabilities/src/billing/plan-catalog.ts`, rendered by the
- * workspace Billing page and documented in the Stripe billing guide — which is
- * where this URL lands.
+ * Public pricing only renders the shared offer list. Workspace lifecycle,
+ * recovery, and resource controls belong to an authenticated workspace.
  */
 export const Route = createFileRoute('/pricing')({
-  beforeLoad: () => {
-    throw redirect({
-      to: '/docs/$category/$slug',
-      params: { category: 'integrations', slug: 'stripe-billing' },
-      replace: true
-    })
-  }
+  loader: () => loadPublicPricingServerFn(),
+  component: PricingPage
 })
+
+function PricingPage() {
+  const { plans, pricingUnavailable, stripeConfigured } = Route.useLoaderData()
+  return (
+    <PublicLayout>
+      <main id="main-content" className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6">
+        <h1 className="text-3xl font-semibold">{m.plans_title()}</h1>
+        <p className="mt-2 text-muted-foreground">{m.billing_description()}</p>
+        <div className="mt-8">
+          <PublicBillingPlans
+            plans={plans}
+            pricingUnavailable={pricingUnavailable}
+            stripeConfigured={stripeConfigured}
+          />
+        </div>
+      </main>
+    </PublicLayout>
+  )
+}

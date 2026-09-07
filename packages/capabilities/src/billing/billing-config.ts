@@ -14,7 +14,7 @@ export function billingConfigured(options: BillingOptions): boolean {
     return false
   }
   return PLANS.every((plan) => {
-    if (plan.stripePriceEnv === null) {
+    if (plan.purchase !== 'self_serve') {
       return true
     }
     const priceId = options.priceIds?.[plan.id]
@@ -24,7 +24,9 @@ export function billingConfigured(options: BillingOptions): boolean {
 
 /** Projects the worker's provider env into the billing option bag. */
 export function billingOptionsFromEnv(
-  env: ProviderEnvOf<'STRIPE_SECRET_KEY' | 'STRIPE_PRICE_ID_TEAM'>
+  env: ProviderEnvOf<
+    'STRIPE_SECRET_KEY' | 'STRIPE_PRICE_ID_TEAM' | 'STRIPE_PRICE_ID_ENTERPRISE'
+  >
 ): BillingOptions | undefined {
   const secretKey = env.STRIPE_SECRET_KEY
   if (!hasValue(secretKey)) {
@@ -34,6 +36,10 @@ export function billingOptionsFromEnv(
   const teamPriceId = env.STRIPE_PRICE_ID_TEAM
   if (hasValue(teamPriceId)) {
     priceIds.team = teamPriceId
+  }
+  const enterprisePriceId = env.STRIPE_PRICE_ID_ENTERPRISE
+  if (hasValue(enterprisePriceId)) {
+    priceIds.enterprise = enterprisePriceId
   }
   return { secretKey, priceIds }
 }

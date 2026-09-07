@@ -1,5 +1,10 @@
-import { type BillingSynchronizationStatus } from '@b2b-saas-starter/capabilities/billing/billing'
-import { type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+import {
+  type BillingLifecycle,
+  type BillingSynchronizationStatus,
+  type DisplayedPlan
+} from '@b2b-saas-starter/capabilities/billing/billing'
+import { type ResourceSelectionInput } from '@b2b-saas-starter/capabilities/billing/resource-entitlements'
+import { type ResourceEntitlementSummary } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
@@ -25,11 +30,30 @@ export type WorkspaceBillingPayload = {
   readonly viewer: WorkspaceViewer | null
   readonly workspaceName: string
   readonly unreadCount: number
-  readonly plans: ReadonlyArray<Plan>
+  readonly plans: ReadonlyArray<DisplayedPlan>
+  /** True when configured provider pricing could not be read or validated. */
+  readonly pricingUnavailable: boolean
   readonly currentPlanId: string
   /** True when the Billing capability has its provider wired. */
   readonly stripeConfigured: boolean
   readonly synchronization: BillingSynchronizationStatus
+  readonly lifecycle: BillingLifecycle
+  readonly resourceSelection: ResourceSelectionInput | null
+  readonly resourceEntitlements: {
+    readonly apiTokens: ResourceEntitlementSummary
+    readonly webhookEndpoints: ResourceEntitlementSummary
+  }
+  readonly apiTokens: ReadonlyArray<{ readonly id: string; readonly name: string }>
+  readonly webhookEndpoints: ReadonlyArray<{
+    readonly id: string
+    readonly url: string
+  }>
+}
+
+export type PublicPricingPayload = {
+  readonly plans: ReadonlyArray<DisplayedPlan>
+  readonly pricingUnavailable: boolean
+  readonly stripeConfigured: boolean
 }
 
 const WorkspaceBillingInput = Schema.Struct({
@@ -44,10 +68,16 @@ const StartCheckoutInput = Schema.Struct({
 const PortalInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString
 })
+const SelectResourcesInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  apiTokenIds: Schema.Array(Schema.NonEmptyString),
+  webhookEndpointIds: Schema.Array(Schema.NonEmptyString)
+})
 
 export type WorkspaceBillingInput = typeof WorkspaceBillingInput.Type
 export type StartCheckoutInput = typeof StartCheckoutInput.Type
 export type PortalInput = typeof PortalInput.Type
+export type SelectResourcesInput = typeof SelectResourcesInput.Type
 
 /** The billing route's loader. */
 export const loadWorkspaceBillingServerFn = createServerFn({ method: 'GET' })
@@ -56,6 +86,13 @@ export const loadWorkspaceBillingServerFn = createServerFn({ method: 'GET' })
     const { loadWorkspaceBillingHandler } = await import('./billing.effects')
     return loadWorkspaceBillingHandler(data)
   })
+
+export const loadPublicPricingServerFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<PublicPricingPayload> => {
+    const { loadPublicPricingHandler } = await import('./billing.effects')
+    return loadPublicPricingHandler()
+  }
+)
 
 export const startCheckoutServerFn = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(StartCheckoutInput))
@@ -69,4 +106,11 @@ export const startPortalSessionServerFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<{ url: string }> => {
     const { startPortalSessionHandler } = await import('./billing.effects')
     return startPortalSessionHandler(data)
+  })
+
+export const selectBillingResourcesServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(SelectResourcesInput))
+  .handler(async ({ data }): Promise<ResourceSelectionInput> => {
+    const { selectBillingResourcesHandler } = await import('./billing.effects')
+    return selectBillingResourcesHandler(data)
   })

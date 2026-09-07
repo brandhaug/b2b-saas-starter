@@ -2,6 +2,7 @@ import {
   auditActorTypes,
   accountLocales,
   billingCheckoutStatuses,
+  billingLifecycleStatuses,
   billingProviderEventStatuses,
   billingSynchronizationStatuses,
   deliveryStatuses,
@@ -835,6 +836,23 @@ export const workspaceSubscriptions = sqliteTable(
     // stay reachable in the portal), the seat item does not.
     stripeSubscriptionId: text('stripe_subscription_id'),
     stripeSubscriptionItemId: text('stripe_subscription_item_id'),
+    status: text('status', { enum: billingLifecycleStatuses })
+      .default('canceled')
+      .notNull(),
+    stripePriceId: text('stripe_price_id'),
+    subscribedPlanId: text('subscribed_plan_id').default('starter').notNull(),
+    currentPeriodStart: text('current_period_start'),
+    currentPeriodEnd: text('current_period_end'),
+    cancelAtPeriodEnd: integer('cancel_at_period_end', { mode: 'boolean' })
+      .default(false)
+      .notNull(),
+    trialEnd: text('trial_end'),
+    firstFailedAt: text('first_failed_at'),
+    graceEndsAt: text('grace_ends_at'),
+    lastPaymentAt: text('last_payment_at'),
+    paymentVerified: integer('payment_verified', { mode: 'boolean' })
+      .default(false)
+      .notNull(),
     // The quantity Stripe last reported. `syncSeats` compares the member count
     // against this before calling the provider.
     seatQuantity: integer('seat_quantity').default(0).notNull(),
@@ -847,6 +865,25 @@ export const workspaceSubscriptions = sqliteTable(
       table.stripeCustomerId
     )
   ]
+)
+
+/**
+ * Starter downgrade selections. Resource rows remain untouched when a plan
+ * changes; this table only records which ids may execute while a category is
+ * over its Starter ceiling.
+ */
+export const workspaceResourceSelections = sqliteTable(
+  'workspace_resource_selections',
+  {
+    workspaceId: workspaceRef().primaryKey(),
+    apiTokenIds: text('api_token_ids', { mode: 'json' })
+      .$type<ReadonlyArray<string>>()
+      .notNull(),
+    webhookEndpointIds: text('webhook_endpoint_ids', { mode: 'json' })
+      .$type<ReadonlyArray<string>>()
+      .notNull(),
+    updatedAt: text('updated_at').notNull()
+  }
 )
 
 /**
@@ -982,4 +1019,15 @@ export const oauthConsent = sqliteTable(
 export const oauthClientAssertion = sqliteTable('oauth_client_assertion', {
   id: id(),
   expiresAt: integer('expiresAt', { mode: 'timestamp' }).notNull()
+})
+
+/** Durable billing notice outbox, committed with the lifecycle projection. */
+export const billingNotices = sqliteTable('billing_notices', {
+  id: text('id').primaryKey(),
+  workspaceId: workspaceRef().notNull(),
+  noticeType: text('notice_type').notNull(),
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  createdAt: text('created_at').notNull(),
+  deliveredAt: text('delivered_at')
 })

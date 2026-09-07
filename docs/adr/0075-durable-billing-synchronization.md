@@ -20,8 +20,9 @@ One workspace owns one customer and at most one current subscription. Cancellati
 retains the customer for invoice history. Unknown prices, ownership mismatches,
 and multiple subscriptions preserve the last verified plan and produce durable
 conflict evidence. Recovery never cancels subscriptions, refunds payments, or
-reassigns customers automatically. Payment and access transition rules belong to
-issue #284; synchronization provides the place to apply those rules.
+reassigns customers automatically. The lifecycle and entitlement decisions
+applied by synchronization and request-time reads are recorded in [ADR
+0076](./0076-billing-lifecycle-and-entitlement-decisions.md).
 
 ## Interrupted work and concurrency
 

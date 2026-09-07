@@ -1,9 +1,11 @@
+import { prepareTokenSelectionRotation } from '../billing/resource-entitlements.live.ts'
+import { Billing } from '../billing/billing.ts'
 import { apiTokens, workspaces } from '@b2b-saas-starter/db/schema'
-import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
+import { Database, type BatchStatement, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { and, desc, eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm'
 
-import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
+import { assertWithinPlanLimitFor } from '../billing/resource-admission.ts'
 import { ApiTokenNotRotatable, AuthorizationDenied } from '../errors.ts'
 import {
   mintApiToken,
@@ -19,6 +21,7 @@ import { auditedMutations } from '../governance/audited-mutation.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
+import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
 import {
   ApiTokenRegistry,
   hashApiToken,
@@ -61,12 +64,14 @@ function toTokenProjection(row: typeof apiTokens.$inferSelect): ApiToken {
 export const LiveApiTokenRegistry: Layer.Layer<
   ApiTokenRegistry,
   never,
-  Database | RawD1 | AuditEventLog | WebhookPublisher
+  Database | RawD1 | Billing | AuditEventLog | WebhookPublisher | ResourceEntitlements
 > = Layer.effect(ApiTokenRegistry)(
   Effect.gen(function* () {
     const db = yield* Database
+    const billing = yield* Billing
     const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
+    const entitlements = yield* ResourceEntitlements
 
     // The shared mutate+audit combinator — one implementation of the batched
     // write, its zero-match skip, and the phantom-audit caveat (see
@@ -144,7 +149,7 @@ export const LiveApiTokenRegistry: Layer.Layer<
               gt(apiTokens.expiresAt, DateTime.formatIso(now))
             )
           )
-        })
+        }).pipe(Effect.provideService(Billing, billing))
         const token = mintApiToken()
         const createdAt = DateTime.formatIso(now)
         const row = {
@@ -239,6 +244,12 @@ export const LiveApiTokenRegistry: Layer.Layer<
           expiryUnchanged
         )
         const claimedWorkspace = sql<string>`(select workspace_id from api_tokens where id = ${source.id} and workspace_id = ${ctx.workspace.id} and replaced_by_token_id = ${row.id})`
+        const selectionWrite = yield* prepareTokenSelectionRotation(
+          ctx.workspace.id,
+          source.id,
+          row.id,
+          createdAt
+        ).pipe(Effect.provideService(Database, db))
         yield* auditedMutation({
           matched: Effect.succeed(true),
           auditEvent: {
@@ -256,16 +267,20 @@ export const LiveApiTokenRegistry: Layer.Layer<
               scopes: row.scopes
             }
           },
-          write: () => [
-            db
-              .update(apiTokens)
-              .set({
-                expiresAt: plan.previousTokenExpiresAt,
-                replacedByTokenId: row.id
-              })
-              .where(eligible),
-            db.insert(apiTokens).values({ ...row, workspaceId: claimedWorkspace })
-          ]
+          write: () => {
+            const writes: Array<BatchStatement> = [
+              db
+                .update(apiTokens)
+                .set({
+                  expiresAt: plan.previousTokenExpiresAt,
+                  replacedByTokenId: row.id
+                })
+                .where(eligible),
+              db.insert(apiTokens).values({ ...row, workspaceId: claimedWorkspace })
+            ]
+            writes.push(selectionWrite)
+            return writes
+          }
         })
         yield* publishWebhookEventWith(publisher, {
           eventType: 'api_token.created',
@@ -338,6 +353,35 @@ export const LiveApiTokenRegistry: Layer.Layer<
             !row ||
             tokenIsExpired(row.token.expiresAt, DateTime.toEpochMillis(usedAt))
           ) {
+            return yield* Effect.fail(
+              new AuthorizationDenied({ reason: 'invalid_token' })
+            )
+          }
+          const workspaceTokens = yield* unavailable(
+            db
+              .select({ token: apiTokens })
+              .from(apiTokens)
+              .where(eq(apiTokens.workspaceId, row.workspace.id))
+          )
+          const byId = new Map(
+            workspaceTokens.map((candidate) => [candidate.token.id, candidate])
+          )
+          let leafId = row.token.id
+          let current = row.token
+          while (current.replacedByTokenId !== null) {
+            const replacement = byId.get(current.replacedByTokenId)
+            if (!replacement) {
+              break
+            }
+            leafId = replacement.token.id
+            current = replacement.token
+          }
+          const entitled = yield* entitlements.isActiveForWorkspace({
+            workspaceId: row.workspace.id,
+            resource: 'api_token',
+            resourceId: leafId
+          })
+          if (!entitled) {
             return yield* Effect.fail(
               new AuthorizationDenied({ reason: 'invalid_token' })
             )

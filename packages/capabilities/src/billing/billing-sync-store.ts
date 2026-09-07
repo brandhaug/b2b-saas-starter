@@ -1,3 +1,5 @@
+import { makeBillingNotices } from './billing-notices.live.ts'
+import { decodeSubscriptionRow } from './subscription-row.ts'
 import {
   billingProviderEvents,
   billingSynchronization,
@@ -15,6 +17,7 @@ import {
   billingStoreUnavailable,
   planChangeMetadata,
   seatChangeMetadata,
+  type SubscriptionState,
   type ProcessProviderEventInput
 } from './billing.ts'
 import { type BillingStateDecision } from './billing-state.ts'
@@ -24,6 +27,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
   const db = yield* Database
   const audit = yield* AuditEventLog
   const leases = yield* makeBillingLease()
+  const notices = yield* makeBillingNotices()
   const unavailable = billingStoreUnavailable
 
   const read = Effect.fn('Billing.readSyncState')(function* (workspaceId: string) {
@@ -31,10 +35,21 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
       db
         .select({
           planId: workspaces.planId,
+          subscription: workspaceSubscriptions,
           customerId: workspaceSubscriptions.stripeCustomerId,
           subscriptionId: workspaceSubscriptions.stripeSubscriptionId,
           itemId: workspaceSubscriptions.stripeSubscriptionItemId,
           quantity: workspaceSubscriptions.seatQuantity,
+          lifecycleStatus: workspaceSubscriptions.status,
+          priceId: workspaceSubscriptions.stripePriceId,
+          currentPeriodStart: workspaceSubscriptions.currentPeriodStart,
+          currentPeriodEnd: workspaceSubscriptions.currentPeriodEnd,
+          cancelAtPeriodEnd: workspaceSubscriptions.cancelAtPeriodEnd,
+          trialEnd: workspaceSubscriptions.trialEnd,
+          firstFailedAt: workspaceSubscriptions.firstFailedAt,
+          graceEndsAt: workspaceSubscriptions.graceEndsAt,
+          lastPaymentAt: workspaceSubscriptions.lastPaymentAt,
+          paymentVerified: workspaceSubscriptions.paymentVerified,
           unresolvedSince: billingSynchronization.unresolvedSince,
           failureCount: billingSynchronization.failureCount
         })
@@ -211,18 +226,20 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
   ) {
     const now = DateTime.formatIso(yield* DateTime.now)
     const next = decision.subscription
+    const lifecycleStatus = next.status
+    const effectivePlanId = decision.planId
     let unresolvedSince: string | null = null
     let failureCount = 0
     if (checkoutUncertain) {
       unresolvedSince = before.unresolvedSince
       failureCount = before.failureCount ?? 0
     }
-    let status: 'current' | 'pending' = 'current'
+    let synchronizationStatus: 'current' | 'pending' = 'current'
     if (!decision.verified || desiredQuantity !== next.seatQuantity) {
-      status = 'pending'
+      synchronizationStatus = 'pending'
     }
     let nextAttemptMinutes = 5
-    if (status === 'pending') {
+    if (synchronizationStatus === 'pending') {
       nextAttemptMinutes = 1
     }
     const statements: Array<BatchStatement> = []
@@ -235,12 +252,12 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
     if (reason !== undefined) {
       Object.assign(detail, { reason })
     }
-    if (before.planId !== decision.planId) {
+    if (before.planId !== effectivePlanId) {
       drift.push('plan')
       statements.push(
         db
           .update(workspaces)
-          .set({ planId: decision.planId })
+          .set({ planId: effectivePlanId })
           .where(eq(workspaces.id, lease.workspaceId)),
         yield* audit.prepareRecord({
           workspaceId: lease.workspaceId,
@@ -249,7 +266,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
           eventType: 'billing.plan_changed',
           targetType: 'workspace',
           targetId: lease.workspaceId,
-          metadata: planChangeMetadata(decision.planId, detail)
+          metadata: planChangeMetadata(effectivePlanId, detail)
         })
       )
     }
@@ -279,6 +296,17 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
       stripeSubscriptionId: next.subscriptionId,
       stripeSubscriptionItemId: next.subscriptionItemId,
       seatQuantity: next.seatQuantity,
+      status: lifecycleStatus,
+      stripePriceId: next.priceId,
+      subscribedPlanId: next.subscribedPlanId,
+      currentPeriodStart: next.currentPeriodStart ?? null,
+      currentPeriodEnd: next.currentPeriodEnd ?? null,
+      cancelAtPeriodEnd: next.cancelAtPeriodEnd,
+      trialEnd: next.trialEnd ?? null,
+      firstFailedAt: next.firstFailedAt,
+      graceEndsAt: next.graceEndsAt,
+      lastPaymentAt: next.lastPaymentAt,
+      paymentVerified: next.paymentVerified,
       updatedAt: now
     }
     statements.push(
@@ -292,7 +320,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
       db
         .update(billingSynchronization)
         .set({
-          status,
+          status: synchronizationStatus,
           desiredSeatQuantity: desiredQuantity,
           observedSeatQuantity: next.seatQuantity,
           lastSyncedAt: now,
@@ -344,9 +372,23 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
           .where(eq(billingProviderEvents.providerEventId, input.providerEventId))
       )
     }
+    let previous: SubscriptionState | null = null
+    if (before.subscription !== null) {
+      previous = yield* unavailable(decodeSubscriptionRow(before.subscription))
+    }
+    statements.push(...(yield* notices.prepare(lease.workspaceId, previous, next, now)))
     yield* leases.fencedBatch(lease, statements)
     return drift
   })
 
-  return { read, event, recordEvent, begin, fail, commit, leases }
+  return {
+    read,
+    event,
+    recordEvent,
+    begin,
+    fail,
+    commit,
+    leases,
+    deliverNotices: notices.deliver
+  }
 })

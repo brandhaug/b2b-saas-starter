@@ -1,5 +1,6 @@
+import { billingLifecycleStatuses } from '@b2b-saas-starter/db/enums'
 import { type JsonObject } from '@b2b-saas-starter/db/schema'
-import { Context, Effect, type Effect as EffectType } from 'effect'
+import { Context, DateTime, Effect, Schema, type Effect as EffectType } from 'effect'
 
 import { CapabilityUnavailable } from '../errors.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
@@ -154,12 +155,53 @@ export type SeatSyncResult = {
  * are reconciled from authoritative provider state before this projection is
  * committed.
  */
-export type SubscriptionState = {
-  readonly customerId: string
-  readonly subscriptionId: string | null
-  readonly subscriptionItemId: string | null
-  readonly seatQuantity: number
-}
+export const SubscriptionStatus = Schema.Literals(billingLifecycleStatuses)
+export type SubscriptionStatus = typeof SubscriptionStatus.Type
+
+const BillingTimestamp = Schema.String.check(
+  Schema.makeFilter(
+    (value) => {
+      const time = Date.parse(value)
+      return (
+        Number.isFinite(time) && DateTime.formatIso(DateTime.makeUnsafe(time)) === value
+      )
+    },
+    {
+      message: 'Expected a valid billing timestamp'
+    }
+  )
+)
+
+export const SubscriptionState = Schema.Struct({
+  customerId: Schema.String,
+  subscriptionId: Schema.NullOr(Schema.String),
+  subscriptionItemId: Schema.NullOr(Schema.String),
+  seatQuantity: Schema.Int,
+  status: SubscriptionStatus,
+  subscribedPlanId: Schema.String,
+  priceId: Schema.NullOr(Schema.String),
+  currentPeriodStart: Schema.NullOr(BillingTimestamp),
+  currentPeriodEnd: Schema.NullOr(BillingTimestamp),
+  cancelAtPeriodEnd: Schema.Boolean,
+  trialEnd: Schema.NullOr(BillingTimestamp),
+  firstFailedAt: Schema.NullOr(BillingTimestamp),
+  graceEndsAt: Schema.NullOr(BillingTimestamp),
+  lastPaymentAt: Schema.NullOr(BillingTimestamp),
+  paymentVerified: Schema.Boolean
+})
+export type SubscriptionState = Schema.Schema.Type<typeof SubscriptionState>
+
+export const BillingLifecycle = Schema.Struct({
+  status: SubscriptionStatus,
+  planId: Schema.String,
+  currentPeriodEnd: Schema.NullOr(BillingTimestamp),
+  cancelAtPeriodEnd: Schema.Boolean,
+  trialEnd: Schema.NullOr(BillingTimestamp),
+  graceEndsAt: Schema.NullOr(BillingTimestamp)
+})
+export type BillingLifecycle = Schema.Schema.Type<typeof BillingLifecycle>
+
+export type DisplayedPlan = Plan & { readonly providerPrice: Plan['price'] }
 
 export type BillingInterface = {
   /**
@@ -171,6 +213,19 @@ export type BillingInterface = {
   readonly configured: Effect.Effect<boolean>
   /** The workspace's current plan, resolved from its `planId`. */
   readonly currentPlan: Effect.Effect<Plan, CapabilityUnavailable, WorkspaceContext>
+  /** Identity-keyed plan read for credential and background execution gates. */
+  readonly currentPlanForWorkspace: (
+    workspaceId: string
+  ) => Effect.Effect<Plan, CapabilityUnavailable>
+  readonly lifecycleStatus: Effect.Effect<
+    BillingLifecycle,
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
+  readonly displayedPlans: Effect.Effect<
+    ReadonlyArray<DisplayedPlan>,
+    CapabilityUnavailable
+  >
   /**
    * The last durable synchronization evidence for this workspace. This never
    * claims an upgrade from an unverified provider response.

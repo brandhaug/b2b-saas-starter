@@ -1,8 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
-import {
-  loadWorkspaceBillingServerFn,
-  type WorkspaceBillingPayload
-} from '@/lib/server/billing'
+import { useEffect } from 'react'
+import { useRouter } from '@tanstack/react-router'
+import { type WorkspaceBillingPayload } from '@/lib/server/billing'
 import { PageHeader } from '@/components/page/page-header'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WorkspaceShell } from '@/components/workspace-shell'
@@ -16,12 +14,12 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  * `createFileRoute` + lazy segments — an exported page in a route file pins
  * its whole import graph into the route tree every page preloads.
  *
- * Takes its params and payload as props so a test renders it without a route
- * tree.
+ * The route loader owns the payload; polling and successful mutations refresh
+ * that same loader.
  */
 export function WorkspaceBillingPage({
   workspaceSlug,
-  data: initialData,
+  data,
   systemRole
 }: {
   readonly workspaceSlug: string
@@ -29,17 +27,17 @@ export function WorkspaceBillingPage({
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
 }) {
-  const { data } = useQuery({
-    queryKey: ['workspace-billing', workspaceSlug],
-    queryFn: () => loadWorkspaceBillingServerFn({ data: { workspaceSlug } }),
-    initialData,
-    refetchInterval: (query) => {
-      if (!query.state.data?.stripeConfigured) {
-        return false
-      }
-      return query.state.data.synchronization.status === 'pending' ? 10_000 : 30_000
+  const router = useRouter()
+  const { stripeConfigured, synchronization } = data
+  useEffect(() => {
+    if (!stripeConfigured) {
+      return
     }
-  })
+    // Poll the same loader that mutations invalidate; there is no second cache.
+    const interval = synchronization.status === 'pending' ? 10_000 : 30_000
+    const timer = window.setInterval(() => void router.invalidate(), interval)
+    return () => window.clearInterval(timer)
+  }, [router, stripeConfigured, synchronization.status])
   const canManageBilling =
     data.viewer !== null && viewerCan(data.viewer, { organization: ['update'] })
   return (
@@ -58,8 +56,14 @@ export function WorkspaceBillingPage({
         workspaceSlug={workspaceSlug}
         currentPlanId={data.currentPlanId}
         plans={data.plans}
+        pricingUnavailable={data.pricingUnavailable}
         stripeConfigured={data.stripeConfigured}
         synchronization={data.synchronization}
+        lifecycle={data.lifecycle}
+        resourceSelection={data.resourceSelection}
+        apiTokens={data.apiTokens}
+        webhookEndpoints={data.webhookEndpoints}
+        resourceEntitlements={data.resourceEntitlements}
         canManageBilling={canManageBilling}
       />
     </WorkspaceShell>
