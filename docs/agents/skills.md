@@ -46,3 +46,9 @@ Global updates affect every project that uses those skills.
 Discovery: [Codex](https://learn.chatgpt.com/docs/build-skills),
 [Claude Code](https://code.claude.com/docs/en/skills),
 [OpenCode](https://opencode.ai/docs/skills/).
+
+Worker context: [Codex spawn implementation](https://github.com/openai/codex/blob/main/codex-rs/core/src/tools/handlers/multi_agents/spawn.rs),
+[Claude Code subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents),
+[OpenCode task parameters](https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/tool/task.ts).
+Codex host tools differ; the workflow's `fork_turns` instruction applies when
+the active spawn tool exposes that parameter.

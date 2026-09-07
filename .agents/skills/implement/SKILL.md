@@ -21,6 +21,18 @@ user request.
    Start with fresh context where supported; include conversation history only
    when the task depends on it. Keep tiny tasks local. Default to one implementation
    worker; add workers for independent file boundaries. Assign one writer to shared wiring.
+
+   Use the context controls exposed by the active tool schema:
+
+   - Codex: set `fork_turns: "none"` when exposed; its default can inherit the
+     full conversation. If the tool exposes `fork_context` instead, set it to `false`.
+   - Claude Code: start a new `Agent` with `subagent_type: "general-purpose"`
+     or a configured non-fork subagent. These start fresh; `fork` copies history.
+   - OpenCode: start a new `task` with a compact `prompt` and omit `task_id`.
+     Supplying `task_id` resumes an existing worker's context.
+
+   Resume an existing worker when continuing its assigned task.
+
 3. Apply `effect` with [repo examples](../../../docs/agents/effect-examples.md),
    `codebase-design` for module interfaces, `effect-service-design` for service
    ownership/Layers, and `impeccable` for UI. Use `tdd` at agreed behavior seams.
