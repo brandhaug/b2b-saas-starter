@@ -25,10 +25,9 @@ user request.
    `codebase-design` for module interfaces, `effect-service-design` for service
    ownership/Layers, and `impeccable` for UI. Use `tdd` at agreed behavior seams.
    If a supporting skill is missing, follow [skills setup](../../../docs/agents/skills.md).
-4. Docs and mechanical edits get one targeted reviewer. Ordinary behavior changes
-   get one reviewer checking repo standards and the agreed spec against a fixed
-   base/head. Use separate reviewers for high-risk auth, billing, persistence,
-   or cross-package changes. Apply `thermo-nuclear-code-quality-review` for
+4. Docs and mechanical edits get one targeted reviewer. For behavior changes, use
+   `code-review` against a fixed base/head and the agreed spec, with its separate
+   Standards and Spec reviewers. Apply `thermo-nuclear-code-quality-review` for
    concrete architectural concerns or an explicit request.
 5. Consolidate findings before assigning fixes. Structural suggestions need a
    concrete benefit. Independently recheck accepted repairs and affected callers;
