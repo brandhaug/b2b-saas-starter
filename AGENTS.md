@@ -55,6 +55,7 @@ pnpm run check      # typecheck + lint + format:check + dead-code + test
 
 ## Commit & Release Conventions
 
+- When creating or updating a PR, read [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) and use it to structure the body. Fill it from the final diff and observed validation results, remove instructional comments and unused optional sections, and pass the completed body via `--body-file`.
 - Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/) (`type(scope): subject`); PR Gate rejects non-conforming titles. Breaking changes use `!` or a `BREAKING CHANGE:` footer.
 - release-please opens `chore(master): release ...` PRs from merged commits; merging one tags and publishes.
 - `CLAUDE.md` is a symlink to this file.
