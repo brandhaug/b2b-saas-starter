@@ -1,17 +1,31 @@
-import { type BillingSynchronizationStatus } from '@b2b-saas-starter/capabilities/billing/billing'
+import {
+  type BillingLifecycle,
+  type BillingSynchronizationStatus
+} from '@b2b-saas-starter/capabilities/billing/billing'
 import { Check, Minus, ExternalLink } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { type Plan } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import {
+  type Plan,
+  type ResourceEntitlementSummary
+} from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+import { type ResourceSelectionInput } from '@b2b-saas-starter/capabilities/billing/resource-entitlements'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
 import { useServerAction } from '@/hooks/use-server-action'
-import { startCheckoutServerFn, startPortalSessionServerFn } from '@/lib/server/billing'
+import {
+  startCheckoutServerFn,
+  startPortalSessionServerFn,
+  selectBillingResourcesServerFn
+} from '@/lib/server/billing'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Identifier } from '@/components/page/identifier'
 import { Panel } from '@/components/page/panel'
 import { Spinner } from '@/components/ui/spinner'
-import { formatCurrency, formatNumber } from '@b2b-saas-starter/i18n/format'
+import { formatCurrency, formatDate, formatNumber } from '@b2b-saas-starter/i18n/format'
 import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import { m } from '@b2b-saas-starter/i18n/messages'
 function CHECKOUT_FAILED() {
@@ -34,12 +48,60 @@ export type StartPortalSession = (input: {
   readonly data: { readonly workspaceSlug: string }
 }) => Promise<{ url: string }>
 
+export type SelectBillingResources = (input: {
+  readonly data: {
+    readonly workspaceSlug: string
+    readonly apiTokenIds: ReadonlyArray<string>
+    readonly webhookEndpointIds: ReadonlyArray<string>
+  }
+}) => Promise<ResourceSelectionInput>
+
+const EMPTY_RESOURCE_IDS: ReadonlyArray<string> = []
+const EMPTY_RESOURCES: ReadonlyArray<{ readonly id: string; readonly name: string }> =
+  []
+const EMPTY_WEBHOOKS: ReadonlyArray<{ readonly id: string; readonly url: string }> = []
+
 /**
  * The catalog record as the page renders it. It is the capability's own `Plan`
  * — including `purchase`, which is what decides a card's action, so no
  * component branches on a plan id.
  */
-export type BillingPlan = Plan
+export type BillingPlan = Plan & { readonly providerPrice?: Plan['price'] }
+
+/** Public pricing deliberately has no workspace, lifecycle, or recovery state. */
+export function PublicBillingPlans({
+  plans,
+  pricingUnavailable,
+  stripeConfigured
+}: {
+  readonly plans: ReadonlyArray<BillingPlan>
+  readonly pricingUnavailable: boolean
+  readonly stripeConfigured: boolean
+}) {
+  return (
+    <Panel title={m.plans_title()}>
+      {pricingUnavailable ? (
+        <p className="mb-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+          {m.billing_pricing_unavailable()}
+        </p>
+      ) : null}
+      <div className="grid gap-4 md:grid-cols-3">
+        {plans.map((plan) => (
+          <PlanTile
+            key={plan.id}
+            plan={plan}
+            currentPlanId={null}
+            canManageBilling={false}
+            stripeConfigured={stripeConfigured}
+            pendingPlan={null}
+            onUpgrade={() => undefined}
+            showExamplePrice={!stripeConfigured}
+          />
+        ))}
+      </div>
+    </Panel>
+  )
+}
 
 /**
  * One sentence out of a rejected portal call. The capability-unavailable case
@@ -77,20 +139,43 @@ export function BillingPlans({
   currentPlanId,
   plans,
   stripeConfigured,
+  pricingUnavailable = false,
   synchronization,
+  lifecycle,
+  resourceSelection = null,
+  apiTokens = EMPTY_RESOURCES,
+  webhookEndpoints = EMPTY_WEBHOOKS,
+  resourceEntitlements,
   canManageBilling,
   startCheckout = startCheckoutServerFn,
-  startPortalSession = startPortalSessionServerFn
+  startPortalSession = startPortalSessionServerFn,
+  selectBillingResources = selectBillingResourcesServerFn
 }: {
   readonly workspaceSlug: string
   readonly currentPlanId: string
   readonly plans: ReadonlyArray<BillingPlan>
   readonly stripeConfigured: boolean
+  readonly pricingUnavailable?: boolean
   readonly synchronization: BillingSynchronizationStatus
+  readonly lifecycle: BillingLifecycle
+  readonly resourceSelection?: {
+    readonly apiTokenIds: ReadonlyArray<string>
+    readonly webhookEndpointIds: ReadonlyArray<string>
+  } | null
+  readonly apiTokens?: ReadonlyArray<{ readonly id: string; readonly name: string }>
+  readonly webhookEndpoints?: ReadonlyArray<{
+    readonly id: string
+    readonly url: string
+  }>
+  readonly resourceEntitlements: {
+    readonly apiTokens: ResourceEntitlementSummary
+    readonly webhookEndpoints: ResourceEntitlementSummary
+  }
   /** Whether the viewer may change the plan (`organization:update`). */
   readonly canManageBilling: boolean
   readonly startCheckout?: StartCheckout
   readonly startPortalSession?: StartPortalSession
+  readonly selectBillingResources?: SelectBillingResources
 }) {
   // The server function rejects when the capability fails; the hook folds that
   // rejection into a displayable message via `checkoutErrorText`. Checkout
@@ -154,6 +239,18 @@ export function BillingPlans({
         </div>
       </Panel>
       <BillingSynchronization status={synchronization.status} />
+      <BillingLifecycleStatus lifecycle={lifecycle} effectivePlanId={currentPlanId} />
+      <BillingResourceAccess
+        canManageBilling={canManageBilling}
+        currentPlanId={currentPlanId}
+        lifecycle={lifecycle}
+        workspaceSlug={workspaceSlug}
+        resourceSelection={resourceSelection}
+        apiTokens={apiTokens}
+        webhookEndpoints={webhookEndpoints}
+        resourceEntitlements={resourceEntitlements}
+        selectBillingResources={selectBillingResources}
+      />
       <ActionFeedback error={portal.error} />
       {stripeConfigured ? null : (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
@@ -164,6 +261,11 @@ export function BillingPlans({
       )}
       <ActionFeedback error={upgrade.error} />
       <Panel title={m.plans_title()}>
+        {pricingUnavailable ? (
+          <p className="mb-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            {m.billing_pricing_unavailable()}
+          </p>
+        ) : null}
         <div className="grid gap-4 md:grid-cols-3">
           {plans.map((plan) => (
             <PlanTile
@@ -174,6 +276,7 @@ export function BillingPlans({
               stripeConfigured={stripeConfigured}
               pendingPlan={upgrade.pendingInput ?? null}
               onUpgrade={() => upgrade.run(plan.id)}
+              showExamplePrice={!stripeConfigured}
             />
           ))}
         </div>
@@ -192,14 +295,16 @@ function PlanTile({
   canManageBilling,
   stripeConfigured,
   pendingPlan,
-  onUpgrade
+  onUpgrade,
+  showExamplePrice = false
 }: {
   readonly plan: BillingPlan
-  readonly currentPlanId: string
+  readonly currentPlanId: string | null
   readonly canManageBilling: boolean
   readonly stripeConfigured: boolean
   readonly pendingPlan: string | null
   readonly onUpgrade: () => void
+  readonly showExamplePrice?: boolean
 }) {
   return (
     <div className="grid gap-2 rounded-none border border-border bg-muted p-4 content-start">
@@ -210,6 +315,9 @@ function PlanTile({
         ) : null}
       </div>
       <p className="text-2xl font-semibold">{planPrice(plan)}</p>
+      {showExamplePrice ? (
+        <p className="text-xs text-muted-foreground">{m.billing_example_price()}</p>
+      ) : null}
       <p className="text-sm text-muted-foreground">{planDescription(plan)}</p>
       <ul className="grid gap-1 text-sm text-muted-foreground">
         <EntitlementRow
@@ -255,7 +363,7 @@ function PlanAction({
   onUpgrade
 }: {
   readonly plan: BillingPlan
-  readonly currentPlanId: string
+  readonly currentPlanId: string | null
   readonly canManageBilling: boolean
   readonly stripeConfigured: boolean
   readonly pendingPlan: string | null
@@ -358,15 +466,299 @@ function planPrice(plan: BillingPlan): string {
   if (plan.price === null) {
     return m.shell_plan_custom()
   }
-  const amount = formatCurrency(plan.price.amount, plan.price.currency, getLocale(), {
-    maximumFractionDigits: 0
-  })
-  if (plan.price.amount === 0) {
+  const price = plan.providerPrice ?? plan.price
+  const amount = formatCurrency(price.amount, price.currency, getLocale())
+  if (price.amount === 0) {
     return amount
   }
   return plan.pricing === 'per_seat'
     ? m.shell_plan_seat_price({ amount })
     : m.shell_plan_month_price({ amount })
+}
+
+function BillingLifecycleStatus({
+  lifecycle,
+  effectivePlanId
+}: {
+  readonly lifecycle: BillingLifecycle
+  readonly effectivePlanId: string
+}) {
+  if (lifecycle.status === 'unpaid') {
+    return (
+      <output className="block text-sm text-muted-foreground">
+        {m.billing_payment_unpaid()}
+      </output>
+    )
+  }
+  if (lifecycle.status === 'incomplete') {
+    return (
+      <output className="block text-sm text-muted-foreground">
+        {m.billing_payment_incomplete()}
+      </output>
+    )
+  }
+  if (effectivePlanId === 'starter' && lifecycle.planId !== 'starter') {
+    return (
+      <output className="block text-sm text-muted-foreground">
+        {m.billing_access_restricted()}
+      </output>
+    )
+  }
+  if (lifecycle.cancelAtPeriodEnd && lifecycle.currentPeriodEnd) {
+    return (
+      <output className="block text-sm text-muted-foreground">
+        {m.billing_cancel_at_period_end({
+          date: formatBillingDate(lifecycle.currentPeriodEnd)
+        })}
+      </output>
+    )
+  }
+  if (lifecycle.status === 'trialing' && lifecycle.trialEnd) {
+    return (
+      <output className="block text-sm text-muted-foreground">
+        {m.billing_trial({ date: formatBillingDate(lifecycle.trialEnd) })}
+      </output>
+    )
+  }
+  if (lifecycle.status === 'past_due' && lifecycle.graceEndsAt) {
+    return (
+      <output className="block text-sm text-muted-foreground">
+        {m.billing_payment_grace({ date: formatBillingDate(lifecycle.graceEndsAt) })}
+      </output>
+    )
+  }
+
+  return null
+}
+
+function formatBillingDate(value: string): string {
+  return formatDate(value, getLocale(), { dateStyle: 'medium' }, 'UTC')
+}
+
+function toggleResource(
+  id: string,
+  selected: ReadonlyArray<string>,
+  limit: number,
+  set: (ids: ReadonlyArray<string>) => void
+): void {
+  if (selected.includes(id)) {
+    set(selected.filter((item) => item !== id))
+    return
+  }
+  if (selected.length < limit) {
+    set([...selected, id])
+  }
+}
+
+function BillingResourceAccess({
+  canManageBilling,
+  currentPlanId,
+  lifecycle,
+  resourceEntitlements,
+  ...props
+}: {
+  readonly canManageBilling: boolean
+  readonly currentPlanId: string
+  readonly lifecycle: BillingLifecycle
+  readonly resourceEntitlements: {
+    readonly apiTokens: ResourceEntitlementSummary
+    readonly webhookEndpoints: ResourceEntitlementSummary
+  }
+  readonly workspaceSlug: string
+  readonly resourceSelection: {
+    readonly apiTokenIds: ReadonlyArray<string>
+    readonly webhookEndpointIds: ReadonlyArray<string>
+  } | null
+  readonly apiTokens: ReadonlyArray<{ readonly id: string; readonly name: string }>
+  readonly webhookEndpoints: ReadonlyArray<{
+    readonly id: string
+    readonly url: string
+  }>
+  readonly selectBillingResources: SelectBillingResources
+}) {
+  if (canManageBilling) {
+    return (
+      <DowngradeResourceSelector
+        {...props}
+        resourceEntitlements={resourceEntitlements}
+      />
+    )
+  }
+  // `currentPlanId` is Billing's deadline-aware effective entitlement. The
+  // lifecycle plan is the subscribed plan, so a paid subscription that has
+  // fallen back to Starter is restricted even when its raw status is active;
+  // a valid paid trial is not restricted merely because it is trialing.
+  if (
+    (currentPlanId === 'starter' && lifecycle.planId !== 'starter') ||
+    resourceEntitlements.apiTokens.used >
+      resourceEntitlements.apiTokens.activeIds.length ||
+    resourceEntitlements.webhookEndpoints.used >
+      resourceEntitlements.webhookEndpoints.activeIds.length
+  ) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {m.billing_restricted_contact_admin()}
+      </p>
+    )
+  }
+  return null
+}
+
+function DowngradeResourceSelector({
+  workspaceSlug,
+  resourceSelection,
+  apiTokens,
+  webhookEndpoints,
+  selectBillingResources,
+  resourceEntitlements
+}: {
+  readonly workspaceSlug: string
+  readonly resourceSelection: {
+    readonly apiTokenIds: ReadonlyArray<string>
+    readonly webhookEndpointIds: ReadonlyArray<string>
+  } | null
+  readonly apiTokens: ReadonlyArray<{ readonly id: string; readonly name: string }>
+  readonly webhookEndpoints: ReadonlyArray<{
+    readonly id: string
+    readonly url: string
+  }>
+  readonly selectBillingResources: SelectBillingResources
+  readonly resourceEntitlements: {
+    readonly apiTokens: ResourceEntitlementSummary
+    readonly webhookEndpoints: ResourceEntitlementSummary
+  }
+}) {
+  const [tokenIds, setTokenIds] = useState<ReadonlyArray<string>>(() =>
+    reconcileSelection(
+      resourceSelection?.apiTokenIds ?? EMPTY_RESOURCE_IDS,
+      apiTokens.map(({ id }) => id),
+      2
+    )
+  )
+  const [webhookIds, setWebhookIds] = useState<ReadonlyArray<string>>(() =>
+    reconcileSelection(
+      resourceSelection?.webhookEndpointIds ?? EMPTY_RESOURCE_IDS,
+      webhookEndpoints.map(({ id }) => id),
+      1
+    )
+  )
+  const selection = useServerAction(
+    (input: Parameters<SelectBillingResources>[0]) => selectBillingResources(input),
+    {
+      failureMessage: m.billing_save_selection_failed(),
+      invalidate: true
+    }
+  )
+  useEffect(() => {
+    // The loader is the external source of truth after invalidation; reset the
+    // local editable draft to its normalized projection.
+    // oxlint-disable-next-line react-hooks/set-state-in-effect -- synchronizes the local draft with a successful loader invalidation
+    setTokenIds(
+      reconcileSelection(
+        resourceSelection?.apiTokenIds ?? EMPTY_RESOURCE_IDS,
+        apiTokens.map(({ id }) => id),
+        2
+      )
+    )
+    setWebhookIds(
+      reconcileSelection(
+        resourceSelection?.webhookEndpointIds ?? EMPTY_RESOURCE_IDS,
+        webhookEndpoints.map(({ id }) => id),
+        1
+      )
+    )
+  }, [resourceSelection, apiTokens, webhookEndpoints])
+  const overLimit = [
+    resourceEntitlements.apiTokens,
+    resourceEntitlements.webhookEndpoints
+  ].some(({ used, limit }) => limit !== null && used > limit)
+  if (!overLimit) {
+    return null
+  }
+  function save(): void {
+    selection.run({
+      data: {
+        workspaceSlug,
+        apiTokenIds: [...tokenIds],
+        webhookEndpointIds: [...webhookIds]
+      }
+    })
+  }
+  return (
+    <Panel title={m.billing_resource_selection_title()}>
+      <p className="mb-4 text-sm text-muted-foreground">
+        {m.billing_resource_selection_description()}
+      </p>
+      <div className="grid gap-4 md:grid-cols-2">
+        <ResourceChoices
+          label={m.nav_api_tokens()}
+          items={apiTokens}
+          selected={tokenIds}
+          disabled={selection.pending}
+          onToggle={(id) => toggleResource(id, tokenIds, 2, setTokenIds)}
+        />
+        <ResourceChoices
+          label={m.nav_webhook_endpoints()}
+          items={webhookEndpoints}
+          selected={webhookIds}
+          disabled={selection.pending}
+          onToggle={(id) => toggleResource(id, webhookIds, 1, setWebhookIds)}
+        />
+      </div>
+      <Button className="mt-4" disabled={selection.pending} onClick={save}>
+        {selection.pending ? <Spinner data-icon="inline-start" /> : null}
+        {m.billing_save_selection()}
+      </Button>
+      <ActionFeedback error={selection.error} />
+    </Panel>
+  )
+}
+
+function reconcileSelection(
+  selected: ReadonlyArray<string>,
+  available: ReadonlyArray<string>,
+  limit: number
+): ReadonlyArray<string> {
+  const availableIds = new Set(available)
+  return selected.filter((id) => availableIds.has(id)).slice(0, limit)
+}
+
+function ResourceChoices({
+  label,
+  items,
+  selected,
+  disabled,
+  onToggle
+}: {
+  readonly label: string
+  readonly items: ReadonlyArray<{
+    readonly id: string
+    readonly name?: string
+    readonly url?: string
+  }>
+  readonly selected: ReadonlyArray<string>
+  readonly disabled: boolean
+  readonly onToggle: (id: string) => void
+}) {
+  const selectedIds = new Set(selected)
+  return (
+    <fieldset>
+      <legend className="text-sm font-medium">{label}</legend>
+      <div className="mt-2 grid gap-2">
+        {items.map((item) => (
+          <Label key={item.id} htmlFor={`billing-resource-${item.id}`}>
+            <Checkbox
+              id={`billing-resource-${item.id}`}
+              checked={selectedIds.has(item.id)}
+              disabled={disabled}
+              onCheckedChange={() => onToggle(item.id)}
+            />
+            <code>{item.name ?? item.url ?? item.id}</code>
+          </Label>
+        ))}
+      </div>
+    </fieldset>
+  )
 }
 
 function EntitlementRow({

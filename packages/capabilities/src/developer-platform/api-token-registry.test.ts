@@ -3,9 +3,8 @@ import { Effect, Layer } from 'effect'
 import { SeedLayer } from '../layers.ts'
 import { seedApiTokens, seedWorkspaceRecord } from '../seed-fixture.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
-import { SeedAuditEventLog } from '../governance/audit-event-log.ts'
-import { SeedWebhookPublisher } from './webhook-publisher.ts'
 import { SeedApiTokenRegistry } from './api-token-registry.seed.ts'
+import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
 import {
   ApiTokenRegistry,
   SEED_API_TOKEN,
@@ -17,7 +16,7 @@ for (const contractCase of apiTokenRegistryContractCases(expect)) {
   it.effect(contractCase.name, () =>
     contractCase.assert.pipe(
       Effect.provide(
-        Layer.merge(
+        Layer.mergeAll(
           SeedLayer,
           testWorkspaceContext({ ...seedWorkspaceRecord, planId: 'team' })
         )
@@ -41,10 +40,30 @@ it.effect(
       })
     }).pipe(
       Effect.provide(
-        SeedApiTokenRegistry(seedApiTokens.toReversed()).pipe(
-          Layer.provide(SeedAuditEventLog([])),
-          Layer.provide(SeedWebhookPublisher)
-        )
+        SeedApiTokenRegistry(seedApiTokens.toReversed()).pipe(Layer.provide(SeedLayer))
       )
     )
+)
+
+it.effect('transfers a selected token slot through rotation', () =>
+  Effect.gen(function* () {
+    const registry = yield* ApiTokenRegistry
+    const entitlements = yield* ResourceEntitlements
+    yield* entitlements.select({ apiTokenIds: ['tok_docs'], webhookEndpointIds: [] })
+    const replacement = yield* registry.replace({
+      tokenId: 'tok_docs',
+      scopes: ['read'],
+      overlapSeconds: 60
+    })
+    expect(yield* registry.verifyBearerToken(replacement.token)).toMatchObject({
+      id: replacement.id
+    })
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        SeedLayer,
+        testWorkspaceContext({ ...seedWorkspaceRecord, planId: 'team' })
+      )
+    )
+  )
 )

@@ -1,3 +1,4 @@
+import { type NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   billingSynchronization,
   workspaceMembers,
@@ -5,7 +6,7 @@ import {
   workspaceSubscriptions
 } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
-import { Effect, Layer } from 'effect'
+import { DateTime, Effect, Layer } from 'effect'
 import { count, eq } from 'drizzle-orm'
 
 import { CapabilityUnavailable } from '../errors.ts'
@@ -16,11 +17,15 @@ import { makeBillingSyncStore } from './billing-sync-store.ts'
 import { makeDurableCheckout, makeValidatedPortalSession } from './checkout.live.ts'
 import { billingConfigured, type BillingOptions } from './billing-config.ts'
 import { planById } from './plan-catalog.ts'
+import { displayedBillingPlans, validatedStripePrice } from './stripe-pricing.ts'
+import { decodeSubscriptionRow } from './subscription-row.ts'
+import { effectivePlanDecision } from './billing-state.ts'
 import {
   Billing,
   billingStoreUnavailable,
   type BillingInterface,
   type BillingSynchronizationStatus,
+  type SubscriptionState,
   type CheckoutInput
 } from './billing.ts'
 
@@ -39,7 +44,7 @@ function providerNotConfigured(): CapabilityUnavailable {
 
 export function LiveBilling(
   options: BillingOptions = {}
-): Layer.Layer<Billing, never, Database | RawD1 | AuditEventLog> {
+): Layer.Layer<Billing, never, Database | RawD1 | AuditEventLog | NotificationFeed> {
   return Layer.effect(Billing)(
     Effect.gen(function* () {
       const db = yield* Database
@@ -84,22 +89,51 @@ export function LiveBilling(
         return rows[0]
       })
 
-      const service: BillingInterface = {
-        ...synchronization,
-        configured: Effect.fn('Billing.configured')(() =>
-          Effect.succeed(billingConfigured(options))
-        )(),
-        currentPlan: Effect.fn('Billing.currentPlan')(function* () {
-          const ctx = yield* WorkspaceContext
+      const currentPlanForWorkspace = Effect.fn('Billing.currentPlanForWorkspace')(
+        function* (workspaceId: string) {
+          const row = yield* readSubscription(workspaceId)
+          if (row !== undefined) {
+            const subscription = yield* unavailable(decodeSubscriptionRow(row))
+            return planById(
+              effectivePlanDecision(
+                subscription,
+                DateTime.formatIso(yield* DateTime.now)
+              ).planId
+            )
+          }
           const rows = yield* unavailable(
             db
               .select({ planId: workspaces.planId })
               .from(workspaces)
-              .where(eq(workspaces.id, ctx.workspace.id))
+              .where(eq(workspaces.id, workspaceId))
               .limit(1)
           )
-          return planById(rows[0]?.planId ?? ctx.workspace.planId)
+          return planById(rows[0]?.planId ?? 'starter')
+        }
+      )
+      const service: BillingInterface = {
+        ...synchronization,
+        configured: Effect.succeed(billingConfigured(options)),
+        currentPlanForWorkspace,
+        currentPlan: Effect.fn('Billing.currentPlan')(function* () {
+          return yield* currentPlanForWorkspace((yield* WorkspaceContext).workspace.id)
         })(),
+        lifecycleStatus: Effect.fn('Billing.lifecycleStatus')(function* () {
+          const row = yield* readSubscription((yield* WorkspaceContext).workspace.id)
+          let state: SubscriptionState | null = null
+          if (row !== undefined) {
+            state = yield* unavailable(decodeSubscriptionRow(row))
+          }
+          return {
+            status: state?.status ?? 'canceled',
+            planId: state?.subscribedPlanId ?? 'starter',
+            currentPeriodEnd: state?.currentPeriodEnd ?? null,
+            cancelAtPeriodEnd: state?.cancelAtPeriodEnd ?? false,
+            trialEnd: state?.trialEnd ?? null,
+            graceEndsAt: state?.graceEndsAt ?? null
+          }
+        })(),
+        displayedPlans: displayedBillingPlans(options),
         synchronizationStatus: Effect.fn('Billing.synchronizationStatus')(function* () {
           const ctx = yield* WorkspaceContext
           if (!billingConfigured(options)) {
@@ -135,6 +169,14 @@ export function LiveBilling(
             return yield* Effect.fail(providerNotConfigured())
           }
           const plan = planById(input.planId)
+          if (plan.purchase !== 'self_serve' || plan.id !== input.planId) {
+            return yield* Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'billing',
+                reason: 'plan_not_self_serve'
+              })
+            )
+          }
           let priceId: string | undefined
           if (plan.stripePriceEnv !== null) {
             priceId = options.priceIds?.[input.planId]
@@ -147,6 +189,7 @@ export function LiveBilling(
               })
             )
           }
+          yield* validatedStripePrice(secretKey, priceId)
           let quantity = 1
           if (plan.pricing === 'per_seat') {
             quantity = yield* countMembers(ctx.workspace.id)

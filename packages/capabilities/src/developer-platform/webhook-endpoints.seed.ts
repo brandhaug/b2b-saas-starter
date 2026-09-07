@@ -1,9 +1,15 @@
+import {
+  SeedResourceInventory,
+  SeedResourceInventoryLayer
+} from '../billing/resource-inventory.seed.ts'
+import { Billing } from '../billing/billing.ts'
 import { bestEffort } from '../internal/best-effort.ts'
 import { attemptEvidence } from './webhook-attempt-history.ts'
 import { DateTime, Duration, Effect, Layer } from 'effect'
 import { randomWebhookSecret } from '../crypto.ts'
 
-import { assertWithinPlanLimit } from '../billing/plan-catalog.ts'
+import { assertWithinPlanLimit } from '../billing/resource-admission.ts'
+import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -155,13 +161,16 @@ export function SeedWebhookEndpoints(
 ): Layer.Layer<
   WebhookEndpoints,
   never,
-  AuditEventLog | WebhookPublisher | NotificationFeed
+  Billing | AuditEventLog | WebhookPublisher | NotificationFeed | ResourceEntitlements
 > {
   return Layer.effect(WebhookEndpoints)(
     Effect.gen(function* () {
+      const billing = yield* Billing
       const audit = yield* AuditEventLog
       const publisher = yield* WebhookPublisher
       const notificationFeed = yield* NotificationFeed
+      const entitlements = yield* ResourceEntitlements
+      const inventory = yield* SeedResourceInventory
       // Mutable stores, so Seed mirrors Live's post-conditions — a created
       // endpoint becomes dispatchable, a recorded attempt becomes listable,
       // the plan gate can actually trip. The membership seed roster sets the
@@ -178,6 +187,18 @@ export function SeedWebhookEndpoints(
         previousSecretExpiresAt: null,
         consecutiveFailures: 0
       }))
+      inventory.registerWebhooks((workspaceId, includeUnavailable) => {
+        const ids: Array<string> = []
+        for (const endpoint of endpoints) {
+          if (
+            endpoint.workspaceId === workspaceId &&
+            (includeUnavailable || endpoint.enabled)
+          ) {
+            ids.push(endpoint.id)
+          }
+        }
+        return ids
+      })
       const deliveries: Array<SeedDeliveryRow> = seedDeliveries.map((fixture) =>
         toDeliveryRow(fixture, seedWorkspaceRecord.id)
       )
@@ -537,7 +558,7 @@ export function SeedWebhookEndpoints(
             used: endpoints.filter(
               (endpoint) => endpoint.workspaceId === ctx.workspace.id
             ).length
-          })
+          }).pipe(Effect.provideService(Billing, billing))
           const endpoint: SeedEndpointRow = {
             id: yield* newCapabilityId('wh'),
             workspaceId: ctx.workspace.id,
@@ -839,6 +860,14 @@ export function SeedWebhookEndpoints(
             if (!endpoint || !endpoint.enabled) {
               return null
             }
+            const allowed = yield* entitlements.isActiveForWorkspace({
+              workspaceId,
+              resource: 'webhook_endpoint',
+              resourceId: endpoint.id
+            })
+            if (!allowed) {
+              return null
+            }
             return {
               id: endpoint.id,
               url: endpoint.url,
@@ -858,5 +887,5 @@ export function SeedWebhookEndpoints(
           })
       }
     })
-  )
+  ).pipe(Layer.provide(SeedResourceInventoryLayer))
 }

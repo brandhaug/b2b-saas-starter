@@ -24,6 +24,7 @@ export type ServerEnv = {
   readonly STRIPE_SECRET_KEY?: string | undefined
   readonly STRIPE_WEBHOOK_SECRET?: string | undefined
   readonly STRIPE_PRICE_ID_TEAM?: string | undefined
+  readonly STRIPE_PRICE_ID_ENTERPRISE?: string | undefined
   readonly SENTRY_DSN?: string | undefined
   readonly POSTHOG_KEY?: string | undefined
   readonly POSTHOG_HOST?: string | undefined
@@ -94,6 +95,7 @@ export const optionalModuleEnvPlainKeys = [
   'POSTHOG_KEY',
   'POSTHOG_HOST',
   'STRIPE_PRICE_ID_TEAM',
+  'STRIPE_PRICE_ID_ENTERPRISE',
   'TURNSTILE_SITE_KEY',
   'CLOUDFLARE_EMAIL_FROM',
   'WORKERS_AI_ENABLED',

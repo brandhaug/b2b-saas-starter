@@ -1,3 +1,7 @@
+import { assertWithinPlanLimit } from './resource-admission.ts'
+import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
+import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
+import { SeedAccountPreferences } from '../governance/account-preferences.ts'
 import { Effect, Layer, Result } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
@@ -16,9 +20,11 @@ import {
   type SeedSubscriptionFixture
 } from './billing.seed.ts'
 import {
-  assertWithinPlanLimit,
   planById,
   PLANS,
+  resourceEntitlement,
+  resourceEntitlementSummary,
+  EMPTY_RESOURCE_SELECTION,
   seatUsage,
   STARTER_PLAN
 } from './plan-catalog.ts'
@@ -58,6 +64,12 @@ function billingFixture(options?: {
       prepareRecord: () => Effect.die('not used here')
     })
   )
+  const feed = SeedNotificationFeed([]).pipe(
+    Layer.provide(
+      Layer.merge(SeedNotificationPreferences([]), SeedAccountPreferences([]))
+    ),
+    Layer.provide(auditLayer)
+  )
   const rosterLayer = Layer.unwrap(
     Effect.gen(function* () {
       const roster = yield* makeSeedRoster(membersFor(options?.memberCount ?? 0))
@@ -65,10 +77,17 @@ function billingFixture(options?: {
         SeedBilling({
           stripeConfigured: options?.stripeConfigured,
           subscriptions: options?.subscriptions,
-          providerSubscriptions: options?.providerSubscriptions,
+          providerSubscriptions: options?.providerSubscriptions?.map((provider) => ({
+            ...provider,
+            payment: provider.payment ?? {
+              lastPaymentAt: '2026-08-01T00:00:00.000Z',
+              firstFailedAt: null,
+              currentInvoicePaid: true
+            }
+          })),
           workspacePlans: { wrk_billing: options?.planId ?? 'team' },
           roster
-        }).pipe(Layer.provide(auditLayer)),
+        }).pipe(Layer.provide(auditLayer), Layer.provide(feed)),
         auditLayer,
         testWorkspaceContext({
           id: 'wrk_billing',
@@ -183,6 +202,39 @@ describe('seat pricing catalog', () => {
     expect(seatUsage(planById('team'), 50).overLimit).toBe(false)
     expect(seatUsage(planById('team'), 50).included).toBeNull()
     expect(seatUsage(planById('enterprise'), 999).overLimit).toBe(false)
+  })
+
+  it('preserves excess resources but pauses an over-limit category until selected', () => {
+    const ids = ['tok_1', 'tok_2', 'tok_3']
+    const paused = resourceEntitlement(
+      STARTER_PLAN,
+      'api_token',
+      ids,
+      EMPTY_RESOURCE_SELECTION
+    )
+    expect(paused.paused).toBe(true)
+    expect(paused.activeIds).toEqual([])
+    expect(paused.used).toBe(3)
+
+    const selected = resourceEntitlement(STARTER_PLAN, 'api_token', ids, {
+      apiTokenIds: ['tok_3', 'tok_missing', 'tok_1'],
+      webhookEndpointIds: []
+    })
+    expect(selected.paused).toBe(false)
+    expect(selected.activeIds).toEqual(['tok_3', 'tok_1'])
+    expect(
+      resourceEntitlementSummary(STARTER_PLAN, 'api_token', ids, {
+        apiTokenIds: ['tok_1', 'tok_2'],
+        webhookEndpointIds: []
+      }).requiresSelection
+    ).toBe(false)
+  })
+
+  it('keeps every resource active when the plan has no ceiling', () => {
+    const ids = ['wh_1', 'wh_2', 'wh_3']
+    const entitlement = resourceEntitlement(planById('team'), 'webhook_endpoint', ids)
+    expect(entitlement.paused).toBe(false)
+    expect(entitlement.activeIds).toEqual(ids)
   })
 })
 
@@ -399,13 +451,13 @@ describe('seed billing reconciliation and checkout claims', () => {
     )
   )
 
-  it.effect('keeps nonverified provider lifecycle states pending', () =>
+  it.effect('records verified incomplete provider state without paid access', () =>
     Effect.gen(function* () {
       const billing = yield* Billing
       const result = yield* billing.reconcileWorkspace({ workspaceId: 'wrk_billing' })
       expect(result.outcome).toBe('repaired')
-      expect((yield* billing.synchronizationStatus).status).toBe('pending')
-      expect((yield* billing.currentPlan).id).toBe('team')
+      expect((yield* billing.synchronizationStatus).status).toBe('current')
+      expect((yield* billing.currentPlan).id).toBe('starter')
     }).pipe(
       Effect.provide(
         billingFixture({
@@ -560,7 +612,7 @@ describe('seed billing reconciliation and checkout claims', () => {
         const program = Effect.gen(function* () {
           const billing = yield* Billing
           const result = yield* billing.startCheckout({
-            planId: 'enterprise',
+            planId: 'team',
             successUrl: 'https://x.test/s',
             cancelUrl: 'https://x.test/c'
           })
@@ -745,7 +797,11 @@ describe('stripe subscription event policy', () => {
     expect(
       subscriptionLinkForStripeEvent('customer.subscription.deleted', { id: 'sub_2' })
     ).toEqual({ kind: 'deleted' })
-    expect(subscriptionLinkForStripeEvent('invoice.paid', {})).toBeNull()
+    expect(subscriptionLinkForStripeEvent('invoice.paid', {})).toEqual({
+      kind: 'link',
+      customerId: undefined,
+      subscriptionId: undefined
+    })
   })
 })
 
@@ -757,11 +813,11 @@ describe('entitlement gate', () => {
       )
       expect(Result.isFailure(result)).toBe(true)
       if (Result.isFailure(result)) {
-        expect(result.failure._tag).toBe('PlanLimitExceeded')
-        // SAFETY: the tag assertion above proves the cast.
-        const error = result.failure
-        expect(error.limit).toBe(2)
-        expect(error.planId).toBe('starter')
+        expect(result.failure).toMatchObject({
+          _tag: 'PlanLimitExceeded',
+          limit: 2,
+          planId: 'starter'
+        })
       }
     }).pipe(Effect.provide(billingFixture({ planId: 'starter' }).layer))
   )

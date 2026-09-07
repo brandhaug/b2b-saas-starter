@@ -55,66 +55,72 @@ function execute(sql: string, ...values: ReadonlyArray<string | number>) {
 const TOKEN_INSERT = `INSERT INTO api_tokens (id,workspace_id,name,token_prefix,token_hash,scopes,created_at) VALUES (?, ?, 'MCP live test', 'bsk_test', ?, '["admin"]', '2026-01-01T00:00:00Z')`
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it) => {
-  it.effect('existing foreign IDs cannot disclose or mutate another tenant', () =>
-    Effect.gen(function* () {
-      const DB = yield* TestD1
-      const own = 'bsk_own_live'
-      const foreign = 'bsk_foreign_live'
-      yield* execute(
-        TOKEN_INSERT,
-        'tok_live_own',
-        'wrk_live',
-        yield* Effect.promise(() => hashApiToken(own))
-      )
-      yield* execute(
-        TOKEN_INSERT,
-        'tok_live_foreign',
-        'wrk_other',
-        yield* Effect.promise(() => hashApiToken(foreign))
-      )
-      const { handler } = buildWebHandler({ DB, ...rateBindings })
-      const client = mcpClient(handler, `Bearer ${own}`)
-      const other = mcpClient(handler, `Bearer ${foreign}`)
-      yield* Effect.promise(() => client.initialize())
-      yield* Effect.promise(() => other.initialize())
-      const created = yield* call(other, 'create_webhook', {
-        url: 'https://foreign.example/hook',
-        events: ['api_token.created']
-      })
-      expect(created.isError).not.toBe(true)
-      const endpoint = yield* decodeRecord(created.content[0]?.text)
-      const before = yield* call(other, 'list_webhooks')
-      const audit = yield* call(other, 'list_audit_events')
-      for (const name of [
-        'update_webhook',
-        'delete_webhook',
-        'rotate_webhook_secret',
-        'send_webhook_test_event'
-      ]) {
-        const refusal = yield* call(client, name, {
-          endpointId: endpoint.id,
-          enabled: false
+  it.effect(
+    'existing foreign IDs cannot disclose or mutate another tenant',
+    () =>
+      Effect.gen(function* () {
+        const DB = yield* TestD1
+        const own = 'bsk_own_live'
+        const foreign = 'bsk_foreign_live'
+        yield* execute(
+          TOKEN_INSERT,
+          'tok_live_own',
+          'wrk_live',
+          yield* Effect.promise(() => hashApiToken(own))
+        )
+        yield* execute(
+          TOKEN_INSERT,
+          'tok_live_foreign',
+          'wrk_other',
+          yield* Effect.promise(() => hashApiToken(foreign))
+        )
+        const { handler } = buildWebHandler({ DB, ...rateBindings })
+        const client = mcpClient(handler, `Bearer ${own}`)
+        const other = mcpClient(handler, `Bearer ${foreign}`)
+        yield* Effect.promise(() => client.initialize())
+        yield* Effect.promise(() => other.initialize())
+        const created = yield* call(other, 'create_webhook', {
+          url: 'https://foreign.example/hook',
+          events: ['api_token.created']
         })
-        expect(refusal.isError).toBe(true)
-        expect(refusal.content[0]?.text).toBe('webhook endpoint not found')
-      }
-      expect(
-        (yield* call(client, 'delete_api_token', { tokenId: 'tok_live_foreign' }))
-          .isError
-      ).not.toBe(true)
-      expect(yield* call(other, 'list_webhooks')).toEqual(before)
-      expect(yield* call(other, 'list_audit_events')).toEqual(audit)
-      // The foreign credential is still valid; the own credential can be revoked.
-      yield* call(client, 'delete_api_token', { tokenId: 'tok_live_own' })
-      expect(
-        (yield* Effect.promise(() =>
-          client.rpc('tools/call', {
-            name: 'create_webhook',
-            arguments: { url: 'https://blocked.example', events: ['api_token.created'] }
+        expect(created.isError).not.toBe(true)
+        const endpoint = yield* decodeRecord(created.content[0]?.text)
+        const before = yield* call(other, 'list_webhooks')
+        const audit = yield* call(other, 'list_audit_events')
+        for (const name of [
+          'update_webhook',
+          'delete_webhook',
+          'rotate_webhook_secret',
+          'send_webhook_test_event'
+        ]) {
+          const refusal = yield* call(client, name, {
+            endpointId: endpoint.id,
+            enabled: false
           })
-        )).status
-      ).toBe(401)
-    })
+          expect(refusal.isError).toBe(true)
+          expect(refusal.content[0]?.text).toBe('webhook endpoint not found')
+        }
+        expect(
+          (yield* call(client, 'delete_api_token', { tokenId: 'tok_live_foreign' }))
+            .isError
+        ).not.toBe(true)
+        expect(yield* call(other, 'list_webhooks')).toEqual(before)
+        expect(yield* call(other, 'list_audit_events')).toEqual(audit)
+        // The foreign credential is still valid; the own credential can be revoked.
+        yield* call(client, 'delete_api_token', { tokenId: 'tok_live_own' })
+        expect(
+          (yield* Effect.promise(() =>
+            client.rpc('tools/call', {
+              name: 'create_webhook',
+              arguments: {
+                url: 'https://blocked.example',
+                events: ['api_token.created']
+              }
+            })
+          )).status
+        ).toBe(401)
+      }),
+    120_000
   )
 
   it.effect(

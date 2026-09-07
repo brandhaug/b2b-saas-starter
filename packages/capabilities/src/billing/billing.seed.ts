@@ -1,11 +1,20 @@
+import { NotificationFeed } from '../notifications/notification-feed.ts'
+import { lifecycleNotices } from './billing-notices.ts'
 import { DateTime, Effect, Layer, Ref, Semaphore } from 'effect'
 
+import { type StripeSubscriptionResponse } from './stripe.ts'
 import { CapabilityUnavailable } from '../errors.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
+import { type Member } from '../governance/workspace-identity.ts'
 import { type SeedRoster } from '../governance/workspace-membership.ts'
 import { planById, PLANS } from './plan-catalog.ts'
-import { resolveBillingState } from './billing-state.ts'
+import {
+  effectivePlanDecision,
+  emptySubscription,
+  resolveBillingState,
+  type PaymentEvidence
+} from './billing-state.ts'
 import {
   Billing,
   planChangeMetadata,
@@ -17,6 +26,7 @@ import {
   type ReconcileWorkspaceInput,
   type ReconcileResult,
   type SeatSyncResult,
+  type SubscriptionStatus,
   type SubscriptionState
 } from './billing.ts'
 /**
@@ -35,6 +45,17 @@ export type SeedSubscriptionFixture = {
   readonly subscriptionId?: string | null
   readonly subscriptionItemId?: string | null
   readonly seatQuantity: number
+  readonly subscribedPlanId?: string | undefined
+  readonly lastPaymentAt?: string | null | undefined
+  readonly paymentVerified?: boolean | undefined
+  readonly currentPeriodStart?: string | null | undefined
+  readonly status?: SubscriptionStatus | undefined
+  readonly priceId?: string | null | undefined
+  readonly currentPeriodEnd?: string | null | undefined
+  readonly trialEnd?: string | null | undefined
+  readonly firstFailedAt?: string | null | undefined
+  readonly graceEndsAt?: string | null | undefined
+  readonly cancelAtPeriodEnd?: boolean | undefined
 }
 
 /**
@@ -45,7 +66,7 @@ export type SeedSubscriptionFixture = {
  */
 export type SeedProviderSubscriptionFixture = SeedSubscriptionFixture & {
   readonly planId?: string | undefined
-  readonly status?: string | undefined
+  readonly payment?: PaymentEvidence | undefined
 }
 
 type CheckoutClaim = {
@@ -58,10 +79,21 @@ type CheckoutClaim = {
 
 function toSeedSubscription(fixture: SeedSubscriptionFixture): SubscriptionState {
   return {
-    customerId: fixture.customerId,
+    ...emptySubscription(fixture.customerId),
     subscriptionId: fixture.subscriptionId ?? null,
     subscriptionItemId: fixture.subscriptionItemId ?? null,
-    seatQuantity: fixture.seatQuantity
+    seatQuantity: fixture.seatQuantity,
+    status: fixture.status ?? 'active',
+    subscribedPlanId: fixture.subscribedPlanId ?? 'team',
+    priceId: fixture.priceId ?? null,
+    currentPeriodStart: fixture.currentPeriodStart ?? null,
+    currentPeriodEnd: fixture.currentPeriodEnd ?? null,
+    trialEnd: fixture.trialEnd ?? null,
+    firstFailedAt: fixture.firstFailedAt ?? null,
+    graceEndsAt: fixture.graceEndsAt ?? null,
+    lastPaymentAt: fixture.lastPaymentAt ?? null,
+    cancelAtPeriodEnd: fixture.cancelAtPeriodEnd ?? false,
+    paymentVerified: fixture.paymentVerified ?? false
   }
 }
 
@@ -73,6 +105,9 @@ export function SeedBilling(options?: {
   readonly providerSubscriptions?:
     | ReadonlyArray<SeedProviderSubscriptionFixture>
     | undefined
+  readonly providerState?:
+    | Ref.Ref<ReadonlyMap<string, SeedProviderSubscriptionFixture>>
+    | undefined
   /** Initial plan projection for identity-keyed reconciliation calls. */
   readonly workspacePlans?: Readonly<Record<string, string>> | undefined
   /**
@@ -81,10 +116,12 @@ export function SeedBilling(options?: {
    * fixture of a workspace nobody joined.
    */
   readonly roster?: SeedRoster | undefined
-}): Layer.Layer<Billing, never, AuditEventLog> {
+}): Layer.Layer<Billing, never, AuditEventLog | NotificationFeed> {
   return Layer.effect(Billing)(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
+      const feed = yield* NotificationFeed
+      const sentNotices = yield* Ref.make<ReadonlySet<string>>(new Set())
       const configured = options?.stripeConfigured ?? false
       const workspacePlans = options?.workspacePlans ?? {}
 
@@ -100,16 +137,16 @@ export function SeedBilling(options?: {
           ])
         )
       )
-      const providerSubscriptions = yield* Ref.make<
-        ReadonlyMap<string, SeedProviderSubscriptionFixture>
-      >(
-        new Map(
-          (options?.providerSubscriptions ?? []).map((fixture) => [
-            fixture.workspaceId,
-            fixture
-          ])
-        )
-      )
+      const providerSubscriptions =
+        options?.providerState ??
+        (yield* Ref.make<ReadonlyMap<string, SeedProviderSubscriptionFixture>>(
+          new Map(
+            (options?.providerSubscriptions ?? []).map((fixture) => [
+              fixture.workspaceId,
+              fixture
+            ])
+          )
+        ))
       const checkoutClaims = yield* Ref.make<ReadonlyMap<string, CheckoutClaim>>(
         new Map()
       )
@@ -174,34 +211,46 @@ export function SeedBilling(options?: {
             (yield* Ref.get(planOverrides)).get(input.workspaceId) ??
             workspacePlans[input.workspaceId] ??
             'starter'
-          const canceled =
-            provider.status === 'canceled' || provider.status === 'incomplete_expired'
-          let providerSnapshot: ReadonlyArray<{
-            readonly id: string
-            readonly customer: string
-            readonly status: string
-            readonly metadata: { readonly workspaceId: string }
-            readonly items: {
-              readonly data: ReadonlyArray<{
-                readonly id: string
-                readonly quantity: number
-                readonly price: { readonly id: string }
-              }>
-            }
-          }> = []
-          if (!canceled) {
+          let trialEnd: number | null = null
+          if (provider.trialEnd !== null && provider.trialEnd !== undefined) {
+            trialEnd = Date.parse(provider.trialEnd) / 1000
+          }
+          let providerSnapshot: ReadonlyArray<StripeSubscriptionResponse> = []
+          if (
+            provider.status !== 'canceled' &&
+            provider.status !== 'incomplete_expired'
+          ) {
             providerSnapshot = [
               {
                 id: provider.subscriptionId ?? `seed_${input.workspaceId}`,
                 customer: provider.customerId,
                 status: provider.status ?? 'active',
                 metadata: { workspaceId: input.workspaceId },
+                cancel_at_period_end: provider.cancelAtPeriodEnd ?? false,
+                trial_end: trialEnd,
+                latest_invoice: null,
                 items: {
                   data: [
                     {
                       id: provider.subscriptionItemId ?? `item_${input.workspaceId}`,
                       quantity: provider.seatQuantity,
-                      price: { id: provider.planId ?? '' }
+                      current_period_start:
+                        Date.parse(provider.currentPeriodStart ?? now) / 1000,
+                      current_period_end:
+                        Date.parse(provider.currentPeriodEnd ?? now) / 1000,
+                      price: {
+                        id: provider.planId ?? '',
+                        active: true,
+                        currency: 'usd',
+                        unit_amount: 1200,
+                        billing_scheme: 'per_unit',
+                        transform_quantity: null,
+                        recurring: {
+                          interval: 'month',
+                          interval_count: 1,
+                          usage_type: 'licensed'
+                        }
+                      }
                     }
                   ]
                 }
@@ -214,7 +263,13 @@ export function SeedBilling(options?: {
             subscriptions: providerSnapshot,
             hasMore: false,
             priceIds: Object.fromEntries(PLANS.map((plan) => [plan.id, plan.id])),
-            currentPlanId
+            previous: stored ?? null,
+            now,
+            payment: provider.payment ?? {
+              lastPaymentAt: null,
+              firstFailedAt: null,
+              currentInvoicePaid: false
+            }
           })
           if (decision.kind === 'conflict') {
             yield* Ref.update(synchronization, (map) => {
@@ -233,13 +288,13 @@ export function SeedBilling(options?: {
           }
           const providerPlan = planById(decision.planId)
           let desiredQuantity = decision.subscription.seatQuantity
-          if (providerPlan.pricing === 'per_seat') {
+          if (decision.subscription.subscriptionItemId !== null) {
             desiredQuantity = yield* memberCount
           }
           const planChanged = currentPlanId !== decision.planId
           const quantityChanged = stored?.seatQuantity !== desiredQuantity
           const providerQuantityChanged =
-            providerPlan.pricing === 'per_seat' &&
+            decision.subscription.subscriptionItemId !== null &&
             provider.seatQuantity !== desiredQuantity
           const linkageChanged =
             stored === undefined ||
@@ -274,6 +329,38 @@ export function SeedBilling(options?: {
           const next: SubscriptionState = {
             ...decision.subscription,
             seatQuantity: desiredQuantity
+          }
+          for (const notice of lifecycleNotices(stored ?? null, next, now)) {
+            const key = `${input.workspaceId}:${notice.key}`
+            if ((yield* Ref.get(sentNotices)).has(key)) {
+              continue
+            }
+            let recipients: ReadonlyArray<Member> = []
+            if (options?.roster !== undefined) {
+              recipients = yield* Ref.get(options.roster)
+            }
+            for (const member of recipients.filter(
+              (recipient) => recipient.role === 'owner' || recipient.role === 'admin'
+            )) {
+              yield* feed.create({
+                workspaceId: input.workspaceId,
+                userId: member.id,
+                deduplicationKey: key,
+                kind: 'billing.plan_changed',
+                title: notice.title,
+                message: notice.message
+              })
+            }
+            yield* audit.record({
+              workspaceId: input.workspaceId,
+              actorUserId: null,
+              actorType: 'system',
+              eventType: `billing.${notice.type}`,
+              targetType: 'workspace',
+              targetId: input.workspaceId,
+              metadata: { noticeId: key, graceEndsAt: next.graceEndsAt }
+            })
+            yield* Ref.update(sentNotices, (sent) => new Set([...sent, key]))
           }
           yield* Ref.update(subscriptions, (map) => {
             const updated = new Map(map)
@@ -339,17 +426,45 @@ export function SeedBilling(options?: {
         )
       })
 
+      const currentPlanForWorkspace = Effect.fn('Billing.currentPlanForWorkspace')(
+        function* (workspaceId: string) {
+          const current =
+            (yield* Ref.get(planOverrides)).get(workspaceId) ??
+            workspacePlans[workspaceId] ??
+            'starter'
+          const subscription = (yield* Ref.get(subscriptions)).get(workspaceId)
+          if (subscription === undefined) {
+            return planById(current)
+          }
+          return planById(
+            effectivePlanDecision(subscription, DateTime.formatIso(yield* DateTime.now))
+              .planId
+          )
+        }
+      )
       const capability = {
-        configured: Effect.fn('Billing.configured')(() => Effect.succeed(configured))(),
+        configured: Effect.succeed(configured),
+        currentPlanForWorkspace,
         currentPlan: Effect.fn('Billing.currentPlan')(function* () {
           const ctx = yield* WorkspaceContext
-          const overrides = yield* Ref.get(planOverrides)
-          return planById(
-            overrides.get(ctx.workspace.id) ??
-              workspacePlans[ctx.workspace.id] ??
-              ctx.workspace.planId
-          )
+          return yield* currentPlanForWorkspace(ctx.workspace.id)
         })(),
+        lifecycleStatus: Effect.fn('Billing.lifecycleStatus')(function* () {
+          const row = (yield* Ref.get(subscriptions)).get(
+            (yield* WorkspaceContext).workspace.id
+          )
+          return {
+            status: row?.status ?? 'canceled',
+            planId: row?.subscribedPlanId ?? 'starter',
+            currentPeriodEnd: row?.currentPeriodEnd ?? null,
+            cancelAtPeriodEnd: row?.cancelAtPeriodEnd ?? false,
+            trialEnd: row?.trialEnd ?? null,
+            graceEndsAt: row?.graceEndsAt ?? null
+          }
+        })(),
+        displayedPlans: Effect.forEach(PLANS, (plan) =>
+          Effect.succeed({ ...plan, providerPrice: plan.price })
+        ),
         synchronizationStatus: Effect.fn('Billing.synchronizationStatus')(function* () {
           const ctx = yield* WorkspaceContext
           if (!(yield* Ref.get(subscriptions)).has(ctx.workspace.id) && !configured) {
@@ -476,6 +591,17 @@ export function SeedBilling(options?: {
                     new CapabilityUnavailable({
                       capability: 'billing',
                       reason: 'provider_not_configured'
+                    })
+                  )
+                }
+                if (
+                  planById(input.planId).purchase !== 'self_serve' ||
+                  planById(input.planId).id !== input.planId
+                ) {
+                  return yield* Effect.fail(
+                    new CapabilityUnavailable({
+                      capability: 'billing',
+                      reason: 'plan_not_self_serve'
                     })
                   )
                 }
@@ -688,7 +814,7 @@ export function SeedBilling(options?: {
           )
         })
       }
-      return capability
+      return Billing.of(capability)
     })
   )
 }

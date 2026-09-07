@@ -1,7 +1,5 @@
-import {
-  planById,
-  seatUsage
-} from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+import { seatUsage } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
 import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { WorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
@@ -39,11 +37,12 @@ import {
  */
 const membersPayload: WorkspacePageFrame<WorkspaceMembersPayload> = workspacePage(
   { notification: ['read'] },
-  (ctx) =>
+  () =>
     Effect.flatMap(
       Effect.all(
         {
           unreadCount,
+          plan: Effect.flatMap(Billing, (billing) => billing.currentPlan),
           members: Effect.flatMap(WorkspaceMembership, (roster) => roster.listMembers),
           invitations: whenPermitted(
             { invitation: ['create'] },
@@ -57,7 +56,7 @@ const membersPayload: WorkspacePageFrame<WorkspaceMembersPayload> = workspacePag
           ...segments,
           // The plan gate's seat half: a flat plan past its included seats
           // prompts for an upgrade; a per-seat plan just bills the seats.
-          seatUsage: seatUsage(planById(ctx.workspace.planId), segments.members.length)
+          seatUsage: seatUsage(segments.plan, segments.members.length)
         })
     )
 )

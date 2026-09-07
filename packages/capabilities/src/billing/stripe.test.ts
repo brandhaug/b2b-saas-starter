@@ -1,3 +1,8 @@
+import {
+  testPrice,
+  testItem,
+  testSubscriptionFields
+} from './provider-test-fixtures.ts'
 import { afterEach, describe, expect, it, vi } from '@effect/vitest'
 import { Effect } from 'effect'
 
@@ -61,6 +66,7 @@ describe('Stripe provider adapter', () => {
       })
 
       expect(session.url).toBe('https://checkout.stripe.com/c/pay/1')
+      expect(requests[0]?.init.headers?.['stripe-version']).toBe('2025-03-31.basil')
       expect(requests).toHaveLength(1)
       expect(requests[0]?.init.headers).toMatchObject({
         authorization: 'Bearer sk_test_secret',
@@ -143,9 +149,10 @@ describe('Stripe provider adapter', () => {
           jsonResponse({
             id: 'sub_1',
             customer: 'cus_1',
+            ...testSubscriptionFields,
             status: 'active',
             items: {
-              data: [{ id: 'si_1', quantity: 4, price: { id: 'price_team' } }]
+              data: [{ ...testItem, id: 'si_1', quantity: 4, price: testPrice }]
             },
             metadata: { workspaceId: 'wrk_1' }
           })
@@ -161,7 +168,7 @@ describe('Stripe provider adapter', () => {
       expect(subscription.id).toBe('sub_1')
       expect(subscription.items.data[0]).toMatchObject({
         quantity: 4,
-        price: { id: 'price_team' }
+        price: testPrice
       })
       expect(subscription.metadata).toEqual({ workspaceId: 'wrk_1' })
     })

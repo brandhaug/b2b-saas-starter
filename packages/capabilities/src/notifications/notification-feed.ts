@@ -48,6 +48,8 @@ export type SeedNotification = Notification & {
  * broadcast every member sees.
  */
 export type CreateNotificationInput = {
+  /** Stable producer identity makes durable outbox retries idempotent. */
+  readonly deduplicationKey?: string | undefined
   readonly workspaceId: string
   readonly userId?: string | null
   readonly kind: NotificationKind

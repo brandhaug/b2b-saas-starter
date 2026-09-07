@@ -289,7 +289,12 @@ export function LiveNotificationFeed(
           }),
         create: (input) =>
           Effect.gen(function* () {
-            const id = yield* newCapabilityId('not')
+            let id: string
+            if (input.deduplicationKey === undefined) {
+              id = yield* newCapabilityId('not')
+            } else {
+              id = `not:${input.workspaceId}:${input.userId ?? 'broadcast'}:${input.deduplicationKey}`
+            }
             const createdAt = DateTime.formatIso(yield* DateTime.now)
             const row: NotificationRow = {
               id,
@@ -302,7 +307,23 @@ export function LiveNotificationFeed(
               readAt: null,
               createdAt
             }
-            yield* unavailable(db.insert(notifications).values(row))
+            const inserted = yield* unavailable(
+              db
+                .insert(notifications)
+                .values(row)
+                .onConflictDoNothing({ target: notifications.id })
+                .returning()
+            )
+            if (inserted.length === 0) {
+              const existing = yield* unavailable(
+                db.select().from(notifications).where(eq(notifications.id, id)).limit(1)
+              )
+              const stored = existing[0]
+              if (stored !== undefined) {
+                return toNotification(stored)
+              }
+              return yield* unavailable(Effect.fail('notification_disappeared'))
+            }
             const recipients = yield* recipientsOf(row)
             const traceparent = yield* currentTraceparent
             yield* enqueueInstantEmails(options.emailQueue, preferences, {
