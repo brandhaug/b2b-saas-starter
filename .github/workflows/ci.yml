@@ -18,13 +18,14 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  ci:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: pnpm run typecheck
       - run: pnpm run lint
+      - run: pnpm run format:check
       # Dead-code regression gate (the `dead-code` step of `pnpm run check`).
       # Fallow is pinned in the workspace catalog so local and CI runs use the
       # same analyzer binary.
@@ -37,13 +38,61 @@ jobs:
         run: |
           pnpm run infra:wrangler
           git diff --exit-code -- apps/*/wrangler.jsonc
+
+  # Web tests can start immediately instead of waiting for dependency tests.
+  # The complementary filters include every workspace, including new packages.
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: web
+            filter: web
+          - name: packages
+            filter: '!web'
+    name: Tests (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm -C packages/i18n generate
       # Includes the coverage ratchet on the application layer: the
       # capabilities `test` script runs with --coverage (thresholds live in
       # packages/capabilities/vitest.config.ts) — fails on decay.
-      - run: pnpm run test
-      - run: pnpm run test:scripts
-      - run: pnpm run test:operations
+      - name: Run workspace tests
+        env:
+          TEST_FILTER: ${{ matrix.filter }}
+        run: vp run --filter "$TEST_FILTER" --fail-if-no-match test
+      - name: Run script tests
+        if: ${{ matrix.name == 'packages' }}
+        run: pnpm run test:scripts
+      - name: Run operations tests
+        if: ${{ matrix.name == 'packages' }}
+        run: pnpm run test:operations
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
       - run: pnpm run build
+
+  # Keep the existing required check name, and fail on skipped/cancelled jobs.
+  ci:
+    if: ${{ always() }}
+    needs: [quality, tests, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required CI jobs succeeded
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          TESTS_RESULT: ${{ needs.tests.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          if [[ "$QUALITY_RESULT" != "success" || "$TESTS_RESULT" != "success" || "$BUILD_RESULT" != "success" ]]; then
+            echo "CI jobs did not all succeed: quality=$QUALITY_RESULT tests=$TESTS_RESULT build=$BUILD_RESULT"
+            exit 1
+          fi
 
   e2e:
     runs-on: ubuntu-latest
