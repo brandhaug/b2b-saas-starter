@@ -17,7 +17,11 @@ Per queue the outcome table is the contract; the non-obvious parts:
 - The capability atomically updates the failure streak and disables at 20. The worker warns owners at accepted rungs 5/10/15/20 using the existing notification kind; notifications are best-effort. Terminal bookkeeping after HTTP attempts does not climb the streak again.
 - The DLQ consumer acks after writing the terminal `dead_lettered` row, but retries if that write fails, so a D1 blip cannot lose the evidence.
 - Exports resolve `WorkspaceContext` from the slug with no actor, ownership having been checked at request time; a slug naming another `workspaceId` fails the row. No DLQ, the row is the record. `WORKSPACE_EXPORT_RETENTION_DAYS` is declared twice, in `infra/bindings.ts` (R2 lifecycle rule) and the capability; `export-consumer.test.ts` fails if they diverge.
-- Seat sync has no DLQ, since the next mutation re-syncs. Its Stripe env is `starterEnv(env)` plus `billingOptionsFromEnv(env)`, because `starterEnv` projects bindings only.
+- Seat sync uses the billing queue and its dead-letter queue. The primary queue
+  retries six times; the dead-letter consumer calls `Billing.reconcileWorkspace`
+  so recovery does not require a later mutation. Its Stripe env is
+  `starterEnv(env)` plus `billingOptionsFromEnv(env)`, because `starterEnv`
+  projects bindings only.
 - Notification email messages carry ids only, so re-read notification and preferences. Digest sends are never fatal, and the run retries so a failed cron is recorded.
 
 ## Anti-patterns

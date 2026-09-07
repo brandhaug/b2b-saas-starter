@@ -1,6 +1,8 @@
 import { writeFileSync } from 'node:fs'
 import {
   apiRateLimits,
+  billingReconciliationCron,
+  billingDeadLetterQueueName,
   billingConsumerSettings,
   billingQueueName,
   notificationDigestCron,
@@ -253,15 +255,21 @@ export const wranglerConfigs: ReadonlyArray<{
           // Builds workspace export archives and writes them to R2.
           consumer(workspaceExportQueueName, workspaceExportConsumerSettings),
           // Mirrors each workspace's member count onto its Stripe
-          // subscription item (seat sync); self-healing, so no DLQ.
-          consumer(billingQueueName, billingConsumerSettings),
+          // subscription item (seat sync); exhausted messages are retained
+          // for audited recovery and the next reconciliation pass.
+          consumer(
+            billingQueueName,
+            billingConsumerSettings,
+            billingDeadLetterQueueName
+          ),
+          consumer(billingDeadLetterQueueName, webhookDlqConsumerSettings),
           // Sends one instant notification email per queue message.
           consumer(notificationEmailQueueName, notificationEmailConsumerSettings)
         ]
       },
       r2_buckets: [workspaceExportBucket],
       // The daily notification digest (ADR 0061).
-      triggers: { crons: [notificationDigestCron] },
+      triggers: { crons: [notificationDigestCron, billingReconciliationCron] },
       // Links in notification emails point at the web app; local dev has no
       // alchemy to forward the deploy value.
       vars: { BETTER_AUTH_URL: 'http://localhost:3071' }

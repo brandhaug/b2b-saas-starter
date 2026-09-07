@@ -80,6 +80,10 @@ _Avoid_: User limit, license, headcount cap
 The Stripe-hosted surface where a Workspace's invoices, payment method, and cancellation are managed.
 _Avoid_: Billing settings, payment page
 
+**Billing Synchronization**:
+Verification of a Workspace's subscription against current Stripe state and its Seat Quantity against application membership. Pending, delayed, or conflicting updates retain the last verified Plan until reconciliation can resolve them.
+_Avoid_: Payment approval, entitlement grant, webhook replay
+
 **API Token**:
 A workspace-scoped credential for REST and MCP access.
 _Avoid_: Personal access token, integration secret, session token

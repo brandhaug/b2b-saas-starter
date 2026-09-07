@@ -1,6 +1,7 @@
 import { Effect, Layer, Result } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
+import { CapabilityUnavailable } from '../errors.ts'
 import {
   AuditEventLog,
   type RecordAuditEventInput
@@ -9,7 +10,11 @@ import { makeSeedRoster } from '../governance/workspace-membership.ts'
 import { type Member } from '../governance/workspace-identity.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
 import { Billing } from './billing.ts'
-import { SeedBilling, type SeedSubscriptionFixture } from './billing.seed.ts'
+import {
+  SeedBilling,
+  type SeedProviderSubscriptionFixture,
+  type SeedSubscriptionFixture
+} from './billing.seed.ts'
 import {
   assertWithinPlanLimit,
   planById,
@@ -28,18 +33,28 @@ function billingFixture(options?: {
   readonly stripeConfigured?: boolean
   readonly planId?: string
   readonly subscriptions?: ReadonlyArray<SeedSubscriptionFixture>
+  readonly providerSubscriptions?: ReadonlyArray<SeedProviderSubscriptionFixture>
   readonly memberCount?: number
+  readonly failFirstAudit?: boolean
 }) {
   const recordedAuditEvents: Array<RecordAuditEventInput> = []
+  let failFirstAudit = options?.failFirstAudit ?? false
   const auditLayer = Layer.effect(AuditEventLog)(
     Effect.succeed({
       get: () => Effect.die('not used here'),
       list: () => Effect.die('not used here'),
       listGlobal: Effect.succeed([]),
-      record: (input: RecordAuditEventInput) =>
-        Effect.sync(() => {
+      record: (input: RecordAuditEventInput) => {
+        if (failFirstAudit) {
+          failFirstAudit = false
+          return Effect.fail(
+            new CapabilityUnavailable({ capability: 'audit', reason: 'test_failure' })
+          )
+        }
+        return Effect.sync(() => {
           recordedAuditEvents.push(input)
-        }),
+        })
+      },
       prepareRecord: () => Effect.die('not used here')
     })
   )
@@ -50,6 +65,8 @@ function billingFixture(options?: {
         SeedBilling({
           stripeConfigured: options?.stripeConfigured,
           subscriptions: options?.subscriptions,
+          providerSubscriptions: options?.providerSubscriptions,
+          workspacePlans: { wrk_billing: options?.planId ?? 'team' },
           roster
         }).pipe(Layer.provide(auditLayer)),
         auditLayer,
@@ -141,41 +158,6 @@ describe('seed billing contract', () => {
       yield* program.pipe(Effect.provide(fixture.layer))
     }).pipe(Effect.provide(Layer.empty))
   )
-
-  it.effect('applyProviderEvent changes the plan and audits', () =>
-    Effect.gen(function* () {
-      const fixture = billingFixture()
-      const program = Effect.gen(function* () {
-        const billing = yield* Billing
-        const applied = yield* billing.applyProviderEvent({
-          workspaceId: 'wrk_billing',
-          planId: 'starter',
-          detail: { source: 'customer.subscription.deleted' }
-        })
-        expect(applied).toBe(true)
-        const plan = yield* billing.currentPlan
-        expect(plan.id).toBe('starter')
-        const recorded = fixture.recordedAuditEvents.find(
-          (event) => event.eventType === 'billing.plan_changed'
-        )
-        expect(recorded).toBeDefined()
-        expect(recorded?.actorUserId).toBeNull()
-        expect(recorded?.targetId).toBe('wrk_billing')
-      })
-      yield* program.pipe(Effect.provide(fixture.layer))
-    }).pipe(Effect.provide(Layer.empty))
-  )
-
-  it.effect('applyProviderEvent refuses unknown plans', () =>
-    Effect.gen(function* () {
-      const billing = yield* Billing
-      const unknownPlan = yield* billing.applyProviderEvent({
-        workspaceId: 'wrk_billing',
-        planId: 'ultimate'
-      })
-      expect(unknownPlan).toBe(false)
-    }).pipe(Effect.provide(billingFixture().layer))
-  )
 })
 
 describe('seat pricing catalog', () => {
@@ -236,6 +218,72 @@ describe('seed billing seat sync', () => {
           quantity: 4,
           reason: 'member_added'
         })
+      })
+      yield* program.pipe(Effect.provide(fixture.layer))
+    }).pipe(Effect.provide(Layer.empty))
+  )
+
+  it.effect('does not publish a seat mutation before its audit succeeds', () =>
+    Effect.gen(function* () {
+      const fixture = billingFixture({
+        stripeConfigured: true,
+        subscriptions: [subscription],
+        memberCount: 4,
+        failFirstAudit: true
+      })
+      const program = Effect.gen(function* () {
+        const billing = yield* Billing
+        const failed = yield* Effect.result(
+          billing.syncSeats({ workspaceId: 'wrk_billing', reason: 'member_added' })
+        )
+        expect(Result.isFailure(failed)).toBe(true)
+
+        // The one-shot audit failure leaves the stored quantity at 2. The
+        // retry therefore still performs the mutation and emits its evidence.
+        const retried = yield* billing.syncSeats({
+          workspaceId: 'wrk_billing',
+          reason: 'member_added'
+        })
+        expect(retried).toEqual({ outcome: 'synced', quantity: 4 })
+        expect(
+          fixture.recordedAuditEvents.filter(
+            (event) => event.eventType === 'billing.seats_changed'
+          )
+        ).toHaveLength(1)
+      })
+      yield* program.pipe(Effect.provide(fixture.layer))
+    }).pipe(Effect.provide(Layer.empty))
+  )
+
+  it.effect('reconciles provider seat drift even when the stored count matches', () =>
+    Effect.gen(function* () {
+      const fixture = billingFixture({
+        stripeConfigured: true,
+        subscriptions: [{ ...subscription, seatQuantity: 4 }],
+        providerSubscriptions: [
+          {
+            ...subscription,
+            seatQuantity: 2,
+            planId: 'team',
+            status: 'active'
+          }
+        ],
+        memberCount: 4
+      })
+      const program = Effect.gen(function* () {
+        const billing = yield* Billing
+        const result = yield* billing.syncSeats({
+          workspaceId: 'wrk_billing',
+          reason: 'member_added'
+        })
+        expect(result).toEqual({ outcome: 'synced', quantity: 4 })
+        expect(
+          fixture.recordedAuditEvents.some(
+            (event) =>
+              event.eventType === 'billing.seats_changed' &&
+              event.metadata?.reason === 'member_added'
+          )
+        ).toBe(true)
       })
       yield* program.pipe(Effect.provide(fixture.layer))
     }).pipe(Effect.provide(Layer.empty))
@@ -310,85 +358,298 @@ describe('seed billing seat sync', () => {
   )
 })
 
-describe('seed billing subscription events', () => {
-  it.effect('links checkout state and reconciles a moved quantity', () =>
+describe('seed billing reconciliation and checkout claims', () => {
+  it.effect('reconciles the provider fixture instead of trusting event payloads', () =>
+    Effect.gen(function* () {
+      const billing = yield* Billing
+      const result = yield* billing.processProviderEvent({
+        providerEventId: 'evt_seed_authority',
+        eventType: 'customer.subscription.deleted',
+        workspaceId: 'wrk_billing',
+        planId: 'starter',
+        subscription: { deleted: true }
+      })
+      expect(result.outcome).toBe('applied')
+      expect((yield* billing.currentPlan).id).toBe('team')
+      const duplicate = yield* billing.processProviderEvent({
+        providerEventId: 'evt_seed_authority',
+        eventType: 'customer.subscription.deleted',
+        workspaceId: 'wrk_billing',
+        planId: 'starter'
+      })
+      expect(duplicate.outcome).toBe('duplicate')
+    }).pipe(
+      Effect.provide(
+        billingFixture({
+          stripeConfigured: true,
+          planId: 'team',
+          providerSubscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_seed',
+              subscriptionItemId: 'si_seed',
+              seatQuantity: 1,
+              planId: 'team',
+              status: 'active'
+            }
+          ]
+        }).layer
+      )
+    )
+  )
+
+  it.effect('keeps nonverified provider lifecycle states pending', () =>
+    Effect.gen(function* () {
+      const billing = yield* Billing
+      const result = yield* billing.reconcileWorkspace({ workspaceId: 'wrk_billing' })
+      expect(result.outcome).toBe('repaired')
+      expect((yield* billing.synchronizationStatus).status).toBe('pending')
+      expect((yield* billing.currentPlan).id).toBe('team')
+    }).pipe(
+      Effect.provide(
+        billingFixture({
+          stripeConfigured: true,
+          planId: 'team',
+          subscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_seed',
+              subscriptionItemId: 'si_seed',
+              seatQuantity: 1
+            }
+          ],
+          providerSubscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_seed',
+              subscriptionItemId: 'si_seed',
+              seatQuantity: 1,
+              planId: 'team',
+              status: 'past_due'
+            }
+          ]
+        }).layer
+      )
+    )
+  )
+
+  it.effect('records delayed synchronization when the provider is not configured', () =>
+    Effect.gen(function* () {
+      const billing = yield* Billing
+      const result = yield* Effect.result(
+        billing.processProviderEvent({
+          providerEventId: 'evt_seed_unconfigured',
+          eventType: 'customer.subscription.updated',
+          workspaceId: 'wrk_billing'
+        })
+      )
+      expect(Result.isFailure(result)).toBe(true)
+      expect((yield* billing.synchronizationStatus).status).toBe('delayed')
+    }).pipe(
+      Effect.provide(
+        billingFixture({
+          subscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_seed',
+              subscriptionItemId: 'si_seed',
+              seatQuantity: 1
+            }
+          ],
+          providerSubscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_seed',
+              subscriptionItemId: 'si_seed',
+              seatQuantity: 1,
+              planId: 'team',
+              status: 'active'
+            }
+          ]
+        }).layer
+      )
+    )
+  )
+
+  it.effect('reuses one checkout claim for concurrent retries', () =>
+    Effect.gen(function* () {
+      const fixture = billingFixture({ stripeConfigured: true, memberCount: 2 })
+      const result = yield* Effect.gen(function* () {
+        const billing = yield* Billing
+        return yield* Effect.all(
+          [
+            billing.startCheckout({
+              planId: 'team',
+              successUrl: 'https://x.test/s',
+              cancelUrl: 'https://x.test/c'
+            }),
+            billing.startCheckout({
+              planId: 'team',
+              successUrl: 'https://x.test/s',
+              cancelUrl: 'https://x.test/c'
+            })
+          ],
+          { concurrency: 'unbounded' }
+        )
+      }).pipe(Effect.provide(fixture.layer))
+      expect(result[0].url).toBe(result[1].url)
+      expect(
+        fixture.recordedAuditEvents.filter(
+          (event) => event.eventType === 'billing.checkout_started'
+        )
+      ).toHaveLength(1)
+    })
+  )
+
+  it.effect('blocks a competing checkout plan', () =>
     Effect.gen(function* () {
       const fixture = billingFixture({ stripeConfigured: true })
       const program = Effect.gen(function* () {
         const billing = yield* Billing
-        const linked = yield* billing.applySubscriptionEvent({
-          workspaceId: 'wrk_billing',
-          customerId: 'cus_seed',
-          subscriptionId: 'sub_seed',
-          detail: { source: 'checkout.session.completed' }
+        const first = yield* billing.startCheckout({
+          planId: 'team',
+          successUrl: 'https://x.test/s',
+          cancelUrl: 'https://x.test/c'
         })
-        expect(linked).toBe(true)
-        // A link without a quantity change records no seat event.
-        expect(
-          fixture.recordedAuditEvents.some(
-            (event) => event.eventType === 'billing.seats_changed'
-          )
-        ).toBe(false)
-
-        const reconciled = yield* billing.applySubscriptionEvent({
-          workspaceId: 'wrk_billing',
-          subscriptionItemId: 'si_seed',
-          quantity: 5,
-          detail: { source: 'customer.subscription.updated' }
-        })
-        expect(reconciled).toBe(true)
-        const seats = fixture.recordedAuditEvents.find(
-          (event) => event.eventType === 'billing.seats_changed'
+        expect(first.url).toContain('checkout.stripe.com')
+        const competing = yield* Effect.result(
+          billing.startCheckout({
+            planId: 'enterprise',
+            successUrl: 'https://x.test/s2',
+            cancelUrl: 'https://x.test/c2'
+          })
         )
-        expect(seats).toBeDefined()
-        expect(seats?.metadata).toMatchObject({ quantity: 5 })
+        expect(Result.isFailure(competing)).toBe(true)
       })
       yield* program.pipe(Effect.provide(fixture.layer))
-    }).pipe(Effect.provide(Layer.empty))
+    })
   )
 
-  it.effect('deletion clears the seat item and keeps the customer', () =>
-    Effect.gen(function* () {
-      const fixture = billingFixture({
-        stripeConfigured: true,
-        subscriptions: [
-          {
-            workspaceId: 'wrk_billing',
-            customerId: 'cus_seed',
-            subscriptionId: 'sub_seed',
-            subscriptionItemId: 'si_seed',
-            seatQuantity: 4
-          }
-        ]
-      })
-      const program = Effect.gen(function* () {
-        const billing = yield* Billing
-        const applied = yield* billing.applySubscriptionEvent({
-          workspaceId: 'wrk_billing',
-          deleted: true,
-          detail: { source: 'customer.subscription.deleted' }
+  it.effect(
+    'opens the portal when the provider already has an active subscription',
+    () =>
+      Effect.gen(function* () {
+        const fixture = billingFixture({
+          stripeConfigured: true,
+          subscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_seed',
+              subscriptionItemId: 'si_seed',
+              seatQuantity: 1
+            }
+          ],
+          providerSubscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_seed',
+              subscriptionItemId: 'si_seed',
+              seatQuantity: 1,
+              planId: 'team',
+              status: 'active'
+            }
+          ]
         })
-        expect(applied).toBe(true)
-        // The portal still works afterwards: the customer row survives.
-        yield* billing.startPortalSession({ returnUrl: 'https://x.test/b' })
-        const seats = fixture.recordedAuditEvents.find(
-          (event) => event.eventType === 'billing.seats_changed'
-        )
-        expect(seats?.metadata).toMatchObject({ quantity: 0 })
+        const program = Effect.gen(function* () {
+          const billing = yield* Billing
+          const result = yield* billing.startCheckout({
+            planId: 'enterprise',
+            successUrl: 'https://x.test/s',
+            cancelUrl: 'https://x.test/c'
+          })
+          expect(result.url).toContain('billing.stripe.com')
+        })
+        yield* program.pipe(Effect.provide(fixture.layer))
       })
-      yield* program.pipe(Effect.provide(fixture.layer))
-    }).pipe(Effect.provide(Layer.empty))
   )
 
-  it.effect('refuses a customerless event for a workspace that has no profile', () =>
+  it.effect('reconciles provider seats and plan from the authoritative fixture', () =>
     Effect.gen(function* () {
       const billing = yield* Billing
-      const applied = yield* billing.applySubscriptionEvent({
+      const result = yield* billing.reconcileWorkspace({ workspaceId: 'wrk_billing' })
+      expect(result).toEqual({
         workspaceId: 'wrk_billing',
-        quantity: 3
+        outcome: 'repaired',
+        drift: ['seat_quantity', 'subscription']
       })
-      expect(applied).toBe(false)
-    }).pipe(Effect.provide(billingFixture().layer))
+      expect((yield* billing.currentPlan).id).toBe('team')
+    }).pipe(
+      Effect.provide(
+        billingFixture({
+          stripeConfigured: true,
+          memberCount: 4,
+          planId: 'team',
+          subscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_old',
+              subscriptionItemId: 'si_old',
+              seatQuantity: 1
+            }
+          ],
+          providerSubscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_new',
+              subscriptionItemId: 'si_new',
+              seatQuantity: 2,
+              planId: 'team',
+              status: 'active'
+            }
+          ]
+        }).layer
+      )
+    )
+  )
+
+  it.effect('reconciles cancellation while retaining the customer profile', () =>
+    Effect.gen(function* () {
+      const billing = yield* Billing
+      const result = yield* billing.reconcileWorkspace({ workspaceId: 'wrk_billing' })
+      expect(result.outcome).toBe('repaired')
+      expect(result.drift).toEqual(['plan', 'seat_quantity', 'subscription'])
+      expect((yield* billing.currentPlan).id).toBe('starter')
+      const portal = yield* billing.startPortalSession({
+        returnUrl: 'https://x.test/b'
+      })
+      expect(portal.url).toContain('test_portal_wrk_billing')
+    }).pipe(
+      Effect.provide(
+        billingFixture({
+          stripeConfigured: true,
+          planId: 'team',
+          subscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_old',
+              subscriptionItemId: 'si_old',
+              seatQuantity: 2
+            }
+          ],
+          providerSubscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_old',
+              subscriptionItemId: 'si_old',
+              seatQuantity: 2,
+              planId: 'team',
+              status: 'canceled'
+            }
+          ]
+        }).layer
+      )
+    )
   )
 })
 

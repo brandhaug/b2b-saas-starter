@@ -7,6 +7,7 @@ import {
   billingConsumerSettings,
   isPreviewStage,
   notificationDigestCron,
+  billingReconciliationCron,
   notificationEmailConsumerSettings,
   productionStage,
   queueBindingKeys,
@@ -249,6 +250,9 @@ export const Stack = Alchemy.Stack(
     const billingQueue = yield* Cloudflare.Queues.Queue('billing-queue', {
       name: names.billingQueue
     })
+    const billingDeadLetterQueue = yield* Cloudflare.Queues.Queue('billing-queue-dlq', {
+      name: names.billingDeadLetterQueue
+    })
     // Instant notification emails (ADR 0061). Produced by every worker that
     // creates a Notification, consumed by the background worker.
     const notificationEmailQueue = yield* Cloudflare.Queues.Queue(
@@ -354,7 +358,7 @@ export const Stack = Alchemy.Stack(
       placement: smartPlacement,
       // The daily notification digest (ADR 0061) — same constant the
       // generated wrangler.jsonc carries under `triggers.crons`.
-      crons: [notificationDigestCron]
+      crons: [notificationDigestCron, billingReconciliationCron]
     })
 
     if (workspaceExportQueue) {
@@ -377,7 +381,13 @@ export const Stack = Alchemy.Stack(
     yield* Cloudflare.Queues.Consumer('billing-consumer', {
       queueId: billingQueue.queueId,
       scriptName: background.workerName,
+      deadLetterQueue: billingDeadLetterQueue.queueName,
       settings: billingConsumerSettings
+    })
+    yield* Cloudflare.Queues.Consumer('billing-dlq-consumer', {
+      queueId: billingDeadLetterQueue.queueId,
+      scriptName: background.workerName,
+      settings: webhookDlqConsumerSettings
     })
 
     // Dead-letter consumer: the background worker records terminal

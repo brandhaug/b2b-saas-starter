@@ -1,3 +1,4 @@
+import { type BillingSynchronizationStatus } from '@b2b-saas-starter/capabilities/billing/billing'
 import { Check, Minus, ExternalLink } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,9 +14,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { formatCurrency, formatNumber } from '@b2b-saas-starter/i18n/format'
 import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import { m } from '@b2b-saas-starter/i18n/messages'
-function CHECKOUT_DISABLED() {
-  return m.checkout_disabled()
-}
 function CHECKOUT_FAILED() {
   return m.checkout_failed()
 }
@@ -62,25 +60,11 @@ function portalErrorText(thrown: unknown): string {
 }
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
-/**
- * One sentence out of a rejected checkout call. The capability-unavailable
- * case gets deployment guidance (its own message is the raw reason code);
- * everything else, including the plan-limit error, already carries copy a
- * human can read and passes through `causeMessage` untouched.
- */
-// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- `unknown` is the input: a rejected promise's value has no boundary schema, and probing it realm-safe needs one typeof
+/** Checkout conflicts and provider outages share the translated availability response. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejected promises are untrusted input at the UI boundary
 function checkoutErrorText(thrown: unknown): string {
-  if (
-    typeof thrown === 'object' &&
-    thrown !== null &&
-    'name' in thrown &&
-    thrown.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
-  ) {
-    return CHECKOUT_DISABLED()
-  }
   return causeMessage(thrown, CHECKOUT_FAILED())
 }
-// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
 /**
  * The current plan and the catalog of plans beside it, with whatever action
@@ -93,6 +77,7 @@ export function BillingPlans({
   currentPlanId,
   plans,
   stripeConfigured,
+  synchronization,
   canManageBilling,
   startCheckout = startCheckoutServerFn,
   startPortalSession = startPortalSessionServerFn
@@ -101,6 +86,7 @@ export function BillingPlans({
   readonly currentPlanId: string
   readonly plans: ReadonlyArray<BillingPlan>
   readonly stripeConfigured: boolean
+  readonly synchronization: BillingSynchronizationStatus
   /** Whether the viewer may change the plan (`organization:update`). */
   readonly canManageBilling: boolean
   readonly startCheckout?: StartCheckout
@@ -167,6 +153,7 @@ export function BillingPlans({
           </p>
         </div>
       </Panel>
+      <BillingSynchronization status={synchronization.status} />
       <ActionFeedback error={portal.error} />
       {stripeConfigured ? null : (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
@@ -421,4 +408,30 @@ function planDescription(plan: BillingPlan): string {
       return m.shell_plan_enterprise_description()
     }
   }
+}
+
+function BillingSynchronization({
+  status
+}: {
+  readonly status: BillingSynchronizationStatus['status']
+}) {
+  let message: string
+  switch (status) {
+    case 'current': {
+      return null
+    }
+    case 'pending': {
+      message = m.billing_sync_pending()
+      break
+    }
+    case 'delayed': {
+      message = m.billing_sync_delayed()
+      break
+    }
+    case 'conflict': {
+      message = m.billing_sync_conflict()
+      break
+    }
+  }
+  return <output className="block text-sm text-muted-foreground">{message}</output>
 }

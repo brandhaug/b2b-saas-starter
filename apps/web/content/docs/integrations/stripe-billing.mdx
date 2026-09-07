@@ -1,6 +1,6 @@
 ---
 title: Stripe billing integration
-description: The env-gated billing implementation — plan display, per-seat pricing, seat sync, the Billing Portal, checkout handoff, entitlement gating, and the inbound webhook.
+description: Optional Stripe billing with durable checkout, replay-safe webhooks, and scheduled seat reconciliation.
 category: integrations
 order: 20
 tags: [stripe, billing, seats, webhooks]
@@ -23,22 +23,35 @@ Billing is an **Optional Provider** built on Stripe. Plan display, seat usage, a
 - **Billing page**: `/workspaces/$slug/billing` shows the current plan and catalog. With Stripe configured, owners get a **Manage billing** button that opens the Stripe Billing Portal (invoices, payment method, cancellation live there, not here), and can start a checkout for Team; Enterprise says "contact sales" and downgrades ride the provider's subscription flow. Unset, the button is absent and the page explains what to configure.
 - **Seat usage**: `seatUsage(plan, memberCount)` compares the roster against the plan's seat terms. On a flat plan past its included seats, the members page shows an upgrade prompt; members are never blocked, the workspace is asked to cover them. A per-seat plan never prompts; it bills one **Seat Quantity** per Member.
 - **Seat sync**: membership mutations (a Member added or removed) and invitation acceptances enqueue one message onto the `BILLING_QUEUE`. The background worker consumes it and mirrors the member count onto the Stripe subscription item's quantity through `Billing.syncSeats`, so a membership mutation never awaits Stripe. The stored quantity and a `billing.seats_changed` audit event commit together; a Stripe failure retries through the queue.
-- **Checkout handoff**: the `startCheckoutServerFn` server function composes success/cancel URLs server-side from `BETTER_AUTH_URL` (the client names only its slug and plan), calls Stripe's REST API directly over form-encoded fetch (no SDK), and records a `billing.checkout_started` audit event. On a per-seat plan the subscription item opens at the workspace's current member count.
+- **Checkout handoff**: the `startCheckoutServerFn` server function composes success/cancel URLs server-side from `BETTER_AUTH_URL` (the client names only its slug and plan), calls Stripe's REST API directly over form-encoded fetch (no SDK), and records a `billing.checkout_started` audit event. A durable claim fixes the request parameters before the Stripe call. Concurrent attempts for the same workspace and plan reuse the pending checkout. A different plan must wait for that checkout to expire or be canceled. Existing subscribers go to the Billing Portal. On a per-seat plan, checkout starts with the member count recorded by the claim; reconciliation picks up subsequent membership changes.
 - **Entitlement gate**: `assertWithinPlanLimit` caps Starter workspaces at 2 API tokens and 1 webhook endpoint; paid plans do not cap. The web server functions and the API worker both compose it before creates, failing with a 402 `PlanLimitExceeded`.
-- **Inbound webhook**: `POST /webhooks/stripe` on the background Worker verifies Stripe's signature scheme against `STRIPE_WEBHOOK_SECRET`, then applies:
-
-  | Event                           | What it does                                                                       |
-  | ------------------------------- | ---------------------------------------------------------------------------------- |
-  | `checkout.session.completed`    | Sets the plan from the session metadata and links the customer + subscription      |
-  | `customer.subscription.created` | Records the seat item and reconciles the quantity (reconciliation source of truth) |
-  | `customer.subscription.updated` | Reconciles the seat quantity; a moved quantity writes `billing.seats_changed`      |
-  | `customer.subscription.deleted` | Downgrades to Starter and detaches the seat item; the customer survives the portal |
-
-  Each plan change writes its `billing.plan_changed` audit event atomically with the update. This webhook is what heals any drift from a missed queue message.
+- **Inbound webhook**: `POST /webhooks/stripe` verifies Stripe's signature against `STRIPE_WEBHOOK_SECRET` and preserves the event ID and creation time. Checkout and subscription events trigger retrieval of current Stripe state. Historical payloads never directly restore a subscription or select an entitlement from stale metadata.
+- **Scheduled reconciliation**: a bounded background pass retrieves customer and subscription state, applies recognized price changes, and corrects seat quantity to application membership. It repairs missed events and dropped queue work without another customer action. Billing stays inactive without Stripe configuration.
 
 ## Subscription state
 
-`workspace_subscriptions` (one row per workspace) holds the Stripe customer the Billing Portal opens for, the subscription and subscription-item ids, and the quantity Stripe last reported. It is written only by the billing capability from provider events; a workspace without a row has never checked out, and the Manage-billing button tells them so if clicked before an upgrade.
+Each workspace owns one Stripe customer and at most one current subscription.
+`workspace_subscriptions` records that linkage and the observed quantity. A
+cancellation clears subscription linkage but retains the customer for invoice
+history. Stripe determines subscription state; application membership determines
+billable quantity.
+
+D1 also holds provider event evidence, checkout claims, and synchronization state.
+Required local changes, audit rows, and event completion commit together. A
+recoverable workspace lease prevents overlapping workers from committing stale
+state. A duplicate completed delivery has no additional business or audit effect.
+Event timestamps are evidence, not an ordering filter, so same-second changes
+remain eligible for authoritative synchronization.
+
+Unknown prices, multiple subscriptions, and customer ownership mismatches produce
+durable conflict evidence. The worker preserves the last verified entitlement
+while operators resolve the conflict. It never cancels subscriptions, refunds
+payments, or reassigns customers to resolve a conflict automatically.
+
+The billing page shows pending, delayed, or conflict state and refreshes while
+Stripe is configured. An outage preserves the last verified plan and withholds
+unverified upgrades. Payment and access transition policy is tracked separately
+in issue #284.
 
 ## Env gate
 
@@ -52,7 +65,29 @@ All three are optional fields in `packages/env/src/server.ts`. Unset, checkout a
 
 ## Queue topology
 
-Seat sync rides its own `b2b-saas-starter-billing` queue (produced by the web worker, consumed by the background worker) rather than sharing the webhook delivery queue: the message shapes and retry semantics are different. It has no dead-letter queue on purpose: sync is self-healing, so the next membership change re-syncs and the `customer.subscription.updated` webhook reconciles any drift. The full decision is recorded in ADR 0060 (`docs/adr/0060-seat-based-billing-with-queue-decoupled-seat-sync.md`).
+Seat sync uses `b2b-saas-starter-billing`, produced by the web worker and consumed
+by the background worker. Membership changes enqueue best-effort work and never
+await Stripe. Failed work retries with backoff; exhausted jobs produce durable
+failure evidence and observable terminal outcomes through the billing dead-letter
+consumer. Scheduled reconciliation recovers both exhausted jobs and publication
+failures.
+
+The repair target is 15 minutes while Stripe is available. An unresolved failure
+beyond that target emits an alert signal through the existing observability
+system. ADR 0075, `docs/adr/0075-durable-billing-synchronization.md`, records the
+ordering, concurrency, and recovery decision.
+
+## Evidence and recovery
+
+Retain minimal event IDs, workspace and subscription IDs, processing outcomes,
+timestamps, and sanitized errors for 90 days. No raw webhook payload is retained.
+Keep unresolved failures until resolution, then start their 90-day clock. The
+consolidated cleanup work belongs to issue #290, which also owns audit retention.
+Events older than this evidence window still retrieve current Stripe state.
+
+Operators can inspect failures and request an audited retry for one workspace.
+Resolve ownership, price, or duplicate-subscription conflicts at the provider
+before retrying; the application does not make destructive financial decisions.
 
 ## Webhook setup
 

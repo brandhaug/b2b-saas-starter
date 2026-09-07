@@ -1,3 +1,4 @@
+import { type BillingSynchronizationStatus } from '@b2b-saas-starter/capabilities/billing/billing'
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { PLANS } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
@@ -28,6 +29,7 @@ const portal: StartPortalSession = vi.fn(async () => ({
 
 async function renderPlans(options?: {
   readonly stripeConfigured?: boolean
+  readonly status?: BillingSynchronizationStatus['status']
   readonly viewer?: WorkspaceViewer
   readonly currentPlanId?: string
 }) {
@@ -36,6 +38,7 @@ async function renderPlans(options?: {
       workspaceSlug="starter-lab"
       currentPlanId={options?.currentPlanId ?? 'team'}
       plans={PLANS}
+      synchronization={{ status: options?.status ?? 'current', lastSyncedAt: null }}
       stripeConfigured={options?.stripeConfigured ?? true}
       canManageBilling={(options?.viewer ?? owner).role !== 'member'}
       startCheckout={checkout}
@@ -46,6 +49,20 @@ async function renderPlans(options?: {
 }
 
 describe('BillingPlans', () => {
+  it('shows delayed updates without presenting an unverified upgrade', async () => {
+    await renderPlans({ currentPlanId: 'starter', status: 'delayed' })
+    expect(screen.getByRole('status').textContent).toContain('retrying automatically')
+    screen.getByText(/up to 3 seats/)
+  })
+
+  it('explains pending updates and conflicts', async () => {
+    const view = await renderPlans({ status: 'pending' })
+    expect(screen.getByRole('status').textContent).toContain('updates are pending')
+    view.unmount()
+    await renderPlans({ status: 'conflict' })
+    expect(screen.getByRole('status').textContent).toContain('Contact support')
+  })
+
   it('hands the portal URL to the browser when Stripe is configured', async () => {
     const assign = vi.fn()
     vi.stubGlobal('location', {

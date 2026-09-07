@@ -1,9 +1,24 @@
 import { type JsonObject } from '@b2b-saas-starter/db/schema'
-import { Context, type Effect } from 'effect'
+import { Context, Effect, type Effect as EffectType } from 'effect'
 
-import { type CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '../errors.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 import { type Plan } from './plan-catalog.ts'
+
+/** Maps billing storage failures to a stable public reason. */
+export function billingStoreUnavailable<A, E, R>(
+  effect: EffectType.Effect<A, E, R>
+): EffectType.Effect<A, CapabilityUnavailable, R> {
+  return effect.pipe(
+    Effect.mapError(
+      () =>
+        new CapabilityUnavailable({
+          capability: 'billing',
+          reason: 'billing_store_unavailable'
+        })
+    )
+  )
+}
 
 /**
  * The Billing capability: the workspace's plan, the checkout handoff, the
@@ -38,6 +53,64 @@ export type CheckoutInput = {
   readonly planId: string
   readonly successUrl: string
   readonly cancelUrl: string
+}
+
+/** The verified synchronization state shown to workspace operators. */
+export type BillingSynchronizationStatus = {
+  readonly status: 'current' | 'pending' | 'delayed' | 'conflict'
+  readonly lastSyncedAt: string | null
+}
+
+/** A verified provider event handed to the fenced billing workflow. */
+export type ProcessProviderEventInput = {
+  readonly providerEventId: string
+  readonly eventType: string
+  readonly providerCreatedAt?: string | undefined
+  readonly workspaceId?: string | undefined
+  readonly planId?: string | undefined
+  /** Event fields are routing hints only; Live re-reads Stripe authority. */
+  readonly subscription?:
+    | (ProviderSubscriptionHint & {
+        readonly workspaceId?: string | undefined
+      })
+    | undefined
+  readonly detail?: JsonObject | undefined
+}
+
+/** Provider fields used to resolve an inbound event to one workspace. */
+export type ProviderSubscriptionHint = {
+  readonly customerId?: string | undefined
+  readonly subscriptionId?: string | undefined
+  readonly subscriptionItemId?: string | undefined
+  readonly quantity?: number | undefined
+  readonly deleted?: boolean | undefined
+  readonly detail?: JsonObject | undefined
+}
+
+export type ProcessProviderEventResult =
+  | { readonly outcome: 'applied'; readonly providerEventId: string }
+  | { readonly outcome: 'duplicate'; readonly providerEventId: string }
+  | {
+      readonly outcome: 'conflict'
+      readonly providerEventId: string
+      readonly reason: string
+    }
+
+export type ReconcileWorkspaceInput = {
+  readonly workspaceId: string
+  /** The queue or operator reason that caused this reconciliation, if known. */
+  readonly reason?: string | undefined
+  /** Positive provider evidence supplied by an authenticated operator retry. */
+  readonly recovery?: {
+    readonly customerId?: string | undefined
+    readonly checkoutSessionId?: string | undefined
+  }
+}
+
+export type ReconcileResult = {
+  readonly workspaceId: string
+  readonly outcome: 'current' | 'repaired' | 'delayed' | 'conflict'
+  readonly drift: ReadonlyArray<string>
 }
 
 type CheckoutSession = {
@@ -77,10 +150,9 @@ export type SeatSyncResult = {
 /**
  * The subscription state one provider event leaves on the stored
  * `workspace_subscriptions` row: the customer the Billing Portal opens for,
- * the subscription and seat item ids, and the seat quantity. Both adapters
- * reduce `applySubscriptionEvent` input to it through
- * {@link nextSubscriptionState}, so a deletion, a quantity report, and a
- * late-arriving link cannot be interpreted differently by the fixture and D1.
+ * the subscription and seat item ids, and the seat quantity. Provider events
+ * are reconciled from authoritative provider state before this projection is
+ * committed.
  */
 export type SubscriptionState = {
   readonly customerId: string
@@ -89,79 +161,7 @@ export type SubscriptionState = {
   readonly seatQuantity: number
 }
 
-/**
- * The one reduction of a provider event onto {@link SubscriptionState} — the
- * rule both adapters enforce, so it lives here and not in either adapter:
- * an event carrying no customer for a workspace that has none stored records
- * nothing (`null`); a deletion zeroes the quantity and clears the
- * subscription ids (the customer survives for the portal's invoice history);
- * anything else keeps the ids and quantity it was not given.
- */
-export function nextSubscriptionState(
-  input: ApplySubscriptionEventInput,
-  existing: SubscriptionState | undefined
-): SubscriptionState | null {
-  const customerId = input.customerId ?? existing?.customerId
-  if (customerId === undefined) {
-    return null
-  }
-  if (input.deleted === true) {
-    return {
-      customerId,
-      subscriptionId: null,
-      subscriptionItemId: null,
-      seatQuantity: 0
-    }
-  }
-  return {
-    customerId,
-    subscriptionId: input.subscriptionId ?? existing?.subscriptionId ?? null,
-    subscriptionItemId:
-      input.subscriptionItemId ?? existing?.subscriptionItemId ?? null,
-    seatQuantity: input.quantity ?? existing?.seatQuantity ?? 0
-  }
-}
-
-/**
- * Whether a provider event actually moved the seat count — the audit gate
- * both adapters enforce beside {@link nextSubscriptionState}: a link refresh
- * or a late-arriving item id is not a seat change, and neither is a quantity
- * that already matches the stored one.
- */
-export function seatQuantityMoved(
-  input: ApplySubscriptionEventInput,
-  next: SubscriptionState,
-  existing: SubscriptionState | undefined
-): boolean {
-  return (
-    (input.quantity !== undefined || input.deleted === true) &&
-    (existing?.seatQuantity ?? 0) !== next.seatQuantity
-  )
-}
-
-/**
- * A provider-reported subscription state change, already resolved to one
- * workspace by the background worker. Identity-keyed like
- * `applyProviderEvent` — inbound webhooks and queue messages carry no
- * session. See `subscriptionLinkForStripeEvent` in `stripe.ts` for how the
- * event's fields arrive here.
- */
-export type ApplySubscriptionEventInput = {
-  readonly workspaceId: string
-  /** The Stripe customer the Billing Portal opens for. */
-  readonly customerId?: string | undefined
-  readonly subscriptionId?: string | undefined
-  /** The subscription item whose quantity mirrors the member count. */
-  readonly subscriptionItemId?: string | undefined
-  /** The provider-reported seat count, when the event carries one. */
-  readonly quantity?: number | undefined
-  /** True on `customer.subscription.deleted`: the seat item goes, the customer stays. */
-  readonly deleted?: boolean | undefined
-  /** Free-form detail for the audit metadata (event id, source). */
-  readonly detail?: JsonObject | undefined
-}
-
-type BillingInterface = {
+export type BillingInterface = {
   /**
    * Whether checkout is actually wired: the Stripe secret key is set and
    * every self-serve plan's price id is configured. One definition of
@@ -171,6 +171,27 @@ type BillingInterface = {
   readonly configured: Effect.Effect<boolean>
   /** The workspace's current plan, resolved from its `planId`. */
   readonly currentPlan: Effect.Effect<Plan, CapabilityUnavailable, WorkspaceContext>
+  /**
+   * The last durable synchronization evidence for this workspace. This never
+   * claims an upgrade from an unverified provider response.
+   */
+  readonly synchronizationStatus: Effect.Effect<
+    BillingSynchronizationStatus,
+    CapabilityUnavailable,
+    WorkspaceContext
+  >
+  /** Applies one provider event with durable evidence and a fenced batch. */
+  readonly processProviderEvent: (
+    input: ProcessProviderEventInput
+  ) => Effect.Effect<ProcessProviderEventResult, CapabilityUnavailable>
+  /** Reconciles one workspace from an authoritative provider snapshot. */
+  readonly reconcileWorkspace: (
+    input: ReconcileWorkspaceInput
+  ) => Effect.Effect<ReconcileResult, CapabilityUnavailable>
+  /** Bounded reconciliation entry point; the worker supplies selected workspaces. */
+  readonly reconcileBatch: (input?: {
+    readonly limit?: number | undefined
+  }) => Effect.Effect<ReadonlyArray<ReconcileResult>, CapabilityUnavailable>
   /**
    * Starts a Stripe Checkout session for one catalog plan and returns the
    * hosted URL. Fails `CapabilityUnavailable` (`provider_not_configured`) when
@@ -193,30 +214,6 @@ type BillingInterface = {
   readonly startPortalSession: (input: {
     readonly returnUrl: string
   }) => Effect.Effect<PortalSession, CapabilityUnavailable, WorkspaceContext>
-  /**
-   * Applies a provider-reported subscription change to one workspace:
-   * updates `workspaces.planId` and writes the matching audit event
-   * atomically. Identity-keyed — inbound webhooks carry no session, so there
-   * is no `WorkspaceContext` — and returns `false` for an unknown workspace
-   * id instead of failing, mirroring how a revoked token verifies.
-   */
-  readonly applyProviderEvent: (input: {
-    readonly workspaceId: string
-    readonly planId: string
-    /** Free-form detail for the audit metadata (event id, subscription id). */
-    readonly detail?: JsonObject | undefined
-  }) => Effect.Effect<boolean, CapabilityUnavailable>
-  /**
-   * Applies a provider-reported subscription state change (see
-   * {@link ApplySubscriptionEventInput}): upserts the `workspace_subscriptions`
-   * row and, when the event carries a quantity that differs from the stored
-   * one, batches a `billing.seats_changed` audit event with the write.
-   * Returns `false` for an unknown workspace id or an event carrying no
-   * customer for a workspace that has none stored.
-   */
-  readonly applySubscriptionEvent: (
-    input: ApplySubscriptionEventInput
-  ) => Effect.Effect<boolean, CapabilityUnavailable>
   /**
    * Mirrors the workspace's member count onto the Stripe subscription item's
    * quantity — the consumer half of seat sync, called by the background

@@ -863,5 +863,8 @@
   ],
   "token_update_clients_expiry": "Update your clients before the old credential expires at {time}.",
   "view_attempt_history": "View attempt history",
-  "hide_attempt_history": "Hide attempt history"
+  "hide_attempt_history": "Hide attempt history",
+  "billing_sync_pending": "Billing updates are pending. Your last verified plan remains in effect until synchronization finishes.",
+  "billing_sync_delayed": "Billing updates are delayed. We are retrying automatically. Your last verified plan is shown above.",
+  "billing_sync_conflict": "Billing needs review. Contact support to resolve the subscription details. Your last verified plan is shown above."
 }

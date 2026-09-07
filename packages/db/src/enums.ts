@@ -100,6 +100,37 @@ export type DeliveryStatus = (typeof deliveryStatuses)[number]
 export const workspaceExportStatuses = ['pending', 'ready', 'failed'] as const
 export type WorkspaceExportStatus = (typeof workspaceExportStatuses)[number]
 
+/** Durable Stripe-provider event processing state. */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const billingProviderEventStatuses = [
+  'processing',
+  'completed',
+  'failed',
+  'conflict'
+] as const
+export type BillingProviderEventStatus = (typeof billingProviderEventStatuses)[number]
+
+/** The state exposed while billing converges against the provider. */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const billingSynchronizationStatuses = [
+  'current',
+  'pending',
+  'delayed',
+  'conflict'
+] as const
+export type BillingSynchronizationStatus =
+  (typeof billingSynchronizationStatuses)[number]
+
+/** Durable checkout handoff state. */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const billingCheckoutStatuses = [
+  'pending',
+  'created',
+  'completed',
+  'expired'
+] as const
+export type BillingCheckoutStatus = (typeof billingCheckoutStatuses)[number]
+
 /**
  * What a Notification is about. Stored in `notifications.kind` and keyed on by
  * `notification_preferences`: a user chooses a delivery channel per kind, and

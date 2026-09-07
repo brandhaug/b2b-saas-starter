@@ -4,7 +4,8 @@ Date: 2026-09-03
 
 ## Status
 
-Accepted
+Accepted. The webhook ordering, checkout concurrency, and recovery decisions below
+are superseded by [ADR 0075](./0075-durable-billing-synchronization.md).
 
 ## Context
 

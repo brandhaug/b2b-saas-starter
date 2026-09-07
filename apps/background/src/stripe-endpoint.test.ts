@@ -1,6 +1,7 @@
 import {
   Billing,
-  type ApplySubscriptionEventInput
+  type ProcessProviderEventInput,
+  type ProcessProviderEventResult
 } from '@b2b-saas-starter/capabilities/billing/billing'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
@@ -18,30 +19,46 @@ import { processStripeEvent } from './stripe-endpoint.ts'
  * which event becomes which capability call — without a provider or a D1.
  */
 
-type PlanCall = { readonly workspaceId: string; readonly planId: string }
-type SubscriptionCall = ApplySubscriptionEventInput
+type PlanCall = {
+  readonly workspaceId: string
+  readonly planId: string
+  readonly detail?: ProcessProviderEventInput['detail']
+}
+type SubscriptionCall = NonNullable<ProcessProviderEventInput['subscription']>
 
 /** What one test run records off the stubbed capability. */
 type RecordedCalls = {
   readonly plans: Array<PlanCall>
   readonly subscriptions: Array<SubscriptionCall>
+  readonly events: Array<ProcessProviderEventInput>
 }
 
 function recordingBilling(calls: RecordedCalls) {
   return Layer.succeed(Billing)({
     configured: Effect.succeed(false),
     currentPlan: Effect.die('not used here'),
+    synchronizationStatus: Effect.die('not used here'),
+    reconcileWorkspace: () => Effect.die('not used here'),
+    reconcileBatch: () => Effect.die('not used here'),
     startCheckout: () => Effect.die('not used here'),
     startPortalSession: () => Effect.die('not used here'),
-    applyProviderEvent: (input: { workspaceId: string; planId: string }) =>
+    processProviderEvent: (input: ProcessProviderEventInput) =>
       Effect.sync(() => {
-        calls.plans.push(input)
-        return true
-      }),
-    applySubscriptionEvent: (input: ApplySubscriptionEventInput) =>
-      Effect.sync(() => {
-        calls.subscriptions.push(input)
-        return true
+        calls.events.push(input)
+        if (input.planId !== undefined && input.workspaceId !== undefined) {
+          calls.plans.push({
+            workspaceId: input.workspaceId,
+            planId: input.planId,
+            detail: input.detail
+          })
+        }
+        if (input.subscription !== undefined) {
+          calls.subscriptions.push(input.subscription)
+        }
+        return {
+          outcome: 'applied',
+          providerEventId: input.providerEventId
+        } satisfies ProcessProviderEventResult
       }),
     syncSeats: () => Effect.die('not used here')
   })
@@ -55,7 +72,7 @@ function payloadOf(fixture: unknown): string {
 }
 
 function run(fixture: unknown) {
-  const calls: RecordedCalls = { plans: [], subscriptions: [] }
+  const calls: RecordedCalls = { plans: [], subscriptions: [], events: [] }
   return Effect.map(
     processStripeEvent(payloadOf(fixture)).pipe(
       Effect.provide(recordingBilling(calls))
@@ -65,16 +82,11 @@ function run(fixture: unknown) {
 }
 
 describe('processStripeEvent', () => {
-  it.effect('maps checkout completion to a plan change plus a subscription link', () =>
+  it.effect('maps checkout completion to one authoritative subscription event', () =>
     Effect.gen(function* () {
       const calls = yield* run(checkoutCompleted)
-      expect(calls.plans).toEqual([
-        {
-          workspaceId: 'wrk_starter',
-          planId: 'team',
-          detail: { source: 'checkout.session.completed' }
-        }
-      ])
+      expect(calls.events).toHaveLength(1)
+      expect(calls.plans).toEqual([])
       expect(calls.subscriptions).toEqual([
         {
           workspaceId: 'wrk_starter',
@@ -83,15 +95,46 @@ describe('processStripeEvent', () => {
           subscriptionItemId: undefined,
           quantity: undefined,
           deleted: undefined,
-          detail: { source: 'checkout.session.completed' }
+          detail: {
+            source: 'checkout.session.completed',
+            providerEventId: 'evt_checkout_completed_seed',
+            providerCreatedAt: '2026-09-21T14:13:20.000Z'
+          }
         }
       ])
+    })
+  )
+
+  it.effect('does not require checkout plan metadata', () =>
+    Effect.gen(function* () {
+      const calls = yield* run({
+        id: 'evt_checkout_without_plan',
+        created: 1_790_000_050,
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            id: 'cs_without_plan',
+            client_reference_id: 'wrk_starter',
+            customer: 'cus_seed_starter_lab',
+            subscription: 'sub_seed_starter_lab',
+            metadata: { workspaceId: 'wrk_starter' }
+          }
+        }
+      })
+      expect(calls.events).toHaveLength(1)
+      expect(calls.plans).toEqual([])
+      expect(calls.subscriptions[0]).toMatchObject({
+        workspaceId: 'wrk_starter',
+        customerId: 'cus_seed_starter_lab',
+        subscriptionId: 'sub_seed_starter_lab'
+      })
     })
   )
 
   it.effect('reconciles the seat quantity from a subscription update', () =>
     Effect.gen(function* () {
       const calls = yield* run(subscriptionUpdated)
+      expect(calls.events).toHaveLength(1)
       // No plan change rides a quantity update — the checkout already set it.
       expect(calls.plans).toEqual([])
       expect(calls.subscriptions).toEqual([
@@ -102,31 +145,34 @@ describe('processStripeEvent', () => {
           subscriptionItemId: 'si_seed_starter_lab',
           quantity: 6,
           deleted: undefined,
-          detail: { source: 'customer.subscription.updated' }
+          detail: {
+            source: 'customer.subscription.updated',
+            providerEventId: 'evt_subscription_updated_seed',
+            providerCreatedAt: '2026-09-21T14:13:40.000Z'
+          }
         }
       ])
     })
   )
 
-  it.effect('maps deletion to the downgrade plus a seat-item detach', () =>
+  it.effect('maps deletion with provider identities for stale metadata recovery', () =>
     Effect.gen(function* () {
       const calls = yield* run(subscriptionDeleted)
-      expect(calls.plans).toEqual([
-        {
-          workspaceId: 'wrk_starter',
-          planId: 'starter',
-          detail: { source: 'customer.subscription.deleted' }
-        }
-      ])
+      expect(calls.events).toHaveLength(1)
+      expect(calls.plans).toEqual([])
       expect(calls.subscriptions).toEqual([
         {
           workspaceId: 'wrk_starter',
-          customerId: undefined,
-          subscriptionId: undefined,
+          customerId: 'cus_seed_starter_lab',
+          subscriptionId: 'sub_seed_starter_lab',
           subscriptionItemId: undefined,
           quantity: undefined,
           deleted: true,
-          detail: { source: 'customer.subscription.deleted' }
+          detail: {
+            source: 'customer.subscription.deleted',
+            providerEventId: 'evt_subscription_deleted_seed',
+            providerCreatedAt: '2026-09-21T14:13:50.000Z'
+          }
         }
       ])
     })
@@ -155,16 +201,37 @@ describe('processStripeEvent', () => {
     })
   )
 
-  it.effect('skips a handled event that names no workspace', () =>
-    Effect.gen(function* () {
-      const calls = yield* run({
-        type: 'customer.subscription.updated',
-        data: {
-          object: { id: 'sub_x', items: { data: [{ id: 'si_x', quantity: 2 }] } }
-        }
+  it.effect(
+    'forwards a handled event without workspace metadata for capability resolution',
+    () =>
+      Effect.gen(function* () {
+        const calls = yield* run({
+          id: 'evt_subscription_missing_workspace',
+          created: 1_790_000_040,
+          type: 'customer.subscription.updated',
+          data: {
+            object: { id: 'sub_x', items: { data: [{ id: 'si_x', quantity: 2 }] } }
+          }
+        })
+        expect(calls.events).toHaveLength(1)
+        expect(calls.plans).toEqual([])
+        expect(calls.subscriptions).toMatchObject([
+          {
+            customerId: undefined,
+            subscriptionId: 'sub_x',
+            subscriptionItemId: 'si_x',
+            quantity: 2
+          }
+        ])
       })
-      expect(calls.plans).toEqual([])
-      expect(calls.subscriptions).toEqual([])
+  )
+
+  it.effect('skips provider timestamps outside the supported epoch range', () =>
+    Effect.gen(function* () {
+      for (const created of [1e100, -1, 1.5]) {
+        const calls = yield* run({ ...subscriptionCreated, created })
+        expect(calls.events).toEqual([])
+      }
     })
   )
 

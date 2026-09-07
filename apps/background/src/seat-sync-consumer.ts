@@ -1,5 +1,9 @@
-import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
-import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing.live'
+import {
+  Billing,
+  type ReconcileWorkspaceInput
+} from '@b2b-saas-starter/capabilities/billing/billing'
+import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing-config'
 import {
   selectCapabilitiesLayer,
   starterEnv,
@@ -7,7 +11,7 @@ import {
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
   SeatSyncQueueMessage,
-  type SeatSyncReason
+  type SeatSyncQueueReason
 } from '@b2b-saas-starter/capabilities/billing/seat-sync'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { Effect, type Scope } from 'effect'
@@ -20,6 +24,13 @@ import {
   type QueueDelivery,
   type QueueEnvelope
 } from './queue-consumer.ts'
+
+type OperatorRetryAuditMetadata = {
+  operatorId: string
+  reason: string
+  customerId?: string
+  checkoutSessionId?: string
+}
 
 /**
  * The seat-sync consumer: per-seat billing's half of the background worker.
@@ -42,7 +53,11 @@ import {
  */
 export function processSeatSyncMessage(
   delivery: QueueDelivery<SeatSyncQueueMessage>
-): Effect.Effect<DeliveryOutcome, CapabilityUnavailable, Billing | Scope.Scope> {
+): Effect.Effect<
+  DeliveryOutcome,
+  CapabilityUnavailable,
+  Billing | AuditEventLog | Scope.Scope
+> {
   return Effect.as(
     Effect.gen(function* () {
       if (delivery.kind === 'malformed') {
@@ -55,9 +70,54 @@ export function processSeatSyncMessage(
       const message = delivery.message
       yield* Effect.annotateLogsScoped({
         workspaceId: message.workspaceId,
-        reason: message.reason satisfies SeatSyncReason
+        reason: message.reason satisfies SeatSyncQueueReason
       })
+      if (message.reason === 'operator_retry') {
+        if (message.operatorId === undefined) {
+          yield* Effect.annotateLogsScoped({
+            outcome: 'skipped',
+            skipReason: 'operator_identity_missing'
+          })
+          return
+        }
+        const audit = yield* AuditEventLog
+        const metadata: OperatorRetryAuditMetadata = {
+          operatorId: message.operatorId,
+          reason: message.reason
+        }
+        if (message.recovery?.customerId !== undefined) {
+          metadata.customerId = message.recovery.customerId
+        }
+        if (message.recovery?.checkoutSessionId !== undefined) {
+          metadata.checkoutSessionId = message.recovery.checkoutSessionId
+        }
+        yield* audit.record({
+          workspaceId: message.workspaceId,
+          actorUserId: null,
+          actorType: 'system',
+          eventType: 'billing.sync_retry_requested',
+          targetType: 'workspace',
+          targetId: message.workspaceId,
+          metadata
+        })
+      }
       const billing = yield* Billing
+      if (message.reason === 'operator_retry') {
+        let recoveryInput: ReconcileWorkspaceInput = {
+          workspaceId: message.workspaceId,
+          reason: message.reason
+        }
+        if (message.recovery !== undefined) {
+          recoveryInput = { ...recoveryInput, recovery: message.recovery }
+        }
+        const result = yield* billing.reconcileWorkspace(recoveryInput)
+        yield* Effect.annotateLogsScoped({
+          outcome: 'reconciled',
+          recovery: result.outcome,
+          drift: result.drift
+        })
+        return
+      }
       const result = yield* billing.syncSeats({
         workspaceId: message.workspaceId,
         reason: message.reason

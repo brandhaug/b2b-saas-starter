@@ -289,7 +289,7 @@ export const LIVE_SUITE_TIMEOUT = '120 seconds'
  */
 export function inWorkspace<A, E>(
   slug: string,
-  effect: Effect.Effect<A, E, WorkspaceContext | CapabilityServices>,
+  effect: Effect.Effect<A, E, WorkspaceContext | CapabilityServices | Database | RawD1>,
   actor?: { readonly userId: string },
   bindings: CapabilityBindings = {}
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {

@@ -1,9 +1,8 @@
 import {
   Billing,
-  type ApplySubscriptionEventInput
+  type ProcessProviderEventInput
 } from '@b2b-saas-starter/capabilities/billing/billing'
 import {
-  planForStripeEvent,
   subscriptionLinkForStripeEvent,
   verifyStripeSignature,
   type StripeSubscriptionLink
@@ -25,6 +24,13 @@ import { runInvocation, type Env } from './queue-consumer.ts'
  * so the policy reads only its first entry.
  */
 export const StripeEventBody = Schema.Struct({
+  // Keep Stripe's delivery identity and provider timestamp at the boundary.
+  // They are required for idempotent processing and for operators to join a
+  // durable provider-event row back to Stripe's dashboard.
+  id: Schema.String,
+  created: Schema.Int.check(
+    Schema.isBetween({ minimum: 0, maximum: 8_640_000_000_000 })
+  ),
   type: Schema.String,
   data: Schema.Struct({
     object: Schema.Struct({
@@ -58,38 +64,12 @@ const decodeStripeEvent = Schema.decodeUnknownResult(
 )
 
 /**
- * Core of the Stripe webhook: map the event onto a plan change via the shared
- * billing policy (`planForStripeEvent`) and hand it to the billing capability,
- * which updates `workspaces.planId` and writes the matching audit event
- * atomically. Malformed or irrelevant events skip (log-and-return); real
- * failures fail so `handleStripeWebhook` rejects and the fetch handler answers
- * 500, which is what makes Stripe redeliver. Exported with requirements open
- * for tests, like `processWebhookMessage`.
+ * Core of the Stripe webhook: map one verified provider envelope onto the
+ * billing capability. Provider ids, timestamps, and customer/subscription
+ * ids are routing evidence; the capability re-reads Stripe authority and
+ * resolves the workspace when metadata is absent. Malformed or irrelevant
+ * events skip (log-and-return); real failures fail so Stripe redelivers.
  */
-/**
- * Where a handled event's plan change lands: either a resolved target or the
- * skip reason recorded on the wide event. The static-plan branch takes its
- * plan id from the policy table; the metadata branch requires both the
- * workspace and an explicit plan id from Stripe's metadata.
- */
-function resolvePlanTarget(
-  plan: NonNullable<ReturnType<typeof planForStripeEvent>>,
-  workspaceId: string | undefined,
-  metadata: { readonly planId?: string | undefined }
-):
-  | { readonly workspaceId: string; readonly planId: string }
-  | { readonly skipReason: string } {
-  if (plan.kind === 'from_metadata') {
-    if (!workspaceId || !metadata.planId) {
-      return { skipReason: 'missing_workspace_or_plan' }
-    }
-    return { workspaceId, planId: metadata.planId }
-  }
-  if (!workspaceId) {
-    return { skipReason: 'missing_workspace' }
-  }
-  return { workspaceId, planId: plan.planId }
-}
 
 export function processStripeEvent(
   payload: string
@@ -106,111 +86,102 @@ export function processStripeEvent(
     const event = decoded.success
     const object = event.data.object
     const metadata = object.metadata ?? {}
-    yield* Effect.annotateLogsScoped({ stripeEventType: event.type })
+    yield* Effect.annotateLogsScoped({
+      stripeEventId: event.id,
+      stripeEventCreated: event.created,
+      stripeEventType: event.type
+    })
 
-    // Half one: the plan change the event policy resolves (checkout sessions
-    // carry it in metadata, deletions pin the downgrade).
-    const plan = planForStripeEvent(event.type)
-    if (plan) {
-      const target = resolvePlanTarget(
-        plan,
-        metadata.workspaceId ?? object.client_reference_id,
-        metadata
-      )
-      if ('skipReason' in target) {
-        yield* Effect.annotateLogsScoped({
-          outcome: 'skipped',
-          skipReason: target.skipReason
-        })
-        return
-      }
-      yield* applyPlan(target.workspaceId, target.planId, event.type)
+    // Keep provider identity in every capability detail. The capability owns
+    // deduplication and persistence; the worker only maps the verified Stripe
+    // envelope into its domain input.
+    // Stripe's event envelope is seconds since epoch; this conversion is the
+    // platform-boundary normalization used by durable billing evidence.
+    // oxlint-disable-next-line effect/noGlobals -- provider timestamps arrive as epoch seconds, and Date is the boundary codec here
+    const providerCreatedAt = new Date(event.created * 1000).toISOString()
+    const providerDetail = {
+      source: event.type,
+      providerEventId: event.id,
+      providerCreatedAt
     }
 
-    // Half two: the subscription state the same or another event carries —
-    // checkout linkage, seat-quantity reconciliation, or a deletion. A
-    // subscription event with no plan change still lands here.
+    // Checkout linkage, seat-quantity reconciliation, and deletion all use
+    // the same capability call. Checkout metadata.planId is deliberately not
+    // read here: the capability resolves the plan from Stripe's price.
     const link = subscriptionLinkForStripeEvent(event.type, object)
     if (link) {
       const workspaceId = metadata.workspaceId ?? object.client_reference_id
-      if (!workspaceId) {
-        yield* Effect.annotateLogsScoped({
-          outcome: 'skipped',
-          skipReason: 'missing_workspace'
-        })
-        return
-      }
-      yield* applySubscription(workspaceId, link, event.type)
+      yield* processProviderEvent({
+        providerEventId: event.id,
+        eventType: event.type,
+        providerCreatedAt,
+        workspaceId,
+        subscription: subscriptionInput(workspaceId, link, object, providerDetail),
+        detail: providerDetail
+      })
       return
     }
 
-    if (!plan) {
-      yield* Effect.annotateLogsScoped({
-        outcome: 'ignored',
-        reason: 'unhandled_event_type'
-      })
-    }
+    yield* Effect.annotateLogsScoped({
+      outcome: 'ignored',
+      reason: 'unhandled_event_type'
+    })
   })
 }
 
 /** One plan change per handled event; annotates applied vs unknown workspace. */
-function applyPlan(
-  workspaceId: string,
-  planId: string,
-  source: string
+function processProviderEvent(
+  input: ProcessProviderEventInput
 ): Effect.Effect<void, CapabilityUnavailable, Billing | Scope.Scope> {
   return Effect.gen(function* () {
     const billing = yield* Billing
-    const applied = yield* billing.applyProviderEvent({
-      workspaceId,
-      planId,
-      detail: { source }
-    })
-    if (applied) {
-      yield* Effect.annotateLogsScoped({ outcome: 'applied' })
-    } else {
-      yield* Effect.annotateLogsScoped({ outcome: 'unknown_workspace' })
-    }
+    const result = yield* billing.processProviderEvent(input)
+    yield* Effect.annotateLogsScoped({ outcome: result.outcome })
   })
 }
 
-/** One subscription-state update per handled event; annotates like `applyPlan`. */
-function applySubscription(
-  workspaceId: string,
+function subscriptionInput(
+  workspaceId: string | undefined,
   link: StripeSubscriptionLink,
-  source: string
-): Effect.Effect<void, CapabilityUnavailable, Billing | Scope.Scope> {
-  return Effect.gen(function* () {
-    // Built per branch rather than ternaries: the fields a deletion carries
-    // are disjoint from the ones a link or quantity report carries.
-    let input: ApplySubscriptionEventInput
-    if (link.kind === 'deleted') {
-      input = { workspaceId, deleted: true, detail: { source } }
-    } else if (link.kind === 'quantity') {
-      input = {
-        workspaceId,
-        customerId: link.customerId,
-        subscriptionId: link.subscriptionId,
-        subscriptionItemId: link.subscriptionItemId,
-        quantity: link.quantity,
-        detail: { source }
-      }
-    } else {
-      input = {
-        workspaceId,
-        customerId: link.customerId,
-        subscriptionId: link.subscriptionId,
-        detail: { source }
-      }
+  object: {
+    readonly id?: string | undefined
+    readonly customer?: string | undefined
+  },
+  detail: {
+    readonly source: string
+    readonly providerEventId: string
+    readonly providerCreatedAt: string
+  }
+): NonNullable<ProcessProviderEventInput['subscription']> {
+  // Built per branch rather than ternaries: the fields a deletion carries
+  // are disjoint from the ones a link or quantity report carries.
+  let input: NonNullable<ProcessProviderEventInput['subscription']>
+  if (link.kind === 'deleted') {
+    input = {
+      workspaceId,
+      customerId: object.customer,
+      subscriptionId: object.id,
+      deleted: true,
+      detail
     }
-    const billing = yield* Billing
-    const applied = yield* billing.applySubscriptionEvent(input)
-    if (applied) {
-      yield* Effect.annotateLogsScoped({ outcome: 'subscription_applied' })
-    } else {
-      yield* Effect.annotateLogsScoped({ outcome: 'unknown_workspace' })
+  } else if (link.kind === 'quantity') {
+    input = {
+      workspaceId,
+      customerId: link.customerId,
+      subscriptionId: link.subscriptionId,
+      subscriptionItemId: link.subscriptionItemId,
+      quantity: link.quantity,
+      detail
     }
-  })
+  } else {
+    input = {
+      workspaceId,
+      customerId: link.customerId,
+      subscriptionId: link.subscriptionId,
+      detail
+    }
+  }
+  return input
 }
 
 /**

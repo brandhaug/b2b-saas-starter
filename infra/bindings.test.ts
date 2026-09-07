@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vite-plus/test'
 import {
   isPreviewStage,
+  billingDeadLetterQueueName,
+  billingConsumerSettings,
+  billingReconciliationCron,
+  billingQueueName,
   notificationEmailQueueName,
   productionStage,
   stageResourceNames,
@@ -15,6 +19,8 @@ describe('stageResourceNames', () => {
     expect(names.database).toBe('b2b-saas-starter')
     expect(names.webhookQueue).toBe(webhookQueueName)
     expect(names.webhookDeadLetterQueue).toBe(webhookDeadLetterQueueName)
+    expect(names.billingQueue).toBe(billingQueueName)
+    expect(names.billingDeadLetterQueue).toBe(billingDeadLetterQueueName)
     expect(names.notificationEmailQueue).toBe(notificationEmailQueueName)
     expect(names.worker('web')).toBe('b2b-saas-starter-web')
     expect(names.worker('api')).toBe('b2b-saas-starter-api')
@@ -26,6 +32,8 @@ describe('stageResourceNames', () => {
     expect(names.database).toBe('b2b-saas-starter-pr-42')
     expect(names.webhookQueue).toBe('b2b-saas-starter-pr-42-webhooks')
     expect(names.webhookDeadLetterQueue).toBe('b2b-saas-starter-pr-42-webhooks-dlq')
+    expect(names.billingQueue).toBe('b2b-saas-starter-pr-42-billing')
+    expect(names.billingDeadLetterQueue).toBe('b2b-saas-starter-pr-42-billing-dlq')
     expect(names.notificationEmailQueue).toBe(
       'b2b-saas-starter-pr-42-notification-emails'
     )
@@ -41,6 +49,8 @@ describe('stageResourceNames', () => {
       names.database,
       names.webhookQueue,
       names.webhookDeadLetterQueue,
+      names.billingQueue,
+      names.billingDeadLetterQueue,
       names.notificationEmailQueue,
       names.worker('web'),
       names.worker('api'),
@@ -53,6 +63,14 @@ describe('stageResourceNames', () => {
     expect(() => stageResourceNames('PR-1')).toThrow(/Invalid stage/)
     expect(() => stageResourceNames('pr 1')).toThrow(/Invalid stage/)
     expect(() => stageResourceNames('')).toThrow(/Invalid stage/)
+  })
+})
+
+describe('billing recovery bindings', () => {
+  it('keeps bounded reconciliation and queue recovery wired', () => {
+    expect(billingReconciliationCron).toBe('* * * * *')
+    expect(billingConsumerSettings.maxRetries).toBe(6)
+    expect(billingConsumerSettings.retryDelay).toBe(30)
   })
 })
 
