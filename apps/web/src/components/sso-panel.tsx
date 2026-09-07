@@ -16,10 +16,13 @@ import { useServerAction } from '@/hooks/use-server-action'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import {
   createSsoConnectionServerFn,
+  requestSsoDomainVerificationServerFn,
   removeSsoConnectionServerFn,
   testSsoConnectionServerFn,
   updateSsoConnectionServerFn,
+  verifySsoDomainServerFn,
   type CreateSsoConnectionInput,
+  type DomainVerificationRecord,
   type SsoTestResult,
   type UpdateSsoConnectionInput
 } from '@/lib/server/workspace-sso'
@@ -59,7 +62,7 @@ type SsoFormValues = {
   clientSecret: string
   metadataUrl: string
   metadataXml: string
-  defaultWorkspaceRole: 'member' | 'admin'
+  defaultWorkspaceRole: 'member'
 }
 
 const DEFAULT_VALUES: SsoFormValues = {
@@ -131,6 +134,14 @@ export type SsoPanelPorts = {
     workspaceSlug: string
     providerId: string
   }) => Promise<SsoTestResult>
+  readonly requestDomainVerification: (input: {
+    workspaceSlug: string
+    providerId: string
+  }) => Promise<DomainVerificationRecord>
+  readonly verifyDomain: (input: {
+    workspaceSlug: string
+    providerId: string
+  }) => Promise<boolean>
 }
 
 function defaultPorts(): SsoPanelPorts {
@@ -138,7 +149,10 @@ function defaultPorts(): SsoPanelPorts {
     create: (input) => createSsoConnectionServerFn({ data: input }),
     update: (input) => updateSsoConnectionServerFn({ data: input }),
     remove: (input) => removeSsoConnectionServerFn({ data: input }),
-    test: (input) => testSsoConnectionServerFn({ data: input })
+    test: (input) => testSsoConnectionServerFn({ data: input }),
+    requestDomainVerification: (input) =>
+      requestSsoDomainVerificationServerFn({ data: input }),
+    verifyDomain: (input) => verifySsoDomainServerFn({ data: input })
   }
 }
 
@@ -157,8 +171,8 @@ function RoleRadioGroup({
   value,
   onChange
 }: {
-  readonly value: 'member' | 'admin'
-  readonly onChange: (role: 'member' | 'admin') => void
+  readonly value: 'member'
+  readonly onChange: (role: 'member') => void
 }) {
   return (
     <FieldSet>
@@ -172,10 +186,6 @@ function RoleRadioGroup({
         <FieldLabel>
           <RadioGroupItem value="member" />
           <span>{m.common_member()}</span>
-        </FieldLabel>
-        <FieldLabel>
-          <RadioGroupItem value="admin" />
-          <span>{m.common_admin()}</span>
         </FieldLabel>
       </RadioGroup>
     </FieldSet>
@@ -236,6 +246,9 @@ export function SsoPanel({
   const [testResult, setTestResult] = useState<
     ({ readonly providerId: string } & SsoTestResult) | null
   >(null)
+  const [verificationRecord, setVerificationRecord] = useState<
+    ({ readonly providerId: string } & DomainVerificationRecord) | null
+  >(null)
 
   const canCreate = viewerCan(viewer, { sso: ['create'] })
   const canUpdate = viewerCan(viewer, { sso: ['update'] })
@@ -262,6 +275,19 @@ export function SsoPanel({
       failureMessage: testFailedMessage(),
       onSuccess: (result, providerId) => setTestResult({ providerId, ...result })
     }
+  )
+  const requestDomainVerification = useServerAction(
+    (providerId: string) =>
+      ports.requestDomainVerification({ workspaceSlug, providerId }),
+    {
+      failureMessage: m.sso_domain_verification_failed(),
+      onSuccess: (record, providerId) =>
+        setVerificationRecord({ providerId, ...record })
+    }
+  )
+  const verifyDomain = useServerAction(
+    (providerId: string) => ports.verifyDomain({ workspaceSlug, providerId }),
+    { failureMessage: m.sso_domain_verification_failed() }
   )
 
   const form = useForm({
@@ -467,9 +493,12 @@ export function SsoPanel({
         canUpdate={canUpdate}
         canRemove={canRemove}
         testResult={testResult}
+        verificationRecord={verificationRecord}
         update={update}
         remove={remove}
         test={test}
+        requestDomainVerification={requestDomainVerification}
+        verifyDomain={verifyDomain}
       />
     </div>
   )

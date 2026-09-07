@@ -1,17 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { AccountPage } from '@/components/account-page'
+import { AccountSsoRepairPage } from '@/components/account-sso-repair-page'
 import { pageTitle } from '@/components/page/page-title'
 import { authClient } from '@/lib/auth-client'
 import { requireSession } from '@/lib/server/auth'
 import { loadAccountPageServerFn } from '@/lib/server/account'
 import { loadMcpClientConnectionsServerFn } from '@/lib/server/mcp-clients'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { pickOptionalStrings } from '@/lib/utils'
 
 // Account settings live outside the /workspaces subtree on purpose: they are
 // user-level, not workspace-level, so the route keeps its own session gate
 // (same reasoning as /invitations/accept). There is no workspace to resolve —
 // and nothing to be a member of.
 export const Route = createFileRoute('/account')({
+  validateSearch: (search) =>
+    pickOptionalStrings(search, ['repair', 'workspace', 'exception']),
   beforeLoad: async ({ location }) => {
     const session = await requireSession(location.href)
     return { session }
@@ -40,10 +44,21 @@ export const Route = createFileRoute('/account')({
  */
 function AccountRoute() {
   const { session } = Route.useRouteContext()
+  const { repair } = Route.useSearch()
+  const { workspace, exception } = Route.useSearch()
   const { deletionPlan, preferences, connections } = Route.useLoaderData()
   // The current session token never rides the SSR payload (see `RouteSession`
   // in lib/server/auth.ts) — the panel reads it from the client session hook.
   const currentSession = authClient.useSession()
+  if (repair === 'sso') {
+    return (
+      <AccountSsoRepairPage
+        session={session}
+        workspaceSlug={workspace}
+        exceptionId={exception}
+      />
+    )
+  }
   return (
     <AccountPage
       session={session}

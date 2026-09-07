@@ -28,6 +28,9 @@ const settingsSummary: WorkspaceSettingsPayload = {
       issuer: 'https://login.acme-corp.example',
       enabled: false,
       requireSso: false,
+      domainVerified: true,
+      autoJoin: false,
+      lastLoginTestedAt: '2026-09-07T10:00:00.000Z',
       defaultWorkspaceRole: 'member',
       clientIdLastFour: '7f2a',
       createdAt: '2026-05-15T09:30:00.000Z'

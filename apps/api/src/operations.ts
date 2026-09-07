@@ -15,7 +15,8 @@ import {
   type ApiTokenNotRotatable,
   type CapabilityUnavailable,
   type PlanLimitExceeded,
-  type WorkspaceNotFound
+  type WorkspaceNotFound,
+  type WorkspaceSsoRequired
 } from '@b2b-saas-starter/capabilities/errors'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
@@ -52,6 +53,7 @@ import { type HttpApiEndpoint } from 'effect/unstable/httpapi'
 export type CapabilityReadError =
   | AuthorizationDenied
   | WorkspaceNotFound
+  | WorkspaceSsoRequired
   | CapabilityUnavailable
 
 /**

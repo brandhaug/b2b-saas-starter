@@ -21,6 +21,8 @@ export type ServerEnv = {
   readonly BETTER_AUTH_SECRET: string
   readonly BETTER_AUTH_URL: string
   readonly BETTER_AUTH_TRUSTED_ORIGINS?: string | undefined
+  readonly SSO_PROOF_TTL_SECONDS?: string | undefined
+  readonly SSO_CONFIGURATION_AUTH_MAX_AGE_SECONDS?: string | undefined
   readonly STRIPE_SECRET_KEY?: string | undefined
   readonly STRIPE_WEBHOOK_SECRET?: string | undefined
   readonly STRIPE_PRICE_ID_TEAM?: string | undefined
@@ -98,6 +100,8 @@ export const optionalModuleEnvSecretKeys = [
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvPlainKeys = [
+  'SSO_PROOF_TTL_SECONDS',
+  'SSO_CONFIGURATION_AUTH_MAX_AGE_SECONDS',
   'SENTRY_DSN',
   'SECURITY_EVIDENCE_URL',
   'POSTHOG_KEY',

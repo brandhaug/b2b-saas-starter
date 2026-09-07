@@ -1,10 +1,12 @@
 import { MCP_CONSENT_PAGE, MCP_WORKSPACE_SELECTED_HEADER } from '@b2b-saas-starter/auth'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
+import { WorkspaceNotFound } from '@b2b-saas-starter/capabilities/errors'
 import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/workspace-projections'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { Effect, Schema } from 'effect'
 
 import { errorMessage } from '@b2b-saas-starter/failure'
-import { runCapabilities } from '../capabilities'
+import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { signedOAuthQuery } from '../oauth-query'
 import { webRuntime } from '../observability'
 import { currentRequest } from '../request-context'
@@ -16,6 +18,7 @@ import {
   type OAuthConsentPayload,
   type OAuthRedirect
 } from './mcp-consent'
+import { webMcpConsentBinding } from './mcp-consent-binding'
 import { sessionCall } from './plugin-call'
 
 /**
@@ -40,6 +43,7 @@ import { sessionCall } from './plugin-call'
 /** Every OAuth redirect endpoint answers this when the caller accepts JSON. */
 const RedirectResult = Schema.Struct({ url: Schema.String })
 const decodeRedirect = Schema.decodeUnknownSync(RedirectResult)
+const decodeClientId = Schema.decodeUnknownSync(Schema.NonEmptyString)
 
 /** Where the provider sends the browser next: its own URL string, plus the parsed view the flow inspects. */
 type Redirect = {
@@ -86,6 +90,57 @@ function scopesOf(url: URL): ReadonlyArray<string> {
     .filter((scope) => scope.length > 0)
 }
 
+/**
+ * Resolves the submitted workspace id through the signed-in user's account
+ * projection. This happens before any provider mutation, so an unknown or
+ * foreign id cannot become the session's active organization first.
+ */
+async function selectedWorkspace(
+  userId: string,
+  workspaceId: string
+): Promise<{ readonly id: string; readonly slug: string }> {
+  return runCapabilities(
+    Effect.gen(function* () {
+      const workspaces = yield* listWorkspacesForUser(userId)
+      const selected = workspaces.find(
+        (candidate) => candidate.workspace.id === workspaceId
+      )
+      if (selected === undefined) {
+        return yield* Effect.fail(new WorkspaceNotFound({ slug: workspaceId }))
+      }
+      return selected.workspace
+    })
+  )
+}
+
+/**
+ * The successful continue call verified `oauthQuery`. On the consent hop the
+ * provider also returned its own signed query, so prefer that client id there.
+ */
+function verifiedClientId(oauthQuery: string, continued: Redirect): string {
+  const clientId =
+    continued.parsed.pathname === MCP_CONSENT_PAGE
+      ? continued.parsed.searchParams.get('client_id')
+      : new URLSearchParams(oauthQuery).get('client_id')
+  return decodeClientId(clientId)
+}
+
+async function bindConsentToSession(input: {
+  readonly workspaceSlug: string
+  readonly userId: string
+  readonly sessionId: string
+  readonly clientId: string
+}): Promise<void> {
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.flatMap(McpClientConnections, (connections) =>
+      connections.bindConsentToCurrentSession({ clientId: input.clientId })
+    ),
+    { userId: input.userId, sessionId: input.sessionId },
+    { mcpConsentBinding: webMcpConsentBinding }
+  )
+}
+
 export async function loadOAuthConsentHandler(
   input: LoadOAuthConsentInput
 ): Promise<OAuthConsentPayload> {
@@ -113,6 +168,16 @@ export async function grantOAuthConsentHandler(
   input: GrantOAuthConsentInput
 ): Promise<OAuthRedirect> {
   const session = await requireRequestSession()
+  const workspace = await selectedWorkspace(session.user.id, input.workspaceId)
+  const actor = {
+    userId: session.user.id,
+    sessionId: session.session.id
+  }
+
+  // Acquire the real workspace context before touching provider state. Its
+  // Live layer validates membership, the current session, required-SSO proof,
+  // and the active connection generation.
+  await runWorkspaceCapabilities(workspace.slug, Effect.asVoid(WorkspaceContext), actor)
   await sessionCall((api, headers) =>
     api.setActiveOrganization({
       body: { organizationId: input.workspaceId },
@@ -130,9 +195,17 @@ export async function grantOAuthConsentHandler(
       )
     )
   )
+  const clientId = verifiedClientId(input.oauthQuery, continued)
   if (continued.parsed.pathname !== MCP_CONSENT_PAGE) {
     // A standing consent covered the request: the code was issued without a
-    // new grant, so there is nothing new to audit.
+    // new grant, so there is nothing new to audit. It still has to follow the
+    // real session that reauthorized it.
+    await bindConsentToSession({
+      workspaceSlug: workspace.slug,
+      userId: session.user.id,
+      sessionId: session.session.id,
+      clientId
+    })
     return { url: continued.url }
   }
   const consented = redirect(
@@ -150,6 +223,12 @@ export async function grantOAuthConsentHandler(
     { userId: session.user.id, workspaceId: input.workspaceId },
     continued.parsed
   )
+  await bindConsentToSession({
+    workspaceSlug: workspace.slug,
+    userId: session.user.id,
+    sessionId: session.session.id,
+    clientId
+  })
   return { url: consented.url }
 }
 

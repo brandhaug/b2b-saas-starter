@@ -5,7 +5,8 @@ import {
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
   CapabilityUnavailable,
-  type WorkspaceNotFound
+  type WorkspaceNotFound,
+  type WorkspaceSsoRequired
 } from '@b2b-saas-starter/capabilities/errors'
 import { buildWorkspaceExportArchive } from '@b2b-saas-starter/capabilities/governance/workspace-export-archive'
 import { errorMessage } from '@b2b-saas-starter/failure'
@@ -51,7 +52,10 @@ import {
  */
 export type ResolveWorkspace = (
   slug: string
-) => Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable>
+) => Layer.Layer<
+  WorkspaceContext,
+  WorkspaceNotFound | WorkspaceSsoRequired | CapabilityUnavailable
+>
 
 /**
  * Builds one export. Outcomes:
@@ -113,15 +117,19 @@ export function processWorkspaceExportMessage(
 
     if (Result.isFailure(built)) {
       const failure = built.failure
-      if (failure._tag === 'WorkspaceNotFound') {
+      if (failure._tag !== 'CapabilityUnavailable') {
+        let reason = 'workspace_not_found'
+        if (failure._tag === 'WorkspaceSsoRequired') {
+          reason = 'workspace_sso_required'
+        }
         yield* exports.fail({
           exportId: message.exportId,
           workspaceId: message.workspaceId,
-          reason: 'workspace_not_found'
+          reason
         })
         yield* Effect.annotateLogsScoped({
           outcome: 'failed',
-          skipReason: 'workspace_not_found'
+          skipReason: reason
         })
         return 'ack' satisfies DeliveryOutcome
       }

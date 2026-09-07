@@ -10,6 +10,7 @@ export type UiErrorCode =
   | 'unauthorized'
   | 'invalid_timezone'
   | 'invalid_locale'
+  | 'sso_required'
 
 export class UiError extends Error {
   readonly code: UiErrorCode

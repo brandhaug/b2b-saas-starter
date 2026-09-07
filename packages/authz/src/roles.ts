@@ -45,7 +45,10 @@ export const ownerRole = accessControl.newRole({
 export const adminRole = accessControl.newRole({
   ...adminAc.statements,
   ...starterResources,
-  workspaceExport: []
+  workspaceExport: [],
+  // Reading sanitized SSO diagnostics is safe for admins; changing the
+  // authentication boundary remains an owner-only operation.
+  sso: ['list']
 })
 
 /**
@@ -132,7 +135,10 @@ export const writeScopeRole = accessControl.newRole({
 export const apiTokenScopeAccess = {
   read: readScopeRole,
   write: writeScopeRole,
-  // The owner set itself, shared by reference rather than restated: a token
-  // scoped `admin` can do anything a workspace owner can.
-  admin: ownerRole
+  // Preserve owner-level machine permissions except human SSO configuration.
+  admin: accessControl.newRole({
+    ...ownerAc.statements,
+    ...starterResources,
+    sso: ['list']
+  })
 } satisfies Record<ApiTokenScope, StarterRole>

@@ -5,6 +5,8 @@ import {
 } from '@b2b-saas-starter/logger/providers'
 import * as Sentry from '@sentry/cloudflare'
 import { Effect, Result } from 'effect'
+import { verifySsoDomainsDaily } from './sso-domain-verification.ts'
+import { maintainSsoRecovery } from './sso-recovery.ts'
 // The queue names are single-sourced in `infra/bindings.ts`, which alchemy and
 // the wrangler generator read too — the consumer branch must key off the same
 // literal the consumer is bound to.
@@ -97,7 +99,8 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
       effects = [
         Effect.asVoid(sendDailyDigest(env, controller.scheduledTime)),
         cleanWebhookHistory(env, controller.scheduledTime),
-        cleanEmailHistory(env, controller.scheduledTime)
+        cleanEmailHistory(env, controller.scheduledTime),
+        verifySsoDomainsDaily(env, controller.scheduledTime)
       ]
     }
     if (controller.cron === notificationDigestRetryCron) {
@@ -110,6 +113,7 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
       effects = [
         ...effects,
         reconcileBillingEffect(env, controller.scheduledTime),
+        maintainSsoRecovery(env, controller.scheduledTime),
         monitorOperationalHealth(env, controller.scheduledTime)
       ]
     }

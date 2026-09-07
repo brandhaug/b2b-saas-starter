@@ -92,6 +92,13 @@ export function buildAuthLayer(
           onAccountLinked: noop,
           onAccountUnlinked: noop
         },
+        // Test suites exercise Better Auth's raw SSO endpoints directly;
+        // production supplies the capability-backed owner/recovery guard.
+        ssoHooks: {
+          guardProviderOwner: noop,
+          // oxlint-disable-next-line effect/noNewPromise -- Better Auth's hook contract is Promise-based; this fixture intentionally returns no flow marker
+          guardSignIn: () => Promise.resolve(undefined)
+        },
         // Local-mode stance: the gate stays off in tests, matching dev.
         requireEmailVerification: false,
         // No execution context in a test: run the detached send inline and

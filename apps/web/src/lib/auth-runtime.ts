@@ -13,11 +13,13 @@ import { env } from 'cloudflare:workers'
 import { drizzle } from 'drizzle-orm/d1'
 import { Effect, Layer, ManagedRuntime } from 'effect'
 import { errorMessage } from '@b2b-saas-starter/failure'
+import { ssoPolicyOptionsFromEnv } from '@b2b-saas-starter/capabilities/governance/sso-policy-config'
 import { MissingD1Binding, localD1UnavailableResponse } from './server/auth-local-d1'
 import { defaultUserDeleteHooks } from './server/account-delete-hooks'
 import { makeAuthEmailSender } from './server/auth-emails'
 import { socialAccountAuditHooks } from './server/social-account-audit'
 import { fetchClientMetadataResource } from './server/client-metadata-fetch'
+import { makeSsoAuthHooks } from './server/sso-auth-hooks'
 
 /**
  * The MCP resource identifier when `MCP_RESOURCE_URL` is unset: the local API
@@ -60,6 +62,11 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => {
     // Events through the governance capability (see
     // server/social-account-audit.ts).
     accountHooks: socialAccountAuditHooks,
+    // SSO admission, owner-only provider mutation, and the authoritative
+    // session proof are app callbacks because Better Auth invokes them at its
+    // protocol/transaction boundary. They fail closed when policy persistence
+    // is unavailable.
+    ssoHooks: makeSsoAuthHooks(drizzle(db), ssoPolicyOptionsFromEnv(env)),
     // Production requires verified mailboxes; local dev and previews stay open
     // because lifecycle emails land in the log there (provider-light rule).
     requireEmailVerification: requireEmailVerification(env.ENVIRONMENT),

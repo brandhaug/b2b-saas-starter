@@ -55,7 +55,7 @@
     "restore:d1:pitr-drill": "node scripts/d1-backup.ts pitr-drill",
     "recovery:security": "node scripts/recovery-security.ts apply",
     "monitor:queues": "node scripts/queue-health.ts",
-    "test:operations": "tsc -p scripts/tsconfig.operations.json && vp test run scripts/d1-backup.test.ts scripts/recovery-security.test.ts && node --test scripts/queue-health.test.ts"
+    "test:operations": "tsc -p scripts/tsconfig.operations.json && vp test run scripts/d1-backup.test.ts scripts/recovery-security.test.ts scripts/sso-recovery.test.ts && node --test scripts/queue-health.test.ts"
   },
   "dependencies": {
     "@b2b-saas-starter/capabilities": "workspace:*",

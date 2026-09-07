@@ -88,6 +88,9 @@ export function notificationKindLabel(
     case 'announcement': {
       return m.backend_email_notification_kind_announcement({}, options)
     }
+    case 'sso.recovery': {
+      return m.backend_email_sso_recovery_title({}, options)
+    }
   }
 }
 
@@ -123,6 +126,9 @@ export function notificationKindDescription(
     }
     case 'announcement': {
       return m.backend_email_notification_announcement_lead({}, options)
+    }
+    case 'sso.recovery': {
+      return m.backend_email_sso_recovery_description({}, options)
     }
   }
 }

@@ -1,7 +1,14 @@
-import { workspaceSsoConnections } from '@b2b-saas-starter/db/schema'
-import { Database } from '@b2b-saas-starter/db/service'
-import { Effect, Layer, Option, Schema } from 'effect'
-import { and, desc, eq } from 'drizzle-orm'
+import {
+  workspaceSsoConnections,
+  workspaceSsoDomainClaims,
+  workspaceMembers,
+  passkey,
+  user,
+  account
+} from '@b2b-saas-starter/db/schema'
+import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
+import { DateTime, Effect, Layer, Option, Schema } from 'effect'
+import { and, desc, eq, gt, or, sql } from 'drizzle-orm'
 
 import { MembershipChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -9,9 +16,15 @@ import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
+import { makeSsoDomainVerification } from './sso-domain-verification.live.ts'
+import { normalizeSsoDomain } from './sso-policy.ts'
+import { type SsoPolicyOptions } from './sso-policy-config.ts'
+import { auditedMutations } from './audited-mutation.ts'
+import { requireRecentSsoConfigurationAuth } from './sso-configuration-auth.ts'
 import {
   pickSignInTarget,
   requireProtocolMatch,
+  requireSafeSsoTransition,
   SsoConnections,
   ssoAuditEvent,
   toRoutingDecision,
@@ -99,6 +112,9 @@ function toConnection(row: ConnectionRow): SsoConnection {
     issuer: row.issuer,
     enabled: row.enabled,
     requireSso: row.requireSso,
+    domainVerified: row.domainVerified,
+    autoJoin: row.autoJoin,
+    lastLoginTestedAt: row.lastLoginTestedAt?.toISOString() ?? null,
     defaultWorkspaceRole: row.defaultWorkspaceRole,
     clientIdLastFour,
     createdAt: row.createdAt.toISOString()
@@ -165,13 +181,19 @@ function toDetail(row: ConnectionRow): SsoConnectionDetail {
 }
 
 export function LiveSsoConnections(
-  binding?: WorkspaceSsoBinding
-): Layer.Layer<SsoConnections, never, Database | AuditEventLog> {
+  binding?: WorkspaceSsoBinding,
+  options: SsoPolicyOptions = {}
+): Layer.Layer<SsoConnections, never, Database | RawD1 | AuditEventLog> {
   return Layer.effect(SsoConnections)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
       const unavailable = orUnavailable('workspace-sso-connections')
+      const domains = yield* makeSsoDomainVerification(binding, options)
+      const mutate = yield* auditedMutations({
+        prepareAuditRecord: audit.prepareRecord,
+        unavailable
+      })
 
       /**
        * The connection read back through the same table `list` reads, scoped
@@ -198,6 +220,7 @@ export function LiveSsoConnections(
       })
 
       return {
+        ...domains,
         list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
@@ -223,10 +246,30 @@ export function LiveSsoConnections(
           }),
         create: (input) =>
           Effect.gen(function* () {
+            yield* requireRecentSsoConfigurationAuth(
+              db,
+              options.configurationAuthRecencyMs
+            )
             const ctx = yield* WorkspaceContext
+            const domain = normalizeSsoDomain(input.domain)
+            if (domain === undefined) {
+              return yield* new MembershipChangeRejected({
+                reason: 'invalid_sso_domain'
+              })
+            }
+            if (input.defaultWorkspaceRole !== 'member') {
+              return yield* new MembershipChangeRejected({
+                reason: 'sso_member_role_only'
+              })
+            }
             const providerId = yield* newCapabilityId('sso')
             yield* callBinding(binding, (bound) =>
-              bound.create({ ...input, workspaceId: ctx.workspace.id, providerId })
+              bound.create({
+                ...input,
+                domain,
+                workspaceId: ctx.workspace.id,
+                providerId
+              })
             )
             const row = yield* readInWorkspace(ctx.workspace.id, providerId)
             if (Option.isNone(row)) {
@@ -243,44 +286,218 @@ export function LiveSsoConnections(
           }),
         update: (input) =>
           Effect.gen(function* () {
+            yield* requireRecentSsoConfigurationAuth(
+              db,
+              options.configurationAuthRecencyMs
+            )
             const ctx = yield* WorkspaceContext
             const existing = yield* readInWorkspace(ctx.workspace.id, input.providerId)
             if (Option.isNone(existing)) {
               return Option.none<SsoConnection>()
             }
             yield* requireProtocolMatch(toConnection(existing.value), input)
-            // The plugin merges a partial body over the stored row, so the
-            // port's optional fields are exactly the fields being changed.
-            const update = {
-              providerId: input.providerId,
-              ...(input.enabled !== undefined && { enabled: input.enabled }),
-              ...(input.requireSso !== undefined && { requireSso: input.requireSso }),
-              ...(input.defaultWorkspaceRole !== undefined && {
-                defaultWorkspaceRole: input.defaultWorkspaceRole
-              }),
-              ...(input.oidcCredentials !== undefined && {
-                oidcCredentials: input.oidcCredentials
-              })
+            const previous = existing.value
+            yield* requireSafeSsoTransition(toConnection(previous), input)
+            if (
+              input.enabled === true ||
+              input.requireSso === true ||
+              input.autoJoin === true
+            ) {
+              const [claim] = yield* unavailable(
+                db
+                  .select()
+                  .from(workspaceSsoDomainClaims)
+                  .where(
+                    and(
+                      eq(workspaceSsoDomainClaims.domain, previous.domain),
+                      eq(workspaceSsoDomainClaims.workspaceId, ctx.workspace.id),
+                      eq(workspaceSsoDomainClaims.status, 'verified')
+                    )
+                  )
+                  .limit(1)
+              )
+              if (!claim) {
+                return yield* new MembershipChangeRejected({
+                  reason: 'domain_verification_required'
+                })
+              }
             }
-            yield* callBinding(binding, (bound) => bound.update(update))
+            let replaced: ConnectionRow | undefined
+            if (input.replaceProviderId !== undefined) {
+              const predecessor = yield* readInWorkspace(
+                ctx.workspace.id,
+                input.replaceProviderId
+              )
+              if (
+                Option.isNone(predecessor) ||
+                predecessor.value.providerId === previous.providerId ||
+                input.enabled !== true
+              ) {
+                return yield* new MembershipChangeRejected({
+                  reason: 'invalid_sso_replacement'
+                })
+              }
+              replaced = predecessor.value
+            }
+            const requireSso =
+              input.requireSso ?? replaced?.requireSso ?? previous.requireSso
+            yield* requireSafeSsoTransition(toConnection(previous), {
+              ...input,
+              requireSso
+            })
+            if (requireSso) {
+              const owners = yield* unavailable(
+                db
+                  .select({ userId: user.id, mfa: user.twoFactorEnabled })
+                  .from(workspaceMembers)
+                  .innerJoin(user, eq(user.id, workspaceMembers.userId))
+                  .where(
+                    and(
+                      eq(workspaceMembers.workspaceId, ctx.workspace.id),
+                      eq(workspaceMembers.role, 'owner')
+                    )
+                  )
+              )
+              let recoveryReady = false
+              for (const owner of owners) {
+                const factors = yield* unavailable(
+                  db
+                    .select({ id: passkey.id })
+                    .from(passkey)
+                    .where(eq(passkey.userId, owner.userId))
+                    .limit(1)
+                )
+                const passwords = yield* unavailable(
+                  db
+                    .select({ password: account.password })
+                    .from(account)
+                    .where(
+                      and(
+                        eq(account.userId, owner.userId),
+                        eq(account.providerId, 'credential')
+                      )
+                    )
+                    .limit(1)
+                )
+                if (factors.length > 0 || (owner.mfa && passwords[0]?.password)) {
+                  recoveryReady = true
+                }
+              }
+              if (!recoveryReady) {
+                return yield* new MembershipChangeRejected({
+                  reason: 'sso_recovery_factor_required'
+                })
+              }
+            }
+            if (input.oidcCredentials !== undefined) {
+              yield* callBinding(binding, (bound) =>
+                bound.update({
+                  providerId: input.providerId,
+                  oidcCredentials: input.oidcCredentials
+                })
+              )
+            }
+            const invalidated =
+              input.enabled === false || input.oidcCredentials !== undefined
+            const changed = {
+              enabled: input.enabled ?? previous.enabled,
+              requireSso,
+              autoJoin: input.autoJoin ?? previous.autoJoin,
+              defaultWorkspaceRole: 'member',
+              connectionGeneration: previous.connectionGeneration + 1,
+              lastLoginTestedAt: previous.lastLoginTestedAt,
+              lastLoginTestedBy: previous.lastLoginTestedBy
+            } satisfies Partial<ConnectionRow>
+            if (invalidated) {
+              changed.lastLoginTestedAt = null
+              changed.lastLoginTestedBy = null
+            }
+            yield* mutate({
+              matched: Effect.succeed(true),
+              auditEvent: {
+                workspaceId: ctx.workspace.id,
+                actorUserId: ctx.actor?.userId ?? null,
+                actorType: ctx.actorType,
+                eventType: 'workspace_sso.connection_updated',
+                targetType: 'workspace_sso_connection',
+                targetId: input.providerId,
+                metadata: {
+                  enabled: changed.enabled,
+                  requireSso,
+                  autoJoin: changed.autoJoin,
+                  replacedProviderId: replaced?.providerId ?? null
+                }
+              },
+              write: () => {
+                const writes = []
+                let predecessorRetired
+                if (replaced !== undefined) {
+                  predecessorRetired = sql`exists (select 1 from workspace_sso_connections predecessor where predecessor.providerId = ${replaced.providerId} and predecessor.connectionGeneration = ${replaced.connectionGeneration + 1} and predecessor.enabled = 0 and predecessor.requireSso = 0)`
+                }
+                if (replaced) {
+                  writes.push(
+                    db
+                      .update(workspaceSsoConnections)
+                      .set({
+                        enabled: false,
+                        requireSso: false,
+                        lastLoginTestedAt: null,
+                        lastLoginTestedBy: null,
+                        connectionGeneration: sql`${workspaceSsoConnections.connectionGeneration} + 1`
+                      })
+                      .where(
+                        and(
+                          eq(workspaceSsoConnections.providerId, replaced.providerId),
+                          eq(workspaceSsoConnections.workspaceId, ctx.workspace.id),
+                          eq(
+                            workspaceSsoConnections.connectionGeneration,
+                            replaced.connectionGeneration
+                          ),
+                          sql`exists (select 1 from workspace_sso_connections candidate where candidate.providerId = ${previous.providerId} and candidate.connectionGeneration = ${previous.connectionGeneration})`
+                        )
+                      )
+                  )
+                }
+                writes.push(
+                  db
+                    .update(workspaceSsoConnections)
+                    .set(changed)
+                    .where(
+                      and(
+                        eq(workspaceSsoConnections.providerId, previous.providerId),
+                        eq(workspaceSsoConnections.workspaceId, ctx.workspace.id),
+                        eq(
+                          workspaceSsoConnections.connectionGeneration,
+                          previous.connectionGeneration
+                        ),
+                        predecessorRetired
+                      )
+                    )
+                )
+                return writes
+              }
+            })
             const row = yield* readInWorkspace(ctx.workspace.id, input.providerId)
             const connection = Option.map(row, toConnection)
-            if (Option.isSome(connection)) {
-              yield* recordInWorkspace(audit, {
-                ...ssoAuditEvent('updated', connection.value),
-                targetId: connection.value.id
-              })
-            }
             return connection
           }),
         remove: ({ providerId }) =>
           Effect.gen(function* () {
+            yield* requireRecentSsoConfigurationAuth(
+              db,
+              options.configurationAuthRecencyMs
+            )
             const ctx = yield* WorkspaceContext
             const existing = yield* readInWorkspace(ctx.workspace.id, providerId)
             if (Option.isNone(existing)) {
               return false
             }
             const connection = toConnection(existing.value)
+            if (connection.requireSso) {
+              return yield* new MembershipChangeRejected({
+                reason: 'disable_sso_requirement_first'
+              })
+            }
             yield* callBinding(binding, (bound) => bound.remove({ providerId }))
             yield* recordInWorkspace(audit, {
               ...ssoAuditEvent('removed', connection),
@@ -294,15 +511,41 @@ export function LiveSsoConnections(
             // settings UI without intercepting sign-ins (the seeded example
             // connection depends on exactly this; the auth gate enforces the
             // same rule for direct `/sign-in/sso` calls).
+            const now = DateTime.formatIso(yield* DateTime.now)
             const rows = yield* unavailable(
               db
-                .select()
+                .select({ connection: workspaceSsoConnections })
                 .from(workspaceSsoConnections)
-                .where(eq(workspaceSsoConnections.enabled, true))
+                .innerJoin(
+                  workspaceSsoDomainClaims,
+                  and(
+                    eq(workspaceSsoDomainClaims.domain, workspaceSsoConnections.domain),
+                    eq(
+                      workspaceSsoDomainClaims.workspaceId,
+                      workspaceSsoConnections.workspaceId
+                    )
+                  )
+                )
+                .where(
+                  and(
+                    eq(workspaceSsoConnections.enabled, true),
+                    eq(workspaceSsoConnections.domainVerified, true),
+                    or(
+                      eq(workspaceSsoDomainClaims.status, 'verified'),
+                      and(
+                        eq(workspaceSsoDomainClaims.status, 'grace'),
+                        gt(workspaceSsoDomainClaims.graceUntil, now)
+                      )
+                    )
+                  )
+                )
             )
             return Option.map(
               Option.fromNullishOr(
-                pickSignInTarget(rows.map(routingFields), { email })
+                pickSignInTarget(
+                  rows.map((row) => routingFields(row.connection)),
+                  { email }
+                )
               ),
               toRoutingDecision
             )

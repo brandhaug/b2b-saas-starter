@@ -1,15 +1,17 @@
 import { passkey } from '@better-auth/passkey'
 import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz/client'
-import {
-  adminSystemRole,
-  isSsoProvisionedRole,
-  ssoProvisionedRoles,
-  type SsoProvisionedRoleValue
-} from '@b2b-saas-starter/db/enums'
+import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import * as schema from '@b2b-saas-starter/db/schema'
+import {
+  APIError,
+  addOAuthServerContext,
+  createAuthMiddleware,
+  getSessionFromCtx
+} from 'better-auth/api'
 import { cimd } from '@better-auth/cimd'
+import { type BetterAuthPlugin, type HookEndpointContext } from '@better-auth/core'
 import { mcp } from '@better-auth/mcp'
-import { sso } from '@better-auth/sso'
+import { sso, type SSOOptions } from '@better-auth/sso'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { lastLoginMethod } from 'better-auth/plugins'
@@ -20,7 +22,7 @@ import { organization } from 'better-auth/plugins/organization'
 import { twoFactor } from 'better-auth/plugins/two-factor'
 import { username } from 'better-auth/plugins/username'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
-import { Effect } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import {
   plugins,
   service,
@@ -38,10 +40,12 @@ import {
   AuthConfig,
   MAGIC_LINK_EXPIRES_IN_SECONDS,
   type AuthAccountChange,
-  type AuthConfigInterface
+  type AuthConfigInterface,
+  type AuthSsoSessionRecord
 } from './ports.ts'
 
 export {
+  bindMcpConsentSession,
   MCP_CONSENT_PAGE,
   MCP_LOGIN_PAGE,
   MCP_OAUTH_SCOPES,
@@ -62,37 +66,20 @@ export {
   type AuthMagicLinkCallback,
   type AuthOneTimeCodeCallback,
   type AuthPasswordResetCallback,
+  type AuthSsoEndpointContext,
+  type AuthSsoFlowState,
+  type AuthSsoHooks,
+  type AuthSsoSession,
+  type AuthSsoSessionHookContext,
+  type AuthSsoSessionRecord,
+  type DrizzleDatabase,
   type OneTimeCodePurpose,
   type SocialProviderCredentials,
   type SocialProviderCredentialsByName,
   type UserDeleteHooks
 } from './ports.ts'
 
-/**
- * The provisioning role for `organizationProvisioning.getRole`. The plugin
- * types `additionalFields` as plain strings, so the stored value is narrowed
- * through the stored vocabulary (`ssoProvisionedRoles` via
- * `isSsoProvisionedRole`): anything else — including a bogus `owner` written
- * by a raw API call — provisions as the first role, `member`. SSO never mints
- * the role that can delete the workspace or change the connection.
- */
-function provisionedRoleOf(data: {
-  readonly provider: {
-    // Carried so the parameter keeps a property in common with the plugin's
-    // `BaseSSOProvider` (its weak-type check); the role reads only the field
-    // below.
-    readonly providerId: string
-    readonly defaultWorkspaceRole?: string | null
-  }
-}): Promise<SsoProvisionedRoleValue> {
-  const stored = data.provider.defaultWorkspaceRole
-  if (isSsoProvisionedRole(stored)) {
-    // oxlint-disable-next-line effect/noNewPromise -- plugin callback runs outside Effect
-    return Promise.resolve(stored)
-  }
-  // oxlint-disable-next-line effect/noNewPromise -- plugin callback runs outside Effect
-  return Promise.resolve(ssoProvisionedRoles[0])
-}
+const decodeSignedCookie = Schema.decodeUnknownOption(Schema.String)
 
 /**
  * The `user` option this package builds from the hook pair. The endpoint is
@@ -125,6 +112,115 @@ function userDeleteOption(options: AuthConfigInterface) {
       beforeDelete: options.userDeleteHooks.beforeDelete,
       afterDelete: options.userDeleteHooks.afterDelete
     }
+  }
+}
+
+/**
+ * Owner boundary for every mutable SSO endpoint. The SSO plugin's built-in
+ * organization check intentionally accepts admins; workspace policy is
+ * stricter, so this small plugin hook runs before register, update, delete,
+ * and both domain-verification endpoints. The callback is app-owned because
+ * only the app can evaluate the capability's owner/recovery rules.
+ */
+/* oxlint-disable effect/noAsyncFunction, effect/noThrowStatement -- Better Auth middleware is promise-based and signals endpoint rejection with APIError. */
+function ssoOwnerBoundary(options: AuthConfigInterface) {
+  const mutablePaths = new Set([
+    '/sso/register',
+    '/sso/update-provider',
+    '/sso/delete-provider',
+    '/sso/request-domain-verification',
+    '/sso/verify-domain'
+  ])
+  return {
+    id: 'starter-sso-owner-boundary',
+    hooks: {
+      before: [
+        {
+          matcher: (context: HookEndpointContext) => context.path === '/sign-in/sso',
+          handler: createAuthMiddleware(async (context) => {
+            const guard = options.ssoHooks?.guardSignIn
+            if (guard === undefined) {
+              throw new APIError('FORBIDDEN', {
+                message: 'SSO sign-in policy is not configured'
+              })
+            }
+            // This hook runs before the endpoint's own session middleware.
+            // Resolve the cookie here so owner-only explicit test starts do
+            // not depend on an opportunistically populated context.session.
+            const session = await getSessionFromCtx(context)
+            const trustedState = await guard({
+              ...context,
+              context: { ...context.context, session }
+            })
+            if (trustedState !== undefined) {
+              await addOAuthServerContext({ starterSsoFlow: trustedState })
+              const cookie = context.context.createAuthCookie('starter_sso_flow', {
+                httpOnly: true,
+                maxAge: 10 * 60,
+                sameSite: 'none',
+                secure: true
+              })
+              await context.setSignedCookie(
+                cookie.name,
+                trustedState.flowId,
+                context.context.secret,
+                cookie.attributes
+              )
+            }
+          })
+        },
+        {
+          matcher: (context: HookEndpointContext) =>
+            mutablePaths.has(context.path ?? ''),
+          handler: createAuthMiddleware(async (context) => {
+            const guard = options.ssoHooks?.guardProviderOwner
+            if (guard === undefined) {
+              // Fail closed when the application has not supplied the
+              // capability-backed owner/recovery policy.
+              throw new APIError('FORBIDDEN', {
+                message: 'SSO provider mutation policy is not configured'
+              })
+            }
+            const session = await getSessionFromCtx(context)
+            await guard({ ...context, context: { ...context.context, session } })
+          })
+        }
+      ]
+    }
+  } satisfies BetterAuthPlugin
+}
+
+/* oxlint-enable effect/noAsyncFunction, effect/noThrowStatement */
+
+/**
+ * Better Auth's SSO plugin ships one broad post-callback hook that assigns an
+ * organization by email domain after every social OAuth callback. Workspace
+ * SSO policy is provider-bound, so that fallback must never enroll a GitHub
+ * or Google identity. Preserve any SSO-scoped post hooks while making the
+ * plugin's generic `/callback/:provider` hook ineligible.
+ */
+function providerBoundSso<
+  const Options extends SSOOptions & { domainVerification: { enabled: true } }
+>(options: Options) {
+  // The 1.7.2 SSO declaration omits its runtime `hooks` property even though
+  // SSOPlugin is a BetterAuthPlugin and the emitted module returns the hook.
+  const rawPlugin = sso(options)
+  // SAFETY: pinned Better Auth 1.7.2 emits this exact hook on every sso()
+  // plugin while its declaration omits only the `hooks` property.
+  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion, anti-slop/no-chained-type-assertions -- repairs that upstream declaration omission with the library's own plugin type
+  const plugin = rawPlugin as unknown as typeof rawPlugin & {
+    readonly hooks: {
+      readonly after: NonNullable<NonNullable<BetterAuthPlugin['hooks']>['after']>
+    }
+  }
+  const after = plugin.hooks.after.map((hook) => ({
+    ...hook,
+    matcher: (context: Parameters<typeof hook.matcher>[0]) =>
+      context.path?.startsWith('/sso/') === true && hook.matcher(context)
+  }))
+  return {
+    ...plugin,
+    hooks: { ...plugin.hooks, after }
   }
 }
 
@@ -178,7 +274,71 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     rateLimit: {
       enabled: false
     },
+    /* oxlint-disable effect/noAsyncFunction -- Better Auth database hooks are promise callbacks; the app-owned port is awaited before session insertion. */
     databaseHooks: {
+      session: {
+        create: {
+          // SSO proof is written before Better Auth inserts the session. An
+          // absent/failed proof callback returns false and therefore fails
+          // closed; `create.after` is deliberately not used because Better
+          // Auth queues it after the transaction and cannot roll a session
+          // back when the independent proof store is unavailable.
+          before: async (
+            session: {
+              readonly id?: string
+              readonly userId?: string
+            },
+            context: Parameters<typeof getSessionFromCtx>[0] | null
+          ) => {
+            const hook = options.ssoHooks?.beforeSessionCreate
+            if (hook === undefined || context === null) {
+              return
+            }
+            const generatedId =
+              session.id ?? context.context.generateId({ model: 'session' })
+            if (generatedId === false || session.userId === undefined) {
+              return false
+            }
+            const authoritativeSession: AuthSsoSessionRecord = {
+              ...session,
+              id: generatedId,
+              userId: session.userId
+            }
+            const existingSession = await getSessionFromCtx(context)
+            const cookie = context.context.createAuthCookie('starter_sso_flow', {
+              httpOnly: true,
+              maxAge: 10 * 60,
+              sameSite: 'none',
+              secure: true
+            })
+            const value = await context.getSignedCookie(
+              cookie.name,
+              context.context.secret
+            )
+            const flowId = Option.getOrNull(decodeSignedCookie(value))
+            const allowed = await hook(authoritativeSession, {
+              context,
+              existingSession,
+              flowId
+            })
+            if (allowed === false) {
+              return false
+            }
+            return { data: authoritativeSession }
+          },
+          after: async (
+            session: AuthSsoSessionRecord,
+            context: Parameters<typeof getSessionFromCtx>[0] | null
+          ) => {
+            const hook = options.ssoHooks?.afterSessionCreate
+            if (hook === undefined || context === null) {
+              return
+            }
+            const existingSession = await getSessionFromCtx(context)
+            await hook(session, { context, existingSession, flowId: null })
+          }
+        }
+      },
       account: {
         // The linking audit port, assigned straight to Better Auth's hooks —
         // fires for every account row (credential included); the app's
@@ -196,6 +356,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         }
       }
     },
+    /* oxlint-enable effect/noAsyncFunction */
     database: drizzleAdapter(options.db, {
       provider: 'sqlite',
       schema
@@ -475,11 +636,11 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         extensions: [
           {
             claims: {
-              accessToken: ({ user, client, referenceId }) =>
+              accessToken: (input) =>
                 mcpWorkspaceAccessTokenClaims(options.db, {
-                  userId: user?.id,
-                  clientId: client.clientId,
-                  referenceId
+                  userId: input.user?.id,
+                  clientId: input.client.clientId,
+                  referenceId: input.referenceId
                 })
             }
           }
@@ -498,7 +659,17 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // is deliberately no env var, because an owner configuring a connection
       // is the whole point (the Optional Provider here is owner-gated, not
       // operator-gated).
-      sso({
+      providerBoundSso({
+        // The pre-session app hook gates domain-based provisioning. Better
+        // Auth's `resolveUser` requires a native database transaction, which
+        // Cloudflare D1 does not implement, so it cannot be used here.
+        domainVerification: { enabled: true },
+        organizationProvisioning: {
+          // Every provider-bound automatic assignment is least privilege.
+          // Existing invitation roles are handled by the app resolver.
+          defaultRole: 'member'
+        },
+        guardProviderMutation: options.ssoHooks?.guardProviderMutation,
         // Connections start disabled and an owner enables one after a
         // successful test. The plugin has no `enabled` option and serves any
         // stored connection — `enabled` is the starter's routing vocabulary,
@@ -509,9 +680,6 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         // with the connection's own default Workspace Role — `member` unless
         // the owner configured `admin`. `owner` is unreachable by design:
         // `provisionedRoleOf` narrows through `ssoProvisionedRoles`.
-        organizationProvisioning: {
-          getRole: provisionedRoleOf
-        },
         schema: {
           ssoProvider: {
             // `modelName` is the drizzle schema export key, not the SQL table
@@ -521,24 +689,9 @@ export function makeAuthOptions(options: AuthConfigInterface) {
             // spells it the starter's way, remapped once here.
             fields: { organizationId: 'workspaceId' },
             additionalFields: {
-              enabled: {
-                type: 'boolean',
-                required: false,
-                input: true,
-                defaultValue: false
-              },
-              requireSso: {
-                type: 'boolean',
-                required: false,
-                input: true,
-                defaultValue: false
-              },
-              defaultWorkspaceRole: {
-                type: 'string',
-                required: false,
-                input: true,
-                defaultValue: 'member'
-              },
+              // `domainVerified` is supplied by Better Auth's enabled domain
+              // verification feature. Its token is a returned challenge,
+              // not a persisted additional field.
               createdAt: {
                 type: 'date',
                 required: false,
@@ -550,6 +703,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
           }
         }
       }),
+      ssoOwnerBoundary(options),
       // The "last signed in with X" hint on the sign-in page: cookie-backed
       // by the core plugin's default (`storeInDatabase` stays off — no new
       // user column, no migration, and a wiped cookie is cosmetic, not data

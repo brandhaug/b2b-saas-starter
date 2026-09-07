@@ -148,7 +148,7 @@ export function mcpCallerActor(caller: McpCaller): ActorRef | undefined {
   if (caller.kind !== 'oauth') {
     return undefined
   }
-  return { userId: caller.token.userId }
+  return { userId: caller.token.userId, sessionId: caller.token.ssoSessionId }
 }
 
 /**

@@ -10,7 +10,10 @@ import { SeedApiTokenRegistry } from './developer-platform/api-token-registry.se
 import { type ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
 import { LiveMcpClientConnections } from './developer-platform/mcp-client-connections.live.ts'
 import { SeedMcpClientConnections } from './developer-platform/mcp-client-connections.seed.ts'
-import { type McpClientConnections } from './developer-platform/mcp-client-connections.ts'
+import {
+  type McpClientConnections,
+  type McpConsentBinding
+} from './developer-platform/mcp-client-connections.ts'
 import { LiveWebhookEndpoints } from './developer-platform/webhook-endpoints.live.ts'
 import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
 import { type WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
@@ -74,6 +77,10 @@ import { SeedWorkspaceExports } from './governance/workspace-export.seed.ts'
 import { type WorkspaceExports } from './governance/workspace-export.ts'
 import { LiveSsoConnections } from './governance/workspace-sso-connections.live.ts'
 import { SeedSsoConnections } from './governance/workspace-sso-connections.seed.ts'
+import { LiveSsoPolicy } from './governance/sso-policy.live.ts'
+import { type SsoPolicy } from './governance/sso-policy.ts'
+import { SeedSsoPolicy } from './governance/sso-policy.seed.ts'
+import { type SsoPolicyOptions } from './governance/sso-policy-config.ts'
 import {
   type SsoConnections,
   type WorkspaceSsoBinding
@@ -139,6 +146,7 @@ export type CapabilityServices =
   | PlatformUserAdmin
   | SeatSyncPublisher
   | SsoConnections
+  | SsoPolicy
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceExports
@@ -238,6 +246,14 @@ const SeedCore = Layer.mergeAll(
   SeedAccountPrefs,
   SeedSeatSyncPublisher,
   SeedSsoConnections(seedSsoConnections),
+  SeedSsoPolicy({
+    ownerUserIds: seedMembers.flatMap((member) => {
+      if (member.role === 'owner') {
+        return [member.id]
+      }
+      return []
+    })
+  }),
   SeedWebhookEndpoints(
     seedWebhookEndpoints,
     seedDeliveries,
@@ -348,6 +364,10 @@ export type CapabilityBindings = {
    * posture the other bindings take.
    */
   readonly ssoBinding?: WorkspaceSsoBinding | undefined
+  /** Auth-owned adapter that binds an MCP consent to its authorizing session. */
+  readonly mcpConsentBinding?: McpConsentBinding | undefined
+  /** Optional SSO proof and configuration-auth lifetimes. */
+  readonly ssoPolicyOptions?: SsoPolicyOptions | undefined
 }
 
 export function makeLiveCapabilitiesLayer(
@@ -382,11 +402,12 @@ export function makeLiveCapabilitiesLayer(
     LiveAuditEventLog,
     billing,
     entitlements,
-    LiveMcpClientConnections(options.securityEvidence),
+    LiveMcpClientConnections(options.securityEvidence, options.mcpConsentBinding),
     preferences,
     accountPreferences,
     feed,
-    LiveSsoConnections(options.ssoBinding),
+    LiveSsoConnections(options.ssoBinding, options.ssoPolicyOptions),
+    LiveSsoPolicy(options.ssoPolicyOptions),
     LiveWebhookEndpoints.pipe(Layer.provide(billing), Layer.provide(entitlements)),
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),

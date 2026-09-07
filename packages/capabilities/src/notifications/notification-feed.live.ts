@@ -418,10 +418,16 @@ export function LiveNotificationFeed(
               owner: EmailQueueRecipient
             }> = []
             for (const owner of owners) {
+              let id: string
+              if (input.deduplicationKey === undefined) {
+                id = yield* newCapabilityId('not')
+              } else {
+                id = `not:${input.workspaceId}:${owner.userId}:${input.deduplicationKey}`
+              }
               created.push({
                 owner,
                 row: {
-                  id: yield* newCapabilityId('not'),
+                  id,
                   workspaceId: input.workspaceId,
                   userId: owner.userId,
                   kind: input.kind,
@@ -433,14 +439,22 @@ export function LiveNotificationFeed(
                 }
               })
             }
-            yield* unavailable(
-              db.insert(notifications).values(created.map(({ row }) => row))
+            const inserted = yield* unavailable(
+              db
+                .insert(notifications)
+                .values(created.map(({ row }) => row))
+                .onConflictDoNothing({ target: notifications.id })
+                .returning()
             )
+            const insertedIds = new Set(inserted.map((row) => row.id))
             // One enqueue per row: a notification id addresses one (row,
             // recipient) pair, so each owner's email resolves against their
             // own channel preference.
             const traceparent = yield* currentTraceparent
             for (const { row, owner } of created) {
+              if (!insertedIds.has(row.id)) {
+                continue
+              }
               yield* enqueueInstantEmails(options.emailQueue, preferences, {
                 notificationId: row.id,
                 kind: input.kind,

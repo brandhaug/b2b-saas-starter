@@ -93,9 +93,9 @@ export function makeBindingCaller<Binding, RejectedError>(options: {
   }
 
   /** Fails with `noBinding` when unset, else runs the call through the classifier. */
-  function callBinding(
+  function callBinding<Output = void>(
     binding: Binding | undefined,
-    call: (bound: Binding) => Promise<void>
+    call: (bound: Binding) => Promise<Output>
   ) {
     if (!binding) {
       return Effect.fail(noBinding)

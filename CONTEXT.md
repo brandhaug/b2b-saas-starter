@@ -152,8 +152,16 @@ _Avoid_: Summary email, newsletter, batch
 A workspace-owned single sign-on configuration (SAML or OIDC) that routes one email domain to an identity provider.
 _Avoid_: IdP config, tenant SSO, integration
 **Domain Routing**:
-The sign-in rule that an email whose domain matches an enabled SSO Connection goes to that connection's identity provider.
+The sign-in rule that an email whose exact domain has a verified claim routes to an enabled SSO Connection in the claiming Workspace.
 _Avoid_: Email fallback, forced SSO, redirect matching
+
+**Required SSO**:
+A Workspace access policy requiring every human Member to authenticate through its active SSO Connection. It leaves account sign-in and access to other Workspaces independent.
+_Avoid_: Domain password ban, global SSO lock
+
+**SSO Recovery Exception**:
+A short-lived operator grant letting an existing owner repair Required SSO after independent authentication. It grants no access to other Workspace capabilities.
+_Avoid_: Admin bypass, emergency workspace access
 
 **Page**:
 One bounded slice of a list read, returned as `items` plus an opaque `nextCursor` that is `null` on the last page.
@@ -201,7 +209,7 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 - An **Impersonation Session** is opened by a **System Admin**, records two **Audit Events**, and creates a **Notification** for the impersonated user
 - A **Workspace Export** belongs to exactly one **Workspace**, is requested by an owner, and creates **Audit Events** and a **Notification**
 - A **Workspace Export** is the access half of a data subject request; account deletion is the erasure half
-- An **SSO Connection** belongs to exactly one **Workspace** and joins a first-time SSO sign-in as a **Member** with the connection's default **Workspace Role**
+- An **SSO Connection** belongs to exactly one **Workspace** and admits existing Members or invitees; optional verified-domain auto-join grants only the member **Workspace Role**
 - **Domain Routing** sends an email to one **SSO Connection** at sign-in; a disabled connection never routes
 - Every REST and MCP list read returns a **Page** and accepts a **Cursor**; REST and MCP page the same way because both are **Capability Interfaces** over one operation table
 - The **Typed SDK** authenticates with an **API Token** and walks **Pages** for the caller
@@ -290,5 +298,5 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 - "Demo data" should be deterministic and part of the reference app's local experience. Resolved: use a **Seed Workspace**.
 - "Export" could mean a database backup or a GDPR-specific artifact. Resolved: a **Workspace Export** is an owner-facing ZIP of the workspace's own projections; GDPR requests are served with it plus account deletion, not by a separate export.
 - "SSO" could mean operator-set provider configuration. Resolved: an **SSO Connection** is a **Workspace**-owned surface an owner configures in settings; only the internal-IdP host allowlist remains an operator concern.
-- "Require SSO" could mean the sign-in page merely prefers the IdP. Resolved: **Domain Routing** plus the per-connection require toggle is enforced at the auth boundary — the password path is refused for that domain, not discouraged.
+- "Require SSO" could mean either domain routing or an account-wide login restriction. Resolved: **Required SSO** governs human access to one Workspace, independently of account sign-in and **Domain Routing**.
 - "Unsubscribe" could mean a one-click token URL. Resolved: the link in every notification email lands on the signed-in preferences page; a **Notification Preference** changes only through a session.

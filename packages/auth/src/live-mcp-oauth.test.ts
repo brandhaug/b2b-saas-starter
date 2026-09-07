@@ -1,11 +1,22 @@
 import {
   MCP_CONSENT_CLAIM,
+  MCP_SSO_SESSION_CLAIM,
   MCP_WORKSPACE_ID_CLAIM,
   MCP_WORKSPACE_ROLE_CLAIM,
   MCP_WORKSPACE_SLUG_CLAIM
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import { type DrizzleDatabase } from './ports.ts'
-import { oauthClient, oauthClientResource } from '@b2b-saas-starter/db/schema'
+import {
+  oauthClient,
+  oauthClientResource,
+  oauthConsent,
+  session,
+  workspaceSsoAuthProofs,
+  workspaceSsoConnections
+} from '@b2b-saas-starter/db/schema'
+import { eq } from 'drizzle-orm'
+import { APIError } from 'better-auth/api'
+import { bindMcpConsentSession, mcpWorkspaceAccessTokenClaims } from './mcp-oauth.ts'
 import { Effect, type Layer, Schema } from 'effect'
 import { createLocalJWKSet, jwtVerify } from 'jose'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
@@ -295,6 +306,181 @@ describe('mcp oauth authorization server', () => {
           // for this workspace is no consent for another.
           const consents = yield* auth.api.getOAuthConsents({ headers })
           expect(consents.map((consent) => consent.referenceId)).toEqual([workspace.id])
+
+          // Turning on required SSO also fences an already-issued refresh token.
+          yield* Effect.promise(() =>
+            db
+              .insert(workspaceSsoConnections)
+              .values({
+                id: 'required_after_consent',
+                providerId: 'required_after_consent',
+                workspaceId: workspace.id,
+                userId,
+                issuer: 'https://sso.example.test',
+                domain: 'mcp.test',
+                enabled: true,
+                requireSso: true
+              })
+              .run()
+          )
+          const refreshed = yield* Effect.promise(() =>
+            auth.instance.handler(
+              new Request('http://localhost:3071/api/auth/oauth2/token', {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                  grant_type: 'refresh_token',
+                  refresh_token: tokens.refresh_token,
+                  client_id: CLIENT_ID,
+                  resource: 'http://localhost:8787/mcp'
+                })
+              })
+            )
+          )
+          expect(refreshed.status).toBe(403)
+        })
+      )
+  )
+
+  it.live(
+    'issues SSO claims only while the consent session has current connection proof',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const auth = yield* Auth.Tag
+          const { headers, userId } = yield* signUpSession('proof@mcp.test')
+          const workspace = yield* auth.api.createOrganization({
+            body: { name: 'Proof', slug: 'proof' },
+            headers
+          })
+          const currentSession = yield* auth.api.getSession({ headers })
+          expect(currentSession).not.toBeNull()
+          if (currentSession === null) {
+            return yield* Effect.die('test sign-up did not create a session')
+          }
+          yield* Effect.promise(() =>
+            db
+              .insert(oauthClient)
+              .values({
+                id: 'sso_proof_client',
+                clientId: 'sso_proof_client',
+                redirectUris: [REDIRECT_URI]
+              })
+              .run()
+          )
+          yield* Effect.promise(() =>
+            db
+              .insert(oauthConsent)
+              .values({
+                id: 'sso_proof_consent',
+                clientId: 'sso_proof_client',
+                userId,
+                referenceId: workspace.id,
+                scopes: ['mcp:read']
+              })
+              .run()
+          )
+          yield* Effect.promise(() =>
+            db
+              .insert(workspaceSsoConnections)
+              .values({
+                id: 'sso_proof_connection',
+                providerId: 'sso_proof_connection',
+                workspaceId: workspace.id,
+                userId,
+                issuer: 'https://sso.example.test',
+                domain: 'mcp.test',
+                enabled: true,
+                requireSso: true
+              })
+              .run()
+          )
+          const input = {
+            userId,
+            clientId: 'sso_proof_client',
+            referenceId: workspace.id
+          }
+          const binding = {
+            userId,
+            clientId: 'sso_proof_client',
+            workspaceId: workspace.id,
+            sessionId: currentSession.session.id
+          }
+          yield* Effect.promise(() =>
+            expect(
+              bindMcpConsentSession(db, { ...binding, sessionId: 'missing_session' })
+            ).rejects.toBeInstanceOf(APIError)
+          )
+          yield* Effect.promise(() =>
+            expect(
+              bindMcpConsentSession(db, { ...binding, clientId: 'missing_consent' })
+            ).rejects.toBeInstanceOf(APIError)
+          )
+          yield* Effect.promise(() => bindMcpConsentSession(db, binding))
+          yield* Effect.promise(() =>
+            expect(mcpWorkspaceAccessTokenClaims(db, input)).rejects.toBeInstanceOf(
+              APIError
+            )
+          )
+          yield* Effect.promise(() =>
+            db
+              .insert(workspaceSsoAuthProofs)
+              .values({
+                id: 'sso_proof',
+                workspaceId: workspace.id,
+                userId,
+                sessionId: currentSession.session.id,
+                providerId: 'sso_proof_connection',
+                connectionGeneration: 1,
+                authenticatedAt: '2026-01-01T00:00:00.000Z',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                expiresAt: '2099-01-01T00:00:00.000Z'
+              })
+              .run()
+          )
+          const claims = yield* Effect.promise(() =>
+            mcpWorkspaceAccessTokenClaims(db, input)
+          )
+          expect(claims[MCP_SSO_SESSION_CLAIM]).toBe(currentSession.session.id)
+          yield* Effect.promise(() =>
+            db
+              .update(workspaceSsoConnections)
+              .set({ connectionGeneration: 2 })
+              .where(eq(workspaceSsoConnections.id, 'sso_proof_connection'))
+              .run()
+          )
+          yield* Effect.promise(() =>
+            expect(mcpWorkspaceAccessTokenClaims(db, input)).rejects.toBeInstanceOf(
+              APIError
+            )
+          )
+          yield* Effect.promise(() =>
+            db
+              .update(workspaceSsoAuthProofs)
+              .set({ connectionGeneration: 2, expiresAt: '2000-01-01T00:00:00.000Z' })
+              .where(eq(workspaceSsoAuthProofs.id, 'sso_proof'))
+              .run()
+          )
+          yield* Effect.promise(() =>
+            expect(mcpWorkspaceAccessTokenClaims(db, input)).rejects.toBeInstanceOf(
+              APIError
+            )
+          )
+          yield* Effect.promise(() =>
+            db
+              .update(workspaceSsoAuthProofs)
+              .set({ expiresAt: '2099-01-01T00:00:00.000Z' })
+              .where(eq(workspaceSsoAuthProofs.id, 'sso_proof'))
+              .run()
+          )
+          yield* Effect.promise(() =>
+            db.delete(session).where(eq(session.id, currentSession.session.id)).run()
+          )
+          yield* Effect.promise(() =>
+            expect(mcpWorkspaceAccessTokenClaims(db, input)).rejects.toBeInstanceOf(
+              APIError
+            )
+          )
         })
       )
   )

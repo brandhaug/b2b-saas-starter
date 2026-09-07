@@ -7,6 +7,7 @@
     "d1-backup*.ts",
     "alchemy-destroy.ts",
     "queue-health*.ts",
-    "recovery-security*.ts"
+    "recovery-security*.ts",
+    "sso-recovery*.ts"
   ]
 }

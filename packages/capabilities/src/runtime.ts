@@ -22,7 +22,12 @@ import {
   type WorkspaceContext,
   type ActorRef
 } from './workspace-context.ts'
-import { type CapabilityUnavailable, type WorkspaceNotFound } from './errors.ts'
+import {
+  type CapabilityUnavailable,
+  type WorkspaceNotFound,
+  type WorkspaceSsoRequired
+} from './errors.ts'
+import { type SsoRecoveryPurpose } from './governance/sso-policy.ts'
 
 type D1Binding = Parameters<typeof layerFromD1>[0]
 
@@ -127,8 +132,12 @@ export function selectWorkspaceContextLayer(
   env: StarterEnv,
   slug: string,
   actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue
-): Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable> {
+  actorType: AuditActorTypeValue,
+  purpose: SsoRecoveryPurpose = 'workspace'
+): Layer.Layer<
+  WorkspaceContext,
+  WorkspaceNotFound | WorkspaceSsoRequired | CapabilityUnavailable
+> {
   if (env.DB === undefined) {
     // Passing `seedMembers` makes the seed path enforce the same actor
     // membership semantics as the live path (fixture members allowed).
@@ -137,10 +146,11 @@ export function selectWorkspaceContextLayer(
       slug,
       actor,
       seedMembers,
-      actorType
+      actorType,
+      purpose
     )
   }
-  return liveWorkspaceContext(slug, actor, actorType).pipe(
+  return liveWorkspaceContext(slug, actor, actorType, purpose).pipe(
     Layer.provide(layerFromD1(env.DB))
   )
 }
@@ -155,21 +165,29 @@ export function selectWorkspaceLayer(
   env: StarterEnv,
   slug: string,
   actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue
+  actorType: AuditActorTypeValue,
+  purpose: SsoRecoveryPurpose = 'workspace'
 ): Layer.Layer<
   CapabilityServices | WorkspaceContext,
-  WorkspaceNotFound | CapabilityUnavailable
+  WorkspaceNotFound | WorkspaceSsoRequired | CapabilityUnavailable
 > {
   if (env.DB === undefined) {
     // Passing `seedMembers` makes the seed path enforce the same actor
     // membership semantics as the live path (fixture members allowed).
     return Layer.merge(
       SeedLayer,
-      seedWorkspaceContext(seedWorkspaceRecord, slug, actor, seedMembers, actorType)
+      seedWorkspaceContext(
+        seedWorkspaceRecord,
+        slug,
+        actor,
+        seedMembers,
+        actorType,
+        purpose
+      )
     )
   }
   return Layer.mergeAll(
     makeLiveCapabilitiesLayer(liveCapabilitiesOptions(env)),
-    liveWorkspaceContext(slug, actor, actorType)
+    liveWorkspaceContext(slug, actor, actorType, purpose)
   ).pipe(Layer.provide(layerFromD1(env.DB)))
 }

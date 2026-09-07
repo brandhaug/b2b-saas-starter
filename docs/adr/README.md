@@ -62,6 +62,7 @@ Each record is a short, statement-style decision: a title plus prose describing 
 - [0064 — Magic link as the second Local Auth Path](./0064-magic-link-as-second-local-auth-path.md)
 - [0067 — Email one-time codes on the email-otp plugin](./0067-email-one-time-codes.md)
 - [0069 — Workspace-scoped SSO with owner-configured connections](./0069-workspace-scoped-sso.md)
+- [0077 — Workspace SSO policy and verified domain claims](./0077-workspace-sso-policy-and-domain-claims.md)
 
 ## Optional providers
 

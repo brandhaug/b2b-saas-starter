@@ -9,6 +9,7 @@ import {
   TestDatabase
 } from '../testing/live-harness.ts'
 import { AuditEventLog } from './audit-event-log.ts'
+import { failureTag } from '../internal/failure-tag.ts'
 import { SsoConnections } from './workspace-sso-connections.ts'
 import { workspaceSsoConnectionsContractCases } from './workspace-sso-connections.contract.ts'
 
@@ -39,7 +40,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 protocol: 'oidc',
                 domain: 'routed.test',
                 enabled: true,
-                requireSso: true,
+                requireSso: false,
                 defaultWorkspaceRole: 'admin',
                 // The client id’s tail, never the secret or the full id.
                 clientIdLastFour: 'abcd'
@@ -51,7 +52,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               expect(serialized).not.toContain('sec_live_secret')
               expect(serialized).not.toContain('client-live-abcd')
             }),
-            { userId: 'usr_owner' }
+            { userId: 'usr_owner', sessionId: 'ses_sso_owner' }
           )
       )
 
@@ -68,7 +69,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               true
             )
           }),
-          { userId: 'usr_owner' }
+          { userId: 'usr_owner', sessionId: 'ses_sso_owner' }
         )
       )
     })
@@ -84,7 +85,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             if (Option.isSome(routing)) {
               // Deterministic: lowest providerId wins when domains overlap.
               expect(routing.value.providerId).toBe('sso_live_oidc')
-              expect(routing.value.requireSso).toBe(true)
+              expect(routing.value.requireSso).toBe(false)
               expect(routing.value.workspaceId).toBe('wrk_live')
             }
           })
@@ -136,7 +137,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               expect(detail.value.saml).toBeNull()
             }
           }),
-          { userId: 'usr_owner' }
+          { userId: 'usr_owner', sessionId: 'ses_sso_owner' }
         )
       )
 
@@ -161,32 +162,31 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               expect(partial.value.oidc).toBeNull()
             }
           }),
-          { userId: 'usr_owner' }
+          { userId: 'usr_owner', sessionId: 'ses_sso_owner' }
         )
       )
 
-      it.effect('rotating OIDC credentials updates the echoed last four', () =>
+      it.effect('issue 287: active credentials require a tested replacement', () =>
         Effect.gen(function* () {
           const db = yield* Database
           const { binding } = fakeSsoBinding(db)
-          const updated = yield* inWorkspace(
-            'live-lab',
-            Effect.flatMap(SsoConnections, (sso) =>
-              sso.update({
-                providerId: 'sso_live_oidc',
-                oidcCredentials: {
-                  clientId: 'client-rotated-9999',
-                  clientSecret: 'new-secret'
-                }
-              })
-            ),
-            { userId: 'usr_owner' },
-            { ssoBinding: binding }
+          const updated = yield* Effect.exit(
+            inWorkspace(
+              'live-lab',
+              Effect.flatMap(SsoConnections, (sso) =>
+                sso.update({
+                  providerId: 'sso_live_oidc',
+                  oidcCredentials: {
+                    clientId: 'client-rotated-9999',
+                    clientSecret: 'new-secret'
+                  }
+                })
+              ),
+              { userId: 'usr_owner', sessionId: 'ses_sso_owner' },
+              { ssoBinding: binding }
+            )
           )
-          expect(Option.isSome(updated)).toBe(true)
-          if (Option.isSome(updated)) {
-            expect(updated.value.clientIdLastFour).toBe('9999')
-          }
+          expect(failureTag(updated)).toBe('MembershipChangeRejected')
         })
       )
 
@@ -224,7 +224,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               return inWorkspace(
                 'live-lab',
                 contractCase.assert,
-                { userId: 'usr_owner' },
+                { userId: 'usr_owner', sessionId: 'ses_sso_owner' },
                 { ssoBinding: binding }
               )
             })
@@ -254,7 +254,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 defaultWorkspaceRole: 'member'
               })
             }),
-            { userId: 'usr_owner' },
+            { userId: 'usr_owner', sessionId: 'ses_sso_owner' },
             { ssoBinding: binding }
           )
           expect(created.enabled).toBe(false)
@@ -275,68 +275,35 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               })
               return events.items
             }),
-            { userId: 'usr_owner' }
+            { userId: 'usr_owner', sessionId: 'ses_sso_owner' }
           )
           expect(audit.map((event) => event.targetId)).toContain(created.id)
         })
       )
 
-      it.effect('updates toggles through the binding and audits the result', () =>
-        Effect.gen(function* () {
-          const db = yield* Database
-          const { binding, calls } = fakeSsoBinding(db)
-          const updated = yield* inWorkspace(
-            'live-lab',
-            Effect.gen(function* () {
-              const sso = yield* SsoConnections
-              return yield* sso.update({
-                providerId: 'sso_live_disabled',
-                enabled: true,
-                requireSso: true,
-                defaultWorkspaceRole: 'admin'
-              })
-            }),
-            { userId: 'usr_owner' },
-            { ssoBinding: binding }
-          )
-          expect(Option.isSome(updated)).toBe(true)
-          if (Option.isSome(updated)) {
-            expect(updated.value).toMatchObject({
-              enabled: true,
-              requireSso: true,
-              defaultWorkspaceRole: 'admin'
-            })
-          }
-          expect(calls).toEqual([
-            {
-              providerId: 'sso_live_disabled',
-              enabled: true,
-              requireSso: true,
-              defaultWorkspaceRole: 'admin'
-            }
-          ])
-
-          // The routing rule sees the flip immediately.
-          const routing = yield* inWorkspace(
-            'live-lab',
-            Effect.flatMap(SsoConnections, (sso) =>
-              sso.resolveRouting('person@disabled.test')
+      it.effect(
+        'issue 287: a direct update cannot activate an unverified connection',
+        () =>
+          Effect.gen(function* () {
+            const db = yield* Database
+            const { binding } = fakeSsoBinding(db)
+            const outcome = yield* Effect.exit(
+              inWorkspace(
+                'live-lab',
+                Effect.flatMap(SsoConnections, (sso) =>
+                  sso.update({
+                    providerId: 'sso_live_disabled',
+                    enabled: true,
+                    requireSso: true,
+                    confirmEnforcement: true
+                  })
+                ),
+                { userId: 'usr_owner', sessionId: 'ses_sso_owner' },
+                { ssoBinding: binding }
+              )
             )
-          )
-          expect(Option.isSome(routing)).toBe(true)
-
-          const audit = yield* inWorkspace(
-            'live-lab',
-            Effect.gen(function* () {
-              const events = yield* (yield* AuditEventLog).list({
-                eventType: 'workspace_sso.connection_updated'
-              })
-              return events.items
-            }),
-            { userId: 'usr_owner' }
-          )
-          expect(audit.map((event) => event.targetId)).toContain('sso_live_disabled')
-        })
+            expect(failureTag(outcome)).toBe('MembershipChangeRejected')
+          })
       )
 
       it.effect('removes through the binding and stops routing the domain', () =>
@@ -348,7 +315,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.flatMap(SsoConnections, (sso) =>
               sso.remove({ providerId: 'sso_live_oidc' })
             ),
-            { userId: 'usr_owner' },
+            { userId: 'usr_owner', sessionId: 'ses_sso_owner' },
             { ssoBinding: binding }
           )
           expect(removed).toBe(true)
@@ -362,10 +329,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               sso.resolveRouting('person@routed.test')
             )
           )
-          expect(Option.isSome(routing)).toBe(true)
-          if (Option.isSome(routing)) {
-            expect(routing.value.providerId).toBe('sso_other_oidc')
-          }
+          expect(Option.isNone(routing)).toBe(true)
         })
       )
 
@@ -387,7 +351,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                   removed: yield* sso.remove({ providerId: 'sso_missing' })
                 }
               }),
-              { userId: 'usr_owner' },
+              { userId: 'usr_owner', sessionId: 'ses_sso_owner' },
               { ssoBinding: binding }
             )
             expect(Option.isNone(outcome.updated)).toBe(true)
