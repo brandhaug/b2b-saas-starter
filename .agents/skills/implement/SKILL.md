@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Implement an agreed issue or spec through delegated work, independent review, fixes, and a PR ready to merge.
+description: Implement an agreed issue or spec through delegated work, proportionate independent review, fixes, and a PR ready to merge.
 ---
 
 # Implement
@@ -9,28 +9,32 @@ Default endpoint: a reviewed PR ready to merge, without merging. Honor a narrowe
 user request.
 
 1. Read the issue and comments using [tracker guidance](../../../docs/agents/issue-tracker.md).
-   Keep its AC IDs through implementation, tests, and the PR. Use the user's
-   grilling workflow for unresolved product decisions and `to-tickets` when the
-   agreed work needs multiple independently verifiable slices.
-2. Use a frontier model for orchestration and review; delegate bounded
-   implementation and fixes to Luna unless the user chooses otherwise. Give each
-   worker its ACs, owned files, and relevant intent nodes. Assign one writer to
-   shared contracts and wiring; the orchestrator integrates.
+   Preserve AC IDs through tests and the PR. Use grilling for unresolved product
+   decisions and `to-tickets` for multiple independently verifiable slices.
+2. Use frontier models for orchestration/review and Luna for bounded implementation
+   and fixes unless the user chooses otherwise. Delegate complete tasks with
+   focused briefs: ACs, owned files, and relevant context pointers. Settle shared
+   interfaces once and assign one writer to shared wiring. Keep tiny tasks local
+   when delegation would cost more context than the work.
 3. Apply `effect` with [repo examples](../../../docs/agents/effect-examples.md),
    `codebase-design` for module interfaces, `effect-service-design` for service
    ownership/Layers, and `impeccable` for UI. Use `tdd` at agreed behavior seams.
-4. Review a fixed base/head revision with `code-review` and the agreed spec.
-   Separately delegate `thermo-nuclear-code-quality-review` with applicable
-   design/Effect skills. Keep Standards and Spec findings separate. Triage
-   findings before dispatching fixes; structural suggestions need a concrete
-   benefit. Have an independent reviewer verify accepted repairs.
-5. Run focused checks during work and `pnpm run validate` on the integrated
-   result. Commit and create/update the PR using the repo template.
-6. Delegate a read-only watcher using `gh pr checks --required --watch`. Give it
-   the PR URL, expected head SHA, and a 30-minute deadline per head. At expiry,
-   report pending checks or external blockers. The orchestrator fixes actionable
-   failures and restarts verification after each push.
-7. Before finishing, verify that the same head has passing required checks,
-   satisfies review requirements, and is up to date with and mergeable against the base.
-   Report optional check failures separately. A ready report applies to that
-   revision only.
+4. Docs and mechanical edits get one targeted reviewer. Substantive behavior,
+   especially auth, billing, persistence, or cross-package changes, gets
+   `code-review` against a fixed base/head and the agreed spec. Fold
+   `thermo-nuclear-code-quality-review` into its Standards reviewer with relevant
+   design/Effect guidance; keep Spec independent. Reserve a separate deep audit
+   for a concrete architectural concern or explicit request.
+5. Consolidate overlapping findings and triage before assigning fixes. Structural
+   suggestions need a concrete benefit. Independently recheck accepted repairs
+   and affected callers; repeat the broader review only when design or behavior
+   changes substantially.
+6. Run focused checks during work and `pnpm run validate` on the integrated result.
+   Save verbose logs to files; read summaries and relevant failures. Commit and
+   create/update the PR using the repo template.
+7. Run native `gh pr checks --required --watch` as a process with a 30-minute
+   deadline per head; inspect completion or failure rather than reasoning over
+   every poll. Fix actionable failures and reverify after pushes. Before finishing,
+   confirm the same head satisfies required checks/reviews and is up to date with
+   and mergeable against the base. Report optional failures and stalled or external
+   blockers separately.
