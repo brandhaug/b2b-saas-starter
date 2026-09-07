@@ -1,5 +1,8 @@
 import { type Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect, Layer } from 'effect'
+import { type EmailDelivery } from './email-delivery/email-delivery.ts'
+import { SeedEmailDelivery } from './email-delivery/email-delivery.seed.ts'
+import { LiveEmailDelivery } from './email-delivery/email-delivery.live.ts'
 
 // developer-platform
 import { LiveApiTokenRegistry } from './developer-platform/api-token-registry.live.ts'
@@ -122,6 +125,7 @@ import {
 } from './seed-fixture.ts'
 
 export type CapabilityServices =
+  | EmailDelivery
   | AccountLifecycle
   | AccountPreferencesService
   | ApiTokenRegistry
@@ -214,6 +218,7 @@ const SeedEntitlements = SeedResourceEntitlements().pipe(
 )
 
 const SeedCore = Layer.mergeAll(
+  SeedEmailDelivery(seedSystemUsers),
   // The mutating developer-platform capabilities write audit events and fan
   // out webhooks below their interface; the shared fixture audit log and the
   // no-op Seed publisher are provided once on the merged layer so every member
@@ -365,6 +370,7 @@ export function makeLiveCapabilitiesLayer(
   const billing = LiveBilling(options.billing)
   const entitlements = LiveResourceEntitlements.pipe(Layer.provide(billing))
   return Layer.mergeAll(
+    LiveEmailDelivery,
     LiveAccountLifecycle(options.accountLifecycleBinding),
     LiveApiTokenRegistry.pipe(Layer.provide(billing), Layer.provide(entitlements)),
     LiveAuditEventLog,

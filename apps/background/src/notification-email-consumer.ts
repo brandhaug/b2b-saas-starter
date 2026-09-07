@@ -11,12 +11,13 @@ import { notificationKindLabel } from '@b2b-saas-starter/capabilities/notificati
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import {
-  EmailDispatcher,
-  selectEmailDispatcherLayer,
-  type EmailSendError
+  type EmailDispatcher,
+  selectEmailDispatcherLayer
 } from '@b2b-saas-starter/email'
 import { notificationEmailFor } from '@b2b-saas-starter/email/notification-emails'
-import { Effect, Layer, type Scope } from 'effect'
+import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
+import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import { Clock, Effect, Layer, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
 import {
@@ -46,8 +47,12 @@ export function processNotificationEmailMessage(
   appUrl: string
 ): Effect.Effect<
   DeliveryOutcome,
-  CapabilityUnavailable | EmailSendError,
-  NotificationFeed | NotificationPreferences | EmailDispatcher | Scope.Scope
+  CapabilityUnavailable,
+  | NotificationFeed
+  | NotificationPreferences
+  | EmailDispatcher
+  | EmailDelivery
+  | Scope.Scope
 > {
   return Effect.gen(function* () {
     if (delivery.kind === 'malformed') {
@@ -58,10 +63,13 @@ export function processNotificationEmailMessage(
       return ack
     }
     const { notificationId, recipientUserId } = delivery.message
+    const messageId = `notification:${notificationId}:${recipientUserId}`
+    const history = yield* EmailDelivery
     yield* Effect.annotateLogsScoped({ notificationId, recipientUserId })
     const feed = yield* NotificationFeed
     const context = yield* feed.loadForEmail(notificationId, recipientUserId)
     if (context === null) {
+      yield* history.abandon(messageId)
       yield* Effect.annotateLogsScoped({
         outcome: 'skipped',
         skipReason: 'not_deliverable'
@@ -73,13 +81,13 @@ export function processNotificationEmailMessage(
     const preferences = yield* NotificationPreferences
     const channel = yield* preferences.resolve(recipientUserId, kind)
     if (channel !== 'instant') {
+      yield* history.abandon(messageId)
       yield* Effect.annotateLogsScoped({
         outcome: 'skipped',
         skipReason: `channel_${channel}`
       })
       return ack
     }
-    const dispatcher = yield* EmailDispatcher
     const locale: Locale = context.recipient.locale ?? DEFAULT_LOCALE
     const kindLabel = notificationKindLabel(kind, locale)
     const copy = renderNotificationCopy(
@@ -88,8 +96,17 @@ export function processNotificationEmailMessage(
       context.recipient.timeZone ?? 'UTC'
     )
     const workspaceName = context.workspace?.name ?? null
-    yield* dispatcher
-      .send({
+    yield* dispatchTrackedEmail(
+      {
+        id: messageId,
+        purpose: 'notification',
+        recipient: context.recipient.email,
+        userId: recipientUserId,
+        workspaceId: null,
+        referenceId: notificationId,
+        queuedAt: context.notification.createdAt
+      },
+      {
         to: context.recipient.email,
         subject: m.backend_email_subject_notification(
           { kindLabel, title: copy.title },
@@ -104,22 +121,40 @@ export function processNotificationEmailMessage(
           preferencesUrl: preferencesUrl(appUrl, kind),
           locale
         })
-      })
-      .pipe(
-        // A render failure is a deterministic template bug: redelivery can
-        // never fix it and this queue has no DLQ, so an identical retry would
-        // burn every attempt and drop the email silently. Terminal like a
-        // malformed body — annotate the wide event and ack. A send failure
-        // keeps its error channel and rides the queue's backoff.
-        Effect.catchTag('EmailRenderError', (error) =>
-          Effect.annotateLogsScoped({
-            outcome: 'skipped',
-            skipReason: 'render_failed',
-            renderError: error.message
-          }).pipe(Effect.as(ack))
-        )
+      }
+    ).pipe(
+      // A render failure is a deterministic template bug: redelivery can
+      // never fix it and this queue has no DLQ, so an identical retry would
+      // burn every attempt and drop the email silently. Terminal like a
+      // malformed body — annotate the wide event and ack. A send failure
+      // keeps its error channel and rides the queue's backoff.
+      Effect.catchTag('EmailRenderError', () =>
+        Effect.annotateLogsScoped({
+          outcome: 'skipped',
+          skipReason: 'render_failed',
+          renderError: 'template_failed'
+        }).pipe(Effect.as(ack))
+      ),
+      // The tracked attempt persisted its sanitized failure. Its next due time
+      // below controls queue delivery, including transient and ambiguous sends.
+      Effect.catchTag('EmailSendError', () => Effect.succeed(ack))
+    )
+    const record = yield* history.get(messageId)
+    // A concurrent attempt or an ambiguous send keeps its queue message alive
+    // until the capability's lease/backoff permits the next bounded attempt.
+    if (
+      record &&
+      ['queued', 'temporary_failure', 'ambiguous'].includes(record.status)
+    ) {
+      yield* Effect.annotateLogsScoped({ outcome: 'retry_pending' })
+      const now = yield* Clock.currentTimeMillis
+      const due = Math.min(
+        Date.parse(record.nextAttemptAt),
+        Date.parse(record.retryUntil)
       )
-    yield* Effect.annotateLogsScoped({ outcome: 'sent' })
+      return { retryAfterSeconds: Math.max(1, Math.ceil((due - now) / 1000)) }
+    }
+    yield* Effect.annotateLogsScoped({ outcome: record?.status ?? 'skipped' })
     return ack
   })
 }
@@ -147,5 +182,19 @@ export function sendNotificationEmail(
         )
       )
     )
-  })
+  }).pipe(
+    Effect.map((outcome) => {
+      if (outcome === 'retry') {
+        // Store failures have no persisted due time yet. Keep those queue
+        // attempts spread far enough apart to cover the full retry window.
+        return {
+          retryAfterSeconds: Math.min(
+            3600,
+            60 * 2 ** Math.min(envelope.attempts - 1, 6)
+          )
+        }
+      }
+      return outcome
+    })
+  )
 }

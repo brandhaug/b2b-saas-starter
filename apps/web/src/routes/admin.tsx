@@ -5,6 +5,7 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { AdminUserActions } from '@/components/admin-user-actions'
 import { AdminFailedDeliveries } from '@/components/admin-failed-deliveries'
+import { EmailDeliveryPanel } from '@/components/email-delivery-panel'
 import { loadAdminPage } from '@/lib/server/admin-loader'
 import { BanUserAction } from '@/components/ban-user-action'
 import { ImpersonateUserAction } from '@/components/impersonate-user-action'
@@ -112,7 +113,7 @@ export const Route = createFileRoute('/admin')({
 })
 
 function AdminPage() {
-  const { users, events, failedDeliveries } = Route.useLoaderData()
+  const { users, events, failedDeliveries, emailDeliveries } = Route.useLoaderData()
   const { session } = Route.useRouteContext()
 
   return (
@@ -135,6 +136,7 @@ function AdminPage() {
       </Panel>
 
       <AdminFailedDeliveries initialPage={failedDeliveries} />
+      <EmailDeliveryPanel records={emailDeliveries} />
 
       <Panel title={m.panel_audit_events()}>
         <DataTable

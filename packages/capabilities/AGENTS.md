@@ -19,6 +19,8 @@ Bounded contexts under `src/`: `billing/`, `developer-platform/`, `governance/`,
 
 Package-level modules that are not capabilities:
 
+Transactional email evidence lives in [`email-delivery`](src/email-delivery/email-delivery.AGENTS.md), spanning authentication, invitations and notification delivery.
+
 - `workspace-context.ts`: per-request slug → `Workspace` resolution. `liveWorkspaceContext(slug, actor)` raises `WorkspaceNotFound` for unknown slugs and for non-members alike, so existence never leaks. Seed mirrors it against fixture members and fails closed when none are supplied.
 - `workspace-projections.ts`: named read projections (dashboard, overview, my-workspaces, onboarding progress) composed over the services. No adapters of their own (ADR 0044). One projection covers one permission; a payload spanning permissions is assembled above this package by the caller, which drops segments the actor may not read.
 - `governance/workspace-identity.ts`: `Workspace`, `Member`, role tuples, `toWorkspace`. Import identity types from here, not from the membership capability.

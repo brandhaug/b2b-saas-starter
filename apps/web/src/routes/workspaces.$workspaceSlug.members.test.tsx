@@ -42,6 +42,7 @@ function payload(
     // The invitation segment is upstream's own soft read (`invitation:create`);
     // an empty list is the state these seat-prompt cases care about.
     invitations: [],
+    emailDeliveries: [],
     seatUsage
   }
 }

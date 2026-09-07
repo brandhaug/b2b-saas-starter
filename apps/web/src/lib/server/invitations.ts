@@ -49,12 +49,12 @@ export type AcceptInvitationInput = typeof AcceptInvitationInput.Type
 export type SentInvitation = {
   readonly invitation: Invitation
   /**
-   * Whether the invite email went out. The invitation is persisted either way:
+   * The send outcome, distinct from delivery. The invitation persists either way:
    * it exists once the plugin has written it, and reporting a send failure as an
    * outright error would tell the inviter nothing happened when something did.
    * The form shows the link so they can pass it on by hand.
    */
-  readonly delivered: boolean
+  readonly status: 'accepted' | 'logged' | 'skipped' | 'failed'
   readonly inviteUrl: string
 }
 
@@ -70,6 +70,13 @@ export const cancelInvitationServerFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<void> => {
     const { cancelInvitationHandler } = await import('./invitations.effects')
     return cancelInvitationHandler(data)
+  })
+
+export const resendInvitationServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(CancelInvitationInput))
+  .handler(async ({ data }): Promise<SentInvitation> => {
+    const { resendInvitationHandler } = await import('./invitations.effects')
+    return resendInvitationHandler(data)
   })
 
 /**

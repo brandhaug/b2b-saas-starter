@@ -4,6 +4,8 @@ import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace
 import { WorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { Effect } from 'effect'
+import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import { deliveryRows } from './email-delivery.effects'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
@@ -47,6 +49,15 @@ const membersPayload: WorkspacePageFrame<WorkspaceMembersPayload> = workspacePag
           invitations: whenPermitted(
             { invitation: ['create'] },
             Effect.flatMap(WorkspaceInvitations, (invites) => invites.list)
+          ),
+          emailDeliveries: whenPermitted(
+            { invitation: ['create'] },
+            Effect.gen(function* () {
+              const delivery = yield* EmailDelivery
+              return yield* delivery
+                .listInvitations()
+                .pipe(Effect.flatMap(deliveryRows))
+            })
           )
         },
         { concurrency: 'unbounded' }

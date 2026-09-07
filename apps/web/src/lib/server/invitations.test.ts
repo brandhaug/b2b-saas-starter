@@ -13,6 +13,7 @@ import {
   cancelInvitationHandler,
   invitationPreviewHandler,
   previewInvitation,
+  resendInvitationHandler,
   sendInvitationHandler
 } from './invitations.effects'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
@@ -44,6 +45,7 @@ const env = vi.hoisted(() => ({
   email: 'demo@starter.local',
   origin: 'https://app.test',
   emailFails: false,
+  rateAllowed: true,
   // oxlint-disable-next-line effect/noAs, anti-slop/require-safety-comment-for-type-assertion -- a widening annotation only: the empty outbox gains the message type the dispatcher pushes into it
   outbox: [] as Array<EmailMessage>
 }))
@@ -59,6 +61,16 @@ vi.mock('./request-origin', () => ({
 
 import type * as AuthEmailsModule from './auth-emails'
 import type * as AuthModule from './auth'
+import type * as RateLimitModule from '../rate-limit'
+
+vi.mock('../rate-limit', async (importOriginal) => {
+  const actual = await importOriginal<typeof RateLimitModule>()
+  return {
+    ...actual,
+    makeRateLimiterLayer: () =>
+      Layer.succeed(actual.RateLimiter)({ take: () => Effect.succeed(env.rateAllowed) })
+  }
+})
 
 vi.mock('./auth-emails', async (importOriginal) => ({
   ...(await importOriginal<typeof AuthEmailsModule>()),
@@ -71,7 +83,8 @@ vi.mock('./auth-emails', async (importOriginal) => ({
             new EmailSendError({
               message: 'provider_rejected',
               to: message.to,
-              subject: message.subject
+              subject: message.subject,
+              failureKind: 'permanent'
             })
           )
         }
@@ -93,6 +106,7 @@ describe('sendInvitationHandler', () => {
     actingAs('usr_demo')
     env.origin = 'https://app.test'
     env.emailFails = false
+    env.rateAllowed = true
     env.outbox = []
   })
 
@@ -102,7 +116,7 @@ describe('sendInvitationHandler', () => {
       email: INVITEE,
       role: 'member'
     })
-    expect(sent.delivered).toBe(true)
+    expect(sent.status).toBe('logged')
     // The id in the link is the invitation's own — the whole reason issue
     // #64 removed the worker's `?workspace=<slug>` link.
     expect(sent.inviteUrl).toBe(
@@ -133,7 +147,7 @@ describe('sendInvitationHandler', () => {
       email: BOKMAL_RECIPIENT,
       role: 'member'
     })
-    expect(sent.delivered).toBe(true)
+    expect(sent.status).toBe('logged')
     expect(env.outbox[0]?.subject).toBe('Du er invitert til Starter Lab')
     expect(JSON.stringify(env.outbox[0]?.element)).toContain('Bli med i Starter Lab')
   })
@@ -146,7 +160,7 @@ describe('sendInvitationHandler', () => {
       role: 'member'
     })
     // Persisted regardless: the inviter can pass the link on by hand.
-    expect(sent.delivered).toBe(false)
+    expect(sent.status).toBe('failed')
     expect(sent.inviteUrl).toContain(sent.invitation.id)
     expect(sent.invitation.status).toBe('pending')
   })
@@ -160,6 +174,37 @@ describe('sendInvitationHandler', () => {
         role: 'member'
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
+    expect(env.outbox).toEqual([])
+  })
+})
+
+describe('resendInvitationHandler (#285)', () => {
+  beforeEach(() => {
+    actingAs('usr_demo')
+    env.rateAllowed = true
+    env.outbox = []
+  })
+
+  it('refuses a plain member before looking up or sending an invitation', async () => {
+    actingAs('usr_dev')
+    await expect(
+      resendInvitationHandler({ workspaceSlug: 'starter-lab', invitationId: 'unknown' })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
+    expect(env.outbox).toEqual([])
+  })
+
+  it('enforces the resend rate budget for an authorized owner', async () => {
+    env.rateAllowed = false
+    await expect(
+      resendInvitationHandler({ workspaceSlug: 'starter-lab', invitationId: 'unknown' })
+    ).rejects.toMatchObject({ name: 'CapabilityUnavailableError' })
+    expect(env.outbox).toEqual([])
+  })
+
+  it('does not resend an unknown or another workspace invitation', async () => {
+    await expect(
+      resendInvitationHandler({ workspaceSlug: 'starter-lab', invitationId: 'unknown' })
+    ).rejects.toMatchObject({ name: 'MembershipRefusedError' })
     expect(env.outbox).toEqual([])
   })
 })

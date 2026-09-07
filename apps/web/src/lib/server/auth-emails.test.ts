@@ -28,6 +28,7 @@ vi.mock('@b2b-saas-starter/email', async (importOriginal) => {
         {
           send: async (message) => {
             captured.outbox.push(message)
+            return { messageId: `message-${captured.outbox.length}` }
           }
         },
         { defaultFrom: 'test@example.com' }

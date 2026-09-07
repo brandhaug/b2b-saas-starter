@@ -1,6 +1,9 @@
 import { type NotificationKind } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { NotificationPreferencesPanel } from '@/components/notification-preferences-panel'
+import { EmailDeliveryPanel } from '@/components/email-delivery-panel'
+import { OwnEmailResend } from '@/components/own-email-resend'
+import { loadOwnEmailDeliveryServerFn } from '@/lib/server/email-delivery'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
@@ -27,14 +30,17 @@ export const Route = createFileRoute('/account_/notifications')({
     const session = await requireSession(location.href)
     return { session }
   },
-  loader: () => loadNotificationPreferencesServerFn(),
+  loader: async () => ({
+    ...(await loadNotificationPreferencesServerFn()),
+    deliveries: await loadOwnEmailDeliveryServerFn()
+  }),
   component: AccountNotificationsRoute,
   head: () => ({ meta: [{ title: pageTitle(m.notification_preferences()) }] })
 })
 
 function AccountNotificationsRoute() {
   const { session } = Route.useRouteContext()
-  const { preferences } = Route.useLoaderData()
+  const { preferences, deliveries } = Route.useLoaderData()
   const { kind } = Route.useSearch()
   let highlightKind: NotificationKind | undefined
   if (isNotificationKind(kind)) {
@@ -71,6 +77,11 @@ function AccountNotificationsRoute() {
           highlightKind={highlightKind}
         />
       </Panel>
+      <EmailDeliveryPanel records={deliveries} />
+      <OwnEmailResend
+        email={session.user.email}
+        verified={session.user.emailVerified}
+      />
     </WorkspaceShell>
   )
 }

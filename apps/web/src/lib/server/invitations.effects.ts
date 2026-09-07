@@ -8,7 +8,17 @@ import {
   type AcceptedInvitation,
   type Invitation
 } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import { EmailDispatcher } from '@b2b-saas-starter/email'
+import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
+import {
+  EmailDelivery,
+  canResendInvitation
+} from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import {
+  MembershipChangeRejected,
+  CapabilityUnavailable
+} from '@b2b-saas-starter/capabilities/errors'
+import { env } from 'cloudflare:workers'
+import { RateLimiter, makeRateLimiterLayer } from '../rate-limit'
 import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/templates'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE } from '@b2b-saas-starter/i18n/locale'
@@ -54,47 +64,126 @@ export async function sendInvitationHandler(
       yield* requireWorkspacePermission({ invitation: ['create'] })
       const ctx = yield* WorkspaceContext
       const invitations = yield* WorkspaceInvitations
+      yield* limitInvitationSend(session.user.id)
       const invitation = yield* invitations.create({
         email: input.email,
         role: input.role
       })
 
-      // The link carries the invitation id, because that is what the accept
-      // path is keyed by. The old `?workspace=<slug>` form could not
-      // identify which invitation was being accepted.
-      const inviteUrl = `${requestOrigin()}/invitations/accept?invitation=${invitation.id}`
-      const recipientPreferences = yield* Effect.flatMap(
-        AccountPreferencesService,
-        (preferences) => preferences.getByEmail(input.email)
+      return yield* dispatchInvitation(
+        invitation,
+        ctx.workspace,
+        `invitation:${invitation.id}:0`
       )
-      const locale = recipientPreferences?.locale ?? DEFAULT_LOCALE
-      const dispatcher = yield* EmailDispatcher
-      const delivery = yield* Effect.result(
-        dispatcher.send({
-          from: '',
-          to: input.email,
-          subject: m.backend_email_subject_invitation(
-            { workspaceName: ctx.workspace.name },
-            { locale }
-          ),
-          element: WorkspaceInvitationEmail({
-            workspaceName: ctx.workspace.name,
-            inviteUrl,
-            locale
-          })
-        })
-      )
-      if (Result.isFailure(delivery)) {
-        yield* Effect.annotateLogsScoped({
-          outcome: 'invitation_email_failed',
-          emailError: delivery.failure.message
-        })
-        return { invitation, delivered: false, inviteUrl }
-      }
-      return { invitation, delivered: true, inviteUrl }
     }).pipe(Effect.provide(emailDispatcherLayer())),
     { userId: session.user.id },
     { invitationBinding: webInvitationBinding }
+  )
+}
+
+const limitInvitationSend = Effect.fn('Invitation.limitSend')(
+  function* (userId: string) {
+    const limiter = yield* RateLimiter
+    if (
+      !(yield* limiter.take({ bucket: 'auth_sign_in', key: `invitation:${userId}` }))
+    ) {
+      return yield* Effect.fail(
+        new CapabilityUnavailable({
+          capability: 'email-delivery',
+          reason: 'rate_limited'
+        })
+      )
+    }
+  },
+  Effect.provide(makeRateLimiterLayer(env))
+)
+
+const dispatchInvitation = Effect.fn('Invitation.dispatch')(function* (
+  invitation: Invitation,
+  workspace: { readonly id: string; readonly name: string },
+  deliveryId: string
+) {
+  const inviteUrl = `${requestOrigin()}/invitations/accept?invitation=${invitation.id}`
+  const preferences = yield* AccountPreferencesService
+  const recipientPreferences = yield* preferences.getByEmail(invitation.email)
+  const locale = recipientPreferences?.locale ?? DEFAULT_LOCALE
+  const history = yield* EmailDelivery
+  const userId = yield* history.resolveUserId(invitation.email)
+  const result = yield* Effect.result(
+    dispatchTrackedEmail(
+      {
+        id: deliveryId,
+        purpose: 'invitation',
+        recipient: invitation.email,
+        userId,
+        workspaceId: workspace.id,
+        referenceId: invitation.id
+      },
+      {
+        from: '',
+        to: invitation.email,
+        subject: m.backend_email_subject_invitation(
+          { workspaceName: workspace.name },
+          { locale }
+        ),
+        element: WorkspaceInvitationEmail({
+          workspaceName: workspace.name,
+          inviteUrl,
+          locale
+        })
+      }
+    )
+  )
+  const status = Result.isFailure(result) ? 'failed' : result.success.status
+  return { invitation, status, inviteUrl } satisfies SentInvitation
+})
+
+export async function resendInvitationHandler(
+  input: CancelInvitationInput
+): Promise<SentInvitation> {
+  const session = await requireRequestSession()
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ invitation: ['create'] })
+      yield* limitInvitationSend(session.user.id)
+      const invitations = yield* WorkspaceInvitations
+      const invitation = (yield* invitations.list).find(
+        (candidate) => candidate.id === input.invitationId
+      )
+      if (invitation === undefined) {
+        return yield* Effect.fail(
+          new MembershipChangeRejected({ reason: 'invitation_not_found' })
+        )
+      }
+      yield* requirePending(invitation)
+      yield* requireUnexpired(invitation)
+      const history = yield* EmailDelivery
+      const latest = yield* history.latestInvitation(invitation.id)
+      if (!canResendInvitation(latest)) {
+        return yield* Effect.fail(
+          new CapabilityUnavailable({
+            capability: 'email-delivery',
+            reason: 'provider_refused_recipient'
+          })
+        )
+      }
+      const ctx = yield* WorkspaceContext
+      // Concurrent requests that observed the same failure claim the same next
+      // message. Hashing keeps the ID bounded across repeated manual retries.
+      let deliveryId = `invitation:${invitation.id}:0`
+      if (latest !== null) {
+        const digest = yield* Effect.promise(() =>
+          crypto.subtle.digest('SHA-256', new TextEncoder().encode(latest.id))
+        )
+        const digestId = Array.from(new Uint8Array(digest), (byte) =>
+          byte.toString(16).padStart(2, '0')
+        ).join('')
+        deliveryId = `invitation:${invitation.id}:retry:${digestId}`
+      }
+      return yield* dispatchInvitation(invitation, ctx.workspace, deliveryId)
+    }).pipe(Effect.provide(emailDispatcherLayer())),
+    { userId: session.user.id }
   )
 }
 

@@ -5,10 +5,16 @@ import {
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { SeedNotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import { EmailDispatcher, type EmailMessage } from '@b2b-saas-starter/email'
+import { SeedEmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery.seed'
+import {
+  EmailDispatcher,
+  EmailSendError,
+  type EmailDeliveryResult,
+  type EmailMessage
+} from '@b2b-saas-starter/email'
 import { render } from '@react-email/render'
 import { describe, expect, it } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
+import { Duration, Effect, Layer } from 'effect'
 import { TestClock } from 'effect/testing'
 
 import { buildDigests, runNotificationDigest } from './notification-digest.ts'
@@ -115,12 +121,27 @@ describe('runNotificationDigest', () => {
     })
   }
 
-  function stubDispatcher(sent: Array<EmailMessage>): Layer.Layer<EmailDispatcher> {
+  function stubDispatcher(
+    sent: Array<EmailMessage>,
+    providerAccepted = false
+  ): Layer.Layer<EmailDispatcher> {
     return Layer.succeed(EmailDispatcher)({
       send: (message) =>
         Effect.sync(() => {
           sent.push(message)
-          return { mode: 'log', to: message.to, subject: message.subject }
+          if (providerAccepted) {
+            return {
+              mode: 'cloudflare-email',
+              to: message.to,
+              subject: message.subject,
+              providerMessageId: 'provider_digest_1'
+            } satisfies EmailDeliveryResult
+          }
+          return {
+            mode: 'log',
+            to: message.to,
+            subject: message.subject
+          } satisfies EmailDeliveryResult
         })
     })
   }
@@ -151,7 +172,12 @@ describe('runNotificationDigest', () => {
       const summary = yield* Effect.scoped(
         runNotificationDigest('https://app.test').pipe(
           Effect.provide(
-            Layer.mergeAll(stubFeed(seen, rows), preferences, stubDispatcher(sent))
+            Layer.mergeAll(
+              stubFeed(seen, rows),
+              preferences,
+              stubDispatcher(sent),
+              SeedEmailDelivery()
+            )
           )
         )
       )
@@ -204,6 +230,7 @@ describe('runNotificationDigest', () => {
                 ]
               ),
               preferences,
+              SeedEmailDelivery(),
               stubDispatcher(sent)
             )
           )
@@ -213,4 +240,73 @@ describe('runNotificationDigest', () => {
       expect(sent).toHaveLength(0)
     })
   )
+
+  it.effect('does not resend a provider-accepted digest in the same window', () => {
+    const sent: Array<EmailMessage> = []
+    const rows = [candidate(owner, 'n1', 'announcement', '2026-09-03T07:00:00.000Z')]
+    const layers = Layer.mergeAll(
+      stubFeed([], rows),
+      preferences,
+      stubDispatcher(sent, true),
+      SeedEmailDelivery()
+    )
+    return Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(FROZEN_NOW)
+        const first = yield* runNotificationDigest('https://app.test')
+        const second = yield* runNotificationDigest('https://app.test')
+        expect(first).toMatchObject({ sent: 1, failed: 0 })
+        expect(second).toMatchObject({ sent: 0, failed: 0 })
+        expect(sent).toHaveLength(1)
+      })
+    ).pipe(Effect.provide(layers))
+  })
+
+  it.effect('retries a failed digest later in the same retry window', () => {
+    const sent: Array<EmailMessage> = []
+    let attempts = 0
+    const rows = [candidate(owner, 'n1', 'announcement', '2026-09-03T07:00:00.000Z')]
+    const dispatcher = Layer.succeed(EmailDispatcher)({
+      send: (message) => {
+        attempts += 1
+        if (attempts === 1) {
+          return Effect.fail(
+            new EmailSendError({
+              message: 'email send failed: transient',
+              to: message.to,
+              subject: message.subject,
+              failureKind: 'transient'
+            })
+          )
+        }
+        return Effect.sync(() => {
+          sent.push(message)
+          return {
+            mode: 'cloudflare-email',
+            to: message.to,
+            subject: message.subject,
+            providerMessageId: 'provider_digest_retry'
+          } satisfies EmailDeliveryResult
+        })
+      }
+    })
+    const layers = Layer.mergeAll(
+      stubFeed([], rows),
+      preferences,
+      dispatcher,
+      SeedEmailDelivery()
+    )
+    return Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(FROZEN_NOW)
+        const first = yield* runNotificationDigest('https://app.test')
+        yield* TestClock.adjust(Duration.minutes(3))
+        const second = yield* runNotificationDigest('https://app.test')
+        expect(first).toMatchObject({ sent: 0, failed: 1 })
+        expect(second).toMatchObject({ sent: 1, failed: 0 })
+        expect(attempts).toBe(2)
+        expect(sent).toHaveLength(1)
+      })
+    ).pipe(Effect.provide(layers))
+  })
 })

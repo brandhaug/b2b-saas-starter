@@ -28,6 +28,7 @@ import { viewerCan, WORKSPACE_ROLES, type Viewer } from '@/lib/permissions'
 import {
   cancelInvitationServerFn,
   sendInvitationServerFn,
+  resendInvitationServerFn,
   type SentInvitation
 } from '@/lib/server/invitations'
 import { useServerAction } from '@/hooks/use-server-action'
@@ -35,6 +36,7 @@ import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { EMAIL_PATTERN } from '@/lib/email-pattern'
 import { invitationStatusVariant } from '@/lib/badge-variants'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { type EmailDeliveryRow } from '@/lib/server/email-delivery'
 
 type InvitationValues = {
   email: string
@@ -56,15 +58,28 @@ function validateEmail(value: string): string | undefined {
   return
 }
 
+function invitationSendLabel(sent: SentInvitation) {
+  const values = { email: sent.invitation.email }
+  if (sent.status === 'accepted') {
+    return m.email_delivery_invitation_accepted(values)
+  }
+  if (sent.status === 'logged') {
+    return m.email_delivery_invitation_logged(values)
+  }
+  return m.workspace_invitation_created_unsent(values)
+}
+
 export function InvitationPanel({
   workspaceSlug,
   viewer,
-  invitations
+  invitations,
+  emailDeliveries
 }: {
   readonly workspaceSlug: string
   /** The payload's viewer; `invitation:create` decides the form vs its reason. */
   readonly viewer: Viewer
   readonly invitations: ReadonlyArray<Invitation>
+  readonly emailDeliveries: ReadonlyArray<EmailDeliveryRow>
 }) {
   // Presentation gate: the form yields to a reason for a role that cannot
   // invite; the server fn re-checks the permission regardless.
@@ -106,6 +121,15 @@ export function InvitationPanel({
             : m.workspace_invitation_canceled_named({ email: invitation.email })
         )
       }
+    }
+  )
+
+  const resend = useServerAction(
+    (invitationId: string) =>
+      resendInvitationServerFn({ data: { workspaceSlug, invitationId } }),
+    {
+      failureMessage: m.email_delivery_resend_failed(),
+      onSuccess: (result) => setSent(result)
     }
   )
 
@@ -199,19 +223,14 @@ export function InvitationPanel({
 
           {sent ? (
             <Alert variant="ok" className="justify-self-stretch">
-              <AlertTitle>
-                {sent.delivered
-                  ? m.workspace_invitation_sent({ email: sent.invitation.email })
-                  : m.workspace_invitation_created_unsent({
-                      email: sent.invitation.email
-                    })}
-              </AlertTitle>
+              <AlertTitle>{invitationSendLabel(sent)}</AlertTitle>
               <AlertDescription>
                 <Identifier>{sent.inviteUrl}</Identifier>
               </AlertDescription>
             </Alert>
           ) : null}
           <ActionFeedback error={send.error} />
+          <ActionFeedback error={resend.error} />
         </form>
       </CreateSection>
 
@@ -235,6 +254,20 @@ export function InvitationPanel({
                   ) : null}
                 </ItemContent>
                 <ItemActions>
+                  {canInvite && invitation.status === 'pending' ? (
+                    <Button
+                      variant="outline"
+                      disabled={
+                        resend.pendingInput === invitation.id ||
+                        emailDeliveries.find(
+                          (record) => record.referenceId === invitation.id
+                        )?.resendAllowed === false
+                      }
+                      onClick={() => void resend.runAsync(invitation.id)}
+                    >
+                      {m.email_delivery_resend_invitation()}
+                    </Button>
+                  ) : null}
                   <Badge variant={invitationStatusVariant(invitation.status)}>
                     {statusLabel(invitation.status)}
                   </Badge>
