@@ -16,7 +16,9 @@
   "type": "module",
   "scripts": {
     "skills:setup": "node scripts/setup-agent-skills.ts",
-    "test:scripts": "node --test scripts/setup-agent-skills.test.ts .github/scripts/*.test.ts",
+    "skills:eval": "node scripts/evaluate-agent-workflow.ts",
+    "skills:smoke": "node scripts/smoke-agent-workflow.ts",
+    "test:scripts": "tsc -p scripts/tsconfig.agent-workflow.json && node --test scripts/setup-agent-skills.test.ts scripts/evaluate-agent-workflow.test.ts .github/scripts/*.test.ts",
     "dev": "pnpm -C packages/i18n generate && vp run -r --parallel dev",
     "dev:web": "pnpm -C apps/web dev",
     "build": "pnpm -C packages/i18n generate && vp run -r build",

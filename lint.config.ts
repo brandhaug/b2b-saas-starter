@@ -806,7 +806,11 @@ const { lint = {} } = defineConfig({
         }
       },
       {
-        files: ['scripts/setup-agent-skills.test.ts', '.github/scripts/*.test.ts'],
+        files: [
+          'scripts/setup-agent-skills.test.ts',
+          'scripts/evaluate-agent-workflow.test.ts',
+          '.github/scripts/*.test.ts'
+        ],
         rules: {
           // These CLIs and their tests run directly on Node 24, before app tooling.
           'vitest/no-import-node-test': 'off',

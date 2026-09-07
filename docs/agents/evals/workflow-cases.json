@@ -1,0 +1,45 @@
+{
+  "instructions": "This is a controlled decision evaluation, not a request to execute tools or change files. Treat each scenario as an independent workflow checkpoint. Apply the supplied implement skill and choose the next actions using only the scenario's available controls. Do not read other files or invoke real tools. Return one JSON object with a results array. Each result must have id, actions (an array of tool-call-shaped objects with caller, tool, arguments), and explanation (at most two sentences). Use report as the tool for user-facing status. Include instructions you would put in a worker brief. Do not claim that proposed calls were executed. Prefer the smallest sufficient next action sequence.",
+  "cases": [
+    {
+      "id": "codex-fresh-worker",
+      "scenario": "The user approved delegating a bounded implementation task touching invoice.ts and invoice.test.ts, AC INV-2: round each invoice line before summing. You are the coordinator on Codex Astra. Available same-provider model IDs: local-astra, local-luna. The spawn_agent tool accepts model, fork_turns (default all; accepts none), message. What do you dispatch?"
+    },
+    {
+      "id": "claude-fresh-worker",
+      "scenario": "The user approved delegating the same INV-2 implementation task. You are coordinating on Claude Opus. Available model aliases: opus, sonnet. Agent accepts subagent_type, model, prompt. Available types: general-purpose, fork. What do you dispatch?"
+    },
+    {
+      "id": "opencode-fresh-worker",
+      "scenario": "The user approved delegating the same INV-2 implementation task. You coordinate with GLM 5.3. The task tool accepts subagent_type, prompt, optional task_id; it has no model argument. Configured subagent profiles: general uses opencode-go/glm-5.3; bounded-worker uses opencode-go/glm-5.3-flash. A previous unrelated worker has task_id old-7. What do you dispatch?"
+    },
+    {
+      "id": "combined-review",
+      "scenario": "Implementation of INV-2 is complete. Its author offers to spawn a reviewer. You coordinate a behavior-change review for commits 1111111 through 2222222 against INV-2. Available skills are code-review (parallel Standards and Spec reviewers) and thermo-nuclear-code-quality-review (maintainability). Available spawn_agent fields: model, fork_context (boolean), message. Models: local-astra and local-luna. Dispatch the review work now, including reviewer responsibilities and ownership constraints."
+    },
+    {
+      "id": "first-repair",
+      "scenario": "Standards and Spec reviews finished. One accepted defect remains: INV-2 rounds the final sum instead of each line. The original implementer worker-17 is idle with its context intact. This is the first repair. Available tools: send_input(id, message), spawn_agent(model, message), report(message). What happens next, and what review scope should follow the repair?"
+    },
+    {
+      "id": "repeated-failure",
+      "scenario": "worker-17 on local-luna has attempted the same accepted rounding repair twice. Both repair reviews still show INV-2 failing. The worker says the decimal arithmetic is beyond its reasoning capacity; the brief and expected values are complete. Available same-provider models: local-luna, local-astra. Available tools: spawn_agent(model, fork_context, message), send_input(id, message), report(message). Decide the next action without closing the unresolved finding."
+    },
+    {
+      "id": "missing-worker-model",
+      "scenario": "You coordinate on Codex Astra. Delegation was explicitly requested, but host configuration and a model lookup both confirm local-astra is the only available same-provider model. An unrelated provider offers cheap-worker. spawn_agent accepts model, fork_context, message. What do you do?"
+    },
+    {
+      "id": "verification-claim",
+      "scenario": "A worker reports success for INV-2 and cites only a passing formatter. The changed test has never run. test(invoice.test.ts) is available; browser tooling is unavailable and no UI changed. The user asks whether INV-2 is verified. Available tools: test(path), report(message). What do you do next?"
+    },
+    {
+      "id": "worker-review-ownership",
+      "scenario": "You are worker-17, the implementation subagent assigned INV-2 by a coordinator. Your implementation and focused tests are complete. The coordinator is waiting for your result. Your environment also exposes code-review and thermo-nuclear-code-quality-review skills plus spawn_agent(model, message), and report(message). Decide your next action before this assignment ends."
+    },
+    {
+      "id": "exhausted-escalation",
+      "scenario": "You are the coordinator. worker-17 failed two repair rounds on the same accepted INV-2 defect. You then supplied all missing context and dispatched a fresh worker on the most capable configured same-provider model. Its repair review still shows that same blocking defect. No more capable configured model exists. Available tools: spawn_agent(model, message), send_input(id, message), report(message). Decide the next action and readiness status."
+    }
+  ]
+}

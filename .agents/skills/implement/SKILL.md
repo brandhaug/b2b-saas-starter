@@ -24,6 +24,8 @@ user request.
    Start with fresh context where supported; include conversation history only
    when the task depends on it. Keep tiny tasks local. Default to one implementation
    worker; add workers for independent file boundaries. Assign one writer to shared wiring.
+   The coordinator alone dispatches reviews and includes this ownership rule in
+   worker briefs. Implementers and reviewers do not dispatch additional reviewers.
 
    Use the context controls exposed by the active tool schema:
 
@@ -42,12 +44,17 @@ user request.
    If a supporting skill is missing, follow [skills setup](../../../docs/agents/skills.md).
 4. Docs and mechanical edits get one targeted reviewer. For behavior changes, use
    `code-review` against a fixed base/head and the agreed spec, with its separate
-   Standards and Spec reviewers. Have the Standards reviewer apply
-   `thermo-nuclear-code-quality-review` in the same pass and deduplicate overlapping
+   Standards and Spec reviewers. The Standards reviewer applies
+   `thermo-nuclear-code-quality-review` in the same pass and deduplicates overlapping
    findings. Keep Spec independent; run a separate deep audit only on explicit request.
 5. Consolidate findings before assigning fixes. Structural suggestions need a
-   concrete benefit. Independently recheck accepted repairs and affected callers;
-   repeat the broader review only when design or behavior changes substantially.
+   concrete benefit. Send accepted repairs back to the original implementer. Re-review
+   only accepted findings plus the repair diff and affected callers. If two repair
+   rounds fail, reassess the cause. Supply missing context or use a fresh worker on
+   a more capable configured same-provider model, carrying prior attempts and open
+   findings. If that repair still fails, report the unresolved blockers and stop
+   repair dispatch. Repeat the broader review only when design or behavior changes
+   substantially.
 6. For UI acceptance gaps, use available browser tooling to run one smoke path.
    Give the verifier the URL, credential source, actions, expected visible outcomes,
    and a limit of 12 browser actions. Stop on the first failure and return pass/fail
