@@ -184,8 +184,8 @@ catalogs:
       specifier: 30.0.1
       version: 30.0.1
     lucide-react:
-      specifier: 1.40.0
-      version: 1.40.0
+      specifier: 1.41.0
+      version: 1.41.0
     mermaid:
       specifier: 11.17.2
       version: 11.17.2
@@ -596,7 +596,7 @@ importers:
         version: 1.0.0(better-auth@1.7.2(@cloudflare/workers-types@5.20260904.1)(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.168.49(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.5)(rollup@4.63.1)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20260904.1)(@effect/sql-d1@4.0.0-rc.112(effect@4.0.0-rc.112))(@effect/sql-sqlite-do@4.0.0-rc.112(effect@4.0.0-rc.112))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(bun-types@1.4.0)(effect@4.0.0-rc.112)(valibot@1.4.2(typescript@7.0.2))(zod@4.5.4))(next@16.3.0(@babel/core@8.0.1)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@26.4.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vitest@4.1.11))(effect@4.0.0-rc.112)
       lucide-react:
         specifier: 'catalog:'
-        version: 1.40.0(react@19.2.8)
+        version: 1.41.0(react@19.2.8)
       mermaid:
         specifier: 'catalog:'
         version: 11.17.2
@@ -7822,8 +7822,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.40.0:
-    resolution: {integrity: sha512-MaG+8WnOXkDWz9XeElj7TnQ890tTZUB0a36i03aRRCKGWE6e7jJpmdCvtxxuxcjjdqyN6m4sL6qlHVuSUDtYgg==}
+  lucide-react@1.41.0:
+    resolution: {integrity: sha512-6lksP35l6KszDKUeRTi4LV7i6DEe0Yzl2ALJm9j4c5xEYN91GdW1xGsawGMOg2mgjF5GHBVX8pKX9kP+cWsP3Q==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -15603,7 +15603,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.40.0(react@19.2.8):
+  lucide-react@1.41.0(react@19.2.8):
     dependencies:
       react: 19.2.8
 
