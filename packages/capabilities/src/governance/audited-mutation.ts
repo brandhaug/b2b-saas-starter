@@ -100,12 +100,12 @@ export function auditedMutations(
  */
 export const commitAuditedTransition = Effect.fn('Audit.commitTransition')(function* (
   write: BatchStatement,
-  auditRecord: BatchStatement
+  records: ReadonlyArray<BatchStatement>
 ) {
   const d1 = yield* RawD1
   const results = yield* Effect.tryPromise(() =>
     d1.batch(
-      [write, auditRecord].map((statement) => {
+      [write, ...records].map((statement) => {
         const query = statement.toSQL()
         return d1.prepare(query.sql).bind(...query.params)
       })

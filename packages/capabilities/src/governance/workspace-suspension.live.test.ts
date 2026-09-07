@@ -1,4 +1,7 @@
 import { Effect } from 'effect'
+import { Database } from '@b2b-saas-starter/db/service'
+import { sql } from 'drizzle-orm'
+import { WorkspaceLifecycle } from './workspace-lifecycle.ts'
 import { expect, layer } from '@effect/vitest'
 import {
   inWorkspace,
@@ -52,6 +55,53 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           )
         )
       })
+    )
+
+    it.effect('rolls back state and audit when notification persistence fails', () =>
+      inWorkspace(
+        'live-lab',
+        Effect.gen(function* () {
+          const db = yield* Database
+          const suspension = yield* WorkspaceSuspensionService
+          const audit = yield* AuditEventLog
+          const feed = yield* NotificationFeed
+          const beforeAudit = yield* audit.listGlobal
+          const beforeNotices = yield* feed.list
+          yield* db.run(
+            sql`CREATE TRIGGER reject_suspension_notice BEFORE INSERT ON notifications BEGIN SELECT RAISE(ABORT, 'test notification failure'); END`
+          )
+          const input = {
+            workspaceId: 'wrk_live',
+            action: 'suspend',
+            actor: { userId: 'usr_sysadmin' },
+            internalReason: 'Review',
+            customerExplanation: 'Contact support.'
+          } satisfies Parameters<typeof suspension.transition>[0]
+          const failed = yield* suspension.transition(input).pipe(Effect.result)
+          yield* db.run(sql`DROP TRIGGER reject_suspension_notice`)
+          expect(failed).toMatchObject({
+            _tag: 'Failure',
+            failure: { _tag: 'CapabilityUnavailable' }
+          })
+          expect((yield* suspension.get('wrk_live')).status).toBe('active')
+          expect(yield* audit.listGlobal).toEqual(beforeAudit)
+          expect(yield* feed.list).toEqual(beforeNotices)
+          yield* suspension.transition(input)
+          yield* suspension.transition(input)
+          expect((yield* feed.list).length - beforeNotices.length).toBe(1)
+          const lifecycle = yield* WorkspaceLifecycle
+          expect(
+            yield* lifecycle.rename({ name: 'Forbidden rename' }).pipe(Effect.result)
+          ).toMatchObject({ _tag: 'Failure', failure: { _tag: 'WorkspaceSuspended' } })
+          yield* suspension.transition({
+            workspaceId: 'wrk_live',
+            action: 'unsuspend',
+            actor: { userId: 'usr_sysadmin' },
+            internalReason: 'Cleanup'
+          })
+        }),
+        { userId: 'usr_owner' }
+      )
     )
 
     it.effect('concurrent same-state transitions produce one audit and notice', () =>

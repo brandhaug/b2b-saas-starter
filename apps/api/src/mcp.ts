@@ -3,7 +3,11 @@ import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/w
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
-import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import {
+  WorkspaceSuspensionService,
+  workspaceSuspensionOperationForPermission,
+  type WorkspaceSuspensionOperation
+} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { mcpMutationOperations } from './mcp-mutations.ts'
 import { clientKey } from '@b2b-saas-starter/rate-limit'
@@ -404,7 +408,8 @@ function bridgedRead(
     unknown,
     CapabilityReadError,
     CapabilityReadServices | WorkspaceContext
-  >
+  >,
+  operation: WorkspaceSuspensionOperation = 'product'
 ): Effect.Effect<ToolOutcome, never, CapabilityReadServices> {
   return Effect.result(
     provideWorkspace(
@@ -412,7 +417,8 @@ function bridgedRead(
       caller.token.workspaceSlug,
       body,
       mcpCallerActor(caller),
-      mcpCallerActorType(caller)
+      mcpCallerActorType(caller),
+      operation
     )
   )
 }
@@ -506,7 +512,12 @@ function registerTools(env: ApiEnv) {
               return yield* invoke
             }).pipe(Effect.scoped)
 
-            const outcome = yield* bridgedRead(env, caller, guarded)
+            const outcome = yield* bridgedRead(
+              env,
+              caller,
+              guarded,
+              workspaceSuspensionOperationForPermission(operation.permission)
+            )
             return outcomeToToolResult(outcome)
           }).pipe(
             // Defects at this seam answer with the generic body, the way a
@@ -606,7 +617,8 @@ function registerMutationTools(env: ApiEnv) {
                 caller.token.workspaceSlug,
                 guarded,
                 mcpCallerActor(caller),
-                mcpCallerActorType(caller)
+                mcpCallerActorType(caller),
+                workspaceSuspensionOperationForPermission(operation.permission)
               )
             )
             return outcomeToToolResult(outcome)

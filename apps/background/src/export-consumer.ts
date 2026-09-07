@@ -105,7 +105,15 @@ export function processWorkspaceExportMessage(
         return 'ack' satisfies DeliveryOutcome
       }
       if (Result.isFailure(allowed)) {
-        return yield* Effect.fail(allowed.failure)
+        if (allowed.failure._tag === 'CapabilityUnavailable') {
+          return yield* Effect.fail(allowed.failure)
+        }
+        return yield* Effect.fail(
+          new CapabilityUnavailable({
+            capability: 'workspace-suspension',
+            reason: 'Suspension policy could not be evaluated'
+          })
+        )
       }
     }
     const built = yield* Effect.result(
@@ -184,20 +192,35 @@ export function processWorkspaceExportMessage(
       return 'ack' satisfies DeliveryOutcome
     }
 
-    const completed = yield* exports.complete({
-      exportId: message.exportId,
-      workspaceId: message.workspaceId,
-      archive: built.success
-    })
+    const completed = yield* exports
+      .complete({
+        exportId: message.exportId,
+        workspaceId: message.workspaceId,
+        archive: built.success
+      })
+      .pipe(
+        Effect.catchTag('WorkspaceSuspended', () =>
+          Effect.gen(function* () {
+            yield* exports.fail({
+              exportId: message.exportId,
+              workspaceId: message.workspaceId,
+              reason: 'workspace_suspended'
+            })
+            yield* Effect.annotateLogsScoped({
+              outcome: 'skipped',
+              skipReason: 'workspace_suspended'
+            })
+            return false
+          })
+        )
+      )
     let outcome = 'skipped'
     if (completed) {
       outcome = 'ready'
     }
     yield* Effect.annotateLogsScoped({ outcome, sizeBytes: built.success.length })
     return 'ack' satisfies DeliveryOutcome
-  }).pipe(
-    Effect.catchTag('WorkspaceSuspended', () => Effect.succeed<DeliveryOutcome>('ack'))
-  )
+  })
 }
 
 /**

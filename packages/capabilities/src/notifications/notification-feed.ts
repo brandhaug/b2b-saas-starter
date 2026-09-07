@@ -1,4 +1,6 @@
 import { Context, type Effect, Schema } from 'effect'
+import { type SQL } from 'drizzle-orm'
+import { type BatchStatement } from '@b2b-saas-starter/db/service'
 import { type CapabilityUnavailable } from '../errors.ts'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext, type Actor } from '../workspace-context.ts'
@@ -92,11 +94,18 @@ export type NotifyWorkspaceOwnersInput = {
   readonly workspaceId: string
   /** Defaults to owners for existing producers; suspension notices include admins. */
   readonly audience?: 'owners' | 'owners_and_admins' | undefined
-  readonly deduplicationKey?: string | undefined
   readonly kind: NotificationKind
   readonly title: string
   readonly message: string
   readonly event?: NotificationEvent | undefined
+}
+
+/** Notification rows join the producer's D1 batch; publish runs only after commit.
+ * Seed publishes its prepared in-memory rows in that same successful transition.
+ */
+export type PreparedWorkspaceOwnerNotifications = {
+  readonly writes: ReadonlyArray<BatchStatement>
+  readonly publish: Effect.Effect<void>
 }
 
 /** Who an email about a Notification goes to. */
@@ -219,6 +228,11 @@ export type NotificationFeedInterface = {
   readonly notifyWorkspaceOwners: (
     input: NotifyWorkspaceOwnersInput
   ) => Effect.Effect<void, CapabilityUnavailable>
+
+  readonly prepareWorkspaceOwners: (
+    input: NotifyWorkspaceOwnersInput,
+    condition?: SQL
+  ) => Effect.Effect<PreparedWorkspaceOwnerNotifications, CapabilityUnavailable>
 
   /** The instant-email consumer's read. */
   readonly loadForEmail: (

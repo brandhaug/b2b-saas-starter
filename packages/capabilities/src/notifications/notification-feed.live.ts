@@ -18,6 +18,7 @@ import {
   isNull,
   lt,
   or,
+  sql,
   type SQL
 } from 'drizzle-orm'
 import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
@@ -36,6 +37,8 @@ import {
   type DigestWindow,
   type Notification,
   type NotificationEmailContext,
+  type NotifyWorkspaceOwnersInput,
+  type PreparedWorkspaceOwnerNotifications,
   type NotificationFeedOptions,
   type NotificationWorkspace
 } from './notification-feed.ts'
@@ -47,6 +50,7 @@ type UserRow = typeof user.$inferSelect
 type WorkspaceRow = typeof workspaces.$inferSelect
 
 const decodeNotificationEvent = Schema.decodeUnknownOption(NotificationEventSchema)
+const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
 function toNotification(row: NotificationRow): Notification {
   const base = {
@@ -186,6 +190,81 @@ export function LiveNotificationFeed(
         }
         return membersOf(row.workspaceId)
       }
+
+      const prepareOwners = Effect.fn('NotificationFeed.prepareOwners')(function* (
+        input: NotifyWorkspaceOwnersInput
+      ) {
+        const owners = yield* ownersOf(input.workspaceId, input.audience)
+        const createdAt = DateTime.formatIso(yield* DateTime.now)
+        // One targeted row per owner, each visible only to its reader —
+        // the same shape `notifyUser` writes, resolved from the workspace
+        // the background producer holds.
+        const created: Array<{
+          row: NotificationRow
+          owner: EmailQueueRecipient
+        }> = []
+        for (const owner of owners) {
+          created.push({
+            owner,
+            row: {
+              id: yield* newCapabilityId('not'),
+              workspaceId: input.workspaceId,
+              userId: owner.userId,
+              kind: input.kind,
+              title: input.title,
+              message: input.message,
+              event: input.event ?? null,
+              readAt: null,
+              createdAt
+            }
+          })
+        }
+        return {
+          created,
+          publish: Effect.gen(function* () {
+            // One enqueue per row: a notification id addresses one (row,
+            // recipient) pair, so each owner's email resolves against their
+            // own channel preference.
+            const traceparent = yield* currentTraceparent
+            for (const { row, owner } of created) {
+              yield* enqueueInstantEmails(options.emailQueue, preferences, {
+                notificationId: row.id,
+                kind: input.kind,
+                recipients: [owner],
+                traceparent
+              })
+            }
+          })
+        }
+      })
+
+      const prepareWorkspaceOwners = Effect.fn(
+        'NotificationFeed.prepareWorkspaceOwners'
+      )(function* (
+        input: NotifyWorkspaceOwnersInput,
+        condition?: SQL
+      ): Effect.fn.Return<PreparedWorkspaceOwnerNotifications, CapabilityUnavailable> {
+        const prepared = yield* prepareOwners(input)
+        const writes = prepared.created.map(({ row }) =>
+          db.insert(notifications).select(
+            db
+              .select({
+                id: sql<string>`${row.id}`.as('id'),
+                workspaceId: sql<string | null>`${row.workspaceId}`.as('workspaceId'),
+                userId: sql<string | null>`${row.userId}`.as('userId'),
+                kind: sql`${row.kind}`.as('kind'),
+                title: sql<string>`${row.title}`.as('title'),
+                message: sql<string>`${row.message}`.as('message'),
+                event: sql`${encodeJson(row.event)}`.as('event'),
+                readAt: sql<string | null>`NULL`.as('readAt'),
+                createdAt: sql<string>`${row.createdAt}`.as('createdAt')
+              })
+              .from(sql`(select 1)`)
+              .where(condition)
+          )
+        )
+        return { writes, publish: prepared.publish }
+      })
 
       return {
         list: Effect.gen(function* () {
@@ -403,61 +482,17 @@ export function LiveNotificationFeed(
               traceparent
             })
           }),
+        prepareWorkspaceOwners,
         notifyWorkspaceOwners: (input) =>
           Effect.gen(function* () {
-            const owners = yield* ownersOf(input.workspaceId, input.audience)
-            if (owners.length === 0) {
+            const prepared = yield* prepareOwners(input)
+            if (prepared.created.length === 0) {
               return
             }
-            const createdAt = DateTime.formatIso(yield* DateTime.now)
-            // One targeted row per owner, each visible only to its reader —
-            // the same shape `notifyUser` writes, resolved from the workspace
-            // the background producer holds.
-            const created: Array<{
-              row: NotificationRow
-              owner: EmailQueueRecipient
-            }> = []
-            for (const owner of owners) {
-              created.push({
-                owner,
-                row: {
-                  id: yield* (() => {
-                    if (input.deduplicationKey === undefined) {
-                      return newCapabilityId('not')
-                    }
-                    return Effect.succeed(
-                      `not:${input.workspaceId}:${owner.userId}:${input.deduplicationKey}`
-                    )
-                  })(),
-                  workspaceId: input.workspaceId,
-                  userId: owner.userId,
-                  kind: input.kind,
-                  title: input.title,
-                  message: input.message,
-                  event: input.event ?? null,
-                  readAt: null,
-                  createdAt
-                }
-              })
-            }
             yield* unavailable(
-              db
-                .insert(notifications)
-                .values(created.map(({ row }) => row))
-                .onConflictDoNothing({ target: notifications.id })
+              db.insert(notifications).values(prepared.created.map(({ row }) => row))
             )
-            // One enqueue per row: a notification id addresses one (row,
-            // recipient) pair, so each owner's email resolves against their
-            // own channel preference.
-            const traceparent = yield* currentTraceparent
-            for (const { row, owner } of created) {
-              yield* enqueueInstantEmails(options.emailQueue, preferences, {
-                notificationId: row.id,
-                kind: input.kind,
-                recipients: [owner],
-                traceparent
-              })
-            }
+            yield* prepared.publish
           }),
         loadForEmail: (notificationId, recipientUserId) =>
           Effect.gen(function* () {

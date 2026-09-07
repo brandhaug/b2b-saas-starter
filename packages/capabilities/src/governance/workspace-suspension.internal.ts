@@ -26,8 +26,7 @@ export function validateSuspensionTransition(
 }
 
 export function suspensionNotice(
-  state: WorkspaceSuspension,
-  transitionId: string
+  state: WorkspaceSuspension
 ): NotifyWorkspaceOwnersInput {
   const event = {
     type: 'workspace.suspension_changed',
@@ -37,7 +36,6 @@ export function suspensionNotice(
   return {
     workspaceId: state.workspaceId,
     audience: 'owners_and_admins',
-    deduplicationKey: `workspace-suspension:${transitionId}`,
     kind: 'announcement',
     ...renderNotificationEvent(event),
     event

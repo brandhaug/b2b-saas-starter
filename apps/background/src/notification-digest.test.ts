@@ -109,6 +109,8 @@ describe('runNotificationDigest', () => {
       unreadCount: Effect.die('unused in digest tests'),
       markRead: () => Effect.die('unused in digest tests'),
       notifyUser: () => Effect.die('unused in digest tests'),
+      prepareWorkspaceOwners: () =>
+        Effect.succeed({ writes: [], publish: Effect.void }),
       notifyWorkspaceOwners: () => Effect.die('unused in digest tests'),
       create: () => Effect.die('unused in digest tests'),
       loadForEmail: () => Effect.die('unused in digest tests'),

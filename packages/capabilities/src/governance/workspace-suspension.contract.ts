@@ -19,8 +19,11 @@ export function workspaceSuspensionContractCases(expect: typeof vitestExpect) {
         expect(suspended.status).toBe('suspended')
         const denied = yield* suspension
           .requireAllowed('wrk_live', 'product')
-          .pipe(Effect.flip)
-        expect(denied._tag).toBe('WorkspaceSuspended')
+          .pipe(Effect.result)
+        expect(denied).toMatchObject({
+          _tag: 'Failure',
+          failure: { _tag: 'WorkspaceSuspended' }
+        })
         yield* suspension.requireAllowed('wrk_live', 'billing_recovery')
         const active = yield* suspension.transition({
           workspaceId: 'wrk_live',
@@ -80,8 +83,11 @@ export function workspaceSuspensionContractCases(expect: typeof vitestExpect) {
               workspaceId: 'wrk_live',
               actor: { userId: 'usr_sysadmin' }
             })
-            .pipe(Effect.flip)
-          expect(refusal._tag).toBe('WorkspaceSuspensionUnauthorized')
+            .pipe(Effect.result)
+          expect(refusal).toMatchObject({
+            _tag: 'Failure',
+            failure: { _tag: 'WorkspaceSuspensionUnauthorized' }
+          })
           expect((yield* suspension.get('wrk_live')).status).toBe('active')
         }
       })

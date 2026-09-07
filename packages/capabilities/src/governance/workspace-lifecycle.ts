@@ -178,6 +178,7 @@ export function SeedWorkspaceLifecycle(options: {
         rename: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
+            yield* suspension.requireAllowed(ctx.workspace.id, 'product')
             const renamed: Workspace = { ...ctx.workspace, name: input.name }
             yield* Ref.update(created, (rows) => {
               const next: Array<CreatedWorkspace> = []
@@ -284,6 +285,7 @@ export function LiveWorkspaceLifecycle(
         rename: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
+            yield* suspension.requireAllowed(ctx.workspace.id, 'product')
             yield* callBinding(binding, (bound) =>
               bound.rename({ workspaceId: ctx.workspace.id, name: input.name })
             )

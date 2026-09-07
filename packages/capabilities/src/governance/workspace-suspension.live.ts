@@ -123,6 +123,11 @@ export const LiveWorkspaceSuspension: Layer.Layer<
               eq(workspaces.suspensionStatus, current.status)
             )
           )
+        const wonTransition = sql`EXISTS (SELECT 1 FROM workspaces WHERE id = ${input.workspaceId} AND suspensionTransitionId = ${transitionId})`
+        const notice = yield* feed.prepareWorkspaceOwners(
+          suspensionNotice(next),
+          wonTransition
+        )
         const auditStatement = yield* audit.prepareRecord(
           {
             workspaceId: input.workspaceId,
@@ -139,19 +144,19 @@ export const LiveWorkspaceSuspension: Layer.Layer<
             targetId: input.workspaceId,
             metadata: { customerExplanation: next.customerExplanation }
           },
-          sql`EXISTS (SELECT 1 FROM workspaces WHERE id = ${input.workspaceId} AND suspensionTransitionId = ${transitionId})`
+          wonTransition
         )
 
         // The conditional audit and state change commit together. Read the
         // batch's change count before another transition can replace this one.
-        const changed = yield* commitAuditedTransition(write, auditStatement).pipe(
-          Effect.provideService(RawD1, d1),
-          unavailable
-        )
+        const changed = yield* commitAuditedTransition(write, [
+          auditStatement,
+          ...notice.writes
+        ]).pipe(Effect.provideService(RawD1, d1), unavailable)
         if (!changed) {
           return yield* get(input.workspaceId)
         }
-        yield* feed.notifyWorkspaceOwners(suspensionNotice(next, transitionId))
+        yield* notice.publish
         return next
       })
     })

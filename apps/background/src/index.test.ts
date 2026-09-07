@@ -163,6 +163,7 @@ function stubFeed(
           read: false
         }
       }),
+    prepareWorkspaceOwners: () => Effect.succeed({ writes: [], publish: Effect.void }),
     notifyWorkspaceOwners: (input) =>
       Effect.sync(() => {
         ownerNotices.push(input)

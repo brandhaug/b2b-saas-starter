@@ -203,11 +203,24 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const response = yield* Effect.promise(() =>
               handler(new Request(`https://api.test${path}`, requestOptions))
             )
-            expect(response.status).toBe(403)
-            expect(yield* jsonBody(response, errorBody)).toEqual({
-              _tag: 'WorkspaceSuspended'
-            })
+            if (
+              (operation.endpoint.method === 'GET' &&
+                operation.endpoint.path === '/workspaces/:slug/api-tokens') ||
+              (operation.endpoint.method === 'DELETE' &&
+                operation.endpoint.path === '/workspaces/:slug/api-tokens/:tokenId')
+            ) {
+              expect(response.status).toBe(200)
+            } else {
+              expect(response.status).toBe(403)
+              expect(yield* jsonBody(response, errorBody)).toEqual({
+                _tag: 'WorkspaceSuspended'
+              })
+            }
           }
+          const recovery = yield* Effect.promise(() =>
+            client.rpc('tools/call', { name: 'list_api_tokens', arguments: {} })
+          ).pipe(Effect.flatMap((response) => jsonBody(response, toolEnvelope)))
+          expect(recovery.result.isError).not.toBe(true)
           const assistant = yield* Effect.promise(() =>
             handler(
               new Request('https://api.test/assistant/answer', {
@@ -242,16 +255,26 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect((yield* getOverview('live-lab', credential)).status).toBe(200)
           expect((yield* readTool()).isError).not.toBe(true)
           yield* execute(
-            `UPDATE api_tokens SET revoked_at='2026-01-01T00:00:00Z' WHERE id='tok_suspension'`
-          )
-          yield* execute(
             `UPDATE workspaces SET suspensionStatus='suspended' WHERE id='wrk_live'`
           )
+          const revoked = yield* Effect.promise(() =>
+            handler(
+              new Request(
+                'https://api.test/workspaces/live-lab/api-tokens/tok_suspension',
+                {
+                  method: 'DELETE',
+                  headers: { authorization: `Bearer ${credential}` }
+                }
+              )
+            )
+          )
+          expect(revoked.status).toBe(200)
           yield* execute(
             `UPDATE workspaces SET suspensionStatus='active' WHERE id='wrk_live'`
           )
           expect((yield* getOverview('live-lab', credential)).status).toBe(401)
-        })
+        }),
+      30_000
     )
   }
 )

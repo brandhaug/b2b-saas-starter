@@ -1,5 +1,9 @@
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
-import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import {
+  WorkspaceSuspensionService,
+  workspaceSuspensionOperationForPermission,
+  type WorkspaceSuspensionOperation
+} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { withHttpInvocation } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
@@ -258,7 +262,10 @@ export function enforcePermission(
 
     yield* requirePermission(tokenPrincipal(verified.scopes), permission)
     const suspension = yield* WorkspaceSuspensionService
-    yield* suspension.requireAllowed(verified.workspaceId, 'product')
+    yield* suspension.requireAllowed(
+      verified.workspaceId,
+      workspaceSuspensionOperationForPermission(permission)
+    )
   })
 }
 
@@ -330,12 +337,13 @@ export function provideWorkspace<A, E, R>(
   slug: string,
   body: Effect.Effect<A, E, R>,
   actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue
+  actorType: AuditActorTypeValue,
+  operation: WorkspaceSuspensionOperation = 'product'
 ) {
   return Effect.gen(function* () {
     const ctx = yield* WorkspaceContext
     const suspension = yield* WorkspaceSuspensionService
-    yield* suspension.requireAllowed(ctx.workspace.id, 'product')
+    yield* suspension.requireAllowed(ctx.workspace.id, operation)
     return yield* body
   }).pipe(
     Effect.provide(selectWorkspaceContextLayer(starterEnv(env), slug, actor, actorType))
