@@ -29,6 +29,10 @@
         "queue": "b2b-saas-starter-webhooks"
       },
       {
+        "binding": "BILLING_QUEUE",
+        "queue": "b2b-saas-starter-billing"
+      },
+      {
         "binding": "NOTIFICATION_EMAIL_QUEUE",
         "queue": "b2b-saas-starter-notification-emails"
       }

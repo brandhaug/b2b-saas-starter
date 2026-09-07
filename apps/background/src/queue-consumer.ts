@@ -4,6 +4,7 @@ import {
   type WorkspaceExportQueueBinding
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type NotificationEmailQueueBinding } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
+import { type SeatSyncQueueBinding } from '@b2b-saas-starter/capabilities/billing/seat-sync'
 import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { type SendEmailBinding } from '@b2b-saas-starter/email'
 import { isMaintenanceMode, type ServerEnv } from '@b2b-saas-starter/env/server'
@@ -42,6 +43,7 @@ type BackgroundBindingTypes = {
   // the binding to `starterEnv`, and every other worker declares it the same
   // way, so one structural shape describes the queue across all three.
   readonly WEBHOOK_QUEUE: WebhookQueueBinding
+  readonly BILLING_QUEUE: SeatSyncQueueBinding
   // Workspace export (ADR 0055): the job queue this worker consumes and the
   // bucket it writes archives to. Both absent when `WORKSPACE_EXPORT_BUCKET`
   // was unset at deploy time; the capability then reports unavailable.

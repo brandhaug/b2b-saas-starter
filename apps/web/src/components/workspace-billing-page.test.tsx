@@ -15,7 +15,10 @@ import {
 import { type ResourceSelectionInput } from '@b2b-saas-starter/capabilities/billing/resource-entitlements'
 import { type BillingLifecycle } from '@b2b-saas-starter/capabilities/billing/billing'
 import { WorkspaceBillingPage } from './workspace-billing-page'
-import { type WorkspaceBillingPayload } from '@/lib/server/billing'
+import {
+  type ReconcileCheckout,
+  type WorkspaceBillingPayload
+} from '@/lib/server/billing'
 import type * as BillingServer from '@/lib/server/billing'
 import { type SelectBillingResources } from './workspace-billing'
 
@@ -94,7 +97,13 @@ function fixture(): WorkspaceBillingPayload {
 }
 
 /** Actual page, loader, mutation hook and router invalidation; only the server transport is replaced. */
-async function renderBilling(initial: WorkspaceBillingPayload = fixture()) {
+async function renderBilling(
+  initial: WorkspaceBillingPayload = fixture(),
+  options: {
+    readonly checkoutReturn?: boolean
+    readonly reconcileCheckoutReturn?: ReconcileCheckout
+  } = {}
+) {
   let payload = initial
   const root = createRootRoute()
   const route = createRoute({
@@ -106,6 +115,12 @@ async function renderBilling(initial: WorkspaceBillingPayload = fixture()) {
         <WorkspaceBillingPage
           workspaceSlug={route.useParams().workspaceSlug}
           data={route.useLoaderData()}
+          {...(options.checkoutReturn === undefined
+            ? {}
+            : { checkoutReturn: options.checkoutReturn })}
+          {...(options.reconcileCheckoutReturn === undefined
+            ? {}
+            : { reconcileCheckoutReturn: options.reconcileCheckoutReturn })}
         />
       )
     }
@@ -169,6 +184,67 @@ beforeEach(() => {
 })
 
 describe('WorkspaceBillingPage route', () => {
+  it('reconciles an authorized checkout return once and refreshes after success', async () => {
+    const reconcile = vi.fn<ReconcileCheckout>(async () => ({
+      workspaceId: 'wrk_starter',
+      outcome: 'delayed',
+      drift: ['provider_snapshot_missing']
+    }))
+    const view = await renderBilling(
+      { ...fixture(), stripeConfigured: true },
+      { checkoutReturn: true, reconcileCheckoutReturn: reconcile }
+    )
+    const invalidate = vi.spyOn(view.router, 'invalidate')
+    await waitFor(() => expect(reconcile).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(invalidate).toHaveBeenCalled())
+    expect(reconcile).toHaveBeenCalledWith({ data: { workspaceSlug: 'starter-lab' } })
+  })
+
+  it('shows pending and failure feedback for checkout reconciliation', async () => {
+    const deferredReconcile = deferred<Awaited<ReturnType<ReconcileCheckout>>>()
+    const reconcile = vi.fn<ReconcileCheckout>(() => deferredReconcile.promise)
+    await renderBilling(
+      { ...fixture(), stripeConfigured: true },
+      { checkoutReturn: true, reconcileCheckoutReturn: reconcile }
+    )
+    await waitFor(() =>
+      expect(screen.getByText(/billing updates are pending/i)).toBeTruthy()
+    )
+    deferredReconcile.resolve({
+      workspaceId: 'wrk_starter',
+      outcome: 'delayed',
+      drift: ['provider_snapshot_missing']
+    })
+    await waitFor(() =>
+      expect(screen.queryByText(/billing updates are pending/i)).toBeNull()
+    )
+
+    const failing = vi.fn<ReconcileCheckout>(async () => {
+      throw new Error('reconcile failed')
+    })
+    await renderBilling(
+      { ...fixture(), stripeConfigured: true },
+      { checkoutReturn: true, reconcileCheckoutReturn: failing }
+    )
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
+  })
+
+  it('does not reconcile a crafted return for an unpermitted viewer', async () => {
+    const reconcile = vi.fn<ReconcileCheckout>(async () => ({
+      workspaceId: 'wrk_starter',
+      outcome: 'current',
+      drift: []
+    }))
+    await renderBilling(
+      { ...fixture(), stripeConfigured: true, viewer: { role: 'member' } },
+      { checkoutReturn: true, reconcileCheckoutReturn: reconcile }
+    )
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0)
+    })
+    expect(reconcile).not.toHaveBeenCalled()
+  })
+
   it('keeps partially filled and full selections editable when pricing is unavailable', async () => {
     await renderBilling({ ...fixture(), stripeConfigured: true })
     expect(screen.getByText(/Plan pricing is temporarily unavailable/)).toBeTruthy()

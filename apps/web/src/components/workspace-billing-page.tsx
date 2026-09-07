@@ -1,10 +1,16 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import { type WorkspaceBillingPayload } from '@/lib/server/billing'
+import {
+  reconcileCheckoutReturnServerFn,
+  type WorkspaceBillingPayload,
+  type ReconcileCheckout
+} from '@/lib/server/billing'
+import { useServerAction } from '@/hooks/use-server-action'
 import { PageHeader } from '@/components/page/page-header'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { BillingPlans } from '@/components/workspace-billing'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import { viewerCan } from '@/lib/permissions'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -20,15 +26,43 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 export function WorkspaceBillingPage({
   workspaceSlug,
   data,
-  systemRole
+  systemRole,
+  checkoutReturn,
+  reconcileCheckoutReturn = reconcileCheckoutReturnServerFn
 }: {
   readonly workspaceSlug: string
   readonly data: WorkspaceBillingPayload
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
+  readonly checkoutReturn?: boolean
+  readonly reconcileCheckoutReturn?: ReconcileCheckout
 }) {
   const router = useRouter()
+  const reconciliationKey = useRef<string | null>(null)
   const { stripeConfigured, synchronization } = data
+  const canManageBilling =
+    data.viewer !== null && viewerCan(data.viewer, { organization: ['update'] })
+  const reconcile = useServerAction(
+    () => reconcileCheckoutReturn({ data: { workspaceSlug } }),
+    {
+      failureMessage: m.billing_sync_delayed()
+    }
+  )
+  useEffect(() => {
+    if (!checkoutReturn) {
+      reconciliationKey.current = null
+      return
+    }
+    if (
+      !stripeConfigured ||
+      !canManageBilling ||
+      reconciliationKey.current === workspaceSlug
+    ) {
+      return
+    }
+    reconciliationKey.current = workspaceSlug
+    reconcile.run(undefined)
+  }, [canManageBilling, checkoutReturn, reconcile, stripeConfigured, workspaceSlug])
   useEffect(() => {
     if (!stripeConfigured) {
       return
@@ -38,8 +72,6 @@ export function WorkspaceBillingPage({
     const timer = window.setInterval(() => void router.invalidate(), interval)
     return () => window.clearInterval(timer)
   }, [router, stripeConfigured, synchronization.status])
-  const canManageBilling =
-    data.viewer !== null && viewerCan(data.viewer, { organization: ['update'] })
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
@@ -66,6 +98,12 @@ export function WorkspaceBillingPage({
         resourceEntitlements={data.resourceEntitlements}
         canManageBilling={canManageBilling}
       />
+      {reconcile.pending ? (
+        <output className="block text-sm text-muted-foreground">
+          {m.billing_sync_pending()}
+        </output>
+      ) : null}
+      <ActionFeedback error={reconcile.error} />
     </WorkspaceShell>
   )
 }

@@ -251,6 +251,7 @@ const apiBindingNames = {
 const backgroundBindingNames = {
   database: resourceBindingNames.database,
   webhookQueue: queueBindingKeys.webhookQueue,
+  billingQueue: queueBindingKeys.billingQueue,
   notificationEmailQueue: queueBindingKeys.notificationEmailQueue,
   workspaceExportQueue: queueBindingKeys.workspaceExportQueue,
   workspaceExportBucket: resourceBindingNames.workspaceExportBucket,

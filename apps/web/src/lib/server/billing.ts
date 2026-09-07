@@ -1,6 +1,7 @@
 import {
   type BillingLifecycle,
   type BillingSynchronizationStatus,
+  type ReconcileResult,
   type DisplayedPlan
 } from '@b2b-saas-starter/capabilities/billing/billing'
 import { type ResourceSelectionInput } from '@b2b-saas-starter/capabilities/billing/resource-entitlements'
@@ -78,6 +79,9 @@ export type WorkspaceBillingInput = typeof WorkspaceBillingInput.Type
 export type StartCheckoutInput = typeof StartCheckoutInput.Type
 export type PortalInput = typeof PortalInput.Type
 export type SelectResourcesInput = typeof SelectResourcesInput.Type
+export type ReconcileCheckout = (input: {
+  readonly data: WorkspaceBillingInput
+}) => Promise<ReconcileResult>
 
 /** The billing route's loader. */
 export const loadWorkspaceBillingServerFn = createServerFn({ method: 'GET' })
@@ -106,6 +110,13 @@ export const startPortalSessionServerFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<{ url: string }> => {
     const { startPortalSessionHandler } = await import('./billing.effects')
     return startPortalSessionHandler(data)
+  })
+
+export const reconcileCheckoutReturnServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(WorkspaceBillingInput))
+  .handler(async ({ data }): Promise<ReconcileResult> => {
+    const { reconcileCheckoutReturnHandler } = await import('./billing.effects')
+    return reconcileCheckoutReturnHandler(data)
   })
 
 export const selectBillingResourcesServerFn = createServerFn({ method: 'POST' })

@@ -2,7 +2,7 @@ import { assertWithinPlanLimit } from './resource-admission.ts'
 import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
 import { SeedAccountPreferences } from '../governance/account-preferences.ts'
-import { Effect, Layer, Result } from 'effect'
+import { Effect, Layer, Ref, Result } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
 import { CapabilityUnavailable } from '../errors.ts'
@@ -40,6 +40,7 @@ function billingFixture(options?: {
   readonly planId?: string
   readonly subscriptions?: ReadonlyArray<SeedSubscriptionFixture>
   readonly providerSubscriptions?: ReadonlyArray<SeedProviderSubscriptionFixture>
+  readonly providerState?: Ref.Ref<ReadonlyMap<string, SeedProviderSubscriptionFixture>>
   readonly memberCount?: number
   readonly failFirstAudit?: boolean
 }) {
@@ -77,6 +78,7 @@ function billingFixture(options?: {
         SeedBilling({
           stripeConfigured: options?.stripeConfigured,
           subscriptions: options?.subscriptions,
+          providerState: options?.providerState,
           providerSubscriptions: options?.providerSubscriptions?.map((provider) => ({
             ...provider,
             payment: provider.payment ?? {
@@ -411,6 +413,126 @@ describe('seed billing seat sync', () => {
 })
 
 describe('seed billing reconciliation and checkout claims', () => {
+  for (const delivery of ['direct', 'receipt']) {
+    it.effect(
+      `shows missing-provider conflicts for ${delivery} events and allows retry`,
+      () =>
+        Effect.gen(function* () {
+          const provider: SeedProviderSubscriptionFixture = {
+            workspaceId: 'wrk_billing',
+            customerId: 'cus_seed',
+            subscriptionId: 'sub_seed',
+            subscriptionItemId: 'si_seed',
+            seatQuantity: 1,
+            planId: 'team',
+            status: 'active',
+            payment: {
+              lastPaymentAt: '2026-08-01T00:00:00.000Z',
+              firstFailedAt: null,
+              currentInvoicePaid: true
+            }
+          }
+          const providerState = yield* Ref.make<
+            ReadonlyMap<string, SeedProviderSubscriptionFixture>
+          >(new Map([['wrk_billing', provider]]))
+          yield* Effect.gen(function* () {
+            const billing = yield* Billing
+            yield* billing.reconcileWorkspace({ workspaceId: 'wrk_billing' })
+            const verified = yield* billing.synchronizationStatus
+            expect(verified.status).toBe('current')
+            expect(verified.lastSyncedAt).not.toBeNull()
+            yield* Ref.set(providerState, new Map())
+            const event = {
+              providerEventId: `evt_seed_missing_${delivery}`,
+              eventType: 'customer.subscription.updated',
+              workspaceId: 'wrk_billing'
+            }
+            if (delivery === 'receipt') {
+              yield* billing.recordProviderEvent(event)
+              yield* billing.reconcileBatch({ limit: 1 })
+            } else {
+              expect(yield* billing.processProviderEvent(event)).toEqual({
+                outcome: 'conflict',
+                providerEventId: event.providerEventId,
+                reason: 'provider_snapshot_missing'
+              })
+            }
+            expect(yield* billing.synchronizationStatus).toEqual({
+              status: 'conflict',
+              lastSyncedAt: verified.lastSyncedAt
+            })
+            expect((yield* billing.currentPlan).id).toBe('team')
+            yield* Ref.set(providerState, new Map([['wrk_billing', provider]]))
+            if (delivery === 'receipt') {
+              yield* billing.reconcileBatch({ limit: 1 })
+            } else {
+              expect((yield* billing.processProviderEvent(event)).outcome).toBe(
+                'applied'
+              )
+            }
+            expect((yield* billing.processProviderEvent(event)).outcome).toBe(
+              'duplicate'
+            )
+            expect((yield* billing.synchronizationStatus).status).toBe('current')
+          }).pipe(
+            Effect.provide(
+              billingFixture({ stripeConfigured: true, providerState }).layer
+            )
+          )
+        })
+    )
+  }
+
+  it.effect('reconciles a persisted provider receipt after a queue crash', () =>
+    Effect.gen(function* () {
+      const billing = yield* Billing
+      yield* billing.recordProviderEvent({
+        providerEventId: 'evt_seed_receipt',
+        eventType: 'customer.subscription.updated',
+        workspaceId: 'wrk_billing',
+        subscription: { customerId: 'cus_seed', subscriptionId: 'sub_seed' }
+      })
+      yield* billing.reconcileBatch({ limit: 1 })
+      expect((yield* billing.currentPlan).id).toBe('team')
+      const duplicate = yield* billing.processProviderEvent({
+        providerEventId: 'evt_seed_receipt',
+        eventType: 'customer.subscription.updated',
+        workspaceId: 'wrk_billing'
+      })
+      expect(duplicate.outcome).toBe('duplicate')
+      yield* billing.recordProviderEvent({
+        providerEventId: 'evt_seed_receipt',
+        eventType: 'customer.subscription.updated',
+        workspaceId: 'wrk_billing'
+      })
+      yield* billing.reconcileBatch({ limit: 1 })
+      const stillDuplicate = yield* billing.processProviderEvent({
+        providerEventId: 'evt_seed_receipt',
+        eventType: 'customer.subscription.updated',
+        workspaceId: 'wrk_billing'
+      })
+      expect(stillDuplicate.outcome).toBe('duplicate')
+    }).pipe(
+      Effect.provide(
+        billingFixture({
+          stripeConfigured: true,
+          planId: 'starter',
+          providerSubscriptions: [
+            {
+              workspaceId: 'wrk_billing',
+              customerId: 'cus_seed',
+              subscriptionId: 'sub_seed',
+              subscriptionItemId: 'si_seed',
+              seatQuantity: 1,
+              planId: 'team',
+              status: 'active'
+            }
+          ]
+        }).layer
+      )
+    )
+  )
+
   it.effect('reconciles the provider fixture instead of trusting event payloads', () =>
     Effect.gen(function* () {
       const billing = yield* Billing

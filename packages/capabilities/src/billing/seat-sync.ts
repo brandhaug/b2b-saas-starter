@@ -1,6 +1,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 
 import { type CapabilityUnavailable } from '../errors.ts'
+import { type ProcessProviderEventInput } from './billing.ts'
 import { bestEffort } from '../internal/best-effort.ts'
 import {
   makeQueuePublisher,
@@ -8,14 +9,10 @@ import {
 } from '../internal/queue-publisher.ts'
 
 /**
- * The seat-sync half of per-seat billing: the queue message, the producer
- * port, and the `SeatSyncPublisher` service membership and invitation
- * mutations call after their write. The consumer lives in
- * `apps/background` (`seat-sync-consumer.ts`) and hands the message to
- * `Billing.syncSeats`, so a membership mutation never awaits Stripe (see
- * `billing.ts`). Sibling of `developer-platform/webhook-publisher.ts` on
- * purpose: same shape, different queue — the send itself is the shared
- * `internal/queue-publisher.ts` recipe.
+ * The shared billing queue contract: seat-sync messages from membership
+ * mutations and verified provider-event messages from Stripe ingress. The
+ * background consumer dispatches each kind to the authoritative Billing
+ * workflow; membership mutations still never await Stripe.
  */
 
 /**
@@ -65,12 +62,77 @@ export const SeatSyncQueueMessage = Schema.Struct({
 })
 export type SeatSyncQueueMessage = typeof SeatSyncQueueMessage.Type
 
+/** Verified Stripe event input persisted before it is handed to the queue. */
+export const StripeProviderEventQueueMessage = Schema.Struct({
+  kind: Schema.Literal('billing.provider_event'),
+  providerEventId: Schema.String,
+  eventType: Schema.String,
+  providerCreatedAt: Schema.optionalKey(Schema.String),
+  workspaceId: Schema.optionalKey(Schema.String),
+  subscription: Schema.optionalKey(
+    Schema.Struct({
+      customerId: Schema.optionalKey(Schema.String),
+      subscriptionId: Schema.optionalKey(Schema.String)
+    })
+  ),
+  traceparent: Schema.optionalKey(Schema.String)
+})
+export type StripeProviderEventQueueMessage =
+  typeof StripeProviderEventQueueMessage.Type
+
+export const BillingQueueMessage = Schema.Union([
+  SeatSyncQueueMessage,
+  StripeProviderEventQueueMessage
+])
+export type BillingQueueMessage = typeof BillingQueueMessage.Type
+
 /**
  * Structural subset of Cloudflare's `Queue` binding so this package does not
  * depend on `@cloudflare/workers-types` — `send` only: seat sync enqueues one
  * message at a time, so there is no `sendBatch` to port.
  */
-export type SeatSyncQueueBinding = QueueSendBinding<SeatSyncQueueMessage>
+export type SeatSyncQueueBinding = QueueSendBinding<BillingQueueMessage>
+
+function providerEventMessage(
+  input: ProcessProviderEventInput
+): StripeProviderEventQueueMessage {
+  let message: StripeProviderEventQueueMessage = {
+    kind: 'billing.provider_event',
+    providerEventId: input.providerEventId,
+    eventType: input.eventType
+  }
+  if (input.providerCreatedAt !== undefined) {
+    message = { ...message, providerCreatedAt: input.providerCreatedAt }
+  }
+  if (input.workspaceId !== undefined) {
+    message = { ...message, workspaceId: input.workspaceId }
+  }
+  const subscription = input.subscription
+  if (subscription !== undefined) {
+    let routing: NonNullable<StripeProviderEventQueueMessage['subscription']> = {}
+    if (subscription.customerId !== undefined) {
+      routing = { ...routing, customerId: subscription.customerId }
+    }
+    if (subscription.subscriptionId !== undefined) {
+      routing = { ...routing, subscriptionId: subscription.subscriptionId }
+    }
+    message = { ...message, subscription: routing }
+  }
+  return message
+}
+
+export const publishProviderEvent = Effect.fn('Billing.publishProviderEvent')(
+  function* (
+    queue: SeatSyncQueueBinding | undefined,
+    input: ProcessProviderEventInput
+  ) {
+    yield* makeQueuePublisher<BillingQueueMessage, ProcessProviderEventInput>(
+      'billing',
+      queue,
+      providerEventMessage
+    )(input)
+  }
+)
 
 type SeatSyncPublisherInterface = {
   /**

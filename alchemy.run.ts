@@ -355,9 +355,8 @@ export const Stack = Alchemy.Stack(
       env: {
         DB: db,
         [queueBindingKeys.webhookQueue]: webhookQueue,
-        // No `BILLING_QUEUE` producer here: only the web worker enqueues
-        // seat-sync messages, and nothing in this worker reads the binding —
-        // the generated wrangler config agrees.
+        // Verified Stripe events are persisted before being handed to this queue.
+        [queueBindingKeys.billingQueue]: billingQueue,
         [queueBindingKeys.notificationEmailQueue]: notificationEmailQueue,
         // Notification emails link back to the web app.
         BETTER_AUTH_URL,
