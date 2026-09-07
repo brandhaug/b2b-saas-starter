@@ -89,6 +89,13 @@ export class PlanLimitExceeded extends Schema.TaggedError<PlanLimitExceeded>()(
   { httpApiStatus: 402 }
 ) {}
 
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class ResourceSelectionRejected extends Schema.TaggedError<ResourceSelectionRejected>()(
+  'ResourceSelectionRejected',
+  { resource: Schema.String, reason: Schema.String },
+  { httpApiStatus: 400 }
+) {}
+
 /**
  * An account action refused because the acting session is a System Admin
  * impersonation session: changing the password, the second factor, or the

@@ -210,7 +210,16 @@ export function SeedNotificationFeed(
           }),
         create: (input: CreateNotificationInput) =>
           Effect.gen(function* () {
-            const id = yield* newCapabilityId('not')
+            let id: string
+            if (input.deduplicationKey === undefined) {
+              id = yield* newCapabilityId('not')
+            } else {
+              id = `not:${input.workspaceId}:${input.userId ?? 'broadcast'}:${input.deduplicationKey}`
+            }
+            const existing = (yield* Ref.get(rows)).find((row) => row.id === id)
+            if (existing !== undefined) {
+              return stripStorage(existing)
+            }
             const createdAt = DateTime.formatIso(yield* DateTime.now)
             const row: SeedRow = {
               id,

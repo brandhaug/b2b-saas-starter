@@ -64,9 +64,13 @@ export const AUDIT_EVENT_TYPES = [
   'auth.sso_sign_in',
   'auth.sso_sign_in_failed',
   // billing
+  'billing.resource_selection_updated',
   'billing.checkout_started',
   'billing.portal_opened',
   'billing.plan_changed',
+  'billing.payment_failed',
+  'billing.grace_expiring',
+  'billing.payment_recovered',
   'billing.seats_changed',
   'billing.sync_retry_requested',
   // notifications — a user changed how one kind reaches them by email

@@ -1,19 +1,4 @@
-import { type EffectDatabase } from '@b2b-saas-starter/db/service'
-import { Effect } from 'effect'
-import { count, type SQL } from 'drizzle-orm'
-import { type SQLiteTable } from 'drizzle-orm/sqlite-core'
-
-import { PlanLimitExceeded, type CapabilityUnavailable } from '../errors.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
-import { WorkspaceContext } from '../workspace-context.ts'
-
-/**
- * The plan catalog and the entitlement gate over it. Deliberately free of any
- * provider import: the mutating capabilities in `developer-platform/` need the
- * gate, and pulling the Stripe client into their dependency graph to reach it
- * would be a lie about what they talk to. `billing.ts` and `stripe.ts` import
- * this module; it imports neither.
- */
+import { Schema } from 'effect'
 
 /**
  * How a plan bills its workspace. `flat` is one fixed subscription regardless
@@ -26,8 +11,8 @@ type PlanPricing = 'flat' | 'per_seat'
 /**
  * A plan in the catalog. A constant, not a service method: plans are part of
  * the starter's vocabulary (the public pricing page and the workspace billing
- * page render the same list), and no database table owns them. `planId` on a
- * workspace row is the entitlement state; this catalog gives that id a shape.
+ * page render the same list), and no database table owns them. Billing supplies
+ * the deadline-aware current plan; this catalog describes its limits.
  */
 export type Plan = {
   readonly id: string
@@ -144,61 +129,101 @@ export function seatUsage(plan: Plan, memberCount: number): SeatUsage {
 }
 
 /** Entitlement resources a plan can cap. */
-type EntitlementResource = 'api_token' | 'webhook_endpoint'
+export type EntitlementResource = 'api_token' | 'webhook_endpoint'
 
-function limitFor(plan: Plan, resource: EntitlementResource): number | null {
+/**
+ * The durable, user-selected exception to a Starter downgrade.  Selection is
+ * deliberately expressed in ids rather than positional indexes: resources
+ * stay stored and can be re-selected after an upgrade or another downgrade.
+ * The persistence capability owns where this record is stored.
+ */
+export const ResourceSelection = Schema.Struct({
+  apiTokenIds: Schema.Array(Schema.String),
+  webhookEndpointIds: Schema.Array(Schema.String)
+})
+export type ResourceSelection = typeof ResourceSelection.Type
+
+export const EMPTY_RESOURCE_SELECTION: ResourceSelection = {
+  apiTokenIds: [],
+  webhookEndpointIds: []
+}
+
+export type ResourceEntitlement = {
+  readonly resource: EntitlementResource
+  readonly limit: number | null
+  readonly used: number
+  readonly eligibleIds: ReadonlyArray<string>
+  readonly selectedIds: ReadonlyArray<string>
+  readonly activeIds: ReadonlyArray<string>
+  /** True when the entire category is paused until a selection is saved. */
+  readonly paused: boolean
+}
+
+/**
+ * Computes effective resource access after a plan change.  This is the one
+ * policy used by request and queue boundaries: it never deletes excess rows,
+ * allows all resources while within the limit, and pauses the category when
+ * an over-limit workspace has not selected its surviving resources.
+ */
+export function resourceEntitlement(
+  plan: Plan,
+  resource: EntitlementResource,
+  ids: ReadonlyArray<string>,
+  selection: ResourceSelection = EMPTY_RESOURCE_SELECTION
+): ResourceEntitlement {
+  const limit = limitFor(plan, resource)
+  let selectedIds: ReadonlyArray<string>
+  if (resource === 'api_token') {
+    selectedIds = selection.apiTokenIds
+  } else {
+    selectedIds = selection.webhookEndpointIds
+  }
+  const overLimit = limit !== null && ids.length > limit
+  const availableIds = new Set(ids)
+  const validSelection = [...new Set(selectedIds)].filter((id) => availableIds.has(id))
+  let activeIds: ReadonlyArray<string>
+  if (overLimit) {
+    activeIds = validSelection.slice(0, limit)
+  } else {
+    activeIds = [...ids]
+  }
+  return {
+    resource,
+    limit,
+    used: ids.length,
+    eligibleIds: [...ids],
+    selectedIds: validSelection,
+    activeIds,
+    paused: overLimit && activeIds.length === 0
+  }
+}
+
+/** Whether one stored resource may execute under the effective entitlement. */
+export function resourceIsActive(
+  entitlement: ResourceEntitlement,
+  resourceId: string
+): boolean {
+  return entitlement.activeIds.includes(resourceId)
+}
+
+/** The UI/API contract for a downgrade that needs an explicit selection. */
+export type ResourceEntitlementSummary = ResourceEntitlement & {
+  readonly requiresSelection: boolean
+}
+
+export function resourceEntitlementSummary(
+  plan: Plan,
+  resource: EntitlementResource,
+  ids: ReadonlyArray<string>,
+  selection?: ResourceSelection
+): ResourceEntitlementSummary {
+  const entitlement = resourceEntitlement(plan, resource, ids, selection)
+  return { ...entitlement, requiresSelection: entitlement.paused }
+}
+
+export function limitFor(plan: Plan, resource: EntitlementResource): number | null {
   if (resource === 'api_token') {
     return plan.limits.apiTokens
   }
   return plan.limits.webhookEndpoints
-}
-
-/**
- * Entitlement gate over the workspace in context. Pure composition — it reads
- * the resolved workspace's `planId` and compares `used` against the plan's
- * ceiling. The mutating capabilities compose this themselves (counting their
- * own rows), so callers cannot forget the gate and no route handler or server
- * function re-derives the idiom.
- */
-export const assertWithinPlanLimit = Effect.fnUntraced(function* (input: {
-  readonly resource: EntitlementResource
-  readonly used: number
-}) {
-  const ctx = yield* WorkspaceContext
-  const plan = planById(ctx.workspace.planId)
-  const limit = limitFor(plan, input.resource)
-  if (limit !== null && input.used >= limit) {
-    return yield* Effect.fail(
-      new PlanLimitExceeded({
-        planId: plan.id,
-        resource: input.resource,
-        limit
-      })
-    )
-  }
-})
-
-/**
- * The entitlement gate with its counting query beside it: counts the rows of
- * `table` matching `where` in the caller's store and asserts the workspace in
- * context is within the plan ceiling. Both mutating capabilities compose this,
- * so the "count active rows → compare against the plan" idiom exists once.
- */
-export function assertWithinPlanLimitFor(input: {
-  readonly resource: EntitlementResource
-  readonly db: EffectDatabase
-  /** Which capability name surfaces on a `CapabilityUnavailable` count failure. */
-  readonly capability: string
-  readonly table: SQLiteTable
-  readonly where?: SQL | undefined
-}): Effect.Effect<void, CapabilityUnavailable | PlanLimitExceeded, WorkspaceContext> {
-  return Effect.gen(function* () {
-    const rows = yield* orUnavailable(input.capability)(
-      input.db.select({ value: count() }).from(input.table).where(input.where)
-    )
-    yield* assertWithinPlanLimit({
-      resource: input.resource,
-      used: rows[0]?.value ?? 0
-    })
-  })
 }

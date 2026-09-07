@@ -9,6 +9,9 @@ import { readDelivery } from './queue-consumer.ts'
 function stubBilling(calls: Array<string>): Layer.Layer<Billing> {
   return Layer.succeed(Billing)({
     configured: Effect.succeed(true),
+    currentPlanForWorkspace: () => Effect.die('unused'),
+    lifecycleStatus: Effect.die('unused'),
+    displayedPlans: Effect.die('unused'),
     currentPlan: Effect.die('unused in billing DLQ tests'),
     synchronizationStatus: Effect.die('unused in billing DLQ tests'),
     processProviderEvent: () => Effect.die('unused in billing DLQ tests'),

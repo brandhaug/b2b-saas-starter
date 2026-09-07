@@ -77,6 +77,9 @@ import {
 
 // billing
 import { type Billing } from './billing/billing.ts'
+import { type ResourceEntitlements } from './billing/resource-entitlements.ts'
+import { LiveResourceEntitlements } from './billing/resource-entitlements.live.ts'
+import { SeedResourceEntitlements } from './billing/resource-entitlements.seed.ts'
 import { type BillingOptions } from './billing/billing-config.ts'
 import { LiveBilling } from './billing/billing.live.ts'
 import { SeedBilling } from './billing/billing.seed.ts'
@@ -124,6 +127,7 @@ export type CapabilityServices =
   | ApiTokenRegistry
   | AuditEventLog
   | Billing
+  | ResourceEntitlements
   | McpClientConnections
   | NotificationFeed
   | NotificationPreferences
@@ -166,7 +170,10 @@ const SeedGovernance = Layer.unwrap(
        * same fixture log every other capability reads, and its seat counts
        * read the same roster the membership adapters mutate.
        */
-      SeedBilling({ roster }).pipe(Layer.provide(SeedAuditLog))
+      SeedBilling({
+        roster,
+        workspacePlans: { [seedWorkspaceRecord.id]: seedWorkspaceRecord.planId }
+      }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications))
     )
   })
 )
@@ -201,12 +208,21 @@ const SeedNotifications = Layer.merge(
   }).pipe(Layer.provide(Layer.merge(SeedPreferences, SeedAccountPrefs)))
 )
 
+const SeedEntitlements = SeedResourceEntitlements().pipe(
+  Layer.provide(SeedGovernance),
+  Layer.provide(SeedAuditLog)
+)
+
 const SeedCore = Layer.mergeAll(
   // The mutating developer-platform capabilities write audit events and fan
   // out webhooks below their interface; the shared fixture audit log and the
   // no-op Seed publisher are provided once on the merged layer so every member
   // sees the same instances.
-  SeedApiTokenRegistry(seedApiTokens),
+  SeedApiTokenRegistry(seedApiTokens).pipe(
+    Layer.provide(SeedGovernance),
+    Layer.provide(SeedEntitlements)
+  ),
+  SeedEntitlements,
   SeedAuditLog,
   SeedMcpClientConnections({
     clients: seedMcpClients,
@@ -221,7 +237,7 @@ const SeedCore = Layer.mergeAll(
     seedDeliveries,
     undefined,
     seedDeliveryAttempts
-  ),
+  ).pipe(Layer.provide(SeedGovernance), Layer.provide(SeedEntitlements)),
   SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships),
@@ -346,17 +362,20 @@ export function makeLiveCapabilitiesLayer(
   const feed = LiveNotificationFeed({
     emailQueue: options.notificationEmailQueue
   }).pipe(Layer.provide(preferences))
+  const billing = LiveBilling(options.billing)
+  const entitlements = LiveResourceEntitlements.pipe(Layer.provide(billing))
   return Layer.mergeAll(
     LiveAccountLifecycle(options.accountLifecycleBinding),
-    LiveApiTokenRegistry,
+    LiveApiTokenRegistry.pipe(Layer.provide(billing), Layer.provide(entitlements)),
     LiveAuditEventLog,
-    LiveBilling(options.billing),
+    billing,
+    entitlements,
     LiveMcpClientConnections,
     preferences,
     accountPreferences,
     feed,
     LiveSsoConnections(options.ssoBinding),
-    LiveWebhookEndpoints,
+    LiveWebhookEndpoints.pipe(Layer.provide(billing), Layer.provide(entitlements)),
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
     LiveWorkspaceMembership(options.memberBinding),

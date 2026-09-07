@@ -131,6 +131,19 @@ export const billingCheckoutStatuses = [
 ] as const
 export type BillingCheckoutStatus = (typeof billingCheckoutStatuses)[number]
 
+// oxlint-disable-next-line effect/noAs -- literal enum tuple
+export const billingLifecycleStatuses = [
+  'active',
+  'trialing',
+  'incomplete',
+  'incomplete_expired',
+  'past_due',
+  'unpaid',
+  'paused',
+  'canceled'
+] as const
+export type BillingLifecycleStatus = (typeof billingLifecycleStatuses)[number]
+
 /**
  * What a Notification is about. Stored in `notifications.kind` and keyed on by
  * `notification_preferences`: a user chooses a delivery channel per kind, and

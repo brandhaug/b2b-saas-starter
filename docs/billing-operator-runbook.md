@@ -5,6 +5,19 @@ billing synchronization evidence and request a retry after a provider or queue
 failure. The commands use the Cloudflare API directly; there is no unauthenticated
 application endpoint for billing recovery.
 
+## Stripe API contract
+
+The adapter pins requests to `2025-03-31.basil`. Configure the Stripe webhook
+endpoint with that version or later. This version provides subscription-item
+periods and invoice `parent.subscription_details`, as described in Stripe's
+[Basil changes](https://docs.stripe.com/changelog/basil/2025-03-31/adds-new-parent-field-to-invoicing-objects).
+Failure-history reads use event identity and creation time because Stripe retains
+an event's original payload version. The adapter reads at most 100 pages of 100
+invoices, starting at the current invoice and last payment; an incomplete history
+remains a visible synchronization failure. Settlement evidence is compared by
+payment time, and a later settlement can close an earlier failure episode before
+a new failure starts its own grace deadline.
+
 ## Configure the operator shell
 
 Set the Cloudflare account credentials and the deployed resource identifiers in
@@ -102,6 +115,33 @@ financial resource to force recovery. Use Stripe's dashboard to locate the
 matching evidence, then submit an audited retry with the identifiers.
 
 ## Queue and reconciliation behavior
+
+## Lifecycle and recovery policy
+
+Treat the provider as authoritative only after the synchronization workflow has
+verified the current subscription. A completed Checkout Session is not enough
+to grant paid access when the first payment is incomplete. For a subscription
+that has previously paid, the first failed renewal starts a seven-day grace
+deadline; subsequent retries do not move it. `unpaid` and `canceled` states
+end paid access immediately. A verified successful payment restores the plan,
+subject to any independent administrative suspension.
+
+Operator-created trials grant access through the verified trial end. A trial
+that does not convert returns to Starter immediately and does not receive
+renewal grace. A period-end cancellation retains access until period end and
+can be undone in the Billing Portal; an immediate Stripe cancellation takes
+effect when verified. Refunds are performed in Stripe by the operator and are
+not an application recovery action.
+
+When access returns to Starter, do not delete members or stored resources. The
+three-member seat limit is soft. If API tokens or webhook endpoints exceed
+Starter limits, ask an owner/admin to select the resources that remain active;
+the execution and webhook-dispatch authorization boundaries must enforce the
+selection, including for existing credentials and queued work.
+
+Stripe quantity follows every current workspace member (owners and admins
+included; pending invitations excluded). Membership changes update quantity
+immediately and apply proration to the next invoice.
 
 The primary billing queue retries provider failures six times with its
 configured queue backoff. After the retry budget is exhausted, Cloudflare delivers the message

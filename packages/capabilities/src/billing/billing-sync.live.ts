@@ -1,4 +1,15 @@
 import {
+  billingStoreUnavailable,
+  type SubscriptionState,
+  type ProcessProviderEventInput,
+  type ProcessProviderEventResult,
+  type ReconcileWorkspaceInput,
+  type ReconcileResult
+} from './billing.ts'
+import { retrievePaymentEvidence } from './stripe-payment.ts'
+import { decodeSubscriptionRow } from './subscription-row.ts'
+import { validatedStripePrice } from './stripe-pricing.ts'
+import {
   billingCheckoutClaims,
   billingProviderEvents,
   billingSynchronization,
@@ -12,14 +23,7 @@ import { and, asc, count, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 
 import { CapabilityUnavailable } from '../errors.ts'
 import { billingConfigured, type BillingOptions } from './billing-config.ts'
-import {
-  billingStoreUnavailable,
-  type ProcessProviderEventInput,
-  type ProcessProviderEventResult,
-  type ReconcileWorkspaceInput,
-  type ReconcileResult
-} from './billing.ts'
-import { resolveBillingState } from './billing-state.ts'
+import { resolveBillingState, type PaymentEvidence } from './billing-state.ts'
 import { type makeBillingSyncStore } from './billing-sync-store.ts'
 import { recoverCheckoutClaim } from './checkout-recovery.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -215,16 +219,52 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
               secretKey,
               customerId
             })
+            const active = listed.data.filter(
+              (subscription) =>
+                subscription.status !== 'canceled' &&
+                subscription.status !== 'incomplete_expired'
+            )
+            let selected = active[0]
+            if (active.length !== 1) {
+              selected = undefined
+            }
+            const now = DateTime.formatIso(yield* DateTime.now)
+            let previous: SubscriptionState | null = null
+            if (before.subscription !== null) {
+              previous = yield* unavailable(decodeSubscriptionRow(before.subscription))
+            }
+            let payment: PaymentEvidence = {
+              lastPaymentAt: null,
+              firstFailedAt: null,
+              currentInvoicePaid: false
+            }
+            if (selected !== undefined) {
+              payment = yield* retrievePaymentEvidence(
+                secretKey,
+                selected,
+                previous,
+                now
+              )
+            }
             const decision = resolveBillingState({
               workspaceId,
               customerId,
               subscriptions: listed.data,
               hasMore: listed.has_more,
               priceIds: options.priceIds ?? {},
-              currentPlanId: before.planId
+              previous,
+              payment,
+              now
             })
             if (decision.kind === 'conflict') {
               return yield* conflict(decision.reason)
+            }
+            if (decision.subscription.priceId !== null) {
+              yield* validatedStripePrice(
+                secretKey,
+                decision.subscription.priceId,
+                'subscription'
+              )
             }
             if (checkout.pending && decision.subscription.subscriptionId === null) {
               // A still-open checkout has no verified entitlement yet. Keep the
@@ -457,6 +497,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
         }
       }
       const result = yield* runWorkspace(workspaceId, input, undefined, undefined)
+      yield* store.deliverNotices(workspaceId)
       if (result.duplicate) {
         return { outcome: 'duplicate', providerEventId: input.providerEventId }
       }
@@ -473,12 +514,14 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
     const reconcileWorkspace = Effect.fn('Billing.reconcileWorkspace')(function* (
       input: ReconcileWorkspaceInput
     ) {
-      return (yield* runWorkspace(
+      const result = yield* runWorkspace(
         input.workspaceId,
         undefined,
         input.reason,
         input.recovery
-      )).result
+      )
+      yield* store.deliverNotices(input.workspaceId)
+      return result.result
     })
 
     const reconcileBatch = Effect.fn('Billing.reconcileBatch')(function* (input?: {

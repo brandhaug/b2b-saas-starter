@@ -3,6 +3,10 @@ import { DateTime, Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { type Member } from './governance/workspace-identity.ts'
 import { SeedLayer } from './layers.ts'
+import { SeedBilling } from './billing/billing.seed.ts'
+import { SeedResourceEntitlements } from './billing/resource-entitlements.seed.ts'
+import { LiveBilling } from './billing/billing.live.ts'
+import { LiveResourceEntitlements } from './billing/resource-entitlements.live.ts'
 import {
   demoMemberIdentity,
   demoUserIdentity,
@@ -104,10 +108,17 @@ describe('seed developer-platform contract', () => {
   const notificationFeed = seedFeed([])
   const layer = Layer.mergeAll(
     Layer.merge(auditLog, testWorkspaceContext(seedWorkspaceRecord)),
-    SeedApiTokenRegistry([]).pipe(Layer.provide(auditLog), Layer.provide(publisher)),
+    SeedApiTokenRegistry([]).pipe(
+      Layer.provide(auditLog),
+      Layer.provide(publisher),
+      Layer.provide(SeedLayer),
+      Layer.provide(SeedResourceEntitlements().pipe(Layer.provide(SeedLayer)))
+    ),
     SeedWebhookEndpoints([]).pipe(
       Layer.provide(auditLog),
       Layer.provide(publisher),
+      Layer.provide(SeedLayer),
+      Layer.provide(SeedResourceEntitlements().pipe(Layer.provide(SeedLayer))),
       Layer.provide(notificationFeed)
     ),
     notificationFeed
@@ -201,7 +212,11 @@ describe('seed developer-platform plan-limit contract', () => {
     }),
     SeedApiTokenRegistry([]).pipe(
       Layer.provide(auditLog),
-      Layer.provide(SeedWebhookPublisher)
+      Layer.provide(SeedWebhookPublisher),
+      Layer.provide(
+        SeedBilling().pipe(Layer.provide(auditLog), Layer.provide(seedFeed([])))
+      ),
+      Layer.provide(SeedResourceEntitlements().pipe(Layer.provide(SeedLayer)))
     )
   )
   for (const contractCase of planLimitContractCases(expect)) {
@@ -520,8 +535,14 @@ describe('webhook endpoint workspace scoping', () => {
   }
 
   function foreignEndpointLayer(fake: ReturnType<typeof makeFakeD1>) {
+    const entitlements = LiveResourceEntitlements.pipe(
+      Layer.provide(LiveBilling()),
+      Layer.provide(layerFromD1(fake.binding))
+    )
     return Layer.merge(
       LiveWebhookEndpoints.pipe(
+        Layer.provide(LiveBilling()),
+        Layer.provide(entitlements),
         Layer.provide(LiveAuditEventLog),
         Layer.provide(
           LiveNotificationFeed().pipe(
@@ -840,9 +861,27 @@ describe('bearer verification write throttling', () => {
 
   it.effect('performs no writes when verification fails', () => {
     const fake = makeFakeD1()
+    const feed = LiveNotificationFeed().pipe(
+      Layer.provide(LiveNotificationPreferences.pipe(Layer.provide(LiveAuditEventLog))),
+      Layer.provide(LiveAuditEventLog),
+      Layer.provide(layerFromD1(fake.binding))
+    )
+    const billing = LiveBilling().pipe(
+      Layer.provide(LiveAuditEventLog),
+      Layer.provide(feed),
+      Layer.provide(layerFromD1(fake.binding))
+    )
     const layer = LiveApiTokenRegistry.pipe(
+      Layer.provide(billing),
       Layer.provide(LiveAuditEventLog),
       Layer.provide(LiveWebhookPublisher()),
+      Layer.provide(
+        LiveResourceEntitlements.pipe(
+          Layer.provide(billing),
+          Layer.provide(LiveAuditEventLog),
+          Layer.provide(layerFromD1(fake.binding))
+        )
+      ),
       Layer.provide(layerFromD1(fake.binding))
     )
 

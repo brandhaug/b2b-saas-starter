@@ -1,3 +1,4 @@
+import { Billing } from '../billing/billing.ts'
 import { makeLiveAttemptHistory } from './webhook-attempt-history.live.ts'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import {
@@ -10,7 +11,8 @@ import {
 import { DateTime, Effect, Layer } from 'effect'
 import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
 
-import { assertWithinPlanLimitFor } from '../billing/plan-catalog.ts'
+import { assertWithinPlanLimitFor } from '../billing/resource-admission.ts'
+import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import {
   AuditEventLog,
@@ -113,12 +115,20 @@ function updateMetadata(input: {
 export const LiveWebhookEndpoints: Layer.Layer<
   WebhookEndpoints,
   never,
-  Database | RawD1 | AuditEventLog | WebhookPublisher | NotificationFeed
+  | Billing
+  | Database
+  | RawD1
+  | AuditEventLog
+  | WebhookPublisher
+  | NotificationFeed
+  | ResourceEntitlements
 > = Layer.effect(WebhookEndpoints)(
   Effect.gen(function* () {
     const db = yield* Database
+    const billing = yield* Billing
     const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
+    const entitlements = yield* ResourceEntitlements
     const history = yield* makeLiveAttemptHistory
 
     // The shared mutate+audit combinator — one implementation of the batched
@@ -297,7 +307,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             capability: 'webhook-endpoints',
             table: webhookEndpoints,
             where: eq(webhookEndpoints.workspaceId, ctx.workspace.id)
-          })
+          }).pipe(Effect.provideService(Billing, billing))
           const signingSecret = randomWebhookSecret()
           const createdAt = yield* DateTime.now
           const endpoint = {
@@ -726,6 +736,14 @@ export const LiveWebhookEndpoints: Layer.Layer<
         Effect.gen(function* () {
           const endpoint = yield* endpointRow(endpointId, workspaceId)
           if (!endpoint || !endpoint.enabled) {
+            return null
+          }
+          const allowed = yield* entitlements.isActiveForWorkspace({
+            workspaceId,
+            resource: 'webhook_endpoint',
+            resourceId: endpoint.id
+          })
+          if (!allowed) {
             return null
           }
           return {

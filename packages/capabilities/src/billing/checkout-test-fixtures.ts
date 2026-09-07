@@ -1,3 +1,9 @@
+import {
+  testPrice,
+  testItem,
+  testSubscriptionFields,
+  paidInvoice
+} from './provider-test-fixtures.ts'
 // oxlint-disable effect/noNewPromise, effect/noThrowStatement, effect/noNewError, vitest/require-mock-type-parameters
 
 import {
@@ -57,9 +63,10 @@ function fixtureItems(subscription: FixtureSubscription) {
   }
   return [
     {
+      ...testItem,
       id: subscription.itemId,
       quantity: subscription.quantity ?? 1,
-      price: { id: 'price_team' }
+      price: testPrice
     }
   ]
 }
@@ -121,6 +128,35 @@ export function stripeFixture(options: FixtureOptions = {}) {
       }
     ) => {
       const url = new URL(requestUrl)
+      if (url.pathname.startsWith('/v1/prices/')) {
+        return Promise.resolve(Response.json(testPrice))
+      }
+      if (url.pathname === '/v1/invoices/in_paid') {
+        return Promise.resolve(
+          Response.json(
+            paidInvoice({
+              id: state.customerSubscriptions[0]?.id ?? 'sub_sync',
+              customer: 'cus_checkout'
+            })
+          )
+        )
+      }
+      if (url.pathname === '/v1/invoices') {
+        return Promise.resolve(
+          Response.json({
+            data: [
+              paidInvoice({
+                id: url.searchParams.get('subscription') ?? '',
+                customer: 'cus_checkout'
+              })
+            ],
+            has_more: false
+          })
+        )
+      }
+      if (url.pathname === '/v1/events') {
+        return Promise.resolve(Response.json({ data: [], has_more: false }))
+      }
       const method = init?.method ?? 'GET'
       if (url.pathname === '/v1/customers' && method === 'POST') {
         state.customerCreates += 1
@@ -145,6 +181,7 @@ export function stripeFixture(options: FixtureOptions = {}) {
         return Promise.resolve(
           Response.json({
             data: state.customerSubscriptions.map((subscription) => ({
+              ...testSubscriptionFields,
               ...subscription,
               metadata: { workspaceId },
               items: { data: fixtureItems(subscription) }
@@ -158,10 +195,11 @@ export function stripeFixture(options: FixtureOptions = {}) {
           Response.json({
             id: 'sub_existing',
             customer: 'cus_checkout',
+            ...testSubscriptionFields,
             status: state.subscriptionStatus,
             metadata: { workspaceId },
             items: {
-              data: [{ id: 'si_existing', quantity: 1, price: { id: 'price_team' } }]
+              data: [{ ...testItem, id: 'si_existing', quantity: 1, price: testPrice }]
             }
           })
         )
@@ -171,10 +209,11 @@ export function stripeFixture(options: FixtureOptions = {}) {
           Response.json({
             id: 'sub_sync',
             customer: 'cus_checkout',
+            ...testSubscriptionFields,
             status: 'active',
             metadata: { workspaceId },
             items: {
-              data: [{ id: 'si_sync', quantity: 1, price: { id: 'price_team' } }]
+              data: [{ ...testItem, id: 'si_sync', quantity: 1, price: testPrice }]
             }
           })
         )
@@ -184,10 +223,11 @@ export function stripeFixture(options: FixtureOptions = {}) {
           Response.json({
             id: url.pathname.split('/').pop() ?? 'sub_unknown',
             customer: 'cus_checkout',
+            ...testSubscriptionFields,
             status: 'active',
             metadata: { workspaceId },
             items: {
-              data: [{ id: 'si_recovery', quantity: 1, price: { id: 'price_team' } }]
+              data: [{ ...testItem, id: 'si_recovery', quantity: 1, price: testPrice }]
             }
           })
         )

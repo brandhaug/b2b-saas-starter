@@ -37,7 +37,16 @@ export const StripeEventBody = Schema.Struct({
       id: Schema.optionalKey(Schema.String),
       client_reference_id: Schema.optionalKey(Schema.String),
       customer: Schema.optionalKey(Schema.String),
-      subscription: Schema.optionalKey(Schema.String),
+      subscription: Schema.optionalKey(Schema.NullOr(Schema.String)),
+      parent: Schema.optionalKey(
+        Schema.NullOr(
+          Schema.Struct({
+            subscription_details: Schema.optionalKey(
+              Schema.NullOr(Schema.Struct({ subscription: Schema.String }))
+            )
+          })
+        )
+      ),
       metadata: Schema.optionalKey(
         Schema.Struct({
           workspaceId: Schema.optionalKey(Schema.String),
@@ -108,7 +117,10 @@ export function processStripeEvent(
     // Checkout linkage, seat-quantity reconciliation, and deletion all use
     // the same capability call. Checkout metadata.planId is deliberately not
     // read here: the capability resolves the plan from Stripe's price.
-    const link = subscriptionLinkForStripeEvent(event.type, object)
+    const link = subscriptionLinkForStripeEvent(event.type, {
+      ...object,
+      subscription: object.subscription ?? undefined
+    })
     if (link) {
       const workspaceId = metadata.workspaceId ?? object.client_reference_id
       yield* processProviderEvent({

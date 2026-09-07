@@ -37,6 +37,40 @@ Cloudflare Worker for queue- and cron-backed work: outbound webhook delivery wit
 
 Effect application layer for workspace and starter use cases. This keeps web, API, MCP, background, and tests aligned.
 
+### Billing lifecycle and entitlements
+
+`packages/capabilities/src/billing` owns the billing decision used by web,
+REST, MCP, and background work. Stripe is authoritative for the verified
+subscription and price. D1 retains the subscribed plan, payment evidence,
+period and cancellation state, and synchronization evidence needed for
+recovery. The effective plan is evaluated again at request time, so a worker
+does not grant paid access merely because the stored subscription row still
+says Team after a deadline passes during a provider outage.
+
+First payment, operator-created trials, renewal failures, period-end
+cancellation, reactivation, and terminal cancellation all pass through the
+same lifecycle decision. A previously paying subscription gets one fixed
+seven-day renewal grace deadline. A trial that expires without payment returns
+to Starter immediately, and `unpaid` or verified cancellation ends paid access
+sooner. Successful recovery restores the subscribed plan while leaving any
+independent administrative suspension unchanged.
+
+When the effective plan is Starter, members and stored resources remain. The
+three-member seat rule is soft. API-token and webhook categories over their
+Starter limits use a Resource Selection, an owner/admin-selected set of two
+token slots and one webhook slot. The selection is a logical allow-list over
+current eligible resources. Token verification, REST/MCP authorization, and
+queued webhook dispatch re-check it at execution time, so existing credentials
+and queued work cannot bypass a downgrade. Creation admission reads the same
+deadline-aware Billing decision.
+
+Lifecycle state and its audit/outbox commit do not wait for notice delivery.
+Payment-failure, grace-expiry, and recovery notices have independent retryable
+delivery state. The billing page and portal/recovery actions remain available
+when optional configured-price lookup fails. Configured mode never replaces an
+unavailable provider price with catalog example pricing; provider-light local
+mode may label catalog examples as such.
+
 ### `packages/db`
 
 Drizzle ORM schema for one shared Cloudflare D1 database. Includes Better Auth/admin tables and starter-specific tables.

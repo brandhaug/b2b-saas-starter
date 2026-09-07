@@ -84,6 +84,22 @@ _Avoid_: Billing settings, payment page
 Verification of a Workspace's subscription against current Stripe state and its Seat Quantity against application membership. Pending, delayed, or conflicting updates retain the last verified Plan until reconciliation can resolve them.
 _Avoid_: Payment approval, entitlement grant, webhook replay
 
+**Subscribed Plan**:
+The Plan named by the currently verified provider subscription. It remains recorded while access temporarily falls back to Starter so a recovered subscription can regain its entitlements.
+_Avoid_: Effective Plan, displayed plan
+
+**Effective Plan**:
+The Plan whose entitlements apply at a particular request time. It is the Subscribed Plan only when verified payment, an unexpired provider trial, or the fixed renewal grace period permits access; otherwise it is Starter.
+_Avoid_: Subscribed Plan, catalog plan
+
+**Renewal Grace**:
+The fixed seven-day access period after the first failed renewal of a previously paying subscription. Later provider retries keep the original deadline, and an unpaid or canceled state ends access sooner.
+_Avoid_: Trial, payment retry window
+
+**Resource Selection**:
+An owner/admin choice of the API Tokens and Webhook Endpoints that remain active when their category exceeds Starter's limit. The choice pauses excess resources without deleting them.
+_Avoid_: Resource deletion, seat selection
+
 **API Token**:
 A workspace-scoped credential for REST and MCP access.
 _Avoid_: Personal access token, integration secret, session token
@@ -172,6 +188,10 @@ _Avoid_: Generated client, OpenAPI codegen, wrapper library
 - An **Audit Event** can be associated with a user, workspace, system admin action, or provider action
 - A **Notification** can be created from workspace, billing, API token, or webhook delivery activity
 - A **Workspace** on a per-seat plan bills one **Seat Quantity** per **Member**
+- A **Workspace** has one **Subscribed Plan** and one time-dependent **Effective Plan**
+- **Billing Synchronization** updates the verified subscription record; access uses the **Effective Plan** at request time
+- **Renewal Grace** applies only after a previously paying subscription fails renewal; an unconverted trial has no grace
+- A **Resource Selection** chooses logical slots for retained **API Tokens** and **Webhook Endpoints** when Starter limits are exceeded
 - Invoices, payment methods, and cancellation are managed in the **Billing Portal**, not in the Reference Application
 - An **API Token** belongs to exactly one **Workspace** and can create **Audit Events**
 - An **MCP Client** is connected by a **Member** to exactly one **Workspace**, acts with that Member's **Workspace Role**, and its connection and disconnection create **Audit Events**

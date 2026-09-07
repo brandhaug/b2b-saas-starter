@@ -1,5 +1,6 @@
 import { Effect, Result, Schema } from 'effect'
 
+import { billingLifecycleStatuses } from '@b2b-saas-starter/db/enums'
 import { CapabilityUnavailable } from '../errors.ts'
 import { hmacSha256Hex } from '../crypto.ts'
 
@@ -12,6 +13,11 @@ import { hmacSha256Hex } from '../crypto.ts'
  * provider-free.
  */
 
+/** Unix seconds through year 9999, leaving safe arithmetic space for lifecycle deadlines. */
+export const StripeTimestamp = Schema.Int.check(
+  Schema.isBetween({ minimum: 0, maximum: 253_402_300_799 })
+)
+
 /** The minimum provider fields consumed by the billing capability. */
 const StripeSessionResponse = Schema.Struct({
   id: Schema.String,
@@ -21,7 +27,7 @@ const StripeSessionResponse = Schema.Struct({
   metadata: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
   status: Schema.String,
   expires_at: Schema.Int.check(
-    Schema.isBetween({ minimum: 0, maximum: 8_640_000_000_000 })
+    Schema.isBetween({ minimum: 0, maximum: 253_402_300_799 })
   )
 })
 
@@ -47,28 +53,39 @@ const StripeCustomerResponse = Schema.Struct({
 
 export type StripeCustomerResponse = Schema.Schema.Type<typeof StripeCustomerResponse>
 
-const StripePriceResponse = Schema.Struct({
+export const StripePriceResponse = Schema.Struct({
   id: Schema.String,
-  active: Schema.optionalKey(Schema.Boolean),
-  recurring: Schema.optionalKey(
-    Schema.NullOr(Schema.Struct({ interval: Schema.optionalKey(Schema.String) }))
+  active: Schema.Boolean,
+  currency: Schema.String,
+  unit_amount: Schema.NullOr(Schema.Int),
+  billing_scheme: Schema.String,
+  transform_quantity: Schema.NullOr(Schema.Unknown),
+  recurring: Schema.NullOr(
+    Schema.Struct({
+      interval: Schema.String,
+      interval_count: Schema.Int,
+      usage_type: Schema.String
+    })
   )
 })
 
 const StripeSubscriptionItemResponse = Schema.Struct({
   id: Schema.String,
-  quantity: Schema.optionalKey(Schema.Number),
-  price: Schema.optionalKey(StripePriceResponse)
+  quantity: Schema.Int,
+  price: StripePriceResponse,
+  current_period_start: StripeTimestamp,
+  current_period_end: StripeTimestamp
 })
 
 const StripeSubscriptionResponse = Schema.Struct({
   id: Schema.String,
   customer: Schema.String,
-  status: Schema.String,
+  status: Schema.Literals(billingLifecycleStatuses),
   metadata: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
   items: Schema.Struct({ data: Schema.Array(StripeSubscriptionItemResponse) }),
-  cancel_at_period_end: Schema.optionalKey(Schema.Boolean),
-  current_period_end: Schema.optionalKey(Schema.Number)
+  cancel_at_period_end: Schema.Boolean,
+  trial_end: Schema.NullOr(StripeTimestamp),
+  latest_invoice: Schema.NullOr(Schema.String)
 })
 
 export type StripeSubscriptionResponse = Schema.Schema.Type<
@@ -131,6 +148,7 @@ function stripeCheckoutBody(input: {
 
 /** Deadline for one outbound provider call (Stripe or siteverify). */
 const PROVIDER_TIMEOUT = '10 seconds'
+const STRIPE_API_VERSION = '2025-03-31.basil'
 
 /**
  * The Workers global `fetch` wrapped at the platform-adapter boundary: an HTTP
@@ -162,6 +180,7 @@ function stripePost(
   idempotencyKey?: string
 ) {
   const requestHeaders = { ...headers }
+  requestHeaders['stripe-version'] = STRIPE_API_VERSION
   if (idempotencyKey !== undefined) {
     requestHeaders['idempotency-key'] = idempotencyKey
   }
@@ -191,7 +210,11 @@ function stripeGet(url: string, headers: Record<string, string>) {
   return Effect.tryPromise({
     try: (signal) => {
       // oxlint-disable-next-line effect/noGlobals
-      return fetch(url, { method: 'GET', headers, signal }).then(readStripeResponse)
+      return fetch(url, {
+        method: 'GET',
+        headers: { ...headers, 'stripe-version': STRIPE_API_VERSION },
+        signal
+      }).then(readStripeResponse)
     },
     catch: () => stripeUnavailable('stripe request failed')
   }).pipe(
@@ -378,6 +401,7 @@ export const updateStripeSubscriptionItemQuantity = Effect.fn(
 }) {
   const params = new URLSearchParams()
   params.set('quantity', String(input.quantity))
+  params.set('proration_behavior', 'create_prorations')
   const response = yield* stripePost(
     `https://api.stripe.com/v1/subscription_items/${encodeURIComponent(input.subscriptionItemId)}`,
     {
@@ -685,6 +709,14 @@ export type StripeSubscriptionLink =
  */
 const STRIPE_EVENT_SUBSCRIPTION_LINK_KINDS = new Set<string>([
   'checkout.session.completed',
+  'checkout.session.async_payment_succeeded',
+  'checkout.session.async_payment_failed',
+  'invoice.paid',
+  'invoice.payment_succeeded',
+  'invoice.payment_failed',
+  'invoice.payment_action_required',
+  'customer.subscription.paused',
+  'customer.subscription.resumed',
   'customer.subscription.created',
   'customer.subscription.updated',
   'customer.subscription.deleted'
@@ -697,6 +729,14 @@ type StripeSubscriptionEventObject = {
   readonly customer?: string | undefined
   /** The checkout session's subscription id on `checkout.session.completed`. */
   readonly subscription?: string | undefined
+  readonly parent?:
+    | {
+        readonly subscription_details?: {
+          readonly subscription?: string | undefined
+        } | null
+      }
+    | null
+    | undefined
   /** Stripe's line-item list; the starter bills exactly one seat item. */
   readonly items?:
     | {
@@ -724,9 +764,17 @@ export function subscriptionLinkForStripeEvent(
   if (!STRIPE_EVENT_SUBSCRIPTION_LINK_KINDS.has(eventType)) {
     return null
   }
+  if (eventType.startsWith('invoice.')) {
+    return {
+      kind: 'link',
+      customerId: object.customer,
+      subscriptionId:
+        object.parent?.subscription_details?.subscription ?? object.subscription
+    }
+  }
   const firstItem = object.items?.data?.[0]
   const quantity = firstItem?.quantity
-  if (eventType !== 'checkout.session.completed' && quantity !== undefined) {
+  if (eventType.startsWith('customer.subscription.') && quantity !== undefined) {
     return {
       kind: 'quantity',
       customerId: object.customer,
@@ -735,11 +783,11 @@ export function subscriptionLinkForStripeEvent(
       quantity
     }
   }
-  return {
-    kind: 'link',
-    customerId: object.customer,
-    subscriptionId: object.subscription ?? object.id
+  let subscriptionId = object.id
+  if (eventType.startsWith('checkout.')) {
+    subscriptionId = object.subscription
   }
+  return { kind: 'link', customerId: object.customer, subscriptionId }
 }
 
 // ---------------------------------------------------------------------------
@@ -797,3 +845,21 @@ export async function verifyStripeSignature(
   }
   return diff === 0
 }
+
+/** Shared decoded GET boundary for pricing and payment evidence. */
+export const readStripeObject = Effect.fn('Stripe.readObject')(function* <A>(
+  secretKey: string,
+  path: string,
+  schema: Schema.Codec<A>
+) {
+  const response = yield* stripeGet(
+    `https://api.stripe.com/v1/${path}`,
+    stripeAuth(secretKey)
+  )
+  const json = yield* stripeJson(response)
+  return yield* stripeResponse(
+    response,
+    Schema.decodeUnknownResult(schema)(json),
+    path.split('?')[0] ?? path
+  )
+})
