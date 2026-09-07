@@ -56,18 +56,18 @@ describe('domain routing rule (pure)', () => {
     expect(emailDomain('trailing@')).toBeNull()
   })
 
-  it('matches a bare domain against a comma-separated list, case-insensitively', () => {
+  it('matches only one exact domain, case-insensitively', () => {
     expect(matchesDomain('ACME.com', 'acme.com')).toBe(true)
-    expect(matchesDomain('other.com', 'acme.com, other.com')).toBe(true)
+    expect(matchesDomain('other.com', 'acme.com, other.com')).toBe(false)
     expect(matchesDomain('sub.acme.com', 'acme.com')).toBe(false)
     expect(matchesDomain('acme.com.mallory.test', 'acme.com')).toBe(false)
     expect(matchesDomain('', 'acme.com')).toBe(false)
   })
 
-  it('matches an email’s domain against the same list', () => {
+  it('keeps subdomains and domain lists outside an exact email-domain claim', () => {
     expect(matchesEmailDomain('a@acme.com', 'ACME.com')).toBe(true)
     expect(matchesEmailDomain('a@sub.acme.com', 'acme.com, other.com')).toBe(false)
-    expect(matchesEmailDomain('a@other.com', 'acme.com, other.com')).toBe(true)
+    expect(matchesEmailDomain('a@other.com', 'acme.com, other.com')).toBe(false)
     expect(matchesEmailDomain('a@acme.com.mallory.test', 'acme.com')).toBe(false)
   })
 })

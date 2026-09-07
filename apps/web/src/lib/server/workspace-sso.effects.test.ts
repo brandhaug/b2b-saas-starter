@@ -87,14 +87,25 @@ describe('workspace SSO handlers — settings form permissions', () => {
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
 
-  it('an admin may update — the matrix grants sso:update to admins', async () => {
+  it('refuses update for an admin — SSO mutations are owner-only', async () => {
     actor.userId = ADMIN
-    const updated = await updateSsoConnectionHandler({
-      workspaceSlug: 'starter-lab',
-      providerId: 'sso_example_oidc',
-      enabled: true
-    })
-    expect(updated).toMatchObject({ id: 'sso_example_oidc', enabled: true })
+    await expect(
+      updateSsoConnectionHandler({
+        workspaceSlug: 'starter-lab',
+        providerId: 'sso_example_oidc',
+        enabled: true
+      })
+    ).rejects.toMatchObject({ name: 'ForbiddenError' })
+  })
+
+  it('requires explicit acknowledgement before enabling SSO enforcement', async () => {
+    await expect(
+      updateSsoConnectionHandler({
+        workspaceSlug: 'starter-lab',
+        providerId: 'sso_example_oidc',
+        requireSso: true
+      })
+    ).rejects.toMatchObject({ name: 'MembershipRefusedError' })
   })
 })
 
@@ -190,6 +201,9 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
     issuer: 'https://login.acme.test',
     enabled: true,
     requireSso: false,
+    domainVerified: true,
+    autoJoin: false,
+    lastLoginTestedAt: '2026-09-07T10:00:00.000Z',
     defaultWorkspaceRole: 'member',
     clientIdLastFour: '-x',
     createdAt: '2026-01-01T00:00:00.000Z'

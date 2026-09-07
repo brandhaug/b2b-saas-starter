@@ -1,11 +1,14 @@
 import { DateTime, Effect, Layer, Option } from 'effect'
 
 import { newCapabilityId } from '../internal/ids.ts'
+import { MembershipChangeRejected } from '../errors.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
+import { normalizeSsoDomain } from './sso-policy.ts'
 import {
   pickSignInTarget,
   requireProtocolMatch,
+  requireSafeSsoTransition,
   SsoConnections,
   ssoAuditEvent,
   toRoutingDecision,
@@ -55,6 +58,18 @@ export function SeedSsoConnections(
       })
 
       return {
+        requestDomainVerification: ({ providerId }) =>
+          Effect.fail(
+            new MembershipChangeRejected({
+              reason: `domain_verification_unavailable:${providerId}`
+            })
+          ),
+        verifyDomain: ({ providerId }) =>
+          Effect.fail(
+            new MembershipChangeRejected({
+              reason: `domain_verification_unavailable:${providerId}`
+            })
+          ),
         list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const visible: Array<SsoConnection> = []
@@ -78,15 +93,29 @@ export function SeedSsoConnections(
         create: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
+            const domain = normalizeSsoDomain(input.domain)
+            if (domain === undefined) {
+              return yield* new MembershipChangeRejected({
+                reason: 'invalid_sso_domain'
+              })
+            }
+            if (input.defaultWorkspaceRole !== 'member') {
+              return yield* new MembershipChangeRejected({
+                reason: 'sso_member_role_only'
+              })
+            }
             // New connections start disabled: an owner enables one after a
             // successful test, so a half-configured IdP never intercepts.
             const base: SsoConnection & { readonly workspaceId: string } = {
               id: yield* newCapabilityId('sso'),
               protocol: input.protocol,
-              domain: input.domain,
+              domain,
               issuer: input.issuer,
               enabled: false,
               requireSso: false,
+              domainVerified: false,
+              autoJoin: false,
+              lastLoginTestedAt: null,
               defaultWorkspaceRole: input.defaultWorkspaceRole,
               clientIdLastFour: lastFour(input),
               createdAt: DateTime.formatIso(yield* DateTime.now),
@@ -131,19 +160,51 @@ export function SeedSsoConnections(
               return Option.none<SsoConnection>()
             }
             yield* requireProtocolMatch(row, input)
+            yield* requireSafeSsoTransition(row, input)
+            let predecessor: SeedSsoConnection | undefined
+            if (input.replaceProviderId !== undefined) {
+              predecessor = yield* findInWorkspace(input.replaceProviderId)
+            }
+            if (
+              input.replaceProviderId !== undefined &&
+              (predecessor === undefined ||
+                predecessor.id === row.id ||
+                input.enabled !== true)
+            ) {
+              return yield* new MembershipChangeRejected({
+                reason: 'invalid_sso_replacement'
+              })
+            }
+            const requireSso =
+              input.requireSso ?? predecessor?.requireSso ?? row.requireSso
+            yield* requireSafeSsoTransition(row, { ...input, requireSso })
             let clientIdLastFour = row.clientIdLastFour
             if (input.oidcCredentials !== undefined) {
               clientIdLastFour = input.oidcCredentials.clientId.slice(-4)
             }
+            let lastLoginTestedAt = row.lastLoginTestedAt
+            if (input.enabled === false || input.oidcCredentials !== undefined) {
+              lastLoginTestedAt = null
+            }
             const updated: SeedSsoConnection = {
               ...row,
               enabled: input.enabled ?? row.enabled,
-              requireSso: input.requireSso ?? row.requireSso,
+              requireSso,
+              lastLoginTestedAt,
+              autoJoin: input.autoJoin ?? row.autoJoin,
               defaultWorkspaceRole:
                 input.defaultWorkspaceRole ?? row.defaultWorkspaceRole,
               clientIdLastFour
             }
             rows[rows.indexOf(row)] = updated
+            if (predecessor !== undefined) {
+              rows[rows.indexOf(predecessor)] = {
+                ...predecessor,
+                enabled: false,
+                requireSso: false,
+                lastLoginTestedAt: null
+              }
+            }
             const dto = toDto(updated)
             yield* recordInWorkspace(audit, {
               ...ssoAuditEvent('updated', dto),
@@ -156,6 +217,11 @@ export function SeedSsoConnections(
             const row = yield* findInWorkspace(providerId)
             if (row === undefined) {
               return false
+            }
+            if (row.requireSso) {
+              return yield* new MembershipChangeRejected({
+                reason: 'disable_sso_requirement_first'
+              })
             }
             rows.splice(rows.indexOf(row), 1)
             yield* recordInWorkspace(audit, {
@@ -172,7 +238,7 @@ export function SeedSsoConnections(
             return Option.map(
               Option.fromNullishOr(
                 pickSignInTarget(
-                  rows.filter((row) => row.enabled),
+                  rows.filter((row) => row.enabled && row.domainVerified),
                   { email }
                 )
               ),
@@ -230,6 +296,9 @@ function toDto(row: SeedSsoConnection): SsoConnection {
     issuer: row.issuer,
     enabled: row.enabled,
     requireSso: row.requireSso,
+    domainVerified: row.domainVerified,
+    autoJoin: row.autoJoin,
+    lastLoginTestedAt: row.lastLoginTestedAt,
     defaultWorkspaceRole: row.defaultWorkspaceRole,
     clientIdLastFour: row.clientIdLastFour,
     createdAt: row.createdAt

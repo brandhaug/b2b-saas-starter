@@ -25,6 +25,8 @@ import {
 } from './sso-discovery'
 import {
   type CreateSsoConnectionInput,
+  type DomainVerificationInput,
+  type DomainVerificationRecord,
   type RemoveSsoConnectionInput,
   type RoutingInput,
   type SsoTestResult,
@@ -92,6 +94,39 @@ export async function createSsoConnectionHandler(
         entryPoint: validated.entryPoint,
         defaultWorkspaceRole: input.defaultWorkspaceRole
       })
+    }),
+    { userId: session.user.id },
+    { ssoBinding: webSsoBinding }
+  )
+}
+
+export async function requestSsoDomainVerificationHandler(
+  input: DomainVerificationInput
+): Promise<DomainVerificationRecord> {
+  const session = await requireRequestSession()
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ sso: ['update'] })
+      const sso = yield* SsoConnections
+      return yield* sso.requestDomainVerification({ providerId: input.providerId })
+    }),
+    { userId: session.user.id },
+    { ssoBinding: webSsoBinding }
+  )
+}
+
+export async function verifySsoDomainHandler(
+  input: DomainVerificationInput
+): Promise<boolean> {
+  const session = await requireRequestSession()
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ sso: ['update'] })
+      const sso = yield* SsoConnections
+      yield* sso.verifyDomain({ providerId: input.providerId })
+      return true
     }),
     { userId: session.user.id },
     { ssoBinding: webSsoBinding }

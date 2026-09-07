@@ -15,6 +15,7 @@
     "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/i18n": "workspace:*",
     "@better-auth/cimd": "catalog:",
+    "@better-auth/core": "catalog:",
     "@better-auth/mcp": "catalog:",
     "@better-auth/passkey": "catalog:",
     "@better-auth/sso": "catalog:",

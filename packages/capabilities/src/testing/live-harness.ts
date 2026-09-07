@@ -5,6 +5,8 @@ import {
   workspaceInvitations,
   workspaceMembers,
   workspaceSsoConnections,
+  workspaceSsoDomainClaims,
+  session,
   workspaces
 } from '@b2b-saas-starter/db/schema'
 import {
@@ -35,7 +37,11 @@ import {
 } from '../layers.ts'
 import { type StarterEnv } from '../runtime.ts'
 import { liveWorkspaceContext, type WorkspaceContext } from '../workspace-context.ts'
-import { type CapabilityUnavailable, type WorkspaceNotFound } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  type WorkspaceNotFound,
+  type WorkspaceSsoRequired
+} from '../errors.ts'
 
 /**
  * The shared fixture for the `*.live.test.ts` suites: one provisioned local D1
@@ -195,7 +201,8 @@ const insertFixtureRows = Effect.gen(function* () {
       workspaceId: 'wrk_live',
       domain: 'routed.test',
       enabled: true,
-      requireSso: true,
+      requireSso: false,
+      domainVerified: true,
       defaultWorkspaceRole: 'admin',
       createdAt: new Date(iso)
     },
@@ -248,7 +255,26 @@ const insertFixtureRows = Effect.gen(function* () {
       createdAt: new Date(iso)
     }
   ])
+  yield* db.insert(session).values({
+    id: 'ses_sso_owner',
+    userId: 'usr_owner',
+    token: 'sso-owner-test-session',
+    createdAt: new Date(0),
+    updatedAt: new Date(0),
+    expiresAt: new Date('2099-01-01T00:00:00.000Z')
+  })
   // oxlint-enable effect/noGlobals
+  yield* db.insert(workspaceSsoDomainClaims).values({
+    id: 'claim_routed',
+    workspaceId: 'wrk_live',
+    providerId: 'sso_live_oidc',
+    domain: 'routed.test',
+    verificationTokenHash: 'fixture-hash',
+    status: 'verified',
+    createdAt: '1970-01-01T00:00:00.000Z',
+    updatedAt: '1970-01-01T00:00:00.000Z',
+    lastCheckedAt: '1970-01-01T00:00:00.000Z'
+  })
 })
 
 /**
@@ -290,9 +316,13 @@ export const LIVE_SUITE_TIMEOUT = '120 seconds'
 export function inWorkspace<A, E>(
   slug: string,
   effect: Effect.Effect<A, E, WorkspaceContext | CapabilityServices | Database | RawD1>,
-  actor?: { readonly userId: string },
+  actor?: { readonly userId: string; readonly sessionId?: string },
   bindings: CapabilityBindings = {}
-): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {
+): Effect.Effect<
+  A,
+  E | WorkspaceNotFound | WorkspaceSsoRequired | CapabilityUnavailable,
+  Database | RawD1
+> {
   return Effect.provide(
     effect,
     Layer.merge(
@@ -690,6 +720,21 @@ const decodeStoredBlob = Schema.decodeUnknownOption(
 export function fakeSsoBinding(db: EffectDatabase) {
   const calls = new Array<unknown>()
   const binding: WorkspaceSsoBinding = {
+    requestDomainVerification: ({ providerId }) =>
+      Effect.runPromise(
+        Effect.succeed({
+          domainVerificationToken: `verify-${providerId}`
+        })
+      ),
+    verifyDomain: ({ providerId }) =>
+      Effect.runPromise(
+        Effect.asVoid(
+          db
+            .update(workspaceSsoConnections)
+            .set({ domainVerified: true })
+            .where(eq(workspaceSsoConnections.providerId, providerId))
+        )
+      ),
     create: (input) => {
       calls.push(input)
       return Effect.runPromise(

@@ -307,11 +307,21 @@ export function SeedNotificationFeed(
             }
             const createdAt = DateTime.formatIso(yield* DateTime.now)
             const created: Array<{ row: SeedRow; owner: EmailQueueRecipient }> = []
+            const existingRows = yield* Ref.get(rows)
             for (const owner of owners) {
+              let id: string
+              if (input.deduplicationKey === undefined) {
+                id = yield* newCapabilityId('not')
+              } else {
+                id = `not:${input.workspaceId}:${owner.id}:${input.deduplicationKey}`
+              }
+              if (existingRows.some((row) => row.id === id)) {
+                continue
+              }
               created.push({
                 owner: recipientOf(owner),
                 row: {
-                  id: yield* newCapabilityId('not'),
+                  id,
                   workspaceId: input.workspaceId,
                   userId: owner.id,
                   kind: input.kind,

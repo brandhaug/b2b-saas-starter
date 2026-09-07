@@ -1,0 +1,1 @@
+ALTER TABLE `workspace_sso_recovery_exceptions` ADD `expired_at` text;

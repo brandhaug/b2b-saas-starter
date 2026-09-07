@@ -29,7 +29,7 @@ const CreateOidcInput = Schema.Struct({
   issuer: Schema.String.check(Schema.isMinLength(8), Schema.isPattern(/^https:\/\//)),
   clientId: Schema.NonEmptyString,
   clientSecret: Schema.NonEmptyString,
-  defaultWorkspaceRole: Schema.Literals(['member', 'admin'])
+  defaultWorkspaceRole: Schema.Literal('member')
 })
 
 const CreateSamlInput = Schema.Struct({
@@ -41,7 +41,7 @@ const CreateSamlInput = Schema.Struct({
   metadataXml: Schema.optional(Schema.NonEmptyString),
   metadataUrl: Schema.optional(Schema.String.check(Schema.isPattern(/^https:\/\//))),
   issuer: Schema.optional(Schema.String),
-  defaultWorkspaceRole: Schema.Literals(['member', 'admin'])
+  defaultWorkspaceRole: Schema.Literal('member')
 }).check(
   Schema.makeFilter((input) => {
     const hasXml = input.metadataXml !== undefined
@@ -65,7 +65,11 @@ const UpdateSsoConnectionInput = Schema.Struct({
   providerId: Schema.NonEmptyString,
   enabled: Schema.optional(Schema.Boolean),
   requireSso: Schema.optional(Schema.Boolean),
-  defaultWorkspaceRole: Schema.optional(Schema.Literals(['member', 'admin'])),
+  /** Explicit acknowledgement for the authentication-boundary change. */
+  confirmEnforcement: Schema.optional(Schema.Boolean),
+  replaceProviderId: Schema.optional(Schema.NonEmptyString),
+  autoJoin: Schema.optional(Schema.Boolean),
+  defaultWorkspaceRole: Schema.optional(Schema.Literal('member')),
   clientId: Schema.optional(Schema.NonEmptyString),
   clientSecret: Schema.optional(Schema.NonEmptyString)
 }).check(
@@ -96,6 +100,18 @@ const RemoveSsoConnectionInput = Schema.Struct({
 
 export type RemoveSsoConnectionInput = typeof RemoveSsoConnectionInput.Type
 
+const DomainVerificationInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  providerId: Schema.NonEmptyString
+})
+
+export type DomainVerificationInput = typeof DomainVerificationInput.Type
+
+export type DomainVerificationRecord = {
+  readonly recordName: string
+  readonly recordValue: string
+}
+
 const RoutingInput = Schema.Struct({
   email: Schema.String.check(
     Schema.isMinLength(3),
@@ -125,6 +141,21 @@ export const removeSsoConnectionServerFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }): Promise<boolean> => {
     const { removeSsoConnectionHandler } = await import('./workspace-sso.effects')
     return removeSsoConnectionHandler(data)
+  })
+
+export const requestSsoDomainVerificationServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(DomainVerificationInput))
+  .handler(async ({ data }): Promise<DomainVerificationRecord> => {
+    const { requestSsoDomainVerificationHandler } =
+      await import('./workspace-sso.effects')
+    return requestSsoDomainVerificationHandler(data)
+  })
+
+export const verifySsoDomainServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(DomainVerificationInput))
+  .handler(async ({ data }): Promise<boolean> => {
+    const { verifySsoDomainHandler } = await import('./workspace-sso.effects')
+    return verifySsoDomainHandler(data)
   })
 
 /** The settings form's Test button answer: a verdict, never an error. */

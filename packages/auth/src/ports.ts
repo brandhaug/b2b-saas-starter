@@ -1,4 +1,5 @@
 import { type CimdOptions } from '@better-auth/cimd'
+import { type SSOOptions } from '@better-auth/sso'
 import { type drizzle } from 'drizzle-orm/d1'
 import { Context } from 'effect'
 import { type Locale } from '@b2b-saas-starter/i18n/locale'
@@ -153,6 +154,76 @@ export type AuthAccountHooks = {
   readonly onAccountUnlinked: (account: AuthAccountChange) => Promise<void>
 }
 
+export type AuthSsoSession = {
+  readonly session: {
+    readonly id: string
+    readonly createdAt: Date
+  }
+  readonly user: { readonly id: string }
+}
+
+export type AuthSsoEndpointContext = {
+  readonly path?: string
+  readonly body?: {
+    readonly providerId?: string
+    readonly organizationId?: string
+    readonly email?: string
+    readonly domain?: string
+    readonly response?: { readonly id?: string }
+  }
+  readonly context?: { readonly session?: AuthSsoSession | null }
+}
+
+export type AuthSsoFlowState = {
+  readonly version: 1
+  readonly flowId: string
+  readonly providerId: string
+  readonly workspaceId: string
+  readonly generation: number
+  readonly mode: 'sign-in' | 'test'
+  readonly ownerUserId?: string | undefined
+  readonly ownerSessionId?: string | undefined
+  readonly expiresAt: string
+}
+
+export type AuthSsoSessionRecord = {
+  readonly id: string
+  readonly userId: string
+}
+
+export type AuthSsoSessionHookContext = {
+  readonly context: AuthSsoEndpointContext
+  readonly existingSession: AuthSsoSession | null
+  readonly flowId: string | null
+}
+
+/**
+ * Application policy seams for the SSO plugin. The protocol package owns
+ * verification and transactions; the app owns workspace membership, domain
+ * claims, and the authoritative proof written before a session is committed.
+ */
+export type AuthSsoHooks = {
+  readonly guardProviderMutation?: SSOOptions['guardProviderMutation']
+  /** Guards register/request-domain-verification/verify-domain and owner-only
+   * update/delete calls. The endpoint context is intentionally structural. */
+  readonly guardProviderOwner?: (context: AuthSsoEndpointContext) => Promise<void>
+  /** Validates public SSO starts; disabled providers are only reachable by an
+   * authenticated owner performing an explicit provider-id test. */
+  readonly guardSignIn?: (
+    context: AuthSsoEndpointContext
+  ) => Promise<AuthSsoFlowState | undefined>
+  /** Return false to fail closed before Better Auth inserts the session. */
+  readonly beforeSessionCreate?: (
+    session: AuthSsoSessionRecord,
+    context: AuthSsoSessionHookContext
+  ) => Promise<boolean | undefined>
+  /** Records recovery evidence only after the referenced session exists. */
+  readonly afterSessionCreate?: (
+    session: AuthSsoSessionRecord,
+    context: AuthSsoSessionHookContext
+  ) => Promise<void>
+}
+
 export type AuthConfigInterface = {
   readonly db: DrizzleDatabase
   readonly secret: string
@@ -178,6 +249,7 @@ export type AuthConfigInterface = {
    * the credential sign-up path already has its own audit row.
    */
   readonly accountHooks: AuthAccountHooks
+  readonly ssoHooks?: AuthSsoHooks
   /**
    * Better Auth's `requireEmailVerification`, decided by the app from
    * `ENVIRONMENT` (`requireEmailVerification` in `@b2b-saas-starter/env`):

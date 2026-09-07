@@ -12,6 +12,8 @@ import {
   invitationStatuses,
   notificationChannels,
   notificationKinds,
+  ssoDomainVerificationStatuses,
+  ssoRecoveryAuthMethods,
   ssoProvisionedRoles,
   systemRoles,
   workspaceExportStatuses,
@@ -41,6 +43,7 @@ export {
   invitationStatuses,
   notificationChannels,
   notificationKinds,
+  ssoDomainVerificationStatuses,
   securityNotificationKinds,
   ssoProvisionedRoles,
   systemRoles,
@@ -53,6 +56,7 @@ export {
   type NotificationChannel,
   type NotificationKind,
   type SsoProvisionedRoleValue,
+  type SsoDomainVerificationStatus,
   type SystemRoleValue,
   type WorkspaceExportStatus,
   type BillingCheckoutStatus,
@@ -369,9 +373,8 @@ export const workspaceInvitations = sqliteTable(
 // column shape is the plugin's — camelCase fields, a JSON-stringified config
 // per protocol (plain `text`, like `workspaces.metadata`, because the plugin
 // stringify/parses it itself), an epoch-integer `createdAt` via
-// `additionalFields`. The starter's own columns (`enabled`, `requireSso`,
-// `defaultWorkspaceRole`) are plugin `additionalFields`, not stray columns, so
-// the plugin's register/update endpoints accept and return them.
+// `additionalFields`. Starter policy columns are deliberately absent from
+// plugin inputs. Only the capability's audited owner workflow changes them.
 export const workspaceSsoConnections = sqliteTable(
   'workspace_sso_connections',
   {
@@ -382,30 +385,147 @@ export const workspaceSsoConnections = sqliteTable(
     // sanitized projection, never the raw column.
     oidcConfig: text('oidcConfig'),
     samlConfig: text('samlConfig'),
-    userId: text('userId')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
+    userId: text('userId').references(() => user.id, { onDelete: 'set null' }),
     providerId: text('providerId').unique().notNull(),
     // The plugin names its foreign key `organizationId`; the column spells it
     // the starter's way, remapped in `packages/auth` like `workspaceMembers`.
     workspaceId: workspaceRef('workspaceId'),
     domain: text('domain').notNull(),
-    // additionalFields — see the comment above the table.
+    // Starter policy; the plugin cannot accept these as register/update inputs.
     enabled: integer('enabled', { mode: 'boolean' }).default(false).notNull(),
     requireSso: integer('requireSso', { mode: 'boolean' }).default(false).notNull(),
+    autoJoin: integer('autoJoin', { mode: 'boolean' }).default(false).notNull(),
+    domainVerified: integer('domainVerified', { mode: 'boolean' })
+      .default(false)
+      .notNull(),
     defaultWorkspaceRole: text('defaultWorkspaceRole', {
       enum: ssoProvisionedRoles
     })
       .default('member')
       .notNull(),
+    // Starter-owned generation invalidates every proof when credentials are
+    // replaced or a connection is retired. Auth callbacks read it from D1.
+    connectionGeneration: integer('connectionGeneration').default(1).notNull(),
+    lastLoginTestedAt: integer('lastLoginTestedAt', { mode: 'timestamp' }),
+    lastLoginTestedBy: text('lastLoginTestedBy'),
     createdAt: authCreatedAt()
   },
   (table) => [
     workspaceIdIndex('workspace_sso_connections', table.workspaceId),
-    // The sign-in domain-routing lookup scans by domain first; the plugin
-    // allows one IdP to serve several comma-separated domains, so this is an
-    // index, not a unique constraint.
+    uniqueIndex('workspace_sso_connections_required_uidx')
+      .on(table.workspaceId)
+      .where(sql`${table.requireSso} = 1`),
+    // Replacement connections may share an exact domain within one workspace.
+    // The separate claim table enforces deployment-wide domain ownership.
     index('workspace_sso_connections_domain_idx').on(table.domain)
+  ]
+)
+
+/**
+ * Starter-owned exact-domain ownership claims. The SSO plugin's `domain`
+ * field is routing configuration, not proof of ownership; this table is the
+ * authority used before a connection can be enabled or required.
+ */
+export const workspaceSsoDomainClaims = sqliteTable(
+  'workspace_sso_domain_claims',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    domain: text('domain').notNull(),
+    providerId: text('provider_id').notNull(),
+    verificationTokenHash: text('verification_token_hash').notNull(),
+    status: text('status', { enum: ssoDomainVerificationStatuses })
+      .default('pending')
+      .notNull(),
+    verifiedAt: text('verified_at'),
+    lastCheckedAt: text('last_checked_at'),
+    graceUntil: text('grace_until'),
+    createdAt: isoCreatedAt(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('workspace_sso_domain_claims_domain_uidx').on(table.domain),
+    index('workspace_sso_domain_claims_workspace_idx').on(table.workspaceId),
+    index('workspace_sso_domain_claims_provider_idx').on(table.providerId)
+  ]
+)
+
+/** Server-verifiable proof that a human authenticated through one connection. */
+export const workspaceSsoAuthProofs = sqliteTable(
+  'workspace_sso_auth_proofs',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    connectionGeneration: integer('connection_generation').notNull().default(1),
+    authenticatedAt: text('authenticated_at').notNull(),
+    expiresAt: text('expires_at').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    uniqueIndex('workspace_sso_auth_proofs_session_workspace_uidx').on(
+      table.sessionId,
+      table.workspaceId
+    ),
+    index('workspace_sso_auth_proofs_user_workspace_idx').on(
+      table.userId,
+      table.workspaceId
+    ),
+    index('workspace_sso_auth_proofs_expiry_idx').on(table.expiresAt)
+  ]
+)
+
+/** Evidence recorded only by successful independent-factor authentication hooks. */
+export const ssoRecoveryAuthEvidence = sqliteTable('sso_recovery_auth_evidence', {
+  sessionId: text('session_id')
+    .primaryKey()
+    .references(() => session.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  method: text('method', { enum: ssoRecoveryAuthMethods }).notNull(),
+  passkeyId: text('passkey_id').references(() => passkey.id, { onDelete: 'cascade' }),
+  passwordAccountId: text('password_account_id').references(() => account.id, {
+    onDelete: 'cascade'
+  }),
+  twoFactorId: text('two_factor_id').references(() => twoFactor.id, {
+    onDelete: 'cascade'
+  }),
+  authenticatedAt: text('authenticated_at').notNull()
+})
+
+/** One-hour owner recovery exception, limited to repairing SSO configuration. */
+export const workspaceSsoRecoveryExceptions = sqliteTable(
+  'workspace_sso_recovery_exceptions',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    grantedBy: text('granted_by').notNull().default('operator'),
+    sessionId: text('session_id').references(() => session.id, {
+      onDelete: 'set null'
+    }),
+    createdNotifiedAt: text('created_notified_at'),
+    usedNotifiedAt: text('used_notified_at'),
+    expiredNotifiedAt: text('expired_notified_at'),
+    createdAt: isoCreatedAt(),
+    expiresAt: text('expires_at').notNull(),
+    expiredAt: text('expired_at'),
+    usedAt: text('used_at')
+  },
+  (table) => [
+    index('workspace_sso_recovery_exceptions_workspace_idx').on(table.workspaceId),
+    index('workspace_sso_recovery_exceptions_user_idx').on(
+      table.userId,
+      table.expiresAt
+    )
   ]
 )
 
@@ -1014,6 +1134,10 @@ export const oauthConsent = sqliteTable(
       .notNull()
       .references(() => oauthClient.clientId),
     userId: text('userId').references(() => user.id),
+    /** Session whose current SSO proof authorized this consent. */
+    ssoSessionId: text('ssoSessionId').references(() => session.id, {
+      onDelete: 'set null'
+    }),
     referenceId: text('referenceId'),
     resources: authStringArray('resources'),
     requestedUserInfoClaims: authStringArray('requestedUserInfoClaims'),

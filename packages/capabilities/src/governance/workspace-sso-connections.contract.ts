@@ -49,7 +49,7 @@ function oidcCreate(domain: string): CreateSsoConnectionInput {
       tokenEndpoint: `https://login.${domain}/token`,
       jwksEndpoint: `https://login.${domain}/jwks`
     },
-    defaultWorkspaceRole: 'admin'
+    defaultWorkspaceRole: 'member'
   }
 }
 
@@ -74,7 +74,7 @@ export function workspaceSsoConnectionsContractCases(
         // secret.
         expect(created.enabled).toBe(false)
         expect(created.requireSso).toBe(false)
-        expect(created.defaultWorkspaceRole).toBe('admin')
+        expect(created.defaultWorkspaceRole).toBe('member')
         expect(created.clientIdLastFour).toBe(domain.slice(-4))
 
         const listed = yield* sso.list
@@ -112,31 +112,29 @@ export function workspaceSsoConnectionsContractCases(
       })
     },
     {
-      name: 'enabling makes the domain route with the required role, and audits it',
+      name: 'issue 287: unverified connections cannot enable routing or require SSO',
       assert: Effect.gen(function* () {
         const sso = yield* SsoConnections
         const audit = yield* AuditEventLog
         const domain = domainFor('enable')
 
         const created = yield* sso.create(oidcCreate(domain))
-        const updated = yield* sso.update({
-          providerId: created.id,
-          enabled: true,
-          requireSso: true
-        })
-        expect(Option.isSome(updated)).toBe(true)
+        const updated = yield* Effect.exit(
+          sso.update({
+            providerId: created.id,
+            enabled: true,
+            requireSso: true
+          })
+        )
+        expect(failureTag(updated)).toBe('MembershipChangeRejected')
 
         const routing = yield* sso.resolveRouting(`New.Person@${domain.toUpperCase()}`)
-        expect(Option.isSome(routing)).toBe(true)
-        if (Option.isSome(routing)) {
-          expect(routing.value.providerId).toBe(created.id)
-          expect(routing.value.requireSso).toBe(true)
-        }
+        expect(Option.isNone(routing)).toBe(true)
 
         const events = yield* audit.list({
           eventType: 'workspace_sso.connection_updated'
         })
-        expect(events.items.some((event) => event.targetId === created.id)).toBe(true)
+        expect(events.items.some((event) => event.targetId === created.id)).toBe(false)
       })
     },
     {

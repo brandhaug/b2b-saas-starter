@@ -10,6 +10,7 @@ The standing OAuth consents a user has granted to interactive MCP clients, each 
 - `listForUser(userId)` is account-level, a consent naming its own workspace. A deleted workspace comes back `null` on the projection rather than dropping the row.
 - `describeClient(clientId)` resolves the client behind an OAuth `client_id`, or `null`. For CIMD clients that id is the HTTPS URL of their metadata document.
 - `recordGrant` writes `mcp_client.consent_granted` on its own, the consent row being an HTTP-shaped plugin write that cannot join a batch.
+- `bindConsentToCurrentSession({ clientId })` derives the user, workspace, and session from `WorkspaceContext`, then calls the auth-owned `McpConsentBinding`. The OAuth provider still creates and updates the base consent; this port only records which real, non-impersonated session authorized it so token issuance can enforce current workspace SSO proof.
 - `revoke` is one D1 batch: delete the consent, mark its refresh and access tokens `revoked`, and write `mcp_client.consent_revoked`. Revoking the minted tokens is the part the provider's own delete-consent endpoint skips. Ownership is part of the lookup, so a foreign consent id matches nothing, writes nothing, and returns `false`.
 
 ## Patterns & Pitfalls

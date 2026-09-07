@@ -28,7 +28,7 @@ describe('loadNotificationPreferencesHandler', () => {
   it('returns one labelled row per kind with the demo owner’s mix applied', async () => {
     const { preferences } = await loadNotificationPreferencesHandler()
     const byKind = new Map(preferences.map((row) => [row.kind, row]))
-    expect(byKind.size).toBe(9)
+    expect(byKind.size).toBe(10)
     expect(byKind.get('api_token.created')).toMatchObject({
       channel: 'digest',
       isDefault: false,
@@ -62,7 +62,8 @@ describe('loadNotificationPreferencesHandler', () => {
       'api_token.revoked',
       'workspace_member.role_changed',
       'two_factor.changed',
-      'account.impersonated'
+      'account.impersonated',
+      'sso.recovery'
     ])
   })
 })

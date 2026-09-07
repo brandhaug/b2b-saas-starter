@@ -309,6 +309,30 @@ describe('seed notification feed: notifyWorkspaceOwners', () => {
       }).pipe(Effect.provide(layer))
     }
   )
+
+  it.effect('deduplicates a repeated owner fan-out per owner', () => {
+    const layer = feedFor([])
+    const notice = {
+      workspaceId: seedWorkspaceRecord.id,
+      deduplicationKey: 'sso-recovery-exception:exc_1',
+      kind: 'announcement',
+      title: 'SSO recovery available',
+      message: 'Repair access now.'
+    } satisfies NotifyWorkspaceOwnersInput
+    return Effect.gen(function* () {
+      const feed = yield* NotificationFeed
+      yield* feed.notifyWorkspaceOwners(notice)
+      yield* feed.notifyWorkspaceOwners(notice)
+      const rows = yield* feed.list.pipe(
+        Effect.provideService(WorkspaceContext, {
+          workspace: seedWorkspaceRecord,
+          actor: { userId: 'usr_demo', role: 'owner', systemRole: 'admin' },
+          actorType: 'user'
+        })
+      )
+      expect(rows.filter((row) => row.title === notice.title)).toHaveLength(1)
+    }).pipe(Effect.provide(layer))
+  })
 })
 
 describe('seed notification feed: email and digest reads', () => {

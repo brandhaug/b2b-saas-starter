@@ -89,6 +89,8 @@ export type NotifyUserInput = {
  * of a workspace, keyed by the workspace id the background producers hold.
  */
 export type NotifyWorkspaceOwnersInput = {
+  /** Stable producer identity for retry-safe owner fan-out. */
+  readonly deduplicationKey?: string | undefined
   readonly workspaceId: string
   readonly kind: NotificationKind
   readonly title: string

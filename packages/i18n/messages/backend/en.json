@@ -1,4 +1,13 @@
 {
+  "backend_email_sso_recovery_title": "SSO emergency recovery",
+  "backend_email_sso_recovery_description": "Operator grants, uses, and expiry of temporary SSO repair access.",
+  "backend_email_sso_recovery_created": "An operator granted owner {owner} temporary SSO repair access until {expiry}. Independent authentication is still required. This does not grant general workspace access.",
+  "backend_email_sso_recovery_used": "Owner {owner} activated temporary SSO repair access after independent authentication. It expires at {expiry} and grants no general workspace access.",
+  "backend_email_sso_recovery_expired": "Temporary SSO repair access for owner {owner} has expired.",
+  "backend_email_sso_domain_title": "SSO domain verification",
+  "backend_email_sso_domain_restored": "Ownership of {domain} is verified again. New SSO sign-ins can resume.",
+  "backend_email_sso_domain_failed": "Ownership of {domain} could not be verified within seven days. Restore the DNS TXT record to allow new SSO sign-ins. Required SSO remains enforced.",
+  "backend_email_sso_domain_grace": "The DNS TXT record for {domain} could not be verified. Restore it before {deadline} to keep new SSO sign-ins available. Required SSO remains enforced.",
   "backend": {
     "email": {
       "subject": {

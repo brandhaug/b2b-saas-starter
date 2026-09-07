@@ -8,8 +8,6 @@ type SsoRegisterBody = {
   issuer: string
   domain: string
   organizationId: string
-  enabled: boolean
-  defaultWorkspaceRole: 'member' | 'admin'
   oidcConfig?: SsoOidcBody
   samlConfig?: SsoSamlBody
 }
@@ -35,9 +33,6 @@ type SsoSamlBody = {
 /** The update endpoint's body, as this adapter assembles it. */
 type SsoUpdateBody = {
   providerId: string
-  enabled?: boolean | undefined
-  requireSso?: boolean | undefined
-  defaultWorkspaceRole?: 'member' | 'admin' | undefined
   oidcConfig?: { clientId: string; clientSecret: string }
 }
 
@@ -62,11 +57,7 @@ export const webSsoBinding: WorkspaceSsoBinding = {
       providerId: input.providerId,
       issuer: input.issuer,
       domain: input.domain,
-      organizationId: input.workspaceId,
-      // Connections are born disabled; the owner enables one after a
-      // successful test (ADR 0069).
-      enabled: false,
-      defaultWorkspaceRole: input.defaultWorkspaceRole
+      organizationId: input.workspaceId
     }
     if (input.protocol === 'oidc') {
       body.oidcConfig = {
@@ -96,8 +87,8 @@ export const webSsoBinding: WorkspaceSsoBinding = {
     // only the credentials move, renamed to the plugin's `oidcConfig`. The
     // plugin merges a partial oidcConfig over the stored one, so a
     // credential rotation replaces exactly the pair it names.
-    const { oidcCredentials, ...body } = input
-    const pluginBody: SsoUpdateBody = { ...body }
+    const pluginBody: SsoUpdateBody = { providerId: input.providerId }
+    const { oidcCredentials } = input
     if (oidcCredentials !== undefined) {
       pluginBody.oidcConfig = {
         clientId: oidcCredentials.clientId,
@@ -111,6 +102,17 @@ export const webSsoBinding: WorkspaceSsoBinding = {
   remove: async (input) => {
     await sessionCall((api, headers) =>
       api.deleteSSOProvider({ body: { providerId: input.providerId }, headers })
+    )
+  },
+  requestDomainVerification: async ({ providerId }) => {
+    const result = await sessionCall((api, headers) =>
+      api.requestDomainVerification({ body: { providerId }, headers })
+    )
+    return { domainVerificationToken: result.domainVerificationToken }
+  },
+  verifyDomain: async ({ providerId }) => {
+    await sessionCall((api, headers) =>
+      api.verifyDomain({ body: { providerId }, headers })
     )
   }
 }

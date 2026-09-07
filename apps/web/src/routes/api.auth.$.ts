@@ -26,10 +26,6 @@ import {
   type AuthAuditContext
 } from '@/lib/server/auth-audit/shared'
 import {
-  enforceSsoRequired,
-  refuseDisabledConnection
-} from '@/lib/server/sso-sign-in-gate'
-import {
   impersonationForbiddenAction,
   impersonationGuardResponse
 } from '@/lib/server/impersonation-guard'
@@ -195,6 +191,12 @@ async function handleAuth(request: Request): Promise<Response> {
     method: request.method,
     pathname: new URL(request.url).pathname
   }
+  // Workspace operations enter through capability-backed server functions.
+  // The plugin API remains available to those bindings, but its public HTTP
+  // routes would bypass workspace SSO, entitlements, and audited mutations.
+  if (exchange.pathname.startsWith('/api/auth/organization/')) {
+    return Response.json({ code: 'not_found' }, { status: 404 })
+  }
   const bucket = authRateLimitBucket(exchange.method, exchange.pathname)
   const rateLimitLayer = makeRateLimiterLayer(env)
 
@@ -247,22 +249,6 @@ async function handleAuth(request: Request): Promise<Response> {
             statusCode: guardResponse.status
           })
           return guardResponse
-        }
-        // The require-SSO gate (ADR 0069): a workspace that demands SSO for
-        // its domain refuses the credential path here, so the sign-in page's
-        // routing is backed by an enforcement point. Null = not applicable.
-        const ssoRequiredResponse = yield* enforceSsoRequired(request, exchange)
-        if (ssoRequiredResponse !== null) {
-          yield* Effect.annotateLogsScoped({ outcome: 'sso_required' })
-          return ssoRequiredResponse
-        }
-        // The same rule's SSO half: the plugin serves any stored connection,
-        // so a disabled one is refused before it can start an OIDC flow an
-        // owner believes is retired or still untested.
-        const disabledSsoResponse = yield* refuseDisabledConnection(request, exchange)
-        if (disabledSsoResponse !== null) {
-          yield* Effect.annotateLogsScoped({ outcome: 'sso_connection_disabled' })
-          return disabledSsoResponse
         }
         // The effectful-better-auth mount. The Auth service comes from
         // authRuntime's layer; only the request is handed over per call.

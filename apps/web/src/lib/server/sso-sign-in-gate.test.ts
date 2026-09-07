@@ -1,181 +1,59 @@
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
-
-import { type SsoSignInTarget } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
-
 import {
   disabledConnectionResponse,
-  enforceSsoRequired,
-  isCredentialSignIn,
-  isSsoSignIn,
-  refuseDisabledConnection,
-  ssoRequiredResponse
+  refuseDisabledConnection
 } from './sso-sign-in-gate'
 
-/** The refusal body, decoded at the test's parse boundary. */
-const RefusalBody = Schema.Struct({
-  code: Schema.String,
-  message: Schema.optional(Schema.String)
-})
-const decodeRefusal = Schema.decodeUnknownSync(RefusalBody)
-
-/**
- * The decision cores are pure; the request-shaped wrappers run against the
- * app's default Seed layer (the test-mode shim leaves `DB` undefined), whose
- * one fixture connection is the **disabled** `sso_example_oidc` for
- * `acme-corp.example` — exactly the row the disabled-connection refusal
- * exists for.
- */
-
-function target(overrides: Partial<SsoSignInTarget>): Option.Option<SsoSignInTarget> {
-  return Option.some({
-    providerId: 'sso_test',
-    protocol: 'oidc',
-    workspaceId: 'wrk_test',
-    domain: 'acme.test',
-    enabled: true,
-    requireSso: false,
-    ...overrides
-  })
-}
-
-function gateRequest(pathname: string, body: unknown): Request {
-  return new Request(`http://localhost:3071/api/auth${pathname}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body)
-  })
-}
-
-describe('path matchers', () => {
-  it('matches the two sign-in paths and nothing else', () => {
-    expect(
-      isCredentialSignIn({ method: 'POST', pathname: '/api/auth/sign-in/email' })
-    ).toBe(true)
-    expect(
-      isCredentialSignIn({ method: 'GET', pathname: '/api/auth/sign-in/email' })
-    ).toBe(false)
-    expect(
-      isCredentialSignIn({ method: 'POST', pathname: '/api/auth/sign-in/sso' })
-    ).toBe(false)
-    expect(isSsoSignIn({ method: 'POST', pathname: '/api/auth/sign-in/sso' })).toBe(
-      true
-    )
-    expect(isSsoSignIn({ method: 'POST', pathname: '/api/auth/callback/oidc' })).toBe(
-      false
-    )
-  })
-})
-
-describe('ssoRequiredResponse (the credential half)', () => {
-  it('refuses with the better-call error shape when the domain demands SSO', async () => {
-    const response = ssoRequiredResponse(target({ requireSso: true }))
-    expect(response?.status).toBe(403)
-    expect(response?.headers.get('content-type')).toBe(
-      'application/json; charset=utf-8'
-    )
-    expect(decodeRefusal(await response?.json())).toEqual({
-      code: 'sso_required',
-      message: 'This workspace requires single sign-on for your email domain.'
-    })
-  })
-
-  it('lets an enabled connection that does not demand SSO through', () => {
-    expect(ssoRequiredResponse(target({ requireSso: false }))).toBeNull()
-  })
-
-  it('lets a domain without a connection through', () => {
-    expect(ssoRequiredResponse(Option.none())).toBeNull()
-  })
-
-  it('lets everything through when the resolution itself failed', () => {
-    expect(ssoRequiredResponse(null)).toBeNull()
-  })
-})
-
-describe('disabledConnectionResponse (the SSO half)', () => {
-  it('refuses a disabled connection with the better-call error shape', async () => {
-    const response = disabledConnectionResponse(target({ enabled: false }))
-    expect(response?.status).toBe(403)
-    const body = decodeRefusal(await response?.json())
-    expect(body.code).toBe('sso_connection_disabled')
-    expect(body.message).toContain('disabled')
-  })
-
-  it('lets an enabled connection through', () => {
-    expect(disabledConnectionResponse(target({ enabled: true }))).toBeNull()
-  })
-
-  it('lets a domain without a connection, and a failed resolution, through', () => {
-    expect(disabledConnectionResponse(Option.none())).toBeNull()
-    expect(disabledConnectionResponse(null)).toBeNull()
-  })
-})
-
-describe('the request wrappers against the Seed layer', () => {
-  it.effect('refuses a direct /sign-in/sso for the seeded disabled connection', () =>
-    Effect.gen(function* () {
-      const response = yield* refuseDisabledConnection(
-        gateRequest('/sign-in/sso', { email: 'someone@acme-corp.example' }),
-        { method: 'POST', pathname: '/api/auth/sign-in/sso' }
-      )
-      if (response === null) {
-        return yield* Effect.fail('the gate must answer a disabled connection')
-      }
-      expect(response.status).toBe(403)
-      expect(decodeRefusal(yield* Effect.promise(() => response.json()))).toMatchObject(
-        {
-          code: 'sso_connection_disabled'
-        }
-      )
-    })
+function gate(path: string, body: unknown) {
+  return refuseDisabledConnection(
+    new Request(`http://localhost/api/auth${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    }),
+    { method: 'POST', pathname: `/api/auth${path}` }
   )
+}
 
-  it.effect('refuses a providerId-addressed /sign-in/sso for the same row', () =>
+describe('issue 287: account login and SSO discovery', () => {
+  it('fails closed when connection resolution is unavailable', () => {
+    expect(disabledConnectionResponse(null)?.status).toBe(503)
+    expect(disabledConnectionResponse(Option.none())?.status).toBe(403)
+  })
+
+  it.effect('refuses a direct SSO request for a disabled provider', () =>
     Effect.gen(function* () {
-      const response = yield* refuseDisabledConnection(
-        gateRequest('/sign-in/sso', { providerId: 'sso_example_oidc' }),
-        { method: 'POST', pathname: '/api/auth/sign-in/sso' }
-      )
+      const response = yield* gate('/sign-in/sso', { providerId: 'sso_example_oidc' })
       expect(response?.status).toBe(403)
     })
   )
 
-  it.effect('lets /sign-in/sso through for a domain with no connection', () =>
+  it.effect('refuses an unknown domain and a workspace-slug selector', () =>
     Effect.gen(function* () {
-      const response = yield* refuseDisabledConnection(
-        gateRequest('/sign-in/sso', { email: 'demo@starter.local' }),
-        { method: 'POST', pathname: '/api/auth/sign-in/sso' }
-      )
-      expect(response).toBeNull()
+      expect(
+        (yield* gate('/sign-in/sso', { email: 'someone@unknown.example' }))?.status
+      ).toBe(403)
+      expect(
+        (yield* gate('/sign-in/sso', { organizationSlug: 'starter-lab' }))?.status
+      ).toBe(400)
     })
   )
 
   it.effect(
-    'lets the credential path through for the disabled connection — it does not demand SSO',
+    'preserves account login through alternate methods for unrelated workspaces',
     () =>
       Effect.gen(function* () {
-        const response = yield* enforceSsoRequired(
-          gateRequest('/sign-in/email', { email: 'someone@acme-corp.example' }),
-          {
-            method: 'POST',
-            pathname: '/api/auth/sign-in/email'
-          }
-        )
-        expect(response).toBeNull()
+        for (const path of [
+          '/sign-in/email',
+          '/sign-in/username',
+          '/sign-in/magic-link',
+          '/sign-in/email-otp',
+          '/sign-in/passkey',
+          '/sign-in/social'
+        ]) {
+          expect(yield* gate(path, { email: 'someone@acme-corp.example' })).toBeNull()
+        }
       })
-  )
-
-  it.effect('ignores a non-JSON body instead of failing the sign-in', () =>
-    Effect.gen(function* () {
-      const request = new Request('http://localhost:3071/api/auth/sign-in/sso', {
-        method: 'POST'
-      })
-      const response = yield* refuseDisabledConnection(request, {
-        method: 'POST',
-        pathname: '/api/auth/sign-in/sso'
-      })
-      expect(response).toBeNull()
-    })
   )
 })

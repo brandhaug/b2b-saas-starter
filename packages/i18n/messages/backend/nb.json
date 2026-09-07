@@ -1,4 +1,13 @@
 {
+  "backend_email_sso_recovery_title": "Nødgjenoppretting av SSO",
+  "backend_email_sso_recovery_description": "Operatørtildeling, bruk og utløp av midlertidig tilgang til å reparere SSO.",
+  "backend_email_sso_recovery_created": "En operatør ga eieren {owner} midlertidig tilgang til å reparere SSO fram til {expiry}. Uavhengig autentisering kreves fortsatt. Dette gir ikke generell tilgang til arbeidsområdet.",
+  "backend_email_sso_recovery_used": "Eieren {owner} aktiverte midlertidig tilgang til å reparere SSO etter uavhengig autentisering. Tilgangen utløper {expiry} og gir ikke generell tilgang til arbeidsområdet.",
+  "backend_email_sso_recovery_expired": "Midlertidig tilgang til å reparere SSO for eieren {owner} har utløpt.",
+  "backend_email_sso_domain_title": "Domeneverifisering for SSO",
+  "backend_email_sso_domain_restored": "Eierskapet til {domain} er bekreftet igjen. Nye SSO-innlogginger kan fortsette.",
+  "backend_email_sso_domain_failed": "Eierskapet til {domain} kunne ikke bekreftes innen sju dager. Gjenopprett DNS TXT-oppføringen for å tillate nye SSO-innlogginger. Kravet om SSO gjelder fortsatt.",
+  "backend_email_sso_domain_grace": "DNS TXT-oppføringen for {domain} kunne ikke bekreftes. Gjenopprett den før {deadline} for å beholde nye SSO-innlogginger. Kravet om SSO gjelder fortsatt.",
   "backend": {
     "email": {
       "subject": {

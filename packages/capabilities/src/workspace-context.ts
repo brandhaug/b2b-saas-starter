@@ -1,10 +1,21 @@
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { Database } from '@b2b-saas-starter/db/service'
-import { workspaces } from '@b2b-saas-starter/db/schema'
-import { Context, Effect, Layer, Schema } from 'effect'
-import { eq } from 'drizzle-orm'
-import { WorkspaceNotFound, type CapabilityUnavailable } from './errors.ts'
+import {
+  session,
+  workspaceSsoAuthProofs,
+  workspaceSsoConnections,
+  workspaceSsoRecoveryExceptions,
+  workspaces
+} from '@b2b-saas-starter/db/schema'
+import { Context, DateTime, Effect, Layer, Schema } from 'effect'
+import { and, eq, gt, isNotNull, isNull } from 'drizzle-orm'
+import {
+  WorkspaceNotFound,
+  WorkspaceSsoRequired,
+  type CapabilityUnavailable
+} from './errors.ts'
 import { orUnavailable } from './internal/unavailable.ts'
+import { type SsoRecoveryPurpose } from './governance/sso-policy.ts'
 import {
   findWorkspaceMember,
   SystemRole,
@@ -26,7 +37,10 @@ export type Actor = typeof Actor.Type
  * (a session only carries the user id). The workspace-context layers resolve
  * it into a full `Actor` by verifying membership of the requested workspace.
  */
-export type ActorRef = { readonly userId: string }
+export type ActorRef = {
+  readonly userId: string
+  readonly sessionId?: string | undefined
+}
 
 /**
  * Projects a resolved member onto the acting identity. Exported because
@@ -44,6 +58,8 @@ export function memberToActor(member: Member): Actor {
 export type WorkspaceContextInterface = {
   readonly workspace: Workspace
   readonly actor: Actor | null
+  readonly sessionId?: string | null
+  readonly purpose?: SsoRecoveryPurpose
   /**
    * What kind of caller made the request, read by the audit writes a
    * mutating capability performs: a session user, the platform, or a bearer
@@ -61,8 +77,13 @@ export class WorkspaceContext extends Context.Service<
 export function liveWorkspaceContext(
   slug: string,
   actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue
-): Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable, Database> {
+  actorType: AuditActorTypeValue,
+  purpose: SsoRecoveryPurpose = 'workspace'
+): Layer.Layer<
+  WorkspaceContext,
+  WorkspaceNotFound | WorkspaceSsoRequired | CapabilityUnavailable,
+  Database
+> {
   return Layer.effect(WorkspaceContext)(
     Effect.gen(function* () {
       const db = yield* Database
@@ -84,11 +105,127 @@ export function liveWorkspaceContext(
           return yield* Effect.fail(new WorkspaceNotFound({ slug }))
         }
         resolvedActor = memberToActor(member)
+        if (purpose === 'sso_repair') {
+          const nowDateTime = yield* DateTime.now
+          const now = DateTime.formatIso(nowDateTime)
+          if (resolvedActor.role !== 'owner' || actor.sessionId === undefined) {
+            return yield* Effect.fail(new WorkspaceSsoRequired({ workspaceId: row.id }))
+          }
+          const [activeRecovery] = yield* orUnavailable('workspace-context')(
+            db
+              .select({ id: workspaceSsoRecoveryExceptions.id })
+              .from(workspaceSsoRecoveryExceptions)
+              .innerJoin(
+                session,
+                and(
+                  eq(session.id, workspaceSsoRecoveryExceptions.sessionId),
+                  eq(session.userId, workspaceSsoRecoveryExceptions.userId),
+                  gt(session.expiresAt, DateTime.toDate(nowDateTime)),
+                  isNull(session.impersonatedBy)
+                )
+              )
+              .where(
+                and(
+                  eq(workspaceSsoRecoveryExceptions.workspaceId, row.id),
+                  eq(workspaceSsoRecoveryExceptions.userId, actor.userId),
+                  eq(workspaceSsoRecoveryExceptions.sessionId, actor.sessionId),
+                  isNotNull(workspaceSsoRecoveryExceptions.usedAt),
+                  isNull(workspaceSsoRecoveryExceptions.expiredAt),
+                  gt(workspaceSsoRecoveryExceptions.expiresAt, now)
+                )
+              )
+              .limit(1)
+          )
+          if (activeRecovery === undefined) {
+            return yield* Effect.fail(new WorkspaceSsoRequired({ workspaceId: row.id }))
+          }
+          return {
+            workspace: toWorkspace(row),
+            actor: resolvedActor,
+            sessionId: actor.sessionId,
+            actorType,
+            purpose
+          }
+        }
+        if (actorType !== 'api_token') {
+          const required = yield* orUnavailable('workspace-context')(
+            db
+              .select({
+                providerId: workspaceSsoConnections.providerId,
+                generation: workspaceSsoConnections.connectionGeneration
+              })
+              .from(workspaceSsoConnections)
+              .where(
+                and(
+                  eq(workspaceSsoConnections.workspaceId, row.id),
+                  eq(workspaceSsoConnections.requireSso, true)
+                )
+              )
+          )
+          if (required.length > 0) {
+            const nowDateTime = yield* DateTime.now
+            const now = DateTime.formatIso(nowDateTime)
+            if (actor.sessionId === undefined) {
+              return yield* Effect.fail(
+                new WorkspaceSsoRequired({ workspaceId: row.id })
+              )
+            }
+            const validSession = yield* orUnavailable('workspace-context')(
+              db
+                .select({ id: session.id })
+                .from(session)
+                .where(
+                  and(
+                    eq(session.id, actor.sessionId),
+                    eq(session.userId, actor.userId),
+                    gt(session.expiresAt, DateTime.toDate(nowDateTime)),
+                    isNull(session.impersonatedBy)
+                  )
+                )
+                .limit(1)
+            )
+            if (validSession.length === 0) {
+              return yield* Effect.fail(
+                new WorkspaceSsoRequired({ workspaceId: row.id })
+              )
+            }
+            const proofs = yield* orUnavailable('workspace-context')(
+              db
+                .select({
+                  providerId: workspaceSsoAuthProofs.providerId,
+                  generation: workspaceSsoAuthProofs.connectionGeneration
+                })
+                .from(workspaceSsoAuthProofs)
+                .where(
+                  and(
+                    eq(workspaceSsoAuthProofs.workspaceId, row.id),
+                    eq(workspaceSsoAuthProofs.userId, actor.userId),
+                    eq(workspaceSsoAuthProofs.sessionId, actor.sessionId),
+                    gt(workspaceSsoAuthProofs.expiresAt, now)
+                  )
+                )
+            )
+            const admitted = required.some((connection) =>
+              proofs.some(
+                (proof) =>
+                  proof.providerId === connection.providerId &&
+                  proof.generation === connection.generation
+              )
+            )
+            if (!admitted) {
+              return yield* Effect.fail(
+                new WorkspaceSsoRequired({ workspaceId: row.id })
+              )
+            }
+          }
+        }
       }
       return {
         workspace: toWorkspace(row),
         actor: resolvedActor,
-        actorType
+        sessionId: actor?.sessionId ?? null,
+        actorType,
+        purpose
       }
     })
   )
@@ -108,30 +245,94 @@ export function seedWorkspaceContext(
   slug: string,
   actor: ActorRef | undefined,
   members: ReadonlyArray<Member>,
-  actorType: AuditActorTypeValue
-): Layer.Layer<WorkspaceContext, WorkspaceNotFound> {
+  actorType: AuditActorTypeValue,
+  purpose: SsoRecoveryPurpose = 'workspace',
+  requiredSsoProofs: ReadonlyArray<{
+    readonly workspaceId: string
+    readonly userId: string
+    readonly sessionId: string
+    readonly providerId: string
+    readonly connectionGeneration: number
+    readonly expiresAt: string
+  }> = [],
+  activeRecoveries: ReadonlyArray<{
+    readonly workspaceId: string
+    readonly userId: string
+    readonly sessionId: string
+    readonly expiresAt: string
+  }> = []
+): Layer.Layer<WorkspaceContext, WorkspaceNotFound | WorkspaceSsoRequired> {
   return Layer.effect(WorkspaceContext)(
-    Effect.suspend((): Effect.Effect<WorkspaceContextInterface, WorkspaceNotFound> => {
+    Effect.gen(function* () {
       if (slug !== seedWorkspace.slug) {
-        return Effect.fail(new WorkspaceNotFound({ slug }))
+        return yield* Effect.fail(new WorkspaceNotFound({ slug }))
       }
       if (!actor) {
-        return Effect.succeed({
+        return {
           workspace: seedWorkspace,
           actor: null,
-          actorType
-        })
+          sessionId: null,
+          actorType,
+          purpose
+        }
       }
       const member = members.find((candidate) => candidate.id === actor.userId)
       if (!member) {
-        return Effect.fail(new WorkspaceNotFound({ slug }))
+        return yield* Effect.fail(new WorkspaceNotFound({ slug }))
       }
       const resolved = memberToActor(member)
-      return Effect.succeed({
+      if (purpose === 'sso_repair') {
+        const now = DateTime.formatIso(yield* DateTime.now)
+        const recovered =
+          resolved.role === 'owner' &&
+          actor.sessionId !== undefined &&
+          activeRecoveries.some(
+            (recovery) =>
+              recovery.workspaceId === seedWorkspace.id &&
+              recovery.userId === actor.userId &&
+              recovery.sessionId === actor.sessionId &&
+              recovery.expiresAt > now
+          )
+        if (!recovered) {
+          return yield* Effect.fail(
+            new WorkspaceSsoRequired({ workspaceId: seedWorkspace.id })
+          )
+        }
+        return {
+          workspace: seedWorkspace,
+          actor: resolved,
+          sessionId: actor.sessionId,
+          actorType,
+          purpose
+        }
+      }
+      if (actorType !== 'api_token') {
+        const now = DateTime.formatIso(yield* DateTime.now)
+        const required = requiredSsoProofs.filter(
+          (proof) => proof.workspaceId === seedWorkspace.id
+        )
+        if (
+          required.length > 0 &&
+          (actor.sessionId === undefined ||
+            !required.some(
+              (proof) =>
+                proof.userId === actor.userId &&
+                proof.sessionId === actor.sessionId &&
+                proof.expiresAt > now
+            ))
+        ) {
+          return yield* Effect.fail(
+            new WorkspaceSsoRequired({ workspaceId: seedWorkspace.id })
+          )
+        }
+      }
+      return {
         workspace: seedWorkspace,
         actor: resolved,
-        actorType
-      })
+        sessionId: actor.sessionId ?? null,
+        actorType,
+        purpose
+      }
     })
   )
 }
@@ -140,11 +341,15 @@ export function seedWorkspaceContext(
 export function testWorkspaceContext(
   workspace: Workspace,
   actor: Actor | null = null,
-  actorType: AuditActorTypeValue = 'user'
+  actorType: AuditActorTypeValue = 'user',
+  sessionId: string | null = null,
+  purpose: SsoRecoveryPurpose = 'workspace'
 ): Layer.Layer<WorkspaceContext> {
   return Layer.succeed(WorkspaceContext)({
     workspace,
     actor,
-    actorType
+    sessionId,
+    actorType,
+    purpose
   })
 }

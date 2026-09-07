@@ -20,9 +20,11 @@ import { orUnavailable } from '../internal/unavailable.ts'
 import {
   consentGrantedAuditEvent,
   consentRevokedAuditEvent,
+  makeBindConsentToCurrentSession,
   McpClientConnections,
   type McpClientConnection,
-  type McpClientSummary
+  type McpClientSummary,
+  type McpConsentBinding
 } from './mcp-client-connections.ts'
 
 const unavailable = orUnavailable('mcp-client-connections')
@@ -71,7 +73,8 @@ function consentTokenWhere(
 }
 
 export function LiveMcpClientConnections(
-  securityEvidence?: SecurityEvidenceSink
+  securityEvidence?: SecurityEvidenceSink,
+  consentBinding?: McpConsentBinding
 ): Layer.Layer<McpClientConnections, never, Database | RawD1 | AuditEventLog> {
   return Layer.effect(McpClientConnections)(
     Effect.gen(function* () {
@@ -85,6 +88,7 @@ export function LiveMcpClientConnections(
       })
 
       return {
+        bindConsentToCurrentSession: makeBindConsentToCurrentSession(consentBinding),
         getGrant: Effect.fn('McpClientConnections.getGrant')(function* (input) {
           const [grant] = yield* unavailable(
             db

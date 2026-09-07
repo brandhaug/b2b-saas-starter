@@ -15,6 +15,13 @@ export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()(
   { httpApiStatus: 404 }
 ) {}
 
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory, not an Error constructor
+export class WorkspaceSsoRequired extends Schema.TaggedError<WorkspaceSsoRequired>()(
+  'WorkspaceSsoRequired',
+  { workspaceId: Schema.String },
+  { httpApiStatus: 403 }
+) {}
+
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class CapabilityUnavailable extends Schema.TaggedError<CapabilityUnavailable>()(
   'CapabilityUnavailable',

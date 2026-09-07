@@ -82,7 +82,9 @@ const GRANTS: ReadonlyArray<{
     // its data — both hand over the whole workspace.
     granted: EVERY_LABEL.filter(
       (label) =>
-        label !== 'organization:delete' && !label.startsWith('workspaceExport:')
+        label !== 'organization:delete' &&
+        !label.startsWith('workspaceExport:') &&
+        !['sso:create', 'sso:update', 'sso:remove'].includes(label)
     )
   },
   {
@@ -105,7 +107,13 @@ const GRANTS: ReadonlyArray<{
       'webhook:test'
     ]
   },
-  { name: 'admin scope', principal: tokenPrincipal(['admin']), granted: EVERY_LABEL }
+  {
+    name: 'admin scope',
+    principal: tokenPrincipal(['admin']),
+    granted: EVERY_LABEL.filter(
+      (label) => !['sso:create', 'sso:update', 'sso:remove'].includes(label)
+    )
+  }
 ]
 
 describe('statements', () => {
@@ -182,7 +190,9 @@ describe('token scopes', () => {
     expect(authorize(write, { sso: ['create'] }).success).toBe(false)
     expect(authorize(write, { sso: ['update'] }).success).toBe(false)
     expect(authorize(write, { sso: ['remove'] }).success).toBe(false)
-    expect(authorize(tokenPrincipal(['admin']), { sso: ['create'] }).success).toBe(true)
+    expect(authorize(tokenPrincipal(['admin']), { sso: ['create'] }).success).toBe(
+      false
+    )
   })
 
   it('denies a token holding no scopes', () => {

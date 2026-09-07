@@ -1,10 +1,19 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vite-plus/test'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { SsoPanel, type SsoPanelPorts } from '@/components/sso-panel'
 import { type SsoConnection } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { type SsoTestResult } from '@/lib/server/workspace-sso'
 import { type Viewer } from '@/lib/permissions'
+import { authClient } from '@/lib/auth-client'
+
+vi.mock('@/lib/auth-client', () => ({
+  authClient: {
+    signIn: { sso: vi.fn().mockResolvedValue({ data: null, error: null }) }
+  }
+}))
+
+const signInSso = vi.mocked(authClient.signIn.sso)
 
 // The panel takes its server calls as ports, so a test drives it with plain
 // functions instead of replacing the module the production defaults import.
@@ -19,6 +28,9 @@ const disabledExample: SsoConnection = {
   issuer: 'https://login.acme-corp.example',
   enabled: false,
   requireSso: false,
+  domainVerified: true,
+  autoJoin: false,
+  lastLoginTestedAt: '2026-09-07T10:00:00.000Z',
   defaultWorkspaceRole: 'member',
   clientIdLastFour: '7f2a',
   createdAt: '2026-05-15T09:30:00.000Z'
@@ -70,7 +82,10 @@ function recordingPorts({
     test: (input) => {
       calls.test.push(input)
       return Promise.resolve(testResult)
-    }
+    },
+    requestDomainVerification: () =>
+      Promise.resolve({ recordName: '_sso.acme-corp.example', recordValue: 'token' }),
+    verifyDomain: () => Promise.resolve(true)
   }
   return { ports, calls }
 }
@@ -106,7 +121,7 @@ describe('SsoPanel', () => {
     expect(screen.getByText('OIDC')).toBeTruthy()
     expect(screen.getByText(/client …7f2a/)).toBeTruthy()
     expect(screen.getByText(/joins as member/)).toBeTruthy()
-    screen.getByRole('button', { name: 'Test' })
+    screen.getByRole('button', { name: 'Check metadata' })
     screen.getByRole('button', { name: 'Enable' })
     screen.getByRole('button', { name: 'Remove acme-corp.example' })
     screen.getByRole('switch')
@@ -114,8 +129,8 @@ describe('SsoPanel', () => {
 
   it('reports a failed test inline', async () => {
     await renderPanel()
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
-    expect(await screen.findByText('Connection test failed.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Check metadata' }))
+    expect(await screen.findByText('Metadata diagnostic failed.')).toBeTruthy()
     expect(await screen.findByText('no such issuer')).toBeTruthy()
   })
 
@@ -123,9 +138,9 @@ describe('SsoPanel', () => {
     await renderPanel([disabledExample], OWNER, {
       testResult: { outcome: 'passed' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
-    expect(await screen.findByText('Connection test passed.')).toBeTruthy()
-    expect(screen.queryByText('Connection test failed.')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Check metadata' }))
+    expect(await screen.findByText('Metadata is valid and reachable.')).toBeTruthy()
+    expect(screen.queryByText('Metadata diagnostic failed.')).toBeNull()
   })
 
   it('enable toggles call the update port with the flip', async () => {
@@ -142,8 +157,59 @@ describe('SsoPanel', () => {
   it('flipping require-SSO updates the toggle flag', async () => {
     const { calls } = await renderPanel()
     fireEvent.click(screen.getByRole('switch'))
+    expect(await screen.findByText('Require SSO for every member?')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Every member, including contractors, will sign in through the identity provider. Existing sessions must use SSO to continue accessing this workspace. Other workspaces and account settings remain available.'
+      )
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Require SSO' }))
     await waitFor(() => expect(calls.update).toHaveLength(1))
-    expect(calls.update[0]).toMatchObject({ requireSso: true })
+    expect(calls.update[0]).toMatchObject({
+      requireSso: true,
+      confirmEnforcement: true
+    })
+  })
+
+  it('confirms and atomically replaces the required connection', async () => {
+    const required = {
+      ...disabledExample,
+      id: 'sso_required',
+      domain: 'required.example',
+      requireSso: true
+    }
+    const { calls } = await renderPanel([required, disabledExample])
+    fireEvent.click(screen.getByRole('button', { name: 'Activate replacement' }))
+    expect(
+      await screen.findByText(
+        'This enables acme-corp.example and replaces the required connection for required.example. Everyone in the workspace must use the new identity provider, while other workspaces and account settings remain available.'
+      )
+    ).toBeTruthy()
+    expect(calls.update).toHaveLength(0)
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: 'Activate replacement'
+      })
+    )
+    await waitFor(() => expect(calls.update).toHaveLength(1))
+    expect(calls.update[0]).toMatchObject({
+      workspaceSlug: 'starter-lab',
+      providerId: 'sso_example_oidc',
+      enabled: true,
+      replaceProviderId: 'sso_required',
+      confirmEnforcement: true
+    })
+  })
+
+  it('returns a sign-in test to workspace settings', async () => {
+    signInSso.mockClear()
+    await renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Test sign-in' }))
+    await waitFor(() => expect(signInSso).toHaveBeenCalledTimes(1))
+    expect(signInSso).toHaveBeenCalledWith({
+      providerId: 'sso_example_oidc',
+      callbackURL: '/workspaces/starter-lab/settings'
+    })
   })
 
   it('replaces the controls with a reason when the viewer cannot manage', async () => {

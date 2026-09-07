@@ -6,6 +6,38 @@ production code back automatically. The shared D1 database serves every
 Workspace, so recovery closes and restores the whole application. Selective
 Workspace recovery is outside this procedure.
 
+## Workspace SSO recovery
+
+Use this procedure for a broken workspace IdP. It does not restore a database or grant general workspace access. Verify the request through your established operator process and record the incident or approval reference. System Admin access and impersonation are not substitutes for that verification.
+
+Set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and `CLOUDFLARE_DATABASE_ID` for the intended deployment in your secure shell environment. The token needs D1 access. Do not put credentials in command arguments, issue comments, or logs. The tool uses Cloudflare's [D1 query API](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/query/).
+
+Inspect the intended grant without writing:
+
+```sh
+node scripts/sso-recovery.ts grant --workspace WORKSPACE_ID --owner USER_ID --operator OPERATOR_ID --reason INCIDENT_REFERENCE
+```
+
+Confirm the database, workspace, and existing owner. Run the same command with `--execute` to create a one-hour grant. Send the returned `repairPath` to that owner. The owner must authenticate after grant creation using a passkey enrolled before the grant, or a previously enrolled password and MFA factor. A new factor enrolled during the incident does not qualify.
+
+The owner opens the repair URL and explicitly activates the exception. The repair page can disable the SSO requirement after confirmation, leaving the connection configured. This restores ordinary sign-in access to the workspace so the owner can repair or replace the IdP through settings. It does not grant the recovery session access to workspace data while Required SSO remains active.
+
+Grant creation, activation, and expiry produce audit records and owner notifications. The background worker retries notification delivery and records expiry on its minute schedule. Access expires at the stored deadline even if that worker is unavailable. After repair, complete a real IdP login, verify the domain, confirm enforcement, and check that a non-SSO session is refused by the next protected workspace request.
+
+### Transfer an exact-domain claim
+
+Verify both workspace owners' authorization and the destination's domain control. Record the transfer approval. This operation stops new SSO authentication for the old claim without disabling that workspace's requirement; arrange recovery first if needed.
+
+```sh
+node scripts/sso-recovery.ts transfer-domain --domain example.com --from SOURCE_WORKSPACE_ID --to TARGET_WORKSPACE_ID --operator OPERATOR_ID --reason INCIDENT_REFERENCE
+```
+
+Review the dry-run result and rerun with `--execute`. The target receives a pending claim, not verified routing. Its owner must create a new connection and complete DNS verification and a real IdP login before activation. Subdomains require separate claims. Confirm the audit record and test both workspaces afterward. Never transfer a claim by changing a provider's domain string or deleting another workspace's claim directly.
+
+### DNS verification failures
+
+Keep the exact TXT record displayed at setup. Daily checks start a fixed seven-day grace period after a missing record or lookup failure and notify owners. Retries do not extend the deadline. After expiry, new SSO authentication stops while Required SSO remains enforced. Existing proofs retain their original expiry. Restore the TXT record and verify that the next daily check returns the claim to `verified`; use the recovery procedure if no owner retains a valid proof.
+
 ## Production approval
 
 Use paid Cloudflare for customer deployments. Complete an isolated restore drill

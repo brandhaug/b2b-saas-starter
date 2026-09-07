@@ -9,6 +9,9 @@ export const env = {
   BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3071',
   BETTER_AUTH_TRUSTED_ORIGINS:
     process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? 'http://localhost:3071',
+  SSO_PROOF_TTL_SECONDS: process.env.SSO_PROOF_TTL_SECONDS,
+  SSO_CONFIGURATION_AUTH_MAX_AGE_SECONDS:
+    process.env.SSO_CONFIGURATION_AUTH_MAX_AGE_SECONDS,
   // Optional provider env: passed through so local dev matches what a
   // deployed worker receives.
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

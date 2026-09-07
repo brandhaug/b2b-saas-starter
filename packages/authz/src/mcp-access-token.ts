@@ -21,6 +21,7 @@ import { Schema } from 'effect'
 export const MCP_READ_SCOPE = 'mcp:read'
 export const MCP_WRITE_SCOPE = 'mcp:write'
 export const MCP_CONSENT_CLAIM = 'starter_consent_binding'
+export const MCP_SSO_SESSION_CLAIM = 'starter_sso_session_id'
 export const MCP_OFFLINE_ACCESS_SCOPE = 'offline_access'
 
 /** What the resource server advertises as `scopes_supported`. */
@@ -51,6 +52,7 @@ export const McpAccessTokenClaims = Schema.Struct({
   scope: Schema.String,
   client_id: Schema.optionalKey(Schema.String),
   [MCP_CONSENT_CLAIM]: Schema.optionalKey(Schema.String),
+  [MCP_SSO_SESSION_CLAIM]: Schema.optionalKey(Schema.String),
   [MCP_WORKSPACE_ID_CLAIM]: Schema.String,
   [MCP_WORKSPACE_SLUG_CLAIM]: Schema.String,
   [MCP_WORKSPACE_ROLE_CLAIM]: Schema.Literals(workspaceRoles),
@@ -69,6 +71,7 @@ const decodeClaims = Schema.decodeUnknownResult(McpAccessTokenClaims)
 export type McpAccessTokenPrincipal = {
   readonly clientId?: string | undefined
   readonly consentBinding?: string | undefined
+  readonly ssoSessionId?: string | undefined
   readonly userId: string
   readonly workspaceId: string
   readonly workspaceSlug: string
@@ -115,6 +118,7 @@ export function mcpAccessTokenPrincipal(
       userId: claims.sub,
       clientId: claims.client_id,
       consentBinding: claims[MCP_CONSENT_CLAIM],
+      ssoSessionId: claims[MCP_SSO_SESSION_CLAIM],
       workspaceId: claims[MCP_WORKSPACE_ID_CLAIM],
       workspaceSlug: claims[MCP_WORKSPACE_SLUG_CLAIM],
       workspaceRole: claims[MCP_WORKSPACE_ROLE_CLAIM],

@@ -34,6 +34,9 @@ export function causeMessage(thrown: unknown, fallback: string): string {
     case 'forbidden': {
       return reason === 'no_principal' ? m.shell_no_principal() : m.shell_forbidden()
     }
+    case 'sso_required': {
+      return m.sso_reauthentication_required()
+    }
     case 'plan_limit': {
       if (
         'planId' in details &&

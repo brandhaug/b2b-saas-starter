@@ -44,6 +44,9 @@ export const SsoConnection = Schema.Struct({
   issuer: Schema.String,
   enabled: Schema.Boolean,
   requireSso: Schema.Boolean,
+  domainVerified: Schema.Boolean,
+  autoJoin: Schema.Boolean,
+  lastLoginTestedAt: Schema.NullOr(Schema.String),
   defaultWorkspaceRole: SsoProvisionedRole,
   /** Last four of the OIDC client id, so the form can echo it write-only. */
   clientIdLastFour: Schema.NullOr(Schema.String),
@@ -74,6 +77,7 @@ type CreateOidcConnectionInput = {
    */
   readonly endpoints: OidcEndpoints
   readonly defaultWorkspaceRole: SsoProvisionedRole
+  readonly autoJoin?: boolean
 }
 
 type CreateSamlConnectionInput = {
@@ -96,6 +100,7 @@ type CreateSamlConnectionInput = {
    */
   readonly entryPoint: string
   readonly defaultWorkspaceRole: SsoProvisionedRole
+  readonly autoJoin?: boolean
 }
 
 export type CreateSsoConnectionInput =
@@ -107,6 +112,9 @@ export type UpdateSsoConnectionInput = {
   readonly providerId: string
   readonly enabled?: boolean | undefined
   readonly requireSso?: boolean | undefined
+  readonly autoJoin?: boolean | undefined
+  readonly confirmEnforcement?: boolean | undefined
+  readonly replaceProviderId?: string | undefined
   readonly defaultWorkspaceRole?: SsoProvisionedRole | undefined
   /**
    * Replaces the OIDC credentials. Secrets are write-only: the update carries
@@ -127,7 +135,7 @@ export const SsoRoutingDecision = Schema.Struct({
   protocol: SsoProtocol,
   /** The workspace the connection belongs to. */
   workspaceId: Schema.String,
-  /** True when that workspace refuses password sign-in for this domain. */
+  /** True when protected human access to the workspace requires SSO proof. */
   requireSso: Schema.Boolean
 })
 export type SsoRoutingDecision = typeof SsoRoutingDecision.Type
@@ -157,6 +165,20 @@ export const SsoConnectionDetail = Schema.Struct({
 export type SsoConnectionDetail = typeof SsoConnectionDetail.Type
 
 type SsoConnectionsInterface = {
+  readonly requestDomainVerification: (input: {
+    readonly providerId: string
+  }) => Effect.Effect<
+    { readonly recordName: string; readonly recordValue: string },
+    CapabilityUnavailable | MembershipChangeRejected,
+    WorkspaceContext
+  >
+  readonly verifyDomain: (input: {
+    readonly providerId: string
+  }) => Effect.Effect<
+    void,
+    CapabilityUnavailable | MembershipChangeRejected,
+    WorkspaceContext
+  >
   /** Every connection of the current workspace, newest first. */
   readonly list: Effect.Effect<
     ReadonlyArray<SsoConnection>,
@@ -270,6 +292,10 @@ export class SsoConnections extends Context.Service<
  * between the adapters.
  */
 export type WorkspaceSsoBinding = {
+  readonly requestDomainVerification: (input: {
+    readonly providerId: string
+  }) => Promise<{ readonly domainVerificationToken: string }>
+  readonly verifyDomain: (input: { readonly providerId: string }) => Promise<void>
   readonly create: (
     input: CreateSsoConnectionInput & {
       readonly workspaceId: string
@@ -280,6 +306,9 @@ export type WorkspaceSsoBinding = {
     readonly providerId: string
     readonly enabled?: boolean | undefined
     readonly requireSso?: boolean | undefined
+    readonly autoJoin?: boolean | undefined
+    readonly confirmEnforcement?: boolean | undefined
+    readonly replaceProviderId?: string | undefined
     readonly defaultWorkspaceRole?: SsoProvisionedRole | undefined
     readonly oidcCredentials?:
       | { readonly clientId: string; readonly clientSecret: string }
@@ -305,20 +334,18 @@ export function emailDomain(email: string): string | null {
 }
 
 /**
- * Whether a bare domain is one of a connection's domains. The plugin stores a
- * comma-separated list so one IdP can serve several domains
- * (`company.com,subsidiary.com`); matching is exact and case-insensitive on
- * both sides, mirroring the plugin's own `domainMatches`.
+ * One exact domain per connection. Subdomains and comma-separated lists do
+ * not inherit ownership from a verified parent domain.
  */
 export function matchesDomain(domain: string, connectionDomains: string): boolean {
   const needle = domain.trim().toLowerCase()
   if (needle === '') {
     return false
   }
-  return connectionDomains
-    .split(',')
-    .map((entry) => entry.trim().toLowerCase())
-    .includes(needle)
+  return (
+    !connectionDomains.includes(',') &&
+    connectionDomains.trim().toLowerCase() === needle
+  )
 }
 
 /** Whether an email's domain is one of a connection's domains. */
@@ -344,6 +371,54 @@ export function requireProtocolMatch(
     return Effect.fail(new MembershipChangeRejected({ reason: 'protocol_mismatch' }))
   }
   return Effect.void
+}
+
+/** Activation is a policy change; metadata inspection is not a login test. */
+export function requireSafeSsoTransition(
+  connection: SsoConnection,
+  input: UpdateSsoConnectionInput
+): Effect.Effect<void, MembershipChangeRejected> {
+  let reason: string | undefined
+  if (
+    input.defaultWorkspaceRole !== undefined &&
+    input.defaultWorkspaceRole !== 'member'
+  ) {
+    reason = 'sso_member_role_only'
+  } else if (input.oidcCredentials !== undefined && connection.enabled) {
+    reason = 'test_replacement_before_activation'
+  } else if (
+    input.enabled === false &&
+    connection.requireSso &&
+    input.requireSso !== false
+  ) {
+    reason = 'disable_sso_requirement_first'
+  } else if (
+    (input.enabled === true || input.requireSso === true || input.autoJoin === true) &&
+    !connection.domainVerified
+  ) {
+    reason = 'domain_verification_required'
+  } else if (
+    (input.enabled === true || input.requireSso === true) &&
+    connection.lastLoginTestedAt === null
+  ) {
+    reason = 'sso_login_test_required'
+  } else if (
+    input.requireSso === true &&
+    !connection.enabled &&
+    input.enabled !== true
+  ) {
+    reason = 'sso_connection_disabled'
+  } else if (
+    input.requireSso === true &&
+    !connection.requireSso &&
+    input.confirmEnforcement !== true
+  ) {
+    reason = 'confirm_sso_enforcement'
+  }
+  if (reason === undefined) {
+    return Effect.void
+  }
+  return Effect.fail(new MembershipChangeRejected({ reason }))
 }
 
 /**

@@ -50,7 +50,7 @@ describe('NotificationPreferencesPanel', () => {
     )
 
     expect(screen.getAllByRole('radiogroup')).toHaveLength(preferences.length)
-    expect(screen.getAllByText('Security')).toHaveLength(5)
+    expect(screen.getAllByText('Security')).toHaveLength(6)
     expect(
       screen.getByText('Announcements').closest('li')?.getAttribute('data-kind')
     ).toBe('announcement')

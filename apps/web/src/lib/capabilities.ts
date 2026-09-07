@@ -6,9 +6,12 @@ import {
   MembershipChangeRejected,
   PlanLimitExceeded,
   UserAdminRejected,
-  WorkspaceNotFound
+  WorkspaceNotFound,
+  WorkspaceSsoRequired
 } from '@b2b-saas-starter/capabilities/errors'
 import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing-config'
+import { type SsoRecoveryPurpose } from '@b2b-saas-starter/capabilities/governance/sso-policy'
+import { ssoPolicyOptionsFromEnv } from '@b2b-saas-starter/capabilities/governance/sso-policy-config'
 import {
   selectCapabilitiesLayer,
   selectWorkspaceLayer,
@@ -21,6 +24,7 @@ import {
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { notFound } from '@tanstack/react-router'
+import { createIsomorphicFn } from '@tanstack/react-start'
 import { Cause, Effect, Exit, Option, type Scope } from 'effect'
 
 import {
@@ -28,9 +32,27 @@ import {
   ForbiddenError,
   MembershipRefusedError,
   PlanLimitError,
-  UserAdminRefusedError
+  UserAdminRefusedError,
+  SsoRequiredError
 } from './capability-error'
 import { webRuntime, withWebRequestScope } from './observability'
+import { currentRequest } from './request-context'
+
+const authenticatedWorkspaceActor = createIsomorphicFn()
+  .server(async (actor: ActorRef | undefined): Promise<ActorRef | undefined> => {
+    if (actor === undefined || currentRequest() === undefined) {
+      return actor
+    }
+    const { requireRequestSession, UnauthorizedError } = await import('./server/auth')
+    const session = await requireRequestSession()
+    if (session.user.id !== actor.userId) {
+      // oxlint-disable-next-line effect/noThrowStatement -- reject mismatched identity at the server-function Promise boundary
+      throw new UnauthorizedError()
+    }
+    return { userId: session.user.id, sessionId: session.session.id }
+  })
+  // oxlint-disable-next-line effect/noNewPromise -- isomorphic client branch must match the server's Promise signature
+  .client((actor: ActorRef | undefined) => Promise.resolve(actor))
 
 export type { CapabilityServices }
 
@@ -51,6 +73,7 @@ export type CapabilityBindings = Pick<
   | 'lifecycleBinding'
   | 'userAdminBinding'
   | 'ssoBinding'
+  | 'mcpConsentBinding'
   | 'accountLifecycleBinding'
   | 'securityEvidence'
 >
@@ -70,7 +93,8 @@ const starterEnv: StarterEnv = {
   WORKSPACE_EXPORT_QUEUE: cloudflareEnv.WORKSPACE_EXPORT_QUEUE,
   WORKSPACE_EXPORT_BUCKET: cloudflareEnv.WORKSPACE_EXPORT_BUCKET,
   NOTIFICATION_EMAIL_QUEUE: cloudflareEnv.NOTIFICATION_EMAIL_QUEUE,
-  billing: billingOptionsFromEnv(cloudflareEnv)
+  billing: billingOptionsFromEnv(cloudflareEnv),
+  ssoPolicyOptions: ssoPolicyOptionsFromEnv(cloudflareEnv)
 }
 
 // The Effect → TanStack boundary. Loaders and server functions are Promise
@@ -85,6 +109,10 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
     if (error instanceof WorkspaceNotFound) {
       // oxlint-disable-next-line effect/noThrowStatement -- `throw notFound()` is TanStack Router's 404 control-flow API
       throw notFound()
+    }
+    if (error instanceof WorkspaceSsoRequired) {
+      // oxlint-disable-next-line effect/noThrowStatement -- TanStack Promise boundary serializes this typed access refusal
+      throw new SsoRequiredError(error.workspaceId)
     }
     if (error instanceof AccountPreferencesRejected) {
       // oxlint-disable-next-line effect/noThrowStatement -- serialize the known preference refusal for the client translator
@@ -144,8 +172,10 @@ export async function runWorkspaceCapabilities<A, E>(
   workspaceSlug: string,
   effect: Effect.Effect<A, E, CapabilityServices | WorkspaceContext | Scope.Scope>,
   actor?: ActorRef,
-  bindings?: CapabilityBindings
+  bindings?: CapabilityBindings,
+  purpose: SsoRecoveryPurpose = 'workspace'
 ): Promise<A> {
+  const authenticatedActor = await authenticatedWorkspaceActor(actor)
   const exit = await webRuntime.runPromiseExit(
     withWebRequestScope(
       {
@@ -157,8 +187,9 @@ export async function runWorkspaceCapabilities<A, E>(
         selectWorkspaceLayer(
           { ...starterEnv, ...bindings },
           workspaceSlug,
-          actor,
-          'user'
+          authenticatedActor,
+          'user',
+          purpose
         )
       )
     )

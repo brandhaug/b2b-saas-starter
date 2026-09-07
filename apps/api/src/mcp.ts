@@ -323,6 +323,9 @@ function failureText(error: ToolFailure): string {
     case 'WorkspaceNotFound': {
       return 'workspace not found'
     }
+    case 'WorkspaceSsoRequired': {
+      return 'workspace SSO authentication required; sign in through the workspace identity provider and authorize this client again'
+    }
   }
 }
 

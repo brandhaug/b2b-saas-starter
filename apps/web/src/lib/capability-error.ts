@@ -18,6 +18,19 @@ export class CapabilityUnavailableError extends UiError {
 
 export const FORBIDDEN_ERROR_NAME = 'ForbiddenError'
 
+export const SSO_REQUIRED_ERROR_NAME = 'SsoRequiredError'
+
+export class SsoRequiredError extends UiError {
+  constructor(workspaceId: string) {
+    super(
+      'sso_required',
+      { workspaceId },
+      'Complete SSO sign-in again to access this workspace.'
+    )
+    this.name = SSO_REQUIRED_ERROR_NAME
+  }
+}
+
 export class ForbiddenError extends UiError {
   constructor(reason: string) {
     super(

@@ -5,12 +5,20 @@ import {
   MCP_CONSENT_CLAIM,
   MCP_WORKSPACE_ID_CLAIM,
   MCP_WORKSPACE_ROLE_CLAIM,
-  MCP_WORKSPACE_SLUG_CLAIM
+  MCP_WORKSPACE_SLUG_CLAIM,
+  MCP_SSO_SESSION_CLAIM
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import { type DrizzleDatabase } from './ports.ts'
-import { oauthConsent, workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
+import {
+  oauthConsent,
+  session,
+  workspaceMembers,
+  workspaceSsoAuthProofs,
+  workspaceSsoConnections,
+  workspaces
+} from '@b2b-saas-starter/db/schema'
 import { APIError } from 'better-auth/api'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gt, isNull } from 'drizzle-orm'
 
 /**
  * The starter's half of the `@better-auth/mcp` configuration (ADR 0068): how
@@ -26,6 +34,57 @@ import { and, eq } from 'drizzle-orm'
 /** The pages the provider redirects to; the web app owns both routes. */
 export const MCP_LOGIN_PAGE = '/sign-in'
 export const MCP_CONSENT_PAGE = '/oauth/consent'
+
+/** Binds an existing plugin-issued consent to the session that authorized it. */
+export type McpConsentSession = {
+  readonly userId: string
+  readonly clientId: string
+  readonly workspaceId: string
+  readonly sessionId: string
+}
+
+// oxlint-disable-next-line effect/noAsyncFunction -- server-only auth adapter, called after the provider has issued its consent
+export async function bindMcpConsentSession(
+  db: DrizzleDatabase,
+  input: McpConsentSession
+): Promise<void> {
+  // oxlint-disable-next-line effect/noGlobals -- Better Auth's Promise adapter uses the same real clock as its sessions
+  const now = new Date()
+  // oxlint-disable-next-line effect/noAsyncFunction -- same Promise adapter boundary
+  const [current] = await db
+    .select({ id: session.id })
+    .from(session)
+    .where(
+      and(
+        eq(session.id, input.sessionId),
+        eq(session.userId, input.userId),
+        gt(session.expiresAt, now),
+        isNull(session.impersonatedBy)
+      )
+    )
+    .limit(1)
+  if (current === undefined) {
+    // oxlint-disable-next-line effect/noThrowStatement -- reject the server-side binding with Better Auth's error type
+    throw new APIError('FORBIDDEN', { error: 'session_required' })
+  }
+  // Only the starter's session binding changes; the provider owns scopes and consent creation.
+  // oxlint-disable-next-line effect/noAsyncFunction -- same Promise adapter boundary
+  const updated = await db
+    .update(oauthConsent)
+    .set({ ssoSessionId: input.sessionId })
+    .where(
+      and(
+        eq(oauthConsent.userId, input.userId),
+        eq(oauthConsent.clientId, input.clientId),
+        eq(oauthConsent.referenceId, input.workspaceId)
+      )
+    )
+    .returning({ id: oauthConsent.id })
+  if (updated.length === 0) {
+    // oxlint-disable-next-line effect/noThrowStatement -- a missing consent must not return an apparently usable authorization code
+    throw new APIError('FORBIDDEN', { error: 'consent_required' })
+  }
+}
 
 /**
  * The scopes an MCP Client may request. `openid`/`profile`/`email` let a
@@ -117,12 +176,21 @@ export async function mcpWorkspaceAccessTokenClaims(
       error_description: 'MCP access tokens are issued for one workspace'
     })
   }
+  // oxlint-disable-next-line effect/noGlobals -- Better Auth token issuance is a Promise platform boundary
+  const now = new Date()
   // oxlint-disable-next-line effect/noAsyncFunction -- see the module doc: no Effect runtime reaches this callback
   const rows = await db
     .select({
       workspace: workspaces,
       member: workspaceMembers,
-      consent: { id: oauthConsent.id, version: oauthConsent.grantVersion }
+      consent: {
+        id: oauthConsent.id,
+        version: oauthConsent.grantVersion,
+        ssoSessionId: oauthConsent.ssoSessionId
+      },
+      proof: workspaceSsoAuthProofs,
+      connection: workspaceSsoConnections,
+      session: { id: session.id }
     })
     .from(workspaceMembers)
     .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
@@ -132,6 +200,36 @@ export async function mcpWorkspaceAccessTokenClaims(
         eq(oauthConsent.userId, workspaceMembers.userId),
         eq(oauthConsent.referenceId, workspaces.id),
         eq(oauthConsent.clientId, input.clientId)
+      )
+    )
+    .leftJoin(
+      workspaceSsoAuthProofs,
+      and(
+        eq(workspaceSsoAuthProofs.sessionId, oauthConsent.ssoSessionId),
+        eq(workspaceSsoAuthProofs.workspaceId, input.referenceId),
+        eq(workspaceSsoAuthProofs.userId, input.userId),
+        gt(workspaceSsoAuthProofs.expiresAt, now.toISOString())
+      )
+    )
+    .leftJoin(
+      session,
+      and(
+        eq(session.id, oauthConsent.ssoSessionId),
+        eq(session.userId, input.userId),
+        gt(session.expiresAt, now),
+        isNull(session.impersonatedBy)
+      )
+    )
+    .leftJoin(
+      workspaceSsoConnections,
+      and(
+        eq(workspaceSsoConnections.providerId, workspaceSsoAuthProofs.providerId),
+        eq(workspaceSsoConnections.workspaceId, input.referenceId),
+        eq(
+          workspaceSsoConnections.connectionGeneration,
+          workspaceSsoAuthProofs.connectionGeneration
+        ),
+        eq(workspaceSsoConnections.enabled, true)
       )
     )
     .where(
@@ -149,12 +247,46 @@ export async function mcpWorkspaceAccessTokenClaims(
       error_description: 'the user is not a member of the consented workspace'
     })
   }
+  const ssoSessionId = row.consent?.ssoSessionId
+  // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth callback has no Effect runtime
+  const required = await db
+    .select({ providerId: workspaceSsoConnections.providerId })
+    .from(workspaceSsoConnections)
+    .where(
+      and(
+        eq(workspaceSsoConnections.workspaceId, input.referenceId),
+        eq(workspaceSsoConnections.requireSso, true)
+      )
+    )
+  if (required.length > 0) {
+    if (
+      row.proof === null ||
+      row.connection === null ||
+      row.session === null ||
+      !required.some(
+        (connection) => connection.providerId === row.connection?.providerId
+      )
+    ) {
+      // oxlint-disable-next-line effect/noThrowStatement -- Better Auth requires its typed APIError at the issuance boundary
+      throw new APIError('FORBIDDEN', {
+        error: 'sso_proof_required',
+        error_description: 'the authenticated SSO proof is expired or revoked'
+      })
+    }
+  }
   const claims = {
     [MCP_WORKSPACE_ID_CLAIM]: row.workspace.id,
     [MCP_WORKSPACE_SLUG_CLAIM]: row.workspace.slug,
     [MCP_WORKSPACE_ROLE_CLAIM]: row.member.role
   }
   if (row.consent) {
+    if (ssoSessionId !== null && ssoSessionId !== undefined) {
+      return {
+        ...claims,
+        [MCP_SSO_SESSION_CLAIM]: ssoSessionId,
+        [MCP_CONSENT_CLAIM]: `${row.consent.id}:${row.consent.version}`
+      }
+    }
     return {
       ...claims,
       [MCP_CONSENT_CLAIM]: `${row.consent.id}:${row.consent.version}`

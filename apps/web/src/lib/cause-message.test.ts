@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vite-plus/test'
 import { causeMessage } from './cause-message'
-import { MembershipRefusedError, PlanLimitError } from './capability-error'
+import {
+  MembershipRefusedError,
+  PlanLimitError,
+  SsoRequiredError
+} from './capability-error'
 import { LocalizedError } from './localized-error'
 import { uiErrorAdapter } from './ui-error'
 
@@ -40,6 +44,14 @@ describe('causeMessage', () => {
     expect(
       causeMessage(uiErrorAdapter.fromSerializable(serialized), FALLBACK)
     ).toContain('at most 5')
+  })
+
+  it('guides regular users back through workspace SSO', () => {
+    const serialized = uiErrorAdapter.toSerializable(new SsoRequiredError('workspace'))
+    const message = causeMessage(uiErrorAdapter.fromSerializable(serialized), FALLBACK)
+
+    expect(message).toContain('Sign in through your workspace')
+    expect(message).not.toContain('/account?repair=sso')
   })
 
   it('rejects unknown codes and malformed details', () => {

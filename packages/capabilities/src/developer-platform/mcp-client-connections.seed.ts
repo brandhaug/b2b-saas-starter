@@ -4,9 +4,11 @@ import { AuditEventLog } from '../governance/audit-event-log.ts'
 import {
   consentGrantedAuditEvent,
   consentRevokedAuditEvent,
+  makeBindConsentToCurrentSession,
   McpClientConnections,
   type McpClientConnection,
-  type McpClientSummary
+  type McpClientSummary,
+  type McpConsentBinding
 } from './mcp-client-connections.ts'
 
 /**
@@ -14,10 +16,13 @@ import {
  * from the next list and cannot be revoked twice, mirroring Live's
  * post-conditions. Audit events land in the shared fixture log.
  */
-export function SeedMcpClientConnections(seed: {
-  readonly clients: ReadonlyArray<McpClientSummary>
-  readonly connections: ReadonlyArray<McpClientConnection>
-}): Layer.Layer<McpClientConnections, never, AuditEventLog> {
+export function SeedMcpClientConnections(
+  seed: {
+    readonly clients: ReadonlyArray<McpClientSummary>
+    readonly connections: ReadonlyArray<McpClientConnection>
+  },
+  consentBinding?: McpConsentBinding
+): Layer.Layer<McpClientConnections, never, AuditEventLog> {
   return Layer.effect(McpClientConnections)(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
@@ -30,6 +35,7 @@ export function SeedMcpClientConnections(seed: {
         }))
 
       return {
+        bindConsentToCurrentSession: makeBindConsentToCurrentSession(consentBinding),
         getGrant: Effect.fn('McpClientConnections.getGrant')((input) =>
           Effect.sync(() => {
             const grant = connections.find(

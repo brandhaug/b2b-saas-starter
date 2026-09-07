@@ -13,7 +13,8 @@ import {
   InvalidApiTokenInput,
   ApiTokenNotRotatable,
   PlanLimitExceeded,
-  WorkspaceNotFound
+  WorkspaceNotFound,
+  WorkspaceSsoRequired
 } from '@b2b-saas-starter/capabilities/errors'
 import {
   CreateWebhookEndpointPayload,
@@ -158,6 +159,7 @@ export class BearerAuth extends HttpApiMiddleware.Service<
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const WORKSPACE_ERRORS = [
   WorkspaceNotFound,
+  WorkspaceSsoRequired,
   InternalError,
   Unauthorized,
   AuthorizationDenied,

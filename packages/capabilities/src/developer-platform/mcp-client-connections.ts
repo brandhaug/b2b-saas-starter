@@ -1,7 +1,9 @@
-import { Context, Schema, type Effect } from 'effect'
+import { Context, Effect, Schema } from 'effect'
 
-import { type CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '../errors.ts'
 import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
+import { readPluginBindingFailure } from '../governance/plugin-binding-failure.ts'
+import { WorkspaceContext } from '../workspace-context.ts'
 
 /**
  * MCP Client connections (ADR 0068): the standing OAuth consents a user has
@@ -54,6 +56,57 @@ type RevokeMcpClientInput = {
   readonly connectionId: string
 }
 
+/** Auth-owned write that ties a provider consent to its authorizing session. */
+export type McpConsentBinding = {
+  readonly bindSession: (input: {
+    readonly userId: string
+    readonly clientId: string
+    readonly workspaceId: string
+    readonly sessionId: string
+  }) => Promise<void>
+}
+
+const noConsentBinding = new CapabilityUnavailable({
+  capability: 'mcp-client-connections',
+  reason: 'no_mcp_consent_binding'
+})
+
+const noConsentSession = new CapabilityUnavailable({
+  capability: 'mcp-client-connections',
+  reason: 'session_required'
+})
+
+/** Shared Seed/Live implementation of the session-bound consent use case. */
+export function makeBindConsentToCurrentSession(binding?: McpConsentBinding) {
+  return Effect.fn('McpClientConnections.bindConsentToCurrentSession')(
+    function* (input: { readonly clientId: string }) {
+      const ctx = yield* WorkspaceContext
+      const actor = ctx.actor
+      const sessionId = ctx.sessionId
+      if (actor === null || sessionId === null || sessionId === undefined) {
+        return yield* Effect.fail(noConsentSession)
+      }
+      if (binding === undefined) {
+        return yield* Effect.fail(noConsentBinding)
+      }
+      yield* Effect.tryPromise({
+        try: () =>
+          binding.bindSession({
+            userId: actor.userId,
+            clientId: input.clientId,
+            workspaceId: ctx.workspace.id,
+            sessionId
+          }),
+        catch: (cause) =>
+          new CapabilityUnavailable({
+            capability: 'mcp-client-connections',
+            reason: readPluginBindingFailure(cause).reason
+          })
+      })
+    }
+  )
+}
+
 /**
  * The two audit payloads, defined once so Seed and Live cannot drift — the
  * drift that would matter most is the revoked event's `workspaceId`: a consent
@@ -95,6 +148,14 @@ export function consentRevokedAuditEvent(input: {
 }
 
 type McpClientConnectionsInterface = {
+  /**
+   * Binds the provider-owned consent to this request's real session. Actor,
+   * workspace and session come only from `WorkspaceContext`; the OAuth flow
+   * supplies the provider-verified client id.
+   */
+  readonly bindConsentToCurrentSession: (input: {
+    readonly clientId: string
+  }) => Effect.Effect<void, CapabilityUnavailable, WorkspaceContext>
   /** Current consent binding and scopes; null for revoked, missing or disabled clients. */
   readonly getGrant: (input: {
     readonly userId: string

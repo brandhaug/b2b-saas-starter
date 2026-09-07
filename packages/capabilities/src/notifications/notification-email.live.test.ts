@@ -239,6 +239,19 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           Effect.flatMap(NotificationFeed, (feed) =>
             feed.notifyWorkspaceOwners({
               workspaceId: 'wrk_live',
+              deduplicationKey: `live-ladder:${title}`,
+              kind: 'webhook.delivery_failed',
+              title,
+              message: 'https://example.com/hook has failed 5 deliveries in a row.'
+            })
+          )
+        )
+        yield* withFeed(
+          enqueued,
+          Effect.flatMap(NotificationFeed, (feed) =>
+            feed.notifyWorkspaceOwners({
+              workspaceId: 'wrk_live',
+              deduplicationKey: `live-ladder:${title}`,
               kind: 'webhook.delivery_failed',
               title,
               message: 'https://example.com/hook has failed 5 deliveries in a row.'

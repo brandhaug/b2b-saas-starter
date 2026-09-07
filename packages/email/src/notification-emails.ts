@@ -35,6 +35,7 @@ export const NOTIFICATION_EMAIL_TEMPLATES = {
   'workspace_member.joined': MemberJoinedEmail,
   'billing.plan_changed': PlanChangedEmail,
   'account.impersonated': AccountImpersonatedEmail,
+  'sso.recovery': AnnouncementEmail,
   announcement: AnnouncementEmail
 } satisfies Readonly<
   Record<NotificationKind, (props: NotificationEmailProps) => ReactElement>

@@ -1,7 +1,11 @@
 import { Effect } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { type expect } from '@effect/vitest'
-import { type CapabilityUnavailable, type WorkspaceNotFound } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  type WorkspaceNotFound,
+  type WorkspaceSsoRequired
+} from '../errors.ts'
 import { type SubscriptionStatus } from './billing.ts'
 import { type PaymentEvidence } from './billing-state.ts'
 
@@ -25,11 +29,19 @@ export type LifecycleDriver<R> = {
   readonly set: (snapshot: LifecycleSnapshot) => Effect.Effect<void, never, R>
   readonly sync: (
     eventId: string
-  ) => Effect.Effect<void, CapabilityUnavailable | WorkspaceNotFound, R>
-  readonly plan: Effect.Effect<string, CapabilityUnavailable | WorkspaceNotFound, R>
+  ) => Effect.Effect<
+    void,
+    CapabilityUnavailable | WorkspaceNotFound | WorkspaceSsoRequired,
+    R
+  >
+  readonly plan: Effect.Effect<
+    string,
+    CapabilityUnavailable | WorkspaceNotFound | WorkspaceSsoRequired,
+    R
+  >
   readonly grace: Effect.Effect<
     string | null,
-    CapabilityUnavailable | WorkspaceNotFound,
+    CapabilityUnavailable | WorkspaceNotFound | WorkspaceSsoRequired,
     R
   >
 }

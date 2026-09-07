@@ -61,6 +61,10 @@ export const AUDIT_EVENT_TYPES = [
   'workspace_sso.connection_created',
   'workspace_sso.connection_updated',
   'workspace_sso.connection_removed',
+  'workspace_sso.domain_transferred',
+  'workspace_sso.recovery_exception_created',
+  'workspace_sso.recovery_exception_used',
+  'workspace_sso.recovery_exception_expired',
   'auth.sso_sign_in',
   'auth.sso_sign_in_failed',
   // billing
@@ -155,7 +159,9 @@ const AUDIT_TARGET_TYPES = [
   'workspace_member',
   'workspace_invitation',
   'workspace_export',
-  'workspace_sso_connection'
+  'workspace_sso_connection',
+  'workspace_sso_domain_claim',
+  'workspace_sso_recovery_exception'
 ] as const
 
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number]

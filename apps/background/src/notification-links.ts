@@ -41,6 +41,7 @@ const WORKSPACE_PATH_BY_KIND = {
   'billing.plan_changed': '/billing',
   'two_factor.changed': null,
   'account.impersonated': null,
+  'sso.recovery': null,
   announcement: ''
 } satisfies Readonly<Record<NotificationKind, string | null>>
 

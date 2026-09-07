@@ -62,6 +62,19 @@ const SsoTestFailedEvent = Schema.Struct({
   domain: Schema.String,
   reasonCode: Schema.String
 })
+const SsoDomainVerificationEvent = Schema.Struct({
+  type: Schema.Literal('sso.domain_verification'),
+  domain: Schema.String,
+  status: Schema.Literals(['verified', 'grace', 'failed']),
+  graceUntil: Schema.String
+})
+const SsoRecoveryEvent = Schema.Struct({
+  type: Schema.Literal('sso.recovery'),
+  exceptionId: Schema.String,
+  action: Schema.Literals(['created', 'used', 'expired']),
+  ownerUserId: Schema.String,
+  expiresAt: Schema.String
+})
 
 /** Schema used at the JSON storage and HTTP boundary for durable events. */
 export const NotificationEventSchema = Schema.Union([
@@ -74,7 +87,9 @@ export const NotificationEventSchema = Schema.Union([
   BillingPlanChangedEvent,
   WorkspaceMemberJoinedEvent,
   ApiTokenCreatedEvent,
-  SsoTestFailedEvent
+  SsoTestFailedEvent,
+  SsoDomainVerificationEvent,
+  SsoRecoveryEvent
 ])
 export type SystemNotificationEvent = typeof NotificationEventSchema.Type
 export type NotificationEvent = SystemNotificationEvent
@@ -236,6 +251,42 @@ export function renderNotificationEvent(
           },
           options
         )
+      }
+    }
+    case 'sso.recovery': {
+      let message = m.backend_email_sso_recovery_expired(
+        { owner: event.ownerUserId },
+        options
+      )
+      if (event.action === 'created') {
+        message = m.backend_email_sso_recovery_created(
+          { owner: event.ownerUserId, expiry: event.expiresAt },
+          options
+        )
+      } else if (event.action === 'used') {
+        message = m.backend_email_sso_recovery_used(
+          { owner: event.ownerUserId, expiry: event.expiresAt },
+          options
+        )
+      }
+      return {
+        title: m.backend_email_sso_recovery_title({}, options),
+        message
+      }
+    }
+    case 'sso.domain_verification': {
+      let message = m.backend_email_sso_domain_grace(
+        { domain: event.domain, deadline: event.graceUntil },
+        options
+      )
+      if (event.status === 'verified') {
+        message = m.backend_email_sso_domain_restored({ domain: event.domain }, options)
+      } else if (event.status === 'failed') {
+        message = m.backend_email_sso_domain_failed({ domain: event.domain }, options)
+      }
+      return {
+        title: m.backend_email_sso_domain_title({}, options),
+        message
       }
     }
     case 'sso.test_failed': {

@@ -59,6 +59,19 @@ export type ApiTokenScopeValue = (typeof apiTokenScopes)[number]
 export const ssoProvisionedRoles = ['member', 'admin'] as const
 export type SsoProvisionedRoleValue = (typeof ssoProvisionedRoles)[number]
 
+/** Lifecycle state of an exact email-domain ownership claim. */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const ssoDomainVerificationStatuses = [
+  'pending',
+  'verified',
+  'grace',
+  'failed'
+] as const
+export type SsoDomainVerificationStatus = (typeof ssoDomainVerificationStatuses)[number]
+
+// oxlint-disable-next-line effect/noAs -- stored enum vocabulary
+export const ssoRecoveryAuthMethods = ['passkey', 'password_mfa'] as const
+
 /**
  * Whether a stored `defaultWorkspaceRole` is one the SSO connection may
  * provision. Better Auth's `sso` plugin types additional fields as plain
@@ -161,6 +174,7 @@ export const notificationKinds = [
   'workspace_member.joined',
   'billing.plan_changed',
   'account.impersonated',
+  'sso.recovery',
   'announcement'
 ] as const
 export type NotificationKind = (typeof notificationKinds)[number]
@@ -177,7 +191,8 @@ export const securityNotificationKinds = [
   'api_token.revoked',
   'workspace_member.role_changed',
   'two_factor.changed',
-  'account.impersonated'
+  'account.impersonated',
+  'sso.recovery'
 ] as const satisfies ReadonlyArray<NotificationKind>
 
 /**

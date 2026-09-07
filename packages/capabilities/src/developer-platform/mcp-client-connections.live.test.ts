@@ -17,7 +17,10 @@ import {
   LIVE_SUITE_TIMEOUT,
   TestDatabase
 } from '../testing/live-harness.ts'
-import { McpClientConnections } from './mcp-client-connections.ts'
+import {
+  McpClientConnections,
+  type McpConsentBinding
+} from './mcp-client-connections.ts'
 
 // oxlint-disable-next-line effect/noGlobals -- fixture literal, not runtime time
 const grantedAt = new Date('2026-08-20T10:00:00.000Z')
@@ -92,6 +95,64 @@ const insertConsentRows = Effect.gen(function* () {
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'live mcp client connections',
   (it) => {
+    describe('consent session binding', () => {
+      it.effect('derives every authority field from the live workspace context', () =>
+        Effect.gen(function* () {
+          const calls: Array<Parameters<McpConsentBinding['bindSession']>[0]> = []
+          const binding: McpConsentBinding = {
+            bindSession: (input) =>
+              // oxlint-disable-next-line starter/no-run-promise-in-tests -- deliberate Promise interop for the McpConsentBinding port
+              Effect.runPromise(
+                Effect.sync(() => {
+                  calls.push(input)
+                })
+              )
+          }
+
+          yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(McpClientConnections, (connections) =>
+              connections.bindConsentToCurrentSession({ clientId: CLIENT_ID })
+            ),
+            { userId: 'usr_owner', sessionId: 'ses_sso_owner' },
+            { mcpConsentBinding: binding }
+          )
+
+          expect(calls).toEqual([
+            {
+              userId: 'usr_owner',
+              clientId: CLIENT_ID,
+              workspaceId: 'wrk_live',
+              sessionId: 'ses_sso_owner'
+            }
+          ])
+        })
+      )
+
+      it.effect('refuses a context with no real session id', () =>
+        Effect.gen(function* () {
+          const binding: McpConsentBinding = {
+            // oxlint-disable-next-line starter/no-run-promise-in-tests -- deliberate Promise interop for the McpConsentBinding port
+            bindSession: () => Effect.runPromise(Effect.void)
+          }
+          const failure = yield* Effect.flip(
+            inWorkspace(
+              'live-lab',
+              Effect.flatMap(McpClientConnections, (connections) =>
+                connections.bindConsentToCurrentSession({ clientId: CLIENT_ID })
+              ),
+              { userId: 'usr_owner' },
+              { mcpConsentBinding: binding }
+            )
+          )
+          expect(failure).toMatchObject({
+            _tag: 'CapabilityUnavailable',
+            reason: 'session_required'
+          })
+        })
+      )
+    })
+
     describe('list, describe, revoke', () => {
       it.effect(
         "lists a user's consents with the client and workspace resolved, and revokes one with its tokens",
