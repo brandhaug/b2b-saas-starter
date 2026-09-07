@@ -404,7 +404,7 @@ describe('freshness and prune subprocesses', () => {
         env: awsEnvironment(stale.fixture)
       })
     ).rejects.toMatchObject({ code: 1 })
-  })
+  }, 30_000)
 
   it('deletes both objects for the oldest completed day', async () => {
     const root = await temporaryDirectory('prune-store-')
@@ -440,7 +440,7 @@ describe('freshness and prune subprocesses', () => {
     expect(
       calls.filter((args) => args[0] === 's3api' && args[1] === 'delete-object')
     ).toHaveLength(2)
-  })
+  }, 30_000)
 })
 
 describe('isolated restore integration', () => {

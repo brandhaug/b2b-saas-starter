@@ -41,6 +41,7 @@ it.effect(
       }
       const batch = {
         queue: 'b2b-saas-starter-webhooks',
+        metadata: { metrics: { backlogCount: 1, backlogBytes: 2 } },
         messages: [message],
         ackAll: vi.fn(),
         retryAll: vi.fn()
