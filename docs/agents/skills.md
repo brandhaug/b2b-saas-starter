@@ -29,6 +29,10 @@ The workflow uses the session's provider and available tools. Configure a cheape
 worker model in your host if desired; the workflow falls back to the session
 model, or local execution when delegation is unavailable.
 
+When changing delegation, review ownership, or model routing, use the
+[workflow evaluations](./evals/README.md) to compare decisions and inspect native
+host dispatches. These paid evaluations run only when explicitly requested.
+
 ## Updates
 
 Ask an agent to update the pinned commits in `scripts/agent-skills.json`, review
