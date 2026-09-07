@@ -19,6 +19,7 @@ import {
   type ReplaceApiTokenInput,
   type WorkspaceApiTokensPayload
 } from './api-tokens'
+import { makeSecurityEvidenceSink } from './security-evidence-sink'
 
 /**
  * The API-tokens payload composition, the revoke effect and their
@@ -90,7 +91,8 @@ export async function revokeApiTokenHandler(
       const tokens = yield* ApiTokenRegistry
       return yield* tokens.revoke({ tokenId: input.tokenId })
     }),
-    { userId: session.user.id }
+    { userId: session.user.id },
+    { securityEvidence: makeSecurityEvidenceSink() }
   )
 }
 

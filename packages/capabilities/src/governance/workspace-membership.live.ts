@@ -16,6 +16,10 @@ import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from './security-recovery-evidence.ts'
+import {
   type MemberRef,
   type MemberRoleInput,
   type WorkspaceMemberBinding,
@@ -41,7 +45,8 @@ const { callBinding } = makeBindingCaller<
 })
 
 export function LiveWorkspaceMembership(
-  binding?: WorkspaceMemberBinding
+  binding?: WorkspaceMemberBinding,
+  securityEvidence?: SecurityEvidenceSink
 ): Layer.Layer<
   WorkspaceMembership,
   never,
@@ -206,6 +211,14 @@ export function LiveWorkspaceMembership(
           yield* callBinding(binding, (bound) =>
             bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
           )
+          yield* recordSecurityEvidence(
+            {
+              kind: 'workspace_access_removed',
+              subjectId: input.userId,
+              workspaceId: ctx.workspace.id
+            },
+            securityEvidence
+          )
           yield* recordInWorkspace(audit, {
             eventType: 'workspace_member.removed',
             targetType: 'workspace_member',
@@ -245,6 +258,14 @@ export function LiveWorkspaceMembership(
           yield* callBinding(binding, (bound) =>
             bound.leave({ workspaceId: ctx.workspace.id })
           )
+          yield* recordSecurityEvidence(
+            {
+              kind: 'workspace_access_removed',
+              subjectId: actor.userId,
+              workspaceId: ctx.workspace.id
+            },
+            securityEvidence
+          )
           yield* recordInWorkspace(audit, {
             eventType: 'workspace_member.removed',
             targetType: 'workspace_member',
@@ -277,6 +298,16 @@ export function LiveWorkspaceMembership(
               memberId,
               role: input.role
             })
+          )
+          // A restored role may carry more authority than this change left in
+          // place. Conservatively remove the restored membership for review.
+          yield* recordSecurityEvidence(
+            {
+              kind: 'workspace_access_removed',
+              subjectId: input.userId,
+              workspaceId: ctx.workspace.id
+            },
+            securityEvidence
           )
           const member = yield* readMember(ctx.workspace.id, input.userId)
           yield* recordInWorkspace(audit, {

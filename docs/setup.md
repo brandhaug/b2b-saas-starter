@@ -81,3 +81,7 @@ Deployment is Alchemy IaC via `pnpm run deploy` (root `alchemy.run.ts`). Require
 For the full walkthrough — Cloudflare token setup, the GitHub Actions `production` environment secrets, first-deploy verification, and troubleshooting — see [deploying.md](./deploying.md).
 
 See [ARCHITECTURE.md](../ARCHITECTURE.md) (Deployment & Infrastructure, Secret matrix) for the full picture, and [README.md](../README.md) for the command reference.
+
+Before customer use, configure [production monitoring and recovery](operations.md)
+and retain a successful isolated restore drill. Provider-free local development
+does not require monitoring or backup credentials.

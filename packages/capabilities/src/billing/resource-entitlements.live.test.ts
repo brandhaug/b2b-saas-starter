@@ -212,7 +212,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               )
             }).pipe(
               Effect.provide(
-                Layer.fresh(LiveApiTokenRegistry).pipe(Layer.provide(racingAudit))
+                Layer.fresh(LiveApiTokenRegistry()).pipe(Layer.provide(racingAudit))
               )
             )
             expect(new Set((yield* selection.getSelection()).apiTokenIds)).toEqual(

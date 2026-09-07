@@ -122,6 +122,18 @@ describe('contract-served routes', () => {
     })
   )
 
+  it.effect('GET /ready reports missing database dependency', () =>
+    Effect.gen(function* () {
+      const res = yield* send(get('/ready'))
+      expect(res.status).toBe(503)
+      expect(
+        yield* jsonBody(res, Schema.Struct({ status: Schema.Literal('not_ready') }))
+      ).toEqual({
+        status: 'not_ready'
+      })
+    })
+  )
+
   it.effect('GET /openapi.json is generated from the contract', () =>
     Effect.gen(function* () {
       const res = yield* send(get('/openapi.json'))

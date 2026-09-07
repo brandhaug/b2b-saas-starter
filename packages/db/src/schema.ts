@@ -931,25 +931,34 @@ export const billingProviderEvents = sqliteTable(
  * Per-workspace convergence state. `leaseFence` is monotonically increasing;
  * a stale worker can never commit after another worker has claimed the lease.
  */
-export const billingSynchronization = sqliteTable('billing_synchronization', {
-  workspaceId: workspaceRef().primaryKey(),
-  status: text('status', { enum: billingSynchronizationStatuses })
-    .default('pending')
-    .notNull(),
-  desiredSeatQuantity: integer('desired_seat_quantity'),
-  observedSeatQuantity: integer('observed_seat_quantity'),
-  lastSyncedAt: text('last_synced_at'),
-  lastAttemptAt: text('last_attempt_at'),
-  unresolvedSince: text('unresolved_since'),
-  failureCount: integer('failure_count').default(0).notNull(),
-  nextAttemptAt: text('next_attempt_at'),
-  failureReason: text('failure_reason'),
-  conflictReason: text('conflict_reason'),
-  leaseOwner: text('lease_owner'),
-  leaseFence: integer('lease_fence').default(0).notNull(),
-  leaseExpiresAt: text('lease_expires_at'),
-  updatedAt: text('updated_at').notNull()
-})
+export const billingSynchronization = sqliteTable(
+  'billing_synchronization',
+  {
+    workspaceId: workspaceRef().primaryKey(),
+    status: text('status', { enum: billingSynchronizationStatuses })
+      .default('pending')
+      .notNull(),
+    desiredSeatQuantity: integer('desired_seat_quantity'),
+    observedSeatQuantity: integer('observed_seat_quantity'),
+    lastSyncedAt: text('last_synced_at'),
+    lastAttemptAt: text('last_attempt_at'),
+    unresolvedSince: text('unresolved_since'),
+    failureCount: integer('failure_count').default(0).notNull(),
+    nextAttemptAt: text('next_attempt_at'),
+    failureReason: text('failure_reason'),
+    conflictReason: text('conflict_reason'),
+    leaseOwner: text('lease_owner'),
+    leaseFence: integer('lease_fence').default(0).notNull(),
+    leaseExpiresAt: text('lease_expires_at'),
+    updatedAt: text('updated_at').notNull()
+  },
+  (table) => [
+    index('billing_synchronization_unresolved_status_idx').on(
+      table.unresolvedSince,
+      table.status
+    )
+  ]
+)
 
 /**
  * Durable checkout handoff. A pending/created row lets an interrupted request
@@ -1068,6 +1077,11 @@ export const emailDeliveries = sqliteTable(
       table.purpose,
       table.createdAt
     ),
-    index('email_deliveries_provider_idx').on(table.providerMessageId, table.recipient)
+    index('email_deliveries_provider_idx').on(table.providerMessageId, table.recipient),
+    index('email_deliveries_accepted_updated_idx').on(
+      table.acceptedAt,
+      table.updatedAt
+    ),
+    index('email_deliveries_status_created_idx').on(table.status, table.createdAt)
   ]
 )

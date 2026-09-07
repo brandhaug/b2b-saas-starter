@@ -120,8 +120,10 @@ export function defaultUserDeleteHooks(): UserDeleteHooks {
       // auth runtime's import path, and the binding pulls the Better Auth
       // server instance in through `plugin-call`.
       const { webAccountLifecycleBinding } = await import('./account-binding')
+      const { makeSecurityEvidenceSink } = await import('./security-evidence-sink')
       return runCapabilities(effect, {
-        accountLifecycleBinding: webAccountLifecycleBinding
+        accountLifecycleBinding: webAccountLifecycleBinding,
+        securityEvidence: makeSecurityEvidenceSink()
       })
     },
     sendAccountDeletedEmail: async (input) => {

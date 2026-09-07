@@ -1,3 +1,5 @@
+import { databaseIsReady } from '@b2b-saas-starter/db/service'
+import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { RateLimiter, StarterApi } from '@b2b-saas-starter/api'
@@ -150,6 +152,20 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     // beside the contract like `/mcp`. See `export-download.ts`.
     exportDownloadLayer(env),
     protectedResourceLayer(env),
+    // Readiness is intentionally outside the public API contract: it probes
+    // the dependency the worker cannot serve without, while `/health` stays
+    // a cheap liveness probe for uptime monitors.
+    HttpRouter.add('GET', '/ready', () =>
+      databaseIsReady(env.DB).pipe(
+        Effect.map((available) => {
+          const ready = available && !isMaintenanceMode(env.MAINTENANCE_MODE)
+          if (ready) {
+            return HttpServerResponse.jsonUnsafe({ status: 'ready' })
+          }
+          return HttpServerResponse.jsonUnsafe({ status: 'not_ready' }, { status: 503 })
+        })
+      )
+    ),
     HttpApiScalar.layer(StarterApi, { path: '/reference' })
   ).pipe(
     HttpRouter.provideRequest(capabilities),

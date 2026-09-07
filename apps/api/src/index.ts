@@ -1,8 +1,11 @@
 import {
   makeSentryOptions,
+  withHttpMonitor,
   wireWideEventProviders
 } from '@b2b-saas-starter/logger/providers'
 import * as Sentry from '@sentry/cloudflare'
+import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
+import { Effect } from 'effect'
 
 import { type ApiEnv } from './env.ts'
 import { getWebHandler } from './http.ts'
@@ -20,7 +23,19 @@ const worker = {
     // unset vars keep both providers fully inert. See
     // packages/logger/src/providers.ts.
     wireWideEventProviders(env)
-    return getWebHandler(env)(request)
+    // Keep liveness and readiness reachable while the shared database is
+    // paused for an operator-led restore. Customer traffic is rejected by
+    // the handler layer below; probes remain useful during maintenance.
+    if (
+      isMaintenanceMode(env.MAINTENANCE_MODE) &&
+      new URL(request.url).pathname !== '/health' &&
+      new URL(request.url).pathname !== '/ready'
+    ) {
+      return Effect.runPromise(
+        Effect.succeed(Response.json({ error: 'maintenance_mode' }, { status: 503 }))
+      )
+    }
+    return withHttpMonitor('api', () => getWebHandler(env)(request))
   }
 }
 

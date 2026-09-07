@@ -26,6 +26,10 @@ export type ServerEnv = {
   readonly STRIPE_PRICE_ID_TEAM?: string | undefined
   readonly STRIPE_PRICE_ID_ENTERPRISE?: string | undefined
   readonly SENTRY_DSN?: string | undefined
+  /** Append-only recovery evidence store outside the production Cloudflare account. */
+  readonly SECURITY_EVIDENCE_URL?: string | undefined
+  /** Bearer credential for the independent recovery evidence store. */
+  readonly SECURITY_EVIDENCE_TOKEN?: string | undefined
   readonly POSTHOG_KEY?: string | undefined
   readonly POSTHOG_HOST?: string | undefined
   readonly CLOUDFLARE_EMAIL_FROM?: string | undefined
@@ -51,6 +55,8 @@ export type ServerEnv = {
   readonly SERVICE_VERSION?: string | undefined
   readonly GIT_COMMIT_SHA?: string | undefined
   readonly ENVIRONMENT?: string | undefined
+  /** Pauses customer traffic and business processing during recovery. */
+  readonly MAINTENANCE_MODE?: string | undefined
   // Workspace data export (ADR 0055): the R2 bucket name gates provisioning at
   // deploy time; the API worker's public origin is where the web app points
   // signed download links.
@@ -86,12 +92,14 @@ export const optionalModuleEnvSecretKeys = [
   'OPENAI_API_KEY',
   'GITHUB_CLIENT_SECRET',
   'GOOGLE_CLIENT_SECRET',
+  'SECURITY_EVIDENCE_TOKEN',
   'OTEL_EXPORTER_OTLP_HEADERS'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvPlainKeys = [
   'SENTRY_DSN',
+  'SECURITY_EVIDENCE_URL',
   'POSTHOG_KEY',
   'POSTHOG_HOST',
   'STRIPE_PRICE_ID_TEAM',
@@ -109,6 +117,7 @@ export const optionalModuleEnvPlainKeys = [
   'SERVICE_VERSION',
   'GIT_COMMIT_SHA',
   'ENVIRONMENT',
+  'MAINTENANCE_MODE',
   'API_PUBLIC_URL'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
@@ -127,6 +136,11 @@ export const optionalModuleEnvPlainKeys = [
  */
 export function hasValue(value: string | null | undefined): value is string {
   return value !== null && value !== undefined && value.length > 0
+}
+
+/** Whether an operator has put the deployment into system-wide maintenance. */
+export function isMaintenanceMode(value: string | null | undefined): boolean {
+  return value?.trim().toLowerCase() === 'true'
 }
 
 /**
@@ -181,7 +195,12 @@ function isHttpsAuthUrl(value: string): boolean {
 }
 
 export type RequiredEnvProblem = {
-  readonly key: 'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL' | 'BETTER_AUTH_TRUSTED_ORIGINS'
+  readonly key:
+    | 'BETTER_AUTH_SECRET'
+    | 'BETTER_AUTH_URL'
+    | 'BETTER_AUTH_TRUSTED_ORIGINS'
+    | 'SECURITY_EVIDENCE_URL'
+    | 'SECURITY_EVIDENCE_TOKEN'
   readonly reason: 'missing' | 'placeholder' | 'too-short' | 'malformed' | 'insecure'
 }
 
@@ -302,6 +321,17 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
     // every emailed link, so `http:` — or a value that does not parse as a
     // URL — is refused.
     problems.push({ key: 'BETTER_AUTH_URL', reason: 'insecure' })
+  }
+
+  if (mode === 'production') {
+    if (!hasValue(source.SECURITY_EVIDENCE_URL)) {
+      problems.push({ key: 'SECURITY_EVIDENCE_URL', reason: 'missing' })
+    } else if (!isHttpsAuthUrl(source.SECURITY_EVIDENCE_URL)) {
+      problems.push({ key: 'SECURITY_EVIDENCE_URL', reason: 'insecure' })
+    }
+    if (!hasValue(source.SECURITY_EVIDENCE_TOKEN)) {
+      problems.push({ key: 'SECURITY_EVIDENCE_TOKEN', reason: 'missing' })
+    }
   }
 
   // A malformed trusted origin silently weakens Better Auth's origin checks —

@@ -1,0 +1,31 @@
+name: Queue monitor
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operator-queue-monitor
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    if: vars.OPS_MONITORING_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: operations-monitoring
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Check queue backlog without consuming messages
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          OPS_QUEUES: ${{ vars.OPS_QUEUES }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_QUEUE_MONITOR_SLUG: ${{ vars.SENTRY_QUEUE_MONITOR_SLUG }}
+        run: node scripts/queue-health.ts

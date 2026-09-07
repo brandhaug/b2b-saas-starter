@@ -1,0 +1,83 @@
+name: D1 Backup
+
+on:
+  schedule:
+    # Set these to the deployment's measured low-traffic backup window.
+    - cron: '17 2 * * *'
+    # Freshness runs separately, so a failed or cancelled backup cannot skip it.
+    - cron: '47 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d1-backup-production
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Export encrypted production D1 backup
+    if: >-
+      vars.BACKUP_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.schedule == '17 2 * * *')
+    runs-on: ubuntu-latest
+    # Keep these credentials in a dedicated environment with no deployment
+    # approval gate. Otherwise an unattended nightly backup will wait forever.
+    environment: backup
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Create, encrypt, upload, and prune backup
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.BACKUP_CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.BACKUP_CLOUDFLARE_ACCOUNT_ID }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
+          BACKUP_DATABASE: ${{ vars.BACKUP_DATABASE || 'b2b-saas-starter' }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION || 'us-east-1' }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_BACKUP_MONITOR_SLUG: ${{ vars.SENTRY_BACKUP_MONITOR_SLUG }}
+          SENTRY_ENVIRONMENT: production
+        run: |
+          aws --version
+          node scripts/d1-backup.ts backup | tee backup-evidence.json
+      - name: Publish backup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d1-backup-evidence-${{ github.run_id }}
+          path: backup-evidence.json
+          if-no-files-found: ignore
+          retention-days: 90
+
+  freshness:
+    name: Verify backup freshness and integrity
+    if: >-
+      vars.BACKUP_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || github.event.schedule == '47 4 * * *')
+    runs-on: ubuntu-latest
+    environment: backup
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Verify latest completed backup
+        env:
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
+          BACKUP_DATABASE: ${{ vars.BACKUP_DATABASE || 'b2b-saas-starter' }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION || 'us-east-1' }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_BACKUP_FRESHNESS_MONITOR_SLUG: ${{ vars.SENTRY_BACKUP_FRESHNESS_MONITOR_SLUG }}
+          SENTRY_ENVIRONMENT: production
+        run: node scripts/d1-backup.ts freshness

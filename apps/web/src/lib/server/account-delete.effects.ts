@@ -8,6 +8,7 @@ import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { webAccountLifecycleBinding } from './account-binding'
 import { type DeleteAccountInput } from './account'
+import { makeSecurityEvidenceSink } from './security-evidence-sink'
 
 /**
  * The delete half of the `/account` server behaviour, in its own module so
@@ -29,6 +30,9 @@ export async function deleteAccountHandler(
     Effect.flatMap(AccountLifecycle, (lifecycle) =>
       lifecycle.deleteAccount({ userId: session.user.id, password: input.password })
     ),
-    { accountLifecycleBinding: webAccountLifecycleBinding }
+    {
+      accountLifecycleBinding: webAccountLifecycleBinding,
+      securityEvidence: makeSecurityEvidenceSink()
+    }
   )
 }

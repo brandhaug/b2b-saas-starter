@@ -86,7 +86,7 @@ pnpm run db:migrate:remote
 pnpm run db:seed
 
 pnpm run deploy           # alchemy deploy --stage prod --yes
-pnpm run destroy          # alchemy destroy --stage prod
+pnpm run destroy --confirm-target="$CLOUDFLARE_ACCOUNT_ID/prod"
 ```
 
 ## Documentation

@@ -14,6 +14,8 @@ export const env = {
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
   SENTRY_DSN: process.env.SENTRY_DSN,
+  SECURITY_EVIDENCE_URL: process.env.SECURITY_EVIDENCE_URL,
+  SECURITY_EVIDENCE_TOKEN: process.env.SECURITY_EVIDENCE_TOKEN,
   POSTHOG_KEY: process.env.POSTHOG_KEY,
   POSTHOG_HOST: process.env.POSTHOG_HOST,
   CLOUDFLARE_EMAIL_FROM: process.env.CLOUDFLARE_EMAIL_FROM,
@@ -47,6 +49,7 @@ export const env = {
   SERVICE_VERSION: process.env.SERVICE_VERSION,
   GIT_COMMIT_SHA: process.env.GIT_COMMIT_SHA,
   ENVIRONMENT: process.env.ENVIRONMENT,
+  MAINTENANCE_MODE: process.env.MAINTENANCE_MODE,
   // Workspace export (ADR 0055): where signed download links point. Unset,
   // the web app assumes the API worker's local dev port.
   API_PUBLIC_URL: process.env.API_PUBLIC_URL,

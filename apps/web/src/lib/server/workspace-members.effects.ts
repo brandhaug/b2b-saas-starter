@@ -11,6 +11,7 @@ import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
 import { webMemberBinding } from './member-binding'
+import { makeSecurityEvidenceSink } from './security-evidence-sink'
 import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type ChangeMemberRoleInput,
@@ -104,7 +105,7 @@ export async function changeMemberRoleHandler(
     { userId: session.user.id },
     // The adapter lives server-only and rides per call — see
     // `member-binding.ts` for why it cannot sit on `starterEnv`.
-    { memberBinding: webMemberBinding }
+    { memberBinding: webMemberBinding, securityEvidence: makeSecurityEvidenceSink() }
   )
 }
 
@@ -125,7 +126,7 @@ export async function removeMemberHandler(input: RemoveMemberInput): Promise<voi
       return yield* membership.removeMember({ userId: input.userId })
     }),
     { userId: session.user.id },
-    { memberBinding: webMemberBinding }
+    { memberBinding: webMemberBinding, securityEvidence: makeSecurityEvidenceSink() }
   )
 }
 
@@ -145,6 +146,6 @@ export async function leaveWorkspaceHandler(input: LeaveWorkspaceInput): Promise
     input.workspaceSlug,
     Effect.flatMap(WorkspaceMembership, (membership) => membership.leave),
     { userId: session.user.id },
-    { memberBinding: webMemberBinding }
+    { memberBinding: webMemberBinding, securityEvidence: makeSecurityEvidenceSink() }
   )
 }

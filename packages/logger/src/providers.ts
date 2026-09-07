@@ -94,6 +94,83 @@ export function wireWideEventProviders(env: ProviderGlueEnv): void {
   wiredEnv = env
 }
 
+/**
+ * Sends a Sentry cron check-in around a scheduled invocation. Sentry remains
+ * optional: without an initialized client this is exactly the supplied
+ * operation, so local development never needs monitoring credentials.
+ */
+export async function withCronMonitor<A>(
+  monitorSlug: string,
+  operation: () => Promise<A>
+): Promise<A> {
+  const Sentry = await import('@sentry/cloudflare')
+  if (!Sentry.isEnabled()) {
+    return operation()
+  }
+  const checkInId = Sentry.captureCheckIn({ monitorSlug, status: 'in_progress' })
+  try {
+    const result = await operation()
+    Sentry.captureCheckIn({ monitorSlug, status: 'ok', checkInId })
+    return result
+  } catch (error) {
+    Sentry.captureCheckIn({ monitorSlug, status: 'error', checkInId })
+    // oxlint-disable-next-line effect/noThrowStatement -- preserve the worker invocation failure for Sentry and the platform scheduler
+    throw error
+  }
+}
+
+/** Low-cardinality gauges include zero so Sentry metric monitors can recover. */
+export async function captureOperationalSnapshot(
+  values: Readonly<Record<string, number>>
+): Promise<void> {
+  const Sentry = await import('@sentry/cloudflare')
+  if (!Sentry.isEnabled()) {
+    return
+  }
+  for (const [name, value] of Object.entries(values)) {
+    Sentry.metrics.gauge(name, value, { attributes: { service: 'background' } })
+  }
+}
+
+/** Count actual HTTP outcomes, including handled 5xx responses. */
+export async function withHttpMonitor(
+  service: string,
+  operation: () => Promise<Response>
+): Promise<Response> {
+  const Sentry = await import('@sentry/cloudflare')
+  if (!Sentry.isEnabled()) {
+    return operation()
+  }
+  let serverError = true
+  try {
+    const response = await operation()
+    serverError = response.status >= 500
+    return response
+  } finally {
+    Sentry.metrics.count('http.requests', 1, {
+      attributes: { service, server_error: serverError }
+    })
+  }
+}
+
+/** IDs belong in event context, never in metric dimensions or fingerprints. */
+export async function captureMonitoringSignal(
+  signal: string,
+  evidence: Readonly<Record<string, string | number | undefined>>
+): Promise<void> {
+  const Sentry = await import('@sentry/cloudflare')
+  if (!Sentry.isEnabled()) {
+    return
+  }
+  Sentry.captureMessage(signal, {
+    level: 'error',
+    fingerprint: ['operations', signal],
+    tags: { signal },
+    extra: evidence
+  })
+  Sentry.metrics.count('operations.failures', 1, { attributes: { signal } })
+}
+
 /** Never rejects: a vendor outage must not fail the request being reported. */
 async function dispatch(record: WideEventRecord): Promise<void> {
   await Promise.allSettled([captureSentryError(record), capturePostHogEvent(record)])
@@ -105,8 +182,8 @@ async function captureSentryError(record: WideEventRecord): Promise<void> {
   if (record.status !== 'error' || record.errorKind === 'interrupt') {
     return
   }
-  const Sentry = await import('@sentry/cloudflare')
-  if (Sentry.getClient() === undefined) {
+  const sentry = await import('@sentry/cloudflare')
+  if (sentry.getClient() === undefined) {
     return
   }
 
@@ -115,7 +192,7 @@ async function captureSentryError(record: WideEventRecord): Promise<void> {
   const exception = record.error ?? `${record.service} failed ${record.event}`
   // Undefined tag values are dropped by Sentry's payload serializer, so the
   // optional fields are simply passed through.
-  Sentry.captureException(exception, {
+  sentry.captureException(exception, {
     tags: {
       service: record.service,
       event: record.event,

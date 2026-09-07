@@ -82,3 +82,19 @@ export function batch(
     })
   })
 }
+
+/** Bounded readiness probe checks the schema needed for sign-in and Workspaces. */
+export function databaseIsReady(
+  database: D1Binding | undefined
+): Effect.Effect<boolean> {
+  if (database === undefined) {
+    return Effect.succeed(false)
+  }
+  return Effect.tryPromise(() =>
+    database.prepare('SELECT 1 FROM user, account, session, workspaces LIMIT 1').first()
+  ).pipe(
+    Effect.timeout('3 seconds'),
+    Effect.as(true),
+    Effect.catch(() => Effect.succeed(false))
+  )
+}
