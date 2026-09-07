@@ -53,6 +53,9 @@ export const env = {
   // Workspace export (ADR 0055): where signed download links point. Unset,
   // the web app assumes the API worker's local dev port.
   API_PUBLIC_URL: process.env.API_PUBLIC_URL,
+  SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
+  SUPPORT_HELPDESK_URL: process.env.SUPPORT_HELPDESK_URL,
+  SUPPORT_HELP_CENTER_URL: process.env.SUPPORT_HELP_CENTER_URL,
   WORKSPACE_EXPORT_BUCKET: process.env.WORKSPACE_EXPORT_BUCKET,
   // Seat-sync queue: unwired outside a real deployment — membership
   // mutations publish nothing and the provider webhook reconciles instead.

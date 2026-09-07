@@ -9,6 +9,27 @@ webhook queue and dead-letter queue, the three Workers (`web`, `api`,
 Optional providers (Stripe, Sentry, PostHog, Turnstile, email, AI) stay
 inactive until you add their variables.
 
+The public `/help/` page is available without a session or database read. Set
+these optional web Worker variables to expose deployment support routes:
+
+| Variable                  | Purpose                                                                |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `SUPPORT_EMAIL`           | Email contact; offered alongside the helpdesk when both are configured |
+| `SUPPORT_HELPDESK_URL`    | Primary support destination; must be an `https:` URL                   |
+| `SUPPORT_HELP_CENTER_URL` | Optional documentation/help center; must be an `https:` URL            |
+
+The page validates these values at runtime and hides invalid destinations.
+When using `SUPPORT_EMAIL`, configure forwarding or a monitored mailbox in your
+deployment's email provider. The copy button only prepares safe local details;
+it does not send a message or prefill a third-party form. Missing or invalid contact
+configuration shows a contact-unavailable message. A configured help center and
+diagnostic copying remain available. Only development builds show setup hints.
+
+Copy details from the workspace shell to include its authorized workspace ID, or
+from an error view to include its safe route label. The public help page copies no
+workspace identity. Missing release identity and request references are omitted;
+the current UI error contract exposes no trusted failing-operation reference.
+
 For the full resource and security model, see
 [ARCHITECTURE.md](../ARCHITECTURE.md) (Deployment & Infrastructure and
 Secret matrix). For local setup, see [setup.md](./setup.md).

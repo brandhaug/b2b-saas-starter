@@ -5,11 +5,17 @@ import { requestPresentation } from './i18n-context'
 
 const state = vi.hoisted(() => ({
   signedIn: false,
+  databaseUnavailable: false,
   preferences: { locale: 'en', timeZone: 'America/New_York' }
 }))
 
 vi.mock('./auth', () => ({
-  readOptionalSession: () => (state.signedIn ? { user: { id: 'usr_demo' } } : null)
+  readOptionalSession: () => {
+    if (state.databaseUnavailable) {
+      throw new Error('D1 unavailable')
+    }
+    return state.signedIn ? { user: { id: 'usr_demo' } } : null
+  }
 }))
 vi.mock('../capabilities', () => ({
   runCapabilities: () => state.preferences
@@ -17,6 +23,7 @@ vi.mock('../capabilities', () => ({
 
 beforeEach(() => {
   state.signedIn = false
+  state.databaseUnavailable = false
 })
 
 async function renderPresentation() {
@@ -24,6 +31,22 @@ async function renderPresentation() {
 }
 
 describe('locale request integration', () => {
+  it.each(['/help', '/help/', '/nb/help', '/api/support-config'])(
+    'AC6: public support %s stays reachable with a session cookie and unavailable D1',
+    async (path) => {
+      state.signedIn = true
+      state.databaseUnavailable = true
+      const response = await localizeRequest(
+        new Request(`https://starter.test${path}`, {
+          headers: { cookie: 'better-auth.session_token=unavailable-session' }
+        }),
+        async () => new Response('support is available')
+      )
+      expect(response.status).toBe(200)
+      expect(await response.text()).toBe('support is available')
+    }
+  )
+
   it('uses the account preference on an unprefixed app route', async () => {
     state.signedIn = true
     const response = await localizeRequest(

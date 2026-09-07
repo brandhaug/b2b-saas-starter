@@ -1,8 +1,10 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useClientValue } from '@/lib/client-only-value'
 import { PublicLayout } from '@/components/public-layout'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
  * The only part of the form API the shell reads. Structural so it accepts any
@@ -106,6 +108,11 @@ export function AuthCardForm({
               </form>
             )}
             {footer}
+            <p className="text-center text-sm text-muted-foreground">
+              <Link to="/help" reloadDocument className="underline underline-offset-4">
+                {m.public_meta_support()}
+              </Link>
+            </p>
           </CardContent>
         </Card>
       </main>

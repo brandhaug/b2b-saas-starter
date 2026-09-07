@@ -62,6 +62,9 @@ export type ServerEnv = {
   // signed download links.
   readonly WORKSPACE_EXPORT_BUCKET?: string | undefined
   readonly API_PUBLIC_URL?: string | undefined
+  readonly SUPPORT_EMAIL?: string | undefined
+  readonly SUPPORT_HELPDESK_URL?: string | undefined
+  readonly SUPPORT_HELP_CENTER_URL?: string | undefined
 }
 
 /**
@@ -118,7 +121,10 @@ export const optionalModuleEnvPlainKeys = [
   'GIT_COMMIT_SHA',
   'ENVIRONMENT',
   'MAINTENANCE_MODE',
-  'API_PUBLIC_URL'
+  'API_PUBLIC_URL',
+  'SUPPORT_EMAIL',
+  'SUPPORT_HELPDESK_URL',
+  'SUPPORT_HELP_CENTER_URL'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
 /**

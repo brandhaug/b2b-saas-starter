@@ -1,3 +1,4 @@
+import { SupportDetails } from '@/components/support-details'
 import { type ReactNode, useEffect, useState, use } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import {
@@ -252,7 +253,19 @@ export function WorkspaceShell({
         {/* One content width for every shell page — the page body centers at
             `max-w-4xl` instead of each page picking its own column. */}
         <main id="main-content" className="px-4 py-6 sm:px-6">
-          <div className="mx-auto grid w-full max-w-4xl gap-6">{children}</div>
+          <div className="mx-auto grid w-full max-w-4xl gap-6">
+            {children}
+            <footer className="border-t border-border pt-6">
+              <SupportDetails
+                routeName={workspaceSlug === null ? 'application' : 'workspace'}
+                workspaceId={
+                  workspaceSlug === null
+                    ? undefined
+                    : findWorkspace(directory, workspaceSlug)?.id
+                }
+              />
+            </footer>
+          </div>
         </main>
       </div>
     </div>
@@ -524,6 +537,7 @@ function YouNavLink({
   return (
     <Link
       to={to}
+      reloadDocument={to === '/help'}
       onClick={onNavigate}
       className={navLinkClasses}
       activeOptions={{ exact }}

@@ -1,3 +1,4 @@
+import { SupportDetails } from '@/components/support-details'
 import { Link, useRouter } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
@@ -24,6 +25,14 @@ export function AuditRouteError({ error }: { readonly error: Error }) {
       )}
       <Link to="/workspaces" className="text-primary underline underline-offset-4">
         {m.back_to_workspaces()}
+      </Link>
+      <SupportDetails routeName="audit" />
+      <Link
+        to="/help"
+        reloadDocument
+        className="text-primary underline underline-offset-4"
+      >
+        {m.public_meta_support()}
       </Link>
     </Empty>
   )

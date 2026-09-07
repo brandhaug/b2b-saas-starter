@@ -1,3 +1,4 @@
+import { SupportDetails } from '@/components/support-details'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { deLocalizeUrl, localizeUrl } from '@b2b-saas-starter/i18n/runtime'
 import { QueryClient } from '@tanstack/react-query'
@@ -14,6 +15,9 @@ function NotFound() {
       <p className="text-sm text-muted-foreground">{m.shell_not_found_description()}</p>
       <Link to="/" className="text-sm underline underline-offset-4">
         {m.shell_home()}
+      </Link>
+      <Link to="/help" reloadDocument className="text-sm underline underline-offset-4">
+        {m.public_meta_support()}
       </Link>
     </div>
   )
@@ -35,6 +39,10 @@ function RouteError({ error }: { readonly error: Error }) {
       </p>
       <Link to="/" className="text-sm underline underline-offset-4">
         {m.shell_home()}
+      </Link>
+      <SupportDetails routeName="application" />
+      <Link to="/help" reloadDocument className="text-sm underline underline-offset-4">
+        {m.public_meta_support()}
       </Link>
     </div>
   )
