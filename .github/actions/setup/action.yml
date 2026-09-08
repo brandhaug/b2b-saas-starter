@@ -2,7 +2,19 @@ name: Setup
 description: >-
   Install the Vite+ toolchain (pinned VP_VERSION — it provides the managed
   Node runtime and the package manager pinned in package.json), restore the
-  pnpm store cache, and install dependencies with a frozen lockfile.
+  pnpm store cache, install dependencies with a frozen lockfile, and optionally
+  restore the Vite Task cache.
+
+inputs:
+  cache-task:
+    description: Restore the Vite Task cache after dependencies are installed.
+    required: false
+    default: 'false'
+
+outputs:
+  vite-task-cache-primary-key:
+    description: The immutable key to use when saving the restored Vite Task cache.
+    value: ${{ steps.vite-task-cache-restore.outputs.cache-primary-key }}
 
 runs:
   using: composite
@@ -29,3 +41,12 @@ runs:
           ${{ runner.os }}-pnpm-
     - run: vp install --frozen-lockfile
       shell: bash
+    - name: Restore Vite Task cache
+      id: vite-task-cache-restore
+      if: ${{ inputs.cache-task == 'true' }}
+      uses: actions/cache/restore@v6
+      with:
+        path: node_modules/.vite/task-cache
+        key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          vite-task-${{ runner.os }}-${{ runner.arch }}-
