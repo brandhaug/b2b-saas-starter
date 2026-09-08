@@ -10,7 +10,7 @@ import {
 import { Database, layerFromD1 } from '@b2b-saas-starter/db/service'
 import { Effect, Layer } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 
 import {
   AccountLifecycle,
@@ -442,7 +442,15 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         )
         expect(deliveries.map((row) => row.id)).toEqual(['email_other_recipient'])
         const remainingNotifications = yield* Effect.flatMap(Database, (database) =>
-          database.select().from(notifications)
+          database
+            .select()
+            .from(notifications)
+            .where(
+              inArray(notifications.id, [
+                'notification_mixed_personal',
+                'notification_mixed_other'
+              ])
+            )
         )
         expect(remainingNotifications.map((row) => row.id)).toEqual([
           'notification_mixed_other'

@@ -272,7 +272,13 @@ describe('processNotificationEmailMessage', () => {
           stubFeed(context),
           SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
           stubDispatcher(sent),
-          SeedEmailDelivery()
+          SeedEmailDelivery(),
+          Layer.succeed(WorkspaceSuspensionService)({
+            list: Effect.succeed([]),
+            get: () => Effect.die('unused'),
+            requireAllowed: () => Effect.void,
+            transition: () => Effect.die('unused')
+          })
         )
       )
     )

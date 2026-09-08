@@ -12,7 +12,7 @@ import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-pla
 import { WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { type NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { currentTraceId, TRACE_HEADER } from '@b2b-saas-starter/logger'
 import { DateTime, Effect, Result, Schema, type Scope } from 'effect'
 import { HttpBody, HttpClient } from 'effect/unstable/http'
