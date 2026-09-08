@@ -23,13 +23,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm run typecheck
-      - run: pnpm run lint
-      - run: pnpm run format:check
+        id: setup
+        with:
+          cache-task: true
+      - run: vp run typecheck
+      - run: vp run lint
       # Dead-code regression gate (the `dead-code` step of `pnpm run check`).
       # Fallow is pinned in the workspace catalog so local and CI runs use the
       # same analyzer binary.
-      - run: pnpm run dead-code
+      - run: vp run dead-code
       # The wrangler configs are generated from infra/bindings.ts. Regenerating
       # them must be a no-op; a hand-edited config (or a spec change nobody
       # re-ran) shows up as a diff here instead of as a worker that drifted
@@ -38,6 +40,12 @@ jobs:
         run: |
           pnpm run infra:wrangler
           git diff --exit-code -- apps/*/wrangler.jsonc
+      - name: Save Vite Task cache
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: ${{ steps.setup.outputs.vite-task-cache-primary-key }}
 
   # Web tests can start immediately instead of waiting for dependency tests.
   # The complementary filters include every workspace, including new packages.
@@ -55,6 +63,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+        id: setup
+        with:
+          cache-task: true
       - run: pnpm -C packages/i18n generate
       # Includes the coverage ratchet on the application layer: the
       # capabilities `test` script runs with --coverage (thresholds live in
@@ -71,13 +82,28 @@ jobs:
       - name: Run operations tests
         if: ${{ matrix.name == 'packages' }}
         run: pnpm run test:operations
+      - name: Save Vite Task cache
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: ${{ steps.setup.outputs.vite-task-cache-primary-key }}
 
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm run build
+        id: setup
+        with:
+          cache-task: true
+      - run: vp run build
+      - name: Save Vite Task cache
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: node_modules/.vite/task-cache
+          key: ${{ steps.setup.outputs.vite-task-cache-primary-key }}
 
   # Keep the existing required check name, and fail on skipped/cancelled jobs.
   ci:
