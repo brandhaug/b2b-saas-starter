@@ -1,3 +1,5 @@
+// oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
+import '@/test/qualified-session'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { fixtureSession } from '@/test/fixture-session'
 import {

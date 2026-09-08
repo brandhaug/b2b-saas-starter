@@ -57,6 +57,23 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       () =>
         Effect.gen(function* () {
           const DB = yield* TestD1
+          for (const userId of ['usr_owner', 'usr_outsider']) {
+            yield* execute(
+              `INSERT INTO passkey (id,userId,publicKey,credentialID,counter,deviceType,backedUp,createdAt)
+              VALUES (?,?,'fixture-public-key',?,0,'singleDevice',0,strftime('%s','now'))`,
+              `pk_suspension_${userId}`,
+              userId,
+              `credential_suspension_${userId}`
+            )
+            yield* execute(
+              `INSERT INTO session (id,token,userId,expiresAt,createdAt,updatedAt,strongAuthAt,strongAuthMethod,strongAuthCredentialId)
+              VALUES (?,?,?,strftime('%s','now')+3600,strftime('%s','now'),strftime('%s','now'),strftime('%s','now'),'passkey',?)`,
+              `ses_suspension_${userId}`,
+              `tok_suspension_${userId}`,
+              userId,
+              `pk_suspension_${userId}`
+            )
+          }
           yield* execute(
             `INSERT INTO oauth_client (id,clientId,redirectUris,disabled) VALUES ('client-suspension','suspension-client','[]',0)`
           )
@@ -94,7 +111,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 scope: 'mcp:read',
                 starter_workspace_id: 'wrk_dev_contract',
                 starter_workspace_slug: 'dev-contract-lab',
-                starter_workspace_role: 'owner'
+                starter_workspace_role: 'owner',
+                starter_session_id: `ses_suspension_${userId}`
               })
                 .setProtectedHeader({ alg: 'EdDSA' })
                 .setIssuer(issuer)

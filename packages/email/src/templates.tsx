@@ -534,6 +534,28 @@ export function BackupCodesRotatedEmail({
 
 BackupCodesRotatedEmail.PreviewProps = {}
 
+export function RecoveryStartedEmail({
+  locale
+}: { readonly locale?: Locale | undefined } = {}) {
+  const options = { locale: locale ?? DEFAULT_LOCALE }
+  return (
+    <EmailLayout
+      preview={m.security_recovery_email_subject({}, options)}
+      heading={m.security_recovery_email_subject({}, options)}
+      locale={locale}
+    >
+      <Text className="text-base text-foreground mt-4">
+        {m.security_recovery_email_body({}, options)}
+      </Text>
+      <Text className="text-sm text-muted-foreground mt-4">
+        {m.security_recovery_email_warning({}, options)}
+      </Text>
+    </EmailLayout>
+  )
+}
+
+RecoveryStartedEmail.PreviewProps = {}
+
 type AccountDeletedEmailProps = {
   /** Workspaces the account left because other owners remained. */
   readonly workspacesLeft: number

@@ -32,6 +32,10 @@ import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-e
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { type WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import {
+  type StrongAuthentication,
+  type StrongAuthenticationRequired
+} from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { workspaceOverview } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
@@ -55,6 +59,7 @@ export type CapabilityReadError =
   | AuthorizationDenied
   | WorkspaceNotFound
   | WorkspaceSuspended
+  | StrongAuthenticationRequired
   | CapabilityUnavailable
 
 /**
@@ -70,6 +75,7 @@ export type CapabilityReadServices =
   | ApiTokenRegistry
   | WebhookEndpoints
   | AuditEventLog
+  | StrongAuthentication
 
 export type CapabilityRead = Effect.Effect<
   unknown,
@@ -267,6 +273,7 @@ export function readOperations(): ReadonlyArray<WorkspaceReadOperation> {
 /** Expected mutation failures; each concrete row retains its inferred subset. */
 export type CapabilityMutationError =
   | WorkspaceSuspended
+  | StrongAuthenticationRequired
   | AuthorizationDenied
   | InvalidApiTokenInput
   | ApiTokenNotRotatable
@@ -284,6 +291,7 @@ export type CapabilityMutationServices =
   | ApiTokenRegistry
   | WebhookEndpoints
   | WorkspaceExports
+  | StrongAuthentication
 
 /** Rows narrow this to their decoded path parameters and payload. */
 export type MutationRequestOptions = {

@@ -1,4 +1,5 @@
 import { UiError } from './ui-error'
+import { StrongAuthenticationRequired } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   AccountPreferencesRejected,
@@ -84,6 +85,14 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
   const failure = Cause.findErrorOption(cause)
   if (Option.isSome(failure)) {
     const error = failure.value
+    if (error instanceof StrongAuthenticationRequired) {
+      // oxlint-disable-next-line effect/noThrowStatement -- transport serialization of an expected authorization failure
+      throw new UiError(
+        'strong_authentication_required',
+        {},
+        'Strong authentication required'
+      )
+    }
     if (error instanceof WorkspaceNotFound) {
       // oxlint-disable-next-line effect/noThrowStatement -- `throw notFound()` is TanStack Router's 404 control-flow API
       throw notFound()

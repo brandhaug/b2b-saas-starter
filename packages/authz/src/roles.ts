@@ -1,6 +1,7 @@
 import {
   type ApiTokenScopeValue,
-  type workspaceRoles
+  type workspaceRoles,
+  adminSystemRole
 } from '@b2b-saas-starter/db/enums'
 import { type Role, type Statements } from 'better-auth/plugins/access'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
@@ -22,6 +23,19 @@ import {
 
 export type WorkspaceRole = (typeof workspaceRoles)[number]
 export type ApiTokenScope = ApiTokenScopeValue
+
+/** Privileged human actions require current session-bound strong authentication. */
+export function needsStrongAuthentication(input: {
+  // Better Auth exposes this field as a string, including at server boundaries.
+  readonly systemRole?: string | null | undefined
+  readonly workspaceRole?: WorkspaceRole | null | undefined
+}): boolean {
+  return (
+    input.systemRole === adminSystemRole ||
+    input.workspaceRole === 'owner' ||
+    input.workspaceRole === 'admin'
+  )
+}
 
 /**
  * Every role authorizes against the same statement set, whatever subset of it

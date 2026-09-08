@@ -1,6 +1,10 @@
 import { RateLimiter } from '@b2b-saas-starter/api'
 import { SeedLayer } from '@b2b-saas-starter/capabilities/layers'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
+import {
+  StrongAuthentication,
+  StrongAuthenticationRequired
+} from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { WebhookPublisher } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { SeedWebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints.seed'
 import {
@@ -14,6 +18,9 @@ import { expect, it } from '@effect/vitest'
 import { Effect, Layer, Logger, Schema } from 'effect'
 import { HttpRouter } from 'effect/unstable/http'
 import { mcpProtocolLayer } from './mcp.ts'
+import { authorizeMcpOperation, type McpCaller } from './request-guards.ts'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { OAuthTokenVerifier } from './oauth-access-token.ts'
 import { mcpClient, jsonBody } from './test-utils.ts'
 
@@ -67,6 +74,8 @@ function authorityHarness() {
   let grantedScopes = ['mcp:read', 'mcp:write']
   let consentBinding = 'consent:0'
   let grantBinding = 'consent:0'
+  let sessionId: string | undefined = 'session-test'
+  let qualified = true
   const grants = Layer.succeed(McpClientConnections)({
     getGrant: () =>
       Effect.sync(() => {
@@ -107,13 +116,29 @@ function authorityHarness() {
         workspaceRole: 'owner',
         scopes,
         clientId,
-        consentBinding
+        consentBinding,
+        sessionId
       }))
+  })
+  const assurance = Layer.succeed(StrongAuthentication)({
+    status: () =>
+      Effect.succeed({
+        qualified: true,
+        recovering: false,
+        hasFactors: true,
+        passwordVerified: true
+      }),
+    require: () => {
+      if (qualified) {
+        return Effect.void
+      }
+      return Effect.fail(new StrongAuthenticationRequired())
+    }
   })
   const limiter = Layer.succeed(RateLimiter)({ take: () => Effect.succeed(true) })
   const handler = HttpRouter.toWebHandler(
     mcpProtocolLayer({}).pipe(
-      Layer.provide(Layer.mergeAll(SeedLayer, grants, issuer, limiter)),
+      Layer.provide(Layer.mergeAll(SeedLayer, grants, issuer, limiter, assurance)),
       HttpRouter.provideRequest(logger)
     ),
     { disableLogger: true }
@@ -147,9 +172,113 @@ function authorityHarness() {
     },
     oldCredential: () => {
       consentBinding = 'old-consent:0'
+    },
+    clearSession: () => {
+      sessionId = undefined
+    },
+    staleAssurance: () => {
+      qualified = false
     }
   }
 }
+
+it.effect('OAuth privileged calls fail without current session-bound assurance', () =>
+  Effect.gen(function* () {
+    const harness = authorityHarness()
+    const oauth = mcpClient(harness.handler, 'Bearer signed.oauth.jwt')
+    yield* Effect.promise(() => oauth.initialize())
+    harness.clearSession()
+    expect(
+      (yield* call(oauth, 'create_api_token', {
+        name: 'missing session',
+        scopes: ['read']
+      })).isError
+    ).toBe(true)
+    harness.staleAssurance()
+    expect(
+      (yield* call(oauth, 'create_api_token', {
+        name: 'stale assurance',
+        scopes: ['read']
+      })).isError
+    ).toBe(true)
+  })
+)
+
+it.effect(
+  'MCP authorization checks system admins even with a member workspace role',
+  () =>
+    Effect.gen(function* () {
+      const caller: McpCaller = {
+        kind: 'oauth',
+        token: {
+          userId: 'usr_system_member',
+          workspaceId: 'wrk_starter',
+          workspaceSlug: 'starter-lab',
+          workspaceRole: 'member',
+          scopes: ['mcp:read'],
+          clientId,
+          consentBinding: 'binding:current',
+          sessionId: 'session:current'
+        }
+      }
+      const callerUserId = 'usr_system_member'
+      const connections = Layer.succeed(McpClientConnections)({
+        getGrant: () =>
+          Effect.succeed({ binding: 'binding:current', scopes: ['mcp:read'] }),
+        describeClient: () => Effect.succeed(null),
+        listForUser: () => Effect.succeed([]),
+        recordGrant: () => Effect.void,
+        revoke: () => Effect.succeed(false)
+      })
+      const suspension = Layer.succeed(WorkspaceSuspensionService)({
+        list: Effect.succeed([]),
+        get: () => Effect.die('unused'),
+        requireAllowed: () => Effect.void,
+        transition: () => Effect.die('unused')
+      })
+      function context(systemRole: 'admin' | 'user') {
+        return Layer.succeed(WorkspaceContext)({
+          workspace: {
+            id: 'wrk_starter',
+            slug: 'starter-lab',
+            name: 'Starter',
+            planId: 'starter'
+          },
+          actor: { userId: callerUserId, role: 'member', systemRole },
+          actorType: 'user'
+        })
+      }
+      const weakAssurance = Layer.succeed(StrongAuthentication)({
+        status: () =>
+          Effect.succeed({
+            qualified: false,
+            recovering: false,
+            hasFactors: true,
+            passwordVerified: false
+          }),
+        require: () => Effect.fail(new StrongAuthenticationRequired())
+      })
+      function authorize(systemRole: 'admin' | 'user') {
+        return authorizeMcpOperation(
+          caller,
+          { notification: ['read'] },
+          'mcp:read'
+        ).pipe(
+          Effect.result,
+          Effect.provide(
+            Layer.mergeAll(context(systemRole), connections, suspension, weakAssurance)
+          )
+        )
+      }
+      const denied = yield* authorize('admin')
+      expect(denied._tag).toBe('Failure')
+      if (denied._tag === 'Failure') {
+        expect(denied.failure._tag).toBe('StrongAuthenticationRequired')
+      }
+      const member = yield* authorize('user')
+      expect(member._tag).toBe('Success')
+    })
+)
 
 it.effect(
   'OAuth writes require a write grant and current role; token minting cannot exceed it',

@@ -99,6 +99,7 @@ export function buildAuthLayer(
         runBackground: (promise) => {
           void promise.catch(() => undefined)
         },
+        recoveryHooks: { onRecoveryStarted: noop },
         mcp: testMcpConfig(),
         ...overrides
       }))

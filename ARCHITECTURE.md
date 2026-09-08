@@ -79,6 +79,8 @@ Request boundaries authenticate the caller, resolve workspace membership, and ch
 
 Better Auth provides password, username, magic-link, email-code, passkey, social, and workspace SSO sign-in; TOTP; and MCP OAuth consent. The [auth intent node](packages/auth/AGENTS.md) owns plugin ordering and session constraints.
 
+System Admin and Workspace owner/admin access require session-bound password plus verified TOTP, or server-verified user-verifying passkey authentication. Enforcement rereads current session and factor evidence, including for privileged MCP clients. See [privileged authentication and recovery](docs/strong-authentication.md).
+
 The auth catchall applies rate limiting, Turnstile where configured, SSO enforcement, impersonation restrictions, and audit capture. Cloudflare rate-limit bindings use `cf-connecting-ip`; local development and tests use the in-memory fallback. Production required-env checks reject insecure auth configuration.
 
 SSO connections belong to Workspaces. The app enforces enabled/required status at the auth boundary. Provisioning can assign member or admin, never owner. See [SSO decision](docs/adr/0069-workspace-scoped-sso.md) for domain-verification limitations.

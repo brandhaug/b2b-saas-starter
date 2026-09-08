@@ -131,12 +131,19 @@ test('saved account language and time zone override browser preferences in a new
       await secondContext.close()
     }
   } finally {
-    // Cleanup must work even if the locale change or page rendering failed.
-    const deletion = await context.request.post('/api/auth/delete-user', {
-      headers,
-      data: { password: isolatedAccountPassword }
-    })
-    await expect(deletion).toBeOK()
+    // The app's deletion capability owns cleanup; the raw auth endpoint is
+    // intentionally unavailable. Either language may be active after a failure.
+    await page.goto('/account')
+    await page.locator('header select:enabled').waitFor({ state: 'attached' })
+    await page.locator('#delete-account-password').fill(isolatedAccountPassword)
+    await page.getByRole('button', { name: /^(Delete account|Slett konto)$/ }).click()
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', {
+        name: /^(Yes, delete my account|Ja, slett kontoen min)$/
+      })
+      .click()
+    await page.waitForURL(/\/sign-in/)
   }
 })
 

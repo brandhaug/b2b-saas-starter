@@ -31,6 +31,9 @@ export function causeMessage(thrown: unknown, fallback: string): string {
     case 'unauthorized': {
       return m.shell_unauthorized()
     }
+    case 'strong_authentication_required': {
+      return m.security_authentication_required()
+    }
     case 'forbidden': {
       return reason === 'no_principal' ? m.shell_no_principal() : m.shell_forbidden()
     }

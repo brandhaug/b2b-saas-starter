@@ -30,7 +30,7 @@ import {
   type AdminWorkspace
 } from '@/lib/server/admin'
 import { WorkspaceSuspensionPanel } from '@/components/workspace-suspension-panel'
-import { requireAdmin } from '@/lib/server/auth'
+import { requireAdmin } from '@/lib/server/admin-route-auth'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 // Column definitions are static — module scope keeps the cell renderers out of

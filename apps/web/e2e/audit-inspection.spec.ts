@@ -2,6 +2,7 @@ import { Deferred, Effect } from 'effect'
 import { expect, test, type Page } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
 import { isolatedClientIp } from './test-isolation'
+import { signInAsOwner, signInWithPassword } from './authentication'
 
 function auditRequest(url: URL) {
   return (
@@ -15,18 +16,13 @@ function auditRequest(url: URL) {
 const auditPath = '/workspaces/starter-lab/audit'
 
 async function signIn(page: Page, email = 'demo@starter.local') {
-  await page.goto(`/sign-in?redirect=${encodeURIComponent(auditPath)}`)
-  await page.locator('form[data-hydrated="true"]').waitFor()
-  await page.getByLabel('Email', { exact: true }).fill(email)
-  await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
-  await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await page.waitForURL((url) => url.pathname === auditPath)
-  await page.locator('html[data-authenticated="true"]').waitFor()
   if (email === 'engineer@example.com') {
+    await signInWithPassword(page, email, auditPath)
     await expect(
       page.getByRole('heading', { name: 'Audit access denied' })
     ).toBeVisible()
   } else {
+    await signInAsOwner(page, auditPath)
     await page.locator('header select:enabled').waitFor({ state: 'attached' })
   }
 }

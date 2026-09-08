@@ -182,7 +182,12 @@ export const session = sqliteTable(
     // every plugin write against `session` fails. Whether the starter *reads*
     // it is ticket 03's call; slug-per-request resolution means it probably
     // will not.
-    activeOrganizationId: text('activeOrganizationId')
+    activeOrganizationId: text('activeOrganizationId'),
+    passwordVerifiedAt: integer('passwordVerifiedAt', { mode: 'timestamp' }),
+    strongAuthAt: integer('strongAuthAt', { mode: 'timestamp' }),
+    strongAuthMethod: text('strongAuthMethod'),
+    strongAuthCredentialId: text('strongAuthCredentialId'),
+    recoveryUntil: integer('recoveryUntil', { mode: 'timestamp' })
   },
   (table) => [
     index('session_user_id_idx').on(table.userId),

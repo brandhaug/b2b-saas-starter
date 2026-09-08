@@ -49,6 +49,10 @@ import {
   isOrganizationProductAction,
   suspendedOrganizationResponse
 } from '@/lib/server/auth-organization-suspension'
+import {
+  needsStrongAuthenticationContext,
+  strongAuthenticationHttpResponse
+} from '@/lib/server/strong-authentication-http'
 
 /**
  * The credential-change sender, bound to the provider-light email dispatcher:
@@ -126,7 +130,9 @@ async function readPreHandlerContext(
   // lookup, not here.
   const audited =
     needsPreHandlerActor(exchange) || exchange.pathname.endsWith('/unlink-account')
-  const guarded = impersonationForbiddenAction(exchange) !== null
+  const guarded =
+    impersonationForbiddenAction(exchange) !== null ||
+    needsStrongAuthenticationContext(exchange)
   const organization = isOrganizationProductAction(exchange)
   if (!audited && !guarded && !organization) {
     return { session: undefined, audit: undefined }
@@ -239,6 +245,15 @@ async function handleAuth(request: Request): Promise<Response> {
         const { session, audit: context } = yield* Effect.promise(() =>
           readPreHandlerContext(request, exchange)
         )
+        const strongAuthResponse = yield* Effect.promise(() =>
+          strongAuthenticationHttpResponse(exchange, session)
+        )
+        if (strongAuthResponse !== null) {
+          yield* Effect.annotateLogsScoped({
+            outcome: 'strong_authentication_required'
+          })
+          return strongAuthResponse
+        }
         const suspensionResponse = yield* Effect.promise(() =>
           suspendedOrganizationResponse(request, exchange, session)
         )

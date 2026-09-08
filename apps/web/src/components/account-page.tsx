@@ -51,6 +51,12 @@ export function AccountPage({
   return (
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
       <PageHeader title={m.page_account()} description={m.page_account_description()} />
+      <Link
+        to="/verify-authentication"
+        className="text-primary underline underline-offset-4"
+      >
+        {m.security_verify_title()}
+      </Link>
       <Panel
         title={m.panel_sign_in_methods()}
         description={m.panel_sign_in_methods_description()}

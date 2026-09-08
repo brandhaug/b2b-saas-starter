@@ -37,6 +37,7 @@ import {
   type WorkspaceSuspensionInput
 } from './admin'
 import { requireRequestSession, UnauthorizedError } from './auth'
+import { requireStrongAuthentication } from './strong-authentication.effects'
 import { webUserAdminBinding } from './user-admin-binding'
 
 /**
@@ -66,14 +67,10 @@ export class ImpersonationStateError extends Error {
  * ship to the server alone.
  */
 
-/**
- * System-level user list for `/admin`, via the `PlatformUserAdmin`
- * capability — not a workspace member list. The route's own gate is
- * `requireAdmin`; the plugin-backed mutations additionally re-enforce the
- * admin role inside Better Auth from the request's session headers, so this
- * surface fails closed twice.
- */
+/** System-level user list. Direct server calls verify the admin role and
+ * this session's strong authentication before reading platform data. */
 export async function listSystemUsersHandler(): Promise<ReadonlyArray<SystemUser>> {
+  await requireAdminSession()
   const users = await runCapabilities(
     Effect.gen(function* () {
       const admin = yield* PlatformUserAdmin
@@ -117,13 +114,11 @@ export async function transitionAdminWorkspaceHandler(input: WorkspaceSuspension
   )
 }
 
-/**
- * The global audit trail for `/admin`'s events table: every recorded event
- * across all workspaces, via the non-workspace capabilities runner. No extra
- * gate — the route's `requireAdmin` decides who may ask, the same trust
- * boundary the user list carries.
- */
-export function loadAdminAuditEventsHandler(): Promise<ReadonlyArray<AuditEvent>> {
+/** Global audit reads require the same session gate as admin mutations. */
+export async function loadAdminAuditEventsHandler(): Promise<
+  ReadonlyArray<AuditEvent>
+> {
+  await requireAdminSession()
   return runCapabilities(
     Effect.gen(function* () {
       const log = yield* AuditEventLog
@@ -133,9 +128,8 @@ export function loadAdminAuditEventsHandler(): Promise<ReadonlyArray<AuditEvent>
 }
 
 /**
- * Admin-role gate for the mutation server functions. The UI hiding a control
- * is presentation, never the check — every mutation re-verifies the session's
- * system role here before riding the capability.
+ * Shared gate for direct admin reads and mutations. Every handler verifies
+ * the request's system role and strong authentication before calling a capability.
  */
 async function requireAdminSession() {
   const session = await requireRequestSession()
@@ -143,6 +137,7 @@ async function requireAdminSession() {
     // oxlint-disable-next-line effect/noThrowStatement -- TanStack Start serializes a thrown server-fn error back to the caller; the returned Promise has no error channel
     throw new UnauthorizedError()
   }
+  await requireStrongAuthentication(session)
   return session
 }
 

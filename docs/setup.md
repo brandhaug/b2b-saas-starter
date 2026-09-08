@@ -55,6 +55,8 @@ Seeding also creates two credential accounts so the authenticated area is reacha
 Use the member account to check permission-limited pages and the owner account
 to manage workspace settings.
 
+The demo owner must complete [privileged authentication](strong-authentication.md) before opening System Admin or Workspace pages. Confirm the password at `/verify-authentication`, enroll a factor in Account security, then verify it. Browser tests enroll a disposable virtual passkey through the real auth flow.
+
 Sign in at `/sign-in` with these credentials once the database is migrated and seeded. The dev server detects the persisted local D1 on startup and attaches it as the `DB` binding (see `apps/web/src/lib/cloudflare-workers-shim-dev.ts`), so credential sign-in and the Live capability layers work locally. Without a migrated database the shim leaves `DB` unset and the app runs provider-light on the in-memory seed layer. Restart `pnpm run dev` after the first migrate + seed so the binding attaches.
 
 Schema changes: edit `packages/db/src/schema.ts`, then `pnpm run db:generate` to emit a migration.

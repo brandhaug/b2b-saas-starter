@@ -62,6 +62,11 @@ import {
   type WorkspaceOnboarding
 } from './governance/workspace-onboarding.ts'
 import { type SecurityEvidenceSink } from './governance/security-recovery-evidence.ts'
+import {
+  LiveStrongAuthentication,
+  SeedStrongAuthentication,
+  type StrongAuthentication
+} from './governance/strong-authentication.ts'
 import { type Retention } from './governance/retention.ts'
 import { LiveRetention } from './governance/retention.live.ts'
 import { SeedRetention } from './governance/retention.seed.ts'
@@ -156,6 +161,7 @@ export type CapabilityServices =
   | WorkspaceMembership
   | WorkspaceOnboarding
   | WorkspaceSuspensionService
+  | StrongAuthentication
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
@@ -273,7 +279,8 @@ const SeedCore = Layer.mergeAll(
   SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships),
-  SeedWorkspaceOnboarding({ twoFactorUserIds: seedTwoFactorUserIds })
+  SeedWorkspaceOnboarding({ twoFactorUserIds: seedTwoFactorUserIds }),
+  SeedStrongAuthentication()
 ).pipe(
   Layer.provide(SeedAuditLog),
   Layer.provide(SeedNotifications),
@@ -436,6 +443,7 @@ export function makeLiveCapabilitiesLayer(
     ),
     LivePlatformUserAdmin(options.userAdminBinding),
     LiveWorkspaceOnboarding,
+    LiveStrongAuthentication,
     LiveWorkspaceExports(options.workspaceExports).pipe(Layer.provide(suspension)),
     suspension,
     seatSyncPublisher

@@ -8,6 +8,7 @@ import {
   type PermissionRequest,
   type Principal
 } from './principal.ts'
+import { needsStrongAuthentication } from './roles.ts'
 import { starterStatements } from './statements.ts'
 
 type Permission = { readonly label: string; readonly request: PermissionRequest }
@@ -56,6 +57,21 @@ const PERMISSIONS = [
 ] satisfies ReadonlyArray<Permission>
 
 const EVERY_LABEL = PERMISSIONS.map((permission) => permission.label)
+
+it('requires session assurance only on the privileged role axis', () => {
+  expect(
+    needsStrongAuthentication({ systemRole: 'admin', workspaceRole: 'member' })
+  ).toBe(true)
+  expect(
+    needsStrongAuthentication({ systemRole: 'user', workspaceRole: 'owner' })
+  ).toBe(true)
+  expect(
+    needsStrongAuthentication({ systemRole: 'user', workspaceRole: 'admin' })
+  ).toBe(true)
+  expect(
+    needsStrongAuthentication({ systemRole: 'user', workspaceRole: 'member' })
+  ).toBe(false)
+})
 
 /** Read access to the workspace's own content — the floor of every grant set. */
 const READ_ONLY = [

@@ -22,6 +22,7 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TwoFactorRouteImport } from './routes/two-factor'
+import { Route as VerifyAuthenticationRouteImport } from './routes/verify-authentication'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known.oauth-authorization-server'
@@ -114,6 +115,11 @@ const TermsRoute = TermsRouteImport.update({
 const TwoFactorRoute = TwoFactorRouteImport.update({
   id: '/two-factor',
   path: '/two-factor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyAuthenticationRoute = VerifyAuthenticationRouteImport.update({
+  id: '/verify-authentication',
+  path: '/verify-authentication',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
@@ -287,6 +293,7 @@ export interface FileRoutesByFullPath {
   '/sign-up': typeof SignUpRoute
   '/terms': typeof TermsRoute
   '/two-factor': typeof TwoFactorRoute
+  '/verify-authentication': typeof VerifyAuthenticationRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
@@ -330,6 +337,7 @@ export interface FileRoutesByTo {
   '/sign-up': typeof SignUpRoute
   '/terms': typeof TermsRoute
   '/two-factor': typeof TwoFactorRoute
+  '/verify-authentication': typeof VerifyAuthenticationRoute
   '/verify-email': typeof VerifyEmailRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/changelog': typeof KnowledgeChangelogRoute
@@ -373,6 +381,7 @@ export interface FileRoutesById {
   '/sign-up': typeof SignUpRoute
   '/terms': typeof TermsRoute
   '/two-factor': typeof TwoFactorRoute
+  '/verify-authentication': typeof VerifyAuthenticationRoute
   '/verify-email': typeof VerifyEmailRoute
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
@@ -418,6 +427,7 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/terms'
     | '/two-factor'
+    | '/verify-authentication'
     | '/verify-email'
     | '/workspaces'
     | '/.well-known/oauth-authorization-server'
@@ -461,6 +471,7 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/terms'
     | '/two-factor'
+    | '/verify-authentication'
     | '/verify-email'
     | '/.well-known/oauth-authorization-server'
     | '/changelog'
@@ -503,6 +514,7 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/terms'
     | '/two-factor'
+    | '/verify-authentication'
     | '/verify-email'
     | '/workspaces'
     | '/.well-known/oauth-authorization-server'
@@ -548,6 +560,7 @@ export interface RootRouteChildren {
   SignUpRoute: typeof SignUpRoute
   TermsRoute: typeof TermsRoute
   TwoFactorRoute: typeof TwoFactorRoute
+  VerifyAuthenticationRoute: typeof VerifyAuthenticationRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   WorkspacesRoute: typeof WorkspacesRouteWithChildren
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
@@ -652,6 +665,13 @@ declare module '@tanstack/react-router' {
       path: '/two-factor'
       fullPath: '/two-factor'
       preLoaderRoute: typeof TwoFactorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-authentication': {
+      id: '/verify-authentication'
+      path: '/verify-authentication'
+      fullPath: '/verify-authentication'
+      preLoaderRoute: typeof VerifyAuthenticationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/verify-email': {
@@ -958,6 +978,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignUpRoute: SignUpRoute,
   TermsRoute: TermsRoute,
   TwoFactorRoute: TwoFactorRoute,
+  VerifyAuthenticationRoute: VerifyAuthenticationRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   WorkspacesRoute: WorkspacesRouteWithChildren,
   DotwellKnownOauthAuthorizationServerRoute:

@@ -1,5 +1,13 @@
 import { expect, test } from '@playwright/test'
+import { signInAsOwner } from './authentication'
+import { isolatedClientIp } from './test-isolation'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
+
+test.beforeEach(async ({ context }, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    'cf-connecting-ip': isolatedClientIp(testInfo.testId)
+  })
+})
 
 test('public homepage renders the starter showcase', async ({ page }) => {
   await page.goto('/')
@@ -135,15 +143,7 @@ test('seeded demo user signs in and reaches the workspace dashboard', async ({
     !hasLocalD1State(),
     'requires a migrated + seeded local D1 (pnpm run db:migrate:local && pnpm run db:seed)'
   )
-  await page.goto('/sign-in?redirect=%2Fworkspaces%2Fstarter-lab')
-  // Interacting before React hydrates falls through to a native GET submit
-  // (the dev server transforms modules on first hit, so hydration lags the
-  // DOM). The sign-in form flips data-hydrated in an effect — wait for it.
-  await page.locator('form[data-hydrated="true"]').waitFor()
-  await page.getByLabel('Email', { exact: true }).fill('demo@starter.local')
-  await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
-  await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await page.waitForURL(/\/workspaces\/starter-lab/)
+  await signInAsOwner(page, '/workspaces/starter-lab')
   // The seeded dashboard renders real capability data, not the auth screen.
   await expect(page.getByRole('heading', { name: /starter lab/i })).toBeVisible()
 })

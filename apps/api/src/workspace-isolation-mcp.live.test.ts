@@ -79,6 +79,23 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       () =>
         Effect.gen(function* () {
           const DB = yield* TestD1
+          for (const userId of ['usr_joiner', 'usr_outsider', 'usr_owner']) {
+            yield* execute(
+              `INSERT INTO passkey (id,userId,publicKey,credentialID,counter,deviceType,backedUp,createdAt)
+              VALUES (?,?,'fixture-public-key',?,0,'singleDevice',0,strftime('%s','now'))`,
+              `pk_isolation_${userId}`,
+              userId,
+              `credential_isolation_${userId}`
+            )
+            yield* execute(
+              `INSERT INTO session (id,token,userId,expiresAt,createdAt,updatedAt,strongAuthAt,strongAuthMethod,strongAuthCredentialId)
+              VALUES (?,?,?,strftime('%s','now')+3600,strftime('%s','now'),strftime('%s','now'),strftime('%s','now'),'passkey',?)`,
+              `ses_${userId}`,
+              `tok_${userId}`,
+              userId,
+              `pk_isolation_${userId}`
+            )
+          }
           yield* execute(`INSERT INTO workspace_members (id,workspaceId,userId,role) VALUES
       ('mem_isolation_multi_a','wrk_dev_contract','usr_joiner','owner'),
       ('mem_isolation_multi_b','wrk_other','usr_joiner','owner'),
@@ -127,7 +144,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 starter_workspace_id: workspaceId,
                 starter_workspace_slug: workspaceSlug,
                 starter_workspace_role: 'owner',
-                starter_consent_binding: `${consent}:0`
+                starter_consent_binding: `${consent}:0`,
+                starter_session_id: `ses_${userId}`
               })
                 .setProtectedHeader({ alg: 'EdDSA' })
                 .setIssuer(issuer)

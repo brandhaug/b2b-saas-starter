@@ -85,6 +85,7 @@ export const AUDIT_EVENT_TYPES = [
   'auth.password_reset_requested',
   'auth.password_reset',
   'auth.password_reset_failed',
+  'auth.recovery_started',
   'auth.email_verified',
   'auth.email_verification_failed',
   // signed-in account changes over the auth catchall (the credential path has

@@ -8,6 +8,7 @@ import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { Clock, Effect } from 'effect'
 import { runCapabilities } from '../capabilities'
 import { requireRequestSession, UnauthorizedError } from './auth'
+import { requireStrongAuthentication } from './strong-authentication.effects'
 
 export const deliveryRows = Effect.fn('EmailDelivery.rows')(function* (
   records: ReadonlyArray<EmailDeliveryRecord>
@@ -35,6 +36,7 @@ export async function loadSystemEmailDeliveryHandler() {
     // oxlint-disable-next-line effect/noThrowStatement -- server-fn authorization refusal
     throw new UnauthorizedError()
   }
+  await requireStrongAuthentication(session)
   return runCapabilities(
     Effect.flatMap(EmailDelivery, (delivery) => delivery.listSystem()).pipe(
       Effect.flatMap(deliveryRows)

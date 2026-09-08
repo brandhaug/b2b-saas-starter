@@ -1,3 +1,5 @@
+// oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
+import '@/test/qualified-session'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'

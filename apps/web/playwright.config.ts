@@ -48,7 +48,17 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'authentication',
+      testMatch: /authentication\.setup\.ts/,
+      teardown: 'authentication-cleanup'
+    },
+    {
+      name: 'authentication-cleanup',
+      testMatch: /authentication\.teardown\.ts/
+    },
+    {
       name: 'chromium',
+      dependencies: ['authentication'],
       use: { ...devices['Desktop Chrome'] }
     }
   ]
