@@ -32,7 +32,10 @@ low-cardinality `service`, `event`, and `status` dimensions.
 Authorization headers, cookies, passwords, tokens, provider secrets, URLs and
 pathnames, query strings, request/response bodies, email/IP/user identity, customer
 content, and arbitrary annotations are omitted. URLs are omitted entirely because
-paths can contain secrets too. Free-form messages, nested causes, stack traces,
+paths can contain secrets too. Log message bodies come only from the code-owned `event` annotation set by the
+canonical scope emission; arbitrary messages are omitted even if they look like
+valid labels. Tracer log-event names follow the same contract. Free-form messages,
+nested causes, stack traces,
 frame variables/source context, and breadcrumbs are omitted rather than searched
 for known credential patterns. Error types, operation names, status, timing, and
 trace correlation remain available; debugging no longer relies on raw exception

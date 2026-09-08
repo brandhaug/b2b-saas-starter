@@ -6,6 +6,7 @@ import { Effect, Metric } from 'effect'
 import { HttpClient, FetchHttpClient } from 'effect/unstable/http'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { withHttpInvocation } from './invocation.ts'
+import { makeOtlpLayer } from './otlp.ts'
 import { WideEventLoggerLive, withRequestScope } from './wide-event.ts'
 import { makeSentryOptions, wireWideEventProviders } from './providers.ts'
 
@@ -108,7 +109,10 @@ describe('AC-9 telemetry output policy', () => {
               )
             })
           )
-        ).pipe(Effect.provide(WideEventLoggerLive))
+        ).pipe(
+          Effect.provide(WideEventLoggerLive),
+          Effect.provideService(FetchHttpClient.Fetch, fetch)
+        )
       )
       expect(consoleLines).toHaveLength(1)
       expect(consoleLines.join(',')).not.toContain(secret)
@@ -127,6 +131,60 @@ describe('AC-9 telemetry output policy', () => {
       expect(emitted).toContain('capability.export')
       expect(emitted).toContain('duration.ms')
       expect(emitted).toContain('request.export')
+    } finally {
+      output.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('AC-9.2/3 omits token-shaped standalone and traced messages without losing canonical operation labels', async () => {
+    // oxlint-disable-next-line react-doctor/no-secrets-in-client-code -- synthetic credential-shaped canary for the output policy, never a real key
+    const standaloneSecret = 'sk_live_SENTINEL_SINGLE_TOKEN'
+    const tracedSecret = 'PRIVATE_CUSTOMER_NOTE'
+    const consoleLines: Array<string> = []
+    const payloads: Array<{ url: string; body: string }> = []
+    const output = vi
+      .spyOn(console, 'log')
+      .mockImplementation((line: string) => consoleLines.push(line))
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+      let url: string
+      if (input instanceof Request) {
+        url = input.url
+      } else {
+        url = input.toString()
+      }
+      payloads.push({ url, body: await requestBody(init) })
+      return new Response('{}', { status: 200 })
+    })
+    try {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          yield* Effect.log(standaloneSecret)
+          yield* withRequestScope(
+            { service: 'api', event: 'request.canonical' },
+            Effect.logError(tracedSecret)
+          )
+        }).pipe(
+          Effect.provide(
+            makeOtlpLayer('api', {
+              OTEL_EXPORTER_OTLP_ENDPOINT: 'https://collector.example'
+            }),
+            { local: true }
+          ),
+          Effect.provide(WideEventLoggerLive),
+          Effect.provideService(FetchHttpClient.Fetch, fetch)
+        )
+      )
+      expect(consoleLines).toHaveLength(3)
+      const emitted =
+        consoleLines.join(',') + payloads.map((payload) => payload.body).join(',')
+      expect(emitted).not.toContain(standaloneSecret)
+      expect(emitted).not.toContain(tracedSecret)
+      expect(consoleLines.join(',')).toContain('request.canonical')
+      for (const signal of ['logs', 'traces']) {
+        const payload = payloads.find((entry) => entry.url.endsWith(`/v1/${signal}`))
+        expect(payload?.body).toContain('request.canonical')
+      }
     } finally {
       output.mockRestore()
       vi.unstubAllGlobals()

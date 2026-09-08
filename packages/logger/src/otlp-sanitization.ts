@@ -2,7 +2,7 @@
 // oxlint-disable anti-slop/no-runtime-typeof, effect/noGlobals
 import { Layer } from 'effect'
 import { HttpBody } from 'effect/unstable/http'
-import { OtlpSerialization } from 'effect/unstable/observability'
+import { OtlpSerialization, type OtlpResource } from 'effect/unstable/observability'
 import { diagnosticFields, diagnosticLabel } from './sanitization.ts'
 
 function sanitizeAttribute(value: unknown) {
@@ -62,11 +62,50 @@ function body(data: unknown): HttpBody.HttpBody {
   )
 }
 
+/** `event` is set on canonical log emissions, never inferred from arbitrary message text. */
+function canonicalEvent(attributes: ReadonlyArray<OtlpResource.KeyValue>): string {
+  return diagnosticLabel(
+    attributes.find((entry) => entry.key === 'event')?.value.stringValue
+  )
+}
+
 export const SanitizedOtlpSerialization = Layer.succeed(
   OtlpSerialization.OtlpSerialization,
   {
-    traces: body,
-    logs: body,
+    traces: (data) =>
+      body({
+        ...data,
+        resourceSpans: data.resourceSpans.map((resource) => ({
+          ...resource,
+          scopeSpans: resource.scopeSpans.map((scope) => ({
+            ...scope,
+            spans: scope.spans.map((span) => ({
+              ...span,
+              events: span.events.map((event) => {
+                let name = canonicalEvent(event.attributes)
+                if (event.name === 'exception') {
+                  name = 'exception'
+                }
+                return { ...event, name }
+              })
+            }))
+          }))
+        }))
+      }),
+    logs: (data) =>
+      body({
+        ...data,
+        resourceLogs: data.resourceLogs.map((resource) => ({
+          ...resource,
+          scopeLogs: resource.scopeLogs.map((scope) => ({
+            ...scope,
+            logRecords: scope.logRecords?.map((record) => ({
+              ...record,
+              body: { stringValue: canonicalEvent(record.attributes) }
+            }))
+          }))
+        }))
+      }),
     metrics: body
   }
 )

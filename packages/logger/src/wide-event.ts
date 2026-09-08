@@ -242,7 +242,13 @@ function emitWideEvent(
       { service: options.service, event: options.event, status: outcome.status },
       Duration.millis(durationMs)
     )
-    const annotated = Effect.annotateLogs({ durationMs, ...outcome })
+    // Only the canonical emission marks a code-owned event label. Body logs do
+    // not inherit it, so arbitrary message text cannot become a diagnostic label.
+    const annotated = Effect.annotateLogs({
+      event: options.event,
+      durationMs,
+      ...outcome
+    })
     if (Exit.isFailure(exit)) {
       yield* Effect.logError(options.event, exit.cause).pipe(annotated)
     } else {
@@ -366,7 +372,7 @@ export const WideEventLoggerLive: Layer.Layer<never> = Logger.layer([
         level: record.level,
         timestamp: record.timestamp,
         fiberId: record.fiberId,
-        message: diagnosticLabel(record.message),
+        message: diagnosticLabel(record.annotations['event']),
         annotations: diagnosticAnnotations(record.annotations),
         cause: Option.fromUndefinedOr(record.cause).pipe(
           Option.map(() => '[omitted]'),
