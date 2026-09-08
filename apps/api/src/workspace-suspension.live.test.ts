@@ -57,6 +57,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       () =>
         Effect.gen(function* () {
           const DB = yield* TestD1
+          yield* execute(
+            `INSERT INTO oauth_client (id,clientId,redirectUris,disabled) VALUES ('client-suspension','suspension-client','[]',0)`
+          )
+          yield* execute(
+            `INSERT INTO oauth_consent (id,userId,clientId,referenceId,scopes) VALUES ('consent-suspension','usr_owner','suspension-client','wrk_dev_contract','["mcp:read"]')`
+          )
           const issuer = 'https://issuer.test/api/auth'
           const audience = 'https://api.test/mcp'
           const keys = yield* Effect.promise(() => generateKeyPair('EdDSA'))
@@ -83,6 +89,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             return Effect.promise(() =>
               new SignJWT({
                 sub: userId,
+                client_id: 'suspension-client',
+                starter_consent_binding: 'consent-suspension:0',
                 scope: 'mcp:read',
                 starter_workspace_id: 'wrk_dev_contract',
                 starter_workspace_slug: 'dev-contract-lab',
