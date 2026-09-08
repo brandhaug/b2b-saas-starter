@@ -128,3 +128,29 @@ export function AuthCardForm({
     </PublicLayout>
   )
 }
+
+export function AuthNoticeCard({
+  title,
+  description,
+  error,
+  footer,
+  children
+}: {
+  readonly title: string
+  readonly description?: ReactNode
+  readonly error?: string | null
+  readonly footer?: ReactNode
+  readonly children: ReactNode
+}) {
+  return (
+    <AuthCardForm
+      title={title}
+      description={description}
+      form={null}
+      error={error}
+      footer={footer}
+    >
+      {children}
+    </AuthCardForm>
+  )
+}
