@@ -53,8 +53,7 @@ export function EmailVerificationBanner({
     // `role="status"`: the banner renders on every page load for an
     // unverified user — `role="alert"` would interrupt on load.
     // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- see above
-    <Alert role="status">
-      <MailWarningIcon />
+    <Alert role="status" icon={<MailWarningIcon />}>
       <AlertDescription className="flex flex-wrap items-center gap-3">
         <span className="flex-1">
           {m.workspace_email_unverified()}

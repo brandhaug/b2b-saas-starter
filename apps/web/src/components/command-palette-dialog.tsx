@@ -23,15 +23,6 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 // oxlint-disable effect/noNewPromise -- this module is the promise boundary between the palette (react) and the Effect-native content; same exemption as lib/docs.ts
 const knowledgeMeta = Promise.all([getAllDocMeta(), getAllPostMeta()])
 
-/** The palette's context value, flattened for the dialog's two consumers. */
-function usePaletteSession() {
-  const value = use(CommandPaletteContext)
-  return {
-    viewer: value?.viewer ?? null,
-    systemRole: value?.systemRole ?? null
-  }
-}
-
 /**
  * Docs and blog titles/descriptions as one searchable group — the promise is
  * the cached meta index, so opening the palette neither re-reads nor ships
@@ -89,22 +80,24 @@ function KnowledgeEntries({ close }: { readonly close: () => void }) {
  */
 // Loaded via dynamic import() in command-palette-loader.ts.
 // fallow-ignore-next-line unused-export
-export default function CommandPaletteDialog({
-  open,
-  onOpenChange
-}: {
-  readonly open: boolean
-  readonly onOpenChange: (open: boolean) => void
-}) {
+export default function CommandPaletteDialog() {
   const navigate = useNavigate()
   // Target the current workspace when inside one; outside a workspace the
   // command falls back to the workspace list — never a hardcoded workspace.
   const params = useParams({ strict: false })
   const workspaceSlug = params.workspaceSlug
-  const { viewer, systemRole } = usePaletteSession()
+  const palette = use(CommandPaletteContext)
+  if (palette === null) {
+    return null
+  }
+  const {
+    state,
+    actions,
+    meta: { viewer, systemRole }
+  } = palette
 
   function close() {
-    onOpenChange(false)
+    actions.setOpen(false)
   }
 
   const rows: Array<ReactNode> = []
@@ -164,7 +157,7 @@ export default function CommandPaletteDialog({
   }
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
+    <CommandDialog open={state.open} onOpenChange={actions.setOpen}>
       <CommandInput
         placeholder={m.command_search_placeholder()}
         aria-label={m.command_search_label()}

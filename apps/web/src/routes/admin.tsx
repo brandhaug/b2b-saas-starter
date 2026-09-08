@@ -9,7 +9,13 @@ import { EmailDeliveryPanel } from '@/components/email-delivery-panel'
 import { loadAdminPage } from '@/lib/server/admin-loader'
 import { BanUserAction } from '@/components/ban-user-action'
 import { ImpersonateUserAction } from '@/components/impersonate-user-action'
-import { DataTable, type DataTableColumnDef } from '@/components/data-table'
+import {
+  DataTable,
+  DataTableContent,
+  DataTableFilter,
+  DataTablePagination,
+  type DataTableColumnDef
+} from '@/components/data-table'
 import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
@@ -126,12 +132,14 @@ function AdminPage() {
         <DataTable
           columns={userColumns()}
           data={users}
-          filter
-          filterPlaceholder={m.admin_filter_users()}
           pageSize={5}
           tableLabel={m.admin_system_users()}
           emptyMessage={m.common_no_system_users()}
-        />
+        >
+          <DataTableFilter placeholder={m.admin_filter_users()} />
+          <DataTableContent />
+          <DataTablePagination />
+        </DataTable>
         <AdminUserActions users={users} />
       </Panel>
 
@@ -142,12 +150,14 @@ function AdminPage() {
         <DataTable
           columns={auditColumns()}
           data={events}
-          filter
-          filterPlaceholder={m.admin_filter_events()}
           pageSize={5}
           tableLabel={m.admin_audit_events()}
           emptyMessage={m.common_no_audit_events()}
-        />
+        >
+          <DataTableFilter placeholder={m.admin_filter_events()} />
+          <DataTableContent />
+          <DataTablePagination />
+        </DataTable>
       </Panel>
     </WorkspaceShell>
   )

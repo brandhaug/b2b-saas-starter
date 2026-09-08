@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { AttentionFeed } from '@/components/attention-feed'
 import {
   LiveNotifications,
@@ -39,16 +39,16 @@ export function WorkspaceDashboardPage({
   data,
   systemRole,
   ports,
-  dismissalNote
+  dismissalHint
 }: {
   readonly data: WorkspaceDashboardPayload
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
   /**
-   * False on the read-only demo, where no dismiss control exists for the
+   * Null on the read-only demo, where no dismiss control exists for the
    * checklist's member note to point at.
    */
-  readonly dismissalNote?: boolean | undefined
+  readonly dismissalHint?: ReactNode
   /** The server calls this page's children make, forwarded for tests. */
   readonly ports?: {
     readonly listNotifications?: ListNotifications
@@ -75,7 +75,7 @@ export function WorkspaceDashboardPage({
         workspaceSlug={workspace.slug}
         progress={progress}
         viewer={viewer}
-        dismissalNote={dismissalNote ?? true}
+        dismissalHint={dismissalHint}
         {...(ports?.dismissOnboardingChecklist === undefined
           ? {}
           : { dismiss: ports.dismissOnboardingChecklist })}

@@ -40,9 +40,13 @@ export function ImpersonationBanner({
     // `role="status"`, not `alert`: the banner is on the page from first paint
     // for the whole session — an assertive live region would interrupt on
     // every load.
-    // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- see above
-    <Alert role="status" variant="destructive" className="rounded-none border-x-0">
-      <UserRoundSearchIcon />
+    <Alert
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the persistent banner must not interrupt on each page load
+      role="status"
+      variant="destructive"
+      className="rounded-none border-x-0"
+      icon={<UserRoundSearchIcon />}
+    >
       <AlertDescription className="flex flex-wrap items-center gap-3">
         <span className="flex-1 text-foreground">
           {m.impersonating_notice({

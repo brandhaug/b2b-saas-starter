@@ -22,7 +22,11 @@ import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { Badge } from '@/components/ui/badge'
-import { DataTable, type DataTableColumnDef } from '@/components/data-table'
+import {
+  DataTable,
+  DataTableContent,
+  type DataTableColumnDef
+} from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { auditActorTypeLabel, auditEventFilterOptions } from '@/lib/audit-labels'
 import { auditActorTypeVariant } from '@/lib/badge-variants'
@@ -271,18 +275,15 @@ export function WorkspaceAuditPage({
         ) : (
           <>
             {/* One row model for both tables: the same component renders the
-                admin users table, so column treatment, the mono `When` cell,
-                and the count footer cannot drift between them. `pager={false}`
-                drops `DataTable`'s own Previous/Next footer — this table pages
-                through the keyset button below, so a second, always-disabled
-                "Page 1 of 1" model would read as broken. */}
+                admin users table, so column treatment and the mono `When` cell
+                cannot drift between them. */}
             <DataTable
               columns={auditColumns()}
               data={events}
-              pageSize={100}
               tableLabel={m.audit_table_label()}
-              pager={false}
-            />
+            >
+              <DataTableContent />
+            </DataTable>
             <div className="flex items-center justify-end">
               {/* Keyset pagination has exactly one direction: older. The
                 button carries the opaque cursor back through the URL. */}

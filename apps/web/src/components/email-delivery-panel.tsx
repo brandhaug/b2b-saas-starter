@@ -1,6 +1,11 @@
 import { type EmailDeliveryRow } from '@/lib/server/email-delivery'
 import { m } from '@b2b-saas-starter/i18n/messages'
-import { DataTable, type DataTableColumnDef } from './data-table'
+import {
+  DataTable,
+  DataTableContent,
+  DataTablePagination,
+  type DataTableColumnDef
+} from './data-table'
 import { Panel } from './page/panel'
 import { formatDateTime } from '@/lib/format-date'
 
@@ -160,7 +165,10 @@ export function EmailDeliveryPanel({
         pageSize={10}
         tableLabel={m.email_delivery_title()}
         emptyMessage={m.email_delivery_empty()}
-      />
+      >
+        <DataTableContent />
+        <DataTablePagination />
+      </DataTable>
       <p className="text-sm text-muted-foreground">{m.email_delivery_warning()}</p>
     </Panel>
   )

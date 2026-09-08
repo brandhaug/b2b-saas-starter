@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { CheckCircle2Icon, CircleAlertIcon } from 'lucide-react'
-import { EmailCodeExchange } from '@/components/auth/email-code-exchange'
+import { EmailCodeExchangeCard } from '@/components/auth/email-code-exchange'
 import { PublicLayout } from '@/components/public-layout'
 import { authClient } from '@/lib/auth-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -76,8 +76,7 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
           </CardContent>
         </Card>
         {error ? (
-          <EmailCodeExchange
-            layout="card"
+          <EmailCodeExchangeCard
             title={m.verify_with_code()}
             purpose="email-verification"
             verify={({ email, otp }) => authClient.emailOtp.verifyEmail({ email, otp })}

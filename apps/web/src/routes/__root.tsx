@@ -22,7 +22,6 @@ import {
   Outlet,
   Scripts
 } from '@tanstack/react-router'
-import { CommandPaletteProvider } from '@/components/command-palette'
 import { Toaster } from '@/components/ui/sonner'
 import { ClientTelemetry } from '@/lib/client-telemetry'
 import { clientTelemetryConfigServerFn } from '@/lib/server/telemetry-config'
@@ -136,13 +135,11 @@ function RootDocument({ children }: { readonly children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <CommandPaletteProvider>
-          <LocaleBootstrap />
-          {children}
-          {/* No `richColors`: success/warning paint from the same status tokens
+        <LocaleBootstrap />
+        {children}
+        {/* No `richColors`: success/warning paint from the same status tokens
               as badges and alerts (see ui/sonner.tsx), not Sonner's own hex. */}
-          <Toaster />
-        </CommandPaletteProvider>
+        <Toaster />
         {import.meta.env.DEV && (
           <Suspense>
             <TanStackRouterDevtools position="bottom-right" />

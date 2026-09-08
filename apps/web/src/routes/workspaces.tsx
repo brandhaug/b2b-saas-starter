@@ -31,8 +31,8 @@ export const Route = createFileRoute('/workspaces')({
 function WorkspacesLayout() {
   const directory: WorkspaceDirectory = Route.useLoaderData()
   return (
-    <WorkspaceDirectoryContext.Provider value={directory}>
+    <WorkspaceDirectoryContext value={directory}>
       <Outlet />
-    </WorkspaceDirectoryContext.Provider>
+    </WorkspaceDirectoryContext>
   )
 }
