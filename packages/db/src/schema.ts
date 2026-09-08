@@ -414,6 +414,7 @@ export const workspaceSsoConnections = sqliteTable(
   },
   (table) => [
     workspaceIdIndex('workspace_sso_connections', table.workspaceId),
+    index('workspace_sso_connections_user_id_idx').on(table.userId),
     // The sign-in domain-routing lookup scans by domain first; the plugin
     // allows one IdP to serve several comma-separated domains, so this is an
     // index, not a unique constraint.
@@ -577,7 +578,8 @@ export const notifications = sqliteTable(
   },
   (table) => [
     workspaceIdIndex('notifications', table.workspaceId),
-    index('notifications_retention_idx').on(table.createdAt, table.id)
+    index('notifications_retention_idx').on(table.createdAt, table.id),
+    index('notifications_user_id_idx').on(table.userId)
   ]
 )
 
@@ -786,7 +788,6 @@ export const oauthClientResource = sqliteTable(
     createdAt: integer('createdAt', { mode: 'timestamp' })
   },
   (table) => [
-    index('oauth_client_resource_client_id_idx').on(table.clientId),
     index('oauth_client_resource_resource_id_idx').on(table.resourceId),
     uniqueIndex('oauth_client_resource_client_resource_idx').on(
       table.clientId,
@@ -1092,7 +1093,13 @@ export const billingNotices = sqliteTable(
     createdAt: text('created_at').notNull(),
     deliveredAt: text('delivered_at')
   },
-  (table) => [index('billing_notices_retention_idx').on(table.deliveredAt, table.id)]
+  (table) => [
+    index('billing_notices_retention_idx').on(table.deliveredAt, table.id),
+    index('billing_notices_workspace_delivered_idx').on(
+      table.workspaceId,
+      table.deliveredAt
+    )
+  ]
 )
 
 /** Sanitized delivery evidence. Never stores message contents or credentials. */
