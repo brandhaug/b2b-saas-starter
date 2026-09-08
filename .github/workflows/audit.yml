@@ -1,9 +1,7 @@
 name: Audit
 
-# Dependency advisories are advisory, not a merge gate: branch protection
-# requires only `Conventional commit title` and `ci`, so this check can show
-# red without blocking a merge. It runs beside PRs, on master, and weekly —
-# an audit's real value is drift over time, not the moment of one PR.
+# AC-12: require the `audit` job in the default-branch ruleset.
+# Setup and verification: docs/dependency-security.md.
 
 on:
   pull_request:
@@ -26,13 +24,13 @@ concurrency:
 jobs:
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      # Fail only on high/critical advisories; lower severities still print.
-      # The bulk-advisories endpoint flakes hard some days (error 23 timeouts
-      # on three consecutive runs on 2026-09-04, passing on a local retry) —
-      # the step retries with a pause instead of reporting an outage as an
-      # advisory; a real high advisory still fails after all attempts.
+      - name: Verify audit policy cases (AC-12.2, AC-12.3)
+        run: node --test .github/scripts/dependency-audit.test.ts
+      # Includes production, development and optional dependencies. Registry
+      # failures retry; actionable findings fail immediately unless excepted.
       - name: Audit dependencies
-        run: node .github/scripts/run-check.ts audit
+        run: node .github/scripts/dependency-audit.ts
