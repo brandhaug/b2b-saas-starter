@@ -126,6 +126,24 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
         expect((yield* delivery.get('tracked-failure'))?.status).toBe(
           'temporary_failure'
         )
+        expect(yield* delivery.completionDecision('tracked-failure')).toEqual({
+          outcome: 'retry_pending',
+          status: 'temporary_failure',
+          retryAfterSeconds: 60
+        })
+        expect(yield* delivery.completionDecision('tracked')).toEqual({
+          outcome: 'ack',
+          status: 'accepted'
+        })
+        const active = yield* delivery.claim(input('active-lease'))
+        if (!active) {
+          expect.fail('expected active lease claim')
+        }
+        expect(yield* delivery.completionDecision('active-lease')).toEqual({
+          outcome: 'retry_pending',
+          status: 'queued',
+          retryAfterSeconds: 300
+        })
       })
     },
     {
@@ -337,9 +355,28 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
         })
         expect(yield* delivery.claim(input('ambiguous', 'digest'))).toBeNull()
         yield* TestClock.adjust('5 minutes')
-        expect(yield* delivery.claim(input('ambiguous', 'digest'))).not.toBeNull()
+        const retryClaim = yield* delivery.claim(input('ambiguous', 'digest'))
+        if (!retryClaim) {
+          expect.fail('expected the lease to expire')
+        }
+        expect(yield* delivery.completionDecision('ambiguous')).toEqual({
+          outcome: 'retry_pending',
+          status: 'ambiguous',
+          retryAfterSeconds: 300
+        })
+        yield* delivery.recordOutcome('ambiguous', retryClaim.token, {
+          status: 'ambiguous',
+          reason: 'timeout'
+        })
         expect((yield* delivery.get('ambiguous'))?.uncertain).toBe(true)
-        yield* TestClock.adjust('6 hours')
+        yield* TestClock.adjust('5 hours')
+        yield* TestClock.adjust('54 minutes')
+        expect(yield* delivery.completionDecision('ambiguous')).toEqual({
+          outcome: 'retry_pending',
+          status: 'ambiguous',
+          retryAfterSeconds: 1
+        })
+        yield* TestClock.adjust('1 minute')
         expect(yield* delivery.claim(input('ambiguous', 'digest'))).toBeNull()
         expect((yield* delivery.get('ambiguous'))?.reason).toBe('retry_window_expired')
       })

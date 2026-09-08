@@ -1,4 +1,5 @@
 import { DateTime, Effect, Layer } from 'effect'
+import { assertWithinPlanLimit } from './resource-admission.ts'
 import { Billing } from './billing.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -14,6 +15,7 @@ import {
 } from './resource-inventory.seed.ts'
 import {
   ResourceEntitlements,
+  type ResourceEntitlementInput,
   type ResourceSelectionInput,
   type ResourceEntitlementsInterface
 } from './resource-entitlements.ts'
@@ -43,6 +45,22 @@ export function SeedResourceEntitlements() {
         )
       })
       const service: ResourceEntitlementsInterface = {
+        admitCreation: Effect.fn('ResourceEntitlements.admitCreation')(function* (
+          input: ResourceEntitlementInput
+        ) {
+          const ctx = yield* WorkspaceContext
+          const now = DateTime.toEpochMillis(yield* DateTime.now)
+          const inventoryRows = inventory.available(ctx.workspace.id, now)
+          let used: number
+          if (input.resource === 'api_token') {
+            used = inventoryRows.apiTokenIds.length
+          } else {
+            used = inventory.known(ctx.workspace.id).webhookEndpointIds.length
+          }
+          yield* assertWithinPlanLimit({ ...input, used }).pipe(
+            Effect.provideService(Billing, billing)
+          )
+        }),
         getSelectionForWorkspace,
         getSelection: Effect.fn('ResourceEntitlements.getSelection')(function* () {
           return yield* getSelectionForWorkspace((yield* WorkspaceContext).workspace.id)

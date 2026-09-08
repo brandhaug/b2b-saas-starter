@@ -17,7 +17,7 @@ import {
 import { notificationEmailFor } from '@b2b-saas-starter/email/notification-emails'
 import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
 import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
-import { Clock, Effect, Layer, type Scope } from 'effect'
+import { Effect, Layer, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
 import {
@@ -135,26 +135,16 @@ export function processNotificationEmailMessage(
           renderError: 'template_failed'
         }).pipe(Effect.as(ack))
       ),
-      // The tracked attempt persisted its sanitized failure. Its next due time
-      // below controls queue delivery, including transient and ambiguous sends.
+      // The capability persists the sanitized failure; completion below owns
+      // whether the queue should retry, including an active-lease skip.
       Effect.catchTag('EmailSendError', () => Effect.succeed(ack))
     )
-    const record = yield* history.get(messageId)
-    // A concurrent attempt or an ambiguous send keeps its queue message alive
-    // until the capability's lease/backoff permits the next bounded attempt.
-    if (
-      record &&
-      ['queued', 'temporary_failure', 'ambiguous'].includes(record.status)
-    ) {
-      yield* Effect.annotateLogsScoped({ outcome: 'retry_pending' })
-      const now = yield* Clock.currentTimeMillis
-      const due = Math.min(
-        Date.parse(record.nextAttemptAt),
-        Date.parse(record.retryUntil)
-      )
-      return { retryAfterSeconds: Math.max(1, Math.ceil((due - now) / 1000)) }
+    const completion = yield* history.completionDecision(messageId)
+    if (completion.outcome === 'retry_pending') {
+      yield* Effect.annotateLogsScoped({ outcome: completion.outcome })
+      return { retryAfterSeconds: completion.retryAfterSeconds }
     }
-    yield* Effect.annotateLogsScoped({ outcome: record?.status ?? 'skipped' })
+    yield* Effect.annotateLogsScoped({ outcome: completion.status })
     return ack
   })
 }

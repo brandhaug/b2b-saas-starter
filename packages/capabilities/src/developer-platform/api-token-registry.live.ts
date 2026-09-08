@@ -1,11 +1,9 @@
 import { prepareTokenSelectionRotation } from '../billing/resource-entitlements.live.ts'
-import { Billing } from '../billing/billing.ts'
 import { apiTokens, workspaces } from '@b2b-saas-starter/db/schema'
 import { Database, type BatchStatement, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { and, desc, eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm'
 
-import { assertWithinPlanLimitFor } from '../billing/resource-admission.ts'
 import { ApiTokenNotRotatable, AuthorizationDenied } from '../errors.ts'
 import {
   mintApiToken,
@@ -70,12 +68,11 @@ export function LiveApiTokenRegistry(
 ): Layer.Layer<
   ApiTokenRegistry,
   never,
-  Database | RawD1 | Billing | AuditEventLog | WebhookPublisher | ResourceEntitlements
+  Database | RawD1 | AuditEventLog | WebhookPublisher | ResourceEntitlements
 > {
   return Layer.effect(ApiTokenRegistry)(
     Effect.gen(function* () {
       const db = yield* Database
-      const billing = yield* Billing
       const audit = yield* AuditEventLog
       const publisher = yield* WebhookPublisher
       const entitlements = yield* ResourceEntitlements
@@ -142,21 +139,7 @@ export function LiveApiTokenRegistry(
           // Entitlement gate: the workspace's plan caps token count. The
           // rule and the counting both live in the billing capability, so no
           // caller can forget the gate.
-          yield* assertWithinPlanLimitFor({
-            resource: 'api_token',
-            db,
-            capability: 'api-token-registry',
-            table: apiTokens,
-            where: and(
-              eq(apiTokens.workspaceId, ctx.workspace.id),
-              isNull(apiTokens.revokedAt),
-              isNull(apiTokens.replacedByTokenId),
-              or(
-                isNull(apiTokens.expiresAt),
-                gt(apiTokens.expiresAt, DateTime.formatIso(now))
-              )
-            )
-          }).pipe(Effect.provideService(Billing, billing))
+          yield* entitlements.admitCreation({ resource: 'api_token' })
           const token = mintApiToken()
           const createdAt = DateTime.formatIso(now)
           const row = {

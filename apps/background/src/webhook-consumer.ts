@@ -3,16 +3,15 @@ import {
   starterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WEBHOOK_USER_AGENT } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import {
-  type FailureLadderAction,
-  failureLadderNotification,
-  planDeliveryAttempt,
-  WEBHOOK_USER_AGENT
-} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+  completeWebhookHttpObservation,
+  completeWebhookTerminalObservation
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-attempt-completion'
 import { validateWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import { WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { type NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { currentTraceId, TRACE_HEADER } from '@b2b-saas-starter/logger'
 import { DateTime, Effect, Result, Schema, type Scope } from 'effect'
 import { HttpBody, HttpClient } from 'effect/unstable/http'
@@ -48,42 +47,6 @@ function annotateMalformed(outcome: string): Effect.Effect<void, never, Scope.Sc
   return Effect.annotateLogsScoped({ outcome, skipReason: 'malformed_message' })
 }
 
-/**
- * The user-facing half of a delivery that gave up: one workspace-broadcast
- * Notification of kind `webhook.delivery_failed`, beside the audit event the
- * capability already batched with the terminal row. This is where the feed's
- * instant-email fan-out starts for the kind (ADR 0061). Best-effort — a feed
- * outage must not turn a settled delivery into a retry loop.
- */
-function notifyPermanentFailure(
-  message: WebhookQueueMessage,
-  endpointUrl: string
-): Effect.Effect<void, never, NotificationFeed> {
-  return Effect.gen(function* () {
-    const feed = yield* NotificationFeed
-    const detail = `${message.eventType} was rejected and will not be retried.`
-    yield* feed.create({
-      workspaceId: message.workspaceId,
-      userId: null,
-      kind: 'webhook.delivery_failed',
-      title: 'Webhook delivery failed',
-      message: `${endpointUrl}: ${detail}`,
-      event: {
-        type: 'webhook.permanent',
-        endpointUrl,
-        eventType: message.eventType
-      }
-    })
-  }).pipe(
-    // The cause goes on the log record whole; the wide event keeps the flag.
-    Effect.catchCause((cause) =>
-      Effect.logError('notification_create_failed', cause).pipe(
-        Effect.annotateLogs({ notificationCreate: 'failed' })
-      )
-    )
-  )
-}
-
 /** Fields every consumer stamps onto its wide event once decoded. */
 function annotateMessageFields(message: WebhookQueueMessage) {
   return Effect.annotateLogsScoped({
@@ -91,46 +54,6 @@ function annotateMessageFields(message: WebhookQueueMessage) {
     workspaceId: message.workspaceId,
     eventType: message.eventType
   })
-}
-
-/**
- * The user-facing half of a failure-ladder rung (ADR 0062 addendum): one
- * owner-targeted Notification of the existing `webhook.delivery_failed` kind,
- * its copy owned by `failureLadderNotification`. The ladder deliberately
- * rides the existing webhook kind — one preference knob for webhook failure
- * notices, one email template — instead of minting a second vocabulary entry
- * beside it. This is where the feed's email fan-out starts for the kind.
- * Best-effort — a feed outage must not fail an attempt whose row already
- * recorded.
- */
-function notifyFailureLadder(input: {
-  readonly failureAction: FailureLadderAction
-  readonly workspaceId: string
-  readonly url: string | null
-  readonly consecutiveFailures: number
-}): Effect.Effect<void, never, NotificationFeed | Scope.Scope> {
-  return Effect.gen(function* () {
-    yield* Effect.annotateLogsScoped({ consecutiveFailures: input.consecutiveFailures })
-    if (input.failureAction === 'silent') {
-      return
-    }
-    const feed = yield* NotificationFeed
-    yield* feed.notifyWorkspaceOwners({
-      workspaceId: input.workspaceId,
-      kind: 'webhook.delivery_failed',
-      ...failureLadderNotification({
-        url: input.url,
-        consecutiveFailures: input.consecutiveFailures
-      })
-    })
-  }).pipe(
-    // The cause goes on the log record whole; the wide event keeps the flag.
-    Effect.catchCause((cause) =>
-      Effect.logError('failure_ladder_notification_failed', cause).pipe(
-        Effect.annotateLogs({ notificationCreate: 'failed' })
-      )
-    )
-  )
 }
 
 /**
@@ -196,30 +119,16 @@ export function processWebhookMessage(
     if (!urlCheck.valid) {
       // Never-dispatched terminal row: resolves this message's delivery id and
       // records the payload, so the row stays replayable once the URL is fixed.
-      const recorded = yield* webhooks.recordTerminalDeliveryAttempt({
-        deliveryId,
-        endpointId: target.id,
-        workspaceId: message.workspaceId,
-        eventType: message.eventType,
+      yield* completeWebhookTerminalObservation({
+        message,
+        endpointUrl: target.url,
         attempts,
         status: 'failed_permanent',
-        failureReason: `Destination refused: ${urlCheck.reason}`,
-        payload: message.payload
+        failureReason: `Destination refused: ${urlCheck.reason}`
       })
       yield* Effect.annotateLogsScoped({
         outcome: 'failed_permanent',
         skipReason: `invalid_url: ${urlCheck.reason}`
-      })
-      if (!recorded.recorded) {
-        return 'ack' satisfies DeliveryOutcome
-      }
-      yield* notifyPermanentFailure(message, target.url)
-      // A refused URL is a failed attempt like any other — the ladder climbs.
-      yield* notifyFailureLadder({
-        workspaceId: message.workspaceId,
-        url: target.url,
-        failureAction: recorded.failureAction,
-        consecutiveFailures: recorded.consecutiveFailures
       })
       return 'ack' satisfies DeliveryOutcome
     }
@@ -287,45 +196,19 @@ export function processWebhookMessage(
     } else if (responseStatus < 200 || responseStatus >= 300) {
       failureReason = `Receiver returned HTTP ${responseStatus}`
     }
-    const plan = planDeliveryAttempt(responseStatus, attempts, finishedAt)
-    const recorded = yield* webhooks.recordDeliveryAttempt({
-      id: deliveryId,
-      endpointId: target.id,
-      // Terminal statuses batch an audit event with the attempt row inside
-      // the capability; the workspace id scopes it to the endpoint's owner.
-      workspaceId: message.workspaceId,
-      eventType: message.eventType,
-      status: plan.status,
+    const recorded = yield* completeWebhookHttpObservation({
+      message,
+      endpointUrl: target.url,
+      responseStatus,
       attempts,
+      finishedAt,
       durationMs,
       failureReason,
-      responseStatus: plan.responseStatus,
-      nextAttemptAt: plan.nextAttemptAt,
-      // Operator evidence columns: what was sent and what came back, so the
-      // deliveries drawer can replay or diagnose without re-deriving it.
-      payload: message.payload,
       requestHeaders,
       responseBody
     })
-    yield* Effect.annotateLogsScoped({ outcome: plan.status, responseStatus })
-    if (!recorded.recorded) {
-      if (recorded.status === 'failed') {
-        return 'retry' satisfies DeliveryOutcome
-      }
-      return 'ack' satisfies DeliveryOutcome
-    }
-    if (plan.status === 'failed_permanent') {
-      yield* notifyPermanentFailure(message, target.url)
-    }
-    // The failure ladder reacts to the streak the attempt left: warnings at
-    // the rungs, the auto-disable at the threshold (ADR 0062 addendum).
-    yield* notifyFailureLadder({
-      workspaceId: message.workspaceId,
-      url: target.url,
-      failureAction: recorded.failureAction,
-      consecutiveFailures: recorded.consecutiveFailures
-    })
-    return plan.outcome satisfies DeliveryOutcome
+    yield* Effect.annotateLogsScoped({ outcome: recorded.status, responseStatus })
+    return recorded.outcome satisfies DeliveryOutcome
   })
 }
 
@@ -375,32 +258,17 @@ export function processDeadLetterMessage(
     }
     const message = delivery.message
     yield* annotateMessageFields(message)
-    const webhooks = yield* WebhookEndpoints
     // The same row id the message's attempts resolved on the primary queue —
     // the exhausted row goes terminal in place instead of forking a second
     // row, and its recorded payload keeps it replayable.
-    const deliveryId = message.deliveryId
-    const recorded = yield* webhooks.recordTerminalDeliveryAttempt({
-      deliveryId,
-      endpointId: message.endpointId,
-      workspaceId: message.workspaceId,
-      eventType: message.eventType,
+    yield* completeWebhookTerminalObservation({
+      message,
       attempts: delivery.attempts,
       status: 'dead_lettered',
       failureReason: 'Queue retries exhausted',
-      payload: message.payload
+      endpointUrl: null
     })
     yield* Effect.annotateLogsScoped({ outcome: 'dead_lettered' })
-    if (!recorded.recorded) {
-      return
-    }
-    // Persistence decides whether terminal bookkeeping advances the streak.
-    yield* notifyFailureLadder({
-      workspaceId: message.workspaceId,
-      url: null,
-      failureAction: recorded.failureAction,
-      consecutiveFailures: recorded.consecutiveFailures
-    })
   })
 }
 

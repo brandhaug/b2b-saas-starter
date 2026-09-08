@@ -10,6 +10,7 @@ import {
 } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { SeedEmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery.seed'
+import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
 import {
   EmailDispatcher,
   type EmailDeliveryResult,
@@ -187,6 +188,42 @@ describe('processNotificationEmailMessage', () => {
       })
     })
   )
+
+  it.effect('retries when an active delivery lease skips the send', () => {
+    const sent: Array<EmailMessage> = []
+    return Effect.gen(function* () {
+      yield* TestClock.setTime(Date.parse(context.notification.createdAt))
+      const delivery = yield* EmailDelivery
+      const claim = yield* delivery.claim({
+        id: 'notification:not_1:usr_owner',
+        purpose: 'notification',
+        recipient: context.recipient.email,
+        userId: context.recipient.userId,
+        workspaceId: null,
+        queuedAt: context.notification.createdAt
+      })
+      expect(claim).not.toBeNull()
+      const outcome = yield* processNotificationEmailMessage(
+        readDelivery(NotificationEmailQueueMessage, {
+          id: 'q1',
+          body: message,
+          attempts: 1
+        }),
+        'https://app.test'
+      )
+      expect(outcome).toEqual({ retryAfterSeconds: 300 })
+      expect(sent).toHaveLength(0)
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          stubFeed(context),
+          SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
+          stubDispatcher(sent),
+          SeedEmailDelivery()
+        )
+      )
+    )
+  })
 
   it.effect(
     'does not resend a provider-accepted notification on queue redelivery',

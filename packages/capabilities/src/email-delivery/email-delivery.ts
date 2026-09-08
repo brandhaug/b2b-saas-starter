@@ -39,6 +39,17 @@ export type SendOutcome =
         | 'provider_rejected'
         | 'provider_suppressed'
     }
+
+export type EmailCompletionDecision =
+  | {
+      readonly outcome: 'ack'
+      readonly status: EmailDeliveryRecord['status'] | 'skipped'
+    }
+  | {
+      readonly outcome: 'retry_pending'
+      readonly status: EmailDeliveryRecord['status']
+      readonly retryAfterSeconds: number
+    }
 export const EmailProviderEvent = Schema.Struct({
   eventId: Schema.String,
   messageId: Schema.String,
@@ -67,6 +78,8 @@ export type EmailDeliveryInterface = {
     E | CapabilityUnavailable,
     R
   >
+  /** Converts persisted attempt evidence into the queue-facing completion. */
+  readonly completionDecision: (id: string) => Result<EmailCompletionDecision>
   readonly claim: (input: ClaimEmail) => Result<{ readonly token: string } | null>
   readonly recordOutcome: (
     id: string,

@@ -1,4 +1,3 @@
-import { Billing } from '../billing/billing.ts'
 import { makeLiveAttemptHistory } from './webhook-attempt-history.live.ts'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import {
@@ -11,7 +10,6 @@ import {
 import { DateTime, Effect, Layer } from 'effect'
 import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
 
-import { assertWithinPlanLimitFor } from '../billing/resource-admission.ts'
 import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import {
@@ -115,7 +113,6 @@ function updateMetadata(input: {
 export const LiveWebhookEndpoints: Layer.Layer<
   WebhookEndpoints,
   never,
-  | Billing
   | Database
   | RawD1
   | AuditEventLog
@@ -125,7 +122,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
 > = Layer.effect(WebhookEndpoints)(
   Effect.gen(function* () {
     const db = yield* Database
-    const billing = yield* Billing
     const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
     const entitlements = yield* ResourceEntitlements
@@ -301,13 +297,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           yield* ensureValidWebhookUrl(input.url)
           const ctx = yield* WorkspaceContext
           // Entitlement gate: the workspace's plan caps endpoint count.
-          yield* assertWithinPlanLimitFor({
-            resource: 'webhook_endpoint',
-            db,
-            capability: 'webhook-endpoints',
-            table: webhookEndpoints,
-            where: eq(webhookEndpoints.workspaceId, ctx.workspace.id)
-          }).pipe(Effect.provideService(Billing, billing))
+          yield* entitlements.admitCreation({ resource: 'webhook_endpoint' })
           const signingSecret = randomWebhookSecret()
           const createdAt = yield* DateTime.now
           const endpoint = {

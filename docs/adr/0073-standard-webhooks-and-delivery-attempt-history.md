@@ -55,7 +55,10 @@ cannot regress the summary, change the streak, or repeat a terminal audit.
 Different deliveries affect an endpoint's streak in database commit order.
 
 Automatic disable belongs to the same batch as the threshold-crossing attempt.
-The worker sends best-effort warnings only for accepted results. Dead-letter
+The Webhook Attempt completion module composes planning, persistence and
+best-effort warnings for accepted results. The worker supplies dispatch evidence
+and follows completion's queue disposition; duplicate or late observations use
+the persisted summary. Signing and HTTP dispatch remain in the worker. Dead-letter
 bookkeeping does not increment the streak again when HTTP attempts already
 exist. Notifications are best-effort; audit and disable durability do not depend
 on notification delivery.

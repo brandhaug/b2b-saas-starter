@@ -2,6 +2,7 @@ import { Context, type Effect } from 'effect'
 
 import {
   type CapabilityUnavailable,
+  type PlanLimitExceeded,
   type ResourceSelectionRejected
 } from '../errors.ts'
 import {
@@ -34,6 +35,10 @@ export type ResourceEntitlementsInterface = {
     CapabilityUnavailable | ResourceSelectionRejected,
     WorkspaceContext
   >
+  /** Counts the resource's admitted rows and applies the request-time plan. */
+  readonly admitCreation: (
+    input: ResourceEntitlementInput
+  ) => Effect.Effect<void, CapabilityUnavailable | PlanLimitExceeded, WorkspaceContext>
   readonly summarize: (
     input: ResourceEntitlementInput
   ) => Effect.Effect<

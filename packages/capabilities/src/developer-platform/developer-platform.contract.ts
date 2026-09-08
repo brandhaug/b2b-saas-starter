@@ -1,3 +1,5 @@
+import { webhookCompletionCases } from './webhook-attempt-completion.contract.ts'
+import { type NotificationFeed } from '../notifications/notification-feed.ts'
 import { webhookAttemptHistoryCases } from './webhook-attempt-history.contract.ts'
 import { Effect, Exit } from 'effect'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
@@ -52,7 +54,11 @@ export type DeveloperPlatformContractCase = {
     | WebhookEndpointNotFound
     | WebhookDeliveryNotFound
     | WebhookDispatchRejected,
-    ApiTokenRegistry | WebhookEndpoints | AuditEventLog | WorkspaceContext
+    | ApiTokenRegistry
+    | WebhookEndpoints
+    | AuditEventLog
+    | WorkspaceContext
+    | NotificationFeed
   >
 }
 
@@ -70,6 +76,7 @@ export function developerPlatformContractCases(
 ): ReadonlyArray<DeveloperPlatformContractCase> {
   return [
     ...webhookAttemptHistoryCases(expect),
+    ...webhookCompletionCases(expect),
     {
       name: 'the same token mutation records the invocation actor in both adapters',
       assert: Effect.gen(function* () {

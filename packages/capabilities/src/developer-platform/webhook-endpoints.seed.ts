@@ -2,13 +2,11 @@ import {
   SeedResourceInventory,
   SeedResourceInventoryLayer
 } from '../billing/resource-inventory.seed.ts'
-import { Billing } from '../billing/billing.ts'
 import { bestEffort } from '../internal/best-effort.ts'
 import { attemptEvidence } from './webhook-attempt-history.ts'
 import { DateTime, Duration, Effect, Layer } from 'effect'
 import { randomWebhookSecret } from '../crypto.ts'
 
-import { assertWithinPlanLimit } from '../billing/resource-admission.ts'
 import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
@@ -161,11 +159,10 @@ export function SeedWebhookEndpoints(
 ): Layer.Layer<
   WebhookEndpoints,
   never,
-  Billing | AuditEventLog | WebhookPublisher | NotificationFeed | ResourceEntitlements
+  AuditEventLog | WebhookPublisher | NotificationFeed | ResourceEntitlements
 > {
   return Layer.effect(WebhookEndpoints)(
     Effect.gen(function* () {
-      const billing = yield* Billing
       const audit = yield* AuditEventLog
       const publisher = yield* WebhookPublisher
       const notificationFeed = yield* NotificationFeed
@@ -553,12 +550,7 @@ export function SeedWebhookEndpoints(
           const ctx = yield* WorkspaceContext
           // Same entitlement gate as Live — and because the store mutates, the
           // cap can actually trip here instead of being unreachable.
-          yield* assertWithinPlanLimit({
-            resource: 'webhook_endpoint',
-            used: endpoints.filter(
-              (endpoint) => endpoint.workspaceId === ctx.workspace.id
-            ).length
-          }).pipe(Effect.provideService(Billing, billing))
+          yield* entitlements.admitCreation({ resource: 'webhook_endpoint' })
           const endpoint: SeedEndpointRow = {
             id: yield* newCapabilityId('wh'),
             workspaceId: ctx.workspace.id,
@@ -589,7 +581,7 @@ export function SeedWebhookEndpoints(
             endpoint: toProjection(endpoint, deliveries),
             signingSecret: endpoint.signingSecret
           }
-        }),
+        }, inventory.lock.withPermits(1)),
         listDeliveries: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
