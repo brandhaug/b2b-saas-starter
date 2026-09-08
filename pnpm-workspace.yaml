@@ -22,7 +22,7 @@ catalog:
   '@better-auth/oauth-provider': 1.7.2
   '@better-auth/passkey': 1.7.2
   '@better-auth/sso': 1.7.2
-  '@cloudflare/workers-types': 5.20260904.1
+  '@cloudflare/workers-types': 5.20260905.1
   '@cloudflare/vitest-pool-workers': 0.22.0
   '@effect/platform-node': 4.0.0-rc.112
   '@effect/sql-d1': 4.0.0-rc.112
