@@ -1,4 +1,3 @@
-import { workspaceSuspensionOperationForPermission } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
@@ -62,14 +61,7 @@ function workspaceOperation<A, E, R>(
     Effect.gen(function* () {
       yield* enforcePermission(permission, slug)
       const principal = yield* ApiPrincipal
-      return yield* provideWorkspace(
-        env,
-        slug,
-        body,
-        undefined,
-        'api_token',
-        workspaceSuspensionOperationForPermission(permission)
-      ).pipe(
+      return yield* provideWorkspace(env, slug, body, undefined, 'api_token').pipe(
         Effect.provideService(OperationPrincipal, tokenPrincipal(principal.scopes)),
         Effect.provideService(OperationOrigin, new URL(webRequest(request).url).origin)
       )

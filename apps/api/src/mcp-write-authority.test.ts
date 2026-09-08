@@ -232,12 +232,15 @@ for (const revoke of ['revoke', 'reduceGrant', 'oldCredential'] satisfies Readon
           (yield* call(client, 'create_api_token', { name: 'first', scopes: ['read'] }))
             .isError
         ).not.toBe(true)
-        const before = yield* call(client, 'list_audit_events')
+        const observer = mcpClient(harness.handler, `Bearer ${SEED_API_TOKEN}`)
+        yield* Effect.promise(() => observer.initialize())
+        const before = yield* call(observer, 'list_audit_events')
         harness[revoke]()
         expect(
           (yield* call(client, 'delete_webhook', { endpointId: 'wh_release' })).isError
         ).toBe(true)
-        expect(yield* call(client, 'list_audit_events')).toEqual(before)
+        expect((yield* call(client, 'list_audit_events')).isError).toBe(true)
+        expect(yield* call(observer, 'list_audit_events')).toEqual(before)
       })
   )
 }

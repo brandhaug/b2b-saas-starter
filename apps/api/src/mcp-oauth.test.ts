@@ -83,6 +83,8 @@ function accessToken(
 ): Promise<string> {
   return new SignJWT({
     sub: 'usr_demo',
+    client_id: 'https://mcp-client.example.com/oauth/client-metadata.json',
+    starter_consent_binding: 'con_example_mcp:0',
     scope: 'openid offline_access mcp:read',
     [MCP_WORKSPACE_ID_CLAIM]: 'wrk_starter',
     [MCP_WORKSPACE_SLUG_CLAIM]: 'starter-lab',
@@ -216,31 +218,33 @@ describe('POST /mcp with an OAuth access token', () => {
       })
   )
 
-  it.effect('a member authorizes as their role, not as the token claim', () =>
-    Effect.gen(function* () {
-      const { privateKey, jwks } = yield* Effect.promise(theAuthority)
-      stubJwksFetch(jwks)
-      const handler = buildWebHandler(env).handler
-      // `usr_dev` is a plain member of the seed workspace; a member cannot
-      // read the audit log even if the token claims otherwise.
-      const token = yield* Effect.promise(() =>
-        accessToken(privateKey, {
-          sub: 'usr_dev',
-          [MCP_WORKSPACE_ROLE_CLAIM]: 'owner'
-        })
-      )
-      const res = yield* Effect.promise(() =>
-        callTool(handler, `Bearer ${token}`, 'list_audit_events')
-      )
-      const body = yield* jsonBody(res, CallToolBody)
-      expect(body.result.isError).toBe(true)
-      expect(body.result.content[0]?.text).toContain('denied:')
+  it.effect(
+    "a member cannot borrow another user's consent despite an owner role claim",
+    () =>
+      Effect.gen(function* () {
+        const { privateKey, jwks } = yield* Effect.promise(theAuthority)
+        stubJwksFetch(jwks)
+        const handler = buildWebHandler(env).handler
+        // The fixture consent belongs to usr_demo. Membership alone cannot
+        // authorize this client as usr_dev, even for an ordinary read.
+        const token = yield* Effect.promise(() =>
+          accessToken(privateKey, {
+            sub: 'usr_dev',
+            [MCP_WORKSPACE_ROLE_CLAIM]: 'owner'
+          })
+        )
+        const res = yield* Effect.promise(() =>
+          callTool(handler, `Bearer ${token}`, 'list_audit_events')
+        )
+        const body = yield* jsonBody(res, CallToolBody)
+        expect(body.result.isError).toBe(true)
+        expect(body.result.content[0]?.text).toContain('denied:')
 
-      const allowed = yield* Effect.promise(() =>
-        callTool(handler, `Bearer ${token}`, 'list_notifications')
-      )
-      expect((yield* jsonBody(allowed, CallToolBody)).result.isError).toBeUndefined()
-    })
+        const allowed = yield* Effect.promise(() =>
+          callTool(handler, `Bearer ${token}`, 'list_notifications')
+        )
+        expect((yield* jsonBody(allowed, CallToolBody)).result.isError).toBe(true)
+      })
   )
 
   it.effect('the key set is fetched once across requests', () =>

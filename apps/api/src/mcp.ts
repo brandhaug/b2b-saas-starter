@@ -3,20 +3,14 @@ import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/w
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
-import {
-  WorkspaceSuspensionService,
-  workspaceSuspensionOperationForPermission,
-  type WorkspaceSuspensionOperation
-} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { mcpMutationOperations } from './mcp-mutations.ts'
 import { clientKey } from '@b2b-saas-starter/rate-limit'
 import {
-  memberPrincipal,
-  tokenPrincipal,
-  type Principal
-} from '@b2b-saas-starter/authz/client'
-import { requirePermission } from '@b2b-saas-starter/authz/guard'
+  MCP_READ_SCOPE,
+  MCP_WRITE_SCOPE
+} from '@b2b-saas-starter/authz/mcp-access-token'
 import {
   mirroredRestPath,
   READ_OPERATIONS,
@@ -54,11 +48,11 @@ import {
   ToolJsonSchema as ToolJsonSchemaCodec
 } from 'effect/unstable/ai/McpSchema'
 
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 
 import {
   authenticateMcpCaller,
-  authorizeMcpMutation,
+  authorizeMcpOperation,
   enforceRateLimitKey,
   bearerToken,
   verifyMcpCredential,
@@ -371,29 +365,6 @@ function requireCaller(): Effect.Effect<McpCaller, InternalError> {
 }
 
 /**
- * Who a tool authorizes as. An API Token is its scopes. An OAuth caller is the
- * Member the workspace layer just resolved — from the membership table, not
- * from the token's role claim — so a member removed since consenting is
- * refused with `WorkspaceNotFound` while the layer builds, and a role change
- * applies on the next call. (The `ctx.actor === null` half is the context
- * type's honesty: this route always builds the layer with the caller's
- * `ActorRef`, so the null case is not reachable here.)
- */
-function callerPrincipal(
-  caller: McpCaller
-): Effect.Effect<Principal | null, never, WorkspaceContext> {
-  if (caller.kind === 'token') {
-    return Effect.succeed(tokenPrincipal(caller.token.scopes))
-  }
-  return Effect.map(WorkspaceContext, (ctx) => {
-    if (ctx.actor === null) {
-      return null
-    }
-    return memberPrincipal(ctx.actor.role)
-  })
-}
-
-/**
  * Runs one operation's guard + read on the caller's workspace: the workspace
  * layer resolves this call's tenant (and, for an OAuth caller, proves the
  * Member still belongs to it). `Effect.result` sits OUTSIDE the workspace
@@ -407,18 +378,16 @@ function bridgedRead(
   body: Effect.Effect<
     unknown,
     CapabilityReadError,
-    CapabilityReadServices | WorkspaceContext
-  >,
-  operation: WorkspaceSuspensionOperation = 'product'
-): Effect.Effect<ToolOutcome, never, CapabilityReadServices> {
+    CapabilityReadServices | McpClientConnections | WorkspaceContext
+  >
+): Effect.Effect<ToolOutcome, never, CapabilityReadServices | McpClientConnections> {
   return Effect.result(
     provideWorkspace(
       env,
       caller.token.workspaceSlug,
       body,
       mcpCallerActor(caller),
-      mcpCallerActorType(caller),
-      operation
+      mcpCallerActorType(caller)
     )
   )
 }
@@ -476,14 +445,17 @@ function registerTools(env: ApiEnv) {
     const registry = yield* McpServer
     // The isolate-level capability services, captured once: tool invocations
     // resolve them from this context rather than rebuilding any graph.
-    const services = (yield* Effect.context<CapabilityReadServices>()).pipe(
+    const services = (yield* Effect.context<
+      CapabilityReadServices | McpClientConnections
+    >()).pipe(
       Context.pick(
         NotificationFeed,
         WorkspaceMembership,
         ApiTokenRegistry,
         WebhookEndpoints,
         WorkspaceSuspensionService,
-        AuditEventLog
+        AuditEventLog,
+        McpClientConnections
       )
     )
 
@@ -500,24 +472,16 @@ function registerTools(env: ApiEnv) {
             const caller = yield* requireCaller()
             const invoke = yield* decodeOperationInput(operation, payload)
             // One guard + one capability read, on the caller's workspace.
-            // `requirePermission` needs a Scope, which only exists inside the
+            // The operation guard needs a Scope, which only exists inside the
             // Effect runtime, hence the scoped wrapper here rather than in the
             // capability itself. The decoded input rides to the same read the
             // REST route serves — the two surfaces page identically.
             const guarded = Effect.gen(function* () {
-              yield* requirePermission(
-                yield* callerPrincipal(caller),
-                operation.permission
-              )
+              yield* authorizeMcpOperation(caller, operation.permission, MCP_READ_SCOPE)
               return yield* invoke
             }).pipe(Effect.scoped)
 
-            const outcome = yield* bridgedRead(
-              env,
-              caller,
-              guarded,
-              workspaceSuspensionOperationForPermission(operation.permission)
-            )
+            const outcome = yield* bridgedRead(env, caller, guarded)
             return outcomeToToolResult(outcome)
           }).pipe(
             // Defects at this seam answer with the generic body, the way a
@@ -602,9 +566,10 @@ function registerMutationTools(env: ApiEnv) {
             const caller = verified.success
             const invoke = yield* operation.decode(payload ?? {}).pipe(invalidParams)
             const guarded = Effect.gen(function* () {
-              const principal = yield* authorizeMcpMutation(
+              const principal = yield* authorizeMcpOperation(
                 caller,
-                operation.permission
+                operation.permission,
+                MCP_WRITE_SCOPE
               )
               return yield* invoke.pipe(
                 Effect.provideService(OperationPrincipal, principal),
@@ -617,8 +582,7 @@ function registerMutationTools(env: ApiEnv) {
                 caller.token.workspaceSlug,
                 guarded,
                 mcpCallerActor(caller),
-                mcpCallerActorType(caller),
-                workspaceSuspensionOperationForPermission(operation.permission)
+                mcpCallerActorType(caller)
               )
             )
             return outcomeToToolResult(outcome)
@@ -659,9 +623,10 @@ function registerOverviewResource(env: ApiEnv) {
     content: Effect.gen(function* () {
       const caller = yield* requireCaller()
       const guarded = Effect.gen(function* () {
-        yield* requirePermission(
-          yield* callerPrincipal(caller),
-          READ_OPERATIONS.overview.permission
+        yield* authorizeMcpOperation(
+          caller,
+          READ_OPERATIONS.overview.permission,
+          MCP_READ_SCOPE
         )
         return yield* READ_OPERATIONS.overview.read()
       }).pipe(Effect.scoped)

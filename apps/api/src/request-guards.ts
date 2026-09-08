@@ -1,8 +1,7 @@
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import {
   WorkspaceSuspensionService,
-  workspaceSuspensionOperationForPermission,
-  type WorkspaceSuspensionOperation
+  workspaceSuspensionOperationForPermission
 } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { withHttpInvocation } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
@@ -22,7 +21,8 @@ import {
   type ActorRef
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
-  MCP_WRITE_SCOPE,
+  type MCP_READ_SCOPE,
+  type MCP_WRITE_SCOPE,
   type McpAccessTokenPrincipal
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import {
@@ -318,7 +318,8 @@ export function webRequest(request: HttpServerRequest.HttpServerRequest): Reques
 }
 
 /**
- * Resolves the request's workspace and provides it to `body`.
+ * Resolves the request's workspace and provides it to `body`. REST and MCP
+ * operation guards enforce suspension after proving caller authority.
  *
  * Only `WorkspaceContext` is built here. Every other capability service is
  * request-independent and lives on the isolate-level layer `http.ts` hands to
@@ -335,15 +336,9 @@ export function provideWorkspace<A, E, R>(
   slug: string,
   body: Effect.Effect<A, E, R>,
   actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue,
-  operation: WorkspaceSuspensionOperation = 'product'
+  actorType: AuditActorTypeValue
 ) {
-  return Effect.gen(function* () {
-    const ctx = yield* WorkspaceContext
-    const suspension = yield* WorkspaceSuspensionService
-    yield* suspension.requireAllowed(ctx.workspace.id, operation)
-    return yield* body
-  }).pipe(
+  return body.pipe(
     Effect.provide(selectWorkspaceContextLayer(starterEnv(env), slug, actor, actorType))
   )
 }
@@ -406,10 +401,11 @@ export function bearerAuth(env: ApiEnv): Layer.Layer<BearerAuth> {
   )
 }
 
-/** Current workspace identity, role, and consent constrain every MCP mutation. */
-export const authorizeMcpMutation = Effect.fn('Mcp.authorizeMutation')(function* (
+/** Current Workspace identity, role, and consent constrain every MCP operation. */
+export const authorizeMcpOperation = Effect.fn('Mcp.authorizeOperation')(function* (
   caller: McpCaller,
-  permission: PermissionRequest
+  permission: PermissionRequest,
+  requiredScope: typeof MCP_READ_SCOPE | typeof MCP_WRITE_SCOPE
 ) {
   const ctx = yield* WorkspaceContext
   if (ctx.workspace.id !== caller.token.workspaceId) {
@@ -429,7 +425,7 @@ export const authorizeMcpMutation = Effect.fn('Mcp.authorizeMutation')(function*
     principal = memberPrincipal(ctx.actor.role)
     const token = caller.token
     if (
-      !token.scopes.includes(MCP_WRITE_SCOPE) ||
+      !token.scopes.includes(requiredScope) ||
       token.clientId === undefined ||
       token.consentBinding === undefined
     ) {
@@ -445,7 +441,7 @@ export const authorizeMcpMutation = Effect.fn('Mcp.authorizeMutation')(function*
     })
     if (
       grant?.binding !== token.consentBinding ||
-      !grant.scopes.includes(MCP_WRITE_SCOPE)
+      !grant.scopes.includes(requiredScope)
     ) {
       return yield* new AuthorizationDenied({
         reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
@@ -453,5 +449,10 @@ export const authorizeMcpMutation = Effect.fn('Mcp.authorizeMutation')(function*
     }
   }
   yield* requirePermission(principal, permission)
+  const suspension = yield* WorkspaceSuspensionService
+  yield* suspension.requireAllowed(
+    ctx.workspace.id,
+    workspaceSuspensionOperationForPermission(permission)
+  )
   return principal
 })

@@ -87,7 +87,7 @@ SSO connections belong to Workspaces. The app enforces enabled/required status a
 
 API Tokens belong to one Workspace. Only token hashes are stored; verification checks revocation, expiry, and resource entitlements. REST is token-only.
 
-MCP also accepts OAuth access tokens issued by the web Worker. The API verifies issuer and audience, re-resolves membership, and rechecks consent before writes. Consent binds a client to one Workspace. Both credentials use the same operation catalog and permission checks. See [API tokens](docs/adr/0026-workspace-api-tokens.md) and [MCP OAuth](docs/adr/0068-oauth-for-interactive-mcp-clients-beside-api-tokens.md).
+MCP also accepts OAuth access tokens issued by the web Worker. The API verifies issuer and audience, re-resolves membership, and checks the immutable Workspace ID and current consent before reads, resources, and writes. Consent binds a client to one Workspace. Both credentials use the same operation catalog and permission checks. [Interactive isolation coverage](docs/security-workspace-isolation.md) records tested operations and evidence limits. See [API tokens](docs/adr/0026-workspace-api-tokens.md) and [MCP OAuth](docs/adr/0068-oauth-for-interactive-mcp-clients-beside-api-tokens.md).
 
 ### CORS & trusted origins
 

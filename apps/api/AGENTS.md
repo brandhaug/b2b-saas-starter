@@ -13,7 +13,7 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 - A handler is `observed(...)` around `enforcePermission(permission, slug)` plus one capability call. Auth and the bucket come from `BearerAuth`, so no handler reads `Authorization`.
 - Endpoints name permissions, never scopes. [`authz`](../../packages/authz/AGENTS.md) owns the scope-to-permission map, so a token and a web session resolve through one `authorize()`.
 - `provideWorkspace` builds the only request-scoped service, `WorkspaceContext`; the rest are isolate-level, reached through `HttpRouter.provideRequest`.
-- MCP JWTs use OAuth verification; other credentials use API Token verification (ADR 0068). Tokens authorize by scopes; OAuth writes require explicit `mcp:write`, current matching consent, and Member re-resolved per call. Both use the `mcp` bucket; each write also consumes `rest_write` and `guardFailureResponse`. Router middleware gates the transport; `CurrentMcpCaller` travels through Effect RPC request-fiber context to each tool. Preserve `api_token` versus OAuth `user` audit provenance.
+- MCP JWTs use OAuth verification; other credentials use API Token verification (ADR 0068). Tokens authorize by scopes; OAuth tools and resources require current matching consent, the immutable Workspace ID, and Member re-resolved per call; writes additionally require `mcp:write`. Both use the `mcp` bucket; each write also consumes `rest_write` and `guardFailureResponse`. Router middleware gates the transport; `CurrentMcpCaller` travels through Effect RPC request-fiber context to each tool. Preserve `api_token` versus OAuth `user` audit provenance.
 
 ## Boundaries
 
