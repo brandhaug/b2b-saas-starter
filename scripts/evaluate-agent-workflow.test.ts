@@ -166,7 +166,11 @@ void test('kills the whole process group on timeout', async () => {
   const childPidPath = join(root, 'child.pid')
   const result = await captureCli({
     command: '/bin/sh',
-    args: ['-c', `sleep 30 & echo $! > '${childPidPath}'; wait`],
+    // Reap the child before exiting so the assertion cannot race an orphaned zombie.
+    args: [
+      '-c',
+      `trap 'wait "$child"; exit 0' TERM; sleep 30 & child=$!; echo "$child" > '${childPidPath}'; wait "$child"`
+    ],
     input: '',
     cwd: root,
     timeoutMs: 100
