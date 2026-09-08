@@ -147,7 +147,7 @@ export function AuthNoticeCard({
       title={title}
       description={description}
       form={null}
-      error={error}
+      {...(error === undefined ? {} : { error })}
       footer={footer}
     >
       {children}
