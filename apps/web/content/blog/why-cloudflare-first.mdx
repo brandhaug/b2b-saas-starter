@@ -6,27 +6,21 @@ author: Starter Team
 tags: [cloudflare, deployment, architecture]
 ---
 
-The starter is Cloudflare-first. That phrase appears in `CONTEXT.md` and in `ADR 0001`, and it shapes the rest of the architecture more than any other decision.
+The starter commits to Cloudflare for compute, persistence, and background work.
+Workers run the three applications, D1 stores their shared data, Queues deliver
+background jobs, and R2 stores optional workspace exports.
 
-## The bet
+That choice avoids maintaining interchangeable database and deployment adapters.
+The cost is platform dependence: moving to another host would require replacing
+the Cloudflare bindings and infrastructure definitions.
 
-Cloudflare's primitives — Workers, D1, Queues, Email Service, Rate Limiting, and env-gated Turnstile — compose into one production stack with one bill, one auth domain, and one deploy command. R2 and Durable Objects are intentionally out of the initial scaffold (see ARCHITECTURE.md "Explicit Non-Goals"). The starter takes that bet rather than trying to be platform-agnostic.
+Alchemy declares production resources in `alchemy.run.ts`. Queue and rate-limit
+settings come from `infra/bindings.ts`, which also supplies the generated local
+Wrangler configurations. Local development uses the same binding shapes with
+persisted local D1.
 
-## What "Cloudflare-first" rules in
-
-- D1 is the single database; there is no Postgres path
-- Workers are the single compute primitive; there is no Node server
-- Alchemy v2 owns infrastructure-as-code; each Worker's `wrangler.jsonc` mirrors the Alchemy declaration by hand
-- Cloudflare Queues handle outbound Webhook Endpoint delivery
-- Cloudflare Email Service is the outbound mail boundary
-
-## What it rules out (intentionally)
-
-- Vercel, Netlify, Fly, Render, and other deployment targets
-- Multi-cloud abstractions that hedge on the persistence layer
-- Service workers / PWA support without a real coordination need
-- Durable Objects until a feature genuinely needs single-writer coordination
-
-## What it does not rule out
-
-Sentry, PostHog, Stripe, and other env-gated providers all work on Cloudflare. The bet is on platform primitives, not on isolation from the rest of the ecosystem.
+Stripe, Sentry, PostHog, and other optional providers work alongside those
+Cloudflare resources. Unset provider configuration keeps their integrations
+inactive. See [optional providers](/docs/getting-started/optional-providers) for
+configuration and [deployment](/docs/getting-started/cloudflare-deployment) for
+the production workflow.

@@ -34,13 +34,23 @@ Each change records a `notification_preference.changed` Audit Event against the 
 
 When a Notification is created, the feed capability resolves who can see it (the target user, or every member of the workspace for a broadcast) and enqueues one message on the `b2b-saas-starter-notification-emails` Cloudflare Queue per recipient whose channel for the kind is `instant`. The message carries only the Notification id and the recipient id. The background worker consumes it, re-reads the Notification and the recipient's current preference, renders the kind's React Email template, and sends it through Cloudflare Email. A Notification that was read in the meantime, or a preference that moved off instant, is acked without an email.
 
-Consumer settings: batches of 10, two concurrent invocations, three retries one minute apart, no dead-letter queue. After the third failure the message is dropped; the Notification stays in the feed and, when the recipient takes the kind as digest, appears in the next digest.
+Durable delivery records track attempts and provider acceptance. Temporary or
+ambiguous notification sends can retry within 24 hours of creation. Before each
+attempt, the consumer rechecks relevance, recipient access, and preferences.
+Once the provider accepts a message, the app does not submit it again.
 
 ## Daily digest
 
 A cron trigger on the background worker fires at `0 8 * * *` (08:00 UTC). The run reads every unread Notification created in the previous 24 hours, fans broadcasts out to the workspace members, keeps the pairs whose kind the recipient takes as `digest`, and sends one email per recipient with everything grouped, newest first. Nothing is sent to a recipient with no digest items. A Notification read in the app before 08:00 is not included.
 
-The schedule and the queue are declared once in `infra/bindings.ts`; alchemy and the generated `wrangler.jsonc` files read the same constants.
+Failed digests retry every fifteen minutes against the same 08:00 UTC window,
+with no new send after 14:00 UTC. Each pass rereads unread notifications and
+preferences; stable per-user delivery IDs prevent resending accepted digests.
+Queue settings and schedules live in `infra/bindings.ts`.
+
+Cloudflare delivery events update sanitized history. Provider acceptance and
+inbox delivery are separate states. The application retains no rendered email
+bodies, OTPs, or secret links in those records.
 
 ## Provider-light behaviour
 
@@ -52,6 +62,6 @@ The schedule and the queue are declared once in `infra/bindings.ts`; alchemy and
 
 1. Run `pnpm run db:migrate:local` and `pnpm run db:seed`, then `pnpm run dev`.
 2. Sign in as `demo@starter.local` and open `/account`. The demo owner has a mix: API token creation moved to the digest, webhook failures moved to instant, announcements off.
-3. Run `pnpm -C apps/background dev` and trigger the cron with wrangler's scheduled test endpoint: `curl "http://localhost:8788/__scheduled?cron=0+8+*+*+*"`. The digest email renders to the worker log.
+3. With the background worker running, trigger its scheduled test endpoint: `curl "http://localhost:8788/__scheduled?cron=0+8+*+*+*"`. The digest email renders to the worker log.
 
 See ADR 0061 for the decision record.

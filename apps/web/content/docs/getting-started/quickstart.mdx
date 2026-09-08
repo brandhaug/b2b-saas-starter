@@ -1,53 +1,43 @@
 ---
 title: Quickstart
-description: Clone, install, seed, and run the starter locally in under five minutes.
+description: Install, seed, and run the starter locally.
 category: getting-started
 order: 10
 tags: [setup, local-dev]
 ---
 
-The starter runs locally against a real Cloudflare-shaped stack: `apps/web` under the `@cloudflare/vite-plugin`, `apps/api` and `apps/background` under Wrangler, a SQLite-backed local D1 database, MDX-driven public content, and the Seed Workspace populated through `scripts/seed.ts`.
-
-## Prerequisites
-
-- The [Vite+ CLI](https://viteplus.dev) (`vp`, >= 0.3.0) — it provides the managed Node runtime (>= 24) and the pinned pnpm
-- A Cloudflare account (only required for deployment, not local development)
+Use [Vite+](https://viteplus.dev) for the managed Node runtime and pinned pnpm.
+A Cloudflare account is needed for deployment only.
 
 ## Install and run
 
 ```bash
 vp install
+cp .env.example .env
 pnpm run db:migrate:local
 pnpm run db:seed
 pnpm run dev
 ```
 
-`pnpm run dev` boots all three apps in parallel through Vite Task (`vp run -r --parallel dev`):
+The development command runs the web app on port 3071, the REST/MCP API on 8787,
+and the background Worker on 8788. They share persisted local D1. To run one app,
+use `pnpm -C apps/web dev`, `pnpm -C apps/api dev`, or
+`pnpm -C apps/background dev`.
 
-- `apps/web` on port 3071 — TanStack Start, public showcase, reference application
-- `apps/api` — REST and MCP Capability Interfaces (`pnpm -C apps/api dev` runs it alone)
-- `apps/background` — cron and queue handlers (`pnpm -C apps/background dev` runs it alone)
+## Sign in
 
-## Sign in with the seed accounts
+Open `http://localhost:3071/sign-in`. Seeding creates these credential accounts:
 
-Seeding creates two credential accounts so the reference workspace is reachable immediately (both use the same password, and `/sign-in` prints them on the page):
+| Email                  | Password                | Roles                                |
+| ---------------------- | ----------------------- | ------------------------------------ |
+| `demo@starter.local`   | `demo-starter-password` | System admin and `starter-lab` owner |
+| `engineer@example.com` | `demo-starter-password` | `starter-lab` member                 |
 
-| Email                  | Password                | Roles                                         |
-| ---------------------- | ----------------------- | --------------------------------------------- |
-| `demo@starter.local`   | `demo-starter-password` | System admin (`/admin`) + `starter-lab` owner |
-| `engineer@example.com` | `demo-starter-password` | `starter-lab` member                          |
+The sign-in form also offers magic links and six-digit emailed codes. Both
+expire after ten minutes. Codes allow three failed attempts. Without an email
+provider, local delivery appears in the dev server's `email.dispatched` log.
 
-Sign in at `http://localhost:3071/sign-in` — two Local Auth Paths are wired:
-
-- **Email and password** — the seeded credentials above.
-- **Magic link** — "Email me a sign-in link" switches the form to email-only. The link is single-use and expires after ten minutes; consuming it signs you in (and creates a verified account for a brand-new address). With no email provider configured the dispatched email lands in the dev server's console log under `email.dispatched`, link included, so local development needs no provider.
-
-Both paths share the sign-in rate limit and record an Audit Event (`auth.sign_in`, with the method named in its metadata). Restart `pnpm run dev` after the first migrate + seed so the dev server attaches the persisted local D1 as the `DB` binding; without it the app runs provider-light on the in-memory seed layer. The [setup guide](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/setup.md) covers the details.
-
-### Signing in with an emailed code instead
-
-"Email me a code instead" on `/sign-in` sends a six-digit one-time code that works once, expires in ten minutes, and locks after three failed attempts. `/verify-email` (when a link fails) and `/forgot-password` offer the same code path as an alternative to the emailed link. With no email provider configured the code is not lost: the log dispatcher renders it into the dev console's `email.dispatched` line, so the whole flow is tryable locally. Sending and verifying codes are rate limited like credential sign-in (5 per minute per IP).
-
-## What's wired by default
-
-The Seed Workspace populates one workspace with members in the three Workspace Roles, an audit history, notifications, and seeded API Tokens and Webhook Endpoints so the reference app renders working data, not placeholders.
+The [Seed workspace](/docs/getting-started/seed-workspace) supplies members,
+notifications, audit history, API tokens, and webhook endpoints. See the
+[setup guide](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/setup.md)
+for environment details and troubleshooting.

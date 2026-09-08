@@ -33,9 +33,9 @@ names. If you have a global `implement`, remove that conflicting installation or
 explicitly direct the agent to this repo's skill.
 
 In any host, ask: "Use `.agents/skills/implement/SKILL.md` to implement issue #123."
-The workflow uses the session's provider and available tools. Configure a cheaper
-worker model in your host if desired; the workflow falls back to the session
-model, or local execution when delegation is unavailable.
+The workflow uses the session's provider and available tools, selecting a
+configured cheaper worker when possible. It falls back to the session model or
+local execution when necessary.
 
 When changing delegation, review ownership, or model routing, use the
 [workflow evaluations](./evals/README.md) to compare decisions and inspect native

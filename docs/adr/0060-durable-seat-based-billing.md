@@ -1,0 +1,11 @@
+# Durable seat-based billing
+
+The plan catalog owns flat versus per-seat pricing. Membership changes enqueue seat synchronization without awaiting Stripe, so payment-provider latency cannot fail an invitation. D1 also stores provider event evidence, checkout claims, and synchronization state; scheduled reconciliation repairs missed messages without waiting for another customer action.
+
+Stripe owns subscription state and the application owns billable membership. Provider events trigger a read of current Stripe state instead of replaying payloads or ordering by second-resolution timestamps. One workspace owns one customer and at most one current subscription. Unknown prices, ownership mismatches, and multiple subscriptions preserve verified state and record a conflict. Recovery does not cancel subscriptions, refund payments, or reassign customers automatically.
+
+A per-workspace lease serializes work; fencing rejects stale local commits after lease expiry. Provider calls remain outside D1 batches, while required local changes, audits, and event completion commit together. Durable checkout claims retain immutable request parameters and idempotency keys. Ambiguous creation must be resolved before a fresh generation, even after provider idempotency retention expires.
+
+Seat repair compares current provider quantity before writing the absolute membership count. Retried applied writes become no-ops; fresh drift gets a new key. Same-plan checkout reuses a pending session, competing plans wait, and existing subscribers use the Billing Portal. Cancellation retains the customer for invoice history.
+
+Bounded scheduled reconciliation stays inactive without configuration and preserves verified state during outages. Pending, delayed, and conflict states remain visible. Unresolved synchronization raises an alert after fifteen minutes. Event evidence excludes raw payloads; resolved evidence has a ninety-day retention policy while unresolved failures remain inspectable. Automated billing-evidence pruning is not implemented. Entitlement deadlines and recovery access follow [ADR 0076](./0076-billing-lifecycle-and-entitlement-decisions.md).

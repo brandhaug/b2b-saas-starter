@@ -1,9 +1,14 @@
 # B2B SaaS Starter
 
-Cloudflare-first B2B SaaS starter using TanStack Start, Effect v4, Drizzle D1, Better Auth, Alchemy, REST, MCP, Cloudflare Email, Vitest, Playwright, oxlint, oxfmt, and Turbo.
+Cloudflare-first repository using TanStack Start, Effect v4, Drizzle D1, Better Auth, and Alchemy. Optional providers are inactive until configured.
 
-Key docs:
-- /docs
-- /blog
-- /faq
-- /changelog
+## Documentation
+
+- [Quickstart](/en/docs/getting-started/quickstart)
+- [Architecture](/en/docs/architecture/overview)
+- [REST API](/en/docs/capability-interfaces/rest-api)
+- [MCP server](/en/docs/capability-interfaces/mcp-server)
+- [Optional providers](/en/docs/getting-started/optional-providers)
+- [Documentation index](/en/docs)
+- [Repository context](/llms-full.txt)
+- [Current architectural decisions](https://github.com/brandhaug/b2b-saas-starter/tree/master/docs/adr)

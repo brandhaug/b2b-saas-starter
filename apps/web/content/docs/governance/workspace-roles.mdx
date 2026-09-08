@@ -1,31 +1,29 @@
 ---
 title: Workspace roles
-description: Owner, admin, and member — the three Workspace Roles in the starter.
+description: Owner, admin, and member; the three Workspace Roles in the starter.
 category: governance
 order: 10
 tags: [roles, permissions]
 ---
 
-A Workspace Role is the permission level a Member has within one Workspace. The starter defines three roles in `workspace_members.role`: owner, admin, member.
+A Workspace Role controls a user's permissions within one workspace. The
+roles are `owner`, `admin`, and `member`, defined in `packages/authz/src/roles.ts`.
+A user's role can differ between workspaces.
 
-> **Enforcement status:** roles are enforced. Every workspace mutation names the permission it needs and the shared guard answers, in the Reference Application and in the API Worker alike. Loaders are the remaining gap: a page can still render a control the actor will be refused, and the refusal only arrives on submit.
+| Role   | Permissions                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Owner  | Full workspace control, including deletion and data export                                                               |
+| Admin  | Workspace management, excluding deletion and data export                                                                 |
+| Member | Workspace content, roster, notifications, and assistant reads; no token, webhook, audit-log, or SSO configuration access |
 
-## How a role becomes a decision
+Routes name permissions such as `apiToken:create` and call the shared
+`authorize()` guard. Loaders omit unreadable sections, UI controls explain
+unavailable actions, and server functions check permissions again.
 
-Roles are not checked by name. `@b2b-saas-starter/authz` declares a statement per resource (`apiToken`, `webhook`, `auditLog`, `notification`, `assistant`, `mcp`, `onboarding`, plus the five Better Auth `organization` plugin owns), maps each role to the actions it holds, and exposes one `authorize()` call. A route names the permission (`{ apiToken: ['create'] }`) and never the role, so the mapping lives in exactly one table. API Token scopes map onto the same statements as synthetic roles, which is why a browser session and a Bearer token resolve through the same decision.
+API Token scopes use the same permission statements. Their `read` scope includes
+security metadata that a member's browser session cannot read, because owners
+and admins choose the scopes when issuing a token. See
+[API tokens](/docs/capability-interfaces/api-tokens).
 
-## Owner
-
-Holds every statement, including deleting the workspace. Exactly one Member per Workspace is the owner. Ownership transfer and owner-only governance Notifications are scaffolded in the data model; the transfer flow itself and the notification routing are not yet implemented.
-
-## Admin
-
-Holds every statement except deleting the workspace: managing members, Invitations, API Tokens, Webhook Endpoints, billing, and integration configuration. There can be multiple admins.
-
-## Member
-
-Reads workspace data and operates within the Reference Application without changing configuration. Concretely: the member list and Notifications. A member deliberately cannot read the Audit Event log or list API Tokens: both disclose the workspace's security posture. Most users are members.
-
-## Why three, not four
-
-Three is the minimum that supports a real B2B governance model without inventing roles that nothing meaningfully enforces. Finer-grained permissions would mean a workspace-level policy language, and runtime-defined roles are switched off for the same reason; the starter leaves that as a future module rather than guessing the right shape.
+System Admin is a separate account-level role. It grants no workspace-membership
+bypass. See [System admin](/docs/governance/system-admin).

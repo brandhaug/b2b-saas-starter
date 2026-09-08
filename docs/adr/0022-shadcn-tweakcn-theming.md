@@ -1,7 +1,5 @@
-# shadcn and TweakCN theming
+# Semantic tokens and one color scheme
 
-The starter uses shadcn/ui components and Tailwind CSS v4 theme tokens. The shipped theme is a self-contained set of semantic shadcn tokens defined in `apps/web/src/index.css` rather than a port of a specific named theme; TweakCN is recommended to builders as an external tool for generating alternate shadcn-compatible token sets. Components must use semantic shadcn tokens rather than raw one-off colors. Theme customization is a code-level workflow, not an in-app theme builder.
+The public site and authenticated app share shadcn semantic tokens and one Catppuccin Mocha scheme in `apps/web/src/index.css`. Keeping one palette makes contrast review tractable. The root retains `dark` because shadcn primitives use `dark:` variants; there is no runtime theme switch.
 
-The starter ships one scheme: Catppuccin Mocha, on every surface. `<html>` carries a hardcoded `dark` class, `prefers-color-scheme` is not consulted, and there is no runtime theme switching or toggle (`next-themes` is not a dependency). Every token therefore has exactly one value, which is what makes the contrast budget in [DESIGN.md](../../DESIGN.md) checkable rather than doubled. The `dark` class stays on the root — rather than being dropped as dead weight — because shadcn's primitives carry `dark:` variants that have to keep resolving, and because it is the one edit a builder needs to undo to reintroduce a second scheme.
-
-The public showcase and the authenticated app share those values. `.marketing` (applied by `PublicLayout`) scopes the showcase's typography, focus rings, and prose token map, but redefines no color; `.band-deep` is the one scoped color override left, sinking a landing section to mocha crust.
+Components consume semantic tokens. TweakCN is an optional code-authoring tool for replacing the palette, not an in-app theme editor. [DESIGN.md](../../DESIGN.md) owns the visual rules.

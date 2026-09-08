@@ -1,25 +1,11 @@
-# Platform User Admin
+# Platform user admin
 
-## Purpose & Scope
+System-level operations use explicit IDs and a per-call `PlatformUserAdminBinding` with session headers (ADR 0054).
 
-System-level user administration for `/admin` (ADR 0054): ban and unban accounts, change a user's role in a named workspace, start and stop impersonation. Workspaces are addressed by explicit id, `/admin` having no `WorkspaceContext`. Writes go through `PlatformUserAdminBinding`; every endpoint behind it is `requireHeaders: true`, so only the app can supply an adapter, per call.
-
-## Entry Points & Contracts
-
-- `banUser` / `unbanUser` refuse an unknown account with `UserAdminRejected('unknown_user')` before calling the binding, so a no-op update never leaves an audit row.
-- `changeWorkspaceRole` resolves the member's surrogate row id (`not_a_member` when absent), writes, then reads back; a read-back finding nothing is `not_a_member_after_write`, never a claimed success. The write rides `updateMemberRole` under the admin's own session, so it succeeds only where the admin is also an admin/owner of that workspace: the system axis confers nothing inside a workspace (ADR 0054), and a System Admin outside the target workspace gets the plugin's refusal — worded by the web boundary's `UserAdminRefusedError`, never a generic failure.
-- `startImpersonation` refuses an unknown target, the admin's own account, and a System Admin target (`refuseImpersonationTarget`, matching `allowImpersonatingAdmins: false`) before the binding call, then notifies the target through `NotificationFeed.notifyUser`, worded once by `impersonationNotice`.
-- `stopImpersonation` audits `system_admin.impersonation_stopped`. Its `actorUserId` comes from `session.impersonatedBy`, never from a request body.
-- Audits `system_admin.user_banned`, `.user_unbanned`, `.user_role_changed` (carrying `workspaceId`, so it also lands in that workspace's audit page), `.impersonation_started`, `.impersonation_stopped`.
-- `refuseWhileImpersonating` is a pure guard with no layer, failing `ImpersonationForbidden` (403) whenever `session.impersonatedBy` is set. Its `action` is typed to `IMPERSONATION_FORBIDDEN_ACTIONS`, so the forbidden set is compile-time; `apps/web/src/lib/server/impersonation-guard.ts` maps Better Auth endpoints onto it.
-
-## Patterns & Pitfalls
-
-- `IMPERSONATION_SESSION_SECONDS` is restated as `impersonationSessionDuration` in `packages/auth`, which cannot import this sibling package. Change both together.
-- Seed holds one impersonation at a time, mirroring one admin cookie per browser; stopping a different user fails `UserAdminRejected('not_impersonating')`, as the plugin's 400 does.
-
-## Anti-patterns
-
-- No impersonation start without `actorUserId`; an unattributed one is worse than none.
-- No session state read here; the app passes `impersonatedBy` in.
-- No slug parameter; this capability is system-level.
+- System Admin status grants no workspace authority. `changeWorkspaceRole` uses the admin's session and succeeds only where they also have the required workspace role. Preserve plugin refusals and reread the member after writing before claiming success.
+- Refuse unknown accounts before calling the binding so no-op changes leave no audit. Impersonation also refuses self and System Admin targets, then notifies the target on success.
+- Starting impersonation requires the real actor ID. Stopping takes it from `session.impersonatedBy`, never request input. The app supplies session state; this capability does not read cookies.
+- `refuseWhileImpersonating` and the web endpoint mapping share the typed forbidden-action vocabulary.
+- Keep `IMPERSONATION_SESSION_SECONDS` equal to `impersonationSessionDuration` in `packages/auth`, which cannot import this package.
+- Seed permits one impersonation at a time, matching one admin cookie. Stopping another target must fail.
+- Workspace-role audits retain the workspace ID so they also appear in its audit page.

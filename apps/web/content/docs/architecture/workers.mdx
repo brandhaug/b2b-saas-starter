@@ -6,29 +6,40 @@ order: 20
 tags: [cloudflare, workers]
 ---
 
-## Web Worker (`apps/web`)
+## Web Worker
 
-- TanStack Start with SSR, served by Vite via the `@cloudflare/vite-plugin` locally and deployed as a Cloudflare Worker
-- Public Showcase Site routes (landing, docs, blog, FAQ, pricing, changelog)
-- Reference Application routes (`/workspaces`, `/workspaces/$workspaceSlug`, `/workspaces/$workspaceSlug/settings`, `/admin`)
-- Better Auth catchall at `/api/auth/$`, with Cloudflare `RATE_LIMITER_AUTH_READ`, `RATE_LIMITER_AUTH_WRITE`, and `RATE_LIMITER_AUTH_SIGN_IN` bindings enforcing per-IP limits via `apps/web/src/lib/rate-limit.ts`
-- Server functions resolve capabilities through the shared runtime in `packages/capabilities`, which selects the Live layer when the `DB` binding is present (wired in wrangler/alchemy) and the in-memory Seed layer when it is not
+`apps/web` runs TanStack Start SSR and server functions. It serves the public
+site, authentication, workspaces, `/account`, and `/admin`. Better Auth lives
+at `/api/auth/*`; its cookies authenticate web requests.
 
-The web Worker can call `@b2b-saas-starter/capabilities` directly. It does not call the API Worker for its own UI — that would add a round trip without value.
+Server functions call `packages/capabilities` directly. The web Worker does not
+call the API Worker for page data. Auth requests use separate read, write, and
+sign-in rate-limit buckets.
 
-## API Worker (`apps/api`)
+## API Worker
 
-- Serves the `StarterApi` HttpApi contract from `packages/api` directly via `HttpRouter.toWebHandler` — routing, schema decoding, OpenAPI, and the Scalar UI all derive from the contract, with no parallel route table (ADR 0039). Hono is intentionally avoided.
-- Workspace-scoped API Tokens: `Authorization: Bearer …` parsing, `ApiTokenRegistry.verifyBearerToken(token)` followed by the route's permission check, and `ApiTokenRegistry.create`/`revoke` routes (both requiring `WorkspaceContext`) with `api_token.created`/`.revoked` Audit Events
-- Per-bucket Cloudflare `RateLimit` bindings (`RATE_LIMITER_REST`, `RATE_LIMITER_REST_WRITE`, `RATE_LIMITER_INVITATIONS`, `RATE_LIMITER_ASSISTANT`, `RATE_LIMITER_MCP`)
-- MCP discovery skeleton at `/mcp`; tool dispatch lands on top of the same capabilities
-- OpenAPI document at `/openapi.json` and Scalar reference UI at `/reference`
+`apps/api` serves the `StarterApi` Effect HttpApi contract from `packages/api`.
+`apps/api/src/http.ts` composes handlers with `HttpApiBuilder` and
+`HttpRouter.toWebHandler`. The contract supplies paths, schema decoding, and
+HTTP error responses.
 
-External clients hit the API Worker. Internal UI hits its own server functions. Both paths share `@b2b-saas-starter/capabilities` so business behavior cannot drift.
+- REST uses workspace API Tokens.
+- `/mcp` exposes tools and resources with API Token or interactive OAuth authentication.
+- `/openapi.json` serves the generated contract; `/reference` serves Scalar.
+- `/exports/:exportId/download` validates signed workspace-export links.
 
-## Background Worker (`apps/background`)
+REST reads, writes, assistant requests, and MCP requests have separate rate-limit
+buckets. Each operation also checks its required workspace permission.
 
-- Queue consumer for outbound Webhook Endpoint delivery: queue `b2b-saas-starter-webhooks` with `maxRetries: 6`, `batchSize: 25`, `maxConcurrency: 4`, `retryDelay: 30s`, and dead-letter queue `b2b-saas-starter-webhooks-dlq`. Failures call `message.retry({ delaySeconds })` so Cloudflare schedules the next attempt.
-- Wide-event emission for every delivery attempt via `packages/logger`
+## Background Worker
 
-The background Worker writes delivery attempt history to D1 through `WebhookEndpoints.recordDeliveryAttempt`. Terminal outcomes are audited: `failed_permanent` and `dead_lettered` statuses batch an audit event (`webhook.delivery_failed` / `webhook.delivery_dead_lettered`) with the attempt row inside the same D1 batch, scoped by the workspace id from the queue message.
+`apps/background` consumes webhook deliveries, billing jobs, notification emails,
+provider email events, and optional workspace-export jobs. It receives Stripe
+callbacks at `/webhooks/stripe`.
+
+Scheduled handlers send and retry digests, reconcile billing, and prune delivery
+history. Queue names, retry limits, and schedules live in `infra/bindings.ts`,
+shared by Alchemy and the generated Wrangler configurations. See
+[outbound webhooks](/docs/operations/outbound-webhooks),
+[notification emails](/docs/operations/notification-emails), and
+[billing](/docs/integrations/stripe-billing) for delivery and recovery behavior.

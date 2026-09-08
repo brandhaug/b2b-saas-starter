@@ -42,7 +42,7 @@ without the production Cloudflare account.
 | Cross-Workspace access denied                   |             |                    |
 | Outgoing work quarantined and queue disposition |             |                    |
 | Stripe/current external state reviewed          |             |                    |
-| Export links invalidated / ZIPs regenerated     |             |                    |
+| Export links invalidated / archives regenerated |             |                    |
 | Reopening authorization                         |             |                    |
 
 Record the backup export start/end and interruption measurement method. Include

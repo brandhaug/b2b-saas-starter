@@ -1,25 +1,33 @@
 ---
 title: Effect v4 backbone
-description: Why services, schemas, errors, atoms, and HttpApi live in shared packages.
+description: Shared Effect services, schemas, errors, and HTTP contracts.
 category: architecture
 order: 30
 tags: [effect, capabilities]
 ---
 
-`packages/capabilities` is the Effect v4 application layer the rest of the starter depends on. It owns the typed services, schemas, and domain-shaped tagged errors (`WorkspaceNotFound`, `CapabilityUnavailable`, `AuthorizationDenied`). Transport-shaped contracts and errors (`Unauthorized`, `RateLimited`, `InternalError`, and the `HttpApiGroup` definitions) live alongside it in `packages/api`.
+`packages/capabilities` owns application behavior as Effect v4 services,
+schemas, and tagged errors. The web, API, and background Workers compose these
+services instead of implementing separate use cases.
 
-## Services
+## Services and adapters
 
-Each domain (workspace, audit, API tokens, webhooks, notifications) is a `Context.Service` with a tagged error type. Implementations are layered with D1 access at the edges: `Seed*` for tests and the Seed Workspace, `Live*` for D1-backed reads/writes.
+Services use `Context.Service`. Live adapters read and write D1; Seed adapters
+implement the same contracts in memory for tests and fixture-backed execution.
+Tests can provide a Seed layer without starting a Worker.
 
-## Schemas as contracts
+## Contracts and errors
 
-Effect Schema defines the shape of every request, response, and persisted row. The same schema is reused by the `HttpApi` groups in `packages/api` for OpenAPI generation, and by the seed fixtures in `packages/capabilities/src/seed-fixture.ts` and `scripts/seed.ts`. Route loaders and server functions cover the web app's server-state today; Effect Atom stays a documented extension point (ADR 0040), and the schemas are ready for it.
+Effect Schema defines capability values and HTTP payloads. `packages/api`
+composes those schemas into `HttpApi` groups, which drive server routing,
+OpenAPI, and the [typed SDK](/docs/capability-interfaces/sdk).
 
-## Errors
+Tagged errors distinguish expected refusals from unexpected failures. HTTP
+annotations assign statuses such as `WorkspaceNotFound` 404,
+`AuthorizationDenied` 403, and `RateLimited` 429. MCP handlers return expected
+operation refusals as tool errors. Web handlers translate allowlisted errors
+into safe UI messages.
 
-Domain errors are `Schema.TaggedErrorClass` types. Each carries an `httpApiStatus` annotation so the mapping is mechanical: `Unauthorized` → 401, `WorkspaceNotFound` → 404, `RateLimited` → 429, `InternalError` → 500, `AuthorizationDenied` → 403. The API Worker serves the `HttpApi` groups directly, so status codes derive from the contract rather than hand-written mapping (ADR 0039); the MCP endpoint is currently a discovery skeleton and reuses the same contract as it grows past discovery.
-
-## Why one place per concern
-
-Keeping web, API, and background in lockstep means changes to a capability propagate everywhere at type-check time. Splitting capabilities per Worker would let drift in.
+The web app loads server state through TanStack Start loaders and server
+functions. Browser modules must not import server adapters or their runtime
+dependencies.

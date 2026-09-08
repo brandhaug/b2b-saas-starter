@@ -24,9 +24,7 @@ flow. Delivery history calls this `logged`.
    failure, replay its events into the original queue using Cloudflare's queue
    tooling. Do not publish arbitrary payloads from application endpoints.
 
-The existing structured send call uses the Email Sending Workers API. It returns
-`messageId`; the older Email Routing API and inbound-routing events do not provide
-this lifecycle integration. The documented send input has no application message
+The Email Sending Workers API returns `messageId` for lifecycle correlation. The documented send input has no application message
 ID field, so a lost response cannot reliably be correlated by recipient alone.
 See the [Workers API](https://developers.cloudflare.com/email-service/api/send-emails/workers-api/)
 and [event subscriptions](https://developers.cloudflare.com/email-service/platform/event-subscriptions/).
@@ -62,13 +60,12 @@ Records retain message and event identifiers, purpose, recipient, user/workspace
 association, timestamps, attempt count, and sanitized outcomes. They contain no
 rendered body, subject, OTP, secret link, raw SMTP response, or provider payload.
 Ordinary evidence expires after 30 days; unresolved failures have a 90-day cap.
-The [retention policy](retention.md) governs scheduled pruning, operator previews
-and recovery approval.
+The daily background schedule prunes this evidence.
 
 `starter.email.send.outcomes` counts application send outcomes by purpose and
 status. The email-event consumer reports lifecycle changes and processing failures
 through its metrics and canonical event. Existing `starter.requests` metrics expose
-consumer errors. Alert on processing errors and dead-letter queue depth in #286.
+consumer errors. Configure [processing-error and dead-letter alerts](monitoring.md).
 Recipient addresses and identifiers must not become metric attributes.
 
 ## Real delivery smoke test

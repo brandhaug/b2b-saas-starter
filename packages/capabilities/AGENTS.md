@@ -1,14 +1,12 @@
 # @b2b-saas-starter/capabilities
 
-## Purpose & Scope
-
 Effect application layer: every business use case is a service here. Web server functions, the API worker, MCP tools, and background workers consume these services and never touch Drizzle directly.
 
 Each capability is Schema + `Context.Service` class + `SeedXxx` (in-memory) + `LiveXxx` (D1), composed in `layers.ts` into `SeedLayer` and `makeLiveCapabilitiesLayer`. `runtime.ts` picks Seed or Live by the presence of the `DB` binding.
 
-## Entry Points & Contracts
+## Contracts
 
-Read the capability’s adjacent `<capability>.AGENTS.md` before changing its contract.
+Read the capability's adjacent `<capability>.AGENTS.md` before changing its contract.
 
 | Context            | Capabilities                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -20,47 +18,38 @@ Read the capability’s adjacent `<capability>.AGENTS.md` before changing its co
 Operator monitoring reads are documented in [operational-health](src/governance/operational-health.AGENTS.md).
 Retention policy, approval and cleanup changes use [retention](src/governance/retention.AGENTS.md).
 
-Package-level modules that are not capabilities:
+## Shared contracts
 
-Transactional email evidence lives in [`email-delivery`](src/email-delivery/email-delivery.AGENTS.md), spanning authentication, invitations and notification delivery.
+- `workspace-context.ts` resolves slugs and refuses unknown workspaces and non-members identically. Seed fails closed without fixture membership.
+- `workspace-projections.ts` composes reads without its own adapters (ADR 0044). Each projection covers one permission; callers assemble and withhold segments spanning permissions.
+- Import identity types from `governance/workspace-identity.ts`.
+- Plugin adapters use `governance/plugin-binding-failure.ts` to distinguish refused writes from unreachable storage.
+- Transactional email claims and evidence belong to [email-delivery](../email-delivery/AGENTS.md).
 
-- `workspace-context.ts`: per-request slug → `Workspace` resolution. `liveWorkspaceContext(slug, actor)` raises `WorkspaceNotFound` for unknown slugs and for non-members alike, so existence never leaks. Seed mirrors it against fixture members and fails closed when none are supplied.
-- `workspace-projections.ts`: named read projections (dashboard, overview, my-workspaces, onboarding progress) composed over the services. No adapters of their own (ADR 0044). One projection covers one permission; a payload spanning permissions is assembled above this package by the caller, which drops segments the actor may not read.
-- `governance/workspace-identity.ts`: `Workspace`, `Member`, role tuples, `toWorkspace`. Import identity types from here, not from the membership capability.
-- `errors.ts`: shared typed errors with their HTTP status. `AuthorizationDenied` is declared in [`authz`](../authz/AGENTS.md) and only re-exported here.
-- `governance/plugin-binding-failure.ts`: `makeBindingCaller` and `readPluginBindingFailure` classify a rejected Better Auth plugin call (4xx = workspace refused, else store unreachable). Every plugin-backed Live adapter builds its `callBinding` from it.
-- `seed-fixture.ts`: the single fixture (root rule 8).
-
-## Usage Patterns
+## Changes
 
 Adding a capability:
 
-1. Put it in the context that owns the closest concept. New folder only for a new context.
-2. One file `src/<context>/<capability>.ts` until it passes ~300 lines or a sibling needs one part; then split into `.ts` (contract), `.seed.ts`, `.live.ts`. No barrel or re-export shim.
-3. Add `<capability>.AGENTS.md`, wire both layers into `layers.ts`, add a row above.
-4. Consumers import `@b2b-saas-starter/capabilities/<context>/<capability>` through the curated exports map.
+Place new capabilities in the owning context. Keep one module until contract and adapters need separate consumers. Add an adjacent intent node and wire both adapters in `layers.ts`. Consumers use curated package exports, without barrels or re-export shims.
 
 Mutating capabilities that write to D1 wrap the write in `governance/audited-mutation.ts` so mutation and audit row commit together. Contract cases (`<capability>.contract.ts`) take `expect` as an argument and run once against Seed and once against Live from the `.live.test.ts`.
 
-## Anti-patterns
+## Boundaries
 
 - No `slug` parameter on per-workspace methods. Depend on `WorkspaceContext` and read `ctx.workspace`. Identity-keyed methods (invitations by id, notification preferences, account lifecycle, platform user admin, SSO resolution, background feed writers) are the exception and take their key explicitly.
 - No authorization inside a capability. `WorkspaceContext` proves membership; `requirePermission` at the route boundary decides permission. `verifyBearerToken` authenticates only.
-- No direct `db.insert(auditEvents)`. Depend on `AuditEventLog`.
 - No Live mutation without the matching Seed mutation. Tests bind Seed and would pass silently.
 - No Drizzle row types on an `XxxInterface`. The schema struct is the wire contract.
 - Do not replace a plugin-backed write (membership, invitations, lifecycle, user admin, account lifecycle, SSO) with a direct Drizzle write to gain atomicity with its audit row. The divergence is an accepted trade (ADR 0051); the direct write would skip plugin validation and hooks.
-- No `./src/*` deep imports (`no-restricted-imports` pattern in the root lint config).
 
-## Dependencies & Edges
+## Dependencies
 
 - [`db`](../db/AGENTS.md): table shapes. [`authz`](../authz/AGENTS.md): `AuthorizationDenied`, `requirePermission`.
 - [`ARCHITECTURE.md`](../../ARCHITECTURE.md#authorization-model): where capability calls are gated.
-- ADRs: 0044 (no god-object projections), 0051 (plugin-backed writes), 0057 (keyset paging), 0061 (identity-keyed notifications), 0066 (derived onboarding checklist).
 
-## Patterns & Pitfalls
+## Pitfalls
 
-- Provider selection uses typed env bags and `select*Layer`, not Effect Config: invocation bindings select Seed/Live (`runtime.ts`) and leave unconfigured optional providers inactive (root rule 3).
+- Provider selection uses typed env bags and `select*Layer`, not Effect Config: invocation bindings select Seed/Live (`runtime.ts`) and leave unconfigured optional providers inactive.
 - Every Live D1 or queue failure surfaces as `CapabilityUnavailable` (503) via `internal/unavailable.ts`, never as a defect.
 - Paged list reads share `internal/keyset-cursor.ts` and the `Page<T>` shape (ADR 0057). Timestamped collections page newest-first on `(createdAt, id)`; untimestamped ones forward on `id`. Unpaged reads stay for the web app's own small pages.
 - Seed plugin-backed adapters read `AuditEventLog` ambiently with `Effect.serviceOption`. A harness that provides none gets no records; that is expected, not a bug.

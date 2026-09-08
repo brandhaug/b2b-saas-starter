@@ -1,3 +1,3 @@
 # TanStack Form for mutation forms
 
-The starter uses TanStack Form for non-trivial mutation forms such as auth, workspace creation and settings, API tokens, webhooks, billing settings, and admin user edits. Trivial search inputs, filters, and local toggles may remain local state when a full form abstraction adds no value.
+TanStack Form owns non-trivial mutation form state and validation. Search inputs, filters, and simple toggles can use local state, keeping the form abstraction at interactions that benefit from coordinated fields and submission.

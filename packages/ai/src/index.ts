@@ -8,7 +8,7 @@ import { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
 import { type WorkersAIBinding, makeWorkersAIModel } from './workers-ai.ts'
 
 // The starter assistant on Effect's provider-agnostic `LanguageModel`
-// (ADR 0008, 0071). This module holds the contract — the prompt/reply
+// (ADR 0008). This module holds the contract — the prompt/reply
 // schemas and the `AssistantService` tag — plus the one `ask` implementation
 // and the env-driven provider selection. The providers themselves are
 // `LanguageModel` adapters, one module each: `workers-ai.ts` (the Cloudflare

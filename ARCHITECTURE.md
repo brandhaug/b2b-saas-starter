@@ -1,59 +1,36 @@
-# Architecture Overview
+# Architecture overview
 
 ```text
-Browser
-  |
-  | SSR / server functions / auth cookies
-  v
-apps/web — TanStack Start Worker
-  |                         \
-  | D1                       \ public REST / MCP
-  v                          v
-Cloudflare D1 <--------- apps/api — Cloudflare Worker
-  ^                          |
-  | queue                     | shared use cases
-  |                          v
-apps/background ------> packages/capabilities
-       |
-       v
-Cloudflare Queues / Email / optional providers
+Browser ── SSR / server functions / auth ──> apps/web
+External clients ── REST / MCP ───────────> apps/api
+Queues / cron ───────────────────────────> apps/background
+                                              │
+All three Workers ──> packages/capabilities ────┤
+                                              └──> D1 / optional providers
 ```
 
 ## Components
 
-### `apps/web`
+| Area                                                | Responsibility                                                                                                                      |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| [Web Worker](apps/web/AGENTS.md)                    | Public content, authenticated UI, server functions, and Better Auth endpoints. Calls capabilities in-process.                       |
+| [API Worker](apps/api/AGENTS.md)                    | REST, OpenAPI/Scalar reference, and stateful streamable-HTTP MCP. Both interfaces dispatch through the workspace operation catalog. |
+| [Background Worker](apps/background/AGENTS.md)      | Webhook delivery, workspace exports, billing reconciliation, and notification email.                                                |
+| [Capabilities](packages/capabilities/AGENTS.md)     | Business use cases with Effect contracts and equivalent Seed/Live adapters.                                                         |
+| [Billing](packages/billing/AGENTS.md)               | Stripe projections, checkout recovery, subscription lifecycle, and resource entitlements.                                           |
+| [Database](packages/db/AGENTS.md)                   | Drizzle schema and migrations for shared D1 persistence.                                                                            |
+| [Auth](packages/auth/AGENTS.md)                     | Better Auth configuration and structural callback ports.                                                                            |
+| [Authorization](packages/authz/AGENTS.md)           | Permissions, workspace/system roles, token scope mapping, and guards. No database or auth-instance dependency.                      |
+| [Email](packages/email/AGENTS.md)                   | Templates and the outbound sending boundary.                                                                                        |
+| [Email delivery](packages/email-delivery/AGENTS.md) | Send claims and sanitized delivery evidence for auth, invitations, and notifications.                                               |
 
-TanStack Start web application for public showcase pages, docs, blog, FAQ, pricing, auth, workspace dashboards, settings, admin UI, and Better Auth routes. It uses shadcn/ui, Tailwind CSS v4 tokens, and seed-backed starter data in the first vertical slice.
+Auth and capabilities are siblings; neither imports the other. Apps provide structural bindings to plugin-backed capabilities. Route handlers and components gate access and adapt transport data; business behavior belongs in capabilities.
 
-### `apps/api`
+### Billing lifecycle and entitlements
 
-Separate Cloudflare Worker for public REST and MCP capability interfaces. It exposes a health check, workspace reads and writes, an OpenAPI document with a Scalar reference UI, and an MCP server at `POST /mcp` (Effect's `McpServer` over streamable HTTP, 2025-11-25: initialize mints a session, later requests carry it) whose tools dispatch through the same capability layer as the REST routes; `GET /mcp/discovery` serves the REST discovery document. The durable behavior should move through `packages/capabilities`.
+Stripe owns the verified subscription and price; application membership determines Seat Quantity. D1 retains subscription, payment, cancellation, and synchronization evidence. Access uses the Effective Plan evaluated at request time, so stale stored state cannot extend paid access during an outage.
 
-### `apps/background`
-
-Cloudflare Worker for queue- and cron-backed work: outbound webhook delivery with its dead-letter consumer (ADR 0033), workspace export builds (ADR 0055), billing seat sync, queued Stripe event processing, and scheduled reconciliation (ADRs 0060 and 0075), and instant notification emails plus the daily notification digest cron at 08:00 UTC (ADR 0061). The `queue` handler branches on `batch.queue` — the queue names are single-sourced in [`infra/bindings.ts`](./infra/bindings.ts) — and every handler emits wide events and persists its state through D1: delivery history for webhooks, export rows for exports, seat counts for billing.
-
-### `packages/capabilities`
-
-Effect application layer for workspace and starter use cases. It composes the billing and email-delivery packages with workspace identity, audit, and notification services. Web, API, MCP, background workers, and tests use the same composition.
-
-### `packages/billing`
-
-`packages/billing` owns the billing decision used by web,
-REST, MCP, and background work. Stripe is authoritative for the verified
-subscription and price. D1 retains the subscribed plan, payment evidence,
-period and cancellation state, and synchronization evidence needed for
-recovery. The effective plan is evaluated again at request time, so a worker
-does not grant paid access merely because the stored subscription row still
-says Team after a deadline passes during a provider outage.
-
-First payment, operator-created trials, renewal failures, period-end
-cancellation, reactivation, and terminal cancellation all pass through the
-same lifecycle decision. A previously paying subscription gets one fixed
-seven-day renewal grace deadline. A trial that expires without payment returns
-to Starter immediately, and `unpaid` or verified cancellation ends paid access
-sooner. Successful recovery restores the subscribed plan while leaving any
-independent administrative suspension unchanged.
+Previously paying subscriptions get a fixed seven-day renewal grace period. An unconverted trial expires without grace; unpaid or canceled subscriptions end paid access sooner. Recovery restores subscribed entitlements without lifting independent administrative suspension.
 
 When the effective plan is Starter, members and stored resources remain. The
 three-member seat rule is soft. API-token and webhook categories over their
@@ -65,148 +42,83 @@ and queued work cannot bypass a downgrade. Creation admission reads the same
 deadline-aware Billing decision through Resource entitlements, which owns admission
 counts as well as execution eligibility. Token admission counts current unrevoked,
 unexpired replacement leaves. Webhook admission counts all stored endpoints,
-while dispatch eligibility considers enabled endpoints.
+while dispatch eligibility considers enabled endpoints. Lifecycle and audit/outbox
+commits do not wait for notice delivery. See [billing decisions](docs/adr/0076-billing-lifecycle-and-entitlement-decisions.md)
+and [operator procedures](docs/billing-operator-runbook.md).
 
-Lifecycle state and its audit/outbox commit do not wait for notice delivery.
-Payment-failure, grace-expiry, and recovery notices have independent retryable
-delivery state. The billing page and portal/recovery actions remain available
-when optional configured-price lookup fails. Configured mode never replaces an
-unavailable provider price with catalog example pricing; provider-light local
-mode may label catalog examples as such.
+## Data stores
 
-### `packages/db`
-
-Drizzle ORM schema for one shared Cloudflare D1 database. Includes Better Auth/admin tables and starter-specific tables.
-
-### `packages/auth`
-
-Better Auth factory with email/password, username, TanStack Start cookies, and the `admin()` and `organization()` plugins. The organization plugin backs workspace membership and invitations, remapped onto the starter's `workspace` vocabulary — ADR 0051, details in [`packages/auth/AGENTS.md`](./packages/auth/AGENTS.md).
-
-### `packages/authz`
-
-Statements, static roles, the API-token scope mapping, and the `requirePermission` guard. Pure — no database, no auth instance — so it sits below both `auth` and `capabilities` and neither of those two imports the other. See [`packages/authz/AGENTS.md`](./packages/authz/AGENTS.md).
-
-### `packages/email-delivery`
-
-Transactional email claims, fenced send attempts, sanitized provider evidence, and retention. Seed and Live adapters share the same contract. Identity-keyed reads accept explicit user or workspace ids; capabilities supplies verified workspace context for invitation history. The package depends on persistence and shared failures, with no dependency on capabilities or email rendering.
-
-### `packages/email`
-
-React Email templates and Cloudflare Email Service sending boundary. Outbound email only.
-
-## Data Stores
-
-- **D1** — shared relational persistence.
-- **Cloudflare Queues** — four queues, all consumed by `apps/background`. `b2b-saas-starter-webhooks` carries retryable webhook delivery, backed by a dead-letter queue (`b2b-saas-starter-webhooks-dlq`) so messages exceeding `maxRetries` land somewhere replayable. `b2b-saas-starter-workspace-exports` carries workspace export jobs; its consumer marks the export row `failed` on the last attempt instead of dead-lettering — the row is the durable record of failure. `b2b-saas-starter-billing` carries seat sync and verified Stripe events. Membership/invitation mutations enqueue seat work; the Stripe endpoint persists event evidence in D1 and enqueues processing before acknowledging delivery. The consumer retrieves Stripe authority and mirrors membership onto the subscription item through the shared synchronization workflow, as described in ADRs 0060 and 0075. Its dead-letter consumer records exhausted work in durable synchronization evidence, and scheduled reconciliation recovers exhausted or dropped work. `b2b-saas-starter-notification-emails` carries instant notification emails (message bodies are ids only, no DLQ — the daily digest is the fallback, ADR 0061).
-- **R2** — one env-gated bucket (`WORKSPACE_EXPORT_BUCKET`) for workspace export ZIPs only, lifecycle-deleted after seven days (ADR 0055). No other object storage and no upload surface (ADR 0028).
-- **Checked-in MDX/content** — public knowledge content, search, sitemap, and LLM docs artifacts.
+- D1 holds application and authentication state for every Workspace. Restores affect the whole service.
+- Cloudflare Queues carry webhook, export, billing, and instant-notification work. Webhooks and billing have dead-letter consumers. Durable application records retain outcomes and support recovery.
+- Optional R2 stores gzipped JSON workspace exports with seven-day retention. There is no general file-upload workflow.
+- Checked-in MDX supplies public articles and navigation metadata. LLM summaries are static public files maintained alongside the articles.
 
 ## Deployment & Infrastructure
 
-- **Cloud:** Cloudflare (Workers, D1, Queues, Email Service, Rate Limiting).
-- **IaC:** Alchemy v2 declared in the root [`alchemy.run.ts`](./alchemy.run.ts). Provisions the D1 database, the webhook queue + dead-letter queue, the billing seat-sync queue and its dead-letter queue, the notification-email queue, the export queue and R2 bucket when `WORKSPACE_EXPORT_BUCKET` is set, one `QueueConsumer` per queue (with `maxRetries`, `batchSize`, `maxConcurrency`, `retryDelay`, DLQ), the `SendEmail` binding (with `allowedSenderAddresses`), and three Workers (`web`, `api`, `background`) with their bindings, redacted env, Workers Observability enabled, the digest cron on `background`, and `placement.mode = smart` on the worker-only services (`api`, `background`). The native rate-limit bindings have no backing cloud resource, so `rateLimitBindings()` declares them inline on each Worker's `env` from the specs in `infra/bindings.ts`. `pnpm run deploy` invokes it directly; `pnpm run destroy` requires exact account/stage confirmation through the operator teardown wrapper.
-- **Stages:** the physical names come from `stageResourceNames(stage)` in [`infra/bindings.ts`](./infra/bindings.ts). `prod` keeps the historical names; every other stage — a `pr-<number>` Preview Stage ([ADR 0065](./docs/adr/0065-ephemeral-pr-preview-stages.md)) or a developer's own — gets its own D1, queues, and Workers under `b2b-saas-starter-<stage>-…`. Preview stages drop every env-gated provider and set `ENVIRONMENT=preview`; [`.github/workflows/preview.yml`](./.github/workflows/preview.yml) deploys, seeds, and destroys them per pull request.
-- **Wrangler configs:** [`apps/{api,background,web}/wrangler.jsonc`](./apps) carry the binding wiring for `wrangler dev` and `wrangler d1 migrations apply`. They are **generated**, not hand-written: [`infra/write-wrangler.ts`](./infra/write-wrangler.ts) emits all three from the specs in [`infra/bindings.ts`](./infra/bindings.ts), which alchemy imports directly. Change a spec, run `pnpm run infra:wrangler`, commit the result; CI regenerates and fails on any diff. The `database_id: "placeholder"` literal is replaced by `wrangler ... --remote` at command time.
-- **Rate limiting:** Cloudflare's native `RateLimit` binding (one per bucket, specs in [`infra/bindings.ts`](./infra/bindings.ts), attached by alchemy and emitted into the generated wrangler configs). Each worker's binding dispatch ([`apps/api/src/http.ts`](./apps/api/src/http.ts), [`apps/web/src/lib/rate-limit.ts`](./apps/web/src/lib/rate-limit.ts)) calls `binding.limit({ key })` when the binding is present and falls back to a module-scope `Map` brake in `packages/rate-limit` when it isn't (local dev/tests). Distributed limits are eventually-consistent across regions — swap to a Durable Object if you need strong consistency.
-- **Webhook delivery:** The background worker's `queue` handler processes batches with `Promise.all`, calls `message.retry({ delaySeconds })` on failure (no manual `WEBHOOK_QUEUE.send` requeue), and Cloudflare delivers to `b2b-saas-starter-webhooks-dlq` after `maxRetries` (6).
-- **Observability:** one seam, [`packages/logger`](./packages/logger/src/index.ts), covering wide events, traces, and metrics (ADR 0050).
-  - **Wide events.** One canonical line per request per service. `withRequestScope` opens a span plus a `Scope`, seeds annotations with `service`/`traceId`/`otelTraceId`/`otelSpanId`/environment/metadata, and emits the event from `Effect.onExit` — not a scope finalizer, which runs after `annotateLogsScoped` has already restored the previous annotations and would silently drop everything handlers added. `Effect.annotateLogsScoped`, the scope-lifetime counterpart of `Effect.annotateLogs` (which annotates one effect), is how handlers add business context to that same event. The level is `info` on success and `error` on failure, with the `Cause` attached; there is no third level. `readWideEventEnvironment` pulls `commitHash`/`serviceVersion`/`region`/`environment` from worker env + cf hints. Workers never assemble the envelope by hand: `withHttpRequestScope({ service, event, request, env })` owns the HTTP recipe and `withTriggerScope` the queue one, so a format change edits one file.
-  - **Traces.** W3C `traceparent` (and B3) in and out, via `HttpTraceContext`. Inbound headers become the request span's parent; Effect's `HttpClient` injects the headers on every outbound call and spans D1 queries on the way through, so a page load is one trace from the browser request down to `sql.execute`. The queue is bridged explicitly: `WebhookPublisher` stamps `currentTraceparent` onto the message and the background consumer continues that trace instead of starting a new one. `x-trace-id` survives as the human-quotable correlation key and now defaults to the OTel trace id, so one value resolves in both the log stream and the trace backend.
-  - **Metrics.** `starter.requests` (counter) and `starter.request.duration` (histogram) come off the same scope that emits the wide event, attributed by `service`/`event`/`status` only — high-cardinality dimensions belong on the event and the span.
-  - **Export.** `makeOtlpLayer(service, env)` exports all three signals over OTLP/HTTP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, and is `Layer.empty` when it isn't. It is provided per invocation, never per isolate — see ADR 0050. `WideEventLoggerLive` (console JSON + the tracer logger) stays isolate-level in all three workers. `apps/web` opens exactly one such scope per request in a global TanStack Start request middleware ([`src/start.ts`](./apps/web/src/start.ts)); loaders and server functions join it through `withWebRequestScope` rather than each opening their own.
+[alchemy.run.ts](alchemy.run.ts) provisions Workers, D1, queues, optional providers, and bindings. [infra/bindings.ts](infra/bindings.ts) owns resource names, rate-limit specifications, and cron schedules. Generated Wrangler configs support local development and database commands; change the source specifications and run `pnpm run infra:wrangler`.
+
+Each stage has isolated resources. `pr-<number>` stages disable optional providers and use public demo credentials; they must contain only synthetic data. The [preview workflow](.github/workflows/preview.yml) deploys and removes them with the PR lifecycle. Production deploys after CI/E2E on `master`, or through manual dispatch. See [deployment setup](docs/deploying.md).
+
+### Observability
+
+[packages/logger](packages/logger/AGENTS.md) owns one wide event per request or job, trace propagation, and request metrics. Handlers add business context to the existing scope. Queue messages carry trace context across the asynchronous boundary.
+
+Console logging stays available without providers. Configured OTLP export is scoped per invocation so background export work does not outlive the Worker request. Sentry supplies independent operational alerts; PostHog supplies optional analytics. [Monitoring](docs/monitoring.md) owns metric names, monitor configuration, and response thresholds.
 
 ### Recovery operations
 
-The [operations runbook](./docs/operations.md) covers the shared D1 restore,
-maintenance on all Workers, independent encrypted backups and security evidence,
-and reconciliation of provider state before reopening. Backups and external
-queue checks run from GitHub Actions, outside the application Workers. Sentry
-owns uptime, scheduled-job monitoring and independent operator notification.
-Customer deployments require the isolated drill; repository migration squashes
-and throwaway resets do not define customer-data recovery.
+The [operations runbook](docs/operations.md) covers system-wide maintenance, shared-D1 recovery, independent encrypted backups and security evidence, and external-state reconciliation before reopening. Backups and queue monitors run outside the application Workers. Customer deployments require an isolated drill; repository reset and migration-squash policies apply only to disposable data.
+
+Routine record cleanup follows the approved [retention policy](docs/retention.md). Administrative workspace suspension is an independent access control; its rules are documented in the [workspace suspension policy](docs/workspace-suspension.md).
 
 ## Security
 
-The auth surface spans three layers: browser session auth (Better Auth), Worker-to-Worker API tokens (scoped), and infrastructure-level allowlists (CORS + trusted origins). Authentication and authorization are separate concerns here — who is asking is settled at the request boundary, and whether they may is settled by the guard described under [Authorization model](#authorization-model).
+Request boundaries authenticate the caller, resolve workspace membership, and check permissions before calling capabilities. UI visibility is never the enforcement boundary.
 
-### Browser auth — Better Auth
+### Browser auth
 
-- **Library:** Better Auth, factory in [`packages/auth`](./packages/auth).
-- **Plugins:** email/password, `username()`, `magicLink()` (the second Local Auth Path, ADR 0064), `twoFactor()` (TOTP), `passkey()` (WebAuthn — `rpID`/`origin` derived from `BETTER_AUTH_URL`, so localhost works with no env; a passkey sign-in satisfies the two-factor requirement, ADR 0056), `emailOTP()` (email one-time codes as the alternative to the lifecycle links — sign-in, verification, password reset, ADR 0067), `admin()` (system role `admin`), `organization()` (workspace membership and invitations, ADR 0051), `jwt()` + `mcp()` + `cimd()` — the OAuth 2.1 authorization server interactive MCP clients connect through (ADR 0068, oauth-for-interactive-mcp-clients-beside-api-tokens) — `sso()` (workspace-scoped SSO connections, ADR 0069, workspace-scoped-sso), and `tanstackStartCookies()` — which must stay last so other plugins' cookies reach the framework store.
-- **Adapter:** Drizzle SQLite over the shared D1, using the promise-based client (`packages/db/src/client.ts`) — `drizzleAdapter` cannot take the Effect-native `Database` service. Better Auth owns twenty-six tables in [`packages/db/src/schema.ts`](./packages/db/src/schema.ts): `user`, `session`, `account`, `verification`, `twoFactor` (`two_factor`), `passkey`, `jwks`, the seven `oauth*` tables (`oauthClient`, `oauthResource`, `oauthClientResource`, `oauthRefreshToken`, `oauthAccessToken`, `oauthConsent`, `oauthClientAssertion`), plus `workspaces`, `workspace_members`, `workspace_invitations`, and `workspace_sso_connections`, which the organization and `sso` plugins reach through `modelName` overrides. Those four carry the plugin's shape — camelCase columns, epoch-integer dates, surrogate `id` keys — so a new column there needs a matching `additionalFields` entry.
-- **Workspace SSO (ADR 0069):** connections are owner-configured rows, not env config — an owner adds an OIDC or SAML connection for one email domain in settings, tests it, then enables it. The domain-routing rule (`SsoConnections.resolveRouting`) sends a matching email to the IdP from the sign-in page; "require SSO for this domain" and the disabled-connection rule are additionally enforced at the auth boundary (`enforceSsoRequired` on `POST /sign-in/email`, `refuseDisabledConnection` on `POST /sign-in/sso`). A first SSO sign-in joins the user to the connection's workspace with the connection's default Workspace Role (`member | admin` — never `owner`); the settings mutations pass a binding adapter to the `sso` plugin's session-gated endpoints exactly as invitations do.
-- **Cookies:** session cookie bridged through `tanstackStartCookies()`; Better Auth signs with `BETTER_AUTH_SECRET`.
-- **Catchall route:** [`apps/web/src/routes/api.auth.$.ts`](./apps/web/src/routes/api.auth.$.ts) dispatches every `/api/auth/*` request to Better Auth. Rate limits are enforced through the Cloudflare `RateLimit` bindings `RATE_LIMITER_AUTH_WRITE` (POST 20 req/min), `RATE_LIMITER_AUTH_SIGN_IN` (credential sign-in POST 5 req/min) and `RATE_LIMITER_AUTH_READ` (GET 60 req/min), keyed by `cf-connecting-ip`. See [`apps/web/src/lib/rate-limit.ts`](./apps/web/src/lib/rate-limit.ts) — the module-scope `Map` brake in `packages/rate-limit` remains as a fallback for local dev.
+Better Auth provides password, username, magic-link, email-code, passkey, social, and workspace SSO sign-in; TOTP; and MCP OAuth consent. The [auth intent node](packages/auth/AGENTS.md) owns plugin ordering and session constraints.
 
-### API tokens — workspace-scoped
+The auth catchall applies rate limiting, Turnstile where configured, SSO enforcement, impersonation restrictions, and audit capture. Cloudflare rate-limit bindings use `cf-connecting-ip`; local development and tests use the in-memory fallback. Production required-env checks reject insecure auth configuration.
 
-- **Storage:** [`apiTokens`](./packages/db/src/schema.ts) holds `tokenHash` (never the plaintext), JSON `scopes` array, `revokedAt`, `expiresAt`, `replacedByTokenId`, `lastUsedAt`, and `createdByUserId`. Soft-revocation via timestamp; the registry filters `isNull(revokedAt)`.
-- **Scopes:** `read | write | admin` — single source of truth in [`packages/capabilities/src/developer-platform/api-token-registry.ts`](./packages/capabilities/src/developer-platform/api-token-registry.ts) (`ApiTokenScope` schema).
-- **Issuance / verification:** `ApiTokenRegistry` exposes `list`, `create`, `replace`, `revoke`, and `verifyBearerToken`. The API worker parses `Authorization: Bearer …`, authenticates the token, checks the route's permission against the token's scopes, and records token lifecycle audit events. Workspace REST endpoints also use per-bucket Cloudflare `RateLimit` bindings (`RATE_LIMITER_REST`, `RATE_LIMITER_REST_WRITE`, etc.) keyed by `cf-connecting-ip`.
-- **OAuth beside tokens on `POST /mcp` (ADR 0068):** interactive MCP clients (Claude, Cursor, …) connect through OAuth 2.1 instead of pasting a token. The web worker is the authorization server (`mcp()` + `jwt()` + `cimd()`); the API worker is the resource server — it verifies the Bearer JWT against the web worker's JWKS (`MCP_OAUTH_ISSUER`), demands the audience `MCP_RESOURCE_URL` (the `/mcp` URL), and maps the `starter_workspace_*` claims onto the same workspace resolution the token path uses, re-resolving the Member's role on every call. The consent page (`/oauth/consent`) binds each authorization to exactly one Workspace, and connect/disconnect write `mcp_client.*` Audit Events. Both credentials share the route, the rate-limit bucket and the capability layer; API Tokens stay the credential for scripts and CI, and REST routes remain token-only.
+SSO connections belong to Workspaces. The app enforces enabled/required status at the auth boundary. Provisioning can assign member or admin, never owner. See [SSO decision](docs/adr/0069-workspace-scoped-sso.md) for domain-verification limitations.
+
+### API tokens and MCP OAuth
+
+API Tokens belong to one Workspace. Only token hashes are stored; verification checks revocation, expiry, and resource entitlements. REST is token-only.
+
+MCP also accepts OAuth access tokens issued by the web Worker. The API verifies issuer and audience, re-resolves membership, and rechecks consent before writes. Consent binds a client to one Workspace. Both credentials use the same operation catalog and permission checks. See [API tokens](docs/adr/0026-workspace-api-tokens.md) and [MCP OAuth](docs/adr/0068-oauth-for-interactive-mcp-clients-beside-api-tokens.md).
 
 ### CORS & trusted origins
 
-- **Server functions:** `createCsrfMiddleware` in `apps/web/src/start.ts` validates same-origin request metadata for `serverFn` handlers, including GETs. Cross-site requests and requests without origin evidence are rejected. SSR pages, auth callbacks, and other server routes retain their own handling.
-- **Web (`/api/auth/*`):** Better Auth's `trustedOrigins` list, sourced from `BETTER_AUTH_TRUSTED_ORIGINS` (comma-separated). Default fallback is `BETTER_AUTH_URL`. Parsed in [`apps/web/src/lib/auth-runtime.ts`](./apps/web/src/lib/auth-runtime.ts).
-- **API worker:** no CORS middleware — the API is intended for Worker-to-Worker and authenticated server calls. If you expose it to browsers, add explicit `Access-Control-*` handling and an allowlist (mirror Better Auth's pattern).
-- **Production deploys:** override `BETTER_AUTH_TRUSTED_ORIGINS` in [`alchemy.run.ts`](./alchemy.run.ts). Never deploy with the default placeholder.
+Better Auth uses `BETTER_AUTH_TRUSTED_ORIGINS`, falling back to `BETTER_AUTH_URL`. Configure the deployed browser origin. The API has no CORS middleware and targets authenticated server clients; browser access requires an explicit origin allowlist and CORS handling.
 
 ### Authorization model
 
-- **Workspace roles:** `owner | admin | member` — held in `workspace_members.role`, a table Better Auth's organization plugin owns and writes (ADR 0051). Membership mutations go through the plugin's endpoints via a structural binding the app supplies; reads go direct through Drizzle so dashboard projections can join member data without an HTTP hop.
-- **System roles:** `admin | user` — held in `user.role`, surfaced via Better Auth's `admin()` plugin.
-- **Permissions:** [`@b2b-saas-starter/authz`](./packages/authz/AGENTS.md) owns the statement set, the static role table, the API-token scope mapping, and the `requirePermission` guard. Sessions and bearer tokens reach one `authorize()` decision.
-- **Enforcement points:** `requireWorkspacePermission` (`apps/web/src/lib/server/authorize.ts`) for session-backed server functions, and `enforcePermission` (`apps/api/src/handlers.ts`) for bearer-token routes. Each endpoint names the permission it needs (`{ apiToken: ['create'] }`), never a role or a scope. Denials are `AuthorizationDenied` (403); the web boundary re-raises them as `ForbiddenError` so the calling form can show a message.
-- **Reads gate as well as mutations.** A workspace loader hard-gates the page's own read permission and wraps each further segment in `whenPermitted(permission, effect)`, which yields `null` rather than failing — so a `member`'s settings payload contains no API-token count, no webhook count and no invitation list, and the dashboard payload no webhook endpoints. The read never runs, so nothing is withheld only in the markup. The payload's shape is therefore per-actor, which is why those types live in `apps/web` and not in `capabilities`.
-- **The UI asks the same question.** The payload carries `viewer: { role }`; components call `viewerCan(viewer, permission)` (`apps/web/src/lib/permissions.ts`) over `@b2b-saas-starter/authz/client`, the pure client-safe entry point. A section whose data the actor cannot read is absent; an action inside a visible section is replaced by a one-line reason. Presentation only — the server still refuses the mutation.
-- **No system-admin bypass:** `user.role === 'admin'` is a separate axis and confers nothing inside a workspace. The `/admin` surface keeps its own gate. Impersonation (ADR 0054) does not change this: the impersonated session has exactly the target user's roles, lasts an hour, is shown in a banner on every shell page, and is refused the account's password, two-factor, email and deletion endpoints.
-- **Still open:** the API worker cannot reach the plugin's session-bound endpoints — `removeMember`, `updateMemberRole`, and every invitation endpoint are `requireHeaders: true`, and a bearer token is no session (issue #64).
-- **Decision record:** [ADR 0051](./docs/adr/0051-workspace-membership-on-better-auth-organization-plugin.md) — why the plugin, why the naming override, and where enforcement lives.
+Workspace roles are owner, admin, and member. System admin is a separate role and grants no workspace bypass. Impersonation uses the target user's permissions and blocks credential changes.
+
+[authz](packages/authz/AGENTS.md) owns one permission decision for sessions, API tokens, and MCP principals. Every endpoint names a permission. Workspace resolution conceals unknown and inaccessible workspaces with the same error.
+
+Loaders gate their primary read and omit unauthorized secondary reads before execution. Their actor-specific payload types live in the web app. Components use the same permissions for presentation; server functions recheck every mutation.
+
+Plugin-backed workspace mutations require session bindings. The API cannot substitute a bearer token for the plugin's required session headers; unsupported operations remain outside its catalog.
 
 ### Audit log
 
-- **Schema:** [`auditEvents`](./packages/db/src/schema.ts) — `eventType`, `targetType`, `actorUserId`, `metadata` JSON.
-- **Capability:** [`AuditEventLog`](./packages/capabilities/src/governance/audit-event-log.ts) exposes `list`, `listGlobal`, and `record(input)`. API-token lifecycle, webhook endpoint mutations, workspace lifecycle (`workspace.created` / `.renamed` / `.deleted` / `.onboarding_dismissed`), membership changes (`workspace_member.added` / `.removed` / `.role_changed`), invitation lifecycle (`workspace_invitation.sent` / `.canceled` / `.accepted`), the workspace export lifecycle (`workspace.export_requested` by the owner, `workspace.export_completed` and `workspace.export_downloaded` as system events from the background and API workers), and the SSO connection lifecycle (`workspace_sso.connection_created` / `.updated` / `.removed` — ADR 0069) all write audit events. The auth catchall audits its own surface through one path→event table in `apps/web/src/lib/server/auth-audit.ts`: the account lifecycle (`auth.sign_in` over email, username, passkey, or magic link, `auth.sign_up`, password reset, email verification, plus failures), session end (`auth.sign_out`, `auth.session_revoked`, actor read from the request session before the handler runs), the two-factor and passkey lifecycles (`auth.two_factor_enabled` / `_disabled` / `_verified`, `auth.passkey_added` / `_removed` — ADR 0056, plus failures), SSO sign-in as workspace-scoped `auth.sso_sign_in` / `.sso_sign_in_failed` rows read off the callback redirect (their own sibling of the table, since the callbacks answer with redirects that name no actor — ADR 0069), alongside the Better Auth admin mutations as `system_admin.*` success/failure pairs. `/admin`'s own actions (ban/unban, role change, impersonation start/stop — ADR 0054) are audited by the `PlatformUserAdmin` capability instead, and impersonation start also writes the impersonated user a notification. The web app surfaces the trail at `/workspaces/$slug/audit`, gated by `auditLog: ['read']`. Billing writes its own events through the same capability: `billing.checkout_started` (the member who opened checkout), `billing.portal_opened` (the member who opened the Billing Portal), `billing.plan_changed` (a system event with no user actor, written by the billing synchronization workflow alongside the `workspaces.planId` update), and `billing.seats_changed` (system events from the seat-sync consumer's quantity update and the webhook's reconciliation — ADR 0060).
-- **Atomicity:** most mutating capabilities commit the row and its audit event together via `batch(…)`. The plugin-backed membership and invitation writes cannot — the write is an HTTP call and D1 rejects an explicit `BEGIN` — so those two audit events can diverge from their write. Accepted trade, recorded in ADR 0051.
+[AuditEventLog](packages/capabilities/src/governance/audit-event-log.AGENTS.md) persists security and business events. D1-backed mutations batch their state change with the audit event. Plugin-backed mutations cannot share that transaction, so their audit write may diverge; [ADR 0051](docs/adr/0051-workspace-membership-on-better-auth-organization-plugin.md) records the trade-off.
+
+Independent deletion and revocation evidence prevents a database restore from silently reopening revoked access. [Recovery procedures](docs/operations.md#independent-security-evidence-store) define its external contract and gap handling.
 
 ### Secret matrix
 
-| Secret                                             | Required    | Consumers                              | Default if unset                                                                                                                                                                                                                                          |
-| -------------------------------------------------- | ----------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`                               | yes         | web                                    | local-mode default in dev; production gate refuses insecure values (below)                                                                                                                                                                                |
-| `BETTER_AUTH_URL`                                  | yes         | web                                    | local-mode default in dev; production gate refuses placeholder URLs (below)                                                                                                                                                                               |
-| `BETTER_AUTH_TRUSTED_ORIGINS`                      | recommended | web                                    | falls back to `BETTER_AUTH_URL`                                                                                                                                                                                                                           |
-| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`      | optional    | deploy (alchemy)                       | checkout, the Billing Portal, seat sync, and the inbound webhook route stay inactive until both are set; plan display, seat usage, and entitlement gating work without them                                                                               |
-| `SENTRY_DSN`, `POSTHOG_KEY`, `POSTHOG_HOST`        | optional    | deploy (alchemy), web, api, background | env-gated providers: Sentry errors from failed wide events across all three workers + the browser (`@sentry/cloudflare`/`@sentry/react`); PostHog analytics per wide-event scope + browser (`posthog-node`/`posthog-js`). Unset, both initialize disabled |
-| `OTEL_EXPORTER_OTLP_ENDPOINT`                      | optional    | all three workers                      | no OTLP export; wide events go to Workers Logs only                                                                                                                                                                                                       |
-| `MCP_RESOURCE_URL`                                 | optional    | web, api                               | the API worker's `/mcp` URL MCP access tokens are audience-bound to; consent flow works locally with the dev-server default                                                                                                                               |
-| `MCP_OAUTH_ISSUER`                                 | optional    | api                                    | trust tokens the web worker's OAuth server minted; unset both MCP vars and `/mcp` takes API Tokens only                                                                                                                                                   |
-| `OTEL_EXPORTER_OTLP_HEADERS`                       | optional    | all three workers                      | OTLP requests carry no vendor auth header                                                                                                                                                                                                                 |
-| `SERVICE_VERSION`, `GIT_COMMIT_SHA`, `ENVIRONMENT` | recommended | all three workers                      | wide events and OTel resources omit the deploy identity; unset `ENVIRONMENT` also disables the required-env gate (treated as local dev)                                                                                                                   |
-| `CLOUDFLARE_EMAIL_FROM`                            | optional    | deploy (alchemy), api, email, web      | `SendEmail` binding skipped, email falls back to log dispatch                                                                                                                                                                                             |
-| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`      | optional    | deploy (alchemy), web                  | sign-up renders no widget and runs no verification (provider-light)                                                                                                                                                                                       |
-| `WORKSPACE_EXPORT_BUCKET`                          | optional    | deploy (alchemy)                       | no export queue or R2 bucket is provisioned; `WorkspaceExports` reports unavailable and workspace settings explains instead of offering the button (ADR 0055)                                                                                             |
-| `API_PUBLIC_URL`                                   | optional    | web                                    | signed export download links point at `http://localhost:8787`, the API worker's local dev port                                                                                                                                                            |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`        | optional    | deploy (alchemy), web                  | GitHub is absent from Better Auth's `socialProviders` and its button does not render; a pair with one half unset stays off (`activeSocialProviders`)                                                                                                      |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`        | optional    | deploy (alchemy), web                  | Google is absent from Better Auth's `socialProviders` and its button does not render; a pair with one half unset stays off (`activeSocialProviders`)                                                                                                      |
-| `WORKERS_AI_ENABLED`, `OPENAI_API_KEY`             | optional    | api, web, background                   | assistant answers from the mock provider: the REST/MCP endpoint stays up, the web page hides its form behind honest copy                                                                                                                                  |
+[packages/env/src/server.ts](packages/env/src/server.ts) owns validated server configuration and provider activation. [.env.example](.env.example) provides local defaults; the [provider guide](apps/web/content/docs/getting-started/optional-providers.mdx) explains configuration, and [deployment](docs/deploying.md) covers CI secret forwarding.
 
-Secrets are wrapped in `effect/Redacted` in [`alchemy.run.ts`](./alchemy.run.ts) so they never appear in logs or stack traces. Optional providers are declared by the schema in [`packages/env/src/server.ts`](./packages/env/src/server.ts), which types every worker env and is the source the provider env bags `Pick` from — missing config keeps the relevant provider inactive instead of failing startup, because each selector reads an absent (or explicitly undefined, or null) var as "unconfigured".
-
-The two required vars get a runtime gate: `auditRequiredEnv` ([`packages/env/src/server.ts`](./packages/env/src/server.ts)) checks `BETTER_AUTH_SECRET` for absence, known placeholder values (the local-dev default, the test-shim default, Better Auth's own fallback), or sub-32-char length, and `BETTER_AUTH_URL` for absence or placeholder hosts (`.example.com`, `localhost`). The web worker — auth's only consumer — runs it once per isolate on the first request ([`apps/web/src/lib/server/env-gate.ts`](./apps/web/src/lib/server/env-gate.ts)): with `ENVIRONMENT=production` an insecure value fails every request with `InsecureProductionEnvError`; with any other `ENVIRONMENT` value it emits one `config.insecure` wide event (key names and reasons only) and keeps serving. An unset `ENVIRONMENT` means local development and stays silent — a deployment that bypasses alchemy must set `ENVIRONMENT` to get the gate. Deploying via alchemy already fails up front when a required var is missing (`requiredEnv`); the gate catches the values alchemy cannot judge.
+Alchemy wraps secrets in `Redacted`. Production auth requires a secure `BETTER_AUTH_SECRET` and HTTPS `BETTER_AUTH_URL`; runtime checks reject placeholders. Deployments outside Alchemy must set `ENVIRONMENT=production` to enable production enforcement. Optional providers remain inactive when unconfigured. Configured-provider failures retain their typed failure behavior rather than silently switching to demo data.
 
 ## Internationalization
 
-Shared Paraglide catalogs in `packages/i18n` serve English and Norwegian Bokmål
-across the web app and email. Public URLs identify the language; account
-preferences govern authenticated pages, recipient email, and time-zone display.
-Request-local state keeps concurrent SSR renders isolated. See
-[ADR 0074](./docs/adr/0074-account-locales-and-shared-message-catalogs.md).
+[packages/i18n](packages/i18n) shares English and Norwegian Bokmål catalogs across web and email. Public URLs identify locale; account preferences govern authenticated pages, recipient email, and time-zone display. Request-local state isolates concurrent renders. See [contribution rules](docs/i18n.md).
 
 ## Explicit Non-Goals
 
-- No initial Durable Objects.
-- No initial PWA/offline service worker.
-- No initial file upload workflow. The one R2 bucket holds workspace export artifacts only (ADR 0055 carves it out of ADR 0028).
-- No initial realtime WebSocket/SSE transport.
+No Durable Objects without a coordination need, PWA/offline service worker, general uploads, or realtime WebSocket/SSE transport. Revisit these only for a concrete Starter use case.

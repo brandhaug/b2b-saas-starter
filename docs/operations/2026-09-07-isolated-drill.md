@@ -48,4 +48,4 @@ Independent S3 upload/download and key recovery, a lost-account rebuild,
 Sentry failure/recovery notification delivery and deduplication, remote queue
 failure drills, and full recovery-time/data-loss targets remain unverified.
 Use [the complete drill record](drill-record.md) for the deployment's evidence.
-Do not enable #290's destructive cleanup for customer data based on this record.
+This record does not approve destructive cleanup for customer data.

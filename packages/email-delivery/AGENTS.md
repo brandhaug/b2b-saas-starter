@@ -1,14 +1,12 @@
 # Email delivery
 
-## Purpose & Scope
-
 Owns send claims and sanitized delivery evidence across auth, invitations and notifications. Cloudflare owns address suppression and retries after acceptance. Claims and provider events are operational evidence; they must not trigger user-notification fanout or recursive delivery attempts.
 
-## Entry Points & Contracts
+## Contracts
 
 [The contract](src/email-delivery.ts) separates trusted worker writes from identity-keyed reads. Caller guards authorize self-history and System Admin history. Invitation reads accept an explicit workspace identity; the capabilities package wraps them with `WorkspaceContext` plus an upstream invitation permission check. Resolving a user at send time fixes the history association; provider events must never discover or change that association.
 
-## Patterns & Pitfalls
+## Pitfalls
 
 - Keep transport calls outside persistence. Claim tokens fence failed outcomes. A late accepted receipt survives lease renewal; the persisted accepted marker forbids future submission even when no delivery event arrives.
 - `trackedAttempt` owns claim, send-outcome persistence and metrics; transport adapters supply an effect producing sanitized outcomes and classify their own failures.

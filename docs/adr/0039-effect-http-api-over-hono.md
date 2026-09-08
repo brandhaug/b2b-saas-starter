@@ -1,7 +1,3 @@
-# Effect HTTP API over Hono
+# Effect HTTP API for contracts and routing
 
-The API worker uses Effect's HTTP API stack for REST contracts and routing instead of Hono, keeping REST definitions aligned with Effect schemas, typed errors, and shared capabilities. Hono carries no code or catalog entry in the repository; only a resolution override pin remains in the root `package.json` for transitive dependencies.
-
-`apps/api` serves the contract itself: `HttpApiBuilder.layer(StarterApi)` plus per-group handler layers, converted to a Cloudflare-compatible web handler with `HttpRouter.toWebHandler`. Routing, request/response schema decoding, status codes, OpenAPI (`/openapi.json`), and the Scalar UI (`/reference`) all derive from the one contract, so served behavior cannot drift from the OpenAPI document. An earlier hand-written regex route table that mirrored the contract's paths did drift (undeclared 201/202 statuses, a missing `WorkspaceNotFound`), which is why the contract-served approach replaced it. On Workers, which have no Node runtime, the platform dependency is satisfied with a no-op `FileSystem` plus posix `Path` and `Etag`.
-
-Cross-cutting concerns compose into the handlers rather than a parallel table: a per-request wide-event scope (`observed`), bearer auth and permissions (`enforcePermission` → `Unauthorized`/`AuthorizationDenied`), and rate limiting (`enforceRateLimit` → `RateLimited`), with capability and rate-limiter services provided per request via `HttpRouter.provideRequest`.
+The API worker serves `StarterApi` through Effect HTTP API handler layers. Routing, schema decoding, status codes, OpenAPI, and the typed client therefore use one contract. A parallel router would permit served behavior to drift from declared endpoints and errors. Request-scoped services supply authorization, rate limiting, and observability to these handlers.

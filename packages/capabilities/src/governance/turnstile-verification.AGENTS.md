@@ -1,17 +1,7 @@
-# turnstile-verification
+# Turnstile verification
 
-## Public surface
+Call `TurnstileVerifier.verify` for public-form checks and gate on its outcome (ADR 0031). Callers must not duplicate provider-presence checks.
 
-`TurnstileVerifier` — server-side verification of Cloudflare Turnstile tokens against `siteverify`, for public forms (sign-up first, ADR 0031).
+Unconfigured verification is `inactive` and permits local flows. `rejected` is a bot verdict; a failed request or malformed provider response is `unavailable`, which callers must refuse. The verifier itself never fails.
 
-- `enabled` — true only when built with a non-empty `TURNSTILE_SECRET_KEY`.
-- `verify({ token, remoteIp? })` — `inactive` when unconfigured (provider-light: callers proceed), `verified`, `rejected` with Cloudflare's error codes, or `unavailable` when siteverify cannot be reached or answers off-shape. `verify` never fails; callers gate on the outcome and fail closed on `unavailable`.
-
-## Storage
-
-None. One adapter; the HTTP call is the injectable `SiteverifyCaller` port. No Seed/Live split because there is no store — do not add one.
-
-## Anti-patterns
-
-- Don't branch on env vars at the call site to decide whether to verify — call `verify` and gate on its outcome.
-- Don't treat an unparseable siteverify answer as a rejection: it is unavailability, not a bot verdict.
+`SiteverifyCaller` is the injectable HTTP port. There is no persisted state and no Seed/Live split.

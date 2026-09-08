@@ -1,8 +1,8 @@
-# Security Policy
+# Security policy
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-Please **do not** open a public issue for security problems.
+Report security problems privately.
 
 Use GitHub's private vulnerability reporting:
 <https://github.com/brandhaug/b2b-saas-starter/security/advisories/new>
@@ -18,7 +18,7 @@ Include:
 
 You should receive an acknowledgement within **5 business days**. We aim to ship a fix or mitigation within **30 days** for confirmed issues.
 
-## Supported Versions
+## Supported versions
 
 This is a starter template. Security fixes are applied to the default branch (`master`) only. Forks and downstream projects are expected to track upstream.
 

@@ -84,7 +84,7 @@ test('knowledge search loads metadata without downloading article bodies', async
     page.getByRole('heading', { name: 'Quickstart', exact: true })
   ).toBeVisible()
   await expect(
-    page.getByRole('heading', { name: 'Prerequisites', exact: true })
+    page.getByRole('heading', { name: 'Install and run', exact: true })
   ).toBeVisible()
 })
 

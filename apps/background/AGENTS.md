@@ -41,7 +41,7 @@ Per queue the outcome table is the contract; the non-obvious parts:
 
 - One decode per delivery: `readDelivery(schema, envelope)` folds the platform fields and the message-schema decode into one `QueueDelivery`, so malformed is a named `kind` rather than an absent value, and terminal (no trusted `endpointId` to attach a row to).
 - The fold sits outside `withTriggerScope`, so the wide event exits carrying the failure cause before it becomes a queue outcome. `onFailure: 'retry'` except the DLQ entry.
-- The publisher stamps `deliveryId` before enqueueing. Both queue consumers use it; each observation is unique by delivery, attempt ordinal, and phase. Completion prevents repeated warnings (ADR 0073).
+- The publisher stamps `deliveryId` before enqueueing. Both queue consumers use it; each observation is unique by delivery, attempt ordinal, and phase. Completion prevents repeated warnings ([ADR 0062](../../docs/adr/0062-webhook-protocol-and-operator-tooling.md)).
 - `signatureHeaderValue` owns the signature format: Standard Webhooks HMAC-SHA256 over `"<deliveryId>.<unix>.<rawBody>"`, one space-separated `v1,<base64>` per active secret, current first, two only inside a rotation's grace window (ADR 0062).
 - The SSRF guard runs at endpoint creation _and again at dispatch_; DNS rebinding is out of scope.
 

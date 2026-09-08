@@ -1,3 +1,3 @@
 # Homepage as architecture showcase
 
-The homepage should present the starter repository as an interactive architecture and capability showcase rather than a conventional generic SaaS landing page. It should be visually polished and component-driven while making the first viewport clearly about inspecting a production starter stack: TanStack Start, Cloudflare Workers, Better Auth, Drizzle D1, Effect v4, Alchemy, REST/MCP, email, testing, and observability.
+The public homepage helps builders inspect the repository and its working capabilities. Its examples and calls to action should demonstrate the starter rather than invent a SaaS business around the reference application.

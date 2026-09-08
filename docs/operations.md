@@ -1,6 +1,5 @@
 # Recovery and production monitoring
 
-This runbook implements the operating policy agreed in [issue #286](https://github.com/brandhaug/b2b-saas-starter/issues/286).
 An operator owns recovery decisions. Alerts never restore a database or roll
 production code back automatically. The shared D1 database serves every
 Workspace, so recovery closes and restores the whole application. Selective
@@ -11,7 +10,7 @@ Workspace recovery is outside this procedure.
 Use paid Cloudflare for customer deployments. Complete an isolated restore drill
 before first production use, quarterly, and after material recovery changes.
 Keep the signed drill evidence outside the production Cloudflare account.
-Do not enable [destructive scheduled cleanup](retention.md) until this passes.
+Enable destructive scheduled cleanup only after the drill passes.
 
 | Incident                                                        | Recovery target from operator start | Maximum lost writes target |
 | --------------------------------------------------------------- | ----------------------------------- | -------------------------- |
@@ -69,9 +68,8 @@ The Workers send `POST` requests with `Authorization: Bearer <token>` and
 `Content-Type: application/json`. The service must append the record
 durably before returning a 2xx response. It must treat duplicate record IDs
 idempotently, returning 2xx without overwriting or deleting an earlier record,
-and retain records until every backup and Time Travel point that could resurrect
-the affected state expires, plus seven days. Extend evidence retention whenever
-the oldest restorable point is extended. Restrict the token to append-only access; use a separate
+and retain records for at least the full age of the oldest backup that an
+operator may restore. Restrict the token to append-only access; use a separate
 operator credential for export.
 
 Each request body has this shape:
@@ -190,7 +188,7 @@ Keep maintenance enabled until every step has evidence and an operator signs off
    [billing operations](billing-operator-runbook.md). Do not replay old charges,
    refunds, cancellations or checkout creation blindly.
 6. Invalidate existing Workspace export links and mark stale export jobs for
-   regeneration. Export ZIPs in R2 are disposable and are not system backups.
+   regeneration. Export archives in R2 are disposable and are not system backups.
    D1 recovery cannot remove copies already downloaded or rewind R2 state.
 7. Verify sign-in with fresh credentials and confirm old sessions, OAuth tokens
    and revoked API Tokens fail. Check a permitted Workspace action and a denied
@@ -233,21 +231,10 @@ cron slugs, initial thresholds and provider setup gaps.
 
 ## External monitors and budget
 
-Create separate Sentry uptime monitors for the deployed web and API readiness
-URLs, using GET, a one-minute interval, five consecutive failures and one
-successful recovery check. Use a timeout appropriate to the readiness probe.
-Sentry's [uptime configuration](https://docs.sentry.io/product/monitors-and-alerts/monitors/uptime-monitoring/)
-explains failure/recovery tolerances and notification routing. Do not monitor
-only the public landing page.
-
-Inventory every scheduled task, including nightly backups and backup freshness.
-Use a paid Sentry plan with a pay-as-you-go budget for that inventory, in
-addition to the two uptime monitors. The included one uptime and one cron monitor do not cover this
-setup. Record the provider's current quote and approved monthly cap in the
-private deployment record; review active monitor counts and budget alerts after
-every new job and billing renewal. Sentry can deactivate monitors when the
-budget is insufficient; see [monitor quotas](https://docs.sentry.io/pricing/quotas/manage-cron-monitors/).
-Provisioning DSNs alone does not configure alert destinations.
+[Monitoring configuration](monitoring.md) owns the uptime, cron, metric, and
+queue monitor inventory. Record the deployment's current provider quote and
+approved budget privately. Verify active monitors and failure/recovery routing
+after adding jobs or changing the budget; a DSN alone configures neither.
 
 ## Drill evidence
 
@@ -258,8 +245,6 @@ Use the [drill record](operations/drill-record.md) to capture results for both
 recovery paths and every alert. Keep the completed record outside the production
 Cloudflare account.
 
-Create a dated record outside the production account with the operator, isolated
-account/database IDs, revision, database row count/size and sanitized command log.
 For each recovery path, capture known data before the fault, fault time,
 recovery point, restore start/end, security cleanup, fresh sign-in and denied old
 credentials, external-state review and controlled reopening. Record whether each

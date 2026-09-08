@@ -8,7 +8,7 @@ tags: [admin, system-admin]
 
 A System Admin is a user with global user-management permissions through Better Auth's admin plugin. System Admin is not a Workspace Role; it operates at the user level. `packages/auth/src/index.ts` registers `admin({ adminRoles: ['admin'] })`, so users whose `user.role = 'admin'` are System Admins.
 
-## What's wired today
+## User management
 
 The `/admin` route renders a global users table (name, email, system role, status) with per-row actions, a cross-workspace role editor, and a global audit-event table sourced from `AuditEventLog.listGlobal`. The actions go through the `PlatformUserAdmin` capability, never straight to the plugin:
 
@@ -25,19 +25,9 @@ A System Admin can browse the app as another user to reproduce what they see. Th
 - **One hour, then it ends on its own.** Stop earlier from the banner.
 - **Visible the whole time.** Every page in the app shell shows a banner naming the impersonated user with a **Stop impersonating** button. Stop restores the admin's own session and returns to `/admin`.
 - **No elevation.** The session has exactly the impersonated user's roles: it cannot open `/admin`, and a workspace the user is not a member of stays a 404. System Admins cannot be impersonated.
-- **Locked actions.** The session cannot change the user's password, two-factor settings, or email, or delete the account. The auth endpoints answer 403 and the controls are hidden on `/account`. The real account holder makes those changes.
+- **Locked actions.** The session cannot change the user's password, passkeys, two-factor settings, or email, or delete the account. The auth endpoints answer 403 and the controls are hidden on `/account`. The real account holder makes those changes.
 - **Recorded on both sides.** `system_admin.impersonation_started` and `system_admin.impersonation_stopped` name the admin as actor and the user as target, so both `/admin`'s trail and the user's workspace audit page show it. The impersonated user also receives a Notification in each of their workspaces saying who started the session.
-
-## What a System Admin cannot do
-
-- Sign in to an arbitrary workspace's UI without being a Member, or without an Impersonation Session as one
-- Bypass workspace billing or governance limits
-- Impersonate another System Admin, or change an impersonated user's credentials
 
 ## Audit trail
 
 Every System Admin action emits an Audit Event with actor, target user, and action type, through the same `AuditEventLog` capability the rest of the app writes to. The Better Auth admin endpoints called directly from a client are audited by the auth catchall as `system_admin.*` success/failure pairs; the `/admin` UI's own actions are audited by the capability. See ARCHITECTURE.md §Audit log.
-
-## When to grant System Admin
-
-System Admin is for the operators of the deployment, not for workspace owners. Grant it sparingly. A workspace owner does not need System Admin to manage their workspace.

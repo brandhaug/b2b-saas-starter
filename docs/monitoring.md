@@ -10,36 +10,31 @@ Set `MAINTENANCE_MODE=true` on all three Workers to close customer requests and
 business scheduled work. Pause provider queue delivery as well, since retries
 consume the queue's retention and attempt budgets. `/ready` returns 503 while
 maintenance is enabled or its bounded D1 schema probe fails. Local Seed mode
-without D1 is intentionally not production-ready.
+without D1 fails readiness.
 
 ## Monitor inventory
 
-The minimum runtime inventory is two uptime monitors, four cron monitors and
-metric monitors for the policies below. The backup workflow adds separate backup
-and freshness cron monitors, bringing the minimum to two uptime and six cron
-monitors. The external queue check adds one more cron monitor, for a total of
-seven. Include every deployed queue, including dead-letter queues, in its inventory. Configure a paid Sentry plan and pay-as-you-go
-budget for the full inventory; check active status after every billing renewal.
-One included uptime and one included cron monitor are insufficient.
+Provision the runtime monitors below, the two [backup monitors](backup-recovery.md),
+and the external queue monitor. Include every deployed queue and dead-letter
+queue. Budget for the complete inventory and verify monitors remain active after
+billing changes.
 
-| Monitor                                         | Configuration                                                                                                           | Incident and recovery                                                                                 |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Web readiness                                   | GET `<WEB_URL>/ready`, every minute, 10-second timeout                                                                  | Five consecutive failures; recover after one success                                                  |
-| API readiness                                   | GET `<API_URL>/ready`, same timing                                                                                      | Five consecutive failures; recover after one success                                                  |
-| Daily digest                                    | Cron `b2b-saas-starter-background-digest`, `0 8 * * *`, UTC                                                             | 5-minute grace and maximum runtime; failure threshold 1, recovery threshold 1                         |
-| Record retention                                | Cron `b2b-saas-starter-background-retention`, `0 * * * *`, UTC                                                          | 5-minute grace/runtime; failure 1, recovery 1; monitor previews while destructive cleanup is disabled |
-| Retention backlog                               | Gauge `retention.backlog`, latest value                                                                                 | Possible remaining pages in two consecutive hourly runs; inspect progress and budget, recover at zero |
-| Retention last success                          | Gauge `retention.last_success_unix_ms` and the retention cron                                                           | Missing success for two hours or any failed cron; do not treat missing telemetry as zero work         |
-| Digest retry                                    | Cron `b2b-saas-starter-background-digest-retry`, `*/15 8-14 * * *`, UTC                                                 | 5-minute grace/runtime; failure 1, recovery 1                                                         |
-| Billing reconciliation and operational snapshot | Cron `b2b-saas-starter-background-billing-reconciliation`, `* * * * *`, UTC                                             | 2-minute grace/runtime; failure 1, recovery 1                                                         |
-| HTTP errors, per web/API service                | Metric `http.requests`, sum counts for `server_error=true` divided by sum of all counts in a rolling five-minute window | Ratio >0.05 AND denominator >=20; recover when ratio <=0.05 or traffic falls below gate               |
-| Overdue billing                                 | Gauge `billing.overdue_workspaces`, latest value                                                                        | >0; recover at 0                                                                                      |
-| Systemic email send failure                     | Gauge `email.recent_transport_failures`, latest value                                                                   | >=3 messages over the five-minute evidence window; recover below 3                                    |
-| Pending email backlog                           | Gauge `email.overdue_pending`, latest value                                                                             | >0 messages pending before acceptance for >=15 minutes; recover at 0                                  |
-| Terminal queue work                             | Counter `operations.failures`, `signal=queue_exhausted`                                                                 | Any event; notify on new/regressed incident, require operator disposition before resolving            |
-| Observed old queue work                         | Same counter, `signal=queue_backlog_age`                                                                                | Any message observed >=15 minutes old; inspect provider backlog, resolve after it drains              |
-| Email event processing                          | Same counter, `signal=email_event_processing_failed`                                                                    | >=3 retries in five minutes; recover when processing resumes and window clears                        |
-| Security evidence gap                           | Sentry issue `security_evidence_gap`                                                                                    | Any gap; resolve only after evidence has been recovered or uncertain access is revoked/reset          |
+| Monitor                                         | Configuration                                                                                                           | Incident and recovery                                                                        |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Web readiness                                   | GET `<WEB_URL>/ready`, every minute, 10-second timeout                                                                  | Five consecutive failures; recover after one success                                         |
+| API readiness                                   | GET `<API_URL>/ready`, same timing                                                                                      | Five consecutive failures; recover after one success                                         |
+| Daily digest                                    | Cron `b2b-saas-starter-background-digest`, `0 8 * * *`, UTC                                                             | 5-minute grace and maximum runtime; failure threshold 1, recovery threshold 1                |
+| Retention cleanup                               | Cron `b2b-saas-starter-background-retention`, `0 * * * *`, UTC                                                          | 5-minute grace and maximum runtime; failure threshold 1, recovery threshold 1                |
+| Digest retry                                    | Cron `b2b-saas-starter-background-digest-retry`, `*/15 8-14 * * *`, UTC                                                 | 5-minute grace/runtime; failure 1, recovery 1                                                |
+| Billing reconciliation and operational snapshot | Cron `b2b-saas-starter-background-billing-reconciliation`, `* * * * *`, UTC                                             | 2-minute grace/runtime; failure 1, recovery 1                                                |
+| HTTP errors, per web/API service                | Metric `http.requests`, sum counts for `server_error=true` divided by sum of all counts in a rolling five-minute window | Ratio >0.05 AND denominator >=20; recover when ratio <=0.05 or traffic falls below gate      |
+| Overdue billing                                 | Gauge `billing.overdue_workspaces`, latest value                                                                        | >0; recover at 0                                                                             |
+| Systemic email send failure                     | Gauge `email.recent_transport_failures`, latest value                                                                   | >=3 messages over the five-minute evidence window; recover below 3                           |
+| Pending email backlog                           | Gauge `email.overdue_pending`, latest value                                                                             | >0 messages pending before acceptance for >=15 minutes; recover at 0                         |
+| Terminal queue work                             | Counter `operations.failures`, `signal=queue_exhausted`                                                                 | Any event; notify on new/regressed incident, require operator disposition before resolving   |
+| Observed old queue work                         | Same counter, `signal=queue_backlog_age`                                                                                | Any message observed >=15 minutes old; inspect provider backlog, resolve after it drains     |
+| Email event processing                          | Same counter, `signal=email_event_processing_failed`                                                                    | >=3 retries in five minutes; recover when processing resumes and window clears               |
+| Security evidence gap                           | Sentry issue `security_evidence_gap`                                                                                    | Any gap; resolve only after evidence has been recovered or uncertain access is revoked/reset |
 
 Provision the cron monitors with these schedules before relying on check-ins:
 SDK check-ins name the monitor but do not replace the operator's schedule and
@@ -52,13 +47,6 @@ the account's editor cannot express the combined condition, route the equivalent
 metric query through an operator-managed rule that can; do not enable an
 ungated percentage alert and call the policy complete. Verify the exact rule in
 the controlled drill, including low traffic and recovery.
-
-Retention also emits OTLP metrics `starter.retention.runs`, tagged by outcome,
-`starter.retention.backlog`, and `starter.retention.last_success_unix_ms`. Its
-canonical event contains bounded per-class counts. A successful run with zero
-candidates increments success and updates last success; a failed query rejects
-the cron invocation. Never clear a backlog alert from a failed or missing sample.
-See [record retention](retention.md) for preview limits and approval commands.
 
 ## Provider queue monitoring
 

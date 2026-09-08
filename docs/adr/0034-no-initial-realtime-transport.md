@@ -1,3 +1,3 @@
-# No initial realtime transport
+# No realtime transport without a live workflow
 
-The starter does not include WebSocket or SSE realtime UI transport in the initial scaffold. Notifications and webhook deliveries should use Effect Atom query invalidation, polling where useful, and manual refresh until a concrete realtime workflow justifies connection management.
+The starter uses loader invalidation, selective polling, and manual refresh for changing workspace data. WebSocket or SSE transport remains out of scope until a workflow requires live updates strongly enough to justify connection lifecycle and authorization work.
