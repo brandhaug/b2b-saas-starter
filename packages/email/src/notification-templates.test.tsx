@@ -1,4 +1,4 @@
-import { notificationKinds } from '@b2b-saas-starter/db/enums'
+import { notificationKinds, type NotificationKind } from '@b2b-saas-starter/db/enums'
 import { render } from 'react-email'
 import { Effect } from 'effect'
 import { type ReactElement } from 'react'
@@ -36,6 +36,39 @@ describe('notification email templates', () => {
     }
   })
 
+  it.effect(
+    'gives every kind a representative destination and rendered fixture copy',
+    () =>
+      Effect.gen(function* () {
+        const expected = {
+          'api_token.created': '/workspaces/starter-lab/api-tokens',
+          'api_token.revoked': '/workspaces/starter-lab/api-tokens',
+          'workspace_member.role_changed': '/workspaces/starter-lab/members',
+          'two_factor.changed': '/account',
+          'webhook.delivery_failed': '/workspaces/starter-lab/webhooks',
+          'workspace_member.joined': '/workspaces/starter-lab/members',
+          'billing.plan_changed': '/workspaces/starter-lab/billing',
+          'account.impersonated': '/account',
+          announcement: '/workspaces/starter-lab'
+        } satisfies Record<NotificationKind, string>
+
+        for (const kind of notificationKinds) {
+          const template = NOTIFICATION_EMAIL_TEMPLATES[kind]
+          const preview = template.PreviewProps
+          expect(new URL(preview.openUrl).pathname).toBe(expected[kind])
+          expect(preview.preferencesUrl).toContain(`kind=${kind}`)
+          if (kind !== 'api_token.created') {
+            expect(preview.kindLabel).not.toBe('API token created')
+            expect(preview.title).not.toBe('API token created')
+          }
+          const { html, text } = yield* rendered(notificationEmailFor(kind, preview))
+          expect(html).toContain(preview.kindLabel)
+          expect(html).toContain(preview.title)
+          expect(text).toContain(preview.message)
+        }
+      })
+  )
+
   describe.each(notificationKinds)('the %s notification', (kind) => {
     it.effect('renders with the notification copy and the unsubscribe link', () =>
       Effect.gen(function* () {
@@ -68,7 +101,7 @@ describe('notification email templates', () => {
       expect(html).toContain('Your daily notification digest')
       expect(html).toContain('2 unread notifications')
       expect(html).toContain('Webhook delivery gave up')
-      expect(html).toContain('Cloudflare Email needs configuration')
+      expect(html).toContain('Workspace export ready')
       expect(html).toContain(NotificationDigestEmail.PreviewProps.preferencesUrl)
     })
   )
@@ -89,3 +122,24 @@ describe('notification email templates', () => {
     })
   )
 })
+
+it.effect('uses Norwegian singular and plural digest subjects', () =>
+  Effect.gen(function* () {
+    const single = yield* rendered(
+      NotificationDigestEmail({
+        ...NotificationDigestEmail.PreviewProps,
+        items: NotificationDigestEmail.PreviewProps.items.slice(0, 1),
+        locale: 'nb'
+      })
+    )
+    const multiple = yield* rendered(
+      NotificationDigestEmail({
+        ...NotificationDigestEmail.PreviewProps,
+        locale: 'nb'
+      })
+    )
+    expect(single.html).toContain('1 ulest varsel')
+    expect(single.html).not.toContain('1 uleste')
+    expect(multiple.html).toContain('2 uleste varsler')
+  })
+)

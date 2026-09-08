@@ -17,18 +17,27 @@
         "password_changed": "Passordet ditt ble endret",
         "backup_codes_rotated": "Gjenopprettingskodene for tofaktorautentisering er erstattet",
         "account_deleted": "Kontoen din ble slettet",
-        "notification": "[B2B SaaS Starter] {kindLabel}: {title}",
-        "digest": "[B2B SaaS Starter] Din daglige oppsummering: {count} uleste"
+        "notification": "[B2B SaaS Starter] {title}",
+        "digest": [
+          {
+            "declarations": ["input count", "local category = count: plural"],
+            "selectors": ["category"],
+            "match": {
+              "category=one": "[B2B SaaS Starter] Din daglige oppsummering: {count} ulest varsel",
+              "category=other": "[B2B SaaS Starter] Din daglige oppsummering: {count} uleste varsler"
+            }
+          }
+        ]
       },
       "auth": {
         "reset_description": "Noen ba om å tilbakestille passordet for B2B SaaS Starter-kontoen din. Hvis det var deg, velg et nytt passord innen tretti minutter; lenken kan brukes én gang og utløper deretter.",
         "reset_action": "Velg et nytt passord",
         "reset_ignore": "Hvis du ikke ba om en tilbakestilling, kan du se bort fra denne e-posten; passordet ditt forblir uendret.",
-        "verify_description": "Bekreft e-postadressen din for å fullføre oppsettet av B2B SaaS Starter-kontoen din. Lenken kan brukes én gang og utløper om en time.",
+        "verify_description": "Bekreft e-postadressen din for å fullføre oppsettet av B2B SaaS Starter-kontoen din. Lenken utløper om én time.",
         "verify_action": "Bekreft e-posten min",
         "magic_description": "Noen ba om en innloggingslenke for denne e-postadressen. Hvis det var deg, åpne lenken for å logge inn uten passord. Den kan brukes én gang og utløper om ti minutter.",
         "magic_action": "Logg inn",
-        "magic_ignore": "Hvis du ikke ba om lenken, kan du se bort fra denne e-posten; lenken kan bare brukes til innlogging.",
+        "magic_ignore": "Hvis du ikke ba om denne lenken, må du ikke åpne den. Du kan se bort fra e-posten.",
         "otp_description": "Bruk koden nedenfor for å fortsette.",
         "otp_expiry": "Koden kan brukes én gang, utløper om ti minutter og slutter å virke etter tre mislykkede forsøk.",
         "otp_ignore": "Hvis du ikke ba om denne koden, kan du se bort fra e-posten; kontoen din er uendret.",
@@ -38,21 +47,20 @@
         "reset_body": "Bruk lenken nedenfor for å velge et nytt passord.",
         "magic_link_heading": "Logg inn på B2B SaaS Starter",
         "magic_link_body": "Bruk lenken nedenfor for å logge inn.",
-        "one_time_code_heading": "Bekreftelseskoden din",
+        "one_time_code_heading": "Bekreft den nye e-postadressen din",
         "sign_in_code_heading": "Logg inn på B2B SaaS Starter",
         "one_time_code_body": "Skriv inn denne koden for å fortsette: {code}",
         "password_changed_heading": "Passordet ditt ble endret",
-        "password_changed_body": "Passordet ditt ble endret via {via}. Hvis det ikke var deg, må du tilbakestille passordet umiddelbart.",
+        "password_changed_body": "Passordet for B2B SaaS Starter-kontoen din ble {via}. Hvis det var deg, logger du inn med det nye passordet neste gang.",
         "two_factor_enabled": "Tofaktorautentisering ble slått på.",
         "two_factor_disabled": "Tofaktorautentisering ble slått av.",
         "passkey_added": "En passnøkkel ble lagt til på kontoen din.",
         "passkey_removed": "En passnøkkel ble fjernet fra kontoen din.",
-        "backup_codes": "De tidligere lagrede gjenopprettingskodene for tofaktorautentisering sluttet å virke. Lagre de nye kodene på et trygt sted.",
-        "account_deleted": "Kontoen din ble slettet. {workspacesDeleted} arbeidsområder ble slettet, og du forlot {workspacesLeft} arbeidsområder.",
+        "backup_codes": "De tidligere lagrede gjenopprettingskodene for tofaktorautentisering virker ikke lenger.",
         "action_fallback": "Hvis knappen ikke virker, kopier denne URL-en til nettleseren din:",
         "invitation_preview": "Du er invitert til {workspaceName}",
         "invitation_heading": "Bli med i {workspaceName}",
-        "invitation_body": "Du er invitert til et arbeidsområde i B2B SaaS Starter. Godta invitasjonen for å se rapporter, tokener og innstillinger.",
+        "invitation_body": "Du er invitert til et arbeidsområde i B2B SaaS Starter. Godta invitasjonen for å bli med i teamet.",
         "invitation_action": "Godta invitasjonen",
         "security_warning": "Hvis det ikke var deg, må du tilbakestille passordet umiddelbart og se gjennom sikkerhetsinnstillingene for kontoen.",
         "two_factor_enabled_preview": "Tofaktorautentisering slått på",
@@ -66,8 +74,6 @@
         "password_reset_preview": "Passordet ditt ble tilbakestilt",
         "password_changed_preview": "Passordet ditt ble endret",
         "password_reset_heading": "Passordet ditt ble tilbakestilt",
-        "password_changed_heading": "Passordet ditt ble endret",
-        "password_changed_body": "Passordet for B2B SaaS Starter-kontoen din ble {via}. Hvis det var deg, logger du inn med det nye passordet neste gang.",
         "password_reset_via": "tilbakestilt via lenken vi sendte deg",
         "password_changed_via": "endret fra kontoinnstillingene dine",
         "backup_codes_preview": "Gjenopprettingskodene for tofaktorautentisering er erstattet",
@@ -76,7 +82,27 @@
         "account_deleted_preview": "B2B SaaS Starter-kontoen din ble slettet",
         "account_deleted_heading": "Kontoen din ble slettet",
         "account_deleted_body": "B2B SaaS Starter-kontoen din er permanent slettet, sammen med alle innloggede økter.",
-        "account_deleted_warning": "Hvis du ikke slettet kontoen, må du tilbakestille passordet for alle kontoer som deler dette passordet og kontakte brukerstøtte umiddelbart."
+        "account_deleted_warning": "Hvis du ikke slettet kontoen, må du tilbakestille passordet for alle kontoer som deler dette passordet og kontakte brukerstøtte umiddelbart.",
+        "workspaces_deleted": [
+          {
+            "declarations": ["input count", "local category = count: plural"],
+            "selectors": ["category"],
+            "match": {
+              "category=one": "1 arbeidsområde ble slettet.",
+              "category=other": "{count} arbeidsområder ble slettet."
+            }
+          }
+        ],
+        "workspaces_left": [
+          {
+            "declarations": ["input count", "local category = count: plural"],
+            "selectors": ["category"],
+            "match": {
+              "category=one": "Du forlot 1 arbeidsområde.",
+              "category=other": "Du forlot {count} arbeidsområder."
+            }
+          }
+        ]
       },
       "notification": {
         "kind_api_token_created": "API-token opprettet",
@@ -91,29 +117,29 @@
         "footer": "Du mottar denne e-posten på grunn av varslingsinnstillingene dine.",
         "footer_link": "Endre hvordan du mottar disse e-postene eller meld deg av",
         "workspace": "Arbeidsområde: {workspaceName}",
-        "api_token_created_lead": "Noen opprettet et nytt API-token i et arbeidsområde du tilhører. Hvis ingen på teamet ditt gjorde dette, bør du tilbakekalle det nå.",
+        "api_token_created_lead": "Et nytt API-token ble opprettet i et arbeidsområde du tilhører. Hvis du ikke kjenner det igjen, be en eier eller administrator i arbeidsområdet om å undersøke det.",
         "api_token_created_action": "Se API-tokener",
         "api_token_revoked_lead": "Et API-token i et arbeidsområde du tilhører virker ikke lenger. Integrasjoner som brukte det vil begynne å feile.",
         "api_token_revoked_action": "Se API-tokener",
-        "role_changed_lead": "En eier eller administrator endret hva du kan gjøre i dette arbeidsområdet.",
+        "role_changed_lead": "Rollen til et medlem i dette arbeidsområdet ble endret.",
         "role_changed_action": "Åpne arbeidsområdet",
         "two_factor_changed_lead": "Tofaktorautentisering ble slått på eller av for kontoen din. Hvis det ikke var deg, bør du tilbakestille passordet nå.",
         "two_factor_changed_action": "Se kontosikkerhet",
-        "webhook_failed_lead": "Et webhook-endepunkt avviste en levering eller ga opp etter flere forsøk. Leveringshistorikken viser svarkodene.",
+        "webhook_failed_lead": "En webhook-levering mislyktes. Se leveringshistorikken for feilen og status for nye forsøk.",
         "webhook_failed_action": "Åpne webhook-endepunkter",
         "member_joined_lead": "Noen godtok en invitasjon til et arbeidsområde du tilhører.",
         "member_joined_action": "Se medlemmer",
         "plan_changed_lead": "Et arbeidsområde du tilhører har en annen plan. Grenser og rettigheter følger den nye planen fra nå av.",
         "plan_changed_action": "Åpne fakturering",
-        "impersonated_lead": "En systemadministrator åpnet en representasjonsøkt på kontoen din for å hjelpe deg. Dette er registrert i revisjonssporet, og kan ikke endre passordet, tofaktorinnstillingene eller e-postadressen din.",
+        "impersonated_lead": "En systemadministrator åpnet en representasjonsøkt på kontoen din. Dette er registrert i revisjonssporet. Økten kan ikke endre passordet, tofaktorinnstillingene eller e-postadressen din.",
         "impersonated_action": "Se kontosikkerhet",
-        "announcement_lead": "En beskjed til alle i arbeidsområdet.",
+        "announcement_lead": "Du har et nytt varsel.",
         "announcement_action": "Åpne arbeidsområdet",
         "digest_one": "Ett ulest varsel fra de siste 24 timene.",
         "digest_many": "{count} uleste varsler fra de siste 24 timene.",
         "digest_heading": "Din daglige varslingsoppsummering",
         "digest_open": "Åpne arbeidsområdene dine",
-        "digest_greeting": "Hei {recipientName}, {countLine}",
+        "digest_greeting": "{recipientName}, her er den daglige oppsummeringen din. {countLine}",
         "event_webhook_permanent_title": "Webhook-levering mislyktes",
         "event_webhook_permanent_message": "{endpointUrl}: {eventType} ble avvist og blir ikke forsøkt på nytt.",
         "event_webhook_dead_letter_title": "Webhook-levering havnet i dead-letter-køen",
@@ -123,7 +149,7 @@
         "event_webhook_ladder_warning_title": "Webhook-endepunktet feiler",
         "event_webhook_ladder_warning_message": "{target} har hatt {consecutiveFailures} mislykkede leveringer på rad og blir deaktivert automatisk etter {disableAt} feil.",
         "event_impersonation_title": "En systemadministrator åpnet kontoen din",
-        "event_impersonation_message": "{adminName} startet en imitasjonsøkt på kontoen din. Den avsluttes når administratoren stopper den eller etter {minutes} minutter, og kan ikke endre passordet, tofaktorinnstillingene eller e-postadressen din.",
+        "event_impersonation_message": "{adminName} startet en representasjonsøkt på kontoen din. Den avsluttes når administratoren stopper den eller etter {minutes} minutter, og kan ikke endre passordet, tofaktorinnstillingene eller e-postadressen din.",
         "event_export_ready_title": "Eksport av arbeidsområdet er klar",
         "event_export_ready_message": "Eksporten av {workspaceName} er klar for nedlasting fra innstillingene for arbeidsområdet frem til {expiresAt}.",
         "event_plan_changed_title": "Abonnementet ble endret til {planName}",

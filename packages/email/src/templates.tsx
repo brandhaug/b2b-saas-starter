@@ -53,22 +53,54 @@ export function EmailLayout({
           theme: {
             extend: {
               colors: {
-                brand: '#2563eb'
+                // Email clients need literal sRGB values, not the app's CSS variables.
+                // Keep these aligned with apps/web/src/index.css (Catppuccin Mocha).
+                background: '#1e1e2e',
+                card: '#181825',
+                foreground: '#cdd6f4',
+                primary: '#cba6f7',
+                'primary-foreground': '#11111b',
+                muted: '#313244',
+                'muted-foreground': '#a6adc8',
+                border: '#313244'
+              },
+              fontFamily: {
+                sans: ['Geist Variable', 'Arial', 'Helvetica', 'sans-serif'],
+                mono: ['Geist Mono Variable', 'Consolas', 'Courier New', 'monospace']
               }
             }
           }
         }}
       >
-        <Head />
+        <Head>
+          <meta name="color-scheme" content="dark" />
+          <meta name="supported-color-schemes" content="dark" />
+        </Head>
         <Preview>{preview}</Preview>
-        <Body className="bg-gray-100 font-sans py-10">
-          <Container className="bg-white max-w-xl mx-auto rounded-lg px-8 py-10">
-            <Heading className="text-2xl font-bold text-gray-900 m-0">
+        <Body
+          lang={intlLocale(locale)}
+          className="bg-background text-foreground font-sans m-0 p-4"
+        >
+          <Container
+            className="bg-card border border-solid border-border w-full mx-auto px-6 py-8"
+            style={{
+              maxWidth: '576px',
+              tableLayout: 'fixed',
+              overflowWrap: 'anywhere'
+            }}
+          >
+            <Heading
+              as="h1"
+              className="text-2xl leading-8 font-semibold text-foreground m-0"
+            >
               {heading}
             </Heading>
             {children}
-            <Hr className="border-solid border-gray-200 my-8" />
-            <Text className="text-xs text-gray-500 m-0">
+            <Hr
+              className="border-t border-border my-8"
+              style={{ borderTop: undefined }}
+            />
+            <Text className="text-sm text-muted-foreground m-0">
               © {footerYear()} B2B SaaS Starter
             </Text>
           </Container>
@@ -94,14 +126,14 @@ export function ActionLink({ href, label, locale = DEFAULT_LOCALE }: ActionLinkP
       <Section className="mt-6">
         <Button
           href={href}
-          className="bg-brand text-white px-6 py-3 rounded-md font-medium box-border"
+          className="bg-primary text-primary-foreground px-6 py-3 rounded-[6px] text-base leading-6 font-medium box-border"
         >
           {label}
         </Button>
       </Section>
-      <Text className="text-sm text-gray-500 mt-6">
+      <Text className="text-sm text-muted-foreground mt-6">
         {m.backend_email_auth_action_fallback({}, { locale })}{' '}
-        <Link href={href} className="text-brand underline">
+        <Link href={href} className="text-primary underline break-all">
           {href}
         </Link>
       </Text>
@@ -126,7 +158,7 @@ export function WorkspaceInvitationEmail({
       heading={m.backend_email_auth_invitation_heading({ workspaceName }, { locale })}
       locale={locale}
     >
-      <Text className="text-base text-gray-700 mt-4">
+      <Text className="text-base text-foreground mt-4">
         {m.backend_email_auth_invitation_body({}, { locale })}
       </Text>
       <ActionLink
@@ -140,7 +172,7 @@ export function WorkspaceInvitationEmail({
 
 WorkspaceInvitationEmail.PreviewProps = {
   workspaceName: 'Starter Lab',
-  inviteUrl: 'http://localhost:3071/invitations/accept'
+  inviteUrl: 'http://localhost:3071/invitations/accept?invitation=preview-invitation'
 } satisfies WorkspaceInvitationEmailProps
 
 export default WorkspaceInvitationEmail
@@ -165,7 +197,7 @@ export function PasswordResetEmail({
       heading={m.backend_email_subject_reset_password({}, { locale })}
       locale={locale}
     >
-      <Text className="text-base text-gray-700 mt-4">
+      <Text className="text-base text-foreground mt-4">
         {m.backend_email_auth_reset_description({}, { locale })}
       </Text>
       <ActionLink
@@ -173,7 +205,7 @@ export function PasswordResetEmail({
         label={m.backend_email_auth_reset_action({}, { locale })}
         locale={locale}
       />
-      <Text className="text-sm text-gray-500 mt-4">
+      <Text className="text-sm text-muted-foreground mt-4">
         {m.backend_email_auth_reset_ignore({}, { locale })}
       </Text>
     </EmailLayout>
@@ -204,7 +236,7 @@ export function EmailVerificationEmail({
       heading={m.backend_email_subject_verify_email({}, { locale })}
       locale={locale}
     >
-      <Text className="text-base text-gray-700 mt-4">
+      <Text className="text-base text-foreground mt-4">
         {m.backend_email_auth_verify_description({}, { locale })}
       </Text>
       <ActionLink
@@ -257,18 +289,18 @@ export function OneTimeCodeEmail({
   }
   return (
     <EmailLayout preview={subject} heading={heading} locale={locale}>
-      <Text className="text-base text-gray-700 mt-4">
+      <Text className="text-base text-foreground mt-4">
         {m.backend_email_auth_otp_description({}, { locale })}
       </Text>
       <Section className="mt-6">
-        <Text className="text-4xl font-bold tracking-[0.3em] text-gray-900 m-0 font-mono">
+        <Text className="text-3xl leading-10 font-semibold tracking-[0.2em] text-foreground m-0 font-mono">
           {code}
         </Text>
       </Section>
-      <Text className="text-sm text-gray-500 mt-6">
+      <Text className="text-sm text-muted-foreground mt-6">
         {m.backend_email_auth_otp_expiry({}, { locale })}
       </Text>
-      <Text className="text-sm text-gray-500 mt-4">
+      <Text className="text-sm text-muted-foreground mt-4">
         {m.backend_email_auth_otp_ignore({}, { locale })}
       </Text>
     </EmailLayout>
@@ -296,7 +328,7 @@ export function MagicLinkEmail({ url, locale = DEFAULT_LOCALE }: MagicLinkEmailP
       heading={m.backend_email_auth_magic_link_heading({}, { locale })}
       locale={locale}
     >
-      <Text className="text-base text-gray-700 mt-4">
+      <Text className="text-base text-foreground mt-4">
         {m.backend_email_auth_magic_description({}, { locale })}
       </Text>
       <ActionLink
@@ -304,7 +336,7 @@ export function MagicLinkEmail({ url, locale = DEFAULT_LOCALE }: MagicLinkEmailP
         label={m.backend_email_auth_magic_action({}, { locale })}
         locale={locale}
       />
-      <Text className="text-sm text-gray-500 mt-4">
+      <Text className="text-sm text-muted-foreground mt-4">
         {m.backend_email_auth_magic_ignore({}, { locale })}
       </Text>
     </EmailLayout>
@@ -358,8 +390,8 @@ export function TwoFactorChangedEmail({ enabled, locale }: TwoFactorChangedEmail
   }
   return (
     <EmailLayout preview={preview} heading={heading} locale={activeLocale}>
-      <Text className="text-base text-gray-700 mt-4">{stateCopy}</Text>
-      <Text className="text-sm text-gray-500 mt-4">
+      <Text className="text-base text-foreground mt-4">{stateCopy}</Text>
+      <Text className="text-sm text-muted-foreground mt-4">
         {m.backend_email_auth_security_warning({}, { locale: activeLocale })}
       </Text>
     </EmailLayout>
@@ -397,8 +429,8 @@ export function PasskeyChangedEmail({ added, locale }: PasskeyChangedEmailProps)
   }
   return (
     <EmailLayout preview={preview} heading={heading} locale={activeLocale}>
-      <Text className="text-base text-gray-700 mt-4">{stateCopy}</Text>
-      <Text className="text-sm text-gray-500 mt-4">
+      <Text className="text-base text-foreground mt-4">{stateCopy}</Text>
+      <Text className="text-sm text-muted-foreground mt-4">
         {m.backend_email_auth_security_warning({}, { locale: activeLocale })}
       </Text>
     </EmailLayout>
@@ -454,13 +486,13 @@ export function PasswordChangedEmail({ via, locale }: PasswordChangedEmailProps)
   }
   return (
     <EmailLayout preview={preview} heading={heading} locale={locale}>
-      <Text className="text-base text-gray-700 mt-4">
+      <Text className="text-base text-foreground mt-4">
         {m.backend_email_auth_password_changed_body(
           { via: flow },
           { locale: activeLocale }
         )}
       </Text>
-      <Text className="text-sm text-gray-500 mt-4">
+      <Text className="text-sm text-muted-foreground mt-4">
         {m.backend_email_auth_security_warning({}, { locale: activeLocale })}
       </Text>
     </EmailLayout>
@@ -490,10 +522,10 @@ export function BackupCodesRotatedEmail({
       heading={m.backend_email_auth_backup_codes_heading({}, { locale: activeLocale })}
       locale={locale}
     >
-      <Text className="text-base text-gray-700 mt-4">
+      <Text className="text-base text-foreground mt-4">
         {m.backend_email_auth_backup_codes({}, { locale: activeLocale })}
       </Text>
-      <Text className="text-sm text-gray-500 mt-4">
+      <Text className="text-sm text-muted-foreground mt-4">
         {m.backend_email_auth_backup_codes_warning({}, { locale: activeLocale })}
       </Text>
     </EmailLayout>
@@ -535,16 +567,20 @@ export function AccountDeletedEmail({
       )}
       locale={locale}
     >
-      <Text className="text-base text-gray-700 mt-4">
+      <Text className="text-base text-foreground mt-4">
         {m.backend_email_auth_account_deleted_body({}, { locale: activeLocale })}
       </Text>
-      <Text className="text-base text-gray-700 mt-4">
-        {m.backend_email_auth_account_deleted(
-          { workspacesDeleted, workspacesLeft },
+      <Text className="text-base text-foreground mt-4">
+        {m.backend_email_auth_workspaces_deleted(
+          { count: workspacesDeleted },
+          { locale: activeLocale }
+        )}{' '}
+        {m.backend_email_auth_workspaces_left(
+          { count: workspacesLeft },
           { locale: activeLocale }
         )}
       </Text>
-      <Text className="text-sm text-gray-500 mt-4">
+      <Text className="text-sm text-muted-foreground mt-4">
         {m.backend_email_auth_account_deleted_warning({}, { locale: activeLocale })}
       </Text>
     </EmailLayout>
