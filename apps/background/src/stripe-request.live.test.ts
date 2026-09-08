@@ -140,7 +140,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Stripe webhook ingress', (
               workspaceId: 'wrk_live',
               subscription: {
                 customerId: 'cus_live_ingress',
-                subscriptionId: 'sub_live_ingress'
+                subscriptionId: 'sub_live_ingress',
+                subscriptionItemId: 'si_live_ingress',
+                quantity: 3
               }
             })
           )
