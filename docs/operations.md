@@ -11,7 +11,7 @@ Workspace recovery is outside this procedure.
 Use paid Cloudflare for customer deployments. Complete an isolated restore drill
 before first production use, quarterly, and after material recovery changes.
 Keep the signed drill evidence outside the production Cloudflare account.
-Do not enable the destructive scheduled cleanup from #290 until this passes.
+Do not enable [destructive scheduled cleanup](retention.md) until this passes.
 
 | Incident                                                        | Recovery target from operator start | Maximum lost writes target |
 | --------------------------------------------------------------- | ----------------------------------- | -------------------------- |
@@ -69,8 +69,9 @@ The Workers send `POST` requests with `Authorization: Bearer <token>` and
 `Content-Type: application/json`. The service must append the record
 durably before returning a 2xx response. It must treat duplicate record IDs
 idempotently, returning 2xx without overwriting or deleting an earlier record,
-and retain records for at least the full age of the oldest backup that an
-operator may restore. Restrict the token to append-only access; use a separate
+and retain records until every backup and Time Travel point that could resurrect
+the affected state expires, plus seven days. Extend evidence retention whenever
+the oldest restorable point is extended. Restrict the token to append-only access; use a separate
 operator credential for export.
 
 Each request body has this shape:

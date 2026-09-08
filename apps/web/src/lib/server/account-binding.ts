@@ -1,4 +1,6 @@
 import { type AccountLifecycleBinding } from '@b2b-saas-starter/capabilities/governance/account-lifecycle'
+import { makeAdminAccountLifecycleBinding } from '@b2b-saas-starter/capabilities/governance/account-lifecycle-admin.live'
+import { env } from 'cloudflare:workers'
 
 import { sessionCall } from './plugin-call'
 
@@ -41,3 +43,6 @@ export const webAccountLifecycleBinding: AccountLifecycleBinding = {
     )
   }
 }
+
+/** The admin endpoint's authorized target-account teardown, owned by governance. */
+export const webAdminAccountLifecycleBinding = makeAdminAccountLifecycleBinding(env.DB)

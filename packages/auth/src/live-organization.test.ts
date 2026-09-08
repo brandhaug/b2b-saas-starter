@@ -1,6 +1,15 @@
+// oxlint-disable effect/noAsyncFunction -- these callbacks exercise Better Auth's Promise-shaped hook port against the real D1 adapter.
+
 import { type DrizzleDatabase } from './ports.ts'
-import { user, workspaceInvitations, workspaces } from '@b2b-saas-starter/db/schema'
-import { Effect, type Layer } from 'effect'
+import {
+  auditEvents,
+  notifications,
+  user,
+  workspaceInvitations,
+  workspaceMembers,
+  workspaces
+} from '@b2b-saas-starter/db/schema'
+import { Effect, Result, type Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { Auth } from './index.ts'
@@ -217,6 +226,179 @@ describe('organization plugin', () => {
         expect(endpoints).toContain('createOrganization')
         expect(endpoints).not.toContain('createTeam')
         expect(endpoints).not.toContain('setActiveTeam')
+      })
+    )
+  )
+})
+
+describe('admin account deletion', () => {
+  it.live('runs supplied cleanup hooks before the admin hard delete', () => {
+    const deletedEvent = 'audit_admin_delete'
+    const hookedLayer = buildAuthLayer(db, {
+      userDeleteHooks: {
+        beforeDelete: async (deletedUser) => {
+          await db
+            .delete(workspaceMembers)
+            .where(eq(workspaceMembers.userId, deletedUser.id))
+            .run()
+          await db
+            .delete(notifications)
+            .where(eq(notifications.userId, deletedUser.id))
+            .run()
+          await db
+            .update(auditEvents)
+            .set({ actorUserId: null, metadata: {} })
+            .where(eq(auditEvents.actorUserId, deletedUser.id))
+            .run()
+          await db
+            .update(auditEvents)
+            .set({ metadata: {} })
+            .where(eq(auditEvents.id, 'audit_other_delete'))
+            .run()
+        },
+        afterDelete: async (deletedUser) => {
+          await db
+            .insert(auditEvents)
+            .values({
+              id: deletedEvent,
+              workspaceId: null,
+              actorUserId: null,
+              actorType: 'user',
+              eventType: 'account.deleted',
+              targetType: 'user',
+              targetId: deletedUser.id,
+              metadata: { workspacesLeft: 1, workspacesDeleted: 0 },
+              createdAt: '2026-09-07T00:00:01.000Z'
+            })
+            .run()
+        }
+      }
+    })
+    return Effect.provide(
+      Effect.gen(function* () {
+        const admin = yield* signUpSession('admin-delete@starter.test')
+        const target = yield* signUpSession('target-delete@starter.test')
+        const auth = yield* Auth.Tag
+
+        yield* Effect.promise(() =>
+          db.update(user).set({ role: 'admin' }).where(eq(user.id, admin.userId)).run()
+        )
+        const workspace = yield* auth.api.createOrganization({
+          body: { name: 'Shared Delete Lab', slug: 'shared-delete-lab' },
+          headers: admin.headers
+        })
+        yield* auth.api.addMember({
+          body: {
+            userId: target.userId,
+            organizationId: workspace.id,
+            role: 'member'
+          }
+        })
+        yield* Effect.promise(() =>
+          db
+            .insert(notifications)
+            .values({
+              id: 'notification_target_delete',
+              workspaceId: workspace.id,
+              userId: target.userId,
+              kind: 'announcement',
+              title: 'Private',
+              message: 'Private',
+              createdAt: '2026-09-07T00:00:00.000Z'
+            })
+            .run()
+        )
+        yield* Effect.promise(() =>
+          db
+            .insert(auditEvents)
+            .values([
+              {
+                id: 'audit_target_delete',
+                workspaceId: workspace.id,
+                actorUserId: target.userId,
+                actorType: 'user',
+                eventType: 'target.private',
+                targetType: 'user',
+                targetId: target.userId,
+                metadata: { email: 'target-delete@starter.test' },
+                createdAt: '2026-09-07T00:00:00.000Z'
+              },
+              {
+                id: 'audit_other_delete',
+                workspaceId: workspace.id,
+                actorUserId: admin.userId,
+                actorType: 'user',
+                eventType: 'other.private',
+                targetType: 'user',
+                targetId: target.userId,
+                metadata: { email: 'target-delete@starter.test' },
+                createdAt: '2026-09-07T00:00:00.000Z'
+              }
+            ])
+            .run()
+        )
+
+        const result = yield* Effect.result(
+          auth.api.removeUser({
+            body: { userId: target.userId },
+            headers: admin.headers
+          })
+        )
+        expect(Result.isSuccess(result)).toBe(true)
+
+        const remainingMembership = yield* Effect.promise(() =>
+          db
+            .select()
+            .from(workspaceMembers)
+            .where(eq(workspaceMembers.userId, target.userId))
+        )
+        const remainingWorkspace = yield* Effect.promise(() =>
+          db.select().from(workspaces).where(eq(workspaces.id, workspace.id))
+        )
+        const remainingNotifications = yield* Effect.promise(() =>
+          db.select().from(notifications).where(eq(notifications.userId, target.userId))
+        )
+        const retainedAudit = yield* Effect.promise(() =>
+          db.select().from(auditEvents).where(eq(auditEvents.id, 'audit_other_delete'))
+        )
+        const deletedAudit = yield* Effect.promise(() =>
+          db.select().from(auditEvents).where(eq(auditEvents.id, deletedEvent))
+        )
+
+        expect(remainingMembership).toHaveLength(0)
+        expect(remainingWorkspace).toHaveLength(1)
+        expect(remainingNotifications).toHaveLength(0)
+        expect(retainedAudit[0]?.metadata).toEqual({})
+        expect(deletedAudit[0]?.metadata).toEqual({
+          workspacesLeft: 1,
+          workspacesDeleted: 0
+        })
+      }),
+      hookedLayer
+    )
+  })
+
+  it.live('refuses the admin hard delete when lifecycle hooks are absent', () =>
+    run(
+      Effect.gen(function* () {
+        const admin = yield* signUpSession('admin-no-hooks@starter.test')
+        const target = yield* signUpSession('target-no-hooks@starter.test')
+        const auth = yield* Auth.Tag
+        yield* Effect.promise(() =>
+          db.update(user).set({ role: 'admin' }).where(eq(user.id, admin.userId)).run()
+        )
+
+        const result = yield* Effect.exit(
+          auth.api.removeUser({
+            body: { userId: target.userId },
+            headers: admin.headers
+          })
+        )
+        expect(result._tag).toBe('Failure')
+        const remaining = yield* Effect.promise(() =>
+          db.select().from(user).where(eq(user.id, target.userId))
+        )
+        expect(remaining).toHaveLength(1)
       })
     )
   )

@@ -16,6 +16,7 @@ Self-service account deletion and the workspace teardown it implies (ADR 0059). 
 ## Patterns & Pitfalls
 
 - The store owns the order: password verified first, then the app's `beforeDelete` hook running `prepareDeletion` (`apps/web/src/lib/server/account-delete-hooks.ts`), then the user row, then `afterDelete` calling `recordDeleted`. Live `deleteAccount` is only the pre-check plus hand-off.
+- Better Auth's privileged `admin/remove-user` endpoint has the administrator's session while the plan targets another user, so its authorized hook uses `makeAdminAccountLifecycleBinding` from `account-lifecycle-admin.live.ts`. That capability-owned adapter is the isolated exception to the plugin-backed write rule: the endpoint has already performed the admin role check, and reusing the admin session would mutate the wrong account. The web layer only supplies the D1 binding and selects this adapter for that endpoint.
 - `prepareDeletion` NULLs `audit_events.actor_user_id` and `api_tokens.created_by_user_id` after the workspace loop, because those restricting foreign keys block the user-row delete and a blocked plan must detach nothing.
 - The seed fixture has no credentials: any non-empty password passes, the empty string models rejection.
 

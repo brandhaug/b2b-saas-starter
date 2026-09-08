@@ -307,7 +307,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
         db
           .delete(webhookDeliveries)
           .where(
-            sql`${webhookDeliveries.id} in (select id from ${webhookDeliveries} where ${webhookDeliveries.lastAttemptAt} < ${cutoff} order by ${webhookDeliveries.lastAttemptAt} limit ${DELIVERY_HISTORY_CLEANUP_LIMIT})`
+            sql`${webhookDeliveries.id} in (select id from ${webhookDeliveries} where ${webhookDeliveries.lastAttemptAt} < ${cutoff} and ${webhookDeliveries.status} in ('delivered', 'failed_permanent', 'dead_lettered') order by ${webhookDeliveries.lastAttemptAt} limit ${DELIVERY_HISTORY_CLEANUP_LIMIT})`
           )
           .returning({ id: webhookDeliveries.id })
       )

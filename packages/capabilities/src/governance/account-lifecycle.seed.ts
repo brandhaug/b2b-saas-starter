@@ -77,7 +77,7 @@ export function SeedAccountLifecycle(options: {
               eventType: 'workspace.deleted',
               targetType: 'workspace',
               targetId: step.workspace.id,
-              metadata: { name: step.workspace.name, slug: step.workspace.slug }
+              metadata: {}
             })
           } else {
             yield* Ref.update(options.roster, (members) =>

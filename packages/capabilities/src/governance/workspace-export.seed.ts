@@ -181,7 +181,7 @@ export function SeedWorkspaceExports(options: {
               id: options.fixture.id,
               status: 'failed',
               requestedAt: DateTime.formatIso(requestedAt),
-              completedAt: null,
+              completedAt: DateTime.formatIso(yield* DateTime.now),
               expiresAt: null,
               sizeBytes: null,
               failureReason: built.failure.reason
@@ -276,20 +276,22 @@ export function SeedWorkspaceExports(options: {
           yield* completeRow(row, input.archive, yield* DateTime.now, audit, feed)
           return true
         }),
-        fail: Effect.fn('WorkspaceExports.fail')((input: FailWorkspaceExportInput) =>
-          Effect.sync(() => {
-            const row = findPending(input.exportId, input.workspaceId)
-            if (!row) {
-              return false
-            }
-            row.record = {
-              ...row.record,
-              status: 'failed',
-              failureReason: input.reason
-            }
-            return true
-          })
-        ),
+        fail: Effect.fn('WorkspaceExports.fail')(function* (
+          input: FailWorkspaceExportInput
+        ) {
+          const row = findPending(input.exportId, input.workspaceId)
+          if (!row) {
+            return false
+          }
+          const completedAt = yield* DateTime.now
+          row.record = {
+            ...row.record,
+            status: 'failed',
+            completedAt: DateTime.formatIso(completedAt),
+            failureReason: input.reason
+          }
+          return true
+        }),
         openDownload: Effect.fn('WorkspaceExports.openDownload')(function* (
           input: OpenWorkspaceExportDownloadInput
         ) {

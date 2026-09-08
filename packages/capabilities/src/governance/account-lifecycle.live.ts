@@ -1,12 +1,14 @@
-import { Database } from '@b2b-saas-starter/db/service'
+import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import {
   apiTokens,
-  auditEvents,
+  emailDeliveries,
+  notifications,
+  user,
   workspaceMembers,
   workspaces
 } from '@b2b-saas-starter/db/schema'
 import { Effect, Layer } from 'effect'
-import { asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm'
 
 import { AccountDeletionBlocked, AccountDeletionRejected } from '../errors.ts'
 import { orUnavailable } from '../internal/unavailable.ts'
@@ -20,6 +22,7 @@ import {
   type MembershipForDeletion
 } from './account-lifecycle.ts'
 import { AuditEventLog } from './audit-event-log.ts'
+import { scrubAuditEventsForAccount } from './account-lifecycle-audit.live.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   recordSecurityEvidence,
@@ -50,10 +53,11 @@ const { callBinding } = makeBindingCaller<
 export function LiveAccountLifecycle(
   binding?: AccountLifecycleBinding,
   securityEvidence?: SecurityEvidenceSink
-): Layer.Layer<AccountLifecycle, never, Database | AuditEventLog> {
+): Layer.Layer<AccountLifecycle, never, Database | RawD1 | AuditEventLog> {
   return Layer.effect(AccountLifecycle)(
     Effect.gen(function* () {
       const db = yield* Database
+      const d1 = yield* RawD1
       const audit = yield* AuditEventLog
 
       const unavailable = orUnavailable('account-lifecycle')
@@ -123,6 +127,19 @@ export function LiveAccountLifecycle(
             new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
           )
         }
+        const accountRows = yield* unavailable(
+          db
+            .select({ email: user.email })
+            .from(user)
+            .where(eq(user.id, userId))
+            .limit(1)
+        )
+        const account = accountRows[0]
+        if (!account) {
+          return yield* Effect.fail(
+            new AccountDeletionRejected({ reason: 'unknown_user' })
+          )
+        }
         // Wire steps carry no internal row ids, so the leave binding reads the
         // membership row id from the kept memberships, keyed by workspace.
         const stepByWorkspace = new Map(
@@ -153,10 +170,7 @@ export function LiveAccountLifecycle(
               eventType: 'workspace.deleted',
               targetType: 'workspace',
               targetId: workspaceId,
-              metadata: {
-                name: workspace.name,
-                slug: workspace.slug
-              }
+              metadata: {}
             })
           } else {
             yield* callBinding(binding, (bound) =>
@@ -184,18 +198,40 @@ export function LiveAccountLifecycle(
             })
           }
         }
+        // Personal delivery and notification rows are account data. The
+        // foreign-key cascades cover linked rows when the user disappears;
+        // remove them here as well so unlinked delivery evidence for this
+        // mailbox cannot outlive the explicit deletion.
+        yield* unavailable(
+          db.delete(notifications).where(eq(notifications.userId, userId))
+        )
+        yield* unavailable(
+          db
+            .delete(emailDeliveries)
+            .where(
+              or(
+                eq(emailDeliveries.userId, userId),
+                and(
+                  isNull(emailDeliveries.userId),
+                  eq(emailDeliveries.recipient, account.email)
+                )
+              )
+            )
+        )
+        // Retained audit rows keep event identity and timestamps, but do not
+        // keep copied account identity. The capability-owned scrubber pages
+        // and batches this work so deletion memory and D1 statements stay
+        // bounded.
+        yield* scrubAuditEventsForAccount({ id: userId, email: account.email }).pipe(
+          Effect.provideService(Database, db),
+          Effect.provideService(RawD1, d1)
+        )
         // Detach the references that would outlive the account but block its
         // row's deletion: both columns carry a restricting foreign key to
         // `user.id` (no cascade, on purpose — history and attribution survive
         // as system rows). The audit rows keep describing what happened; the
         // tokens stay live or revoked as their workspace decides. Runs after
         // the loop so a blocked plan detaches nothing.
-        yield* unavailable(
-          db
-            .update(auditEvents)
-            .set({ actorUserId: null })
-            .where(eq(auditEvents.actorUserId, userId))
-        )
         yield* unavailable(
           db
             .update(apiTokens)

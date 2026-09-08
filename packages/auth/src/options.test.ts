@@ -178,6 +178,70 @@ describe('makeAuthOptions', () => {
     )
   })
 
+  describe('admin account deletion hooks', () => {
+    it.effect('routes admin remove-user through the account lifecycle pair', () =>
+      Effect.gen(function* () {
+        const beforeDelete = vi.fn().mockResolvedValue(undefined)
+        const afterDelete = vi.fn().mockResolvedValue(undefined)
+        const request = new Request('https://starter.test/api/auth/admin/remove-user', {
+          method: 'POST'
+        })
+        const hooks = makeAuthOptions({
+          ...baseConfig,
+          userDeleteHooks: {
+            beforeDelete,
+            afterDelete
+          }
+        }).databaseHooks.user.delete
+        yield* Effect.promise(() =>
+          hooks.before({ id: 'usr_target' }, { path: '/admin/remove-user', request })
+        )
+        yield* Effect.promise(() =>
+          hooks.after(
+            { id: 'usr_target', email: 'target@starter.test', locale: 'nb' },
+            { path: '/admin/remove-user', request }
+          )
+        )
+
+        expect(beforeDelete).toHaveBeenCalledWith({ id: 'usr_target' }, request)
+        expect(afterDelete).toHaveBeenCalledWith(
+          { id: 'usr_target', email: 'target@starter.test', locale: 'nb' },
+          request
+        )
+      })
+    )
+
+    it.effect('does not duplicate self-service delete hooks', () =>
+      Effect.gen(function* () {
+        const beforeDelete = vi.fn().mockResolvedValue(undefined)
+        const afterDelete = vi.fn().mockResolvedValue(undefined)
+        const hooks = makeAuthOptions({
+          ...baseConfig,
+          userDeleteHooks: {
+            beforeDelete,
+            afterDelete
+          }
+        }).databaseHooks.user.delete
+        const request = new Request('https://starter.test/api/auth/delete-user', {
+          method: 'POST'
+        })
+
+        yield* Effect.promise(() =>
+          hooks.before({ id: 'usr_target' }, { path: '/delete-user', request })
+        )
+        yield* Effect.promise(() =>
+          hooks.after(
+            { id: 'usr_target', email: 'target@starter.test' },
+            { path: '/delete-user', request }
+          )
+        )
+
+        expect(beforeDelete).not.toHaveBeenCalled()
+        expect(afterDelete).not.toHaveBeenCalled()
+      })
+    )
+  })
+
   describe('background tasks', () => {
     it("hands every detached promise to the caller's runner", () => {
       // `runBackground` is required on the config: this package picks no

@@ -193,7 +193,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC6: one retention pass drains more than one page in each evidence category',
+      name: 'AC6 / #290 AC3: bounded retention resumes across evidence pages',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         for (let index = 0; index < 251; index++) {
@@ -211,7 +211,11 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
           }
         }
         yield* TestClock.adjust('90 days')
-        expect(yield* delivery.prune()).toBeGreaterThanOrEqual(502)
+        const first = yield* delivery.prune()
+        expect(first).toBe(500)
+        const second = yield* delivery.prune()
+        expect(second).toBeGreaterThanOrEqual(2)
+        expect(second).toBeLessThanOrEqual(500)
         expect(yield* delivery.get('retention-backlog-normal-250')).toBeNull()
         expect(yield* delivery.get('retention-backlog-unresolved-250')).toBeNull()
         expect(yield* delivery.prune()).toBe(0)

@@ -141,12 +141,19 @@ export function LiveWorkspaceExports(
       }
 
       function markFailed(exportId: string, workspaceId: string, reason: string) {
-        return unavailable(
-          db
-            .update(workspaceExports)
-            .set({ status: 'failed', failureReason: reason })
-            .where(pendingWhere(exportId, workspaceId))
-        )
+        return Effect.gen(function* () {
+          const completedAt = yield* DateTime.now
+          yield* unavailable(
+            db
+              .update(workspaceExports)
+              .set({
+                status: 'failed',
+                failureReason: reason,
+                completedAt: DateTime.formatIso(completedAt)
+              })
+              .where(pendingWhere(exportId, workspaceId))
+          )
+        })
       }
 
       return {

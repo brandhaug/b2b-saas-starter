@@ -159,8 +159,8 @@ drifted workspaces, and terminal conflicts in the wide event. Deployments withou
 complete Stripe configuration skip provider reconciliation and remain healthy.
 
 Unresolved synchronization evidence stays available while the workspace is
-unresolved. Resolved evidence is retained for 90 days after resolution; issue
-#290 owns the consolidated cleanup job and its retention implementation.
+unresolved. Resolved evidence is retained for 90 days after resolution. The
+[retention policy](retention.md) governs cleanup and its operator approval.
 
 After a retry or dead-letter recovery, inspect the workspace again and confirm
 that `status` is `current`, `last_synced_at` has advanced, and the provider

@@ -65,6 +65,26 @@ export type ServerEnv = {
   readonly SUPPORT_EMAIL?: string | undefined
   readonly SUPPORT_HELPDESK_URL?: string | undefined
   readonly SUPPORT_HELP_CENTER_URL?: string | undefined
+  /** Retention is preview-only unless recovery and operator approval are set. */
+  readonly RETENTION_CLEANUP_ENABLED?: string | undefined
+  readonly RETENTION_RECOVERY_VERIFIED?: string | undefined
+  readonly RETENTION_AUDIT_DAYS?: string | undefined
+  readonly RETENTION_NOTIFICATION_DAYS?: string | undefined
+  readonly RETENTION_INVITATION_DAYS?: string | undefined
+  readonly RETENTION_TOKEN_DAYS?: string | undefined
+  readonly RETENTION_EXPORT_DAYS?: string | undefined
+  readonly RETENTION_BILLING_DAYS?: string | undefined
+  readonly RETENTION_EMAIL_DAYS?: string | undefined
+  readonly RETENTION_UNRESOLVED_EMAIL_DAYS?: string | undefined
+  readonly RETENTION_BATCH_SIZE?: string | undefined
+  readonly RETENTION_WORK_BUDGET?: string | undefined
+  readonly RETENTION_POLICY_APPROVAL_DIGEST?: string | undefined
+  readonly RETENTION_PREVIEW_DIGEST?: string | undefined
+  readonly RETENTION_RECOVERY_EVIDENCE?: string | undefined
+  readonly RETENTION_POLICY_VERSION?: string | undefined
+  readonly RETENTION_POLICY_TARGET?: string | undefined
+  /** Deployment-derived target. Operators cannot override this binding. */
+  readonly RETENTION_DATABASE_TARGET?: string | undefined
 }
 
 /**
@@ -124,7 +144,24 @@ export const optionalModuleEnvPlainKeys = [
   'API_PUBLIC_URL',
   'SUPPORT_EMAIL',
   'SUPPORT_HELPDESK_URL',
-  'SUPPORT_HELP_CENTER_URL'
+  'SUPPORT_HELP_CENTER_URL',
+  'RETENTION_CLEANUP_ENABLED',
+  'RETENTION_RECOVERY_VERIFIED',
+  'RETENTION_AUDIT_DAYS',
+  'RETENTION_NOTIFICATION_DAYS',
+  'RETENTION_INVITATION_DAYS',
+  'RETENTION_TOKEN_DAYS',
+  'RETENTION_EXPORT_DAYS',
+  'RETENTION_BILLING_DAYS',
+  'RETENTION_EMAIL_DAYS',
+  'RETENTION_UNRESOLVED_EMAIL_DAYS',
+  'RETENTION_BATCH_SIZE',
+  'RETENTION_WORK_BUDGET',
+  'RETENTION_POLICY_APPROVAL_DIGEST',
+  'RETENTION_PREVIEW_DIGEST',
+  'RETENTION_RECOVERY_EVIDENCE',
+  'RETENTION_POLICY_VERSION',
+  'RETENTION_POLICY_TARGET'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
 /**
