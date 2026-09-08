@@ -37,6 +37,10 @@ vi.mock(
             Effect.flatMap(actual.StrongAuthentication, (service) =>
               service.status(input)
             ).pipe(Effect.provide(weak)),
+          requireRecent: (input) =>
+            Effect.flatMap(actual.StrongAuthentication, (service) =>
+              service.requireRecent(input)
+            ).pipe(Effect.provide(weak)),
           require: (input) => {
             if (
               actor.qualified &&

@@ -41,13 +41,11 @@ describe('loadWorkspaceSettingsHandler', () => {
     })
     expect(JSON.stringify(payload.ssoConnections)).not.toContain('secret')
     // The export segment: available on the Seed layer, with the fixture export
-    // ready and carrying a signed link into the API worker.
+    // ready, without issuing a download credential on a settings read.
     expect(payload.exports?.availability).toEqual({ available: true })
     const fixture = payload.exports?.exports.find((row) => row.id === 'exp_seed_ready')
     expect(fixture?.status).toBe('ready')
-    expect(fixture?.downloadUrl).toMatch(
-      /^http:\/\/localhost:8787\/exports\/exp_seed_ready\/download\?expires=\d+&signature=[0-9a-f]{64}$/
-    )
+    expect(fixture).not.toHaveProperty('downloadUrl')
   })
 
   it('gives a member the same settings payload — the page reads only identity', async () => {

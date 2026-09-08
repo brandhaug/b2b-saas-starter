@@ -19,10 +19,12 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 export function VerifyAuthenticationPage({
   status,
   twoFactorEnabled,
-  redirect
+  redirect,
+  recent = false
 }: {
   readonly status: StrongAuthenticationStatus
   readonly twoFactorEnabled: boolean
+  readonly recent?: boolean
   readonly redirect?: string | undefined
 }) {
   const [password, setPassword] = useState('')
@@ -44,22 +46,24 @@ export function VerifyAuthenticationPage({
           return authFailure(m.security_verification_failed())
         }
         setPassword('')
-        if (!twoFactorEnabled) {
+        if (!twoFactorEnabled && !recent) {
           setNotice(m.security_enroll_next())
           return null
         }
-        const checkedCode = await authClient.twoFactor.verifyTotp({
-          code,
-          trustDevice: false
-        })
-        if (checkedCode.error) {
-          return authFailure(
-            authErrorCopy(checkedCode.error, m.security_verification_failed())
-          )
+        if (twoFactorEnabled) {
+          const checkedCode = await authClient.twoFactor.verifyTotp({
+            code,
+            trustDevice: false
+          })
+          if (checkedCode.error) {
+            return authFailure(
+              authErrorCopy(checkedCode.error, m.security_verification_failed())
+            )
+          }
         }
       }
       const current = await strongAuthenticationStatusServerFn()
-      if (!current.qualified) {
+      if (recent ? !current.recent : !current.qualified) {
         return authFailure(m.security_verification_failed())
       }
       // Full navigation reads the newly verified session before loading protected data.
@@ -72,7 +76,11 @@ export function VerifyAuthenticationPage({
   return (
     <AuthCardForm
       title={m.security_verify_title()}
-      description={m.security_authentication_required()}
+      description={
+        recent
+          ? m.security_recent_authentication_required()
+          : m.security_authentication_required()
+      }
       form={{ handleSubmit: () => verify.run('password') }}
       error={verify.error}
       notice={notice ?? (status.recovering ? m.security_recovery_notice() : null)}

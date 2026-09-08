@@ -4,6 +4,8 @@ System Admin access and Workspace owner/admin access require proof in the curren
 
 Open `/verify-authentication` to verify an existing factor. For initial enrollment, confirm the current password, open Account security and enroll TOTP or a passkey. Passkey registration does not qualify the session: authenticate with that passkey afterward. Existing users and newly promoted owners/admins can reach Account security before they qualify, but protected reads and mutations remain denied. The local demo owner follows the same rules; the member fixture does not need privileged authentication.
 
+Sensitive account changes and destructive actions require recent evidence at the mutation or link-issuance seam. A factorless account may use password evidence recorded on its current session within five minutes. An account with an enrolled factor must use that current factor; a password alone cannot downgrade the requirement. The verification page returns the user to the original destination for a deliberate retry, and never resubmits an operation that may already have completed.
+
 If social or SSO sign-in created the account without a password, use `/forgot-password` to establish one through the existing email recovery flow. Return through the required SSO sign-in, then confirm the application password and enroll a factor. Resetting a password does not grant privileged proof or remove an existing factor.
 
 ![Privileged authentication verification page](images/privileged-authentication.png)
@@ -12,9 +14,13 @@ If social or SSO sign-in created the account without a password, use `/forgot-pa
 
 Better Auth hooks record evidence on the exact session created or verified by a successful ceremony. A credential's enrollment flag, client claim, remembered device or another session's proof is insufficient. The capability rereads the session, user and bound factor from D1. Expired/revoked sessions, removed factors, impersonation, recovery-only sessions and proof older than twelve hours fail closed. TOTP verification in an existing session requires password verification within five minutes. Refresh cannot renew the proof timestamp.
 
-Web loaders, server mutations, direct auth management routes and privileged human MCP requests enforce the policy. MCP tokens carry their issuing session ID through refresh, and privileged requests check its current proof. Workspace API Tokens retain their separate machine-principal policy. Urgent session and API Token revocation remains available without completing privileged authentication.
+Web loaders, server mutations, direct auth management routes and privileged human MCP requests enforce the policy. The sensitive-action inventory covers credential and factor management; account deletion and leaving a Workspace; invitations, member role changes and removal; token creation or replacement and OAuth consent approval; webhook creation, changes, deletion and secret rotation; SSO connection changes; Workspace deletion; System Admin role changes, user bans, Workspace suspension changes and starting impersonation; and export request, link issuance and download redemption. Raw OAuth consent endpoints use the application consent flow. Adding linked social accounts has no product flow and its raw endpoint is refused; existing social and SSO sign-in callbacks remain available.
 
-The twelve-hour proof limit governs privileged entry. A shared recent-authentication requirement for sensitive actions remains planned. Federated assurance equivalence remains deferred.
+Settings loads expose export metadata only. Download actions issue signed links bound to the human user, session and Workspace. Redemption rechecks the current session, factor, five-minute proof window and Workspace permission. Session or factor revocation immediately invalidates the human grant.
+
+MCP tokens carry their issuing session ID through refresh, and privileged requests check its current proof. Workspace API Tokens retain their separate machine-principal policy. Urgent session revocation remains available without verification. API Token revocation retains its credential-recovery path and does not require recent proof.
+
+Privileged entry accepts factor proof for twelve hours. Sensitive actions require proof within five minutes, rechecked against the authoritative session and current factor. Federated sign-in remains additional assurance until the application verifies an equivalent factor.
 
 ## Recovery
 

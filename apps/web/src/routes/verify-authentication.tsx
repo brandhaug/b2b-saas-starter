@@ -3,11 +3,11 @@ import { VerifyAuthenticationPage } from '@/components/auth/verify-authenticatio
 import { pageTitle } from '@/components/page/page-title'
 import { requireSession } from '@/lib/server/auth'
 import { strongAuthenticationStatusServerFn } from '@/lib/server/strong-authentication'
-import { redirectSearch } from '@/lib/utils'
+import { pickOptionalStrings } from '@/lib/utils'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/verify-authentication')({
-  validateSearch: redirectSearch,
+  validateSearch: (search) => pickOptionalStrings(search, ['redirect', 'recent']),
   beforeLoad: async ({ location }) => ({
     session: await requireSession(location.href)
   }),
@@ -18,13 +18,14 @@ export const Route = createFileRoute('/verify-authentication')({
 
 function VerificationRoute() {
   const { session } = Route.useRouteContext()
-  const { redirect } = Route.useSearch()
+  const { redirect, recent } = Route.useSearch()
   const status = Route.useLoaderData()
   return (
     <VerifyAuthenticationPage
       status={status}
       twoFactorEnabled={session.user.twoFactorEnabled}
       redirect={redirect}
+      recent={recent === 'true'}
     />
   )
 }

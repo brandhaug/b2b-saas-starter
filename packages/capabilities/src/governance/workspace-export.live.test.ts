@@ -116,7 +116,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const link = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) =>
-            exports.issueDownloadLink({ exportId: requested.id })
+            exports.issueDownloadLink({
+              recipient: { type: 'api_token' },
+              exportId: requested.id
+            })
           ),
           { userId: 'usr_owner' },
           bindings
@@ -136,7 +139,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             yield* inWorkspace(
               'live-lab',
               Effect.flatMap(WorkspaceExports, (exports) =>
-                exports.issueDownloadLink({ exportId: requested.id })
+                exports.issueDownloadLink({
+                  recipient: { type: 'api_token' },
+                  exportId: requested.id
+                })
               ),
               { userId: 'usr_owner' },
               bindings
@@ -189,7 +195,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const early = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) =>
-            exports.issueDownloadLink({ exportId: requested.id })
+            exports.issueDownloadLink({
+              recipient: { type: 'api_token' },
+              exportId: requested.id
+            })
           ),
           undefined,
           bindings
@@ -252,7 +261,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const link = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) =>
-            exports.issueDownloadLink({ exportId: requested.id })
+            exports.issueDownloadLink({
+              recipient: { type: 'api_token' },
+              exportId: requested.id
+            })
           ),
           { userId: 'usr_owner' },
           bindings
@@ -294,7 +306,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const foreign = yield* inWorkspace(
           'other-lab',
           Effect.flatMap(WorkspaceExports, (exports) =>
-            exports.issueDownloadLink({ exportId: requested.id })
+            exports.issueDownloadLink({
+              recipient: { type: 'api_token' },
+              exportId: requested.id
+            })
           ),
           undefined,
           bindings
@@ -329,7 +344,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               event.targetId === requested.id &&
               event.eventType === 'workspace.export_downloaded'
           )?.actorType
-        ).toBe('user')
+        ).toBe('api_token')
       })
     )
 
@@ -460,7 +475,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const link = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) =>
-            exports.issueDownloadLink({ exportId: requested.id })
+            exports.issueDownloadLink({
+              recipient: { type: 'api_token' },
+              exportId: requested.id
+            })
           ),
           { userId: 'usr_owner' },
           bindings
@@ -485,7 +503,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const refusedLink = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) =>
-            Effect.exit(exports.issueDownloadLink({ exportId: requested.id }))
+            Effect.exit(
+              exports.issueDownloadLink({
+                recipient: { type: 'api_token' },
+                exportId: requested.id
+              })
+            )
           ),
           { userId: 'usr_owner' },
           bindings

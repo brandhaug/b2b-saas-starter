@@ -9,6 +9,7 @@ import { deliveryRows } from './email-delivery.effects'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
+import { requireRecentAuthentication } from './strong-authentication.effects'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
 import { webMemberBinding } from './member-binding'
 import { makeSecurityEvidenceSink } from './security-evidence-sink'
@@ -137,6 +138,7 @@ export async function leaveWorkspaceHandler(input: LeaveWorkspaceInput): Promise
   // leaver is the session's own user, and a non-member gets the same
   // non-disclosing 404 every workspace route gives them.
   const session = await requireRequestSession()
+  await requireRecentAuthentication(session)
   return runWorkspaceCapabilities(
     input.workspaceSlug,
     Effect.flatMap(WorkspaceMembership, (membership) => membership.leave),

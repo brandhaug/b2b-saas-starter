@@ -1,4 +1,6 @@
 {
+  "security_recent_authentication_required": "Confirm your identity to continue. Verification lasts five minutes. After returning, review and retry your action.",
+  "export_download_failed": "Could not download the export. Try again.",
   "nav_overview": "Overview",
   "nav_members": "Members",
   "nav_assistant": "Assistant",

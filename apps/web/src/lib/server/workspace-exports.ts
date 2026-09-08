@@ -20,14 +20,9 @@ import { Schema } from 'effect'
  * the client stub and the effects handler.
  */
 
-/** One export as the settings page renders it: the record plus a signed link when it is downloadable. */
-export type WorkspaceExportView = WorkspaceExport & {
-  readonly downloadUrl: string | null
-}
-
 export type WorkspaceExportsSegment = {
   readonly availability: WorkspaceExportAvailability
-  readonly exports: ReadonlyArray<WorkspaceExportView>
+  readonly exports: ReadonlyArray<WorkspaceExport>
 }
 
 const RequestExportInput = Schema.Struct({
@@ -42,4 +37,18 @@ export const requestWorkspaceExportServerFn = createServerFn({ method: 'POST' })
     const { requestWorkspaceExportHandler } =
       await import('./workspace-exports.effects')
     return requestWorkspaceExportHandler(data)
+  })
+
+const DownloadExportInput = Schema.Struct({
+  workspaceSlug: Schema.NonEmptyString,
+  exportId: Schema.NonEmptyString
+})
+export type DownloadExportInput = typeof DownloadExportInput.Type
+
+export const downloadWorkspaceExportServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(DownloadExportInput))
+  .handler(async ({ data }): Promise<string | null> => {
+    const { downloadWorkspaceExportHandler } =
+      await import('./workspace-exports.effects')
+    return downloadWorkspaceExportHandler(data)
   })

@@ -28,6 +28,7 @@ import {
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import {
   StrongAuthentication,
+  needsRecentAuthentication,
   StrongAuthenticationRequired
 } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import {
@@ -467,6 +468,14 @@ export const authorizeMcpOperation = Effect.fn('Mcp.authorizeOperation')(functio
     }
     const strongAuthentication = yield* StrongAuthentication
     yield* strongAuthentication.require({ userId: caller.token.userId, sessionId })
+  }
+  if (caller.kind === 'oauth' && needsRecentAuthentication(permission)) {
+    const sessionId = caller.token.sessionId
+    if (sessionId === undefined) {
+      return yield* new StrongAuthenticationRequired()
+    }
+    const authentication = yield* StrongAuthentication
+    yield* authentication.requireRecent({ userId: caller.token.userId, sessionId })
   }
   const suspension = yield* WorkspaceSuspensionService
   yield* suspension.requireAllowed(

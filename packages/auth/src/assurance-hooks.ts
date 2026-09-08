@@ -12,6 +12,7 @@ import { passwordTOTPCanPair, recoveryExpiresAt } from './assurance.ts'
 import { isLocale } from '@b2b-saas-starter/i18n/locale'
 import { Schema } from 'effect'
 import { type AuthConfigInterface } from './ports.ts'
+import { consumeTotpCode } from './totp-replay.ts'
 
 const isString = Schema.is(Schema.String)
 
@@ -272,6 +273,17 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
             (recoveringEnrollment && factor.id !== recoveringEnrollment)
           ) {
             break
+          }
+          if (!(await consumeTotpCode(options, factor.id, ctx.body.code, now))) {
+            // The plugin can create a session before its after-hook runs. A
+            // refused ceremony must not leave that new session usable.
+            if (ctx.context.newSession && sessionId !== current?.session.id) {
+              await db.delete(schema.session).where(eq(schema.session.id, sessionId))
+            }
+            throw new APIError('FORBIDDEN', {
+              code: 'INVALID_CODE',
+              message: 'This authenticator code has already been used.'
+            })
           }
           await db
             .update(schema.session)

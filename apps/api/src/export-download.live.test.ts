@@ -1,10 +1,15 @@
 import { createHmac } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
 import { expect, layer } from '@effect/vitest'
-import { DateTime, Effect, Schema } from 'effect'
+import { DateTime, Effect, Option, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 import { Database } from '@b2b-saas-starter/db/service'
-import { workspaceExports, workspaceMembers } from '@b2b-saas-starter/db/schema'
+import {
+  workspaceExports,
+  workspaceMembers,
+  session,
+  passkey
+} from '@b2b-saas-starter/db/schema'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import {
   WorkspaceExports,
@@ -23,6 +28,7 @@ import { jsonBody } from './test-utils.ts'
 
 function exportStorage() {
   const objects = new Map<string, Uint8Array>()
+  const reads: Array<string> = []
   const queue: WorkspaceExportQueueBinding = { send: () => Promise.resolve() }
   const bucket: WorkspaceExportBucketBinding = {
     put: (key, bytes) => {
@@ -30,6 +36,7 @@ function exportStorage() {
       return Promise.resolve()
     },
     get: (key) => {
+      reads.push(key)
       const bytes = objects.get(key)
       if (!bytes) {
         return Promise.resolve(null)
@@ -42,7 +49,7 @@ function exportStorage() {
       })
     }
   }
-  return { queue, bucket, objects }
+  return { queue, bucket, objects, reads }
 }
 
 const DownloadLink = Schema.Struct({ url: Schema.String })
@@ -75,8 +82,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
             DB,
             WORKSPACE_EXPORT_QUEUE: storage.queue,
             WORKSPACE_EXPORT_BUCKET: storage.bucket,
-            RATE_LIMITER_REST_READ: allow,
-            RATE_LIMITER_REST_WRITE: allow
+            RATE_LIMITER_REST: allow
           }
           const server = yield* Effect.acquireRelease(
             Effect.sync(() => buildWebHandler(env)),
@@ -250,6 +256,116 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           expect((yield* request(linkA.url)).status).toBe(404)
           // Expiry is enforced before the physical R2 object is removed.
           expect(storage.objects.size).toBe(2)
+        })
+    )
+    it.effect(
+      'human links recheck the issuing session, factor and membership before reading an artifact',
+      () =>
+        Effect.gen(function* () {
+          const DB = yield* TestD1
+          const db = yield* Database
+          const now = yield* DateTime.now
+          const proofAt = DateTime.toDate(now)
+          const sessionId = 'session_export_recipient'
+          const factorId = 'passkey_export_recipient'
+          yield* db.insert(session).values({
+            id: sessionId,
+            token: 'token_export_recipient',
+            userId: 'usr_owner',
+            expiresAt: DateTime.toDate(DateTime.addDuration(now, '1 hour')),
+            strongAuthAt: proofAt,
+            strongAuthMethod: 'passkey',
+            strongAuthCredentialId: factorId
+          })
+          yield* db.insert(passkey).values({
+            id: factorId,
+            userId: 'usr_owner',
+            publicKey: 'public-key',
+            credentialID: 'credential-export-recipient',
+            counter: 0,
+            deviceType: 'singleDevice',
+            backedUp: false,
+            createdAt: proofAt
+          })
+          const storage = exportStorage()
+          const link = yield* inWorkspace(
+            'live-lab',
+            Effect.gen(function* () {
+              const exports = yield* WorkspaceExports
+              const job = yield* exports.request
+              yield* exports.complete({
+                exportId: job.id,
+                workspaceId: 'wrk_live',
+                archive: new Uint8Array(gzipSync('private export'))
+              })
+              return yield* exports.issueDownloadLink({
+                exportId: job.id,
+                recipient: { type: 'session', userId: 'usr_owner', sessionId }
+              })
+            }),
+            { userId: 'usr_owner' },
+            { workspaceExports: storage }
+          )
+          if (Option.isNone(link)) {
+            return yield* Effect.die('Expected a downloadable export')
+          }
+          const server = yield* Effect.acquireRelease(
+            Effect.sync(() =>
+              buildWebHandler({
+                DB,
+                WORKSPACE_EXPORT_QUEUE: storage.queue,
+                WORKSPACE_EXPORT_BUCKET: storage.bucket,
+                RATE_LIMITER_REST: allow
+              })
+            ),
+            (current) => Effect.promise(() => current.dispose())
+          )
+          const downloadPath = link.value.path
+          function download(path = downloadPath) {
+            return Effect.promise(() =>
+              server.handler(new Request(new URL(path, 'https://api.test')))
+            )
+          }
+          expect((yield* download()).status).toBe(200)
+          const reads = storage.reads.length
+          const stripped = new URL(link.value.path, 'https://api.test')
+          for (const key of ['user', 'session', 'workspace']) {
+            stripped.searchParams.delete(key)
+          }
+          expect((yield* download(stripped.href)).status).toBe(404)
+          const substituted = new URL(link.value.path, 'https://api.test')
+          substituted.searchParams.set('user', 'usr_outsider')
+          expect((yield* download(substituted.href)).status).toBe(404)
+          yield* db
+            .update(session)
+            .set({
+              strongAuthAt: DateTime.toDate(DateTime.subtractDuration(now, '6 minutes'))
+            })
+            .where(eq(session.id, sessionId))
+          expect((yield* download()).status).toBe(404)
+          yield* db
+            .update(session)
+            .set({ strongAuthAt: proofAt, impersonatedBy: 'usr_outsider' })
+            .where(eq(session.id, sessionId))
+          expect((yield* download()).status).toBe(404)
+          yield* db
+            .update(session)
+            .set({ impersonatedBy: null })
+            .where(eq(session.id, sessionId))
+          yield* db
+            .update(workspaceMembers)
+            .set({ role: 'member' })
+            .where(eq(workspaceMembers.userId, 'usr_owner'))
+          expect((yield* download()).status).toBe(404)
+          yield* db
+            .update(workspaceMembers)
+            .set({ role: 'owner' })
+            .where(eq(workspaceMembers.userId, 'usr_owner'))
+          yield* db.delete(passkey).where(eq(passkey.id, factorId))
+          expect((yield* download()).status).toBe(404)
+          yield* db.delete(session).where(eq(session.id, sessionId))
+          expect((yield* download()).status).toBe(404)
+          expect(storage.reads).toHaveLength(reads)
         })
     )
   }

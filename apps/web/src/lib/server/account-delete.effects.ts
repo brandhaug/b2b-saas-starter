@@ -14,6 +14,7 @@ import { requireRequestSession } from './auth'
 import { webAccountLifecycleBinding } from './account-binding'
 import { type DeleteAccountInput } from './account'
 import { makeSecurityEvidenceSink } from './security-evidence-sink'
+import { requireRecentAuthentication } from './strong-authentication.effects'
 
 /**
  * The delete half of the `/account` server behaviour, in its own module so
@@ -31,6 +32,7 @@ export async function deleteAccountHandler(
   input: DeleteAccountInput
 ): Promise<AccountDeletionPlan> {
   const session = await requireRequestSession()
+  await requireRecentAuthentication(session)
   return runCapabilities(
     Effect.gen(function* () {
       if (session.session.impersonatedBy) {

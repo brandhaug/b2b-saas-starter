@@ -18,7 +18,7 @@ import {
   type AuthService,
   type ProvisionedAuthD1
 } from './test-auth-layer.ts'
-import { decodeUriSecret } from './test-totp.ts'
+import { decodeUriSecret, withNextTotpWindow } from './test-totp.ts'
 
 // The two-factor challenge hop is only observable end to end: whether a
 // credential sign-in leaves a working session or a pending challenge is
@@ -139,7 +139,14 @@ function totpUser(email: string) {
 
 /** A code the server itself generated for a stored secret. */
 function freshCode(secret: string) {
-  return Effect.flatMap(Auth.Tag, (auth) => auth.api.generateTOTP({ body: { secret } }))
+  return Effect.flatMap(Auth.Tag, (auth) =>
+    Effect.promise(() =>
+      withNextTotpWindow(() =>
+        // oxlint-disable-next-line starter/no-run-promise-in-tests -- bridge the Auth service effect into the native clock shim
+        Effect.runPromise(auth.api.generateTOTP({ body: { secret } }))
+      )
+    )
+  )
 }
 
 /** The code the send endpoint generated for one email, most recent first. */

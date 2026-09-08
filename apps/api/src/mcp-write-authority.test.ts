@@ -76,6 +76,7 @@ function authorityHarness() {
   let grantBinding = 'consent:0'
   let sessionId: string | undefined = 'session-test'
   let qualified = true
+  let recent = true
   const grants = Layer.succeed(McpClientConnections)({
     getGrant: () =>
       Effect.sync(() => {
@@ -124,10 +125,17 @@ function authorityHarness() {
     status: () =>
       Effect.succeed({
         qualified: true,
+        recent: true,
         recovering: false,
         hasFactors: true,
         passwordVerified: true
       }),
+    requireRecent: () => {
+      if (qualified && recent) {
+        return Effect.void
+      }
+      return Effect.fail(new StrongAuthenticationRequired())
+    },
     require: () => {
       if (qualified) {
         return Effect.void
@@ -176,6 +184,9 @@ function authorityHarness() {
     clearSession: () => {
       sessionId = undefined
     },
+    expireRecent: () => {
+      recent = false
+    },
     staleAssurance: () => {
       qualified = false
     }
@@ -202,6 +213,26 @@ it.effect('OAuth privileged calls fail without current session-bound assurance',
       })).isError
     ).toBe(true)
   })
+)
+
+it.effect(
+  'OAuth sensitive writes require recent proof while reads retain privileged access',
+  () =>
+    Effect.gen(function* () {
+      const harness = authorityHarness()
+      const oauth = mcpClient(harness.handler, 'Bearer signed.oauth.jwt')
+      yield* Effect.promise(() => oauth.initialize())
+      harness.expireRecent()
+      const denied = yield* call(oauth, 'create_api_token', {
+        name: 'must not exist',
+        scopes: ['read']
+      })
+      expect(denied.isError).toBe(true)
+      const listed = yield* call(oauth, 'list_api_tokens', {})
+      expect(listed.isError).not.toBe(true)
+      // oxlint-disable-next-line effect/noGlobals -- inspect the complete protocol result for leaked mutation output
+      expect(JSON.stringify(listed)).not.toContain('must not exist')
+    })
 )
 
 it.effect(
@@ -252,10 +283,12 @@ it.effect(
         status: () =>
           Effect.succeed({
             qualified: false,
+            recent: false,
             recovering: false,
             hasFactors: true,
             passwordVerified: false
           }),
+        requireRecent: () => Effect.fail(new StrongAuthenticationRequired()),
         require: () => Effect.fail(new StrongAuthenticationRequired())
       })
       function authorize(systemRole: 'admin' | 'user') {

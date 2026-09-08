@@ -21,9 +21,11 @@ import {
   isWorkspaceExportDownloadable,
   verifyWorkspaceExportDownload,
   workspaceExportExpiresAt,
+  workspaceExportHumanRecipient,
   WorkspaceExports,
   type CompleteWorkspaceExportInput,
   type FailWorkspaceExportInput,
+  type IssueWorkspaceExportDownloadInput,
   type OpenWorkspaceExportDownloadInput,
   type WorkspaceExport,
   type WorkspaceExportAvailability,
@@ -232,21 +234,22 @@ export function LiveWorkspaceExports(
           }
           return toRecord(row)
         })(),
-        issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(
-          function* (input: { readonly exportId: string }) {
-            const ctx = yield* WorkspaceContext
-            const found = yield* findRow(input.exportId)
-            if (!found || found.row.workspaceId !== ctx.workspace.id) {
-              return Option.none()
-            }
-            yield* requireProduct(ctx.workspace.id)
-            return yield* issueWorkspaceExportDownloadLink({
-              downloadSecret: found.row.downloadSecret,
-              record: toRecord(found.row),
-              now: yield* DateTime.now
-            })
+        issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(function* (
+          input: IssueWorkspaceExportDownloadInput
+        ) {
+          const ctx = yield* WorkspaceContext
+          const found = yield* findRow(input.exportId)
+          if (!found || found.row.workspaceId !== ctx.workspace.id) {
+            return Option.none()
           }
-        ),
+          yield* requireProduct(ctx.workspace.id)
+          return yield* issueWorkspaceExportDownloadLink({
+            downloadSecret: found.row.downloadSecret,
+            record: toRecord(found.row),
+            now: yield* DateTime.now,
+            human: workspaceExportHumanRecipient(input.recipient, ctx.workspace.slug)
+          })
+        }),
         complete: Effect.fn('WorkspaceExports.complete')(function* (
           input: CompleteWorkspaceExportInput
         ) {
@@ -360,6 +363,7 @@ export function LiveWorkspaceExports(
             exportId: input.exportId,
             expires: input.expires,
             signature: input.signature,
+            human: input.human,
             now
           })
           if (!valid) {
@@ -380,11 +384,14 @@ export function LiveWorkspaceExports(
               catch: (cause) => cause
             })
           )
+          let actorType: 'user' | 'api_token' = 'api_token'
+          if (input.human) {
+            actorType = 'user'
+          }
           yield* audit.record({
             workspaceId: found.row.workspaceId,
-            actorUserId: null,
-            // The signed-link holder initiated this request, not a background job.
-            actorType: 'user',
+            actorUserId: input.human?.userId ?? null,
+            actorType,
             eventType: 'workspace.export_downloaded',
             targetType: 'workspace_export',
             targetId: found.row.id,

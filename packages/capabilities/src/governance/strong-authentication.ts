@@ -1,3 +1,4 @@
+import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { session, twoFactor, passkey } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
 import {
@@ -8,10 +9,12 @@ import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 
 const STRONG_AUTH_MAX_AGE_MS = 12 * 60 * 60 * 1000
+const RECENT_AUTH_MAX_AGE_MS = 5 * 60 * 1000
 const PASSWORD_VERIFICATION_MAX_AGE_MS = 5 * 60 * 1000
 
 export const StrongAuthenticationStatus = Schema.Struct({
   qualified: Schema.Boolean,
+  recent: Schema.Boolean,
   recovering: Schema.Boolean,
   hasFactors: Schema.Boolean,
   passwordVerified: Schema.Boolean
@@ -34,6 +37,9 @@ export type StrongAuthenticationInterface = {
   readonly status: (
     input: StrongAuthenticationInput
   ) => Effect.Effect<StrongAuthenticationStatus, CapabilityUnavailable>
+  readonly requireRecent: (
+    input: StrongAuthenticationInput
+  ) => Effect.Effect<void, CapabilityUnavailable | StrongAuthenticationRequired>
   readonly require: (
     input: StrongAuthenticationInput
   ) => Effect.Effect<void, CapabilityUnavailable | StrongAuthenticationRequired>
@@ -66,13 +72,20 @@ function evaluate(
   if (evidence === null || evidence.expiresAt.getTime() <= now.getTime()) {
     return {
       qualified: false,
+      recent: false,
       recovering: false,
       hasFactors: false,
       passwordVerified: false
     }
   }
   if (evidence.impersonatedBy !== null) {
-    return { qualified: false, recovering: false, hasFactors, passwordVerified: false }
+    return {
+      qualified: false,
+      recent: false,
+      recovering: false,
+      hasFactors,
+      passwordVerified: false
+    }
   }
   const passwordVerified =
     evidence.passwordVerifiedAt !== null &&
@@ -94,6 +107,12 @@ function evaluate(
     evidence.recoveryUntil !== null && evidence.recoveryUntil.getTime() > now.getTime()
   return {
     qualified: !recovering && strongAuthCurrent && credentialIsCurrent,
+    recent:
+      !recovering &&
+      ((strongAuthCurrent &&
+        credentialIsCurrent &&
+        now.getTime() - evidence.strongAuthAt.getTime() <= RECENT_AUTH_MAX_AGE_MS) ||
+        (!hasFactors && evidence.strongAuthMethod === null && passwordVerified)),
     recovering,
     hasFactors,
     passwordVerified
@@ -105,11 +124,13 @@ export function SeedStrongAuthentication(): Layer.Layer<StrongAuthentication> {
     status: () =>
       Effect.succeed({
         qualified: false,
+        recent: false,
         recovering: false,
         hasFactors: false,
         passwordVerified: false
       }),
-    require: () => Effect.fail(new StrongAuthenticationRequired())
+    require: () => Effect.fail(new StrongAuthenticationRequired()),
+    requireRecent: () => Effect.fail(new StrongAuthenticationRequired())
   })
 }
 
@@ -174,6 +195,12 @@ export const LiveStrongAuthentication: Layer.Layer<
     })
     return {
       status,
+      requireRecent: Effect.fn('StrongAuthentication.requireRecent')(function* (input) {
+        const result = yield* status(input)
+        if (!result.recent) {
+          return yield* new StrongAuthenticationRequired()
+        }
+      }),
       require: (input) =>
         status(input).pipe(
           Effect.flatMap((result) => {
@@ -186,3 +213,35 @@ export const LiveStrongAuthentication: Layer.Layer<
     }
   })
 )
+
+function requestsAction(
+  grant: PermissionRequest[keyof PermissionRequest],
+  sensitiveActions: ReadonlyArray<string>
+): boolean {
+  if (grant === undefined) {
+    return false
+  }
+  const sensitive = new Set(sensitiveActions)
+  if ('actions' in grant) {
+    return grant.actions.some((action) => sensitive.has(action))
+  }
+  return grant.some((action) => sensitive.has(action))
+}
+
+/** Credential revocation remains available during emergency recovery. */
+export function needsRecentAuthentication(permission: PermissionRequest): boolean {
+  return (
+    requestsAction(permission.organization, ['delete']) ||
+    requestsAction(permission.member, ['update', 'delete']) ||
+    requestsAction(permission.invitation, ['create']) ||
+    requestsAction(permission.apiToken, ['create']) ||
+    requestsAction(permission.webhook, [
+      'create',
+      'update',
+      'delete',
+      'rotateSecret'
+    ]) ||
+    requestsAction(permission.sso, ['create', 'update', 'remove']) ||
+    requestsAction(permission.workspaceExport, ['request', 'download'])
+  )
+}
