@@ -2,67 +2,137 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { setTimeout } from 'node:timers/promises'
 
-import { Schema } from 'effect'
+// This trusted evaluator must not import dependencies from the PR checkout.
+/* oxlint-disable anti-slop/no-runtime-typeof -- Dependency-free boundary decoders validate untrusted JSON without loading PR packages. */
+const severities = ['info', 'low', 'moderate', 'high', 'critical']
+const ghsaPattern = /^GHSA(?:-[23456789cfghjmpqrvwx]{4}){3}$/
+const packagePattern = /^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/
+const versionPattern = /^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.+-]+)?$/
+const pathPattern = /^[a-zA-Z0-9@._/>()+-]+$/
 
-const Text = Schema.String.check(Schema.isPattern(/\S/))
-const Ghsa = Schema.String.check(
-  Schema.isPattern(/^GHSA(?:-[23456789cfghjmpqrvwx]{4}){3}$/)
-)
-const PackageName = Schema.String.check(
-  Schema.isPattern(/^(?:@[a-z0-9._-]+\/)?[a-z0-9._-]+$/)
-)
-const Version = Schema.String.check(
-  Schema.isPattern(/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.+-]+)?$/)
-)
-// Dependency paths are identifiers, never registry URLs or arbitrary diagnostics.
-const Path = Schema.String.check(Schema.isPattern(/^[a-zA-Z0-9@._/>()+-]+$/))
-const Severity = Schema.Literals(['info', 'low', 'moderate', 'high', 'critical'])
-const Finding = Schema.Struct({
-  version: Version,
-  paths: Schema.NonEmptyArray(Path),
-  dev: Schema.Boolean,
-  optional: Schema.Boolean
-})
-const Advisory = Schema.Struct({
-  github_advisory_id: Ghsa,
-  module_name: PackageName,
-  severity: Severity,
-  findings: Schema.NonEmptyArray(Finding)
-})
-const Count = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))
-const Report = Schema.Struct({
-  advisories: Schema.Record(Schema.String, Advisory),
-  metadata: Schema.Struct({
-    vulnerabilities: Schema.Struct({
-      info: Count,
-      low: Count,
-      moderate: Count,
-      high: Count,
-      critical: Count
-    })
-  })
-})
-const Exception = Schema.Struct({
-  finding: Ghsa,
-  package: PackageName,
-  version: Version,
-  severity: Schema.Literals(['high', 'critical']),
-  scope: Schema.Struct({ path: Path, dev: Schema.Boolean, optional: Schema.Boolean }),
-  rationale: Text,
-  owner: Text,
-  approvalEvidence: Schema.String.check(
-    Schema.isPattern(
-      /^https:\/\/github\.com\/brandhaug\/b2b-saas-starter\/(?:issues|pull)\/\d+#(?:issuecomment-\d+|pullrequestreview-\d+)$/
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function record(value: unknown, keys?: ReadonlyArray<string>) {
+  if (
+    !isRecord(value) ||
+    (keys && Object.keys(value).some((key) => !keys.includes(key)))
+  ) {
+    throw new TypeError('Invalid audit record')
+  }
+  return value
+}
+
+function array(value: unknown): Array<unknown> {
+  if (!Array.isArray(value)) {
+    throw new TypeError('Invalid audit array')
+  }
+  return value
+}
+
+function text(value: unknown, pattern = /\S/) {
+  if (typeof value !== 'string' || value !== value.trim() || !pattern.test(value)) {
+    throw new TypeError('Invalid audit text')
+  }
+  return value
+}
+
+function flag(value: unknown) {
+  if (typeof value !== 'boolean') {
+    throw new TypeError('Invalid dependency flag')
+  }
+  return value
+}
+
+function count(value: unknown) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    throw new TypeError('Invalid vulnerability count')
+  }
+  return value
+}
+
+function decodeFinding(value: unknown) {
+  const finding = record(value)
+  const paths = array(finding.paths).map((path) => text(path, pathPattern))
+  if (paths.length === 0) {
+    throw new Error('Missing dependency paths')
+  }
+  return {
+    version: text(finding.version, versionPattern),
+    paths,
+    dev: flag(finding.dev),
+    optional: flag(finding.optional)
+  }
+}
+
+function decodeAdvisory(value: unknown) {
+  const advisory = record(value)
+  const severity = text(advisory.severity)
+  if (!severities.includes(severity)) {
+    throw new Error('Invalid advisory severity')
+  }
+  const findings = array(advisory.findings).map(decodeFinding)
+  if (findings.length === 0) {
+    throw new Error('Missing advisory findings')
+  }
+  return {
+    github_advisory_id: text(advisory.github_advisory_id, ghsaPattern),
+    module_name: text(advisory.module_name, packagePattern),
+    severity,
+    findings
+  }
+}
+
+function decodeReport(value: unknown) {
+  const report = record(value)
+  const counts = record(record(report.metadata).vulnerabilities)
+  return {
+    advisories: Object.values(record(report.advisories)).map(decodeAdvisory),
+    vulnerabilities: Object.fromEntries(
+      severities.map((severity) => [severity, count(counts[severity])])
     )
-  ),
-  mitigation: Text,
-  expires: Schema.String.check(
-    Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/)
-  )
-})
+  }
+}
 
-const decodeReport = Schema.decodeUnknownSync(Report)
-const decodeExceptions = Schema.decodeUnknownSync(Schema.Array(Exception))
+function decodeException(value: unknown) {
+  const exception = record(value, [
+    'finding',
+    'package',
+    'version',
+    'severity',
+    'scope',
+    'rationale',
+    'owner',
+    'approvalEvidence',
+    'mitigation',
+    'expires'
+  ])
+  const scope = record(exception.scope, ['path', 'dev', 'optional'])
+  const severity = text(exception.severity)
+  if (severity !== 'high' && severity !== 'critical') {
+    throw new Error('Invalid exception severity')
+  }
+  return {
+    finding: text(exception.finding, ghsaPattern),
+    package: text(exception.package, packagePattern),
+    version: text(exception.version, versionPattern),
+    severity,
+    scope: {
+      path: text(scope.path, pathPattern),
+      dev: flag(scope.dev),
+      optional: flag(scope.optional)
+    },
+    rationale: text(exception.rationale),
+    owner: text(exception.owner),
+    mitigation: text(exception.mitigation),
+    approvalEvidence: text(
+      exception.approvalEvidence,
+      /^https:\/\/github\.com\/brandhaug\/b2b-saas-starter\/(?:issues|pull)\/\d+#(?:issuecomment-\d+|pullrequestreview-\d+)$/
+    ),
+    expires: text(exception.expires, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/)
+  }
+}
 
 /** AC-12: evaluate the complete pnpm report with exact, expiring exceptions. */
 export function evaluateAudit(
@@ -72,9 +142,7 @@ export function evaluateAudit(
 ) {
   // Never emit decoder errors: their input can contain registry credentials.
   const report = decodeReport(JSON.parse(reportJson))
-  const exceptions = decodeExceptions(JSON.parse(exceptionsJson), {
-    onExcessProperty: 'error'
-  })
+  const exceptions = array(JSON.parse(exceptionsJson)).map(decodeException)
   if (!Number.isFinite(now.getTime())) {
     throw new TypeError('Invalid audit clock')
   }
@@ -87,11 +155,11 @@ export function evaluateAudit(
       throw new Error('Invalid exception expiry')
     }
   }
-  const advisories = Object.values(report.advisories)
-  for (const severity of Severity.literals) {
+  const advisories = report.advisories
+  for (const severity of severities) {
     if (
       advisories.filter((advisory) => advisory.severity === severity).length !==
-      report.metadata.vulnerabilities[severity]
+      report.vulnerabilities[severity]
     ) {
       throw new Error('Incomplete audit report')
     }
@@ -158,7 +226,9 @@ export async function main(pause = () => setTimeout(60_000)): Promise<number> {
     return 1
   }
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const result = spawnSync('pnpm', ['audit', '--json', '--audit-level=high'], {
+    // pnpm filters advisories by audit-level but retains all severity counts.
+    // Request the complete report; evaluateAudit owns the high/critical gate.
+    const result = spawnSync('pnpm', ['audit', '--json', '--audit-level=info'], {
       encoding: 'utf8',
       timeout: 120_000,
       maxBuffer: 16 * 1024 * 1024

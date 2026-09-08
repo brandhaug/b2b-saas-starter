@@ -217,6 +217,54 @@ await test('AC-12.3: CLI exits failing and fixed using synthetic pnpm responses'
   }
 })
 
+await test('AC-12.1: CLI requests complete advisories despite pnpm retaining unfiltered counts', (context) => {
+  const folder = mkdtempSync(join(tmpdir(), 'dependency-audit-severity-'))
+  context.after(() => rmSync(folder, { recursive: true, force: true }))
+  for (const [entries, expected] of [
+    [[{ ...advisory, severity: 'moderate' }], 0],
+    [[{ ...advisory, severity: 'info' }], 0],
+    [
+      [
+        advisory,
+        { ...advisory, github_advisory_id: 'GHSA-2345-6789-cfgj', severity: 'moderate' }
+      ],
+      1
+    ]
+  ] satisfies Array<[Array<typeof advisory>, number]>) {
+    // Model the actual pnpm CLI shape: audit-level removes advisory entries,
+    // while metadata.vulnerabilities still counts every severity.
+    writeFileSync(
+      join(folder, 'pnpm'),
+      `#!/usr/bin/env node
+const report = ${report(entries)}
+const levels = ['info', 'low', 'moderate', 'high', 'critical']
+const level = process.argv.find(arg => arg.startsWith('--audit-level='))?.split('=')[1] ?? 'low'
+for (const [id, advisory] of Object.entries(report.advisories)) {
+  if (levels.indexOf(advisory.severity) < levels.indexOf(level)) delete report.advisories[id]
+}
+console.log(JSON.stringify(report))
+process.exit(Object.keys(report.advisories).length ? 1 : 0)
+`,
+      { mode: 0o755 }
+    )
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        `import { main } from ${JSON.stringify(new URL('./dependency-audit.ts', import.meta.url).href)}; process.exitCode = await main(() => Promise.resolve())`
+      ],
+      {
+        env: { ...process.env, PATH: `${folder}${delimiter}${process.env.PATH}` },
+        encoding: 'utf8'
+      }
+    )
+    assert.equal(result.status, expected, result.stderr)
+    assert.match(result.stdout, /informational:/)
+    assert.doesNotMatch(result.stderr, /could not be evaluated/)
+  }
+})
+
 await test('AC-12.1/AC-12.4: registry retries recover or fail closed without exposing diagnostics', (context) => {
   const folder = mkdtempSync(join(tmpdir(), 'dependency-audit-retry-'))
   context.after(() => rmSync(folder, { recursive: true, force: true }))
