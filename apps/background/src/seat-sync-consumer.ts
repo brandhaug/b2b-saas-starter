@@ -10,7 +10,7 @@ import {
   type StarterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
-  BillingQueueMessage,
+  SeatSyncQueueMessage,
   type SeatSyncQueueReason
 } from '@b2b-saas-starter/billing/seat-sync'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -52,7 +52,7 @@ type OperatorRetryAuditMetadata = {
  * open for tests, like its siblings.
  */
 export function processSeatSyncMessage(
-  delivery: QueueDelivery<typeof BillingQueueMessage.Type>
+  delivery: QueueDelivery<typeof SeatSyncQueueMessage.Type>
 ): Effect.Effect<
   DeliveryOutcome,
   CapabilityUnavailable,
@@ -68,26 +68,6 @@ export function processSeatSyncMessage(
         return
       }
       const message = delivery.message
-      if (message.kind === 'billing.provider_event') {
-        const billing = yield* Billing
-        const result = yield* billing.processProviderEvent({
-          providerEventId: message.providerEventId,
-          eventType: message.eventType,
-          providerCreatedAt: message.providerCreatedAt,
-          workspaceId: message.workspaceId,
-          subscription: message.subscription,
-          detail: {
-            source: message.eventType,
-            providerEventId: message.providerEventId,
-            providerCreatedAt: message.providerCreatedAt ?? ''
-          }
-        })
-        yield* Effect.annotateLogsScoped({
-          outcome: result.outcome,
-          providerEventId: message.providerEventId
-        })
-        return
-      }
       yield* Effect.annotateLogsScoped({
         workspaceId: message.workspaceId,
         reason: message.reason satisfies SeatSyncQueueReason
@@ -176,7 +156,7 @@ export function deliverSeatSync(
   envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
-  const delivery = readDelivery(BillingQueueMessage, envelope)
+  const delivery = readDelivery(SeatSyncQueueMessage, envelope)
   return consumerInvocation(env, {
     event: 'seat_sync',
     delivery,
