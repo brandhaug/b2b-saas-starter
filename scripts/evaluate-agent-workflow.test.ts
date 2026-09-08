@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { access, chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import test from 'node:test'
 
 import {
@@ -174,7 +175,16 @@ void test('kills the whole process group on timeout', async () => {
   assert.equal(result.timedOut, true)
   const childPidText = await readFile(childPidPath, 'utf8')
   const childPid = Number(childPidText.trim())
-  assert.throws(() => process.kill(childPid, 0))
+  const deadline = Date.now() + 1000
+  while (Date.now() < deadline) {
+    try {
+      process.kill(childPid, 0)
+    } catch {
+      return
+    }
+    await delay(10)
+  }
+  assert.fail(`timed-out process group child ${childPid} is still alive`)
 })
 
 void test('kills output-heavy processes and never accepts their clipped prefix', async () => {
