@@ -20,20 +20,22 @@ The workflow logs the selected revision; both checkouts retain no credentials. T
 initial base predates `.trivyignore.yaml`, so bootstrap applies no exceptions.
 Proposed exception changes take effect after review and merge into the base.
 
-Install Trivy v0.74.0, then run locally from the repo root:
+Install Trivy v0.74.0, then run locally from the repo root with a checkout of the
+trusted base. The TypeScript runner prepares the scan directory and invokes Trivy;
+it does not parse findings or validate exception metadata.
 
 ```bash
-audit_input="$(mktemp -d)"
-cp pnpm-lock.yaml "$audit_input/pnpm-lock.yaml"
-trivy fs --config /dev/null --scanners vuln --pkg-types library \
-  --include-dev-deps --severity HIGH,CRITICAL --exit-code 1 \
-  --ignorefile .trivyignore.yaml --format template \
-  --template '@.github/trivy-report.tpl' "$audit_input"
+node .github/scripts/run-trivy.ts /path/to/trusted-base-checkout
 ```
 
-This local command uses the current checkout's exceptions. To reproduce CI's policy,
-pass the `.trivyignore.yaml` from its logged trusted revision instead. Do not add
-`--ignore-unfixed` or remove `--include-dev-deps` to bypass findings.
+For a diagnostic scan using the current checkout's proposed exceptions:
+
+```bash
+node .github/scripts/run-trivy.ts .
+```
+
+A diagnostic scan does not establish approval. CI selects the trusted revision
+it logs. Do not add `--ignore-unfixed` or remove `--include-dev-deps` to bypass findings.
 
 ## AC-12.2: temporary exceptions
 
@@ -116,7 +118,7 @@ need an owner to triage and resolve them; the check does not remediate dependenc
 Require the exact check name `audit`, with GitHub Actions as its source, in the
 active default-branch ruleset under Settings → Rules → Rulesets. Keep existing
 required checks. Also require independent review before changes to the exception
-policy or workflow can enter the trusted default branch.
+policy, runner or workflow can enter the trusted default branch.
 
 Configure "Require a pull request before merging" with at least one approving
 review, dismissal of stale approvals after pushes, and approval of the most recent

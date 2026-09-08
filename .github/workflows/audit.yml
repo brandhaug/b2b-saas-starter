@@ -48,22 +48,4 @@ jobs:
           path: .audit-policy-base
           persist-credentials: false
       - name: Audit dependencies (AC-12.1)
-        run: |
-          echo "Trusted exception revision: $(git -C .audit-policy-base rev-parse HEAD)"
-          audit_input="$(mktemp -d)"
-          cp pnpm-lock.yaml "$audit_input/pnpm-lock.yaml"
-          audit_ignore="$RUNNER_TEMP/trivy-ignore.yaml"
-          if [ -f .audit-policy-base/.trivyignore.yaml ]; then
-            cp .audit-policy-base/.trivyignore.yaml "$audit_ignore"
-          else
-            # The initial base predates this policy; no exceptions apply.
-            echo 'vulnerabilities: []' > "$audit_ignore"
-          fi
-          trivy fs --config /dev/null --scanners vuln --pkg-types library \
-            --include-dev-deps --severity HIGH,CRITICAL --exit-code 1 \
-            --ignorefile "$audit_ignore" --format template \
-            --template '@.github/trivy-report.tpl' --quiet \
-            "$audit_input" 2> "$RUNNER_TEMP/trivy-error.log" || {
-              echo 'Audit failed: resolve the findings above or diagnose Trivy/database availability locally. See docs/dependency-security.md.'
-              exit 1
-            }
+        run: node .github/scripts/run-trivy.ts .audit-policy-base
