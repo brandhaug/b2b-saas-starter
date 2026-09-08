@@ -12,13 +12,13 @@ import {
   Section,
   Tailwind,
   Text
-} from '@react-email/components'
+} from 'react-email'
 import { type ReactNode } from 'react'
 import { DEFAULT_LOCALE, intlLocale, type Locale } from '@b2b-saas-starter/i18n/locale'
 import * as m from '@b2b-saas-starter/i18n/messages'
 
 /**
- * A React Email template renders synchronously through `@react-email/render`,
+ * A React Email template renders synchronously through `react-email`,
  * outside any Effect, so there is no Clock or DateTime to read the footer's
  * copyright year from.
  */

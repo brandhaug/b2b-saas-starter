@@ -30,12 +30,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       # Fail only on high/critical advisories; lower severities still print.
-      # GHSA-jmr9-qjv8-65gv (extract-zip symlink path traversal) has no fixed
-      # release upstream (2.0.1 is both latest and vulnerable) — it's pulled
-      # in transitively via alchemy's Cloudflare runtime tooling (workerd/
-      # browser download step), which runs at deploy time only, not in
-      # shipped Worker code. Re-check when extract-zip cuts a patch.
-      # pnpm's per-advisory ignore lives in pnpm-workspace.yaml (auditConfig).
       # The bulk-advisories endpoint flakes hard some days (error 23 timeouts
       # on three consecutive runs on 2026-09-04, passing on a local retry) —
       # the step retries with a pause instead of reporting an outage as an

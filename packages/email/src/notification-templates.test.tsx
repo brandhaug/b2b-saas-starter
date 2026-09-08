@@ -1,5 +1,5 @@
 import { notificationKinds } from '@b2b-saas-starter/db/enums'
-import { render } from '@react-email/render'
+import { render } from 'react-email'
 import { Effect } from 'effect'
 import { type ReactElement } from 'react'
 import { describe, expect, it } from '@effect/vitest'

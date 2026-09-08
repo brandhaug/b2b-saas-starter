@@ -1,4 +1,4 @@
-import { Link, Section, Text } from '@react-email/components'
+import { Link, Section, Text } from 'react-email'
 import { type ReactNode } from 'react'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'

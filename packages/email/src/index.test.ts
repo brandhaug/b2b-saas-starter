@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { render } from '@react-email/render'
+import { render } from 'react-email'
 import { describe, expect, it, vi } from '@effect/vitest'
 import {
   EmailDispatcher,

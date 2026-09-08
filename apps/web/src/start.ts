@@ -4,7 +4,11 @@ import { withHttpMonitor } from '@b2b-saas-starter/logger/providers'
 import { Effect } from 'effect'
 import { localizeRequest } from '@/lib/server/i18n-middleware'
 import { uiErrorAdapter } from '@/lib/ui-error'
-import { createMiddleware, createStart } from '@tanstack/react-start'
+import {
+  createCsrfMiddleware,
+  createMiddleware,
+  createStart
+} from '@tanstack/react-start'
 import { runWebRequestScope } from '@/lib/observability'
 import { enforceRequiredEnvOnce } from '@/lib/server/env-gate'
 import { maintenanceResponse } from '@/lib/maintenance'
@@ -30,6 +34,10 @@ const observabilityMiddleware = createMiddleware({ type: 'request' }).server(
       )
     )
 )
+
+const csrfMiddleware = createCsrfMiddleware({
+  filter: ({ handlerType }) => handlerType === 'serverFn'
+})
 
 const configGateMiddleware = createMiddleware({ type: 'request' }).server(
   ({ next }) => {
@@ -77,6 +85,7 @@ export const startInstance = createStart(() => ({
     configGateMiddleware,
     maintenanceMiddleware,
     observabilityMiddleware,
+    csrfMiddleware,
     localeMiddleware
   ]
 }))

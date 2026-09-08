@@ -17,6 +17,8 @@ import { join } from 'node:path'
  * - `@react-email` — the invitation email template graph
  *   (`lib/server/invitations.effects.ts`); historically a 1.3 MB entry-chunk
  *   leak that shipped on every page.
+ * - `react-email.element` — the component marker in React Email 6, which
+ *   consolidates components into `react-email` instead of scoped packages.
  * - `css-tree` — a react-email transitive dependency, same graph.
  * - `@b2b-saas-starter/email/templates` — the templates surface only the
  *   server effects (and docs prose, which this never matched because prose
@@ -75,6 +77,7 @@ import { join } from 'node:path'
 
 const MARKERS = [
   '@react-email',
+  'react-email.element',
   'css-tree',
   '@b2b-saas-starter/email/templates',
   'capability.workspace',

@@ -7,6 +7,10 @@
   "autoMerge": { "enabled": true, "mergeMethod": "squash" },
   "groups": [
     { "name": "react", "patterns": ["react", "react-dom"] },
+    { "name": "better-auth", "patterns": ["better-auth", "@better-auth/*"] },
+    { "name": "drizzle", "patterns": ["drizzle-orm", "drizzle-kit"] },
+    { "name": "react-email", "patterns": ["react-email", "@react-email/*"] },
+    { "name": "sentry", "patterns": ["@sentry/*"] },
     {
       "name": "tanstack-router",
       "patterns": [
