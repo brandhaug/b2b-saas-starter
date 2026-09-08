@@ -1,3 +1,8 @@
+// oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
+import '@/test/qualified-session'
+import { vi } from 'vite-plus/test'
+import { fixtureSession } from '@/test/fixture-session'
+import { SeedStrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import {
   testWorkspaceContext,
   type Actor
@@ -15,6 +20,10 @@ import { describe, expect, it } from '@effect/vitest'
 
 import { permitted, requireWorkspacePermission } from './authorize'
 
+vi.mock('./auth', () => ({
+  requireRequestSession: async () => fixtureSession({ userId: 'usr_owner' })
+}))
+
 const workspace: Workspace = {
   id: 'wrk_test',
   slug: 'test-lab',
@@ -29,7 +38,7 @@ function actor(role: WorkspaceRole): Actor {
 const suspensionLayer = SeedWorkspaceSuspension({
   workspace,
   systemUsers: seedSystemUsers
-}).pipe(Layer.provide(SeedLayer))
+}).pipe(Layer.provide(SeedLayer), Layer.merge(SeedStrongAuthentication()))
 
 /**
  * `requirePermission` annotates the request's wide event on denial, so it needs

@@ -1,5 +1,9 @@
 import { type DrizzleDatabase } from './ports.ts'
-import { passkey as passkeyTable, user } from '@b2b-saas-starter/db/schema'
+import {
+  passkey as passkeyTable,
+  session as sessionTable,
+  user
+} from '@b2b-saas-starter/db/schema'
 import {
   type AuthenticationResponseJSON,
   type PublicKeyCredentialCreationOptionsJSON,
@@ -300,7 +304,8 @@ function makeAuthenticator() {
   }
 
   async function authenticate(
-    options: AuthenticationOptions
+    options: AuthenticationOptions,
+    userVerified = true
   ): Promise<AuthenticationResponseJSON> {
     const credential = credentials[0]
     if (credential === undefined) {
@@ -308,11 +313,11 @@ function makeAuthenticator() {
     }
     credential.counter += 1
     const rpIdHash = await sha256(new TextEncoder().encode(RP_ID))
-    const authData = Uint8Array.from([
-      ...rpIdHash,
-      ASSERTION_FLAGS,
-      ...u32be(credential.counter)
-    ])
+    let flags = ASSERTION_FLAGS
+    if (!userVerified) {
+      flags &= ~0x04
+    }
+    const authData = Uint8Array.from([...rpIdHash, flags, ...u32be(credential.counter)])
     const clientDataJSON = JSON.stringify({
       type: 'webauthn.get',
       challenge: options.challenge,
@@ -357,7 +362,8 @@ function makeAuthenticator() {
 function registerPasskey(
   sessionCookie: string,
   authenticator: ReturnType<typeof makeAuthenticator>,
-  name: string
+  name: string,
+  createSession = false
 ) {
   return Effect.gen(function* () {
     const auth = yield* Auth.Tag
@@ -370,7 +376,7 @@ function registerPasskey(
       authenticator.register(optionsResponse.response)
     )
     return yield* auth.api.verifyPasskeyRegistration({
-      body: { response: registrationResponse, name },
+      body: { response: registrationResponse, name, createSession },
       headers: new Headers({
         cookie: toCookieHeader(
           mergeCookiePairs([sessionCookie], cookiePairs(optionsResponse.headers))
@@ -381,12 +387,15 @@ function registerPasskey(
 }
 
 /** Runs one full sign-in ceremony, returning the verify response and its cookies. */
-function signInWithPasskey(authenticator: ReturnType<typeof makeAuthenticator>) {
+function signInWithPasskey(
+  authenticator: ReturnType<typeof makeAuthenticator>,
+  userVerified = true
+) {
   return Effect.gen(function* () {
     const auth = yield* Auth.Tag
     const optionsResponse = yield* auth.full.generatePasskeyAuthenticationOptions()
     const assertionResponse = yield* Effect.promise(() =>
-      authenticator.authenticate(optionsResponse.response)
+      authenticator.authenticate(optionsResponse.response, userVerified)
     )
     const verification = yield* auth.full.verifyPasskeyAuthentication({
       body: { response: assertionResponse },
@@ -403,10 +412,112 @@ function signInWithPasskey(authenticator: ReturnType<typeof makeAuthenticator>) 
 /* -------------------------------------------------------------------------- */
 
 describe('passkey plugin', () => {
+  it.live(
+    'preserves recovery through registration session creation until UV authentication',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const signup = yield* signUpSession('passkey@recovery.test')
+          const enabled = yield* enableTotp(signup)
+          const code = enabled.response.backupCodes[0]
+          if (!code) {
+            return yield* Effect.die('Expected backup code')
+          }
+          const auth = yield* Auth.Tag
+          const challenge = yield* auth.full.signInEmail({
+            body: {
+              email: 'passkey@recovery.test',
+              password: 'correct-horse-battery-staple'
+            }
+          })
+          const recovered = yield* auth.full.verifyBackupCode({
+            body: { code },
+            headers: new Headers({
+              cookie: toCookieHeader(cookiePairs(challenge.headers))
+            })
+          })
+          const prior = yield* Effect.promise(() =>
+            db.select().from(sessionTable).where(eq(sessionTable.userId, signup.userId))
+          )
+          const recovery = prior.find((row) => row.recoveryUntil !== null)
+          const authenticator = makeAuthenticator()
+          yield* registerPasskey(
+            toCookieHeader(cookiePairs(recovered.headers)),
+            authenticator,
+            'Recovery key',
+            true
+          )
+          const after = yield* Effect.promise(() =>
+            db.select().from(sessionTable).where(eq(sessionTable.userId, signup.userId))
+          )
+          const created = after.filter(
+            (row) => !prior.some((previous) => row.id === previous.id)
+          )
+          expect(created).toHaveLength(1)
+          expect(created[0]?.recoveryUntil).toEqual(recovery?.recoveryUntil)
+          expect(created[0]?.strongAuthAt).toBeNull()
+          const authenticated = yield* signInWithPasskey(authenticator)
+          const [strong] = yield* Effect.promise(() =>
+            db
+              .select()
+              .from(sessionTable)
+              .where(
+                eq(sessionTable.id, authenticated.verification.response.session.id)
+              )
+          )
+          expect(strong?.recoveryUntil).toBeNull()
+          expect(strong?.strongAuthMethod).toBe('passkey')
+        })
+      ),
+    { timeout: 30_000 }
+  )
+
+  it.live(
+    'keeps registration and non-UV authentication weak, and invalidates removed-factor evidence',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const signup = yield* signUpSession('passkey@assurance.test')
+          const authenticator = makeAuthenticator()
+          const factor = yield* registerPasskey(
+            signup.cookieHeader,
+            authenticator,
+            'Key'
+          )
+          const [registrationSession] = yield* Effect.promise(() =>
+            db.select().from(sessionTable).where(eq(sessionTable.userId, signup.userId))
+          )
+          expect(registrationSession?.strongAuthAt).toBeNull()
+          const weak = yield* signInWithPasskey(authenticator, false)
+          const strong = yield* signInWithPasskey(authenticator)
+          const [weakSession] = yield* Effect.promise(() =>
+            db
+              .select()
+              .from(sessionTable)
+              .where(eq(sessionTable.id, weak.verification.response.session.id))
+          )
+          expect(weakSession?.strongAuthAt).toBeNull()
+          const auth = yield* Auth.Tag
+          yield* auth.api.deletePasskey({
+            body: { id: factor.id },
+            headers: signup.headers
+          })
+          const [removed] = yield* Effect.promise(() =>
+            db
+              .select()
+              .from(sessionTable)
+              .where(eq(sessionTable.id, strong.verification.response.session.id))
+          )
+          expect(removed?.strongAuthAt).toBeNull()
+          expect(removed?.strongAuthCredentialId).toBeNull()
+        })
+      )
+  )
+
   it.live('registers a passkey under a user-chosen name against the mapped table', () =>
     run(
       Effect.gen(function* () {
-        const { cookieHeader } = yield* signUpSession('passkey@owner.test')
+        const { cookieHeader, userId } = yield* signUpSession('passkey@owner.test')
         const authenticator = makeAuthenticator()
 
         const created = yield* registerPasskey(
@@ -418,7 +529,9 @@ describe('passkey plugin', () => {
         expect(created.deviceType).toBe('multiDevice')
         expect(created.backedUp).toBe(true)
 
-        const rows = yield* Effect.promise(() => db.select().from(passkeyTable))
+        const rows = yield* Effect.promise(() =>
+          db.select().from(passkeyTable).where(eq(passkeyTable.userId, userId))
+        )
         expect(rows).toHaveLength(1)
         expect(rows[0]?.name).toBe('MacBook Touch ID')
         expect(rows[0]?.credentialID).toBe(created.credentialID)
@@ -461,11 +574,20 @@ describe('passkey plugin', () => {
       Effect.gen(function* () {
         const { cookieHeader } = yield* signUpSession('passkey@signin.test')
         const authenticator = makeAuthenticator()
-        yield* registerPasskey(cookieHeader, authenticator, 'Key')
+        const factor = yield* registerPasskey(cookieHeader, authenticator, 'Key')
 
         const { verification, cookies } = yield* signInWithPasskey(authenticator)
         expect(verification.response.user.email).toBe('passkey@signin.test')
         expect(verification.response.session).toBeDefined()
+        const [stored] = yield* Effect.promise(() =>
+          db
+            .select()
+            .from(sessionTable)
+            .where(eq(sessionTable.id, verification.response.session.id))
+        )
+        expect(stored?.strongAuthMethod).toBe('passkey')
+        expect(stored?.strongAuthCredentialId).toBe(factor.id)
+        expect(stored?.passwordVerifiedAt).toBeNull()
 
         // The session cookie the ceremony set is a real session: it reaches a
         // session-gated endpoint and names the same user.

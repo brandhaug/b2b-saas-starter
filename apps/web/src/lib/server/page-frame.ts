@@ -14,6 +14,10 @@ import {
 import { Effect, type Scope } from 'effect'
 
 import { requireWorkspacePermission } from './authorize'
+import {
+  type StrongAuthentication,
+  type StrongAuthenticationRequired
+} from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 
 /**
  * What a workspace page's loader effect is, once assembled: the payload the
@@ -25,7 +29,10 @@ import { requireWorkspacePermission } from './authorize'
  */
 export type WorkspacePageFrame<Payload> = Effect.Effect<
   Payload,
-  AuthorizationDenied | CapabilityUnavailable | WorkspaceSuspended,
+  | AuthorizationDenied
+  | CapabilityUnavailable
+  | WorkspaceSuspended
+  | StrongAuthenticationRequired,
   CapabilityServices | WorkspaceServices | WorkspaceSuspensionService | Scope.Scope
 >
 
@@ -53,8 +60,16 @@ export function workspacePage<Segment, E, R>(
   segment: (ctx: WorkspaceContextInterface) => Effect.Effect<Segment, E, R>
 ): Effect.Effect<
   Segment & { readonly viewer: WorkspaceViewer | null },
-  E | AuthorizationDenied | CapabilityUnavailable | WorkspaceSuspended,
-  R | WorkspaceServices | WorkspaceSuspensionService | Scope.Scope
+  | E
+  | AuthorizationDenied
+  | CapabilityUnavailable
+  | WorkspaceSuspended
+  | StrongAuthenticationRequired,
+  | R
+  | WorkspaceServices
+  | WorkspaceSuspensionService
+  | StrongAuthentication
+  | Scope.Scope
 > {
   return Effect.gen(function* () {
     yield* requireWorkspacePermission(gate)

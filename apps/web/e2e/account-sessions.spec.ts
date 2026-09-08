@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
+import { signInAsOwner, signInWithPassword } from './authentication'
 
 // The active-session surface is the account page's security core: one user,
 // two devices, and the ability to end one of them from the other. The test
@@ -7,15 +8,11 @@ import { hasLocalD1State } from '../src/lib/local-d1-state'
 // independent session cookies — revokes the other session from the first, and
 // checks the second context is really signed out.
 async function signIn(page: Page, email: string, redirect: string): Promise<void> {
-  await page.goto(`/sign-in?redirect=${encodeURIComponent(redirect)}`)
-  // Interacting before React hydrates falls through to a native GET submit; the
-  // sign-in form flips data-hydrated in an effect (see smoke.spec.ts).
-  await page.locator('form[data-hydrated="true"]').waitFor()
-  await page.getByLabel('Email', { exact: true }).fill(email)
-  await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
-  await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await page.waitForURL((url) => url.pathname === redirect)
-  await page.locator('html[data-authenticated="true"]').waitFor()
+  if (email === 'demo@starter.local') {
+    await signInAsOwner(page, redirect)
+  } else {
+    await signInWithPassword(page, email, redirect)
+  }
   await page.locator('header select:enabled').waitFor({ state: 'attached' })
 }
 

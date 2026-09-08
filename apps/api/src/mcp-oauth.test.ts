@@ -136,7 +136,7 @@ const ProtectedResourceBody = Schema.Struct({
 })
 
 describe('POST /mcp with an OAuth access token', () => {
-  it.effect('a token for workspace A reads workspace A', () =>
+  it.effect('a privileged token without an issuing session fails closed', () =>
     Effect.gen(function* () {
       const { privateKey, jwks } = yield* Effect.promise(theAuthority)
       stubJwksFetch(jwks)
@@ -147,8 +147,8 @@ describe('POST /mcp with an OAuth access token', () => {
       )
       expect(res.status).toBe(200)
       const body = yield* jsonBody(res, CallToolBody)
-      expect(body.result.isError).toBeUndefined()
-      expect(body.result.content[0]?.text).toContain('"slug": "starter-lab"')
+      expect(body.result.isError).toBe(true)
+      expect(body.result.content[0]?.text).toContain('strong_authentication_required')
     })
   )
 

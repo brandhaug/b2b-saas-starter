@@ -1,3 +1,4 @@
+import { isStrongAuthenticationError } from '@/lib/ui-error'
 import { SupportDetails } from '@/components/support-details'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { deLocalizeUrl, localizeUrl } from '@b2b-saas-starter/i18n/runtime'
@@ -7,6 +8,7 @@ import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query
 import { routeTree } from './routeTree.gen'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { type SidebarWorkspace } from '@/lib/workspace-directory'
+import { StrongAuthenticationNotice } from '@/components/strong-authentication-notice'
 
 function NotFound() {
   return (
@@ -28,6 +30,9 @@ function NotFound() {
 // keeps only `name`/`message` — so `name` is the discriminant (never
 // `instanceof`), single-sourced from `capability-error.ts`.
 function RouteError({ error }: { readonly error: Error }) {
+  if (isStrongAuthenticationError(error)) {
+    return <StrongAuthenticationNotice />
+  }
   const degraded = error.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6">

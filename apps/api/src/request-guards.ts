@@ -8,6 +8,7 @@ import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
   memberPrincipal,
   tokenPrincipal,
+  needsStrongAuthentication,
   type Principal,
   type PermissionRequest
 } from '@b2b-saas-starter/authz/client'
@@ -25,6 +26,10 @@ import {
   type MCP_WRITE_SCOPE,
   type McpAccessTokenPrincipal
 } from '@b2b-saas-starter/authz/mcp-access-token'
+import {
+  StrongAuthentication,
+  StrongAuthenticationRequired
+} from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import {
   AUTHORIZATION_DENIED_REASONS,
   AuthorizationDenied
@@ -449,6 +454,20 @@ export const authorizeMcpOperation = Effect.fn('Mcp.authorizeOperation')(functio
     }
   }
   yield* requirePermission(principal, permission)
+  if (
+    caller.kind === 'oauth' &&
+    needsStrongAuthentication({
+      systemRole: ctx.actor?.systemRole,
+      workspaceRole: ctx.actor?.role
+    })
+  ) {
+    const sessionId = caller.token.sessionId
+    if (sessionId === undefined) {
+      return yield* new StrongAuthenticationRequired()
+    }
+    const strongAuthentication = yield* StrongAuthentication
+    yield* strongAuthentication.require({ userId: caller.token.userId, sessionId })
+  }
   const suspension = yield* WorkspaceSuspensionService
   yield* suspension.requireAllowed(
     ctx.workspace.id,

@@ -10,6 +10,7 @@ import * as schema from '@b2b-saas-starter/db/schema'
 import { cimd } from '@better-auth/cimd'
 import { mcp } from '@better-auth/mcp'
 import { sso } from '@better-auth/sso'
+import { type DBFieldAttribute } from 'better-auth/db'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { lastLoginMethod } from 'better-auth/plugins'
@@ -41,6 +42,7 @@ import {
   type AuthAccountChange,
   type AuthConfigInterface
 } from './ports.ts'
+import { makeAssuranceHooks } from './assurance-hooks.ts'
 
 export {
   MCP_CONSENT_PAGE,
@@ -203,6 +205,7 @@ function userDeleteDatabaseHooks(options: AuthConfigInterface) {
  * admin plugin's `user.role` would vanish from `Session`).
  */
 export function makeAuthOptions(options: AuthConfigInterface) {
+  const assurance = makeAssuranceHooks(options)
   return {
     secret: options.secret,
     baseURL: options.baseURL,
@@ -244,9 +247,23 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     rateLimit: {
       enabled: false
     },
+    hooks: { before: assurance.before, after: assurance.after },
     databaseHooks: {
       ...userDeleteDatabaseHooks(options),
+      session: {
+        create: { before: assurance.sessionCreateBefore },
+        update: { before: assurance.sessionUpdateBefore }
+      },
       account: {
+        update: {
+          // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth invokes this database callback outside Effect
+          after: async (account: AuthAccountChange) => {
+            if (account.providerId === 'credential') {
+              // oxlint-disable-next-line effect/noAsyncFunction -- native database hook callback
+              await assurance.invalidatePassword(account.userId)
+            }
+          }
+        },
         // The linking audit port, assigned straight to Better Auth's hooks —
         // fires for every account row (credential included); the app's
         // adapter decides which provider ids are audit-worthy. The parameter
@@ -258,8 +275,14 @@ export function makeAuthOptions(options: AuthConfigInterface) {
             options.accountHooks.onAccountLinked(account)
         },
         delete: {
-          after: (account: AuthAccountChange) =>
-            options.accountHooks.onAccountUnlinked(account)
+          // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth invokes this database callback outside Effect
+          after: async (account: AuthAccountChange) => {
+            if (account.providerId === 'credential') {
+              // oxlint-disable-next-line effect/noAsyncFunction -- native database hook callback
+              await assurance.invalidatePassword(account.userId)
+            }
+            return options.accountHooks.onAccountUnlinked(account)
+          }
         }
       }
     },
@@ -325,7 +348,14 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // guards session-listing and email-change endpoints, and the
       // second-factor endpoints demand the password outright — a stronger
       // check than freshness. No app surface reads `session.fresh` today.
-      freshAge: 60 * 60
+      freshAge: 60 * 60,
+      additionalFields: {
+        passwordVerifiedAt: { type: 'date', required: false, input: false },
+        strongAuthAt: { type: 'date', required: false, input: false },
+        strongAuthMethod: { type: 'string', required: false, input: false },
+        strongAuthCredentialId: { type: 'string', required: false, input: false },
+        recoveryUntil: { type: 'date', required: false, input: false }
+      } satisfies Record<string, DBFieldAttribute>
     },
     emailVerification: {
       // The link clicker gets a session: verification proves control of the
@@ -399,7 +429,17 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       passkey({
         rpID: new URL(options.baseURL).hostname,
         rpName: 'B2B SaaS Starter',
-        origin: new URL(options.baseURL).origin
+        origin: new URL(options.baseURL).origin,
+        authentication: {
+          afterVerification: ({ ctx, verification }) => {
+            if (verification.authenticationInfo.userVerified) {
+              assurance.markVerifiedPasskey(
+                ctx.context,
+                verification.authenticationInfo.credentialID
+              )
+            }
+          }
+        }
       }),
       // Email one-time codes as the alternative to the emailed lifecycle
       // links: sign-in, email verification, and password reset, all through
@@ -545,9 +585,10 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         extensions: [
           {
             claims: {
-              accessToken: ({ user, client, referenceId }) =>
+              accessToken: ({ user, client, referenceId, sessionId }) =>
                 mcpWorkspaceAccessTokenClaims(options.db, {
                   userId: user?.id,
+                  sessionId,
                   clientId: client.clientId,
                   referenceId
                 })

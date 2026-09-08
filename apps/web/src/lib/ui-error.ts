@@ -9,6 +9,7 @@ export type UiErrorCode =
   | 'membership_refused'
   | 'user_admin_refused'
   | 'unauthorized'
+  | 'strong_authentication_required'
   | 'invalid_timezone'
   | 'invalid_locale'
 
@@ -43,3 +44,7 @@ export const uiErrorAdapter = createSerializationAdapter({
     return error
   }
 })
+
+export function isStrongAuthenticationError(error: Error): boolean {
+  return error instanceof UiError && error.code === 'strong_authentication_required'
+}

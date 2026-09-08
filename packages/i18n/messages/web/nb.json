@@ -907,5 +907,19 @@
   "workspace_suspended_sso": "Reparer enkel pålogging",
   "workspace_suspended_support_guidance": "Kontakt kundestøtte for å be om eksport eller sletting av arbeidsområdet. Kontosletting kan ikke fjerne arbeidsområdet mens det er suspendert.",
   "workspace_suspended_member_notice": "Dette arbeidsområdet er suspendert. Kontakt eieren eller en administrator for hjelp.",
-  "account_suspended_workspace_warning": "{workspace} er suspendert. Kontakt brukerstøtten før du sletter kontoen din."
+  "account_suspended_workspace_warning": "{workspace} er suspendert. Kontakt brukerstøtten før du sletter kontoen din.",
+  "security_authentication_required": "Privilegert tilgang krever en bekreftet passnøkkel eller passordet ditt og en kode fra autentiseringsappen. Bekreft identiteten din for å fortsette.",
+  "security_verify_title": "Bekreft identiteten din",
+  "security_verification_failed": "Bekreftelsen ble ikke fullført. Bruk en passnøkkel med enhetsbekreftelse, eller kontroller passordet og koden fra autentiseringsappen.",
+  "security_enroll_next": "Passordet er bekreftet. Åpne kontosikkerhet for å legge til en autentiseringsapp eller passnøkkel, og bekreft deretter identiteten din her.",
+  "security_recovery_notice": "Gjenopprettingsøkten lar deg reparere innloggingsmetodene dine i opptil én time. Privilegert tilgang forblir låst til du bekrefter en ny faktor.",
+  "security_verify_continue": "Bekreft og fortsett",
+  "security_confirm_password": "Bekreft passord",
+  "security_verify_passkey": "Bekreft med en passnøkkel",
+  "security_manage_factors": "Åpne kontosikkerhet",
+  "security_recovery_help": "Mistet autentiseringsappen? Logg inn med passordet og en lagret reservekode for å reparere innloggingsmetodene. Kontakt operatøren hvis du verken har en fungerende passnøkkel eller reservekoder.",
+  "security_authenticator_code": "Kode fra autentiseringsappen",
+  "security_recovery_email_subject": "Kontogjenoppretting startet",
+  "security_recovery_email_body": "En lagret reservekode ble brukt til å starte en gjenopprettingsøkt for kontoen din. Økten kan reparere innloggingsmetoder i opptil én time. Privilegert tilgang krever en ny bekreftelse med autentiseringsapp eller passnøkkel.",
+  "security_recovery_email_warning": "Hvis dette ikke var deg, tilbakekall øktene dine og kontakt operatøren umiddelbart."
 }

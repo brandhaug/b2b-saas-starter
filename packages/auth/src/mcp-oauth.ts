@@ -3,6 +3,7 @@ import {
   MCP_READ_SCOPE,
   MCP_WRITE_SCOPE,
   MCP_CONSENT_CLAIM,
+  MCP_SESSION_ID_CLAIM,
   MCP_WORKSPACE_ID_CLAIM,
   MCP_WORKSPACE_ROLE_CLAIM,
   MCP_WORKSPACE_SLUG_CLAIM
@@ -105,6 +106,7 @@ export function mcpWorkspaceReferenceId(input: {
 export async function mcpWorkspaceAccessTokenClaims(
   db: DrizzleDatabase,
   input: {
+    readonly sessionId?: string | undefined
     readonly userId: string | undefined
     readonly clientId: string
     readonly referenceId: string | undefined
@@ -153,6 +155,9 @@ export async function mcpWorkspaceAccessTokenClaims(
     [MCP_WORKSPACE_ID_CLAIM]: row.workspace.id,
     [MCP_WORKSPACE_SLUG_CLAIM]: row.workspace.slug,
     [MCP_WORKSPACE_ROLE_CLAIM]: row.member.role
+  }
+  if (input.sessionId) {
+    Object.assign(claims, { [MCP_SESSION_ID_CLAIM]: input.sessionId })
   }
   if (row.consent) {
     return {

@@ -907,5 +907,19 @@
   "workspace_suspended_sso": "Repair single sign-on",
   "workspace_suspended_support_guidance": "Contact support to request an export or workspace deletion. Account deletion cannot remove this workspace while it is suspended.",
   "workspace_suspended_member_notice": "This workspace is suspended. Contact the workspace owner or an administrator for help.",
-  "account_suspended_workspace_warning": "{workspace} is suspended. Contact support before deleting your account."
+  "account_suspended_workspace_warning": "{workspace} is suspended. Contact support before deleting your account.",
+  "security_authentication_required": "Privileged access requires a verified passkey or your password and an authenticator code. Verify your identity to continue.",
+  "security_verify_title": "Verify your identity",
+  "security_verification_failed": "Verification did not complete. Use a passkey with device verification, or check your password and authenticator code.",
+  "security_enroll_next": "Password confirmed. Open account security to add an authenticator or passkey, then verify your identity here.",
+  "security_recovery_notice": "Your recovery session lets you repair your sign-in methods for up to one hour. Privileged access stays locked until you verify a new factor.",
+  "security_verify_continue": "Verify and continue",
+  "security_confirm_password": "Confirm password",
+  "security_verify_passkey": "Verify with a passkey",
+  "security_manage_factors": "Open account security",
+  "security_recovery_help": "Lost your authenticator? Sign in with your password and a saved backup code to repair your sign-in methods. If you have neither a working passkey nor backup codes, contact your operator.",
+  "security_authenticator_code": "Authenticator code",
+  "security_recovery_email_subject": "Account recovery started",
+  "security_recovery_email_body": "A saved backup code was used to start a recovery session for your account. This session can repair sign-in methods for up to one hour. Privileged access requires a newly verified authenticator or passkey.",
+  "security_recovery_email_warning": "If this was not you, revoke your sessions and contact your operator immediately."
 }

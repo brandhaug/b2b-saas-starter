@@ -3,6 +3,11 @@ import {
   type AccountDeletionPlan
 } from '@b2b-saas-starter/capabilities/governance/account-lifecycle'
 import { Effect } from 'effect'
+import { needsStrongAuthentication } from '@b2b-saas-starter/authz/client'
+import {
+  StrongAuthentication,
+  StrongAuthenticationRequired
+} from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 
 import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
@@ -27,9 +32,31 @@ export async function deleteAccountHandler(
 ): Promise<AccountDeletionPlan> {
   const session = await requireRequestSession()
   return runCapabilities(
-    Effect.flatMap(AccountLifecycle, (lifecycle) =>
-      lifecycle.deleteAccount({ userId: session.user.id, password: input.password })
-    ),
+    Effect.gen(function* () {
+      if (session.session.impersonatedBy) {
+        return yield* Effect.fail(new StrongAuthenticationRequired())
+      }
+      const lifecycle = yield* AccountLifecycle
+      const plan = yield* lifecycle.planDeletion(session.user.id)
+      // Account deletion spans every membership, including workspaces that are
+      // not active in this browser session.
+      if (
+        needsStrongAuthentication({ systemRole: session.user.role }) ||
+        plan.steps.some((step) =>
+          needsStrongAuthentication({ workspaceRole: step.role })
+        )
+      ) {
+        const authentication = yield* StrongAuthentication
+        yield* authentication.require({
+          userId: session.user.id,
+          sessionId: session.session.id
+        })
+      }
+      return yield* lifecycle.deleteAccount({
+        userId: session.user.id,
+        password: input.password
+      })
+    }),
     {
       accountLifecycleBinding: webAccountLifecycleBinding,
       securityEvidence: makeSecurityEvidenceSink()

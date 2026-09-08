@@ -1,5 +1,6 @@
 import {
   MCP_CONSENT_CLAIM,
+  MCP_SESSION_ID_CLAIM,
   MCP_WORKSPACE_ID_CLAIM,
   MCP_WORKSPACE_ROLE_CLAIM,
   MCP_WORKSPACE_SLUG_CLAIM
@@ -290,6 +291,33 @@ describe('mcp oauth authorization server', () => {
           expect(payload[MCP_WORKSPACE_SLUG_CLAIM]).toBe('mcp-co')
           expect(payload[MCP_WORKSPACE_ROLE_CLAIM]).toBe('owner')
           expect(payload[MCP_CONSENT_CLAIM]).toEqual(expect.stringMatching(/:0$/))
+          const issuing = yield* auth.api.getSession({ headers })
+          expect(payload[MCP_SESSION_ID_CLAIM]).toBe(issuing?.session.id)
+          const refreshResponse = yield* Effect.promise(() =>
+            auth.instance.handler(
+              new Request('http://localhost:3071/api/auth/oauth2/token', {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                  grant_type: 'refresh_token',
+                  refresh_token: tokens.refresh_token,
+                  client_id: CLIENT_ID,
+                  resource: 'http://localhost:8787/mcp'
+                })
+              })
+            )
+          )
+          expect(refreshResponse.status).toBe(200)
+          const refreshed = yield* Effect.promise(() => refreshResponse.json())
+          const verifiedRefresh = yield* Effect.promise(() =>
+            jwtVerify(refreshed.access_token, keySet, {
+              issuer: 'http://localhost:3071/api/auth',
+              audience: 'http://localhost:8787/mcp'
+            })
+          )
+          expect(verifiedRefresh.payload[MCP_SESSION_ID_CLAIM]).toBe(
+            issuing?.session.id
+          )
 
           // The consent row carries the workspace as its reference, so a consent
           // for this workspace is no consent for another.

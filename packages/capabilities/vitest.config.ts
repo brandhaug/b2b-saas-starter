@@ -2,6 +2,9 @@ import { defineConfig } from 'vite-plus'
 
 export default defineConfig({
   test: {
+    // Each live suite starts a D1 proxy. Bound concurrent proxies so local
+    // validation does not exhaust ephemeral localhost ports.
+    maxWorkers: 2,
     coverage: {
       provider: 'v8',
       reporter: ['text-summary'],

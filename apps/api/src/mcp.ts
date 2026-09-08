@@ -4,6 +4,7 @@ import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-e
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { mcpMutationOperations } from './mcp-mutations.ts'
 import { clientKey } from '@b2b-saas-starter/rate-limit'
@@ -283,6 +284,9 @@ function failureText(error: ToolFailure): string {
     case 'AuthorizationDenied': {
       return `denied: ${error.reason}`
     }
+    case 'StrongAuthenticationRequired': {
+      return 'denied: strong_authentication_required'
+    }
     case 'CapabilityUnavailable': {
       if (error.capability === 'webhook-publisher') {
         return 'webhook queue unavailable; a pending delivery may have been saved, but enqueue was not confirmed. Inspect deliveries before retrying'
@@ -454,6 +458,7 @@ function registerTools(env: ApiEnv) {
         ApiTokenRegistry,
         WebhookEndpoints,
         WorkspaceSuspensionService,
+        StrongAuthentication,
         AuditEventLog,
         McpClientConnections
       )
@@ -533,6 +538,7 @@ function registerMutationTools(env: ApiEnv) {
         WebhookEndpoints,
         WorkspaceExports,
         WorkspaceSuspensionService,
+        StrongAuthentication,
         RateLimiter,
         OAuthTokenVerifier,
         McpClientConnections

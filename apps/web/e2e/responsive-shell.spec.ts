@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
 import { isolatedClientIp } from './test-isolation'
+import { signInAsOwner } from './authentication'
 
 test.use({ viewport: { width: 320, height: 740 }, reducedMotion: 'reduce' })
 
@@ -57,13 +58,7 @@ test('the short mobile navigation can scroll to Account', async ({ page }) => {
 test.describe('owner controls on a narrow screen', () => {
   test.beforeEach(async ({ page }) => {
     test.skip(!hasLocalD1State(), 'requires migrated and seeded local D1')
-    await page.goto('/sign-in?redirect=%2Fworkspaces%2Fstarter-lab%2Fmembers')
-    await page.locator('form[data-hydrated="true"]').waitFor()
-    await page.getByLabel('Email', { exact: true }).fill('demo@starter.local')
-    await page.getByLabel('Password', { exact: true }).fill('demo-starter-password')
-    await page.getByRole('button', { name: 'Continue', exact: true }).click()
-    await page.waitForURL('**/workspaces/starter-lab/members')
-    await page.getByRole('button', { name: 'Open user menu', exact: true }).waitFor()
+    await signInAsOwner(page, '/workspaces/starter-lab/members')
     await page.locator('header select:enabled').waitFor({ state: 'attached' })
   })
 

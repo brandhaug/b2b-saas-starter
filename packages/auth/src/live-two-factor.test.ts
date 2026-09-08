@@ -1,7 +1,12 @@
+// oxlint-disable effect/noGlobals -- Real-clock Better Auth ceremonies require real timestamps, including persisted expiry boundary tests.
 import { type DrizzleDatabase } from './ports.ts'
-import { user } from '@b2b-saas-starter/db/schema'
+import { user, session as sessionTable, twoFactor } from '@b2b-saas-starter/db/schema'
 import { Effect, type Layer } from 'effect'
-import { cookieHeader as toCookieHeader, cookiePairs } from 'effectful-better-auth'
+import {
+  cookieHeader as toCookieHeader,
+  cookiePairs,
+  mergeCookiePairs
+} from 'effectful-better-auth'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { type AuthEmailSender, Auth } from './index.ts'
@@ -77,13 +82,13 @@ function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
 }
 
 /** The raw instance handler's answer for one credential sign-in attempt. */
-function signInWithEmail(email: string) {
+function signInWithEmail(email: string, cookie = '') {
   return Effect.flatMap(Auth.Tag, (auth) =>
     Effect.promise(() =>
       auth.instance.handler(
         new Request(`${BASE_URL}/api/auth/sign-in/email`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', cookie },
           // oxlint-disable-next-line effect/noGlobals -- the auth handler's own JSON wire format is the thing under test here
           body: JSON.stringify({ email, password: PASSWORD })
         })
@@ -128,7 +133,7 @@ function totpUser(email: string) {
       db.select().from(user).where(eq(user.email, email))
     )
     expect(rows[0]?.twoFactorEnabled).toBe(true)
-    return { secret }
+    return { secret, backupCodes: response.backupCodes }
   })
 }
 
@@ -146,7 +151,234 @@ function codeFor(email: string): string {
   return sent.otp
 }
 
+function storedSession(cookieHeader: string, phase = 'session') {
+  return Effect.gen(function* () {
+    const auth = yield* Auth.Tag
+    const current = yield* auth.api.getSession({
+      headers: new Headers({ cookie: cookieHeader })
+    })
+    if (!current) {
+      return yield* Effect.die(`Expected an authenticated session at ${phase}`)
+    }
+    const [row] = yield* Effect.promise(() =>
+      db.select().from(sessionTable).where(eq(sessionTable.id, current.session.id))
+    )
+    if (!row) {
+      return yield* Effect.die('Session missing from D1')
+    }
+    return row
+  })
+}
+
+function weakEmailSession(email: string) {
+  return Effect.gen(function* () {
+    const auth = yield* Auth.Tag
+    // Verify the signup mailbox first; Better Auth removes unproven passwords
+    // when an OTP first verifies an email address.
+    yield* Effect.promise(() =>
+      db.update(user).set({ emailVerified: true }).where(eq(user.email, email))
+    )
+    yield* auth.api.sendVerificationOTP({ body: { email, type: 'sign-in' } })
+    const signed = yield* auth.full.signInEmailOTP({
+      body: { email, otp: codeFor(email) }
+    })
+    return toCookieHeader(cookiePairs(signed.headers))
+  })
+}
+
 describe('the two-factor challenge hop', () => {
+  it.live(
+    'records enrollment proof on the rotated session and invalidates it on password change',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const signup = yield* signUpSession('enrollment@assurance.test')
+          const auth = yield* Auth.Tag
+          const old = yield* storedSession(signup.cookieHeader)
+          expect(old.strongAuthAt).toBeNull()
+          const enrolled = yield* enableTotp(signup)
+          const rotated = yield* storedSession(enrolled.freshCookieHeader)
+          expect(rotated.id).not.toBe(old.id)
+          expect(rotated.passwordVerifiedAt).toBeInstanceOf(Date)
+          expect(rotated.strongAuthMethod).toBe('totp')
+          const [factor] = yield* Effect.promise(() =>
+            db.select().from(twoFactor).where(eq(twoFactor.userId, signup.userId))
+          )
+          expect(rotated.strongAuthCredentialId).toBe(factor?.id)
+          yield* auth.api.changePassword({
+            body: {
+              currentPassword: PASSWORD,
+              newPassword: 'another-correct-password'
+            },
+            headers: new Headers({ cookie: enrolled.freshCookieHeader })
+          })
+          const changed = yield* storedSession(enrolled.freshCookieHeader)
+          expect(changed.strongAuthAt).toBeNull()
+          expect(changed.passwordVerifiedAt).toBeNull()
+        })
+      ),
+    { timeout: 30_000 }
+  )
+
+  it.live(
+    'does not share password proof between concurrent sessions and rejects stale pairing',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const email = 'isolated@assurance.test'
+          const { secret } = yield* totpUser(email)
+          const auth = yield* Auth.Tag
+          const firstCookie = yield* weakEmailSession(email)
+          const secondCookie = yield* weakEmailSession(email)
+          const firstHeaders = new Headers({ cookie: firstCookie })
+          const secondHeaders = new Headers({ cookie: secondCookie })
+          const { code } = yield* freshCode(secret)
+          yield* auth.api.verifyTOTP({ body: { code }, headers: secondHeaders })
+          expect((yield* storedSession(secondCookie)).strongAuthAt).toBeNull()
+          yield* auth.api.verifyPassword({
+            body: { password: PASSWORD },
+            headers: firstHeaders
+          })
+          yield* Effect.all(
+            [
+              auth.api.verifyTOTP({ body: { code }, headers: firstHeaders }),
+              auth.api.verifyTOTP({ body: { code }, headers: secondHeaders })
+            ],
+            { concurrency: 'unbounded' }
+          )
+          expect((yield* storedSession(firstCookie)).strongAuthMethod).toBe('totp')
+          expect((yield* storedSession(secondCookie)).strongAuthAt).toBeNull()
+          const first = yield* storedSession(firstCookie)
+          yield* Effect.promise(() =>
+            db
+              .update(sessionTable)
+              .set({
+                passwordVerifiedAt: new Date(Date.now() - 301_000),
+                strongAuthAt: null
+              })
+              .where(eq(sessionTable.id, first.id))
+          )
+          yield* auth.api.verifyTOTP({ body: { code }, headers: firstHeaders })
+          expect((yield* storedSession(firstCookie)).strongAuthAt).toBeNull()
+        })
+      ),
+    { timeout: 30_000 }
+  )
+
+  it.live(
+    'trusted-device password bypass creates password evidence without strong evidence',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const email = 'trusted@assurance.test'
+          const { secret } = yield* totpUser(email)
+          const auth = yield* Auth.Tag
+          const challenge = yield* signInWithEmail(email)
+          const { code } = yield* freshCode(secret)
+          const verified = yield* auth.full.verifyTOTP({
+            body: { code, trustDevice: true },
+            headers: new Headers({
+              cookie: toCookieHeader(cookiePairs(challenge.headers))
+            })
+          })
+          const strong = yield* storedSession(
+            toCookieHeader(mergeCookiePairs([], cookiePairs(verified.headers)))
+          )
+          expect(strong.strongAuthMethod).toBe('totp')
+          const trusted = cookiePairs(verified.headers).filter((cookie) =>
+            cookie.includes('trust_device=')
+          )
+          const bypass = yield* signInWithEmail(email, toCookieHeader(trusted))
+          const weak = yield* storedSession(toCookieHeader(cookiePairs(bypass.headers)))
+          expect(weak.passwordVerifiedAt).toBeInstanceOf(Date)
+          expect(weak.strongAuthAt).toBeNull()
+        })
+      ),
+    { timeout: 30_000 }
+  )
+
+  it.live(
+    'backup codes open recovery for at most one hour through factor rotation',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const email = 'recovery@assurance.test'
+          const { backupCodes, secret } = yield* totpUser(email)
+          const code = backupCodes[0]
+          const secondCode = backupCodes[1]
+          if (!code || !secondCode) {
+            return yield* Effect.die('Missing generated backup codes')
+          }
+          const auth = yield* Auth.Tag
+          const challenge = yield* signInWithEmail(email)
+          const recovered = yield* auth.full.verifyBackupCode({
+            body: { code },
+            headers: new Headers({
+              cookie: toCookieHeader(cookiePairs(challenge.headers))
+            })
+          })
+          const recoveryCookie = toCookieHeader(cookiePairs(recovered.headers))
+          const recovery = yield* storedSession(recoveryCookie, 'backup-code')
+          expect(recovery.strongAuthAt).toBeNull()
+          expect(recovery.recoveryUntil).toBeInstanceOf(Date)
+          expect(recovery.expiresAt).toEqual(recovery.recoveryUntil)
+          expect(
+            (recovery.recoveryUntil?.getTime() ?? 0) - Date.now()
+          ).toBeLessThanOrEqual(3_600_000)
+          yield* auth.api.verifyBackupCode({
+            body: { code: secondCode },
+            headers: new Headers({ cookie: recoveryCookie })
+          })
+          expect(
+            (yield* storedSession(recoveryCookie, 'backup-code')).recoveryUntil
+          ).toEqual(recovery.recoveryUntil)
+          yield* auth.api.verifyPassword({
+            body: { password: PASSWORD },
+            headers: new Headers({ cookie: recoveryCookie })
+          })
+          const { code: oldFactorCode } = yield* freshCode(secret)
+          yield* auth.api.verifyTOTP({
+            body: { code: oldFactorCode },
+            headers: new Headers({ cookie: recoveryCookie })
+          })
+          const stillRecovering = yield* storedSession(recoveryCookie)
+          expect(stillRecovering.recoveryUntil).toEqual(recovery.recoveryUntil)
+          expect(stillRecovering.strongAuthAt).toBeNull()
+          const disabled = yield* auth.full.disableTwoFactor({
+            body: { password: PASSWORD },
+            headers: new Headers({ cookie: recoveryCookie })
+          })
+          const disabledCookie = toCookieHeader(
+            mergeCookiePairs([], cookiePairs(disabled.headers))
+          )
+          const rotated = yield* storedSession(disabledCookie, 'disable')
+          expect(rotated.id).not.toBe(recovery.id)
+          expect(rotated.recoveryUntil).toEqual(recovery.recoveryUntil)
+          const enabled = yield* auth.full.enableTwoFactor({
+            body: { password: PASSWORD },
+            headers: new Headers({ cookie: disabledCookie })
+          })
+          if (enabled.response.method !== 'totp') {
+            return yield* Effect.die('Expected TOTP')
+          }
+          const { code: replacementCode } = yield* freshCode(
+            secretOf(enabled.response.totpURI)
+          )
+          const verified = yield* auth.full.verifyTOTP({
+            body: { code: replacementCode },
+            headers: new Headers({ cookie: disabledCookie })
+          })
+          const replaced = yield* storedSession(
+            toCookieHeader(mergeCookiePairs([], cookiePairs(verified.headers)))
+          )
+          expect(replaced.recoveryUntil).toBeNull()
+          expect(replaced.strongAuthMethod).toBe('totp')
+          expect(replaced.strongAuthCredentialId).not.toBeNull()
+        })
+      ),
+    { timeout: 30_000 }
+  )
+
   it.live(
     'diverts a TOTP-enabled credential sign-in and leaves no working session',
     () =>
@@ -201,10 +433,15 @@ describe('the two-factor challenge hop', () => {
 
           // The verify step's own cookie is a real session: it names the user.
           const probe = yield* getSessionWith(
-            toCookieHeader(cookiePairs(verified.headers))
+            toCookieHeader(mergeCookiePairs([], cookiePairs(verified.headers)))
           )
           const probeBody = yield* Effect.promise(() => probe.json())
           expect(probeBody?.user?.email).toBe(email)
+          const strong = yield* storedSession(
+            toCookieHeader(mergeCookiePairs([], cookiePairs(verified.headers)))
+          )
+          expect(strong.strongAuthMethod).toBe('totp')
+          expect(strong.strongAuthCredentialId).toBeTruthy()
         })
       ),
     { timeout: 30_000 }

@@ -40,6 +40,25 @@ function execute(sql: string, ...values: ReadonlyArray<string>) {
 beforeAll(async () => {
   const DB = await database.runPromise(TestD1)
   vi.doMock('cloudflare:workers', () => ({ env: { DB } }))
+  // Session lookup is this suite's authentication substitute. Supply matching
+  // persisted, verified sessions so the real authorization guard remains active.
+  for (const userId of ['usr_owner', 'usr_outsider', 'usr_joiner']) {
+    await execute(
+      `INSERT INTO passkey (id,userId,publicKey,credentialID,counter,deviceType,backedUp,createdAt)
+      VALUES (?,?, 'fixture-public-key',?,0,'singleDevice',0,strftime('%s','now'))`,
+      `pk_isolation_${userId}`,
+      userId,
+      `credential_isolation_${userId}`
+    )
+    await execute(
+      `INSERT INTO session (id,token,userId,expiresAt,createdAt,updatedAt,strongAuthAt,strongAuthMethod,strongAuthCredentialId)
+      VALUES (?,?,?,strftime('%s','now')+3600,strftime('%s','now'),strftime('%s','now'),strftime('%s','now'),'passkey',?)`,
+      `ses_${userId}`,
+      `tok_${userId}`,
+      userId,
+      `pk_isolation_${userId}`
+    )
+  }
   await execute(`INSERT INTO workspace_members (id,workspaceId,userId,role) VALUES
     ('mem_isolation_other','wrk_other','usr_outsider','owner'),
     ('mem_isolation_multi_a','wrk_dev_contract','usr_joiner','owner'),
@@ -48,14 +67,47 @@ beforeAll(async () => {
     ('not_isolation_a','wrk_dev_contract','Own announcement','Own message','2026-01-01T00:00:00Z'),
     ('not_isolation_b','wrk_other','Private announcement','Foreign message','2026-01-01T00:00:00Z')`)
 }, 120_000)
-beforeEach(() => {
+beforeEach(async () => {
   actor.userId = 'usr_owner'
+  await execute(
+    "UPDATE session SET strongAuthAt=strftime('%s','now') WHERE id='ses_usr_owner'"
+  )
 })
 afterAll(async () => {
   await database.dispose()
 })
 
 describe('browser server handler Workspace isolation', () => {
+  it('AC-4.1/AC-4.2/AC-4.3: promotion requires verified authentication in an existing session', async () => {
+    const { loadWorkspaceDashboardHandler: dashboard } =
+      await import('./workspace-dashboard.effects')
+    await execute("UPDATE session SET strongAuthAt=NULL WHERE id='ses_usr_owner'")
+    await expect(
+      dashboard({ workspaceSlug: 'dev-contract-lab' })
+    ).rejects.toMatchObject({ code: 'strong_authentication_required' })
+    await execute(
+      "UPDATE workspace_members SET role='member' WHERE userId='usr_owner' AND workspaceId='wrk_dev_contract'"
+    )
+    const ordinary = await dashboard({ workspaceSlug: 'dev-contract-lab' })
+    expect(ordinary.viewer).toEqual({ role: 'member' })
+    await execute(
+      "UPDATE workspace_members SET role='admin' WHERE userId='usr_owner' AND workspaceId='wrk_dev_contract'"
+    )
+    await expect(
+      dashboard({ workspaceSlug: 'dev-contract-lab' })
+    ).rejects.toMatchObject({ code: 'strong_authentication_required' })
+    await execute(
+      "UPDATE workspace_members SET role='owner' WHERE userId='usr_owner' AND workspaceId='wrk_dev_contract'"
+    )
+    await execute(
+      "UPDATE session SET strongAuthAt=strftime('%s','now') WHERE id='ses_usr_owner'"
+    )
+    const verified = await dashboard({ workspaceSlug: 'dev-contract-lab' })
+    expect(verified.viewer).toEqual({
+      role: 'owner'
+    })
+  })
+
   it('AC-2.1/AC-2.3: distinct users and a multi-Workspace user receive only their authorized page segments and counts', async () => {
     const { loadWorkspaceDashboardHandler: dashboard } =
       await import('./workspace-dashboard.effects')

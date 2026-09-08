@@ -14,6 +14,7 @@ import {
   PasskeyChangedEmail,
   PasswordChangedEmail,
   PasswordResetEmail,
+  RecoveryStartedEmail,
   TwoFactorChangedEmail
 } from '@b2b-saas-starter/email/templates'
 import { env as cloudflareEnv } from 'cloudflare:workers'
@@ -297,6 +298,19 @@ export async function sendBackupCodesRotatedEmail(input: {
     to: input.email,
     subject: m.backend_email_subject_backup_codes_rotated({}, { locale }),
     element: BackupCodesRotatedEmail({ locale })
+  })
+}
+
+export function sendRecoveryStartedEmail(input: {
+  readonly email: string
+  readonly locale?: Locale | null | undefined
+}): Promise<void> {
+  const locale = input.locale ?? DEFAULT_LOCALE
+  return dispatch({
+    to: input.email,
+    subject: m.security_recovery_email_subject({}, { locale }),
+    element: RecoveryStartedEmail({ locale }),
+    purpose: 'security'
   })
 }
 

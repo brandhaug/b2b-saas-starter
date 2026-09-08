@@ -218,6 +218,16 @@ export type AuthConfigInterface = {
    * the endpoint can never be enabled without its teardown half.
    */
   readonly userDeleteHooks?: UserDeleteHooks
+  /** Recovery is disabled unless the app supplies its audit and notification port. */
+  readonly recoveryHooks?: {
+    readonly onRecoveryStarted: (event: {
+      readonly userId: string
+      readonly sessionId: string
+      readonly expiresAt: Date
+      readonly email: string
+      readonly locale?: Locale | null
+    }) => Promise<void>
+  }
 }
 
 /**

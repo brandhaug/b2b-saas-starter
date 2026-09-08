@@ -1,9 +1,16 @@
+// oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
+import '@/test/qualified-session'
+import { fixtureSession } from '@/test/fixture-session'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { Effect } from 'effect'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import { ForbiddenError } from './capability-error'
 import { runWorkspaceCapabilities } from './capabilities'
 import { requireWorkspacePermission } from './server/authorize'
+
+vi.mock('./server/auth', () => ({
+  requireRequestSession: async () => fixtureSession({ userId: 'usr_martin' })
+}))
 
 /**
  * The whole web enforcement path, end to end against the Seed layer: the

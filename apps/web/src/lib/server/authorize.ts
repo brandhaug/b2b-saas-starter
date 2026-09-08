@@ -1,5 +1,6 @@
 import {
   authorize,
+  needsStrongAuthentication,
   memberPrincipal,
   type PermissionRequest
 } from '@b2b-saas-starter/authz/client'
@@ -11,6 +12,8 @@ import {
   type WorkspaceSuspensionOperation
 } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { Effect } from 'effect'
+import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
+import { requireRequestSession } from './auth'
 
 /**
  * The web app's enforcement point, and the session counterpart of the API
@@ -47,6 +50,21 @@ function requireWorkspaceAccess(operation: WorkspaceSuspensionOperation) {
   return Effect.gen(function* () {
     const ctx = yield* WorkspaceContext
     const suspension = yield* WorkspaceSuspensionService
+    if (
+      ctx.actor !== null &&
+      operation !== 'credential_recovery' &&
+      needsStrongAuthentication({
+        systemRole: ctx.actor.systemRole,
+        workspaceRole: ctx.actor.role
+      })
+    ) {
+      const session = yield* Effect.promise(requireRequestSession)
+      const authentication = yield* StrongAuthentication
+      yield* authentication.require({
+        userId: ctx.actor.userId,
+        sessionId: session.session.id
+      })
+    }
     const canRepairSso =
       ctx.actor !== null &&
       authorize(memberPrincipal(ctx.actor.role), { organization: ['delete'] }).success

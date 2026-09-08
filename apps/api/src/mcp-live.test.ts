@@ -60,6 +60,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
     () =>
       Effect.gen(function* () {
         const DB = yield* TestD1
+        yield* execute(
+          `INSERT INTO passkey (id,userId,publicKey,credentialID,counter,deviceType,backedUp,createdAt)
+          VALUES ('pk_mcp_live_owner','usr_owner','fixture-public-key','credential_mcp_live_owner',0,'singleDevice',0,strftime('%s','now'))`
+        )
+        yield* execute(
+          `INSERT INTO session (id,token,userId,expiresAt,createdAt,updatedAt,strongAuthAt,strongAuthMethod,strongAuthCredentialId)
+          VALUES ('ses_mcp_live_owner','tok_mcp_live_owner','usr_owner',strftime('%s','now')+3600,strftime('%s','now'),strftime('%s','now'),strftime('%s','now'),'passkey','pk_mcp_live_owner')`
+        )
         const own = 'bsk_own_live'
         const foreign = 'bsk_foreign_live'
         yield* execute(
@@ -221,7 +229,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
               starter_workspace_id: 'wrk_dev_contract',
               starter_workspace_slug: 'dev-contract-lab',
               starter_workspace_role: 'owner',
-              starter_consent_binding: binding
+              starter_consent_binding: binding,
+              starter_session_id: 'ses_mcp_live_owner'
             })
               .setProtectedHeader({ alg: 'EdDSA' })
               .setIssuer(issuer)
