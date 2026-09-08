@@ -815,16 +815,19 @@ export async function verifyStripeSignature(
   if (input.header === null) {
     return false
   }
-  const parts = new Map<string, string>()
+  let timestamp: string | undefined
+  const signatures: Array<string> = []
   for (const pair of input.header.split(',')) {
     const [key, value] = pair.split('=', 2)
-    if (key !== undefined && value !== undefined) {
-      parts.set(key.trim(), value.trim())
+    const trimmedKey = key?.trim()
+    const trimmedValue = value?.trim()
+    if (trimmedKey === 't' && trimmedValue !== undefined) {
+      timestamp = trimmedValue
+    } else if (trimmedKey === 'v1' && trimmedValue !== undefined) {
+      signatures.push(trimmedValue)
     }
   }
-  const timestamp = parts.get('t')
-  const signature = parts.get('v1')
-  if (timestamp === undefined || signature === undefined) {
+  if (timestamp === undefined || signatures.length === 0) {
     return false
   }
   const age = Math.abs(Math.floor(now() / 1000) - Number(timestamp))
@@ -836,14 +839,19 @@ export async function verifyStripeSignature(
   }
   // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
   const expected = await hmacSha256Hex(input.secret, `${timestamp}.${input.payload}`)
-  if (expected.length !== signature.length) {
-    return false
+  for (const signature of signatures) {
+    if (expected.length !== signature.length) {
+      continue
+    }
+    let diff = 0
+    for (let i = 0; i < expected.length; i++) {
+      diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i)
+    }
+    if (diff === 0) {
+      return true
+    }
   }
-  let diff = 0
-  for (let i = 0; i < expected.length; i++) {
-    diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i)
-  }
-  return diff === 0
+  return false
 }
 
 /** Shared decoded GET boundary for pricing and payment evidence. */

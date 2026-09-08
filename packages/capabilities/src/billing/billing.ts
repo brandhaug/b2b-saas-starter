@@ -239,6 +239,10 @@ export type BillingInterface = {
   readonly processProviderEvent: (
     input: ProcessProviderEventInput
   ) => Effect.Effect<ProcessProviderEventResult, CapabilityUnavailable>
+  /** Persists verified provider evidence before asynchronous processing. */
+  readonly recordProviderEvent: (
+    input: ProcessProviderEventInput
+  ) => Effect.Effect<void, CapabilityUnavailable>
   /** Reconciles one workspace from an authoritative provider snapshot. */
   readonly reconcileWorkspace: (
     input: ReconcileWorkspaceInput

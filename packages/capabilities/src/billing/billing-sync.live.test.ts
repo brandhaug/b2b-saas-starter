@@ -295,6 +295,28 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       )
     )
 
+    it.effect(
+      'scheduled reconciliation recovers evidence persisted before enqueue',
+      () =>
+        withStripe(() =>
+          Effect.gen(function* () {
+            yield* billingRun((billing) =>
+              billing.recordProviderEvent(event('evt_crash'))
+            )
+            expect(
+              (yield* stored).events.find((row) => row.providerEventId === 'evt_crash')
+                ?.status
+            ).toBe('processing')
+            yield* TestClock.adjust('2 minutes')
+            yield* billingRun((billing) => billing.reconcileBatch({ limit: 1 }))
+            expect(
+              (yield* stored).events.find((row) => row.providerEventId === 'evt_crash')
+                ?.status
+            ).toBe('completed')
+          })
+        )
+    )
+
     // Exercise real concurrent D1 requests and the bounded lease retry schedule.
     it.effect(
       'concurrent duplicate deliveries commit one plan change and one event',

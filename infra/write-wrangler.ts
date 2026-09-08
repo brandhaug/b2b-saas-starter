@@ -242,6 +242,7 @@ export const wranglerConfigs: ReadonlyArray<{
       queues: {
         producers: [
           { binding: queueBindingKeys.webhookQueue, queue: webhookQueueName },
+          billingQueueProducer,
           // The worker creates Notifications too (webhook deliveries that gave
           // up), so it produces instant-email messages for its own consumer.
           {

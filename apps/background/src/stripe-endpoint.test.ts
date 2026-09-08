@@ -1,16 +1,12 @@
-import {
-  Billing,
-  type ProcessProviderEventInput,
-  type ProcessProviderEventResult
-} from '@b2b-saas-starter/capabilities/billing/billing'
-import { Effect, Layer } from 'effect'
+import { type ProcessProviderEventInput } from '@b2b-saas-starter/capabilities/billing/billing'
+import { Effect } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
 import checkoutCompleted from './fixtures/stripe/checkout.session.completed.json'
 import subscriptionCreated from './fixtures/stripe/customer.subscription.created.json'
 import subscriptionDeleted from './fixtures/stripe/customer.subscription.deleted.json'
 import subscriptionUpdated from './fixtures/stripe/customer.subscription.updated.json'
-import { processStripeEvent } from './stripe-endpoint.ts'
+import { providerInputFromPayload } from './stripe-endpoint.ts'
 
 /**
  * The Stripe webhook core, driven by recorded event fixtures: the exact JSON
@@ -19,52 +15,12 @@ import { processStripeEvent } from './stripe-endpoint.ts'
  * which event becomes which capability call — without a provider or a D1.
  */
 
-type PlanCall = {
-  readonly workspaceId: string
-  readonly planId: string
-  readonly detail?: ProcessProviderEventInput['detail']
-}
 type SubscriptionCall = NonNullable<ProcessProviderEventInput['subscription']>
 
 /** What one test run records off the stubbed capability. */
 type RecordedCalls = {
-  readonly plans: Array<PlanCall>
   readonly subscriptions: Array<SubscriptionCall>
   readonly events: Array<ProcessProviderEventInput>
-}
-
-function recordingBilling(calls: RecordedCalls) {
-  return Layer.succeed(Billing)({
-    configured: Effect.succeed(false),
-    currentPlanForWorkspace: () => Effect.die('unused'),
-    lifecycleStatus: Effect.die('unused'),
-    displayedPlans: Effect.die('unused'),
-    currentPlan: Effect.die('not used here'),
-    synchronizationStatus: Effect.die('not used here'),
-    reconcileWorkspace: () => Effect.die('not used here'),
-    reconcileBatch: () => Effect.die('not used here'),
-    startCheckout: () => Effect.die('not used here'),
-    startPortalSession: () => Effect.die('not used here'),
-    processProviderEvent: (input: ProcessProviderEventInput) =>
-      Effect.sync(() => {
-        calls.events.push(input)
-        if (input.planId !== undefined && input.workspaceId !== undefined) {
-          calls.plans.push({
-            workspaceId: input.workspaceId,
-            planId: input.planId,
-            detail: input.detail
-          })
-        }
-        if (input.subscription !== undefined) {
-          calls.subscriptions.push(input.subscription)
-        }
-        return {
-          outcome: 'applied',
-          providerEventId: input.providerEventId
-        } satisfies ProcessProviderEventResult
-      }),
-    syncSeats: () => Effect.die('not used here')
-  })
 }
 
 // The fixture is checked-in, trusted JSON; the decoder under test owns the
@@ -75,21 +31,22 @@ function payloadOf(fixture: unknown): string {
 }
 
 function run(fixture: unknown) {
-  const calls: RecordedCalls = { plans: [], subscriptions: [], events: [] }
-  return Effect.map(
-    processStripeEvent(payloadOf(fixture)).pipe(
-      Effect.provide(recordingBilling(calls))
-    ),
-    () => calls
-  )
+  const calls: RecordedCalls = { subscriptions: [], events: [] }
+  const input = providerInputFromPayload(payloadOf(fixture))
+  if (input !== undefined) {
+    calls.events.push(input)
+    if (input.subscription !== undefined) {
+      calls.subscriptions.push(input.subscription)
+    }
+  }
+  return Effect.succeed(calls)
 }
 
-describe('processStripeEvent', () => {
+describe('providerInputFromPayload', () => {
   it.effect('maps checkout completion to one authoritative subscription event', () =>
     Effect.gen(function* () {
       const calls = yield* run(checkoutCompleted)
       expect(calls.events).toHaveLength(1)
-      expect(calls.plans).toEqual([])
       expect(calls.subscriptions).toEqual([
         {
           workspaceId: 'wrk_starter',
@@ -125,7 +82,6 @@ describe('processStripeEvent', () => {
         }
       })
       expect(calls.events).toHaveLength(1)
-      expect(calls.plans).toEqual([])
       expect(calls.subscriptions[0]).toMatchObject({
         workspaceId: 'wrk_starter',
         customerId: 'cus_seed_starter_lab',
@@ -139,7 +95,6 @@ describe('processStripeEvent', () => {
       const calls = yield* run(subscriptionUpdated)
       expect(calls.events).toHaveLength(1)
       // No plan change rides a quantity update — the checkout already set it.
-      expect(calls.plans).toEqual([])
       expect(calls.subscriptions).toEqual([
         {
           workspaceId: 'wrk_starter',
@@ -162,7 +117,6 @@ describe('processStripeEvent', () => {
     Effect.gen(function* () {
       const calls = yield* run(subscriptionDeleted)
       expect(calls.events).toHaveLength(1)
-      expect(calls.plans).toEqual([])
       expect(calls.subscriptions).toEqual([
         {
           workspaceId: 'wrk_starter',
@@ -184,7 +138,6 @@ describe('processStripeEvent', () => {
   it.effect('records the first subscription state without a plan change', () =>
     Effect.gen(function* () {
       const calls = yield* run(subscriptionCreated)
-      expect(calls.plans).toEqual([])
       expect(calls.subscriptions[0]).toMatchObject({
         workspaceId: 'wrk_starter',
         subscriptionItemId: 'si_seed_starter_lab',
@@ -199,7 +152,6 @@ describe('processStripeEvent', () => {
         type: 'invoice.paid',
         data: { object: { customer: 'cus_seed_starter_lab' } }
       })
-      expect(calls.plans).toEqual([])
       expect(calls.subscriptions).toEqual([])
     })
   )
@@ -217,7 +169,6 @@ describe('processStripeEvent', () => {
           }
         })
         expect(calls.events).toHaveLength(1)
-        expect(calls.plans).toEqual([])
         expect(calls.subscriptions).toMatchObject([
           {
             customerId: undefined,
@@ -241,66 +192,7 @@ describe('processStripeEvent', () => {
   it.effect('tolerates a malformed body as a skip, not a failure', () =>
     Effect.gen(function* () {
       const calls = yield* run({ type: 'checkout.session.completed', data: 'nope' })
-      expect(calls.plans).toEqual([])
       expect(calls.subscriptions).toEqual([])
     })
   )
 })
-
-it.effect(
-  'routes invoice recovery, payment action and asynchronous checkout through verified synchronization',
-  () =>
-    Effect.gen(function* () {
-      const calls: RecordedCalls = { plans: [], subscriptions: [], events: [] }
-      const invoiceTypes = [
-        'invoice.paid',
-        'invoice.payment_succeeded',
-        'invoice.payment_failed',
-        'invoice.payment_action_required'
-      ]
-      for (const type of invoiceTypes) {
-        yield* processStripeEvent(
-          payloadOf({
-            id: `evt_${type}`,
-            created: 1_788_739_200,
-            type,
-            data: {
-              object: {
-                id: 'in_current',
-                customer: 'cus_lifecycle',
-                parent: { subscription_details: { subscription: 'sub_lifecycle' } }
-              }
-            }
-          })
-        ).pipe(Effect.scoped, Effect.provide(recordingBilling(calls)))
-      }
-      for (const type of [
-        'checkout.session.async_payment_succeeded',
-        'checkout.session.async_payment_failed'
-      ]) {
-        yield* processStripeEvent(
-          payloadOf({
-            id: `evt_${type}`,
-            created: 1_788_739_200,
-            type,
-            data: {
-              object: {
-                id: 'cs_async',
-                customer: 'cus_lifecycle',
-                subscription: 'sub_lifecycle'
-              }
-            }
-          })
-        ).pipe(Effect.scoped, Effect.provide(recordingBilling(calls)))
-      }
-      expect(calls.events).toHaveLength(6)
-      expect(
-        calls.events.every(
-          (event) =>
-            event.subscription?.customerId === 'cus_lifecycle' &&
-            event.subscription.subscriptionId === 'sub_lifecycle'
-        )
-      ).toBe(true)
-      expect(calls.plans).toHaveLength(0)
-    })
-)

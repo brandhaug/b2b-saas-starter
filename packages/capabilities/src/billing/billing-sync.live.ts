@@ -626,6 +626,17 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
       return results
     })
 
-    return { processProviderEvent, reconcileWorkspace, reconcileBatch }
+    const recordProviderEvent = Effect.fn('Billing.recordProviderEvent')(function* (
+      input: ProcessProviderEventInput
+    ) {
+      yield* store.recordEvent(input, null)
+    })
+
+    return {
+      processProviderEvent,
+      recordProviderEvent,
+      reconcileWorkspace,
+      reconcileBatch
+    }
   }
 )

@@ -154,6 +154,9 @@ export function SeedBilling(options?: {
         ReadonlyMap<string, BillingSynchronizationStatus>
       >(new Map())
       const processedEvents = yield* Ref.make<ReadonlySet<string>>(new Set())
+      const pendingEvents = yield* Ref.make<
+        ReadonlyMap<string, ProcessProviderEventInput>
+      >(new Map())
 
       let memberCount: Effect.Effect<number> = Effect.succeed(0)
       if (options?.roster !== undefined) {
@@ -442,6 +445,97 @@ export function SeedBilling(options?: {
           )
         }
       )
+      const processProviderEvent = Effect.fn('Billing.processProviderEvent')(function* (
+        input: ProcessProviderEventInput
+      ) {
+        return yield* withProviderLock(
+          Effect.gen(function* () {
+            if ((yield* Ref.get(processedEvents)).has(input.providerEventId)) {
+              yield* Ref.update(pendingEvents, (events) => {
+                const next = new Map(events)
+                next.delete(input.providerEventId)
+                return next
+              })
+              return {
+                outcome: 'duplicate',
+                providerEventId: input.providerEventId
+              } satisfies ProcessProviderEventResult
+            }
+            const workspaceId = input.workspaceId
+            if (workspaceId === undefined) {
+              return {
+                outcome: 'conflict',
+                providerEventId: input.providerEventId,
+                reason: 'missing_workspace'
+              } satisfies ProcessProviderEventResult
+            }
+            if (!configured) {
+              yield* Ref.update(synchronization, (map) => {
+                const next = new Map(map)
+                next.set(workspaceId, {
+                  status: 'delayed',
+                  lastSyncedAt: map.get(workspaceId)?.lastSyncedAt ?? null
+                })
+                return next
+              })
+              return yield* Effect.fail(
+                new CapabilityUnavailable({
+                  capability: 'billing',
+                  reason: 'provider_not_configured'
+                })
+              )
+            }
+            const provider = (yield* Ref.get(providerSubscriptions)).get(workspaceId)
+            if (provider === undefined) {
+              yield* Ref.update(synchronization, (map) => {
+                const next = new Map(map)
+                next.set(workspaceId, {
+                  status: 'conflict',
+                  lastSyncedAt: map.get(workspaceId)?.lastSyncedAt ?? null
+                })
+                return next
+              })
+              return {
+                outcome: 'conflict',
+                providerEventId: input.providerEventId,
+                reason: 'provider_snapshot_missing'
+              } satisfies ProcessProviderEventResult
+            }
+            const reconciled = yield* Effect.uninterruptible(
+              reconcileWorkspaceUnsafe({ workspaceId })
+            )
+            if (reconciled.outcome === 'conflict') {
+              return {
+                outcome: 'conflict',
+                providerEventId: input.providerEventId,
+                reason: reconciled.drift[0] ?? 'provider_conflict'
+              } satisfies ProcessProviderEventResult
+            }
+            if (reconciled.outcome === 'delayed') {
+              return {
+                outcome: 'conflict',
+                providerEventId: input.providerEventId,
+                reason: 'provider_unavailable'
+              } satisfies ProcessProviderEventResult
+            }
+            yield* Ref.update(processedEvents, (events) => {
+              const next = new Set(events)
+              next.add(input.providerEventId)
+              return next
+            })
+            yield* Ref.update(pendingEvents, (events) => {
+              const next = new Map(events)
+              next.delete(input.providerEventId)
+              return next
+            })
+            return {
+              outcome: 'applied',
+              providerEventId: input.providerEventId
+            } satisfies ProcessProviderEventResult
+          })
+        )
+      })
+
       const capability = {
         configured: Effect.succeed(configured),
         currentPlanForWorkspace,
@@ -486,96 +580,38 @@ export function SeedBilling(options?: {
             lastSyncedAt: null
           } satisfies BillingSynchronizationStatus
         })(),
-        processProviderEvent: Effect.fn('Billing.processProviderEvent')(function* (
-          input: ProcessProviderEventInput
-        ) {
-          return yield* withProviderLock(
-            Effect.gen(function* () {
-              if ((yield* Ref.get(processedEvents)).has(input.providerEventId)) {
-                return {
-                  outcome: 'duplicate',
-                  providerEventId: input.providerEventId
-                } satisfies ProcessProviderEventResult
-              }
-              const workspaceId = input.workspaceId
-              if (workspaceId === undefined) {
-                return {
-                  outcome: 'conflict',
-                  providerEventId: input.providerEventId,
-                  reason: 'missing_workspace'
-                } satisfies ProcessProviderEventResult
-              }
-              if (!configured) {
-                yield* Ref.update(synchronization, (map) => {
-                  const next = new Map(map)
-                  next.set(workspaceId, {
-                    status: 'delayed',
-                    lastSyncedAt: map.get(workspaceId)?.lastSyncedAt ?? null
-                  })
-                  return next
-                })
-                return yield* Effect.fail(
-                  new CapabilityUnavailable({
-                    capability: 'billing',
-                    reason: 'provider_not_configured'
-                  })
-                )
-              }
-              const provider = (yield* Ref.get(providerSubscriptions)).get(workspaceId)
-              if (provider === undefined) {
-                yield* Ref.update(synchronization, (map) => {
-                  const next = new Map(map)
-                  next.set(workspaceId, {
-                    status: 'conflict',
-                    lastSyncedAt: map.get(workspaceId)?.lastSyncedAt ?? null
-                  })
-                  return next
-                })
-                return {
-                  outcome: 'conflict',
-                  providerEventId: input.providerEventId,
-                  reason: 'provider_snapshot_missing'
-                } satisfies ProcessProviderEventResult
-              }
-              const reconciled = yield* Effect.uninterruptible(
-                reconcileWorkspaceUnsafe({ workspaceId })
-              )
-              if (reconciled.outcome === 'conflict') {
-                return {
-                  outcome: 'conflict',
-                  providerEventId: input.providerEventId,
-                  reason: reconciled.drift[0] ?? 'provider_conflict'
-                } satisfies ProcessProviderEventResult
-              }
-              if (reconciled.outcome === 'delayed') {
-                return {
-                  outcome: 'conflict',
-                  providerEventId: input.providerEventId,
-                  reason: 'provider_unavailable'
-                } satisfies ProcessProviderEventResult
-              }
-              yield* Ref.update(processedEvents, (events) => {
-                const next = new Set(events)
-                next.add(input.providerEventId)
-                return next
-              })
-              return {
-                outcome: 'applied',
-                providerEventId: input.providerEventId
-              } satisfies ProcessProviderEventResult
+        processProviderEvent,
+        recordProviderEvent: (input: ProcessProviderEventInput) =>
+          Effect.gen(function* () {
+            if ((yield* Ref.get(processedEvents)).has(input.providerEventId)) {
+              return
+            }
+            yield* Ref.update(pendingEvents, (events) => {
+              const next = new Map(events)
+              next.set(input.providerEventId, input)
+              return next
             })
-          )
-        }),
+          }),
         reconcileWorkspace,
         reconcileBatch: Effect.fn('Billing.reconcileBatch')(function* (input?: {
           readonly limit?: number | undefined
         }) {
+          const limit = Math.max(1, Math.min(25, Math.floor(input?.limit ?? 25)))
+          const pending = [...(yield* Ref.get(pendingEvents)).values()].slice(0, limit)
+          yield* Effect.forEach(
+            pending,
+            (event) =>
+              processProviderEvent(event).pipe(
+                Effect.catchTag('CapabilityUnavailable', () => Effect.void)
+              ),
+            { concurrency: 3, discard: true }
+          )
           const ids = [
             ...new Set([
               ...(yield* Ref.get(subscriptions)).keys(),
               ...(yield* Ref.get(providerSubscriptions)).keys()
             ])
-          ].slice(0, input?.limit ?? 25)
+          ].slice(0, Math.max(0, limit - pending.length))
           return yield* Effect.forEach(ids, (workspaceId) =>
             reconcileWorkspace({ workspaceId })
           )

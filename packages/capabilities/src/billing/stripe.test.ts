@@ -11,7 +11,8 @@ import {
   createStripeCustomer,
   retrieveStripeCheckoutSession,
   retrieveStripeSubscription,
-  updateStripeSubscriptionItemQuantity
+  updateStripeSubscriptionItemQuantity,
+  verifyStripeSignature
 } from './stripe.ts'
 
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- each test replaces the platform fetch double
@@ -245,4 +246,90 @@ describe('Stripe provider adapter', () => {
       })
     }
   )
+})
+
+describe('Stripe webhook signature verification', () => {
+  /* oxlint-disable effect/noAsyncFunction -- these tests exercise the real Web Crypto the verifier depends on */
+  const nowSeconds = 1_700_000_000
+  function fixedNow(): number {
+    return nowSeconds * 1000
+  }
+
+  async function signature(secret: string, payload: string, timestamp: number) {
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    )
+    const signed = await crypto.subtle.sign(
+      'HMAC',
+      key,
+      new TextEncoder().encode(`${timestamp}.${payload}`)
+    )
+    return [...new Uint8Array(signed)]
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('')
+  }
+
+  it('accepts a matching v1 from either side of a rotated signature list', async () => {
+    const payload = '{"type":"checkout.session.completed"}'
+    const valid = await signature('whsec_test', payload, nowSeconds)
+    const invalid = '0'.repeat(valid.length)
+
+    for (const v1s of [
+      [valid, invalid],
+      [invalid, valid]
+    ]) {
+      await expect(
+        verifyStripeSignature(
+          {
+            secret: 'whsec_test',
+            payload,
+            header: `t=${nowSeconds},${v1s.map((value) => `v1=${value}`).join(',')}`
+          },
+          fixedNow
+        )
+      ).resolves.toBe(true)
+    }
+  })
+
+  it('rejects headers with no valid v1, stale timestamps, or malformed schemes', async () => {
+    const payload = 'p'
+    const valid = await signature('whsec_test', payload, nowSeconds)
+    await expect(
+      verifyStripeSignature(
+        {
+          secret: 'whsec_test',
+          payload,
+          header: `t=${nowSeconds},v1=${'0'.repeat(valid.length)},v1=${'f'.repeat(valid.length)}`
+        },
+        fixedNow
+      )
+    ).resolves.toBe(false)
+    const staleTimestamp = nowSeconds - 301
+    const staleSignature = await signature('whsec_test', payload, staleTimestamp)
+    await expect(
+      verifyStripeSignature(
+        {
+          secret: 'whsec_test',
+          payload,
+          header: `t=${staleTimestamp},v1=${staleSignature}`
+        },
+        fixedNow
+      )
+    ).resolves.toBe(false)
+    for (const header of [
+      '',
+      'garbage',
+      `t=${nowSeconds},v0=${valid}`,
+      `t=abc,v1=${valid}`
+    ]) {
+      await expect(
+        verifyStripeSignature({ secret: 'whsec_test', payload, header }, fixedNow)
+      ).resolves.toBe(false)
+    }
+  })
+  /* oxlint-enable effect/noAsyncFunction */
 })

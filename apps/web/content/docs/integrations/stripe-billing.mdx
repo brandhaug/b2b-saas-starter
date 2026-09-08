@@ -25,7 +25,7 @@ Billing is an **Optional Provider** built on Stripe. Plan display, seat usage, a
 - **Seat sync**: membership mutations (a Member added or removed) and invitation acceptances enqueue one message onto the `BILLING_QUEUE`. The background worker consumes it and mirrors the member count onto the Stripe subscription item's quantity through `Billing.syncSeats`, so a membership mutation never awaits Stripe. The stored quantity and a `billing.seats_changed` audit event commit together; a Stripe failure retries through the queue.
 - **Checkout handoff**: the `startCheckoutServerFn` server function composes success/cancel URLs server-side from `BETTER_AUTH_URL` (the client names only its slug and plan), calls Stripe's REST API directly over form-encoded fetch (no SDK), and records a `billing.checkout_started` audit event. A durable claim fixes the request parameters before the Stripe call. Concurrent attempts for the same workspace and plan reuse the pending checkout. A different plan must wait for that checkout to expire or be canceled. Existing subscribers go to the Billing Portal. On a per-seat plan, checkout starts with the member count recorded by the claim; reconciliation picks up subsequent membership changes.
 - **Entitlement gate**: `assertWithinPlanLimit` caps Starter workspaces at 2 API tokens and 1 webhook endpoint; paid plans do not cap. The web server functions and the API worker both compose it before creates, failing with a 402 `PlanLimitExceeded`. A downgrade never deletes members, tokens, or endpoints. If existing tokens or endpoints exceed Starter limits, the affected category is paused until an owner or admin selects the two tokens and one endpoint to remain active; execution and authorization boundaries enforce the restriction for existing credentials and queued webhook dispatches too.
-- **Inbound webhook**: `POST /webhooks/stripe` verifies Stripe's signature against `STRIPE_WEBHOOK_SECRET` and preserves the event ID and creation time. Checkout and subscription events trigger retrieval of current Stripe state. Historical payloads never directly restore a subscription or select an entitlement from stale metadata.
+- **Inbound webhook**: `POST /webhooks/stripe` verifies Stripe's signature against `STRIPE_WEBHOOK_SECRET`, stores minimal event evidence in D1, and publishes work to `BILLING_QUEUE` before acknowledging delivery. The consumer retrieves current Stripe state through the shared synchronization workflow. Historical payloads never directly restore a subscription or select an entitlement from stale metadata.
 - **Scheduled reconciliation**: a bounded background pass retrieves customer and subscription state, applies recognized price changes, and corrects seat quantity to application membership. It repairs missed events and dropped queue work without another customer action. Billing stays inactive without Stripe configuration.
 
 ## Subscription state
@@ -49,8 +49,12 @@ while operators resolve the conflict. It never cancels subscriptions, refunds
 payments, or reassigns customers to resolve a conflict automatically.
 
 The billing page shows pending, delayed, or conflict state and refreshes while
-Stripe is configured. An outage preserves the last verified plan and withholds
-unverified upgrades.
+Stripe is configured. After successful Checkout, an authorized owner/admin return
+triggers the same authoritative reconciliation used by background work. The
+request waits for a bounded interval; delayed work remains visible while normal
+polling and background recovery continue. The success query parameter grants no
+access. An outage preserves the last verified plan and withholds unverified
+upgrades.
 
 The effective plan is checked again when a request needs an entitlement. A
 stored Team subscription therefore does not keep creating or authorizing paid
@@ -104,9 +108,13 @@ instead of displaying inaccurate customer-facing prices.
 
 ## Queue topology
 
-Seat sync uses `b2b-saas-starter-billing`, produced by the web worker and consumed
-by the background worker. Membership changes enqueue best-effort work and never
-await Stripe. Failed work retries with backoff; exhausted jobs produce durable
+Seat sync and Stripe events share `b2b-saas-starter-billing`, produced by the web
+and background workers and consumed by the background worker. Membership changes
+enqueue best-effort work and never await Stripe. Webhook ingestion requires D1,
+complete Stripe configuration, and the billing queue binding. It returns a
+retryable failure if storage or queue publication fails. Events already stored
+remain available to scheduled reconciliation if ingestion stops before enqueueing.
+The webhook response does not wait for Stripe API reads or entitlement changes. Failed work retries with backoff; exhausted jobs produce durable
 failure evidence and observable terminal outcomes through the billing dead-letter
 consumer. Scheduled reconciliation recovers both exhausted jobs and publication
 failures.
@@ -131,14 +139,44 @@ before retrying; the application does not make destructive financial decisions.
 ## Billing Portal and webhook setup
 
 Configure Stripe's Billing Portal to permit payment-method updates, invoice
-history, and period-end cancellation/reactivation. Point a Stripe webhook
-endpoint at `<background-worker>/webhooks/stripe` subscribed to
-`checkout.session.completed`, `customer.subscription.created`,
-`customer.subscription.updated`, and `customer.subscription.deleted`. The
-handler matches Stripe's `t=/v1=` signature header scheme with HMAC-SHA256,
-rejects timestamps older than five minutes, and returns non-2xx on processing
-failure so Stripe schedules redelivery. The application verifies provider state
-before changing access, preserving the grace and cancellation semantics above.
+history, and period-end cancellation/reactivation. Keep subscription quantity
+editing disabled: the application owns seat quantity through workspace membership.
+
+For each sandbox and live account, configure the webhook endpoint at
+`<background-worker>/webhooks/stripe` with API version `2025-03-31.basil`, matching
+the adapter, and subscribe to these events:
+
+| Category     | Events                                                                                                                                                             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Checkout     | `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`                                                  |
+| Subscription | `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.paused`, `customer.subscription.resumed` |
+| Invoice      | `invoice.paid`, `invoice.payment_succeeded`, `invoice.payment_failed`, `invoice.payment_action_required`                                                           |
+
+This list follows `STRIPE_EVENT_SUBSCRIPTION_LINK_KINDS` in
+`packages/capabilities/src/billing/stripe.ts`. Subscribe only to these events;
+unrelated PaymentIntent events do not need separate entitlement logic.
+
+The handler verifies the untouched request body with HMAC-SHA256, accepts any
+matching `v1` signature during signing-secret rotation, and enforces a five-minute
+timestamp tolerance. Rotate the endpoint secret with an overlap window, update
+`STRIPE_WEBHOOK_SECRET`, and confirm delivery before expiring the old secret.
+Stripe documents the overlap in its [webhook verification guide](https://docs.stripe.com/webhooks#verify-manually).
+
+Enable [Limit customers to one subscription](https://docs.stripe.com/payments/checkout/limit-subscriptions)
+in Checkout and Payment Links settings. When redirecting to Stripe's customer
+portal, activate its no-code login link and keep it enabled; disabling that link
+also disables this protection. The application still creates Checkout with the
+workspace's stored customer and reuses durable checkout claims. Stripe's setting
+adds protection for active, past-due, unpaid, and paused subscriptions; it does
+not replace our checks for other current subscription states.
+
+Verify settings separately in sandbox and live mode. Confirm the endpoint URL,
+API version, selected events, signing secret, price IDs, portal permissions, and
+subscription limit in the target Stripe account. Complete a sandbox Checkout,
+check that returning to billing refreshes verified access, then resend its webhook
+and confirm that no duplicate subscription or billing transition is created.
+Repeat delivery while rotating the webhook secret. Repository configuration
+cannot establish that these Dashboard settings have been applied.
 
 ## What Stripe is not used for
 
