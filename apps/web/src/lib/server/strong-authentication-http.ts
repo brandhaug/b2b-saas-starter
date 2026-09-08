@@ -20,6 +20,7 @@ const RECENT_AUTHENTICATION_ACTIONS = new Set([
   '/change-email',
   '/set-password',
   '/unlink-account',
+  '/link-social',
   '/two-factor/enable',
   '/two-factor/disable',
   '/two-factor/generate-backup-codes',
@@ -94,7 +95,6 @@ export async function strongAuthenticationHttpResponse(
   if (
     isOrganizationProductAction(exchange) ||
     isSsoProductAction(path) ||
-    path === '/link-social' ||
     path === '/oauth2/continue' ||
     path === '/oauth2/consent' ||
     path === '/delete-user' ||

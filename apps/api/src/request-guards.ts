@@ -9,6 +9,7 @@ import {
   memberPrincipal,
   tokenPrincipal,
   needsStrongAuthentication,
+  needsRecentAuthentication,
   type Principal,
   type PermissionRequest
 } from '@b2b-saas-starter/authz/client'
@@ -28,7 +29,6 @@ import {
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import {
   StrongAuthentication,
-  needsRecentAuthentication,
   StrongAuthenticationRequired
 } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import {

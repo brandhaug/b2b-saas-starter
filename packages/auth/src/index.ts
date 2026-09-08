@@ -11,6 +11,8 @@ import { cimd } from '@better-auth/cimd'
 import { mcp } from '@better-auth/mcp'
 import { sso } from '@better-auth/sso'
 import { type DBFieldAttribute } from 'better-auth/db'
+import { type BetterAuthOptions } from 'better-auth'
+import { getAuthoritativeSessionFromCtx } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
 import { lastLoginMethod } from 'better-auth/plugins'
@@ -196,6 +198,32 @@ function userDeleteDatabaseHooks(options: AuthConfigInterface) {
 }
 // oxlint-enable effect/noAsyncFunction, effect/noThrowStatement, effect/noNewError
 
+// oxlint-disable effect/noAsyncFunction -- Better Auth invokes this promise-based validation callback outside Effect
+/** Provider callbacks run after the ceremony; only an existing account link needs app proof. */
+function socialLinkValidation(
+  options: AuthConfigInterface
+): NonNullable<NonNullable<BetterAuthOptions['user']>['validateUserInfo']> {
+  return async (data, context) => {
+    if (data.source.method !== 'oauth' || data.source.action !== 'link-account') {
+      return
+    }
+    const current = await getAuthoritativeSessionFromCtx(context)
+    if (
+      !current ||
+      current.user.id !== data.user.id ||
+      options.hasRecentAuthentication === undefined ||
+      !(await options.hasRecentAuthentication({
+        userId: current.user.id,
+        sessionId: current.session.id
+      }))
+    ) {
+      return { error: 'social_link_authentication_required' }
+    }
+  }
+}
+
+// oxlint-enable effect/noAsyncFunction
+
 /**
  * Kept as a plain function returning a single (non-union) object type: the
  * plugins array is the literal that effectful-better-auth's inference reads,
@@ -341,7 +369,10 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         handler: options.runBackground
       }
     },
-    user: userDeleteOption(options),
+    user: {
+      ...userDeleteOption(options),
+      validateUserInfo: socialLinkValidation(options)
+    },
     session: {
       // Tightened from Better Auth's 24-hour default to one hour. The
       // mechanism is plugin-side: Better Auth's fresh-session middleware

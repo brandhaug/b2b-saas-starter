@@ -19,6 +19,7 @@ import { makeAuthEmailSender } from './server/auth-emails'
 import { socialAccountAuditHooks } from './server/social-account-audit'
 import { fetchClientMetadataResource } from './server/client-metadata-fetch'
 import { onRecoveryStarted } from './server/auth-recovery'
+import { hasRecentAuthentication } from './server/auth-recent-authentication'
 
 /**
  * The MCP resource identifier when `MCP_RESOURCE_URL` is unset: the local API
@@ -61,6 +62,7 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => {
     // Events through the governance capability (see
     // server/social-account-audit.ts).
     accountHooks: socialAccountAuditHooks,
+    hasRecentAuthentication,
     recoveryHooks: { onRecoveryStarted },
     // Production requires verified mailboxes; local dev and previews stay open
     // because lifecycle emails land in the log there (provider-light rule).

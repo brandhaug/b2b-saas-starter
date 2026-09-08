@@ -178,6 +178,11 @@ export type AuthConfigInterface = {
    * the credential sign-up path already has its own audit row.
    */
   readonly accountHooks: AuthAccountHooks
+  /** Social linking fails closed unless the app verifies this exact session's recent proof. */
+  readonly hasRecentAuthentication?: (input: {
+    readonly userId: string
+    readonly sessionId: string
+  }) => Promise<boolean>
   /**
    * Better Auth's `requireEmailVerification`, decided by the app from
    * `ENVIRONMENT` (`requireEmailVerification` in `@b2b-saas-starter/env`):

@@ -288,6 +288,7 @@ describe('SignInPage', () => {
       await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(1))
       expect(signInSocial).toHaveBeenCalledWith({
         provider: 'github',
+        errorCallbackURL: `${window.location.origin}/sign-in?redirect=%2Fworkspaces`,
         callbackURL: `${window.location.origin}/workspaces`
       })
     })
@@ -298,6 +299,7 @@ describe('SignInPage', () => {
       await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(1))
       expect(signInSocial).toHaveBeenCalledWith({
         provider: 'github',
+        errorCallbackURL: `${window.location.origin}/sign-in?redirect=%2Fworkspaces%2Fstarter-lab`,
         callbackURL: `${window.location.origin}/workspaces/starter-lab`
       })
     })
@@ -394,6 +396,22 @@ describe('SignInPage', () => {
     )
     // Guidance, not a dead end: the credential form the message points at is
     // right there under the notice.
+    expect(screen.getByLabelText('Password')).toBeDefined()
+  })
+
+  it('explains a refused provider link and offers verification before a deliberate retry', async () => {
+    await renderWithRouter(
+      <SignInPage searchError="social_link_authentication_required" />,
+      {
+        path: '/sign-in',
+        destinations: ['/verify-authentication', '/workspaces']
+      }
+    )
+    const notice = await screen.findByRole('alert')
+    expect(notice.textContent).toBe(m.security_social_link_authentication_required())
+    const verify = screen.getByRole('link', { name: m.security_verify_continue() })
+    expect(verify.getAttribute('href')).toContain('/verify-authentication?')
+    expect(verify.getAttribute('href')).toContain('redirect=%2Fsign-in')
     expect(screen.getByLabelText('Password')).toBeDefined()
   })
 

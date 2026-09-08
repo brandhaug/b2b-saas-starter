@@ -1,4 +1,3 @@
-import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { session, twoFactor, passkey } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
 import {
@@ -213,35 +212,3 @@ export const LiveStrongAuthentication: Layer.Layer<
     }
   })
 )
-
-function requestsAction(
-  grant: PermissionRequest[keyof PermissionRequest],
-  sensitiveActions: ReadonlyArray<string>
-): boolean {
-  if (grant === undefined) {
-    return false
-  }
-  const sensitive = new Set(sensitiveActions)
-  if ('actions' in grant) {
-    return grant.actions.some((action) => sensitive.has(action))
-  }
-  return grant.some((action) => sensitive.has(action))
-}
-
-/** Credential revocation remains available during emergency recovery. */
-export function needsRecentAuthentication(permission: PermissionRequest): boolean {
-  return (
-    requestsAction(permission.organization, ['delete']) ||
-    requestsAction(permission.member, ['update', 'delete']) ||
-    requestsAction(permission.invitation, ['create']) ||
-    requestsAction(permission.apiToken, ['create']) ||
-    requestsAction(permission.webhook, [
-      'create',
-      'update',
-      'delete',
-      'rotateSecret'
-    ]) ||
-    requestsAction(permission.sso, ['create', 'update', 'remove']) ||
-    requestsAction(permission.workspaceExport, ['request', 'download'])
-  )
-}

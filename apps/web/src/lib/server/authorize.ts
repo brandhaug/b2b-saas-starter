@@ -1,6 +1,7 @@
 import {
   authorize,
   needsStrongAuthentication,
+  needsRecentAuthentication,
   memberPrincipal,
   type PermissionRequest
 } from '@b2b-saas-starter/authz/client'
@@ -12,10 +13,7 @@ import {
   type WorkspaceSuspensionOperation
 } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { Effect } from 'effect'
-import {
-  StrongAuthentication,
-  needsRecentAuthentication
-} from '@b2b-saas-starter/capabilities/governance/strong-authentication'
+import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { requireRequestSession } from './auth'
 
 /**

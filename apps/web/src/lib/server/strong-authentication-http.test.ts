@@ -186,6 +186,7 @@ describe('privileged authentication HTTP boundary', () => {
       '/change-email',
       '/set-password',
       '/unlink-account',
+      '/link-social',
       '/two-factor/enable',
       '/passkey/generate-register-options'
     ]) {
@@ -199,6 +200,7 @@ describe('privileged authentication HTTP boundary', () => {
       '/change-email',
       '/set-password',
       '/unlink-account',
+      '/link-social',
       '/two-factor/enable',
       '/passkey/generate-register-options'
     ]) {
@@ -297,7 +299,6 @@ describe('account deletion capability boundary', () => {
 
 describe('raw product endpoint exclusions', () => {
   it.each([
-    '/link-social',
     '/oauth2/continue',
     '/oauth2/consent',
     '/delete-user',

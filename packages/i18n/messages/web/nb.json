@@ -1,4 +1,5 @@
 {
+  "security_social_link_authentication_required": "Logg inn med en eksisterende metode, bekreft identiteten din, og prøv deretter å koble til denne leverandøren på nytt. Bekreftelsen varer i fem minutter.",
   "security_recent_authentication_required": "Bekreft identiteten din for å fortsette. Bekreftelsen varer i fem minutter. Gå gjennom og prøv handlingen på nytt når du kommer tilbake.",
   "export_download_failed": "Kunne ikke laste ned eksporten. Prøv igjen.",
   "nav_overview": "Oversikt",

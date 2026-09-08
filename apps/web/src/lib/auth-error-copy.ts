@@ -26,6 +26,8 @@ type AuthCopy = () => string
  * fall through to the caller's action-specific fallback.
  */
 const AUTH_ERROR_COPY = {
+  social_link_authentication_required: () =>
+    m.security_social_link_authentication_required(),
   strong_authentication_required: () => m.security_authentication_required(),
   INVALID_EMAIL_OR_PASSWORD: signInFailed,
   USER_NOT_FOUND: signInFailed,
