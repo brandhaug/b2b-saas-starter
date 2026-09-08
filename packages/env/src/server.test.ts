@@ -71,10 +71,6 @@ describe('activeSocialProviders', () => {
 describe('auditRequiredEnv', () => {
   const realSecret = 'a-real-deployment-secret-at-least-32-chars-long'
   const realUrl = 'https://app.acme.test'
-  const recoveryEvidence = {
-    SECURITY_EVIDENCE_URL: 'https://evidence.acme.test/records',
-    SECURITY_EVIDENCE_TOKEN: 'independent-store-token'
-  }
 
   it('stays silent in local mode: no ENVIRONMENT means dev/test defaults are expected', () => {
     expect(auditRequiredEnv({})).toEqual({ mode: 'local', problems: [] })
@@ -104,14 +100,6 @@ describe('auditRequiredEnv', () => {
       key: 'BETTER_AUTH_URL',
       reason: 'missing'
     })
-    expect(audit.problems).toContainEqual({
-      key: 'SECURITY_EVIDENCE_URL',
-      reason: 'missing'
-    })
-    expect(audit.problems).toContainEqual({
-      key: 'SECURITY_EVIDENCE_TOKEN',
-      reason: 'missing'
-    })
   })
 
   it('rejects the local-dev default secret by value in production', () => {
@@ -119,7 +107,6 @@ describe('auditRequiredEnv', () => {
     // 40 chars, so only value rejection — not the length check — catches it.
     const audit = auditRequiredEnv({
       ENVIRONMENT: 'production',
-      ...recoveryEvidence,
       BETTER_AUTH_SECRET: 'local-dev-secret-change-me-minimum-32-chars',
       BETTER_AUTH_URL: realUrl
     })
@@ -134,7 +121,6 @@ describe('auditRequiredEnv', () => {
     // catches it.
     const audit = auditRequiredEnv({
       ENVIRONMENT: 'production',
-      ...recoveryEvidence,
       BETTER_AUTH_SECRET: 'dev-only-secret-3f8a1c9e57b24d6f8e0a4c7b9d2f16e8',
       BETTER_AUTH_URL: realUrl
     })
@@ -146,7 +132,6 @@ describe('auditRequiredEnv', () => {
   it('rejects Better Auth own fallback and short secrets', () => {
     const fallback = auditRequiredEnv({
       ENVIRONMENT: 'production',
-      ...recoveryEvidence,
       BETTER_AUTH_SECRET: 'better-auth-secret-12345678901234567890',
       BETTER_AUTH_URL: realUrl
     })
@@ -155,7 +140,6 @@ describe('auditRequiredEnv', () => {
     ])
     const short = auditRequiredEnv({
       ENVIRONMENT: 'production',
-      ...recoveryEvidence,
       BETTER_AUTH_SECRET: 'too-short-secret',
       BETTER_AUTH_URL: realUrl
     })
@@ -170,7 +154,6 @@ describe('auditRequiredEnv', () => {
     ]) {
       const audit = auditRequiredEnv({
         ENVIRONMENT: 'production',
-        ...recoveryEvidence,
         BETTER_AUTH_SECRET: realSecret,
         BETTER_AUTH_URL: url
       })
@@ -183,24 +166,10 @@ describe('auditRequiredEnv', () => {
   it('requires an https BETTER_AUTH_URL in production — http would mint non-Secure cookies', () => {
     const audit = auditRequiredEnv({
       ENVIRONMENT: 'production',
-      ...recoveryEvidence,
       BETTER_AUTH_SECRET: realSecret,
       BETTER_AUTH_URL: 'http://app.acme.test'
     })
     expect(audit.problems).toEqual([{ key: 'BETTER_AUTH_URL', reason: 'insecure' }])
-  })
-
-  it('requires an https security evidence store in production', () => {
-    const audit = auditRequiredEnv({
-      ENVIRONMENT: 'production',
-      ...recoveryEvidence,
-      SECURITY_EVIDENCE_URL: 'http://evidence.acme.test/records',
-      BETTER_AUTH_SECRET: realSecret,
-      BETTER_AUTH_URL: realUrl
-    })
-    expect(audit.problems).toEqual([
-      { key: 'SECURITY_EVIDENCE_URL', reason: 'insecure' }
-    ])
   })
 
   it('flags a production BETTER_AUTH_URL that does not parse as a URL at all', () => {
@@ -208,7 +177,6 @@ describe('auditRequiredEnv', () => {
     // scheme to check — "does not parse" is the answer, not a crash.
     const audit = auditRequiredEnv({
       ENVIRONMENT: 'production',
-      ...recoveryEvidence,
       BETTER_AUTH_SECRET: realSecret,
       BETTER_AUTH_URL: 'app.acme.test'
     })
@@ -230,7 +198,6 @@ describe('auditRequiredEnv', () => {
     expect(
       auditRequiredEnv({
         ENVIRONMENT: 'production',
-        ...recoveryEvidence,
         BETTER_AUTH_SECRET: realSecret,
         BETTER_AUTH_URL: realUrl
       })
@@ -245,7 +212,6 @@ describe('auditRequiredEnv', () => {
     expect(
       auditRequiredEnv({
         ENVIRONMENT: 'production',
-        ...recoveryEvidence,
         BETTER_AUTH_SECRET: realSecret,
         BETTER_AUTH_URL: realUrl,
         BETTER_AUTH_TRUSTED_ORIGINS:
@@ -264,7 +230,6 @@ describe('auditRequiredEnv', () => {
     ]) {
       const audit = auditRequiredEnv({
         ENVIRONMENT: 'production',
-        ...recoveryEvidence,
         BETTER_AUTH_SECRET: realSecret,
         BETTER_AUTH_URL: realUrl,
         BETTER_AUTH_TRUSTED_ORIGINS: origins

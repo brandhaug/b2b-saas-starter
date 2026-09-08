@@ -238,12 +238,7 @@ function isHttpsAuthUrl(value: string): boolean {
 }
 
 export type RequiredEnvProblem = {
-  readonly key:
-    | 'BETTER_AUTH_SECRET'
-    | 'BETTER_AUTH_URL'
-    | 'BETTER_AUTH_TRUSTED_ORIGINS'
-    | 'SECURITY_EVIDENCE_URL'
-    | 'SECURITY_EVIDENCE_TOKEN'
+  readonly key: 'BETTER_AUTH_SECRET' | 'BETTER_AUTH_URL' | 'BETTER_AUTH_TRUSTED_ORIGINS'
   readonly reason: 'missing' | 'placeholder' | 'too-short' | 'malformed' | 'insecure'
 }
 
@@ -327,7 +322,7 @@ function requiredEnvMode(source: RawEnvSource): RequiredEnvAudit['mode'] {
 }
 
 /**
- * Audit of the two required baseline vars, for a worker that consumes them
+ * Audit of the required baseline vars, for a worker that consumes them
  * (the web worker — auth's only consumer). `ENVIRONMENT` decides the stance:
  * unset means local development, where the shim's development values are
  * expected and the audit stays silent. A deployment that bypasses alchemy should set
@@ -364,17 +359,6 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
     // every emailed link, so `http:` — or a value that does not parse as a
     // URL — is refused.
     problems.push({ key: 'BETTER_AUTH_URL', reason: 'insecure' })
-  }
-
-  if (mode === 'production') {
-    if (!hasValue(source.SECURITY_EVIDENCE_URL)) {
-      problems.push({ key: 'SECURITY_EVIDENCE_URL', reason: 'missing' })
-    } else if (!isHttpsAuthUrl(source.SECURITY_EVIDENCE_URL)) {
-      problems.push({ key: 'SECURITY_EVIDENCE_URL', reason: 'insecure' })
-    }
-    if (!hasValue(source.SECURITY_EVIDENCE_TOKEN)) {
-      problems.push({ key: 'SECURITY_EVIDENCE_TOKEN', reason: 'missing' })
-    }
   }
 
   // A malformed trusted origin silently weakens Better Auth's origin checks —

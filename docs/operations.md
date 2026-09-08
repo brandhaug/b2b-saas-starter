@@ -61,8 +61,8 @@ For backup configuration and executable restore commands, see
 
 ### Independent security evidence store
 
-Production web and API Workers require `SECURITY_EVIDENCE_URL` and the
-`SECURITY_EVIDENCE_TOKEN` secret. The URL must be an HTTPS service whose data,
+Production web and API Workers can use `SECURITY_EVIDENCE_URL` and the
+`SECURITY_EVIDENCE_TOKEN` secret. When configured, the URL must be an HTTPS service whose data,
 credentials, and recovery path are outside the production Cloudflare account.
 The Workers send `POST` requests with `Authorization: Bearer <token>` and
 `Content-Type: application/json`. The service must append the record

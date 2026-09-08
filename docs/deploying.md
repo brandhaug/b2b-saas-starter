@@ -84,8 +84,8 @@ The workflow and Alchemy's `prod` stage set `ENVIRONMENT=production`, enabling
 email verification and rejecting insecure auth secrets or URLs. Preserve that
 value in customer deployments.
 
-The workflow also forwards `SENTRY_DSN`, `MAINTENANCE_MODE`, and the independent
-security-evidence endpoint and token. See [operations setup](operations.md). To activate
+The workflow also forwards `SENTRY_DSN`, `MAINTENANCE_MODE`, and, when configured,
+the independent security-evidence endpoint and token. See [operations setup](operations.md). To activate
 optional providers (Stripe, Sentry, PostHog, Turnstile, Workers AI or
 OpenAI, OTLP export), add each secret to the `production` environment and
 forward it in the deploy job's `env` block. `packages/env/src/server.ts` owns
