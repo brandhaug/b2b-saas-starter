@@ -55,6 +55,39 @@ test('public docs render', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Documentation' })).toBeVisible()
 })
 
+test('knowledge search loads metadata without downloading article bodies', async ({
+  page
+}) => {
+  // The E2E server is Vite dev, where compiled article requests retain .mdx.
+  const articleRequests: Array<string> = []
+  const articles = /\/content\/(?:docs|blog)\/.*\.mdx(?:\?|$)/
+  await page.route(articles, (route) => {
+    articleRequests.push(route.request().url())
+    return route.abort()
+  })
+  await page.goto('/sign-in')
+  await page.locator('form[data-hydrated="true"]').waitFor()
+  await page
+    .getByRole('button', { name: 'Search', exact: true })
+    .filter({ visible: true })
+    .click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('combobox').fill('Quickstart')
+  const quickstart = dialog.getByRole('option', { name: 'Quickstart', exact: true })
+  await expect(quickstart).toBeVisible()
+  expect(articleRequests).toEqual([])
+
+  await page.unroute(articles)
+  await quickstart.click()
+  await expect(
+    page.getByRole('heading', { name: 'Quickstart', exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Prerequisites', exact: true })
+  ).toBeVisible()
+})
+
 test('unauthenticated workspace visit redirects to sign-in', async ({ page }) => {
   await page.goto('/workspaces/starter-lab')
   await page.waitForURL(/\/sign-in/)

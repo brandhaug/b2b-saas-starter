@@ -524,17 +524,15 @@ function formatBillingDate(value: string): string {
 
 function toggleResource(
   id: string,
-  selected: ReadonlyArray<string>,
   limit: number,
-  set: (ids: ReadonlyArray<string>) => void
+  set: (update: (selected: ReadonlyArray<string>) => ReadonlyArray<string>) => void
 ): void {
-  if (selected.includes(id)) {
-    set(selected.filter((item) => item !== id))
-    return
-  }
-  if (selected.length < limit) {
-    set([...selected, id])
-  }
+  set((selected) => {
+    if (selected.includes(id)) {
+      return selected.filter((item) => item !== id)
+    }
+    return selected.length < limit ? [...selected, id] : selected
+  })
 }
 
 function BillingResourceAccess({
@@ -682,14 +680,14 @@ function DowngradeResourceSelector({
           items={apiTokens}
           selected={tokenIds}
           disabled={selection.pending}
-          onToggle={(id) => toggleResource(id, tokenIds, 2, setTokenIds)}
+          onToggle={(id) => toggleResource(id, 2, setTokenIds)}
         />
         <ResourceChoices
           label={m.nav_webhook_endpoints()}
           items={webhookEndpoints}
           selected={webhookIds}
           disabled={selection.pending}
-          onToggle={(id) => toggleResource(id, webhookIds, 1, setWebhookIds)}
+          onToggle={(id) => toggleResource(id, 1, setWebhookIds)}
         />
       </div>
       <Button className="mt-4" disabled={selection.pending} onClick={save}>

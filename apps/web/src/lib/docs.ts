@@ -1,8 +1,12 @@
 import { lazy, type ComponentType } from 'react'
+import { createServerFn } from '@tanstack/react-start'
 
 import { type MdxComponentProps } from '@/components/mdx-link'
 import { contentJsonLd } from '@/lib/json-ld'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { isDocCategory } from './doc-categories'
+
+export { DOC_CATEGORY_ORDER } from './doc-categories'
 
 type DocFrontmatter = {
   readonly title: string
@@ -31,17 +35,15 @@ type DocModule = {
 }
 
 // No `eager`: the compiled MDX must not ride the importing route's chunk.
-// oxlint-disable effect/noNewPromise -- this module is the promise boundary between router loaders (promise-shaped) and the Effect-native content; same exemption as packages/logger/src/providers.ts
 const modules = import.meta.glob<DocModule>('../../content/docs/**/*.mdx')
 
-/** The two path segments a docs module's file path encodes. */
-type DocPath = { category: string; slug: string }
-
-function parsePath(path: string): DocPath {
-  const relative = path.replace('../../content/docs/', '').replace('.mdx', '')
-  const parts = relative.split('/')
-  return { category: parts[0] ?? '', slug: parts.at(-1) ?? '' }
-}
+/** Server-only metadata enumeration; the browser must not import every MDX body. */
+const loadAllDocMetaServerFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<ReadonlyArray<DocMeta>> => {
+    const { loadAllDocMetaHandler } = await import('./docs.effects')
+    return loadAllDocMetaHandler()
+  }
+)
 
 /** Module path for one doc, or `undefined` when no such article exists. */
 function docPath(category: string, slug: string): string | undefined {
@@ -64,31 +66,10 @@ function docLoader(
 
 let metaPromise: Promise<ReadonlyArray<DocMeta>> | undefined
 
-async function loadAllDocMeta(): Promise<ReadonlyArray<DocMeta>> {
-  const entries = Object.entries(modules)
-  const metas = await Promise.all(
-    entries.map(async ([path, load]) => {
-      const { category, slug } = parsePath(path)
-      const mod = await load()
-      return { slug, category, frontmatter: mod.frontmatter } satisfies DocMeta
-    })
-  )
-  return metas.toSorted((a, b) =>
-    a.category === b.category
-      ? a.frontmatter.order - b.frontmatter.order
-      : DOC_CATEGORY_ORDER.indexOf(asCategory(a.category)) -
-        DOC_CATEGORY_ORDER.indexOf(asCategory(b.category))
-  )
-}
-
 /** Every doc's metadata, ordered by frontmatter `order` within its category. */
 export function getAllDocMeta(): Promise<ReadonlyArray<DocMeta>> {
-  metaPromise ??= loadAllDocMeta()
+  metaPromise ??= loadAllDocMetaServerFn()
   return metaPromise
-}
-
-function asCategory(value: string): DocCategory {
-  return isDocCategory(value) ? value : 'getting-started'
 }
 
 /**
@@ -133,21 +114,6 @@ export function getDocComponent(
 
 const componentCache = new Map<string, ComponentType<MdxComponentProps>>()
 
-export const DOC_CATEGORIES = {
-  'getting-started': 'Getting started',
-  architecture: 'Architecture',
-  'capability-interfaces': 'Capability interfaces',
-  integrations: 'Integration surfaces',
-  operations: 'Operations',
-  governance: 'Governance'
-}
-
-export type DocCategory = keyof typeof DOC_CATEGORIES
-
-export function isDocCategory(value: string): value is DocCategory {
-  return Object.hasOwn(DOC_CATEGORIES, value)
-}
-
 /** The display name for a category, falling back to the raw URL segment. */
 export function docCategoryName(category: string): string {
   if (!isDocCategory(category)) {
@@ -174,15 +140,6 @@ export function docCategoryName(category: string): string {
     }
   }
 }
-
-export const DOC_CATEGORY_ORDER: ReadonlyArray<DocCategory> = [
-  'getting-started',
-  'architecture',
-  'capability-interfaces',
-  'integrations',
-  'operations',
-  'governance'
-]
 
 /** Previous/next neighbours within a category, `null` at either end. */
 export type AdjacentDocs = {
