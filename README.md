@@ -45,6 +45,7 @@ pnpm run validate   # check, build, generated configs, local DB setup, and E2E
 - [Deployment](docs/deploying.md): Cloudflare credentials, CI, previews, and verification.
 - [Operations](docs/operations.md): monitoring, backups, and recovery before customer use.
 - [Retention](docs/retention.md): approved record-expiry policy and operator workflow.
+- [Security checklist](docs/security-checklist.md): data inventory, control verification, and operator responsibilities.
 - [Workspace suspension](docs/workspace-suspension.md): administrative access controls and recovery rules.
 - [CONTEXT.md](CONTEXT.md): domain glossary.
 - [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md): audience and interface conventions.
