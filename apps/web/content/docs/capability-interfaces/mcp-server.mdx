@@ -8,36 +8,35 @@ tags: [mcp, ai, tools, oauth]
 
 The MCP server is the second Capability Interface. It exposes the same supported workspace reads and mutations as REST, shaped as MCP tools and one resource, and it takes two credentials: an OAuth access token for an MCP Client a person operates (Claude, Cursor, and similar), or a workspace API Token for scripts and CI.
 
-## Today's surface
+## Tools and resources
 
 The API Worker serves Effect's MCP server at `POST /mcp` using streamable
 HTTP and protocol `2025-11-25`. Initialize a session and send its
 `mcp-session-id` with later requests. `GET /mcp` returns 405; discovery is at
 `GET /mcp/discovery` and through the protocol's `tools/list`.
 
-Read tools remain `get_workspace_overview`, `list_members`,
+Read tools include `get_workspace_overview`, `list_members`,
 `list_notifications`, `list_api_tokens`, `list_webhooks`,
-`list_webhook_deliveries`, and `list_audit_events`, with the
+`list_webhook_deliveries`, `list_webhook_delivery_attempts`, and `list_audit_events`, with the
 `workspace://overview` resource. List tools accept optional `cursor` and numeric
 `limit`; delivery listing takes `endpointId`. The workspace always comes from
 the credential.
 
 The eleven write tools call the same operation catalog as REST:
 
-| Tool | JSON arguments | Behavior |
-| ---- | -------------- | -------- |
-
-| `create_api_token` | `name`, `scopes`, optional `expiresAt` | Creates a token and returns its plaintext once |
-| `replace_api_token` | `tokenId`, `scopes`, `overlapSeconds`, optional `expiresAt` | Returns replacement plaintext once; narrows scopes/expiry and retires the old token within 24 hours; audited, do not automatically retry |
-| `delete_api_token` | `tokenId` | Revokes the token; unknown or revoked IDs also return revoked |
-| `create_webhook` | `url`, `events`, optional `description` | Registers an endpoint; returns metadata |
-| `update_webhook` | `endpointId`, optional `url`, `events`, `enabled` | Changes endpoint configuration |
-| `delete_webhook` | `endpointId` | Removes an endpoint and associated data |
-| `rotate_webhook_secret` | `endpointId` | Returns a new signing secret once; old secret retains 24-hour grace |
-| `send_webhook_test_event` | `endpointId` | Saves and enqueues an external test delivery |
-| `replay_webhook_delivery` | `deliveryId` | Creates and enqueues a copy of a terminal delivery |
-| `request_workspace_export` | none | Creates an archive job and notifies on completion |
-| `get_workspace_export_download_link` | `exportId` | Returns a signed URL for a ready, unexpired archive |
+| Tool                                 | JSON arguments                                              | Behavior                                                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_api_token`                   | `name`, `scopes`, optional `expiresAt`                      | Creates a token and returns its plaintext once                                                                                           |
+| `replace_api_token`                  | `tokenId`, `scopes`, `overlapSeconds`, optional `expiresAt` | Returns replacement plaintext once; narrows scopes/expiry and retires the old token within 24 hours; audited, do not automatically retry |
+| `delete_api_token`                   | `tokenId`                                                   | Revokes the token; unknown or revoked IDs also return revoked                                                                            |
+| `create_webhook`                     | `url`, `events`, optional `description`                     | Registers an endpoint; returns metadata                                                                                                  |
+| `update_webhook`                     | `endpointId`, optional `url`, `events`, `enabled`           | Changes endpoint configuration                                                                                                           |
+| `delete_webhook`                     | `endpointId`                                                | Removes an endpoint and associated data                                                                                                  |
+| `rotate_webhook_secret`              | `endpointId`                                                | Returns a new signing secret once; old secret retains 24-hour grace                                                                      |
+| `send_webhook_test_event`            | `endpointId`                                                | Saves and enqueues an external test delivery                                                                                             |
+| `replay_webhook_delivery`            | `deliveryId`                                                | Creates and enqueues a copy of a terminal delivery                                                                                       |
+| `request_workspace_export`           | none                                                        | Creates an archive job and notifies on completion                                                                                        |
+| `get_workspace_export_download_link` | `exportId`                                                  | Returns a signed URL for a ready, unexpired archive                                                                                      |
 
 Store plaintext tokens and signing secrets securely. Treat signed URLs as
 credentials; they expire within 15 minutes, capped by archive retention.
@@ -60,13 +59,13 @@ browser-session membership or invitation operations are not exposed.
 
 An MCP Client connects through OAuth 2.1. You sign in once, pick the workspace, and the client acts as you, with what your role there allows.
 
-1. In Claude (or another MCP client that supports remote servers), add a custom connector with the server URL `https://<your-api-worker>/mcp`. Locally that is `http://localhost:8787/mcp`, with `pnpm -C apps/api dev` and `pnpm run dev` both running against a seeded local D1.
+1. In Claude (or another MCP client that supports remote servers), add a custom connector with the server URL `https://<your-api-worker>/mcp`. Locally that is `http://localhost:8787/mcp`, with `pnpm run dev` running against a seeded local D1.
 2. The client fetches `/.well-known/oauth-protected-resource/mcp` from the API Worker, learns that the web app's `/api/auth` is the authorization server, and opens the browser at `/api/auth/oauth2/authorize`. If you are signed out you land on `/sign-in`; signing in resumes the authorization.
 3. On `/oauth/consent` you pick exactly one Workspace and see what the client asks for (`mcp:read` for reads, explicit `mcp:write` for mutations, `offline_access` to stay connected, and the identity scopes). Allow, and the browser returns to the client with the authorization code.
 4. The client exchanges the code for an access token bound to the API Worker's `/mcp` and to that workspace, and calls the tools with it. The token expires after an hour; the refresh token the client also received renews it without another sign-in.
 5. Disconnect from `/account`, under MCP clients: revoking deletes the consent, revokes the client's refresh and access tokens, and writes an `mcp_client.consent_revoked` Audit Event. Connecting wrote `mcp_client.consent_granted`.
 
-The client identifies itself with a Client ID Metadata Document, the HTTPS URL MCP clients publish . There is no registration step and no client secret to manage.
+The client identifies itself with a Client ID Metadata Document, an HTTPS document published by the MCP client. There is no registration step and no client secret to manage.
 
 ## Connect from a script
 
@@ -84,7 +83,3 @@ REST routes stay token-only. OAuth is the interactive path, not a second REST cr
 ## Configuration
 
 Two env vars, both optional. `MCP_RESOURCE_URL` is the API Worker's `/mcp` URL; the web worker binds tokens to it (locally it defaults to `http://localhost:8787/mcp`). `MCP_OAUTH_ISSUER` is the web worker's `/api/auth` base URL; the API Worker trusts tokens from it. With either unset on the API Worker, `POST /mcp` accepts API Tokens only and serves no protected-resource metadata, so a client learns there is nothing to authorize against. The decision is recorded in [ADR 0068](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/adr/0068-oauth-for-interactive-mcp-clients-beside-api-tokens.md).
-
-## Why one set of capabilities
-
-REST and MCP are two presentation layers over one application. They are not separate products. Adding a new starter capability adds one Effect service; both interfaces pick it up.

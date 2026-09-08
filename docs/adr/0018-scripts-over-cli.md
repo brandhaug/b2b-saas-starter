@@ -1,3 +1,3 @@
 # Scripts over CLI
 
-The starter uses focused Node scripts for setup, environment validation, database migration and seeding, development, testing, linting, formatting, deployment, and destruction instead of introducing a custom CLI. A CLI is deferred until the starter has multiple generation or customization workflows that justify another abstraction.
+Focused repository scripts own setup, validation, data tasks, and deployment. A custom CLI would add an interface to maintain without enough generation or customization workflows to justify it.

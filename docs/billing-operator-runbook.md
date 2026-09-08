@@ -8,7 +8,7 @@ application endpoint for billing recovery.
 ## Stripe API contract
 
 The adapter pins requests to `2025-03-31.basil`. Configure the Stripe webhook
-endpoint with that same version; test schema compatibility before upgrading both. This version provides subscription-item
+endpoint with that version or later. This version provides subscription-item
 periods and invoice `parent.subscription_details`, as described in Stripe's
 [Basil changes](https://docs.stripe.com/changelog/basil/2025-03-31/adds-new-parent-field-to-invoicing-objects).
 Failure-history reads use event identity and creation time because Stripe retains
@@ -17,19 +17,6 @@ invoices, starting at the current invoice and last payment; an incomplete histor
 remains a visible synchronization failure. Settlement evidence is compared by
 payment time, and a later settlement can close an earlier failure episode before
 a new failure starts its own grace deadline.
-
-## Stripe deployment checks
-
-The [billing integration setup](../apps/web/content/docs/integrations/stripe-billing.mdx#billing-portal-and-webhook-setup)
-lists the required events and Dashboard settings. Verify them separately for each
-sandbox and live deployment. Keep the webhook endpoint on the adapter's pinned
-API version, disable portal seat-quantity editing, and enable Checkout's
-single-subscription protection. When that protection redirects to the no-code
-portal, its login link must remain enabled.
-
-During signing-secret rotation, keep Stripe's old secret active until the new
-`STRIPE_WEBHOOK_SECRET` is deployed and a test delivery succeeds. The verifier
-accepts any matching `v1` signature, regardless of header ordering.
 
 ## Configure the operator shell
 
@@ -127,20 +114,6 @@ Never edit billing rows directly in D1, and never cancel a Stripe customer or
 financial resource to force recovery. Use Stripe's dashboard to locate the
 matching evidence, then submit an audited retry with the identifiers.
 
-## Queue and reconciliation behavior
-
-The Stripe webhook stores minimal event evidence in D1 and publishes to the
-billing queue before acknowledging delivery. It does not await provider reads.
-A non-2xx response means signature/configuration validation, persistence, or queue
-publication failed. Stripe retries delivery; a record written before an enqueue
-failure also remains eligible for scheduled reconciliation. Processing failures
-after acknowledgment use queue retry and dead-letter recovery.
-
-The background worker needs the `BILLING_QUEUE` producer binding as well as its
-consumer registration. Webhook, queue, and scheduled callers all receive the same
-Stripe secret and configured prices. Check those settings if event processing
-reports `provider_not_configured`.
-
 ## Lifecycle and recovery policy
 
 Treat the provider as authoritative only after the synchronization workflow has
@@ -175,17 +148,15 @@ to the billing dead-letter queue. Its consumer calls the authoritative
 when recovery is recorded. A failure while recording recovery remains retryable
 on the dead-letter queue.
 
-The background worker also runs a bounded reconciliation pass every minute. It
-selects at most 25 workspace and unresolved-event candidates per pass. That is
-a ceiling of 1,500 candidates per hour; provider latency, event recovery, and
-retry deadlines reduce the number of workspace repairs. Monitor unresolved age
-against the 15-minute repair target. Each pass records its workspace count,
+The background worker reconciles every minute, selecting at most 25 workspace
+and unresolved-event candidates per pass. Provider latency and retry deadlines
+limit throughput. Monitor unresolved age against the 15-minute repair target. Each pass records its workspace count,
 drifted workspaces, and terminal conflicts in the wide event. Deployments without
 complete Stripe configuration skip provider reconciliation and remain healthy.
 
 Unresolved synchronization evidence stays available while the workspace is
-unresolved. Resolved evidence is retained for 90 days after resolution. The
-[retention policy](retention.md) governs cleanup and its operator approval.
+unresolved. Resolved evidence has a 90-day retention policy; automated
+billing-evidence pruning is not implemented.
 
 After a retry or dead-letter recovery, inspect the workspace again and confirm
 that `status` is `current`, `last_synced_at` has advanced, and the provider

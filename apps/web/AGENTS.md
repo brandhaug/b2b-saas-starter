@@ -1,17 +1,15 @@
 # apps/web
 
-## Purpose & Scope
-
 TanStack Start Worker for the public site, auth, workspaces, `/admin` and `/account`. Calls [`capabilities`](../../packages/capabilities/AGENTS.md) in-process, never `apps/api`.
 
-## Entry Points & Contracts
+## Contracts
 
 - `src/start.ts` runs the config gate before observability scopes SSR and server-fn calls; nested work joins that scope.
 - The Better Auth catchall shares one `AuthExchange` URL parse and session read across rate limit, Turnstile, SSO, impersonation and audit.
 - Gates live in `server/auth.ts`: `requireSession` runs once, in the `routes/workspaces.tsx` `beforeLoad`, children read `context.session`, and every server fn calls `requireRequestSession()`.
 - `lib/capabilities.ts` maps capability errors to `notFound()` or `capability-error.ts` discriminants. Loaders catch nothing.
 
-## Usage Patterns
+## Changes
 
 - Loader modules use `workspacePage(gate, segment)` to gate reads, resolve `WorkspaceContext` once and wrap secondary permissions in `whenPermitted`. Payload types belong here: segment shape is authorization.
 - Server fns dynamically import sibling `.effects.ts` handlers combining session read, permissions and capability call, without an intermediate exported effect. The route tree ships to browsers; `assert-client-boundary.mjs` guards this split.
@@ -21,7 +19,7 @@ TanStack Start Worker for the public site, auth, workspaces, `/admin` and `/acco
 - The UI gates by permission, never role name (`viewerCan`): an unreadable section is absent, an unpermitted action shows a reason, and the server re-checks.
 - Browser decodes stay plain shape probes (`pickOptionalStrings`, `impersonation.ts`); Effect Schema would ship unconditionally.
 
-## Anti-patterns
+## Boundaries
 
 - Never take identity from a request body: the session is the only identity source, and a headerless plugin endpoint will trust a client-supplied `userId` (#242).
 - Never re-gate inside `/workspaces/*`, never add an admin bypass to the workspace guard (no audit trace), never redirect from a server fn.
@@ -30,17 +28,15 @@ TanStack Start Worker for the public site, auth, workspaces, `/admin` and `/acco
 - UI errors cross the SSR boundary through `uiErrorAdapter` with allowlisted codes and details. Translate them with `causeMessage`; unexpected exceptions use a safe fallback. Keep diagnostic messages server-side.
 - A parent route with a `component` and no `<Outlet />` swallows its children, hence flat trailing-underscore siblings; only e2e catches it.
 
-## Dependencies & Edges
+## Dependencies
 
-- Read `cloudflare:workers` bindings, never hardcode empty env. `DB` selects Live, absence Seed; dev uses persisted local D1 (ADR 0049). Browser navigation needs fixture parity (root rule 8).
+- Read `cloudflare:workers` bindings, never hardcode empty env. `DB` selects Live, absence Seed; dev uses persisted local D1 (ADR 0049). Browser navigation depends on the root fixture-parity rule.
 - Two runtimes. `webRuntime` runs every server-side Effect, with isolate-level `WideEventLoggerLive` and OTLP per invocation (ADR 0050). `authRuntime` holds only `Auth`: merging `AuthLive` in drags the Better Auth server into the browser bundle.
-- `lib/rate-limit.ts` trusts only `cf-connecting-ip`; email-OTP, magic-link and reset sends share sign-in's `auth_sign_in` bucket (ADR 0030). Optional providers follow root rule 3.
+- `lib/rate-limit.ts` trusts only `cf-connecting-ip`; email-OTP, magic-link and reset sends share sign-in's `auth_sign_in` bucket (ADR 0030).
 
-## Patterns & Pitfalls
+## Pitfalls
 
-- Locale resolution must run inside the request observability scope before rendering. Use request-scoped runtime messages, never cache translated copy at module scope. Public URLs carry locales; app/auth paths use account preferences or the guest cookie (ADR 0074). See [i18n contribution rules](../../docs/i18n.md) when adding copy, formats, or content.
+- Locale resolution must run inside the request observability scope before rendering. Use request-scoped runtime messages, never cache translated copy at module scope. Public URLs carry locales; app/auth paths use account preferences or the guest cookie (ADR 0029). See [i18n contribution rules](../../docs/i18n.md) when adding copy, formats, or content.
 
 - Non-disclosure is a rule: constant responses on `/forgot-password`, `disableSignUp` on email-OTP, one opaque failure on `/invitations/accept` and link landings.
-- Test loader handlers against Seed without a worker; compare owner `usr_demo` with member `usr_dev`.
 - Test server-fn authorization with `fixtureSession(actor)` and client auth with `fakeAuthClient()`. Use plain `it`: `it.effect` uses an epoch-zero `TestClock`, making post-1970 expiry fixtures future-dated.
-- `build: { minify: true }` seeds every environment because rolldown-vite's ssr env does not minify by default (#241); a local build understates the upload against the 10 MiB limit.

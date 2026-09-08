@@ -1,19 +1,22 @@
-# packages/db
+# Database
 
-## Purpose & Scope
+Owns Drizzle schema, migrations, and D1 services. Stored enum vocabularies live in `src/enums.ts`, which stays Drizzle-free for auth and authorization consumers.
 
-Drizzle schema, migrations, and the `Database` service for D1.
+## Migration changes
 
-## Entry Points & Contracts
+Change schema and generated migration together. Migration readers share `migrations-fs.ts` so deploys and tests apply the same order. Use the repository migration scripts; Wrangler's flat-file migration command skips Drizzle's folder output.
 
-Four subpaths, no root export.
+After a squash, reset obsolete local D1 state using [setup](../../docs/setup.md). Deployed databases use baseline bookkeeping before Alchemy deploys. A baseline records a migration only when all its created tables already exist; it cannot apply missing schema changes. Follow [operations](../../docs/operations.md) for recovery. Never destroy or reseed customer data as migration repair.
 
-- `./schema` — one file in four ownership groups: Better Auth core, the `organization` + `sso` tables, the `jwt` + MCP OAuth tables, and the starter's own. Column helpers encode the dual timestamp dialect and return _fresh_ builders (Drizzle builders are single-use); `workspaceRef` takes the FK column name, since plugin tables spell it `workspaceId`.
-- `./enums` — every stored enum vocabulary, drizzle-free so `authz` and `auth` avoid table definitions. New enums go here, not beside a table.
-- `./service` — `Database` (Effect-native drizzle over `@effect/sql-d1`) and `RawD1` from `layerFromD1(env.DB)`. The driver has no transactions: atomicity is `batch(statements)`, compiling builders via `toSQL()` through the raw binding.
-- `./testing` (test-only) — `provisionTestD1()`: isolated local D1, all migrations applied.
+## Storage invariants
 
-## Usage Patterns
+- Drizzle column builders are single-use. Helpers must return fresh builders.
+- Resolve `RawD1` at layer construction. D1 atomicity uses `batch` with compiled statements; explicit transactions are unsupported.
+- Better Auth and plugin tables use epoch timestamps; starter-owned tables use ISO strings. Do not decode workspace creation time as ISO storage.
+- Plugin-owned workspace tables retain camelCase columns and surrogate member IDs. The unique workspace/user index does not replace the member primary key.
+- `workspaces.metadata` stays plain text because the plugin serializes it. Starter JSON columns use typed text and receive objects rather than pre-serialized strings.
+- Columns returned by organization endpoints need matching `additionalFields` in [auth](../auth/AGENTS.md). `onboardingDismissedAt` is capability-only and is excluded (ADR 0066).
+- Workspace foreign keys cascade. Deletion audits use a null workspace ID so they survive that cascade.
 
 Edit `schema.ts`, run `db:generate`, commit schema and migration together (drizzle-kit folder style). `scripts/migrate.ts`, `scripts/baseline.ts`, and `./testing` share `migrations-fs.ts` for identical ordering.
 
@@ -48,3 +51,4 @@ The seed lives outside this package, at `scripts/seed.ts`; the Effect test fixtu
 ## Dependencies & Edges
 
 `drizzle-orm`, `@effect/sql-d1`, `effect`, `failure` (dev: `drizzle-kit`, `wrangler`). Consumed by `auth`, `authz`, `capabilities`, both workers, `scripts/seed.ts`.
+`src/testing.ts` provisions isolated migrated D1 databases and must stay out of app code. Better Auth uses its direct Drizzle adapter; application Effect services use `Database`.
