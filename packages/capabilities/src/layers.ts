@@ -170,6 +170,10 @@ const SeedGovernance = Layer.unwrap(
   Effect.gen(function* () {
     const roster = yield* makeSeedRoster(seedMembers)
     const catalog = yield* Ref.make<ReadonlyArray<Workspace>>([seedWorkspaceRecord])
+    const billingAdapters = Layer.merge(
+      BillingAuditLayer.pipe(Layer.provide(SeedAuditLog)),
+      BillingNotificationLayer.pipe(Layer.provide(SeedNotifications))
+    )
     const suspension = SeedWorkspaceSuspension({
       workspace: seedWorkspaceRecord,
       catalog,
@@ -197,7 +201,8 @@ const SeedGovernance = Layer.unwrap(
       SeedBilling({
         members: Ref.get(roster),
         workspacePlans: { [seedWorkspaceRecord.id]: seedWorkspaceRecord.planId }
-      }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications)),
+      }).pipe(Layer.provide(billingAdapters)),
+      billingAdapters,
       suspension
     )
   })
@@ -287,7 +292,7 @@ const SeedExports = SeedWorkspaceExports({
   fixture: seedWorkspaceExportFixture
 }).pipe(Layer.provide(SeedCore))
 
-// oxlint-disable effect/noAs,typescript/no-unsafe-type-assertion,anti-slop/require-safety-comment-for-type-assertion
+// oxlint-disable effect/noAs,anti-slop/require-safety-comment-for-type-assertion
 // SAFETY: SeedExports is built by providing SeedCore, so the merged layer supplies every capability service and has no runtime requirements.
 export const SeedLayer = Layer.merge(
   SeedCore,

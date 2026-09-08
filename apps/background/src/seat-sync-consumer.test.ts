@@ -42,6 +42,7 @@ function stubBilling(
     currentPlan: Effect.die('not used here'),
     synchronizationStatus: Effect.die('not used here'),
     processProviderEvent: () => Effect.die('not used here'),
+    recordProviderEvent: () => Effect.die('not used here'),
     reconcileWorkspace: (input) =>
       Effect.sync(() => {
         reconciles.push(input)

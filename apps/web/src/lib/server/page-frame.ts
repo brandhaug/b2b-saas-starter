@@ -8,7 +8,8 @@ import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/n
 import { type WorkspaceViewer } from '@/lib/permissions'
 import {
   WorkspaceContext,
-  type WorkspaceContextInterface
+  type WorkspaceContextInterface,
+  type WorkspaceServices
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import { Effect, type Scope } from 'effect'
 
@@ -25,7 +26,7 @@ import { requireWorkspacePermission } from './authorize'
 export type WorkspacePageFrame<Payload> = Effect.Effect<
   Payload,
   AuthorizationDenied | CapabilityUnavailable | WorkspaceSuspended,
-  CapabilityServices | WorkspaceContext | WorkspaceSuspensionService | Scope.Scope
+  CapabilityServices | WorkspaceServices | WorkspaceSuspensionService | Scope.Scope
 >
 
 /**
@@ -53,7 +54,7 @@ export function workspacePage<Segment, E, R>(
 ): Effect.Effect<
   Segment & { readonly viewer: WorkspaceViewer | null },
   E | AuthorizationDenied | CapabilityUnavailable | WorkspaceSuspended,
-  R | WorkspaceContext | WorkspaceSuspensionService | Scope.Scope
+  R | WorkspaceServices | WorkspaceSuspensionService | Scope.Scope
 > {
   return Effect.gen(function* () {
     yield* requireWorkspacePermission(gate)
@@ -73,5 +74,5 @@ export function workspacePage<Segment, E, R>(
 export const unreadCount: Effect.Effect<
   number,
   CapabilityUnavailable,
-  NotificationFeed | WorkspaceContext
+  NotificationFeed | WorkspaceServices
 > = Effect.flatMap(NotificationFeed, (feed) => feed.unreadCount)

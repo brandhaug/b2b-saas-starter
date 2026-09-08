@@ -63,6 +63,7 @@ function recordingBilling(calls: RecordedCalls) {
           providerEventId: input.providerEventId
         } satisfies ProcessProviderEventResult
       }),
+    recordProviderEvent: () => Effect.die('not used here'),
     syncSeats: () => Effect.die('not used here')
   })
 }

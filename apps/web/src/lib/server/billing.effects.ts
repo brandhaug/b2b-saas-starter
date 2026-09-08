@@ -1,4 +1,4 @@
-import { Billing } from '@b2b-saas-starter/billing/billing'
+import { Billing, type ReconcileResult } from '@b2b-saas-starter/billing/billing'
 import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -8,6 +8,7 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
+import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type PortalInput,
@@ -17,6 +18,7 @@ import {
   type SelectResourcesInput,
   type PublicPricingPayload
 } from './billing'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 /**
  * The billing payload assembly and the checkout wiring, reached only
@@ -210,6 +212,38 @@ export async function startPortalSessionHandler(
       return yield* billing.startPortalSession({
         returnUrl: `${base}/workspaces/${encodeURIComponent(input.workspaceSlug)}/billing`
       })
+    }),
+    { userId: session.user.id }
+  )
+}
+
+/** Re-check the authenticated workspace after Stripe sends the browser back. */
+export async function reconcileCheckoutReturnHandler(
+  input: WorkspaceBillingInput
+): Promise<ReconcileResult> {
+  const session = await requireRequestSession()
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ organization: ['update'] })
+      const context = yield* WorkspaceContext
+      const billing = yield* Billing
+      return yield* billing
+        .reconcileWorkspace({
+          workspaceId: context.workspace.id,
+          reason: 'checkout_return'
+        })
+        .pipe(
+          Effect.timeout('8 seconds'),
+          Effect.catchTag('TimeoutError', () =>
+            Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'billing',
+                reason: 'reconciliation_timeout'
+              })
+            )
+          )
+        )
     }),
     { userId: session.user.id }
   )

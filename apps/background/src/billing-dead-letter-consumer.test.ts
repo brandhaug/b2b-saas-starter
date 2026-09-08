@@ -15,6 +15,7 @@ function stubBilling(calls: Array<string>): Layer.Layer<Billing> {
     currentPlan: Effect.die('unused in billing DLQ tests'),
     synchronizationStatus: Effect.die('unused in billing DLQ tests'),
     processProviderEvent: () => Effect.die('unused in billing DLQ tests'),
+    recordProviderEvent: () => Effect.die('unused in billing DLQ tests'),
     reconcileWorkspace: ({ workspaceId }) =>
       Effect.sync(() => {
         calls.push(workspaceId)
