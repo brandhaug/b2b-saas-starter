@@ -1,12 +1,15 @@
 import { Billing } from '@b2b-saas-starter/billing/billing'
-import { SeatSyncQueueMessage } from '@b2b-saas-starter/billing/seat-sync'
+import { BillingQueueMessage } from '@b2b-saas-starter/billing/seat-sync'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
 import { processBillingDeadLetterMessage } from './billing-dead-letter-consumer.ts'
 import { readDelivery } from './queue-consumer.ts'
 
-function stubBilling(calls: Array<string>): Layer.Layer<Billing> {
+function stubBilling(
+  calls: Array<string>,
+  providerEvents: Array<string> = []
+): Layer.Layer<Billing> {
   return Layer.succeed(Billing)({
     configured: Effect.succeed(true),
     currentPlanForWorkspace: () => Effect.die('unused'),
@@ -14,7 +17,11 @@ function stubBilling(calls: Array<string>): Layer.Layer<Billing> {
     displayedPlans: Effect.die('unused'),
     currentPlan: Effect.die('unused in billing DLQ tests'),
     synchronizationStatus: Effect.die('unused in billing DLQ tests'),
-    processProviderEvent: () => Effect.die('unused in billing DLQ tests'),
+    processProviderEvent: ({ providerEventId }) =>
+      Effect.sync(() => {
+        providerEvents.push(providerEventId)
+        return { outcome: 'applied', providerEventId }
+      }),
     recordProviderEvent: () => Effect.die('unused in billing DLQ tests'),
     reconcileWorkspace: ({ workspaceId }) =>
       Effect.sync(() => {
@@ -32,7 +39,7 @@ describe('processBillingDeadLetterMessage', () => {
   it.effect('reconciles an exhausted message before acknowledging it', () =>
     Effect.gen(function* () {
       const calls: Array<string> = []
-      const delivery = readDelivery(SeatSyncQueueMessage, {
+      const delivery = readDelivery(BillingQueueMessage, {
         id: 'billing-dlq-1',
         attempts: 1,
         body: {
@@ -52,7 +59,7 @@ describe('processBillingDeadLetterMessage', () => {
   it.effect('acknowledges malformed dead letters without provider work', () =>
     Effect.gen(function* () {
       const calls: Array<string> = []
-      const delivery = readDelivery(SeatSyncQueueMessage, {
+      const delivery = readDelivery(BillingQueueMessage, {
         id: 'billing-dlq-2',
         attempts: 1,
         body: { malformed: true }
@@ -62,6 +69,29 @@ describe('processBillingDeadLetterMessage', () => {
       )
       expect(outcome).toBe('ack')
       expect(calls).toEqual([])
+    })
+  )
+
+  it.effect('processes a provider event dead letter before acknowledging', () =>
+    Effect.gen(function* () {
+      const calls: Array<string> = []
+      const providerEvents: Array<string> = []
+      const delivery = readDelivery(BillingQueueMessage, {
+        id: 'billing-dlq-provider',
+        attempts: 1,
+        body: {
+          kind: 'billing.provider_event',
+          providerEventId: 'evt_dlq',
+          eventType: 'customer.subscription.updated',
+          workspaceId: 'wrk_starter'
+        }
+      })
+      const outcome = yield* processBillingDeadLetterMessage(delivery).pipe(
+        Effect.provide(stubBilling(calls, providerEvents))
+      )
+      expect(outcome).toBe('ack')
+      expect(calls).toEqual([])
+      expect(providerEvents).toEqual(['evt_dlq'])
     })
   )
 })

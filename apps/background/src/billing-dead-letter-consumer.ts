@@ -52,7 +52,8 @@ export function processBillingDeadLetterMessage(
         yield* Effect.annotateLogsScoped({
           outcome: 'terminal',
           providerEventId: message.providerEventId,
-          recovery: result.outcome
+          recovery: 'provider_event',
+          billingOutcome: result.outcome
         })
         return
       }
