@@ -82,9 +82,13 @@ export function webhookAttemptHistoryCases(
         expect(
           results.map((row) => row.consecutiveFailures).toSorted((a, b) => a - b)
         ).toEqual(Array.from({ length: 20 }, (_, index) => index + 1))
-        expect(yield* service.getDispatchTarget(endpoint.id, ctx.workspace.id)).toBe(
-          null
-        )
+        expect(
+          yield* service.getDispatchTarget(
+            endpoint.id,
+            ctx.workspace.id,
+            'whd_atomic_19'
+          )
+        ).toBe(null)
         expect(
           (yield* audit.list({
             eventType: 'webhook_endpoint.auto_disabled'
@@ -97,7 +101,11 @@ export function webhookAttemptHistoryCases(
         })
         expect(duplicate.recorded).toBe(false)
         expect(
-          (yield* service.getDispatchTarget(endpoint.id, ctx.workspace.id)) !== null
+          (yield* service.getDispatchTarget(
+            endpoint.id,
+            ctx.workspace.id,
+            'whd_atomic_19'
+          )) !== null
         ).toBe(true)
         const terminal = yield* service.recordTerminalDeliveryAttempt({
           ...base,
@@ -108,7 +116,11 @@ export function webhookAttemptHistoryCases(
         expect(terminal.failureAction).toBe('silent')
         expect(terminal.consecutiveFailures).toBe(20)
         expect(
-          (yield* service.getDispatchTarget(endpoint.id, ctx.workspace.id)) !== null
+          (yield* service.getDispatchTarget(
+            endpoint.id,
+            ctx.workspace.id,
+            'whd_atomic_19'
+          )) !== null
         ).toBe(true)
         expect(
           (yield* audit.list({
@@ -119,9 +131,13 @@ export function webhookAttemptHistoryCases(
           ...base,
           id: 'whd_atomic_after_reenable'
         })
-        expect(yield* service.getDispatchTarget(endpoint.id, ctx.workspace.id)).toBe(
-          null
-        )
+        expect(
+          yield* service.getDispatchTarget(
+            endpoint.id,
+            ctx.workspace.id,
+            'whd_atomic_after_reenable'
+          )
+        ).toBe(null)
         expect(
           (yield* audit.list({
             eventType: 'webhook_endpoint.auto_disabled'
@@ -424,8 +440,9 @@ export function webhookAttemptHistoryCases(
           url: 'https://example.com/attempt-refused',
           events: ['demo.event']
         })
+        const sent = yield* service.sendTestEvent({ endpointId: endpoint.id })
         const input: Parameters<typeof service.recordTerminalDeliveryAttempt>[0] = {
-          deliveryId: 'whd_history_refused',
+          deliveryId: sent.deliveryId,
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
           eventType: 'demo.event',

@@ -1,7 +1,7 @@
 import { newCapabilityId } from '../internal/ids.ts'
 import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { Database } from '@b2b-saas-starter/db/service'
-import { webhookEndpoints } from '@b2b-saas-starter/db/schema'
+import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import {
@@ -179,6 +179,33 @@ export function LiveWebhookPublisher(
                   )
                 }
               })
+            )
+            // Fan-out used to create the delivery row only when the consumer
+            // observed the message. That left deliveryId unauthenticated at
+            // the queue boundary: a message could pair this workspace's
+            // endpoint with another delivery id and payload, dispatching
+            // before persistence rejected the mismatch. Reserve every
+            // delivery before enqueueing so the consumer can bind all three
+            // identities (delivery, endpoint, workspace) before releasing a
+            // signing secret.
+            yield* unavailable(
+              db.insert(webhookDeliveries).values(
+                messages.map(({ body }): typeof webhookDeliveries.$inferInsert => ({
+                  id: body.deliveryId,
+                  endpointId: body.endpointId,
+                  eventType: body.eventType,
+                  status: 'pending',
+                  attempts: 0,
+                  lastAttemptAt: null,
+                  nextAttemptAt: null,
+                  responseStatus: null,
+                  payload: body.payload,
+                  requestHeaders: null,
+                  responseBody: null,
+                  replayedFrom: null,
+                  lastAttemptToken: null
+                }))
+              )
             )
             yield* unavailable(
               Effect.tryPromise({

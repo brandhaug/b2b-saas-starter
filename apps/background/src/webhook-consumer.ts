@@ -109,7 +109,8 @@ export function processWebhookMessage(
     // endpoint, so no signing secret leaves the workspace that enqueued it.
     const target = yield* webhooks.getDispatchTarget(
       message.endpointId,
-      message.workspaceId
+      message.workspaceId,
+      message.deliveryId
     )
     if (!target) {
       yield* webhooks.recordTerminalDeliveryAttempt({
@@ -128,6 +129,15 @@ export function processWebhookMessage(
       })
       return 'ack' satisfies DeliveryOutcome
     }
+    // The queue carries routing hints, not authoritative event contents. The
+    // pending row resolved above is the producer's durable identity and
+    // payload; use it for signing and persistence so a tampered body cannot
+    // be sent to a valid endpoint.
+    const trustedMessage = {
+      ...message,
+      eventType: target.eventType,
+      payload: target.payload
+    } satisfies WebhookQueueMessage
     // A message queued before an administrative suspension must settle as a
     // terminal refusal. Leaving it in the queue would retry forever, and
     // replaying it on reactivation would violate the suspension boundary.
@@ -142,11 +152,11 @@ export function processWebhookMessage(
             deliveryId,
             endpointId: target.id,
             workspaceId: message.workspaceId,
-            eventType: message.eventType,
+            eventType: trustedMessage.eventType,
             attempts,
             status: 'failed_permanent',
             failureReason: 'workspace_suspended',
-            payload: message.payload
+            payload: trustedMessage.payload
           })
           yield* Effect.annotateLogsScoped({
             outcome: 'skipped',
@@ -167,7 +177,7 @@ export function processWebhookMessage(
       // Never-dispatched terminal row: resolves this message's delivery id and
       // records the payload, so the row stays replayable once the URL is fixed.
       yield* completeWebhookTerminalObservation({
-        message,
+        message: trustedMessage,
         endpointUrl: target.url,
         attempts,
         status: 'failed_permanent',
@@ -183,8 +193,8 @@ export function processWebhookMessage(
     const timestamp = Math.floor(DateTime.toEpochMillis(now) / 1000)
     const body = encodeDeliveryBody({
       deliveryId,
-      eventType: message.eventType,
-      payload: message.payload
+      eventType: trustedMessage.eventType,
+      payload: trustedMessage.payload
     })
     // One signature per active signing secret: the current one, plus the
     // rotated-out one while its 24h grace window is open (the receiver may
@@ -244,7 +254,7 @@ export function processWebhookMessage(
       failureReason = `Receiver returned HTTP ${responseStatus}`
     }
     const recorded = yield* completeWebhookHttpObservation({
-      message,
+      message: trustedMessage,
       endpointUrl: target.url,
       responseStatus,
       attempts,

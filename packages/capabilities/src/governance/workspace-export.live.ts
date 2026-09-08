@@ -262,6 +262,12 @@ export function LiveWorkspaceExports(
           if (!found || found.row.workspaceId !== input.workspaceId) {
             return false
           }
+          // Re-check the pending state before writing the object. A duplicate
+          // or stale queue message must not overwrite a ready artifact (and a
+          // cross-workspace message must not write under its guessed key).
+          if (!(yield* pendingMatched(input.exportId, input.workspaceId))) {
+            return false
+          }
           const objectKey = objectKeyFor(input.workspaceId, input.exportId)
           // The object first: a row marked `ready` must point at bytes that
           // exist. A crash between the two leaves an orphan object the
@@ -278,7 +284,7 @@ export function LiveWorkspaceExports(
           const completedAt = yield* DateTime.now
           const expiresAt = workspaceExportExpiresAt(completedAt)
           const applied = yield* auditedMutation({
-            matched: pendingMatched(input.exportId, input.workspaceId),
+            matched: Effect.succeed(true),
             auditEvent: {
               workspaceId: input.workspaceId,
               actorUserId: null,

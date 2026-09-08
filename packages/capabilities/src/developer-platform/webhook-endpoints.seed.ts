@@ -261,7 +261,8 @@ export function SeedWebhookEndpoints(
       const attempts: Array<WebhookDeliveryAttempt> = [...seedAttempts]
 
       const recordAttempt = Effect.fn('WebhookEndpoints.recordAttempt')(function* (
-        input: WebhookDeliveryAttemptInput
+        input: WebhookDeliveryAttemptInput,
+        allowCreate = true
       ) {
         const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
         const attemptedAt = DateTime.formatIso(yield* DateTime.now)
@@ -279,6 +280,17 @@ export function SeedWebhookEndpoints(
         }
         const index = deliveries.findIndex((row) => row.id === deliveryId)
         const previous = deliveries[index]
+        // Queue observations may only advance a delivery reserved by the
+        // producer. Never create a replayable row from an untrusted queue id.
+        if (!previous && !allowCreate) {
+          return {
+            deliveryId,
+            recorded: false,
+            failureAction: 'silent',
+            status: 'failed_permanent',
+            consecutiveFailures: endpoint.consecutiveFailures
+          } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+        }
         if (
           (previous && previous.endpointId !== input.endpointId) ||
           attempts.some(
@@ -385,7 +397,7 @@ export function SeedWebhookEndpoints(
             targetId: input.endpointId,
             metadata: {
               deliveryId,
-              eventType: input.eventType,
+              eventType: row.eventType,
               queueAttempts: input.attempts,
               responseStatus: evidence.responseStatus
             }
@@ -408,7 +420,7 @@ export function SeedWebhookEndpoints(
               userId: null,
               kind: 'webhook.delivery_failed',
               ...deadLetterNotification({
-                eventType: input.eventType,
+                eventType: row.eventType,
                 attempts: ordinal,
                 url: endpoint.url
               })
@@ -878,10 +890,19 @@ export function SeedWebhookEndpoints(
                   ))
             )
           }),
-        getDispatchTarget: (endpointId, workspaceId) =>
+        getDispatchTarget: (endpointId, workspaceId, deliveryId) =>
           Effect.gen(function* () {
             const endpoint = endpointFor(endpointId, workspaceId)
             if (!endpoint || !endpoint.enabled) {
+              return null
+            }
+            const queued = deliveries.find(
+              (delivery) =>
+                delivery.id === deliveryId &&
+                delivery.endpointId === endpointId &&
+                delivery.workspaceId === workspaceId
+            )
+            if (!queued) {
               return null
             }
             const allowed = yield* entitlements.isActiveForWorkspace({
@@ -895,20 +916,23 @@ export function SeedWebhookEndpoints(
             return {
               id: endpoint.id,
               url: endpoint.url,
-              signingSecrets: activeSigningSecrets(endpoint, yield* DateTime.now)
+              signingSecrets: activeSigningSecrets(endpoint, yield* DateTime.now),
+              eventType: queued.eventType,
+              payload: queued.payload
             }
           }),
         recordDeliveryAttempt: (input) => recordAttempt(input),
         recordTerminalDeliveryAttempt: (input) =>
-          // Same row identity and evidence as Live: the id from the queue
-          // message, the payload recorded so the row stays replayable. The
-          // retry schedule clears; response evidence already on the row stays.
-          recordAttempt({
-            ...input,
-            id: input.deliveryId,
-            phase: 'terminal',
-            nextAttemptAt: null
-          })
+          // Terminal observations require an existing producer-owned row.
+          recordAttempt(
+            {
+              ...input,
+              id: input.deliveryId,
+              phase: 'terminal',
+              nextAttemptAt: null
+            },
+            false
+          )
       }
     })
   ).pipe(Layer.provide(SeedResourceInventoryLayer))

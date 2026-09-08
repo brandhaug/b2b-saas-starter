@@ -108,6 +108,20 @@ function webhookMessage(
   }
 }
 
+/** Persist the producer's pending delivery before the worker receives its message. */
+function seedDelivery(messageId: string): Effect.Effect<void> {
+  return Effect.promise(() =>
+    db()
+      .prepare(
+        `insert into webhook_deliveries
+          (id, endpoint_id, event_type, status, attempts, payload)
+         values (?, ?, 'api_token.created', 'pending', 0, '{"hello":"world"}')`
+      )
+      .bind(`whd_${messageId}`, ENDPOINT_ID)
+      .run()
+  ).pipe(Effect.asVoid)
+}
+
 /** Clears the tables the consumer writes and reseeds one dispatchable endpoint. */
 function seedEndpoint(): Promise<void> {
   return db()
@@ -182,6 +196,7 @@ describe('webhook consumer (workers pool)', () => {
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
+        yield* seedDelivery('qmsg_ok')
         stubReceiver(okAnswer)
         const result = yield* Effect.promise(() =>
           consume(webhookQueueName, [webhookMessage('qmsg_ok')])
@@ -241,6 +256,7 @@ describe('webhook consumer (workers pool)', () => {
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port
     Effect.runPromise(
       Effect.gen(function* () {
+        yield* seedDelivery('qmsg_suspended')
         yield* Effect.promise(() =>
           db()
             .prepare(
@@ -283,6 +299,7 @@ describe('webhook consumer (workers pool)', () => {
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
+        yield* seedDelivery('qmsg_retry')
         stubReceiver(() => new Response('boom', { status: 500 }))
         const result = yield* Effect.promise(() =>
           consume(webhookQueueName, [webhookMessage('qmsg_retry', 2)])
@@ -308,6 +325,7 @@ describe('webhook consumer (workers pool)', () => {
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
+        yield* seedDelivery('qmsg_net')
         dropConnection()
         const result = yield* Effect.promise(() =>
           consume(webhookQueueName, [webhookMessage('qmsg_net')])
@@ -329,6 +347,7 @@ describe('webhook consumer (workers pool)', () => {
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
+        yield* seedDelivery('qmsg_4xx')
         stubReceiver(() => new Response('not found', { status: 404 }))
         const result = yield* Effect.promise(() =>
           consume(webhookQueueName, [webhookMessage('qmsg_4xx')])
@@ -375,6 +394,7 @@ describe('webhook consumer (workers pool)', () => {
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
+        yield* seedDelivery('qmsg_dead')
         stubReceiver(okAnswer)
         // A message that exhausted the primary queue's retries: the DLQ
         // consumer only records evidence, it never dispatches.
@@ -417,6 +437,7 @@ describe('webhook consumer (workers pool)', () => {
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- worker queue/D1 promise boundary
     Effect.runPromise(
       Effect.gen(function* () {
+        yield* seedDelivery('history')
         stubReceiver(() => new Response('retry later', { status: 503 }))
         yield* Effect.promise(() =>
           consume(webhookQueueName, [webhookMessage('history', 1)])
@@ -461,6 +482,7 @@ describe('webhook consumer (workers pool)', () => {
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- worker queue/D1 promise boundary
     Effect.runPromise(
       Effect.gen(function* () {
+        yield* seedDelivery('duplicate')
         stubReceiver(() => new Response('rejected', { status: 400 }))
         yield* Effect.promise(() =>
           Promise.all([

@@ -1,7 +1,8 @@
-# Interactive Workspace isolation
+# Workspace isolation
 
-[Issue #331](https://github.com/brandhaug/b2b-saas-starter/issues/331) verifies
-AC-2 of the [security baseline](https://github.com/brandhaug/b2b-saas-starter/issues/329).
+[Issue #331](https://github.com/brandhaug/b2b-saas-starter/issues/331) and
+[issue #332](https://github.com/brandhaug/b2b-saas-starter/issues/332) verify
+AC-2 and AC-3 of the [security baseline](https://github.com/brandhaug/b2b-saas-starter/issues/329).
 The tests use migrated local D1, real capability implementations, and successful
 operations before attempting unauthorized access.
 
@@ -41,6 +42,8 @@ From the repository root, after `vp install`:
 pnpm -C packages/i18n generate
 vp test run apps/api/src/workspace-isolation-rest.live.test.ts apps/api/src/workspace-isolation-mcp.live.test.ts apps/api/src/mcp-live.test.ts apps/api/src/workspace-suspension.live.test.ts
 pnpm -C apps/web exec vp test run src/lib/server/workspace-isolation.live.test.ts
+pnpm -C apps/background exec vp test run src/workspace-isolation.live.test.ts
+pnpm -C apps/api exec vp test run src/export-download.live.test.ts
 pnpm run check
 E2E_PORT=13331 pnpm run validate
 ```
@@ -60,6 +63,21 @@ JWKS networking; those have separate [issuer](../packages/auth/src/live-mcp-oaut
 Membership and consent changes are committed between calls. Concurrent revocation
 between authorization and persistence is not covered. Queue sends are recorded by
 a local test binding; external webhook receivers, deployed Cloudflare resources,
-and production access policies are not exercised. Queued work and exported
-artifacts belong to [AC-3](https://github.com/brandhaug/b2b-saas-starter/issues/332).
+and production access policies are not exercised.
 A deployment needs its own verification and retained operator evidence.
+
+## Queued work and exports, AC-3
+
+| Test                                                                                  | Positive controls and isolation checks                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Background Live, six tests](../apps/background/src/workspace-isolation.live.test.ts) | Persisted fan-out dispatches stored payloads; foreign delivery, endpoint, and workspace combinations cannot dispatch. Retry, dead-letter, unknown-ID, and replay cases retain that ownership and payload. Suspension and endpoint disable settle queued deliveries across recovery; a new explicit send succeeds. Export jobs reject mismatched IDs and reassigned slugs, retry an R2 outage, preserve completed archives on duplicate delivery, and stay failed after suspension recovery. Requester removal retains scheduled export authority but prevents the removed actor from issuing a new link. |
+| [Export-download HTTP Live](../apps/api/src/export-download.live.test.ts)             | Distinct Workspace artifacts download with their own signatures; foreign IDs/signatures and independently signed expired links fail. Token revocation denies new links while an already issued bearer link remains usable. Suspension blocks downloads until reactivation; artifact retention denies access before bucket cleanup.                                                                                                                                                                                                                                                                       |
+
+Requester authorization remains at scheduling. Execution checks current resource
+ownership, availability, and workspace suspension without reconstructing a user
+session. Signed export links are actorless bearer credentials lasting at most
+15 minutes. Issuing another link requires current Workspace authorization.
+
+These tests use local D1 and recorded queue and object-storage bindings. They do
+not exercise deployed Cloudflare resources, external receivers, or concurrent
+authorization and storage races.

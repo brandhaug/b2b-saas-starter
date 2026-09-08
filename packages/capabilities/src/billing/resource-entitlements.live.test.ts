@@ -51,9 +51,19 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             updatedAt: '2026-09-01T00:00:00.000Z',
             ...scenario.state
           })
-          yield* inWorkspace('live-lab', resourceEntitlementsContract(expect), {
-            userId: 'usr_owner'
-          })
+          yield* inWorkspace(
+            'live-lab',
+            resourceEntitlementsContract(expect),
+            {
+              userId: 'usr_owner'
+            },
+            {
+              webhookQueue: {
+                send: () => Promise.resolve(),
+                sendBatch: () => Promise.resolve()
+              }
+            }
+          )
         })
       )
     }
@@ -158,7 +168,24 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(
               failureTag(
                 yield* Effect.exit(
-                  endpoints.getDispatchTarget(foreignEndpoint.endpoint.id, 'wrk_other')
+                  Effect.gen(function* () {
+                    const sent = yield* endpoints
+                      .sendTestEvent({ endpointId: foreignEndpoint.endpoint.id })
+                      .pipe(
+                        Effect.provide(
+                          testWorkspaceContext(
+                            foreignContext.workspace,
+                            foreignContext.actor,
+                            foreignContext.actorType
+                          )
+                        )
+                      )
+                    return yield* endpoints.getDispatchTarget(
+                      foreignEndpoint.endpoint.id,
+                      'wrk_other',
+                      sent.deliveryId
+                    )
+                  })
                 )
               )
             ).toBe('CapabilityUnavailable')
@@ -168,7 +195,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               )
             ).toBe('CapabilityUnavailable')
           }),
-          { userId: 'usr_owner' }
+          { userId: 'usr_owner' },
+          {
+            webhookQueue: {
+              send: () => Promise.resolve(),
+              sendBatch: () => Promise.resolve()
+            }
+          }
         )
       })
     )

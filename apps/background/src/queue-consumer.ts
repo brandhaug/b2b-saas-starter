@@ -63,7 +63,7 @@ type BackgroundBindingTypes = {
 // of spelled: every key is optional, because a row says the deploy CAN bind
 // it — never that it did — and a provider-gated binding is deliberately
 // absent while its provider is unset.
-export type Env = Partial<ServerEnv> &
+export type Env = Partial<Omit<ServerEnv, BackgroundBindingName>> &
   Readonly<Partial<{ [B in BackgroundBindingName]: BackgroundBindingTypes[B] }>>
 
 /**

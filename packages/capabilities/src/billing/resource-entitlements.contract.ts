@@ -65,6 +65,10 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     const c = Array.getUnsafe(created, 2)
     const first = Array.getUnsafe(hooks, 0)
     const second = Array.getUnsafe(hooks, 1)
+    const firstSend = yield* endpoints.sendTestEvent({ endpointId: first.endpoint.id })
+    const secondSend = yield* endpoints.sendTestEvent({
+      endpointId: second.endpoint.id
+    })
     yield* entitlements.select({
       apiTokenIds: [a.id, b.id],
       webhookEndpointIds: [first.endpoint.id]
@@ -92,12 +96,20 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     expect(failureTag(yield* Effect.exit(tokens.verifyBearerToken(c.token)))).toBe(
       'AuthorizationDenied'
     )
-    // A queue only retains endpoint identity. Dispatch must re-read authority.
+    // A queued delivery retains its identity; dispatch re-reads authority.
     expect(
-      yield* endpoints.getDispatchTarget(first.endpoint.id, ctx.workspace.id)
+      yield* endpoints.getDispatchTarget(
+        first.endpoint.id,
+        ctx.workspace.id,
+        firstSend.deliveryId
+      )
     ).not.toBeNull()
     expect(
-      yield* endpoints.getDispatchTarget(second.endpoint.id, ctx.workspace.id)
+      yield* endpoints.getDispatchTarget(
+        second.endpoint.id,
+        ctx.workspace.id,
+        secondSend.deliveryId
+      )
     ).toBeNull()
     const replacements = yield* Effect.all(
       [a, b].map((token) =>
@@ -128,11 +140,19 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
       )
     ).toBe('PlanLimitExceeded')
     expect(
-      yield* endpoints.getDispatchTarget(first.endpoint.id, ctx.workspace.id)
+      yield* endpoints.getDispatchTarget(
+        first.endpoint.id,
+        ctx.workspace.id,
+        firstSend.deliveryId
+      )
     ).toBeNull()
     yield* endpoints.update({ endpointId: first.endpoint.id, enabled: true })
     expect(
-      yield* endpoints.getDispatchTarget(first.endpoint.id, ctx.workspace.id)
+      yield* endpoints.getDispatchTarget(
+        first.endpoint.id,
+        ctx.workspace.id,
+        firstSend.deliveryId
+      )
     ).not.toBeNull()
     yield* endpoints.delete({ endpointId: first.endpoint.id })
     expect((yield* entitlements.getSelection()).webhookEndpointIds).toEqual([])
@@ -164,7 +184,11 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     expect(selected.webhookEndpointIds).toEqual([second.endpoint.id])
     yield* tokens.verifyBearerToken(c.token)
     expect(
-      yield* endpoints.getDispatchTarget(second.endpoint.id, ctx.workspace.id)
+      yield* endpoints.getDispatchTarget(
+        second.endpoint.id,
+        ctx.workspace.id,
+        secondSend.deliveryId
+      )
     ).not.toBeNull()
     yield* TestClock.setTime(Date.parse('2026-09-03T00:00:00.000Z'))
     expect((yield* entitlements.getSelection()).apiTokenIds).toEqual([])

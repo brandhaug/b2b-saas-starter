@@ -25,6 +25,7 @@ import {
   type WebhookDeliveryAttemptInput
 } from './webhook-delivery-plan.ts'
 import { attemptEvidence } from './webhook-attempt-history.ts'
+import { type RecordedWebhookAttempt } from './webhook-endpoints.ts'
 
 const unavailable = orUnavailable('webhook-endpoints')
 const Recorded = Schema.Struct({
@@ -53,8 +54,43 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
   const notifications = yield* NotificationFeed
 
   const recordAttempt = Effect.fn('WebhookEndpoints.recordAttempt')(function* (
-    input: WebhookDeliveryAttemptInput
+    observation: WebhookDeliveryAttemptInput,
+    allowCreate = true
   ) {
+    let input = observation
+    if (!allowCreate) {
+      const rows = yield* unavailable(
+        db
+          .select({
+            eventType: webhookDeliveries.eventType,
+            payload: webhookDeliveries.payload
+          })
+          .from(webhookDeliveries)
+          .innerJoin(
+            webhookEndpoints,
+            eq(webhookEndpoints.id, webhookDeliveries.endpointId)
+          )
+          .where(
+            and(
+              eq(webhookDeliveries.id, observation.id ?? ''),
+              eq(webhookEndpoints.id, observation.endpointId),
+              eq(webhookEndpoints.workspaceId, observation.workspaceId)
+            )
+          )
+          .limit(1)
+      )
+      const stored = rows[0]
+      if (!stored) {
+        return {
+          deliveryId: observation.id ?? '',
+          recorded: false,
+          failureAction: 'silent',
+          status: 'failed_permanent',
+          consecutiveFailures: 0
+        } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+      }
+      input = { ...observation, eventType: stored.eventType, payload: stored.payload }
+    }
     const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
     const attemptId = yield* newCapabilityId('wha')
     const attemptedAt = DateTime.formatIso(yield* DateTime.now)
@@ -82,32 +118,37 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
     if (evidence.requestHeaders !== null) {
       headersJson = JSON.stringify(evidence.requestHeaders)
     }
-    const statements: Array<BatchStatement> = [
-      db
-        .insert(webhookDeliveries)
-        .select(
-          db
-            .select({
-              id: sql<string>`${deliveryId}`.as('id'),
-              endpointId: sql<string>`${input.endpointId}`.as('endpointId'),
-              eventType: sql<string>`${input.eventType}`.as('eventType'),
-              status: sql`'pending'`.as('status'),
-              attempts: sql<number>`0`.as('attempts'),
-              lastAttemptAt: sql<string>`${attemptedAt}`.as('lastAttemptAt'),
-              nextAttemptAt: sql<string | null>`null`.as('nextAttemptAt'),
-              responseStatus: sql<number | null>`null`.as('responseStatus'),
-              payload: sql`${JSON.stringify(input.payload)}`.as('payload'),
-              requestHeaders: sql`null`.as('requestHeaders'),
-              responseBody: sql<string | null>`null`.as('responseBody'),
-              replayedFrom: sql<string | null>`${input.replayedFrom ?? null}`.as(
-                'replayedFrom'
-              ),
-              lastAttemptToken: sql<string | null>`null`.as('lastAttemptToken')
-            })
-            .from(sql`(select 1)`)
-            .where(owned)
-        )
-        .onConflictDoNothing(),
+    const statements: Array<BatchStatement> = []
+    if (allowCreate) {
+      statements.push(
+        db
+          .insert(webhookDeliveries)
+          .select(
+            db
+              .select({
+                id: sql<string>`${deliveryId}`.as('id'),
+                endpointId: sql<string>`${input.endpointId}`.as('endpointId'),
+                eventType: sql<string>`${input.eventType}`.as('eventType'),
+                status: sql`'pending'`.as('status'),
+                attempts: sql<number>`0`.as('attempts'),
+                lastAttemptAt: sql<string>`${attemptedAt}`.as('lastAttemptAt'),
+                nextAttemptAt: sql<string | null>`null`.as('nextAttemptAt'),
+                responseStatus: sql<number | null>`null`.as('responseStatus'),
+                payload: sql`${JSON.stringify(input.payload)}`.as('payload'),
+                requestHeaders: sql`null`.as('requestHeaders'),
+                responseBody: sql<string | null>`null`.as('responseBody'),
+                replayedFrom: sql<string | null>`${input.replayedFrom ?? null}`.as(
+                  'replayedFrom'
+                ),
+                lastAttemptToken: sql<string | null>`null`.as('lastAttemptToken')
+              })
+              .from(sql`(select 1)`)
+              .where(owned)
+          )
+          .onConflictDoNothing()
+      )
+    }
+    statements.push(
       db
         .insert(webhookDeliveryAttempts)
         .select(
@@ -161,7 +202,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
           consecutiveFailures: sql`case when ${input.status} = 'delivered' then 0 else ${webhookEndpoints.consecutiveFailures} + 1 end`
         })
         .where(and(endpointScope, accepted, countsFailure))
-    ]
+    )
     const eventType = terminalDeliveryAuditEventType.get(input.status)
     if (eventType !== undefined) {
       statements.push(
@@ -314,5 +355,13 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
       return deleted.length
     }
   )
-  return { recordAttempt, listDeliveryAttempts, cleanupDeliveryHistory }
+  function recordTerminalAttempt(input: WebhookDeliveryAttemptInput) {
+    return recordAttempt(input, false)
+  }
+  return {
+    recordAttempt,
+    recordTerminalAttempt,
+    listDeliveryAttempts,
+    cleanupDeliveryHistory
+  }
 })

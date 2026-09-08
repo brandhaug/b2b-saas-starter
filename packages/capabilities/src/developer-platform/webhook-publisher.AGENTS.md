@@ -6,6 +6,7 @@ Decides which endpoints receive a domain event and puts one queue message per en
 
 - `enqueue` is the pre-addressed single send for replay and test send: no subscription filter, no workspace resolution, every id from the caller. Seed no-ops.
 - `WebhookQueueMessage` is owned here; the background consumer imports it rather than keeping a parallel shape. `workspaceId` is stamped from the producer's `WorkspaceContext` and re-verified by `getDispatchTarget` before secrets are released.
+- Live fan-out reserves each delivery row before sending the queue batch. The consumer binds `deliveryId` to the endpoint/workspace and loads the persisted event payload before signing; queue body fields are routing hints only. Unknown delivery IDs are terminally ignored and never create replayable rows.
 - `deliveryId` is required and minted before enqueueing. It stays stable across retries and dead-letter queue transfer. Replay and test send use their pre-created pending row ID.
 - With no queue binding, best-effort `publish` stays inactive. Explicit `enqueue` refuses with `CapabilityUnavailable`; test/replay callers must never report a queued delivery when nothing was enqueued.
 

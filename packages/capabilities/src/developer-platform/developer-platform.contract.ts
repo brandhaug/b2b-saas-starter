@@ -177,7 +177,12 @@ export function developerPlatformContractCases(
         expect(listed.some((each) => each.id === endpoint.id)).toBe(true)
 
         const ctx = yield* WorkspaceContext
-        const target = yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)
+        const sent = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
+        const target = yield* webhooks.getDispatchTarget(
+          endpoint.id,
+          ctx.workspace.id,
+          sent.deliveryId
+        )
         expect(target).toMatchObject({ id: endpoint.id, url: endpoint.url })
       })
     },
@@ -191,10 +196,15 @@ export function developerPlatformContractCases(
           events: ['demo.event']
         })
 
+        const sent = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
         yield* webhooks.update({ endpointId: endpoint.id, enabled: false })
-        expect(yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)).toBe(
-          null
-        )
+        expect(
+          yield* webhooks.getDispatchTarget(
+            endpoint.id,
+            ctx.workspace.id,
+            sent.deliveryId
+          )
+        ).toBe(null)
       })
     },
     {
@@ -262,8 +272,9 @@ export function developerPlatformContractCases(
         })
         const ctx = yield* WorkspaceContext
 
+        const sent = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
         const { deliveryId } = yield* webhooks.recordTerminalDeliveryAttempt({
-          deliveryId: 'whd_contract_dlq',
+          deliveryId: sent.deliveryId,
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
           eventType: 'demo.event',
@@ -322,7 +333,11 @@ export function developerPlatformContractCases(
         expect((yield* attempt('failed', 5)).consecutiveFailures).toBe(1)
         // A climb alone never disables: the dispatch target still resolves.
         expect(
-          (yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)) !== null
+          (yield* webhooks.getDispatchTarget(
+            endpoint.id,
+            ctx.workspace.id,
+            'whd_contract_ladder_5'
+          )) !== null
         ).toBe(true)
       })
     },
@@ -355,8 +370,9 @@ export function developerPlatformContractCases(
           })).consecutiveFailures
         }
         expect(streak).toBe(WEBHOOK_FAILURE_AUTO_DISABLE_AT - 1)
+        const sent = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
         const twentieth = yield* webhooks.recordTerminalDeliveryAttempt({
-          deliveryId: 'whd_contract_disable_20',
+          deliveryId: sent.deliveryId,
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
           eventType: 'demo.event',
@@ -368,7 +384,11 @@ export function developerPlatformContractCases(
 
         // Disabled: no dispatch target, and the governance log says why.
         expect(
-          (yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)) === null
+          (yield* webhooks.getDispatchTarget(
+            endpoint.id,
+            ctx.workspace.id,
+            sent.deliveryId
+          )) === null
         ).toBe(true)
         const events = yield* log.list({
           eventType: 'webhook_endpoint.auto_disabled'
@@ -380,7 +400,7 @@ export function developerPlatformContractCases(
 
         // A duplicate terminal observation creates no phantom audit.
         yield* webhooks.recordTerminalDeliveryAttempt({
-          deliveryId: 'whd_contract_disable_20',
+          deliveryId: sent.deliveryId,
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
           eventType: 'demo.event',
@@ -402,7 +422,11 @@ export function developerPlatformContractCases(
         })
         expect(reEnabled.enabled).toBe(true)
         expect(
-          (yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)) !== null
+          (yield* webhooks.getDispatchTarget(
+            endpoint.id,
+            ctx.workspace.id,
+            sent.deliveryId
+          )) !== null
         ).toBe(true)
       })
     },
@@ -472,9 +496,13 @@ export function developerPlatformContractCases(
         expect(
           yield* webhooks.listDeliveries({ endpointId: endpoint.id })
         ).toHaveLength(0)
-        expect(yield* webhooks.getDispatchTarget(endpoint.id, ctx.workspace.id)).toBe(
-          null
-        )
+        expect(
+          yield* webhooks.getDispatchTarget(
+            endpoint.id,
+            ctx.workspace.id,
+            'whd_contract_delete'
+          )
+        ).toBe(null)
         // Deleting a second time matches nothing — the same 404 as update.
         const deleted = yield* Effect.exit(webhooks.delete({ endpointId: endpoint.id }))
         expect(failureTag(deleted)).toBe('WebhookEndpointNotFound')

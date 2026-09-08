@@ -18,3 +18,4 @@ Workspace data export (ADR 0055): an owner requests a gzipped JSON document of e
 
 - No snapshot built from Drizzle rows, and no API worker origin inside the capability.
 - No skipping `isWorkspaceExportDownloadable` on verify because issue checked; the row can expire between them.
+- Queue execution rechecks the current workspace suspension and matches `(exportId, workspaceId, status = pending)` before writing an artifact. A stale or cross-workspace message cannot complete a row; Live checks pending before the bucket write so a duplicate ready message cannot overwrite an artifact.

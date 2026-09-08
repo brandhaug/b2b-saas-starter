@@ -763,10 +763,30 @@ export const LiveWebhookEndpoints: Layer.Layer<
           )
           return rows.length > 0
         }),
-      getDispatchTarget: (endpointId, workspaceId) =>
+      getDispatchTarget: (endpointId, workspaceId, deliveryId) =>
         Effect.gen(function* () {
           const endpoint = yield* endpointRow(endpointId, workspaceId)
           if (!endpoint || !endpoint.enabled) {
+            return null
+          }
+          const delivery = yield* unavailable(
+            db
+              .select({
+                id: webhookDeliveries.id,
+                eventType: webhookDeliveries.eventType,
+                payload: webhookDeliveries.payload
+              })
+              .from(webhookDeliveries)
+              .where(
+                and(
+                  eq(webhookDeliveries.id, deliveryId),
+                  eq(webhookDeliveries.endpointId, endpointId)
+                )
+              )
+              .limit(1)
+          )
+          const queued = delivery[0]
+          if (!queued) {
             return null
           }
           const allowed = yield* entitlements.isActiveForWorkspace({
@@ -787,16 +807,16 @@ export const LiveWebhookEndpoints: Layer.Layer<
                 previousSecretExpiresAt: endpoint.previousSecretExpiresAt
               },
               yield* DateTime.now
-            )
+            ),
+            eventType: queued.eventType,
+            payload: queued.payload
           }
         }),
       recordDeliveryAttempt: (input) => history.recordAttempt(input),
       recordTerminalDeliveryAttempt: (input) =>
-        // The row id and payload travel in the queue message: the id resolves
-        // the message's own attempt row (one row per message), and the
-        // recorded payload is what makes a terminal row replayable. The
-        // retry schedule clears; response evidence already on the row stays.
-        history.recordAttempt({
+        // Resolve the producer's existing row and stored contents before
+        // terminal bookkeeping. Keep response evidence and clear retry timing.
+        history.recordTerminalAttempt({
           ...input,
           id: input.deliveryId,
           phase: 'terminal',
