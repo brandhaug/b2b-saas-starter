@@ -2,8 +2,8 @@
 
 ## Local development
 
-Requires the [Vite+ CLI](https://viteplus.dev) (`vp`, >= 0.3.0), which provides the
-managed Node runtime (>= 24) and pnpm.
+Requires the [Vite+ CLI](https://viteplus.dev) (`vp`), which provides the
+pinned Node runtime and pnpm.
 
 ```bash
 git clone git@github.com:brandhaug/b2b-saas-starter.git
@@ -13,7 +13,7 @@ cp .env.example .env
 pnpm run dev
 ```
 
-Open <http://localhost:3071>. The `.env` defaults work out of the box — optional providers (Stripe, Sentry, PostHog, Turnstile, email, AI) stay inactive until you fill in their variables. The [optional providers guide](../apps/web/content/docs/getting-started/optional-providers.mdx) covers each provider: exact variables, where the values come from, and how to verify activation.
+Open <http://localhost:3071>. The `.env` defaults support provider-light local development. Optional providers stay inactive until configured. The [optional providers guide](../apps/web/content/docs/getting-started/optional-providers.mdx) covers each provider: exact variables, where the values come from, and how to verify activation.
 
 For customer support, configure the optional [support destinations](deploying.md)
 for `/help`. With no contact configured, the page says contact information is
@@ -52,13 +52,15 @@ Seeding also creates two credential accounts so the authenticated area is reacha
 | `demo@starter.local`   | `demo-starter-password` | System admin (`/admin`) + `starter-lab` owner |
 | `engineer@example.com` | `demo-starter-password` | `starter-lab` member                          |
 
-The member account exists to make the role-gated UI visible: signed in as it, the settings page shows module state only — no API-token form, no invitations, no webhook count — and the dashboard drops the webhook delivery card, because the loader never reads what the role cannot see. The owner account shows all of it.
+Use the member account to check permission-limited pages and the owner account
+to manage workspace settings.
 
 Sign in at `/sign-in` with these credentials once the database is migrated and seeded. The dev server detects the persisted local D1 on startup and attaches it as the `DB` binding (see `apps/web/src/lib/cloudflare-workers-shim-dev.ts`), so credential sign-in and the Live capability layers work locally. Without a migrated database the shim leaves `DB` unset and the app runs provider-light on the in-memory seed layer. Restart `pnpm run dev` after the first migrate + seed so the binding attaches.
 
 Schema changes: edit `packages/db/src/schema.ts`, then `pnpm run db:generate` to emit a migration.
 
-If migrating reports nothing to do but the app disagrees with the schema, your local database predates the squashed baseline (the Better Auth `organization` plugin adoption rewrote the three workspace tables and replaced three migrations with one — see [ADR 0051](./adr/0051-workspace-membership-on-better-auth-organization-plugin.md)). Drop the local state and rebuild:
+To discard disposable local data after a schema reset or migration squash, stop
+the dev server and rebuild local D1:
 
 ```bash
 rm -rf packages/db/.wrangler/state/v3/d1
@@ -70,7 +72,10 @@ Restart `pnpm run dev` afterwards so the dev shim re-attaches the binding.
 
 `db:migrate:local` / `db:migrate:remote` run `packages/db/scripts/migrate.ts`, which applies drizzle-kit's folder-style migrations (`packages/db/migrations/<timestamp_name>/migration.sql`) through `wrangler d1 execute` and records them in a `d1_migrations` table so re-runs skip already-applied migrations. (Wrangler's own `d1 migrations apply` only understands flat `*.sql` files, so it cannot be used here.)
 
-For remote migrations (`pnpm run db:generate` against remote metadata and `pnpm run db:migrate:remote`), set `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_DATABASE_ID`, and `CLOUDFLARE_D1_TOKEN` in `.env` — see `packages/db/drizzle.config.ts`.
+`db:generate` reads the local TypeScript schema. Remote migration commands use
+Wrangler credentials (`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, or an
+authenticated Wrangler session). Drizzle Kit commands that connect directly to
+remote D1 use the credentials in `packages/db/drizzle.config.ts`.
 
 ## Agent skills
 
@@ -80,12 +85,6 @@ See [shared skills](./agents/skills.md) for discovery, licenses, and updates.
 
 ## Deploying
 
-Deployment is Alchemy IaC via `pnpm run deploy` (root `alchemy.run.ts`). Required env: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`. Everything else is optional and degrades to inactive.
-
-For the full walkthrough — Cloudflare token setup, the GitHub Actions `production` environment secrets, first-deploy verification, and troubleshooting — see [deploying.md](./deploying.md).
-
-See [ARCHITECTURE.md](../ARCHITECTURE.md) (Deployment & Infrastructure, Secret matrix) for the full picture, and [README.md](../README.md) for the command reference.
-
-Before customer use, configure [production monitoring and recovery](operations.md)
-and retain a successful isolated restore drill. Provider-free local development
-does not require monitoring or backup credentials.
+Follow [deploying.md](deploying.md) for Alchemy, Cloudflare credentials, GitHub
+Actions, and deployment verification. Before customer use, configure
+[monitoring and recovery](operations.md) and complete the isolated drill.

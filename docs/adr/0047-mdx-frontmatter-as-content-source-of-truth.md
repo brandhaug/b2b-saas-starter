@@ -1,3 +1,3 @@
-# MDX frontmatter as the source of truth for public content
+# MDX frontmatter owns public content metadata
 
-The starter loads docs and blog content by globbing MDX files at build time and parsing each file's YAML frontmatter for title, description, category, order, tags, and date. The previous sidecar TypeScript list of content metadata is removed so that adding a doc or post requires only a new MDX file. Docs are organized into six Public Knowledge Content categories: getting-started, architecture, capability-interfaces, integrations, operations, governance.
+Public content metadata lives with each MDX document and is read at build time. Navigation and content listings derive from it, so adding or renaming a document does not require synchronizing a separate TypeScript inventory.

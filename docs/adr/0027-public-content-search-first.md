@@ -1,3 +1,3 @@
 # Public content search first
 
-The starter's initial search indexes public knowledge content: docs, help, FAQ, blog, changelog, and related showcase pages. Authenticated command palette behavior may include navigation and actions, but full workspace data search is deferred to avoid premature permission, indexing, and freshness complexity.
+The command palette searches docs and blog titles/descriptions, doc categories, and navigation labels without loading article bodies. Workspace and account destinations reuse the sidebar navigation and its permission filters. Full-text article search and workspace data search remain out of scope; the latter needs authorization, indexing, and freshness rules before it can expose records.

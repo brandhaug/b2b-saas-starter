@@ -1,3 +1,3 @@
-# No initial PWA
+# No PWA without an offline workflow
 
-The starter does not include PWA or offline service worker support in the initial scaffold. Offline/PWA behavior earns its keep in gameplay-shaped products, but the B2B starter's workspace, docs, auth, API, and settings flows do not justify the added caching, auth, and debugging complexity.
+The starter has no offline workflow that justifies a service worker. PWA support would add cache invalidation and authenticated-data handling to online workspace flows, so it remains out of scope until a product needs it.

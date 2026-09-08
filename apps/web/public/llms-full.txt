@@ -1,5 +1,29 @@
-# B2B SaaS Starter Full Context
+# B2B SaaS Starter repository context
 
-This starter showcases a production-grade repository foundation. The public site markets the starter itself, while the reference application demonstrates workspaces, members and roles, API tokens, outbound webhooks, notifications, audit events, and Better Auth admin.
+The Starter is the repository product. The public Showcase Site explains it; the Reference Application demonstrates workspace behavior. Use Member and Workspace Role for workspace access. System Admin is a separate global role with no workspace bypass.
 
-Architecture decisions live in /docs/adr in the repository.
+## System boundaries
+
+Three Cloudflare Workers share Effect capabilities. The TanStack Start web Worker calls them in-process through loaders and server functions. The API Worker exposes REST and MCP through a shared operation catalog. The background Worker handles queued webhook delivery, workspace exports, billing synchronization, and notification email.
+
+D1 holds application and authentication state. Better Auth owns session and plugin-backed identity mutations. Request boundaries enforce permissions before invoking business capabilities. Seed and Live adapters share contracts and the deterministic Starter Lab identity.
+
+Optional Stripe, email, social sign-in, Turnstile, observability, and AI providers activate from configuration. Local development works before they are configured. A configured provider failure must not silently grant access or substitute demo data.
+
+## Integration and operation
+
+REST uses workspace API Tokens. MCP also accepts OAuth consent bound to one Workspace; mutations recheck current consent. Token plaintext is shown on issuance, while verification uses stored hashes, expiry, revocation, and entitlements.
+
+Billing synchronization verifies current provider state. Access uses a time-dependent Effective Plan, preserving stored resources when paid access ends. Webhook retries and manual replays preserve delivery evidence. Workspace exports are gzipped JSON archives, not database backups.
+
+Customer deployments need monitoring and an isolated recovery drill. Shared-D1 recovery requires closing the whole application, restoring independent security evidence, and reconciling queues and external providers before reopening.
+
+## Sources
+
+- [Setup](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/setup.md)
+- [Architecture](https://github.com/brandhaug/b2b-saas-starter/blob/master/ARCHITECTURE.md)
+- [Current decisions](https://github.com/brandhaug/b2b-saas-starter/tree/master/docs/adr)
+- [Operations](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/operations.md)
+- [Public documentation](/en/docs)
+
+These text files are maintained alongside the source docs; the build does not regenerate them.

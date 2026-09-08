@@ -1,87 +1,51 @@
 ---
 title: Optional providers and env
-description: How env-gated providers work — exact variables, where to set them, and how to verify activation.
+description: How env-gated providers work; exact variables, where to set them, and how to verify activation.
 category: getting-started
 order: 25
 tags: [env, optional-providers, configuration]
 ---
 
-Every third-party provider in the starter is env-gated. The app boots with zero provider secrets; each provider activates when its environment variables are set. This guide covers each provider: what it does, the exact variables, where the values come from, and a concrete way to confirm activation.
+Optional providers activate from environment variables and Worker bindings.
+With their configuration absent, the starter uses an inactive or local adapter.
+`packages/env/src/server.ts` declares the variables and production config audit;
+`BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` remain required for deployed auth.
 
-## How env validation works
+## Configure a provider
 
-`packages/env/src/server.ts` is the single source of truth. The `ServerEnv` type declares every server variable: two required (`BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`) and the rest optional. Optional vars simply stay unset until you configure their provider; nothing fails and no surface degrades beyond that provider being off. In production, `auditRequiredEnv` rejects placeholder or too-short auth secrets before any request is served (see the config gate in `apps/web/src/start.ts`).
+Use root `.env` for the web dev server, each Worker's `.dev.vars` for direct
+Wrangler development, and the deployment shell environment for Alchemy.
+`alchemy.run.ts` forwards declared variables and provisions the required bindings.
+Restart development processes after changing configuration.
 
-## Where values go
+| Provider                    | Configuration                                                                                               | Without configuration                                      |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Cloudflare Email            | `CLOUDFLARE_EMAIL_FROM` plus an `EMAIL` binding                                                             | Log dispatcher                                             |
+| Turnstile                   | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`                                                                | Sign-up has no challenge                                   |
+| GitHub sign-in              | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                                                                  | No GitHub button                                           |
+| Google sign-in              | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                                                  | No Google button                                           |
+| Workers AI                  | `WORKERS_AI_ENABLED=true` plus an `AI` binding                                                              | Tries the next assistant provider                          |
+| OpenAI-compatible assistant | `OPENAI_API_KEY`; optional `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`                                             | Mock assistant                                             |
+| Workspace export            | `WORKSPACE_EXPORT_BUCKET`, `API_PUBLIC_URL`                                                                 | D1-backed export actions unavailable                       |
+| Stripe                      | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_TEAM`; optional `STRIPE_PRICE_ID_ENTERPRISE` | Plan display and local entitlement checks remain available |
+| Sentry                      | `SENTRY_DSN`                                                                                                | No error export to Sentry                                  |
+| PostHog                     | `POSTHOG_KEY`; optional `POSTHOG_HOST`                                                                      | No PostHog capture                                         |
+| OTLP                        | `OTEL_EXPORTER_OTLP_ENDPOINT`                                                                               | No OTLP export                                             |
 
-| Runtime                                              | Where to set variables                                                                                                                                   |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Web dev server (`bun run dev` from the repo root)    | Root `.env`, copied from `.env.example`                                                                                                                  |
-| API worker under Wrangler (`bun --cwd apps/api dev`) | `apps/api/.dev.vars`; `apps/api/wrangler.jsonc` ships `WORKERS_AI_ENABLED = "false"` and `CLOUDFLARE_EMAIL_FROM = "noreply@example.com"` as dev defaults |
-| Deployed Workers (`bun run deploy`)                  | The deploy shell environment; `alchemy.run.ts` forwards the optional keys to all three Workers and wraps secret-shaped values in `Redacted`              |
+## Verify activation
 
-## Cloudflare Email
+- Email: send an invitation on a deployed stack and inspect delivery history. Local log delivery does not prove Cloudflare sending works.
+- Turnstile: load `/sign-up` with both keys set. The widget should appear; missing or invalid challenge responses must be rejected. Verification outages fail closed.
+- Social sign-in: the configured provider's button appears on `/sign-in`. Complete a sign-in and inspect `/account` for the linked method.
+- Exports: request an archive as an owner, wait for its ready notification, then download it. Local D1 uses emulated R2 and Queues; the Seed adapter builds archives in memory.
+- Billing: the billing page offers configured provider actions to an owner or admin. See [Stripe billing](/docs/integrations/stripe-billing) for setup and recovery.
+- Observability: see [Sentry and PostHog](/docs/integrations/sentry-posthog) for server and browser behavior.
 
-Transactional email through Cloudflare Email Service. React Email templates live in `packages/email`; the wired consumers are the workspace invitation send path (`apps/web/src/lib/server/invitations.ts`) and the account lifecycle emails: password reset, verification, and the one-time codes (`apps/web/src/lib/server/auth-emails.ts`, the `AuthEmailSender` adapter for Better Auth). The API Worker has no email consumer: it cannot persist an invitation, so it serves no invitation endpoint.
+## Assistant provider order
 
-| Variable                | Value                                                             |
-| ----------------------- | ----------------------------------------------------------------- |
-| `CLOUDFLARE_EMAIL_FROM` | A sender address on a domain verified in Cloudflare Email Routing |
-
-Verify the domain under your Cloudflare zone → Email Routing. At deploy time, `alchemy.run.ts` provisions the `EMAIL` SendEmail binding only when this variable is set and restricts sending to it via `allowedSenderAddresses`. At runtime, `selectEmailDispatcherLayer` in `packages/email` uses the Cloudflare dispatcher when the binding and sender exist; otherwise the log dispatcher renders templates and logs `email.dispatched` with `mode: "log"`; no real send. The API worker also accepts `EMAIL_FROM_ADDRESS` as a back-compat alias, but `CLOUDFLARE_EMAIL_FROM` is the name used end to end.
-
-**Unconfigured:** invitations and lifecycle emails render to the log instead of sending; everything else works.
-
-**Verify:** set the variable in `.env`, restart `bun run dev`, and send an invitation on a deployed stack, confirming `delivery.mode` is `cloudflare-email` in the response.
-
-## Turnstile
-
-CAPTCHA protection for the sign-up form. The widget renders on `/sign-up` and its token is verified server-side against Cloudflare's `siteverify` endpoint before Better Auth accepts the registration.
-
-| Variable               | Value                                |
-| ---------------------- | ------------------------------------ |
-| `TURNSTILE_SITE_KEY`   | Widget site key (safe to expose)     |
-| `TURNSTILE_SECRET_KEY` | Widget secret key (server-side only) |
-
-Create a widget under the Cloudflare dashboard → Turnstile, with your deployment's hostname in the allowed domains.
-
-**How it works:** when both variables are set, `/sign-up` renders the challenge widget (server-rendered site key via `getTurnstileSiteKey`) and the auth route verifies each sign-up's token (`x-turnstile-token` header → `TurnstileVerifier.verify`, in [`packages/capabilities/src/governance/turnstile-verification.ts`](../../../packages/capabilities/src/governance/turnstile-verification.ts)). A failed challenge returns `captcha_rejected`; if Cloudflare itself is unreachable, sign-up fails closed with `captcha_unavailable`.
-
-**Unconfigured:** no widget renders, no verification runs; the sign-up form behaves exactly as it does without Turnstile.
-
-**Verify:** set both variables in `.env`, restart, and load `/sign-up`: the challenge widget appears and a valid solution lets sign-up through; submitting without one shows the "bot check" error.
-
-## Social sign-in
-
-GitHub and Google sign-in over Better Auth's `socialProviders`. See [social sign-in](../integrations/social-sign-in.mdx) for the provider setup, the exact OAuth callback URLs, and the account-linking rules.
-
-| Variable               | Value                          |
-| ---------------------- | ------------------------------ |
-| `GITHUB_CLIENT_ID`     | GitHub OAuth app client ID     |
-| `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
-| `GOOGLE_CLIENT_ID`     | Google OAuth client ID         |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret     |
-
-**Unconfigured:** the provider buttons do not render and the provider is absent from the Better Auth config; the **Local Auth Path** is the whole auth surface.
-
-## Assistant (Workers AI or OpenAI-compatible)
-
-The starter assistant answers `POST /assistant/answer` on the API worker and, in the web app, at `/workspaces/$slug/assistant`: a chat page that calls `AssistantService` directly through a TanStack Start server function (no REST round-trip). Both surfaces pick the provider with `selectAssistantLayer` from `packages/ai`, in order:
-
-1. Workers AI, when `WORKERS_AI_ENABLED` is `true` and the `AI` binding exists (default model `@cf/meta/llama-3.1-8b-instruct`). The binding is declared in `apps/{api,web}/wrangler.jsonc` and attached to the deployed workers by `alchemy.run.ts`; no API key involved.
-2. OpenAI-compatible, when `OPENAI_API_KEY` is set (defaults: base URL `https://api.openai.com/v1`, model `gpt-4o-mini`). Any OpenAI-compatible endpoint works via `OPENAI_BASE_URL`.
-3. A mock provider otherwise.
-
-| Variable             | Value                                                      |
-| -------------------- | ---------------------------------------------------------- |
-| `WORKERS_AI_ENABLED` | `true` to use the Workers AI binding                       |
-| `OPENAI_API_KEY`     | API key for an OpenAI-compatible provider                  |
-| `OPENAI_BASE_URL`    | Optional override, defaults to `https://api.openai.com/v1` |
-| `OPENAI_MODEL_ID`    | Optional override, defaults to `gpt-4o-mini`               |
-
-**Unconfigured:** the API endpoint still answers from the mock provider (`provider: "mock"`, `assistantConfigured: false`), and the web assistant page hides its form behind honest copy naming the variables that enable a real provider (`assistantConfigured`-equivalent comes from the loader's `configured` field).
-
-**Verify:** on a stack where the API worker has the variables, call the endpoint with a workspace API Token:
+`selectAssistantLayer` in `packages/ai` prefers enabled Workers AI, then an
+OpenAI-compatible provider, then the mock. The web assistant calls the capability
+through a server function; machine clients use the API Worker:
 
 ```bash
 curl -s https://<api-host>/assistant/answer \
@@ -90,45 +54,12 @@ curl -s https://<api-host>/assistant/answer \
   -d '{"workspaceSlug":"<slug>","question":"Hello"}'
 ```
 
-The response's `provider` field reads `workers-ai` or `openai-compatible` and `assistantConfigured` is `true`.
+A configured response reports `provider: "workers-ai"` or
+`provider: "openai-compatible"` and `assistantConfigured: true`.
 
-## Workspace export (R2 + Queue)
+## Add a variable
 
-Owners can export a workspace as a gzipped JSON document from workspace settings (ADR 0055). The archive is built by the background worker and stored in an R2 bucket for seven days; downloads go through a signed link on the API worker.
-
-| Variable                  | Value                                                                            |
-| ------------------------- | -------------------------------------------------------------------------------- |
-| `WORKSPACE_EXPORT_BUCKET` | The R2 bucket name, e.g. `b2b-saas-starter-workspace-exports`                    |
-| `API_PUBLIC_URL`          | The deployed API worker's origin, so download links from the web app point at it |
-
-At deploy time, `alchemy.run.ts` provisions the bucket (with a seven-day lifecycle rule), the export queue, and their bindings on all three workers only when `WORKSPACE_EXPORT_BUCKET` is set. Locally, the generated `wrangler.jsonc` files always carry both bindings (miniflare simulates R2 and Queues), and the web dev server uses the in-memory Seed adapter, which builds the same archive without either.
-
-**Unconfigured:** the settings card explains that exports need a bucket and shows no button. Nothing else degrades.
-
-**Verify:** on a deployed stack, request an export as an owner, wait for the "Workspace export ready" notification, and follow the download link; the audit page shows `workspace.export_requested`, `.export_completed`, and `.export_downloaded`.
-
-## Stripe billing
-
-Billing is implemented and provider-light: plan display on `/workspaces/$slug/billing` and entitlement gating (Starter caps API tokens at 2 and webhook endpoints at 1) work with every variable below unset. Setting them activates the checkout handoff and the inbound webhook route; see the Stripe doc in the Integration surfaces section for the full flow.
-
-| Variable                | Value                                                            |
-| ----------------------- | ---------------------------------------------------------------- |
-| `STRIPE_SECRET_KEY`     | Stripe Dashboard → Developers → API keys                         |
-| `STRIPE_WEBHOOK_SECRET` | Signing secret shown when you create the Stripe webhook endpoint |
-| `STRIPE_PRICE_ID_TEAM`  | Price id of the Team plan's recurring price                      |
-
-Verify activation: with all three set, the Billing page shows an "Upgrade to Team" button for owners, and `POST /webhooks/stripe` on the background Worker accepts signed events (it answers 503 while `STRIPE_WEBHOOK_SECRET` is unset).
-
-## Sentry and PostHog (observability)
-
-Error monitoring and product analytics, wired through the official SDKs (`@sentry/cloudflare` / `@sentry/react` and `posthog-node` / `posthog-js`) as env-gated providers: set the variables below and both activate across web, api, and background plus the web browser bundle; leave them unset and nothing changes. See the [Sentry and PostHog guide](../integrations/sentry-posthog.mdx) for what each activates. Wide-event telemetry still goes through `OTEL_EXPORTER_OTLP_ENDPOINT`.
-
-| Variable       | Value                                                           |
-| -------------- | --------------------------------------------------------------- |
-| `SENTRY_DSN`   | Sentry project → Settings → Client Keys (DSN)                   |
-| `POSTHOG_KEY`  | PostHog project settings → project API key                      |
-| `POSTHOG_HOST` | Optional; `.env.example` defaults to `https://us.i.posthog.com` |
-
-## Adding a provider variable
-
-Declare the variable in `ServerEnv`. Everything else derives from the type: `alchemy.run.ts` builds its forwarding env from the two optional key lists (secret or plain) in `packages/env/src/server.ts`, and workers read the var off their own env binding. `apps/web/src/worker-env.d.ts` derives its string vars from it. The full secret matrix lives in `ARCHITECTURE.md`.
+Declare it in `ServerEnv` and classify it in the optional secret or plain key
+list in `packages/env/src/server.ts`. Alchemy forwarding and Worker string-binding
+types derive from those declarations. Add any required resource binding to the
+infrastructure configuration.

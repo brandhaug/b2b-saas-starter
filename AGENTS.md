@@ -1,6 +1,6 @@
 # B2B SaaS Starter
 
-Cloudflare-first B2B SaaS starter. Public site showcases the repo; app demonstrates workspaces.
+Cloudflare-first B2B SaaS starter. Public site explains the repo; app demonstrates workspaces.
 
 [CONTEXT.md](./CONTEXT.md) holds the domain language, [ARCHITECTURE.md](./ARCHITECTURE.md) the system map and security model, [DESIGN.md](./DESIGN.md) the visual identity, [docs/adr](./docs/adr) the decisions.
 
@@ -50,6 +50,8 @@ Run `pnpm run check` before committing and after `check:fix`; the pre-commit hoo
 ## Agent execution
 
 Read only the intent nodes and skill branches needed for the task. Save verbose command output to a log and inspect summaries and failures.
+
+Update docs and ADRs in place; follow [documentation maintenance](CONTRIBUTING.md#keep-documentation-current).
 
 ## Commit & Release Conventions
 

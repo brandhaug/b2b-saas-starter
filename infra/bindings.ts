@@ -172,7 +172,7 @@ export const notificationDigestRetryCron = '*/15 8-14 * * *'
 export const notificationDigestCron = '0 8 * * *'
 
 /**
- * Bounded billing repair pass (ADR 0075): runs often enough to keep normal
+ * Bounded billing repair pass (ADR 0060): runs often enough to keep normal
  * convergence under fifteen minutes while remaining inactive in the worker
  * when Stripe is not configured.
  */

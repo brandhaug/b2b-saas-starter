@@ -1,3 +1,3 @@
 # Starter-focused legal pages
 
-The starter includes polished static privacy and terms pages using the public site's route conventions, but the content describes the starter and reference application rather than a fictional company. These pages should explain data categories, workspace data, auth/session cookies, optional providers, analytics/error tracking, and email behavior, while making clear that teams must adapt the content for their own legal requirements.
+Privacy and terms pages describe the reference application and its data handling. They are templates for a fork to adapt, not claims about a fictional operating company. Operational behavior belongs in product documentation so these pages do not become a second configuration guide.

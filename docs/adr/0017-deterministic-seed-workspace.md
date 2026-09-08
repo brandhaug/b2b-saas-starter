@@ -1,5 +1,3 @@
 # Deterministic seed workspace
 
-> **Amended 2026-08-22:** The seed no longer includes starter modules or readiness states — those features were removed in the feature-pruning sweep (issue #103). Members, notifications, API tokens, and webhook endpoints remain.
-
-The starter includes deterministic seed data for local development, tests, and showcase screenshots. The seed workspace should include members, notifications, API tokens, and webhook endpoints so the reference app is useful immediately while making seeded content easy to identify and replace.
+Local development and tests share deterministic workspace data. `packages/capabilities/src/seed-fixture.ts` owns the demo identity and membership; `scripts/seed.ts` adds the password when populating D1. Seed and Live must resolve that identity to the same workspace because client navigation can use Seed while server loads use D1.

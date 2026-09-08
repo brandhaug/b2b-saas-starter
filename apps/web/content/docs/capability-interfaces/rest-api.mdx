@@ -17,16 +17,16 @@ HttpApiGroup.make('workspace').add(
   HttpApiEndpoint.get('overview', '/workspaces/:slug/overview', {
     params: SlugParams,
     success: WorkspaceOverviewDto,
-    error: [WorkspaceNotFound, InternalError, Unauthorized, RateLimited]
+    error: WORKSPACE_ERRORS
   })
 )
 ```
 
-The same schemas feed the OpenAPI document. A typed client can be generated from the same `HttpApi` instance once the web Worker is ready to swap server functions for an API-backed reader.
+The same contract supplies OpenAPI and the [typed SDK](/docs/capability-interfaces/sdk).
 
 ## Routing
 
-`apps/api` serves the `HttpApi` groups directly: `HttpApiBuilder.layer(StarterApi)` plus per-group handler layers, converted to a Cloudflare web handler with `HttpRouter.toWebHandler` (`apps/api/src/http.ts`). Paths, params, payloads, success/error schemas, and status codes are all the contract's: there is no separate route table to drift from the OpenAPI document (ADR-0039). Hono is intentionally avoided.
+`apps/api` serves the `HttpApi` groups directly: `HttpApiBuilder.layer(StarterApi)` plus per-group handler layers, converted to a Cloudflare web handler with `HttpRouter.toWebHandler` (`apps/api/src/http.ts`). Paths, params, payloads, success/error schemas, and status codes are all the contract's: there is no separate route table to drift from the OpenAPI document (ADR-0039).
 
 ## Authentication
 
@@ -34,7 +34,7 @@ Public REST clients authenticate with a workspace-scoped API Token in the `Autho
 
 ## Pagination
 
-Every list endpoint (`members`, `notifications`, `api-tokens`, `webhooks`, `audit-events`) is a paged read (ADR 0057). It accepts two optional query parameters and answers a **Page**: `items` plus an opaque `nextCursor` that is `null` on the last page.
+Workspace list endpoints use keyset pagination. It accepts two optional query parameters and answers a **Page**: `items` plus an opaque `nextCursor` that is `null` on the last page.
 
 ```text
 GET /workspaces/acme/notifications?limit=2
@@ -45,7 +45,7 @@ GET /workspaces/acme/notifications?limit=2
 }
 ```
 
-`limit` defaults to 50 and is clamped into `[1, 200]`: out-of-range values narrow or widen to the range instead of failing. The `cursor` is a keyset position (the sort key of the last item plus its id, base64-encoded): a page returns rows strictly past that position in the endpoint's order, so rows inserted between two fetches never shift, duplicate, or hide rows the caller has not yet seen. Timestamped lists (`notifications`, `api-tokens`, `audit-events`) read newest-first on `(createdAt, id)`; `members` and `webhooks` carry no timestamp on the wire and read forward on `id`. A cursor that cannot be decoded addresses no position and yields an empty page. MCP list tools take the same two inputs. The typed SDK walks pages for you; see [Typed SDK](/docs/capability-interfaces/sdk).
+`limit` defaults to 50 and is clamped into `[1, 200]`: out-of-range values narrow or widen to the range instead of failing. The `cursor` is a keyset position (the sort key of the last item plus its id, base64-encoded): a page returns rows strictly past that position in the endpoint's order, so inserting rows does not shift the positions of existing rows. This is not a snapshot; new rows before the cursor require a fresh traversal. Timestamped lists (`notifications`, `api-tokens`, `audit-events`) read newest-first on `(createdAt, id)`; `members` and `webhooks` carry no timestamp on the wire and read forward on `id`. A cursor that cannot be decoded addresses no position and yields an empty page. MCP list tools take the same two inputs. The typed SDK walks pages for you; see [Typed SDK](/docs/capability-interfaces/sdk).
 
 ## Rate limiting
 
@@ -53,17 +53,16 @@ Each route declares a Cloudflare RateLimit bucket (`rest_read`, `rest_write`, `a
 
 ## Error model
 
-Tagged errors like `WorkspaceNotFound`, `Unauthorized`, `RateLimited`, and `InternalError` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. MCP uses the same guard status mapping at its transport gate and returns expected operation refusals as tool errors. Adding a new domain error in `@b2b-saas-starter/capabilities` updates both interfaces at type-check time.
+Tagged errors like `WorkspaceNotFound`, `Unauthorized`, `RateLimited`, and `InternalError` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. MCP uses the same guard status mapping at its transport gate and returns expected operation refusals as tool errors. Declare each operation's errors in its contract and handle them at the transport boundary.
 
 ## OpenAPI and Scalar
 
-Hitting `https://api.<domain>/reference` returns the Scalar reference UI. The raw OpenAPI document is at `/openapi.json` and regenerates on every deploy from the `HttpApi` groups in `packages/api`.
+Hitting `https://api.<domain>/reference` returns the Scalar reference UI. The raw OpenAPI document is at `/openapi.json` and derives from the `HttpApi` groups in `packages/api`.
 
 ## MCP parity
 
 Every supported workspace mutation is also available as an authorized MCP tool.
-REST response contracts remain unchanged, including webhook creation returning
-endpoint metadata without its signing secret. Rotate the secret to obtain one.
+Webhook creation returns endpoint metadata without its signing secret. Rotate the secret to obtain one.
 Token creation checks that the requested scopes grant no permission beyond the
 caller's authority. See [MCP server](/docs/capability-interfaces/mcp-server) for
 write tools, side effects, and one-time secret responses.

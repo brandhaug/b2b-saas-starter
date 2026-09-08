@@ -10,7 +10,7 @@ API Tokens authenticate REST and MCP requests. Each token belongs to one Workspa
 
 ## Creation
 
-A workspace owner creates a token on the API tokens page at
+A workspace owner or admin creates a token on the API tokens page at
 `/workspaces/:slug/api-tokens`. Creation requires `apiToken:create`; REST callers
 use `POST /workspaces/:slug/api-tokens` with an `admin`-scoped token. Both paths
 call `ApiTokenRegistry.create`.
@@ -53,8 +53,8 @@ plan's token ceiling because it transfers the original token's slot.
 The response includes the new plaintext `token`, `previousTokenId`, and
 `previousTokenExpiresAt`. D1 commits the old credential's retirement, the new
 hash, and an `api_token.replaced` Audit Event together. That event links both IDs
-and their expiry details without storing plaintext. Replacement and creation are
-excluded from MCP tools to keep credentials out of tool histories.
+and their expiry details without storing plaintext. MCP also exposes creation and replacement. Their responses contain one-time
+credentials; store them securely and account for client tool-history retention.
 
 ## Revocation
 

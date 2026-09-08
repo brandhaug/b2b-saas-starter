@@ -1,60 +1,21 @@
 # Contributing
 
-Thanks for considering a contribution. This repository is a B2B SaaS starter — changes are evaluated against whether they make the starter more useful for adopters, not whether they would be useful in a downstream production app.
+Changes should improve the Starter for adopters. Discuss substantial changes in an issue before implementation. Read the relevant [architecture](ARCHITECTURE.md), [domain terms](CONTEXT.md), and [decisions](docs/adr/README.md).
 
-## Before You Start
+## Development
 
-- For non-trivial changes, open an issue first to discuss direction.
-- Read [ARCHITECTURE.md](./ARCHITECTURE.md), [CONTEXT.md](./CONTEXT.md), and the relevant ADRs under [docs/adr](./docs/adr). New architectural decisions should be recorded as a new ADR.
-- This starter is opinionated. Removing existing tools (Effect, Drizzle, Better Auth, TanStack, Alchemy, oxlint, oxfmt) is unlikely to land. Adding new tooling needs a strong motivation and usually a new ADR.
+Follow [local setup](docs/setup.md), then branch from `master`. Keep each PR to one logical change and test behavior changes.
 
-## Local Setup
+Run `pnpm run check` before committing and after `pnpm run check:fix`. The pre-commit hook only formats staged files. Run `pnpm run validate` before PR handoff; [validation prerequisites](docs/setup.md#validation) include Chromium and local Worker process access.
 
-Requires the [Vite+ CLI](https://viteplus.dev) (`vp`).
+Commits and PR titles must use Conventional Commits, such as `docs(adr): consolidate billing decisions`. Breaking changes use `!` or a `BREAKING CHANGE:` footer. Fill in the [PR template](.github/PULL_REQUEST_TEMPLATE.md) from the final diff and observed validation; remove prompts and unused sections.
 
-```bash
-vp install
-cp .env.example .env
-pnpm run dev
-```
+## Keep documentation current
 
-Web dev server runs at <http://localhost:3071>.
+Update the existing document when behavior changes. ADRs record the current decision and its rationale; revise the original ADR instead of creating a superseding record or appending a change log. Create a new ADR only for a distinct decision with a meaningful trade-off. Consolidate overlapping records, update references, and leave numbering gaps rather than renumbering unrelated decisions. Git history preserves removed wording.
 
-See [docs/setup.md](./docs/setup.md) for full Cloudflare account / D1 / secrets setup.
+Retain historical context only when it explains a current constraint, prevents a likely mistake, or provides dated verification evidence. Keep procedures in runbooks, terminology in [CONTEXT.md](CONTEXT.md), and cross-file implementation invariants in the relevant AGENTS.md.
 
-## Development Loop
+## Reports
 
-```bash
-pnpm run typecheck   # type-check all workspaces
-pnpm run lint        # vp lint --type-aware
-pnpm run format      # vp fmt --write
-pnpm run test        # vitest across workspaces
-pnpm run check       # typecheck + lint + format:check + dead-code + test
-```
-
-`pnpm run check:fix` runs lint --fix and format across the repo. The pre-commit
-hook only formats staged files; it does not gate the commit, so run
-`pnpm run check` before committing.
-
-## Commit Style
-
-- Conventional Commits are preferred (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`).
-- Keep commits scoped and reviewable.
-- Reference the issue number in the body where relevant.
-
-## Pull Requests
-
-- Branch from `master`.
-- Ensure `pnpm run check` and `pnpm run build` pass locally.
-- Fill in the PR template.
-- Add or update tests for behavioural changes.
-- Update [CONTEXT.md](./CONTEXT.md) if you introduce new domain language; add an ADR if you make an architectural decision.
-- Keep PRs focused — one logical change per PR.
-
-## Reporting Bugs
-
-Open a GitHub issue using the bug template. Include reproduction steps, expected vs. actual behaviour, and the commit SHA.
-
-## Reporting Security Issues
-
-See [SECURITY.md](./SECURITY.md). **Do not open a public issue.**
+Use the GitHub bug template with reproduction steps, expected and actual behavior, and the affected commit. Report vulnerabilities privately through [SECURITY.md](SECURITY.md).

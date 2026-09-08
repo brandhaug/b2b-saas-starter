@@ -6,18 +6,30 @@ order: 20
 tags: [audit, notifications, governance]
 ---
 
-Audit Events and Notifications are two distinct concepts the starter does not conflate.
+## Audit events
 
-## Audit Events
+Audit Events persist governance-sensitive actions in D1. Each row records an
+actor when available, a target, an event type, and metadata. Workspace reads
+require permission and omit raw metadata from the response.
 
-An Audit Event is a persisted, queryable record of a governance-sensitive action. Each row in the `audit_events` D1 table captures `actorUserId`, `targetType`, `targetId`, an `eventType` string, and a metadata JSON blob. `AuditEventLog.list` (requires `WorkspaceContext` from the route layer) exposes pages of 100 events ordered most-recent-first with optional server-side filters (`actorUserId`, `eventType`, `since`/`until`) and keyset pagination via an opaque cursor; raw `metadata` is deliberately off the wire. `AuditEventLog.listGlobal` remains an unfiltered top-100 for `/admin`.
+`AuditEventLog.list` supports keyset pagination and filters for actor, event type,
+and time range. `/admin` uses `listGlobal` for cross-workspace events.
 
-Today the starter writes Audit Events via `AuditEventLog.record` for: API token lifecycle (`api_token.created`, `api_token.revoked`: there is deliberately no per-request `api_token.used` event; `lastUsedAt` is the activity signal), webhook endpoint mutations (`webhook_endpoint.created` / `.disabled` / `.secret_rotated`), terminal webhook delivery outcomes (`webhook.delivery_failed`, `webhook.delivery_dead_lettered`), membership changes (`workspace_member.added` / `.removed` / `.role_changed`), invitation lifecycle (`workspace_invitation.sent` / `.canceled` / `.accepted`), workspace lifecycle (`workspace.created`, `workspace.renamed`, and `workspace.deleted`: the delete is a system event with no workspace attribution, so it survives the cascade that removes the workspace it describes), and the account lifecycle on the auth catchall: credential sign-in (`auth.sign_in`, `auth.sign_in_failed`), sign-up (`auth.sign_up`, `auth.sign_up_failed`), password reset requests (`auth.password_reset_requested`: one unattributed event per request, matching the endpoint's non-disclosing constant response), the reset itself (`auth.password_reset`, `auth.password_reset_failed`), and email verification (`auth.email_verified`, `auth.email_verification_failed`). The workspace export lifecycle is audited by `WorkspaceExports` (`workspace.export_requested` by the owner; `workspace.export_completed` and `workspace.export_downloaded` as system events written by the background and API workers). Billing mutations are audited by the `Billing` capability (`billing.checkout_started` when a member opens checkout, `billing.plan_changed` as a system event written atomically with the provider-driven `workspaces.planId` update).
+Capabilities record token, webhook, membership, workspace, billing, export, and
+other governance changes. The web auth boundary records account and sign-in
+outcomes. Token requests update `lastUsedAt`; they do not create an audit event
+for each use.
+
+Workspace deletion records a system event without workspace attribution so it
+survives the workspace's cascade. Account deletion clears actor foreign keys
+before removing the user; relevant target and metadata fields remain in history.
 
 ## Notifications
 
-A Notification is a user-facing message about workspace, billing, integration, or API token activity. The `NotificationFeed` capability exposes one write, `notify`, for background jobs: the workspace export consumer uses it to tell the requester their archive is ready. No write path derives Notifications from Audit Events automatically.
+Notifications are user-facing messages in the workspace feed. Capabilities
+publish them explicitly; audit records do not automatically become notifications.
+A notification can target one user or the workspace's members.
 
-## Why they're separate
-
-Audit Events are inspectable evidence; Notifications are attention-routing. Conflating them either makes the audit trail noisy with non-governance content, or makes notifications a partial governance log that lies by omission. Wide-event logs already carry a `traceId` for request correlation; the `audit_events` row does not yet store one, so add it to the metadata JSON when instrumenting writes if you need to join them.
+Users choose instant email, digest, or no email per notification kind. The in-app
+feed remains available regardless of email preferences. See
+[notification emails](/docs/operations/notification-emails).

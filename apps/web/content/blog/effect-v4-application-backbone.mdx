@@ -6,20 +6,22 @@ author: Starter Team
 tags: [effect, architecture]
 ---
 
-Effect v4 sits in the middle of the starter on purpose. `packages/capabilities` owns the typed services for Workspaces, Audit Events, Notifications, API Tokens, and Webhook Endpoints. The web Worker, the API Worker, and the background Worker all depend on it.
+The web, API, and background Workers need the same workspace rules. Keeping
+those rules in `packages/capabilities` lets each Worker choose its transport
+without duplicating authorization or business behavior.
 
-## What Effect buys us
+Effect services make dependencies explicit. Live layers use D1; Seed layers
+provide the same interfaces in memory. A capability test can exercise a use case
+without booting a Worker.
 
-Three Workers share one application backbone without each importing the other's code. Effect's services and layers compose; testing a capability does not require booting a Worker.
+Effect Schema connects capability values to the HTTP contracts in `packages/api`.
+Those contracts drive routing, OpenAPI, and the typed SDK. MCP tools call the
+same operation implementations and apply their own transport error handling.
 
-## Schemas as contracts
+Expected failures have tagged types, such as `WorkspaceNotFound` and
+`AuthorizationDenied`. Each caller handles them at its boundary: HTTP status,
+MCP tool error, or safe UI message. Unexpected failures stay distinguishable for
+logging and investigation.
 
-Every request, response, and persisted shape is an Effect Schema. The same schema powers the OpenAPI document the API Worker serves at `/openapi.json`, the Effect Atom server-state layer the web Worker will adopt (ADR 0040), and the seed fixtures in `packages/capabilities/src/seed-fixture.ts` and `scripts/seed.ts`. A field rename ripples through every consumer at type-check time.
-
-## Errors as part of the type
-
-Domain errors are `Schema.TaggedErrorClass` types. The HTTP mapping is centralized — `AuthorizationDenied` is 403, `RateLimited` is 429, `WorkspaceNotFound` is 404. The MCP endpoint skeleton in `apps/api` will reuse the same mapping as it grows past discovery. Adding a new error class is one declaration; every interface picks it up.
-
-## Why not factor capabilities per Worker
-
-Splitting capabilities per Worker invites drift. The starter explicitly chooses one shared package over three convenient copies.
+See [Effect v4 backbone](/docs/architecture/effect-v4-backbone) for the current
+package boundaries.

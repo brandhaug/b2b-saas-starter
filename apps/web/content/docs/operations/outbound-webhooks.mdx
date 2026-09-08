@@ -10,7 +10,7 @@ A Webhook Endpoint is a workspace-owned outbound event delivery target. The star
 
 ## Endpoint lifecycle
 
-- Created from the workspace webhooks UI, the REST API, or an API token
+- Created from the workspace webhooks UI, REST, or MCP
 - Each endpoint has a URL, a signing secret, and a list of event types it subscribes to
 - URLs are validated at creation and on every update (and re-checked at dispatch): https only, no embedded credentials, no `localhost` or single-label hostnames, and no private, loopback, or link-local IP literals. Invalid URLs fail with `InvalidWebhookUrl` (400). DNS-rebinding protection is out of scope for the starter.
 - Disabling an endpoint stops delivery without losing history; updating it with `enabled: true` (PATCH) re-enables it
@@ -48,7 +48,7 @@ Signing secrets use `whsec_<base64>`, encoding 32 random bytes. Decode the base6
 part to obtain the HMAC key. The signed bytes are the UTF-8 encoding of
 `` `${webhookId}.${timestamp}.${rawBody}` ``. The digest is HMAC-SHA256, encoded as
 standard base64. Verify the raw body before parsing JSON; reformatting changes the
-signature. There is no custom signature protocol or compatibility mode.
+signature.
 
 For a receiver, use the independent `standardwebhooks` package:
 
@@ -84,7 +84,7 @@ Retryable failures back off linearly: `min(attempts, 6) Ã— 30s` (so 30, 60, 90 â
 The webhooks page and the REST surface share one operator toolkit:
 
 - **Deliveries drawer**: per endpoint, newest first, with each attempt's evidence (payload, request headers, response status, truncated response body). `GET /workspaces/:slug/webhooks/:endpointId/deliveries` is the REST read (a `read`-scope token may list it; it is also the `list_webhook_deliveries` MCP tool).
-- **Replay**: re-enqueues a _failed_ delivery (`failed`, `failed_permanent`, or `dead_lettered`) verbatim: a new `pending` row with attempts reset to 0, carrying the original payload and a `replayedFrom` link to the source row, which is never modified. The replay writes a `webhook.delivery_replayed` Audit Event. REST: `POST /workspaces/:slug/webhooks/deliveries/:deliveryId/replay`. Anything on a disabled endpoint refuses with 409. Every delivery row records its payload (terminal rows included), so there is always something honest to re-send.
+- **Replay**: re-enqueues a _failed_ delivery (`failed`, `failed_permanent`, or `dead_lettered`) verbatim: a new `pending` row with attempts reset to 0, carrying the original payload and a `replayedFrom` link to the source row, which is never modified. The replay writes a `webhook.delivery_replayed` Audit Event. REST: `POST /workspaces/:slug/webhooks/deliveries/:deliveryId/replay`. Anything on a disabled endpoint refuses with 409. Every delivery row records its payload (terminal rows included), so there is always a payload to resend.
 - **Test send**: queues a synthetic `webhook.test_event` delivery to one enabled endpoint so an operator can prove a receiver's configuration end to end. REST: `POST /workspaces/:slug/webhooks/:endpointId/test-event`.
 - **Rotate secret**: mints a new signing secret shown once. See below for the receiver contract. REST: `POST /workspaces/:slug/webhooks/:endpointId/rotate-secret`.
 
@@ -110,7 +110,7 @@ Network delivery remains at-least-once. A crash or concurrent processing can POS
 twice even though stored evidence is duplicate-safe. Receivers must deduplicate
 `webhook-id` durably.
 
-The existing daily schedule deletes at most 100 summaries older than 30 days per
+The daily schedule deletes at most 100 summaries older than 30 days per
 pass, cascading their attempts. A large backlog takes multiple passes to drain.
 Digest delivery and history cleanup settle independently. Replay provenance keeps
 the source ID even after the source expires.

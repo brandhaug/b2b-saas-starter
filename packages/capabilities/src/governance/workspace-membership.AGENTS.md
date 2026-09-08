@@ -1,29 +1,12 @@
-# Workspace Membership
+# Workspace membership
 
-## Purpose & Scope
+Membership reads use Drizzle; writes use `WorkspaceMemberBinding`. Identity types belong to `workspace-identity.ts`. Joining is invitation-only or SSO in the UI; retain `addMember` for programmatic/admin use.
 
-Reads and changes the roster of the workspace in `WorkspaceContext`. Not an authorization service: it says who is a member with which role, and the route decides what they may do. Identity types live in `workspace-identity.ts`.
-
-Reads go through Drizzle, since `workspace-projections.ts` joins member data into dashboard reads. Writes go through the `WorkspaceMemberBinding` port.
-
-Joining is invitation-only (plus SSO provisioning): `addMember` exists as the plugin-backed primitive for programmatic/admin paths and is deliberately not surfaced in the UI.
-
-## Entry Points & Contracts
-
-- `addMember` audits `workspace_member.added` and publishes seat sync `member_added`; `removeMember` audits `.removed` and publishes `member_removed`; `leave` audits `.removed` with `metadata.reason: 'left'` and publishes `member_removed`; `changeRole` audits `.role_changed` and publishes nothing. Seat publishing is best-effort.
-- `WorkspaceMemberBinding` addresses rows by `workspaceId` plus the member row id; `addMember` alone takes a user id, and `leave` takes none — the plugin's leave endpoint resolves the actor from the session, which is what makes leaving a plain member's right (`removeMember` demands `member:delete`).
-- `listWorkspacesForUser(userId)` is identity-keyed, resolved before a workspace is selected, and never discloses workspaces the user is outside.
-- `MembershipChangeRejected` (409) is a refusal: unknown user, non-member, a role the plugin refuses. `CapabilityUnavailable` (503) is a retryable store failure or a missing binding (`reason: 'no_member_binding'`). Reversing the split tells callers to retry the impossible.
-- `refuseMembershipChange` states the plugin's ownership rules once — sole-owner protection, owner-role reserved to owners — so both adapters refuse identically with a machine reason from `MEMBERSHIP_REFUSAL_REASONS` instead of the plugin's message text. It is an invariant, not authorization: permission is `requirePermission` at the route boundary. The web boundary maps each reason to copy (`MembershipRefusedError`).
-
-## Patterns & Pitfalls
-
-- `listMembers` inner-joins `user`, so a member whose user row is gone silently drops off the roster; a tombstone display needs a left join.
-- `layers.ts` builds one `SeedRoster` shared with `SeedWorkspaceInvitations` and `SeedAccountLifecycle`: accepting an invitation adds a member and deleting an account removes one, so separate `Ref`s let those adapters disagree about the roster. Seed `addMember` fabricates identity fields, having no `user` table to join.
-- The shared contract cases only refuse (they must leave the runner's actor a member); the leave success paths live in each adapter's own suite, where the actor's workspace can be chosen freely.
-
-## Anti-patterns
-
-- No direct writes to `workspaceMembers`, and no `@b2b-saas-starter/auth` import to reach the plugin.
-- No widening `WorkspaceRole` or `SystemRole` here: they re-export `packages/db` enums, and a new role needs the migration plus a matching Better Auth `admin()` config.
-- No `requireRole` helper, and no resolving a workspace by internal `id` from outside the package; authorization is asked by permission, workspaces by slug.
+- Binding calls address a member row ID plus workspace ID, except `addMember`, which takes a user ID, and `leave`, which resolves the actor from session headers. Do not implement leave through removal: ordinary members can leave without `member:delete`.
+- `refuseMembershipChange` mirrors plugin ownership invariants in both adapters. Sole-owner protection and owner-role assignment restrictions remain separate from boundary permission checks.
+- Membership refusal is `MembershipChangeRejected`; missing bindings or unreachable storage are `CapabilityUnavailable`. Keep refusals out of retry paths.
+- Additions, removals, and leaving publish best-effort seat synchronization. Role changes do not change seat quantity. Every successful mutation retains its audit; leaving records reason `left`.
+- `layers.ts` shares one `SeedRoster` across membership, invitations, and account lifecycle. Separate stores make invitation acceptance and account deletion disagree with roster reads.
+- `listMembers` inner-joins users. A deleted user therefore disappears; a future tombstone display requires a left join.
+- Contract refusal cases must leave the runner's actor a member. Test successful leaving in adapter-specific suites.
+- Stored role changes belong in `db/enums`, the migration, and Better Auth configuration together.

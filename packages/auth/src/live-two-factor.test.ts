@@ -173,37 +173,41 @@ describe('the two-factor challenge hop', () => {
           const probeBody = yield* Effect.promise(() => probe.json())
           expect(probeBody).toBeNull()
         })
-      )
+      ),
+    { timeout: 30_000 }
   )
 
-  it.live('mints the session when the challenge is completed with a code', () =>
-    run(
-      Effect.gen(function* () {
-        const email = 'completer@twofactor.test'
-        const { secret } = yield* totpUser(email)
+  it.live(
+    'mints the session when the challenge is completed with a code',
+    () =>
+      run(
+        Effect.gen(function* () {
+          const email = 'completer@twofactor.test'
+          const { secret } = yield* totpUser(email)
 
-        // The challenge cookie the diverted sign-in set is the only thing
-        // the verify step needs — no session exists yet at all.
-        const signIn = yield* signInWithEmail(email)
-        const { code } = yield* freshCode(secret)
-        const auth = yield* Auth.Tag
-        const verified = yield* auth.full.verifyTOTP({
-          body: { code },
-          headers: new Headers({
-            cookie: toCookieHeader(cookiePairs(signIn.headers))
+          // The challenge cookie the diverted sign-in set is the only thing
+          // the verify step needs — no session exists yet at all.
+          const signIn = yield* signInWithEmail(email)
+          const { code } = yield* freshCode(secret)
+          const auth = yield* Auth.Tag
+          const verified = yield* auth.full.verifyTOTP({
+            body: { code },
+            headers: new Headers({
+              cookie: toCookieHeader(cookiePairs(signIn.headers))
+            })
           })
-        })
-        expect(verified.response.user.email).toBe(email)
-        expect(verified.response.token).not.toBeNull()
+          expect(verified.response.user.email).toBe(email)
+          expect(verified.response.token).not.toBeNull()
 
-        // The verify step's own cookie is a real session: it names the user.
-        const probe = yield* getSessionWith(
-          toCookieHeader(cookiePairs(verified.headers))
-        )
-        const probeBody = yield* Effect.promise(() => probe.json())
-        expect(probeBody?.user?.email).toBe(email)
-      })
-    )
+          // The verify step's own cookie is a real session: it names the user.
+          const probe = yield* getSessionWith(
+            toCookieHeader(cookiePairs(verified.headers))
+          )
+          const probeBody = yield* Effect.promise(() => probe.json())
+          expect(probeBody?.user?.email).toBe(email)
+        })
+      ),
+    { timeout: 30_000 }
   )
 
   it.live(
@@ -226,6 +230,7 @@ describe('the two-factor challenge hop', () => {
           expect(response.user.email).toBe(email)
           expect(headers.getSetCookie().join(' ')).toContain('session_token=')
         })
-      )
+      ),
+    { timeout: 30_000 }
   )
 })

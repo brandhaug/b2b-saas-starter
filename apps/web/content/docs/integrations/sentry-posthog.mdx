@@ -6,7 +6,7 @@ order: 30
 tags: [sentry, posthog, observability]
 ---
 
-Sentry and PostHog are optional, env-gated providers: they activate when their environment variables exist and stay absent when they do not. Unset, nothing changes: no network traffic, no failures, identical local dev.
+Sentry and PostHog activate when configured. Without their variables, neither exports data.
 
 Telemetry export does not depend on either of them: `OTEL_EXPORTER_OTLP_ENDPOINT` ships traces, metrics, and the canonical log records to any OTLP collector, which remains the supported path for wide-event telemetry. Sentry and PostHog add vendor-native error inboxes and product analytics on top.
 
@@ -34,7 +34,3 @@ Releases are derived from `SERVICE_VERSION` / `GIT_COMMIT_SHA`; source-map uploa
 Server-side follows PostHog's documented [Cloudflare Workers pattern](https://posthog.com/docs/libraries/cloudflare-workers): the official `posthog-node` client with `flushAt: 1` / `flushInterval: 0`, created per invocation and shut down before the invocation ends: the same invocation-scoped I/O rule ADR 0050 applies to OTLP export. One event per wide-event scope is captured, keyed by the trace id, with `service`, `status`, and `durationMs` properties.
 
 In the browser, `posthog-js` initializes from the same root-route loader data, with history-based page-view capture suited to the SPA router.
-
-## Local development
-
-Both providers stay inactive without configuration. The starter ships no hosted observability service and no free-tier project key.

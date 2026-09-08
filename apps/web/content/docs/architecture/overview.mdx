@@ -6,27 +6,32 @@ order: 10
 tags: [architecture, cloudflare, effect]
 ---
 
-The starter is Cloudflare-first: three Workers, one shared D1 database, a Cloudflare Queue plus its dead-letter queue for outbound webhook delivery, and shared Effect backbones in `packages/capabilities` (services), `packages/api` (HttpApi contracts), and `packages/logger` (wide-event logging).
-
-## Topology
+The web, API, and background Workers share D1 and the Effect services in
+`packages/capabilities`. HTTP contracts live in `packages/api`; request logging
+lives in `packages/logger`.
 
 ```mermaid
 flowchart LR
-  Browser -->|SSR| Web[apps/web TanStack Start]
-  Web -.->|D1 binding wired| D1[(Cloudflare D1)]
-  Web -.->|REST/MCP| API[apps/api]
-  API -->|D1| D1
-  BG[apps/background] -->|D1| D1
-  BG -->|Queue| Queue[Webhook Queue + DLQ]
-  Queue --> BG
-  BG -->|Email| Email[Cloudflare Email]
+  Browser -->|SSR and server functions| Web[apps/web]
+  Client[External clients] -->|REST and MCP| API[apps/api]
+  Web --> D1[(D1)]
+  API --> D1
+  Web --> Queues
+  API --> Queues
+  Queues --> BG[apps/background]
+  BG --> D1
+  BG --> Providers[Email, Stripe, webhook receivers]
+  BG --> R2[Optional export bucket]
 ```
 
-The web Worker has the D1 binding wired; the shared capabilities runtime selects the Live layer when the binding is present and falls back to the in-memory Seed layer when it is not, so a fresh clone with no bindings still runs.
+The web Worker calls capabilities in-process. External clients use the API
+Worker. Both enforce the shared permission rules in `packages/authz`.
 
-## Why this shape
+Capabilities select D1-backed Live adapters when a `DB` binding exists and
+in-memory Seed adapters otherwise. Local development uses persisted local D1;
+Seed adapters let capability tests run without a Worker.
 
-- **Web and API are split Workers.** The web Worker renders SSR, owns auth cookies, and runs server functions. The API Worker exposes the public REST and MCP Capability Interfaces over the same `packages/capabilities` services. Splitting them keeps the public surface independently deployable.
-- **One D1 database.** Auth tables (`user`, `session`, `account`, `verification`) and starter tables (`workspaces`, `workspace_members`, `workspace_invitations`, `audit_events`, `notifications`, `api_tokens`, `webhook_endpoints`, `webhook_deliveries`) live in the same schema. There is no cross-database join story to design around.
-- **Background is a separate Worker.** The webhook queue consumer runs there with a dead-letter queue for replay after `maxRetries`. Keeping it isolated from request-path code makes long-running operations safe.
-- **`packages/capabilities` is the shared backbone.** Effect services for workspaces, audit events, notifications, tokens, and webhooks live here. The API app defines the matching HttpApi groups; `packages/logger` defines wide-event request scope helpers. Web, API, and background all depend on these.
+The background Worker consumes queues, handles Stripe webhooks, and runs
+scheduled reconciliation, email digests, and cleanup. Keeping this work outside
+page requests lets it retry independently. See [Workers](/docs/architecture/workers)
+for the entry points.

@@ -1,23 +1,8 @@
-# Notification Preferences
+# Notification preferences
 
-## Purpose & Scope
+Email preferences follow the user across workspaces (ADR 0061). Resolve defaults here so callers do not copy channel policy.
 
-Per-user, per-kind email channel for notifications: `off | instant | digest` (ADR 0061). Identity-keyed, since a preference follows the user across every workspace. Read by `/account` and by the feed's instant fan-out; written by `/account` only.
-
-## Entry Points & Contracts
-
-- `list(userId)` returns one entry per kind with defaults filled in, so the UI renders the matrix without knowing the default policy. `isDefault` marks the kinds with no stored row.
-- `resolve(userId, kind)` is what the feed calls per recipient during fan-out.
-- `set` upserts the row and records `notification_preference.changed` in the same batch. Choosing the kind's own default still stores a row, because the user said so.
-- Defaults live in code, in `defaultChannelFor`: security kinds are `instant`, everything else `digest`.
-
-## Patterns & Pitfalls
-
-- The vocabularies (`notificationKinds`, `securityNotificationKinds`, `notificationChannels`) are stored enums in `packages/db`; this context lifts them into `Schema.Literals` and never redeclares them.
-- `notification-kinds.ts` exposes locale-aware label and description functions used by the UI and email subjects.
-
-## Anti-patterns
-
-- No seeded default rows. Defaults are code; a stored row means the user chose.
-- No workspace dimension. Per-workspace channels would be a new capability, not a column.
-- No one-click URL calling `set`. The unsubscribe link lands on the signed-in `/account/notifications` page, which calls the session-gated server function.
+- Stored rows mean explicit user choices, even when the chosen channel equals its default. Do not seed default rows.
+- Writes batch preference and audit together. Stored enum vocabularies come from `packages/db`; reuse them in schemas.
+- Keep workspace IDs out of this identity-keyed service.
+- Unsubscribe links land on signed-in account settings. Only the session-gated server function changes preferences; a one-click URL must not call `set`.

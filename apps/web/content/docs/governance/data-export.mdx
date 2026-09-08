@@ -1,14 +1,14 @@
 ---
-title: Workspace data export and GDPR requests
-description: How an owner exports a workspace as a gzipped JSON document, and how that export plus account deletion serves a data subject request.
+title: Workspace data export
+description: Request, download, and retain a workspace archive.
 category: governance
 order: 40
 tags: [export, gdpr, governance]
 ---
 
-A Workspace Export is one JSON document holding everything a Workspace does, requested by an owner from workspace settings and built by the background worker. It exists for two reasons: an owner leaving the product should be able to take their data with them, and a GDPR access request should be answerable without a database console.
+An owner can request a workspace archive from settings. The background Worker builds a gzipped JSON document of the records listed below.
 
-> **Status:** built and persisted in the Reference Application and the API Worker (ADR 0055). Requires an R2 bucket at deploy time; local development uses an in-memory adapter that builds the same document.
+Production exports require an R2 bucket and queue. The in-memory Seed adapter can build an archive without them. Local development with D1 uses the local R2 and queue bindings.
 
 ## What the document contains
 
@@ -25,7 +25,7 @@ The export is a single self-describing JSON document, stored and served gzip-com
 | `auditEvents`      | The complete workspace Audit Event trail, newest first                                                      |
 | `notifications`    | Workspace-wide Notifications. Notifications addressed to one user are that user's data and are not included |
 
-Every list is the same projection the application renders, so the export cannot contain a field the UI hides.
+The archive excludes token hashes and webhook signing secrets. Treat downloaded archives as sensitive workspace data.
 
 ## Requesting an export
 
@@ -46,16 +46,9 @@ Machine clients hold an `admin`-scoped API Token and use the REST surface: `POST
 
 The export queue and R2 bucket are an Optional Provider. Set `WORKSPACE_EXPORT_BUCKET` at deploy time and `alchemy.run.ts` provisions both with their bindings on all three workers. Unset, the settings card explains that exports are not configured and shows no button; nothing else degrades. Set `API_PUBLIC_URL` on the web worker so download links point at the deployed API worker; unset, they point at the local dev server on port 8787.
 
-## Serving a data subject request
+## Account data
 
-A GDPR request from a person has two halves, and the starter serves them with two features that stay separate on purpose.
-
-**Access (Article 15).** The Workspace Export is the workspace's data, requested by the workspace's owner. When the data subject is a Member, the owner exports the workspace and hands over the parts that concern the person: their `members` entry, the Audit Events where they are the actor or the target, and any Invitation addressed to their email. When the data subject is not a Member (an invitee who never accepted), the `invitations` list is the only place they appear. The export never contains another user's personal notifications, so the owner does not have to redact them.
-
-**Erasure (Article 17).** Account deletion, owned by the account settings surface, removes the person's user row and, through the database's cascades, their memberships, sessions, and personal notifications. It does not rewrite the Audit Event trail: rows where the person was the actor keep their `actorUserId` for as long as the log's retention says, because a governance record that forgets who acted is not a governance record. That retention is the deployment's decision to document in its privacy notice.
-
-Serving a full request, in order: export the workspace first so the access copy predates the erasure, hand over the relevant parts of the document, then delete the account. Exports are workspace-scoped, so a person who belongs to several workspaces is served by an export from each. Neither feature is a substitute for the other: an export does not delete, and a deletion does not produce a copy.
-
-## What the starter leaves to you
-
-Retention of the audit trail, the privacy notice that describes it, identity verification before acting on a request, and a personal (per-user) export across workspaces. The last one is a natural extension: the same `collectWorkspaceExportSnapshot` could be filtered to one actor and run over `listWorkspacesForUser`.
+An export covers one workspace, not all data associated with a person. It excludes
+personal notifications and authentication records. A per-user export across
+workspaces is not implemented. [Account deletion](/docs/governance/account-deletion)
+is a separate operation; it does not produce an archive.

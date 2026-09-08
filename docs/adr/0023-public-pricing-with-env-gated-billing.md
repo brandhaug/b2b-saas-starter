@@ -1,3 +1,3 @@
 # Public pricing with env-gated billing
 
-The starter includes a public pricing page because pricing is a standard B2B SaaS surface. The page should showcase plan cards, billing FAQ links, and Stripe-ready checkout concepts, but checkout and portal actions remain disabled or configuration-gated until billing provider environment variables are present.
+The public pricing page renders the shared plan offers without requiring a payment provider. Checkout, portal access, and lifecycle controls belong to the authenticated workspace and require billing configuration for provider actions. Configured deployments show verified provider prices or an unavailable state; provider-light demonstrations may use clearly labeled catalog examples. Billing state and entitlement policy follow [ADR 0060](./0060-durable-seat-based-billing.md) and [ADR 0076](./0076-billing-lifecycle-and-entitlement-decisions.md).
