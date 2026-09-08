@@ -1,6 +1,6 @@
 name: Audit
 
-# AC-12: require the `audit` job in the default-branch ruleset.
+# Require the `audit` job in the default-branch ruleset.
 # Setup and verification: docs/dependency-security.md.
 
 on:
@@ -36,7 +36,7 @@ jobs:
         with:
           version: v0.74.0
           cache: false
-      - name: Verify native Trivy exceptions (AC-12.2, AC-12.3)
+      - name: Verify native Trivy exceptions
         run: node --test .github/scripts/trivy.test.ts
         env:
           TRIVY_BINARY: trivy
@@ -47,5 +47,5 @@ jobs:
           ref: ${{ (github.event.pull_request.base.ref == github.event.repository.default_branch && github.event.pull_request.base.sha) || github.event.repository.default_branch }}
           path: .audit-policy-base
           persist-credentials: false
-      - name: Audit dependencies (AC-12.1)
+      - name: Audit dependencies
         run: node .github/scripts/run-trivy.ts .audit-policy-base

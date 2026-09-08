@@ -25,7 +25,7 @@ function input(
 export function emailDeliveryContractCases(expect: typeof vitestExpect) {
   return [
     {
-      name: 'AC3: a late accepted receipt survives lease renewal and a newer failed attempt',
+      name: 'a late accepted receipt survives lease renewal and a newer failed attempt',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         const request = input('late-provider-acceptance')
@@ -60,7 +60,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC4: relevance cancellation stops retries while preserving racing or known acceptance',
+      name: 'relevance cancellation stops retries while preserving racing or known acceptance',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         const request = input('cancelled-in-flight')
@@ -92,7 +92,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC3: tracked attempts preserve typed failures and never call the transport after acceptance',
+      name: 'tracked attempts preserve typed failures and never call the transport after acceptance',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         const calls = yield* Ref.make(0)
@@ -146,7 +146,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC3: a complaint strengthens an existing failure and cannot be overwritten by weaker evidence',
+      name: 'a complaint strengthens an existing failure and cannot be overwritten by weaker evidence',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         const claim = yield* delivery.claim(input('complaint-precedence'))
@@ -192,7 +192,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC6 / #290 AC3: bounded retention resumes across evidence pages',
+      name: 'bounded retention resumes across evidence pages',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         for (let index = 0; index < 251; index++) {
@@ -221,7 +221,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC1: invitation reads exclude personal recovery and another workspace, with safe resend policy',
+      name: 'invitation reads exclude personal recovery and another workspace, with safe resend policy',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         const invitation = {
@@ -252,7 +252,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC3: concurrent claims and queue redelivery cannot resend accepted email',
+      name: 'concurrent claims and queue redelivery cannot resend accepted email',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         const claims = yield* Effect.all(
@@ -280,7 +280,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC3: only correlated events change state and reordered evidence cannot regress terminal outcomes',
+      name: 'only correlated events change state and reordered evidence cannot regress terminal outcomes',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         const claim = yield* delivery.claim(input('events'))
@@ -327,7 +327,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC6: ambiguous retries wait for a lease, remain uncertain, and expire at the original window',
+      name: 'ambiguous retries wait for a lease, remain uncertain, and expire at the original window',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         const claim = yield* delivery.claim(input('ambiguous', 'digest'))
@@ -367,7 +367,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC6: an expired first notification attempt is recorded without granting a send',
+      name: 'an expired first notification attempt is recorded without granting a send',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         const now = yield* Clock.currentTimeMillis
@@ -382,7 +382,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC3: duplicate auth claims cannot invalidate an active immediate send',
+      name: 'duplicate auth claims cannot invalidate an active immediate send',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         const request = input('immediate-auth', 'recovery')
@@ -399,7 +399,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC6: security credentials never become queued retries and permanent failure stops notifications',
+      name: 'security credentials never become queued retries and permanent failure stops notifications',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         for (const purpose of ['recovery', 'notification'] satisfies ReadonlyArray<
@@ -427,7 +427,7 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'AC6: personal evidence is isolated and resolved evidence expires at 30 days, unresolved at 90',
+      name: 'personal evidence is isolated and resolved evidence expires at 30 days, unresolved at 90',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
         for (const id of ['retention-normal', 'retention-failed']) {

@@ -14,7 +14,7 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useRouter: () => ({ invalidate: vi.fn() })
 }))
 
-describe('own email resend (#285)', () => {
+describe('own email resend', () => {
   beforeEach(() => {
     authClientDouble.sendVerificationEmail.mockReset()
     authClientDouble.requestPasswordReset.mockReset()

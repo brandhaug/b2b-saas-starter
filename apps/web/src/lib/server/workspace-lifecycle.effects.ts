@@ -62,8 +62,7 @@ export async function createWorkspaceHandler(
   // The email-verification gate the plugin config promises has to run here:
   // `createOrganization` is a headerless server-only endpoint, so Better
   // Auth treats this app's own call as a system action and never invokes
-  // `allowUserToCreateOrganization` — the same headerless-trust seam #242
-  // closed for identity. The session is the identity source for both halves
+  // `allowUserToCreateOrganization`. The session is the identity source for both halves
   // of the decision; `requireEmailVerification` derives the stance from
   // `ENVIRONMENT` exactly as `auth-runtime.ts` feeds the plugin config, so
   // the two gates cannot drift (local dev stays open, per the

@@ -15,7 +15,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs())
 
 describe('customer support acceptance', () => {
-  it('AC1: offers the helpdesk first and email as an alternative, without diagnostic prefill', async () => {
+  it('offers the helpdesk first and email as an alternative, without diagnostic prefill', async () => {
     await renderWithRouter(
       <SupportPage
         config={{
@@ -43,13 +43,13 @@ describe('customer support acceptance', () => {
   it.each([
     { email: 'help@example.test' },
     { helpdeskUrl: 'https://support.example.test' }
-  ])('AC6: supports either contact destination alone: %j', async (config) => {
+  ])('supports either contact destination alone: %j', async (config) => {
     await renderWithRouter(<SupportPage config={config} />)
     expect(screen.queryByText(/support contact information is unavailable/i)).toBeNull()
     expect(screen.getByRole('button', { name: 'Copy support details' })).toBeDefined()
   })
 
-  it('AC6: unconfigured production remains honest even with a help center', async () => {
+  it('unconfigured production remains honest even with a help center', async () => {
     vi.stubEnv('DEV', false)
     await renderWithRouter(
       <SupportPage config={{ helpCenterUrl: 'https://docs.example.test' }} />
@@ -61,13 +61,13 @@ describe('customer support acceptance', () => {
     expect(screen.getByRole('button', { name: 'Copy support details' })).toBeDefined()
   })
 
-  it('AC5: shows setup guidance only in development', async () => {
+  it('shows setup guidance only in development', async () => {
     vi.stubEnv('DEV', true)
     await renderWithRouter(<SupportPage config={{}} />)
     expect(screen.getByText(/SUPPORT_EMAIL/)).toBeDefined()
   })
 
-  it('AC2/AC3: copies only explicit safe fields and omits missing IDs and secret URL input', async () => {
+  it('copies only explicit safe fields and omits missing IDs and secret URL input', async () => {
     await renderWithRouter(<SupportPage config={{ appVersion: 'release-288' }} />, {
       path: '/help',
       initialEntry: '/help?token=secret&workspaceId=other&traceId=unrelated'
@@ -82,7 +82,7 @@ describe('customer support acceptance', () => {
     expect(screen.getByRole('status').textContent).toMatch(/copied/i)
   })
 
-  it('AC2: copies an authorized workspace and drops it when the current context changes', async () => {
+  it('copies an authorized workspace and drops it when the current context changes', async () => {
     const view = await renderWithRouter(
       <SupportDetails routeName="workspace" workspaceId="ws_authorized" />
     )
@@ -98,7 +98,7 @@ describe('customer support acceptance', () => {
     )
   })
 
-  it('AC1: announces clipboard failures without claiming success', async () => {
+  it('announces clipboard failures without claiming success', async () => {
     writeText.mockRejectedValue(new Error('denied'))
     await renderWithRouter(<SupportPage config={{}} />)
     fireEvent.click(screen.getByRole('button', { name: 'Copy support details' }))

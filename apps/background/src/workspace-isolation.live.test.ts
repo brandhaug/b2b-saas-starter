@@ -191,7 +191,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'queued Workspace isolation',
   (it) => {
     it.effect(
-      'AC-3.3/AC-3.4: enqueue rejection leaves owned replayable evidence and suppresses delayed accepted messages',
+      'enqueue rejection leaves owned replayable evidence and suppresses delayed accepted messages',
       () =>
         Effect.gen(function* () {
           const { a, b } = yield* twoWorkspaces('enqueue-failed')
@@ -302,7 +302,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     )
 
     it.effect(
-      'AC-3.4: enqueue confirmation failure preserves deliveries already advanced by partial batch acceptance',
+      'enqueue confirmation failure preserves deliveries already advanced by partial batch acceptance',
       () =>
         Effect.gen(function* () {
           const { a } = yield* twoWorkspaces('enqueue-partial')
@@ -421,207 +421,197 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         })
     )
 
-    it.effect(
-      'AC-3.1/AC-3.3: fan-out dispatches only the persisted Workspace payload',
-      () =>
-        Effect.gen(function* () {
-          const { a, b } = yield* twoWorkspaces('fanout')
-          const ports = queuePorts()
-          const sink = receiver()
-          const DB = yield* TestD1
-          const env = { DB, ...ports.env }
-          const messageA = yield* publishWebhook(a, ports)
-          const messageB = yield* publishWebhook(b, ports)
-          const forged = {
-            ...messageA,
-            endpointId: messageB.endpointId,
-            workspaceId: b.id
-          }
-          expect(
-            yield* deliverWebhook(envelope(forged), env).pipe(Effect.provide(sink.http))
-          ).toBe('ack')
-          expect(sink.requests).toEqual([])
-          const tamperedPayload = {
-            ...messageB,
-            payload: messageA.payload,
-            eventType: 'foreign.event'
-          }
-          expect(
-            yield* deliverWebhook(envelope(tamperedPayload), env).pipe(
-              Effect.provide(sink.http)
-            )
-          ).toBe('ack')
-          expect(
-            yield* deliverWebhook(envelope(messageA), env).pipe(
-              Effect.provide(sink.http)
-            )
-          ).toBe('ack')
-          expect(sink.requests).toEqual([
-            {
-              url: 'https://example.com/fanout-b',
-              body: {
-                deliveryId: messageB.deliveryId,
-                eventType: 'api_token.created',
-                payload: { marker: 'fanout-b' }
-              }
-            },
-            {
-              url: 'https://example.com/fanout-a',
-              body: {
-                deliveryId: messageA.deliveryId,
-                eventType: 'api_token.created',
-                payload: { marker: 'fanout-a' }
-              }
-            }
-          ])
-          for (const { workspace, message } of [
-            { workspace: a, message: messageA },
-            { workspace: b, message: messageB }
-          ]) {
-            const deliveries = yield* inWorkspace(
-              workspace.slug,
-              Effect.flatMap(WebhookEndpoints, (endpoints) =>
-                endpoints.listDeliveries({ endpointId: message.endpointId })
-              ),
-              { userId: workspace.userId },
-              ports.bindings
-            )
-            expect(deliveries).toMatchObject([
-              {
-                id: message.deliveryId,
-                status: 'delivered',
-                payload: { marker: workspace.slug }
-              }
-            ])
-          }
-        })
-    )
-
-    it.effect(
-      'AC-3.1/AC-3.4: retries, dead letters and replay retain delivery ownership',
-      () =>
-        Effect.gen(function* () {
-          const { a, b } = yield* twoWorkspaces('retry')
-          const ports = queuePorts()
-          const sink = receiver()
-          const DB = yield* TestD1
-          const env = { DB, ...ports.env }
-          const messageA = yield* publishWebhook(a, ports)
-          const messageB = yield* publishWebhook(b, ports)
-          sink.response.status = 503
-          expect(
-            yield* deliverWebhook(envelope(messageA), env).pipe(
-              Effect.provide(sink.http)
-            )
-          ).toBe('retry')
-          const foreign = {
-            ...messageA,
-            endpointId: messageB.endpointId,
-            workspaceId: b.id
-          }
-          expect(
-            yield* deliverWebhook(envelope(foreign, 2), env).pipe(
-              Effect.provide(sink.http)
-            )
-          ).toBe('ack')
-          expect(yield* recordDeadLetter(envelope(foreign, 6), env)).toBe('ack')
-          expect(
-            yield* recordDeadLetter(
-              envelope(
-                {
-                  ...messageB,
-                  deliveryId: 'unknown-delivery',
-                  payload: messageA.payload
-                },
-                6
-              ),
-              env
-            )
-          ).toBe('ack')
-          const beforeB = yield* inWorkspace(
-            b.slug,
-            Effect.flatMap(WebhookEndpoints, (endpoints) =>
-              endpoints.listDeliveries({ endpointId: messageB.endpointId })
-            ),
-            { userId: b.userId },
-            ports.bindings
+    it.effect('fan-out dispatches only the persisted Workspace payload', () =>
+      Effect.gen(function* () {
+        const { a, b } = yield* twoWorkspaces('fanout')
+        const ports = queuePorts()
+        const sink = receiver()
+        const DB = yield* TestD1
+        const env = { DB, ...ports.env }
+        const messageA = yield* publishWebhook(a, ports)
+        const messageB = yield* publishWebhook(b, ports)
+        const forged = {
+          ...messageA,
+          endpointId: messageB.endpointId,
+          workspaceId: b.id
+        }
+        expect(
+          yield* deliverWebhook(envelope(forged), env).pipe(Effect.provide(sink.http))
+        ).toBe('ack')
+        expect(sink.requests).toEqual([])
+        const tamperedPayload = {
+          ...messageB,
+          payload: messageA.payload,
+          eventType: 'foreign.event'
+        }
+        expect(
+          yield* deliverWebhook(envelope(tamperedPayload), env).pipe(
+            Effect.provide(sink.http)
           )
-          expect(beforeB).toMatchObject([
-            {
-              id: messageB.deliveryId,
-              status: 'pending',
-              attempts: 0,
-              payload: { marker: 'retry-b' }
-            }
-          ])
-          expect(beforeB).toHaveLength(1)
-          expect(sink.requests).toHaveLength(1)
-
-          expect(
-            yield* recordDeadLetter(
-              envelope(
-                { ...messageA, payload: messageB.payload, eventType: 'foreign.event' },
-                6
-              ),
-              env
-            )
-          ).toBe('ack')
-          const replayed = yield* inWorkspace(
-            a.slug,
-            Effect.gen(function* () {
-              const endpoints = yield* WebhookEndpoints
-              const history = yield* endpoints.listDeliveries({
-                endpointId: messageA.endpointId
-              })
-              expect(history).toMatchObject([
-                {
-                  id: messageA.deliveryId,
-                  status: 'dead_lettered',
-                  eventType: 'api_token.created',
-                  payload: { marker: 'retry-a' }
-                }
-              ])
-              return yield* endpoints.replayDelivery({
-                deliveryId: messageA.deliveryId
-              })
-            }),
-            { userId: a.userId },
-            ports.bindings
-          )
-          const replay = queued(ports.webhooks, 2)
-          expect(replayed.deliveryId).toBe(replay.deliveryId)
-          expect(replay.deliveryId).not.toBe(messageA.deliveryId)
-          sink.response.status = 200
-          expect(
-            yield* deliverWebhook(envelope(replay), env).pipe(Effect.provide(sink.http))
-          ).toBe('ack')
-          expect(
-            yield* deliverWebhook(envelope(messageB), env).pipe(
-              Effect.provide(sink.http)
-            )
-          ).toBe('ack')
-          expect(sink.requests.map((request) => request.body)).toEqual([
-            {
-              deliveryId: messageA.deliveryId,
-              eventType: 'api_token.created',
-              payload: { marker: 'retry-a' }
-            },
-            {
-              deliveryId: replay.deliveryId,
-              eventType: 'api_token.created',
-              payload: { marker: 'retry-a' }
-            },
-            {
+        ).toBe('ack')
+        expect(
+          yield* deliverWebhook(envelope(messageA), env).pipe(Effect.provide(sink.http))
+        ).toBe('ack')
+        expect(sink.requests).toEqual([
+          {
+            url: 'https://example.com/fanout-b',
+            body: {
               deliveryId: messageB.deliveryId,
               eventType: 'api_token.created',
-              payload: { marker: 'retry-b' }
+              payload: { marker: 'fanout-b' }
+            }
+          },
+          {
+            url: 'https://example.com/fanout-a',
+            body: {
+              deliveryId: messageA.deliveryId,
+              eventType: 'api_token.created',
+              payload: { marker: 'fanout-a' }
+            }
+          }
+        ])
+        for (const { workspace, message } of [
+          { workspace: a, message: messageA },
+          { workspace: b, message: messageB }
+        ]) {
+          const deliveries = yield* inWorkspace(
+            workspace.slug,
+            Effect.flatMap(WebhookEndpoints, (endpoints) =>
+              endpoints.listDeliveries({ endpointId: message.endpointId })
+            ),
+            { userId: workspace.userId },
+            ports.bindings
+          )
+          expect(deliveries).toMatchObject([
+            {
+              id: message.deliveryId,
+              status: 'delivered',
+              payload: { marker: workspace.slug }
             }
           ])
-        })
+        }
+      })
+    )
+
+    it.effect('retries, dead letters and replay retain delivery ownership', () =>
+      Effect.gen(function* () {
+        const { a, b } = yield* twoWorkspaces('retry')
+        const ports = queuePorts()
+        const sink = receiver()
+        const DB = yield* TestD1
+        const env = { DB, ...ports.env }
+        const messageA = yield* publishWebhook(a, ports)
+        const messageB = yield* publishWebhook(b, ports)
+        sink.response.status = 503
+        expect(
+          yield* deliverWebhook(envelope(messageA), env).pipe(Effect.provide(sink.http))
+        ).toBe('retry')
+        const foreign = {
+          ...messageA,
+          endpointId: messageB.endpointId,
+          workspaceId: b.id
+        }
+        expect(
+          yield* deliverWebhook(envelope(foreign, 2), env).pipe(
+            Effect.provide(sink.http)
+          )
+        ).toBe('ack')
+        expect(yield* recordDeadLetter(envelope(foreign, 6), env)).toBe('ack')
+        expect(
+          yield* recordDeadLetter(
+            envelope(
+              {
+                ...messageB,
+                deliveryId: 'unknown-delivery',
+                payload: messageA.payload
+              },
+              6
+            ),
+            env
+          )
+        ).toBe('ack')
+        const beforeB = yield* inWorkspace(
+          b.slug,
+          Effect.flatMap(WebhookEndpoints, (endpoints) =>
+            endpoints.listDeliveries({ endpointId: messageB.endpointId })
+          ),
+          { userId: b.userId },
+          ports.bindings
+        )
+        expect(beforeB).toMatchObject([
+          {
+            id: messageB.deliveryId,
+            status: 'pending',
+            attempts: 0,
+            payload: { marker: 'retry-b' }
+          }
+        ])
+        expect(beforeB).toHaveLength(1)
+        expect(sink.requests).toHaveLength(1)
+
+        expect(
+          yield* recordDeadLetter(
+            envelope(
+              { ...messageA, payload: messageB.payload, eventType: 'foreign.event' },
+              6
+            ),
+            env
+          )
+        ).toBe('ack')
+        const replayed = yield* inWorkspace(
+          a.slug,
+          Effect.gen(function* () {
+            const endpoints = yield* WebhookEndpoints
+            const history = yield* endpoints.listDeliveries({
+              endpointId: messageA.endpointId
+            })
+            expect(history).toMatchObject([
+              {
+                id: messageA.deliveryId,
+                status: 'dead_lettered',
+                eventType: 'api_token.created',
+                payload: { marker: 'retry-a' }
+              }
+            ])
+            return yield* endpoints.replayDelivery({
+              deliveryId: messageA.deliveryId
+            })
+          }),
+          { userId: a.userId },
+          ports.bindings
+        )
+        const replay = queued(ports.webhooks, 2)
+        expect(replayed.deliveryId).toBe(replay.deliveryId)
+        expect(replay.deliveryId).not.toBe(messageA.deliveryId)
+        sink.response.status = 200
+        expect(
+          yield* deliverWebhook(envelope(replay), env).pipe(Effect.provide(sink.http))
+        ).toBe('ack')
+        expect(
+          yield* deliverWebhook(envelope(messageB), env).pipe(Effect.provide(sink.http))
+        ).toBe('ack')
+        expect(sink.requests.map((request) => request.body)).toEqual([
+          {
+            deliveryId: messageA.deliveryId,
+            eventType: 'api_token.created',
+            payload: { marker: 'retry-a' }
+          },
+          {
+            deliveryId: replay.deliveryId,
+            eventType: 'api_token.created',
+            payload: { marker: 'retry-a' }
+          },
+          {
+            deliveryId: messageB.deliveryId,
+            eventType: 'api_token.created',
+            payload: { marker: 'retry-b' }
+          }
+        ])
+      })
     )
 
     it.effect(
-      'AC-3.2/AC-3.4: suspension and endpoint disablement stop queued deliveries after recovery',
+      'suspension and endpoint disablement stop queued deliveries after recovery',
       () =>
         Effect.gen(function* () {
           const { a, b } = yield* twoWorkspaces('suppress')
@@ -688,7 +678,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     )
 
     it.effect(
-      'AC-3.1/AC-3.3/AC-3.4: exports retain their Workspace through R2 retry and duplicate execution',
+      'exports retain their Workspace through R2 retry and duplicate execution',
       () =>
         Effect.gen(function* () {
           const { a, b } = yield* twoWorkspaces('archive')
@@ -744,7 +734,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     )
 
     it.effect(
-      'AC-3.2/AC-3.4: requester removal preserves scheduled export authority but prevents new member access',
+      'requester removal preserves scheduled export authority but prevents new member access',
       () =>
         Effect.gen(function* () {
           const { a, b } = yield* twoWorkspaces('requester-removed')
@@ -792,7 +782,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     )
 
     it.effect(
-      'AC-3.2/AC-3.4: suspended and reassigned-slug exports never become downloadable after recovery',
+      'suspended and reassigned-slug exports never become downloadable after recovery',
       () =>
         Effect.gen(function* () {
           const { a, b } = yield* twoWorkspaces('export-suppression')

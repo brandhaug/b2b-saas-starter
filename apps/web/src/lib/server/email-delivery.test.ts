@@ -17,7 +17,7 @@ vi.mock('./auth', async (importOriginal) => ({
   }
 }))
 
-describe('email history authorization (#285)', () => {
+describe('email history authorization', () => {
   beforeEach(() => {
     actor.userId = 'usr_demo'
     actor.systemRole = 'user'

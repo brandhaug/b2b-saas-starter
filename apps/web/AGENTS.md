@@ -21,7 +21,7 @@ TanStack Start Worker for the public site, auth, workspaces, `/admin` and `/acco
 
 ## Boundaries
 
-- Never take identity from a request body: the session is the only identity source, and a headerless plugin endpoint will trust a client-supplied `userId` (#242).
+- Never take identity from a request body: the session is the only identity source, and a headerless plugin endpoint will trust a client-supplied `userId`.
 - Never re-gate inside `/workspaces/*`, never add an admin bypass to the workspace guard (no audit trace), never redirect from a server fn.
 - No bare client-only imports; they enter the server graph and bloat the Worker upload. Call `createClientOnlyFn(loader)` literally in the component module (ADR 0063), since a shared wrapper defeats the transform.
 - No demo-slug fallback: `WorkspaceShell` requires `workspaceSlug` (`null` on `/admin`), and `/demo` is the one workspace whose actorless read is sanctioned.

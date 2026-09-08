@@ -1,7 +1,7 @@
 # Telemetry data policy
 
-AC-9.1 and AC-9.2 apply at the output boundary, after SDKs have added their own
-context. Existing provider error classification and Effect `Redacted` credentials
+The output-boundary filtering rules apply after SDKs have added their own context.
+Existing provider error classification and Effect `Redacted` credentials
 remain useful upstream. They do not replace output filtering.
 
 ## Allowed diagnostics
@@ -68,10 +68,10 @@ text in a remote service.
   Without a key the SDK is not loaded. New analytics data requires an explicit
   addition to this small contract and output-boundary tests.
 
-AC-9.3 regression tests capture console output, actual OTLP HTTP bodies, real
+Regression tests capture console output, actual OTLP HTTP bodies, real
 Sentry transport envelopes, and decompressed PostHog HTTP bodies with sensitive
 sentinels in nested/provider failures. Browser tests exercise configured Sentry hooks and real PostHog HTTP output. These are local serialization checks, not proof about a deployed vendor's
 retention, access controls, ingestion IP metadata, or historical data. Operators
 must configure those settings and verify their deployment separately. No current
-exploit is inferred merely from the former raw-error paths. This document provides
-AC-9.4's field and provider contract.
+exploit is inferred merely from the former raw-error paths. This document defines
+the field and provider contract.

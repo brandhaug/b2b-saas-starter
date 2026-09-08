@@ -75,7 +75,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'MCP OAuth Workspace isolation',
   (it) => {
     it.effect(
-      'AC-2.1/AC-2.2/AC-2.3: one user in two Workspaces cannot reuse consent or stale Workspace authority',
+      'one user in two Workspaces cannot reuse consent or stale Workspace authority',
       () =>
         Effect.gen(function* () {
           const DB = yield* TestD1

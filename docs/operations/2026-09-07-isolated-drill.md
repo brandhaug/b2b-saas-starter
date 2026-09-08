@@ -1,6 +1,6 @@
 # Isolated recovery drill, 2026-09-07
 
-This is partial implementation evidence for #286, not production recovery approval.
+This is partial implementation evidence, not production recovery approval.
 The test used a newly created remote D1 database with synthetic starter fixtures.
 No production database was restored or changed.
 

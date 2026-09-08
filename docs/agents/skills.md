@@ -32,7 +32,7 @@ Claude Code gives personal skills precedence over project skills with matching
 names. If you have a global `implement`, remove that conflicting installation or
 explicitly direct the agent to this repo's skill.
 
-In any host, ask: "Use `.agents/skills/implement/SKILL.md` to implement issue #123."
+In any host, ask: "Use `.agents/skills/implement/SKILL.md` to implement an agreed GitHub issue."
 The workflow uses the session's provider and available tools, selecting a
 configured cheaper worker when possible. It falls back to the session model or
 local execution when necessary.

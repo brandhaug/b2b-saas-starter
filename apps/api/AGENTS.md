@@ -19,7 +19,7 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 
 - Do not accept a JWT on a REST route; OAuth is the interactive surface only.
 - Supported workspace mutations have REST/MCP parity. Keep the typed projection in `mcp-mutations.ts` exhaustive, use canonical JSON payload schemas, and call the existing catalog operation. Every write checks its permission and declares all four MCP hints (ADR 0072). Hints never guarantee approval.
-- Do not add a membership or invitation endpoint: Better Auth `organization` writes are `requireHeaders: true` and a bearer token is no session (ARCHITECTURE.md, #64). That surface stays in `apps/web`, so this worker wires no `EmailDispatcher` and no `EMAIL` binding.
+- Do not add a membership or invitation endpoint: Better Auth `organization` writes are `requireHeaders: true` and a bearer token is no session (ARCHITECTURE.md). That surface stays in `apps/web`, so this worker wires no `EmailDispatcher` and no `EMAIL` binding.
 - No OTLP exporter at isolate level (ADR 0050): a Worker may not do I/O for a request that already ended. `withHttpInvocation` builds it per request; only `WideEventLoggerLive` is isolate-level.
 
 ## Dependencies

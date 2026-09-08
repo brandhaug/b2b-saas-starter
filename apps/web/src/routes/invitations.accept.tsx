@@ -26,7 +26,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 // is that they are not one yet.
 // `invitation` is optional so an older link still renders the unusable-invitation
 // notice instead of a search-validation error: the API worker used to email
-// `?workspace=<slug>`, which carried no id, and issue #64 removed that endpoint
+// `?workspace=<slug>`, which carried no id, and that endpoint was removed
 // rather than leave it sending a link nobody could accept.
 
 const UNUSABLE: InvitationPreview = { state: 'unavailable' }

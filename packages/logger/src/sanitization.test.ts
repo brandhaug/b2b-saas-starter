@@ -40,8 +40,8 @@ function nestedFailure() {
   })
 }
 
-describe('AC-9 telemetry output policy', () => {
-  it('AC-9.1/2/3 removes nested exceptions and annotation content from console and all OTLP signals', async () => {
+describe('telemetry output policy', () => {
+  it('removes nested exceptions and annotation content from console and all OTLP signals', async () => {
     const consoleLines: Array<string> = []
     const payloads: Array<{ url: string; body: string }> = []
     const output = vi
@@ -137,7 +137,7 @@ describe('AC-9 telemetry output policy', () => {
     }
   })
 
-  it('AC-9.2/3 omits token-shaped standalone and traced messages without losing canonical operation labels', async () => {
+  it('omits token-shaped standalone and traced messages without losing canonical operation labels', async () => {
     // oxlint-disable-next-line react-doctor/no-secrets-in-client-code -- synthetic credential-shaped canary for the output policy, never a real key
     const standaloneSecret = 'sk_live_SENTINEL_SINGLE_TOKEN'
     const tracedSecret = 'PRIVATE_CUSTOMER_NOTE'
@@ -191,7 +191,7 @@ describe('AC-9 telemetry output policy', () => {
     }
   })
 
-  it('AC-9.1/2/3 sanitizes actual Sentry envelopes including SDK context and nested exceptions', async () => {
+  it('sanitizes actual Sentry envelopes including SDK context and nested exceptions', async () => {
     const envelopes: Array<string> = []
     const client = new CloudflareClient({
       ...makeSentryOptions('api', { SENTRY_DSN: 'https://public@sentry.example/1' }),
@@ -261,7 +261,7 @@ describe('AC-9 telemetry output policy', () => {
     expect(envelopes.join(',')).toContain('starter-webhooks-dlq')
   })
 
-  it('AC-9.3/4 leaves unconfigured providers inert and bounds configured PostHog payloads', async () => {
+  it('leaves unconfigured providers inert and bounds configured PostHog payloads', async () => {
     const payloads: Array<string> = []
     const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
       payloads.push(await requestBody(init))

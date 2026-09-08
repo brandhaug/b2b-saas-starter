@@ -20,7 +20,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'REST Workspace isolation',
   (it) => {
     it.effect(
-      'AC-2.1/AC-2.2/AC-2.3: substituted Workspace and record IDs disclose nothing and leave foreign state intact',
+      'substituted Workspace and record IDs disclose nothing and leave foreign state intact',
       () =>
         Effect.gen(function* () {
           const DB = yield* TestD1

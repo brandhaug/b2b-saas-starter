@@ -1,6 +1,6 @@
 # Dependency security check
 
-## AC-12.1: scope and failure policy
+## Scope and failure policy
 
 The `audit` job in [Audit](../.github/workflows/audit.yml) uses pinned Trivy v0.74.0
 to scan `pnpm-lock.yaml`, including production, development, transitive and optional
@@ -37,7 +37,7 @@ node .github/scripts/run-trivy.ts .
 A diagnostic scan does not establish approval. CI selects the trusted revision
 it logs. Do not add `--ignore-unfixed` or remove `--include-dev-deps` to bypass findings.
 
-## AC-12.2: temporary exceptions
+## Temporary exceptions
 
 [`.trivyignore.yaml`](../.trivyignore.yaml) starts empty. Trivy owns finding matching,
 package/version scope and expiry. Independent PR review checks the decision evidence;
@@ -91,7 +91,7 @@ Keep the policy empty until the repository protections below are active.
 See [Trivy's native ignore format](https://trivy.dev/docs/latest/configuration/filtering/)
 and [pnpm scanning coverage](https://trivy.dev/docs/latest/coverage/language/nodejs/).
 
-## AC-12.3: regression evidence
+## Regression evidence
 
 ```bash
 TRIVY_BINARY=trivy node --test .github/scripts/trivy.test.ts
@@ -113,7 +113,7 @@ use the local command to diagnose database access without publishing credentials
 A scan without findings exits successfully with no finding lines. Scheduled failures
 need an owner to triage and resolve them; the check does not remediate dependencies.
 
-## AC-12.4: required-check setting and operator evidence
+## Required-check setting and operator evidence
 
 Require the exact check name `audit`, with GitHub Actions as its source, in the
 active default-branch ruleset under Settings → Rules → Rulesets. Keep existing
@@ -171,7 +171,7 @@ the `pull_request` rule's approval count, stale-review dismissal and last-push
 approval requirements. Confirm that a policy change without independent approval
 cannot merge.
 On a PR containing the new workflow, confirm `gh pr checks <PR> --required` lists
-`audit`. Until then, AC-12.4 has incomplete operational evidence.
+`audit`. Until then, operational evidence for these protections is incomplete.
 Fork operators must inspect their own ruleset IDs, branch selectors, enforcement
 and bypass permissions. Retain the observed settings, timestamp, PR head and check
 run URL as operating evidence. An unavailable API or missing permission leaves
