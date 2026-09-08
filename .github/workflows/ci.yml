@@ -219,8 +219,4 @@ jobs:
       # lag right after the upload; `-f --retry-all-errors` makes any HTTP
       # failure (not just transport errors) retry, then fail the job.
       - name: Smoke test the deployment
-        run: |
-          for url in "$API_URL/health" "$WEB_URL/"; do
-            echo "Probing $url"
-            curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$url" > /dev/null
-          done
+        run: node .github/scripts/smoke-deployment.ts
