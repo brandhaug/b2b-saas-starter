@@ -1,8 +1,8 @@
 import { newCapabilityId } from '../internal/ids.ts'
 import { currentTraceparent } from '@b2b-saas-starter/logger'
-import { Database } from '@b2b-saas-starter/db/service'
+import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/schema'
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, Layer, Result, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import {
   CapabilityUnavailable,
@@ -15,6 +15,8 @@ import {
 } from '../internal/queue-publisher.ts'
 import { withTraceparent } from '../internal/traceparent.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
+import { type AuditEventLog } from '../governance/audit-event-log.ts'
+import { makeLiveWebhookEnqueueFailure } from './webhook-enqueue-failure.live.ts'
 
 /**
  * Message enqueued per endpoint. The queue consumer in `apps/background`
@@ -126,10 +128,11 @@ const unavailable = orUnavailable('webhook-publisher')
 
 export function LiveWebhookPublisher(
   queue?: WebhookQueueBinding
-): Layer.Layer<WebhookPublisher, never, Database> {
+): Layer.Layer<WebhookPublisher, never, Database | RawD1 | AuditEventLog> {
   return Layer.effect(WebhookPublisher)(
     Effect.gen(function* () {
       const db = yield* Database
+      const recordEnqueueFailure = yield* makeLiveWebhookEnqueueFailure
 
       return {
         publish: (input) =>
@@ -207,12 +210,26 @@ export function LiveWebhookPublisher(
                 }))
               )
             )
-            yield* unavailable(
-              Effect.tryPromise({
-                try: () => queue.sendBatch(messages),
-                catch: (cause) => cause
-              })
+            const enqueued = yield* Effect.result(
+              unavailable(
+                Effect.tryPromise({
+                  try: () => queue.sendBatch(messages),
+                  catch: (cause) => cause
+                })
+              )
             )
+            if (Result.isFailure(enqueued)) {
+              yield* Effect.annotateLogs({ webhookEnqueue: 'confirmation_failed' })(
+                recordEnqueueFailure(messages).pipe(
+                  Effect.catchTag('CapabilityUnavailable', (failure) =>
+                    Effect.logError('webhook_enqueue_evidence_failed', failure).pipe(
+                      Effect.annotateLogs({ webhookEnqueueEvidence: 'failed' })
+                    )
+                  )
+                )
+              )
+              return yield* Effect.fail(enqueued.failure)
+            }
           }),
         enqueue: (message) => {
           if (!queue) {

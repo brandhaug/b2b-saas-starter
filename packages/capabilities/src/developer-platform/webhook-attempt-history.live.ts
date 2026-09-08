@@ -24,7 +24,11 @@ import {
   WebhookDeliveryAttempt,
   type WebhookDeliveryAttemptInput
 } from './webhook-delivery-plan.ts'
-import { attemptEvidence } from './webhook-attempt-history.ts'
+import {
+  attemptEvidence,
+  type QueuedTerminalAttempt,
+  type WebhookAttemptObservation
+} from './webhook-attempt-history.ts'
 import { type RecordedWebhookAttempt } from './webhook-endpoints.ts'
 
 const unavailable = orUnavailable('webhook-endpoints')
@@ -53,12 +57,13 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
   const audit = yield* AuditEventLog
   const notifications = yield* NotificationFeed
 
-  const recordAttempt = Effect.fn('WebhookEndpoints.recordAttempt')(function* (
-    observation: WebhookDeliveryAttemptInput,
-    allowCreate = true
+  const recordObservation = Effect.fn('WebhookEndpoints.recordObservation')(function* (
+    observation: WebhookAttemptObservation
   ) {
-    let input = observation
-    if (!allowCreate) {
+    let input = observation.input
+    let deliveryId: string
+    if (observation.kind === 'queued_terminal') {
+      deliveryId = observation.input.id
       const rows = yield* unavailable(
         db
           .select({
@@ -72,9 +77,9 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
           )
           .where(
             and(
-              eq(webhookDeliveries.id, observation.id ?? ''),
-              eq(webhookEndpoints.id, observation.endpointId),
-              eq(webhookEndpoints.workspaceId, observation.workspaceId)
+              eq(webhookDeliveries.id, deliveryId),
+              eq(webhookEndpoints.id, input.endpointId),
+              eq(webhookEndpoints.workspaceId, input.workspaceId)
             )
           )
           .limit(1)
@@ -82,16 +87,17 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
       const stored = rows[0]
       if (!stored) {
         return {
-          deliveryId: observation.id ?? '',
+          deliveryId,
           recorded: false,
           failureAction: 'silent',
           status: 'failed_permanent',
           consecutiveFailures: 0
         } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
       }
-      input = { ...observation, eventType: stored.eventType, payload: stored.payload }
+      input = { ...input, eventType: stored.eventType, payload: stored.payload }
+    } else {
+      deliveryId = input.id ?? (yield* newCapabilityId('whd'))
     }
-    const deliveryId = input.id ?? (yield* newCapabilityId('whd'))
     const attemptId = yield* newCapabilityId('wha')
     const attemptedAt = DateTime.formatIso(yield* DateTime.now)
     const evidence = attemptEvidence(input)
@@ -119,7 +125,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
       headersJson = JSON.stringify(evidence.requestHeaders)
     }
     const statements: Array<BatchStatement> = []
-    if (allowCreate) {
+    if (observation.kind === 'trusted_attempt') {
       statements.push(
         db
           .insert(webhookDeliveries)
@@ -355,8 +361,11 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
       return deleted.length
     }
   )
-  function recordTerminalAttempt(input: WebhookDeliveryAttemptInput) {
-    return recordAttempt(input, false)
+  function recordAttempt(input: WebhookDeliveryAttemptInput) {
+    return recordObservation({ kind: 'trusted_attempt', input })
+  }
+  function recordTerminalAttempt(input: QueuedTerminalAttempt) {
+    return recordObservation({ kind: 'queued_terminal', input })
   }
   return {
     recordAttempt,

@@ -1,20 +1,17 @@
 # Webhook publisher
 
-Decides which endpoints receive a domain event and puts one queue message per endpoint on `WEBHOOK_QUEUE`. Signing, delivery and retries belong to the consumer in `apps/background`.
+Fans domain events onto `WEBHOOK_QUEUE`. Signing, delivery and retries belong to `apps/background`.
 
 ## Contracts
 
-- `enqueue` is the pre-addressed single send for replay and test send: no subscription filter, no workspace resolution, every id from the caller. Seed no-ops.
-- `WebhookQueueMessage` is owned here; the background consumer imports it rather than keeping a parallel shape. `workspaceId` is stamped from the producer's `WorkspaceContext` and re-verified by `getDispatchTarget` before secrets are released.
-- Live fan-out reserves each delivery row before sending the queue batch. The consumer binds `deliveryId` to the endpoint/workspace and loads the persisted event payload before signing; queue body fields are routing hints only. Unknown delivery IDs are terminally ignored and never create replayable rows.
-- `deliveryId` is required and minted before enqueueing. It stays stable across retries and dead-letter queue transfer. Replay and test send use their pre-created pending row ID.
-- With no queue binding, best-effort `publish` stays inactive. Explicit `enqueue` refuses with `CapabilityUnavailable`; test/replay callers must never report a queued delivery when nothing was enqueued.
+- `enqueue` sends one addressed replay/test message without subscription filtering or workspace resolution. Callers supply every ID; Seed no-ops.
+- This module owns `WebhookQueueMessage`. Producers stamp `workspaceId` from `WorkspaceContext`; consumers verify it before releasing secrets.
+- Live fan-out reserves deliveries before sending the batch. Consumers bind `deliveryId` to endpoint/workspace and sign the stored event payload. Queue contents are routing hints; unknown delivery IDs create no replayable rows.
+- Reservation is a narrow exception to `auditedMutations`: one insert reserves the batch as transport admission evidence, like test-send rows. The originating domain mutation owns its business audit. Queue confirmation failure uses [enqueue failure evidence](./webhook-enqueue-failure.live.ts) to atomically settle untouched reservations with terminal attempts and `webhook.delivery_failed` audits, without changing endpoint failure streaks. See ADR 0062 for partial acceptance and storage-failure limits.
+- `deliveryId` stays stable across retries and dead letters. Replay/test sends use their pending row ID.
+- An absent queue leaves `publish` inactive. Explicit `enqueue` refuses with `CapabilityUnavailable`; callers cannot report a queued delivery.
 
 ## Pitfalls
 
-- `traceparent` rides the message body because a queue is the one hop HTTP headers cannot cross (ADR 0050). It comes from `currentTraceparent` and is absent outside a span, where the consumer starts its own trace.
-- `publishWebhookEventWith` is the best-effort composition mutating capabilities use: a failed publish annotates the wide event (`webhookPublish: 'failed'`) and never fails the mutation. Passing the publisher as an argument keeps it out of those interfaces. `webhook-endpoints` does the opposite for replay and test send, where an operator must see the failure.
-
-## Boundaries
-
-- No `traceparent` read from a header or hand-built; the span to continue is the one open now.
+- `traceparent` comes from `currentTraceparent` in the producing span, never a header or hand-built value. Without it, consumers start a trace (ADR 0050).
+- `publishWebhookEventWith` annotates failures as `webhookPublish: 'failed'` without failing the originating mutation. Passing the publisher keeps it out of capability interfaces. Explicit replay/test sends surface enqueue failures to operators.

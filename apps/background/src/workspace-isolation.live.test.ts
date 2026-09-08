@@ -1,6 +1,6 @@
 import { gunzipSync } from 'node:zlib'
 import { expect, layer } from '@effect/vitest'
-import { Effect, Layer, Option, Schema } from 'effect'
+import { Deferred, Effect, Fiber, Layer, Option, Result, Schema } from 'effect'
 import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import {
   WebhookPublisher,
+  publishWebhookEventWith,
   type WebhookQueueBinding,
   type WebhookQueueMessage
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
@@ -18,6 +19,7 @@ import {
   type WorkspaceExportQueueMessage
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   inWorkspace,
   LIVE_SUITE_TIMEOUT,
@@ -33,11 +35,14 @@ const suspensionActions: ReadonlyArray<'suspend' | 'unsuspend'> = [
   'unsuspend'
 ]
 
-function queuePorts() {
+function queuePorts(batch?: {
+  readonly started: () => void
+  readonly confirmation: Effect.Effect<void, Error>
+}) {
   const webhooks: Array<WebhookQueueMessage> = []
   const exports: Array<WorkspaceExportQueueMessage> = []
   const objects = new Map<string, Uint8Array>()
-  const failures = { put: false }
+  const failures = { put: false, batch: false }
   const webhookQueue: WebhookQueueBinding = {
     send: (message) => {
       webhooks.push(message)
@@ -45,6 +50,14 @@ function queuePorts() {
     },
     sendBatch: (messages) => {
       webhooks.push(...Array.from(messages, ({ body }) => body))
+      if (batch) {
+        batch.started()
+        // oxlint-disable-next-line starter/no-run-promise-in-tests -- queue binding promise port awaits the test-controlled confirmation
+        return Effect.runPromise(batch.confirmation)
+      }
+      if (failures.batch) {
+        return Promise.reject(new Error('test queue confirmation outage'))
+      }
       return Promise.resolve()
     }
   }
@@ -177,6 +190,237 @@ function publishWebhook(
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'queued Workspace isolation',
   (it) => {
+    it.effect(
+      'AC-3.3/AC-3.4: enqueue rejection leaves owned replayable evidence and suppresses delayed accepted messages',
+      () =>
+        Effect.gen(function* () {
+          const { a, b } = yield* twoWorkspaces('enqueue-failed')
+          const ports = queuePorts()
+          const sink = receiver()
+          const DB = yield* TestD1
+          const env = { DB, ...ports.env }
+          const messageB = yield* publishWebhook(b, ports)
+          ports.failures.batch = true
+          const endpoint = yield* inWorkspace(
+            a.slug,
+            Effect.gen(function* () {
+              const endpoints = yield* WebhookEndpoints
+              const created = yield* endpoints.create({
+                url: 'https://example.com/enqueue-failed-a',
+                events: ['api_token.created']
+              })
+              const publisher = yield* WebhookPublisher
+              yield* publishWebhookEventWith(publisher, {
+                eventType: 'api_token.created',
+                payload: { marker: 'enqueue-failed-a' }
+              })
+              return created.endpoint
+            }),
+            { userId: a.userId },
+            ports.bindings
+          )
+          const failed = queued(ports.webhooks, 1)
+          const replayed = yield* inWorkspace(
+            a.slug,
+            Effect.gen(function* () {
+              const endpoints = yield* WebhookEndpoints
+              expect(
+                yield* endpoints.listDeliveries({ endpointId: endpoint.id })
+              ).toMatchObject([
+                {
+                  id: failed.deliveryId,
+                  status: 'failed_permanent',
+                  attempts: 0,
+                  payload: { marker: 'enqueue-failed-a' }
+                }
+              ])
+              expect(
+                yield* endpoints.listDeliveryAttempts({ deliveryId: failed.deliveryId })
+              ).toMatchObject([
+                {
+                  phase: 'terminal',
+                  attempts: 0,
+                  failureReason:
+                    'Queue enqueue confirmation failed; acceptance is unknown'
+                }
+              ])
+              const audit = yield* AuditEventLog
+              const events = (yield* audit.list({
+                eventType: 'webhook.delivery_failed'
+              })).items
+              expect(events).toHaveLength(1)
+              expect(yield* audit.get(queued(events).id)).toMatchObject({
+                targetId: endpoint.id,
+                metadata: {}
+              })
+              return yield* endpoints.replayDelivery({ deliveryId: failed.deliveryId })
+            }),
+            { userId: a.userId },
+            ports.bindings
+          )
+          yield* inWorkspace(
+            b.slug,
+            Effect.gen(function* () {
+              const endpoints = yield* WebhookEndpoints
+              const foreign = yield* Effect.result(
+                endpoints.replayDelivery({ deliveryId: failed.deliveryId })
+              )
+              expect(Result.isFailure(foreign)).toBe(true)
+              expect(
+                yield* endpoints.listDeliveries({ endpointId: messageB.endpointId })
+              ).toMatchObject([
+                {
+                  id: messageB.deliveryId,
+                  status: 'pending',
+                  payload: { marker: 'enqueue-failed-b' }
+                }
+              ])
+            }),
+            { userId: b.userId },
+            ports.bindings
+          )
+          expect(
+            yield* deliverWebhook(envelope(failed), env).pipe(Effect.provide(sink.http))
+          ).toBe('ack')
+          expect(sink.requests).toEqual([])
+          const replay = queued(ports.webhooks, 2)
+          expect(replay.deliveryId).toBe(replayed.deliveryId)
+          expect(replay.deliveryId).not.toBe(failed.deliveryId)
+          expect(
+            yield* deliverWebhook(envelope(replay), env).pipe(Effect.provide(sink.http))
+          ).toBe('ack')
+          expect(sink.requests).toMatchObject([
+            {
+              url: endpoint.url,
+              body: {
+                deliveryId: replay.deliveryId,
+                payload: { marker: 'enqueue-failed-a' }
+              }
+            }
+          ])
+        })
+    )
+
+    it.effect(
+      'AC-3.4: enqueue confirmation failure preserves deliveries already advanced by partial batch acceptance',
+      () =>
+        Effect.gen(function* () {
+          const { a } = yield* twoWorkspaces('enqueue-partial')
+          const started = yield* Deferred.make<undefined>()
+          const confirmation = yield* Deferred.make<undefined, Error>()
+          const ports = queuePorts({
+            started: () => {
+              Deferred.doneUnsafe(started, Effect.succeed(undefined))
+            },
+            confirmation: Deferred.await(confirmation)
+          })
+          const sink = receiver()
+          const DB = yield* TestD1
+          const env = { DB, ...ports.env }
+          yield* inWorkspace(
+            a.slug,
+            Effect.gen(function* () {
+              const endpoints = yield* WebhookEndpoints
+              for (const suffix of ['retry', 'delivered', 'pending']) {
+                yield* endpoints.create({
+                  url: `https://example.com/partial-${suffix}`,
+                  events: ['api_token.created']
+                })
+              }
+            }),
+            { userId: a.userId },
+            ports.bindings
+          )
+          const publishing = yield* inWorkspace(
+            a.slug,
+            Effect.gen(function* () {
+              const publisher = yield* WebhookPublisher
+              yield* publishWebhookEventWith(publisher, {
+                eventType: 'api_token.created',
+                payload: { marker: 'enqueue-partial-a' }
+              })
+            }),
+            { userId: a.userId },
+            ports.bindings
+          ).pipe(Effect.forkChild)
+          yield* Deferred.await(started)
+          const retried = queued(ports.webhooks, 0)
+          const delivered = queued(ports.webhooks, 1)
+          const pending = queued(ports.webhooks, 2)
+          sink.response.status = 503
+          expect(
+            yield* deliverWebhook(envelope(retried), env).pipe(
+              Effect.provide(sink.http)
+            )
+          ).toBe('retry')
+          sink.response.status = 200
+          expect(
+            yield* deliverWebhook(envelope(delivered), env).pipe(
+              Effect.provide(sink.http)
+            )
+          ).toBe('ack')
+          yield* Deferred.fail(
+            confirmation,
+            new Error('batch acceptance could not be confirmed')
+          )
+          yield* Fiber.join(publishing)
+          yield* inWorkspace(
+            a.slug,
+            Effect.gen(function* () {
+              const endpoints = yield* WebhookEndpoints
+              for (const { message, status, attempts } of [
+                { message: retried, status: 'failed', attempts: 1 },
+                { message: delivered, status: 'delivered', attempts: 1 },
+                { message: pending, status: 'failed_permanent', attempts: 0 }
+              ]) {
+                expect(
+                  yield* endpoints.listDeliveries({ endpointId: message.endpointId })
+                ).toMatchObject([
+                  {
+                    id: message.deliveryId,
+                    status,
+                    attempts,
+                    payload: { marker: 'enqueue-partial-a' }
+                  }
+                ])
+                expect(
+                  yield* endpoints.listDeliveryAttempts({
+                    deliveryId: message.deliveryId
+                  })
+                ).toHaveLength(1)
+              }
+              const audit = yield* AuditEventLog
+              const events = (yield* audit.list({
+                eventType: 'webhook.delivery_failed'
+              })).items
+              expect(events).toHaveLength(1)
+              expect(yield* audit.get(queued(events).id)).toMatchObject({
+                targetId: pending.endpointId,
+                metadata: {}
+              })
+            }),
+            { userId: a.userId },
+            ports.bindings
+          )
+          expect(
+            yield* deliverWebhook(envelope(retried, 2), env).pipe(
+              Effect.provide(sink.http)
+            )
+          ).toBe('ack')
+          expect(
+            yield* deliverWebhook(envelope(delivered), env).pipe(
+              Effect.provide(sink.http)
+            )
+          ).toBe('ack')
+          expect(
+            yield* deliverWebhook(envelope(pending), env).pipe(
+              Effect.provide(sink.http)
+            )
+          ).toBe('ack')
+          expect(sink.requests).toHaveLength(3)
+        })
+    )
+
     it.effect(
       'AC-3.1/AC-3.3: fan-out dispatches only the persisted Workspace payload',
       () =>

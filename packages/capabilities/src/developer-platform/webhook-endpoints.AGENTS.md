@@ -15,6 +15,7 @@ Webhook destinations and tooling; background dispatch uses [`webhook-publisher`]
 ## Patterns & Pitfalls
 
 - `webhook-attempt-history.live.ts` atomically accepts immutable attempt observations, advances summaries, moves failure streaks, and auto-disables with guarded audits. Read [ADR 0062](../../../../docs/adr/0062-webhook-protocol-and-operator-tooling.md) before changing acceptance order or identity.
+- Attempt history distinguishes trusted bookkeeping from queued terminal observations. Terminal observations require a delivery ID and load stored ownership and contents; only the named trusted flow can originate history.
 - Global paging uses `(lastAttemptAt DESC, id DESC)`, with null times last in both adapters. Admin replay requires a terminal source and enabled endpoint. Queue failures remain visible after the pending copy commits.
 - `isDeliverySettled` reads persisted delivered or terminal status scoped to delivery, endpoint, and workspace. Consumers check it before HTTP dispatch, so a duplicate queue message cannot send a suspension-suppressed delivery after recovery. Explicit replay creates a new delivery ID.
 - Signing secrets are plaintext in D1 by design (HMAC needs them back); only `rotateSecret` and `getDispatchTarget` return them.

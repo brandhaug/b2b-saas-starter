@@ -582,7 +582,7 @@ describe('webhook endpoint workspace scoping', () => {
             )
           )
         ),
-        Layer.provide(LiveWebhookPublisher()),
+        Layer.provide(LiveWebhookPublisher().pipe(Layer.provide(LiveAuditEventLog))),
         Layer.provide(layerFromD1(fake.binding))
       ),
       testWorkspaceContext(workspaceB)
@@ -944,7 +944,7 @@ describe('bearer verification write throttling', () => {
     const layer = LiveApiTokenRegistry().pipe(
       Layer.provide(billing),
       Layer.provide(LiveAuditEventLog),
-      Layer.provide(LiveWebhookPublisher()),
+      Layer.provide(LiveWebhookPublisher().pipe(Layer.provide(LiveAuditEventLog))),
       Layer.provide(
         LiveResourceEntitlements.pipe(
           Layer.provide(BillingAuditLayer),
