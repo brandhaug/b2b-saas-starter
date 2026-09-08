@@ -1,5 +1,7 @@
 import { Context, Effect, Layer, Schema } from 'effect'
 
+import { type ProcessProviderEventInput } from './billing.ts'
+
 import {
   type CapabilityUnavailable,
   orUnavailable
@@ -63,14 +65,100 @@ export const SeatSyncQueueMessage = Schema.Struct({
 })
 export type SeatSyncQueueMessage = typeof SeatSyncQueueMessage.Type
 
+/** Verified Stripe routing data persisted before asynchronous reconciliation. */
+export const StripeProviderEventQueueMessage = Schema.Struct({
+  kind: Schema.Literal('billing.provider_event'),
+  providerEventId: Schema.String,
+  eventType: Schema.String,
+  providerCreatedAt: Schema.optionalKey(Schema.String),
+  workspaceId: Schema.optionalKey(Schema.String),
+  subscription: Schema.optionalKey(
+    Schema.Struct({
+      customerId: Schema.optionalKey(Schema.String),
+      subscriptionId: Schema.optionalKey(Schema.String),
+      subscriptionItemId: Schema.optionalKey(Schema.String),
+      quantity: Schema.optionalKey(Schema.Number),
+      deleted: Schema.optionalKey(Schema.Boolean)
+    })
+  ),
+  traceparent: Schema.optionalKey(Schema.String)
+})
+export type StripeProviderEventQueueMessage =
+  typeof StripeProviderEventQueueMessage.Type
+
+export const BillingQueueMessage = Schema.Union([
+  SeatSyncQueueMessage,
+  StripeProviderEventQueueMessage
+])
+export type BillingQueueMessage = typeof BillingQueueMessage.Type
+
 /**
  * Structural subset of Cloudflare's `Queue` binding so this package does not
  * depend on `@cloudflare/workers-types` — `send` only: seat sync enqueues one
  * message at a time, so there is no `sendBatch` to port.
  */
 export type SeatSyncQueueBinding = {
-  readonly send: (message: SeatSyncQueueMessage) => Promise<void>
+  readonly send: (message: BillingQueueMessage) => Promise<void>
 }
+
+function providerEventMessage(
+  input: ProcessProviderEventInput
+): StripeProviderEventQueueMessage {
+  let message: StripeProviderEventQueueMessage = {
+    kind: 'billing.provider_event',
+    providerEventId: input.providerEventId,
+    eventType: input.eventType
+  }
+  if (input.providerCreatedAt !== undefined) {
+    message = { ...message, providerCreatedAt: input.providerCreatedAt }
+  }
+  if (input.workspaceId !== undefined) {
+    message = { ...message, workspaceId: input.workspaceId }
+  }
+  if (input.subscription !== undefined) {
+    const subscription = input.subscription
+    let routing: NonNullable<StripeProviderEventQueueMessage['subscription']> = {}
+    if (subscription.customerId !== undefined) {
+      routing = { ...routing, customerId: subscription.customerId }
+    }
+    if (subscription.subscriptionId !== undefined) {
+      routing = { ...routing, subscriptionId: subscription.subscriptionId }
+    }
+    if (subscription.subscriptionItemId !== undefined) {
+      routing = { ...routing, subscriptionItemId: subscription.subscriptionItemId }
+    }
+    if (subscription.quantity !== undefined) {
+      routing = { ...routing, quantity: subscription.quantity }
+    }
+    if (subscription.deleted !== undefined) {
+      routing = { ...routing, deleted: subscription.deleted }
+    }
+    message = { ...message, subscription: routing }
+  }
+  return message
+}
+
+export const publishProviderEvent = Effect.fn('Billing.publishProviderEvent')(
+  function* (
+    queue: SeatSyncQueueBinding | undefined,
+    input: ProcessProviderEventInput
+  ) {
+    if (queue === undefined) {
+      return
+    }
+    let message = providerEventMessage(input)
+    const traceparent = yield* currentTraceparent
+    if (traceparent !== undefined) {
+      message = { ...message, traceparent }
+    }
+    yield* orUnavailable('billing-provider-event-publisher')(
+      Effect.tryPromise({
+        try: () => queue.send(message),
+        catch: (cause) => cause
+      })
+    )
+  }
+)
 
 type SeatSyncPublisherInterface = {
   /**

@@ -7,6 +7,11 @@ import {
   verifyStripeSignature,
   type StripeSubscriptionLink
 } from '@b2b-saas-starter/billing/stripe'
+import { publishProviderEvent } from '@b2b-saas-starter/billing/seat-sync'
+import {
+  billingConfigured,
+  billingOptionsFromEnv
+} from '@b2b-saas-starter/billing/billing-config'
 import { withTriggerScope } from '@b2b-saas-starter/logger'
 import { Effect, Result, Schema, type Scope } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -141,6 +146,67 @@ export function processStripeEvent(
   })
 }
 
+export function providerInputFromPayload(
+  payload: string
+): ProcessProviderEventInput | undefined {
+  const decoded = decodeStripeEvent(payload)
+  if (Result.isFailure(decoded)) {
+    return undefined
+  }
+  const event = decoded.success
+  const object = event.data.object
+  const metadata = object.metadata ?? {}
+  // oxlint-disable-next-line effect/noGlobals -- provider timestamps arrive as epoch seconds, and Date is the boundary codec here
+  const providerCreatedAt = new Date(event.created * 1000).toISOString()
+  const detail = {
+    source: event.type,
+    providerEventId: event.id,
+    providerCreatedAt
+  }
+  const link = subscriptionLinkForStripeEvent(event.type, {
+    ...object,
+    subscription: object.subscription ?? undefined
+  })
+  if (!link) {
+    return undefined
+  }
+  const workspaceId = metadata.workspaceId ?? object.client_reference_id
+  let subscription: NonNullable<ProcessProviderEventInput['subscription']>
+  if (link.kind === 'deleted') {
+    subscription = {
+      workspaceId,
+      customerId: object.customer,
+      subscriptionId: object.id,
+      deleted: true,
+      detail
+    }
+  } else if (link.kind === 'quantity') {
+    subscription = {
+      workspaceId,
+      customerId: link.customerId,
+      subscriptionId: link.subscriptionId,
+      subscriptionItemId: link.subscriptionItemId,
+      quantity: link.quantity,
+      detail
+    }
+  } else {
+    subscription = {
+      workspaceId,
+      customerId: link.customerId,
+      subscriptionId: link.subscriptionId,
+      detail
+    }
+  }
+  return {
+    providerEventId: event.id,
+    eventType: event.type,
+    providerCreatedAt,
+    workspaceId,
+    subscription,
+    detail
+  }
+}
+
 /** One plan change per handled event; annotates applied vs unknown workspace. */
 function processProviderEvent(
   input: ProcessProviderEventInput
@@ -197,30 +263,6 @@ function subscriptionInput(
 }
 
 /**
- * Entry wrapper for the Stripe webhook: provides the real capabilities layer
- * and a wide event so operators can see every inbound provider event. Failures
- * propagate on purpose — the fetch handler answers 500 on rejection so Stripe
- * schedules a redelivery.
- */
-export function handleStripeWebhook(
-  payload: string,
-  env: Env
-): Effect.Effect<void, CapabilityUnavailable, never> {
-  const program = processStripeEvent(payload).pipe(
-    Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
-  )
-  return withTriggerScope(
-    {
-      service: 'background',
-      event: 'stripe_webhook',
-      env,
-      spanKind: 'consumer'
-    },
-    program
-  )
-}
-
-/**
  * Inbound Stripe webhooks (see docs/integrations/stripe-billing.mdx). The
  * route verifies Stripe's signature scheme against `STRIPE_WEBHOOK_SECRET`
  * and applies subscription changes to `workspaces.planId` through the
@@ -243,6 +285,15 @@ export async function handleStripeRequest(
   if (secret === undefined || secret.length === 0) {
     return Response.json({ error: 'billing_not_configured' }, { status: 503 })
   }
+  const billing = billingOptionsFromEnv(env)
+  if (
+    !billingConfigured(billing ?? {}) ||
+    env.DB === undefined ||
+    env.BILLING_QUEUE === undefined
+  ) {
+    return Response.json({ error: 'billing_not_ready' }, { status: 503 })
+  }
+  const billingQueue = env.BILLING_QUEUE
   // oxlint-disable-next-line effect/noAsyncFunction -- reading the raw body is the adapter's first await, total here
   const payload = await request.text()
   // oxlint-disable-next-line effect/noAsyncFunction -- verifying the HMAC is the second; both complete before the response
@@ -254,7 +305,34 @@ export async function handleStripeRequest(
   if (!valid) {
     return Response.json({ error: 'invalid_signature' }, { status: 400 })
   }
-  return runInvocation(env, handleStripeWebhook(payload, env)).then(
+  const input = providerInputFromPayload(payload)
+  if (input === undefined) {
+    return new Response(null, { status: 200 })
+  }
+  const program = Effect.gen(function* () {
+    const billingService = yield* Billing
+    yield* billingService.recordProviderEvent(input)
+    yield* publishProviderEvent(billingQueue, input)
+  }).pipe(
+    Effect.provide(
+      selectCapabilitiesLayer({
+        ...starterEnv(env),
+        billing
+      })
+    )
+  )
+  return runInvocation(
+    env,
+    withTriggerScope(
+      {
+        service: 'background',
+        event: 'stripe_webhook_ingest',
+        env,
+        spanKind: 'consumer'
+      },
+      program
+    )
+  ).then(
     () => new Response(null, { status: 200 }),
     () => Response.json({ error: 'processing_failed' }, { status: 500 })
   )

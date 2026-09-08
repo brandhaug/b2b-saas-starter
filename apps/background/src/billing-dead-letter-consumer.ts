@@ -1,4 +1,4 @@
-import { SeatSyncQueueMessage } from '@b2b-saas-starter/billing/seat-sync'
+import { BillingQueueMessage } from '@b2b-saas-starter/billing/seat-sync'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { billingOptionsFromEnv } from '@b2b-saas-starter/billing/billing-config'
 import {
@@ -23,7 +23,7 @@ import {
  * audited retry trail without an unauthenticated HTTP recovery endpoint.
  */
 export function processBillingDeadLetterMessage(
-  delivery: QueueDelivery<typeof SeatSyncQueueMessage.Type>
+  delivery: QueueDelivery<typeof BillingQueueMessage.Type>
 ): Effect.Effect<DeliveryOutcome, unknown, Billing | Scope.Scope> {
   return Effect.as(
     Effect.gen(function* () {
@@ -35,6 +35,27 @@ export function processBillingDeadLetterMessage(
         return
       }
       const billing = yield* Billing
+      if (delivery.message.kind === 'billing.provider_event') {
+        const message = delivery.message
+        const result = yield* billing.processProviderEvent({
+          providerEventId: message.providerEventId,
+          eventType: message.eventType,
+          providerCreatedAt: message.providerCreatedAt,
+          workspaceId: message.workspaceId,
+          subscription: message.subscription,
+          detail: {
+            source: message.eventType,
+            providerEventId: message.providerEventId,
+            providerCreatedAt: message.providerCreatedAt ?? ''
+          }
+        })
+        yield* Effect.annotateLogsScoped({
+          outcome: 'terminal',
+          providerEventId: message.providerEventId,
+          recovery: result.outcome
+        })
+        return
+      }
       const result = yield* billing.reconcileWorkspace({
         workspaceId: delivery.message.workspaceId
       })
@@ -53,7 +74,7 @@ export function recoverBillingDeadLetter(
   envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
-  const delivery = readDelivery(SeatSyncQueueMessage, envelope)
+  const delivery = readDelivery(BillingQueueMessage, envelope)
   return consumerInvocation(env, {
     event: 'billing_dead_letter',
     delivery,

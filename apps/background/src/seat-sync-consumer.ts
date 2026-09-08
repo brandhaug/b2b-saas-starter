@@ -2,6 +2,10 @@ import {
   Billing,
   type ReconcileWorkspaceInput
 } from '@b2b-saas-starter/billing/billing'
+import {
+  BillingQueueMessage,
+  type SeatSyncQueueReason
+} from '@b2b-saas-starter/billing/seat-sync'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { billingOptionsFromEnv } from '@b2b-saas-starter/billing/billing-config'
 import {
@@ -9,10 +13,6 @@ import {
   starterEnv,
   type StarterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
-import {
-  SeatSyncQueueMessage,
-  type SeatSyncQueueReason
-} from '@b2b-saas-starter/billing/seat-sync'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect, type Scope } from 'effect'
 
@@ -52,7 +52,7 @@ type OperatorRetryAuditMetadata = {
  * open for tests, like its siblings.
  */
 export function processSeatSyncMessage(
-  delivery: QueueDelivery<typeof SeatSyncQueueMessage.Type>
+  delivery: QueueDelivery<typeof BillingQueueMessage.Type>
 ): Effect.Effect<
   DeliveryOutcome,
   CapabilityUnavailable,
@@ -68,6 +68,26 @@ export function processSeatSyncMessage(
         return
       }
       const message = delivery.message
+      if (message.kind === 'billing.provider_event') {
+        const billing = yield* Billing
+        const result = yield* billing.processProviderEvent({
+          providerEventId: message.providerEventId,
+          eventType: message.eventType,
+          providerCreatedAt: message.providerCreatedAt,
+          workspaceId: message.workspaceId,
+          subscription: message.subscription,
+          detail: {
+            source: message.eventType,
+            providerEventId: message.providerEventId,
+            providerCreatedAt: message.providerCreatedAt ?? ''
+          }
+        })
+        yield* Effect.annotateLogsScoped({
+          outcome: result.outcome,
+          providerEventId: message.providerEventId
+        })
+        return
+      }
       yield* Effect.annotateLogsScoped({
         workspaceId: message.workspaceId,
         reason: message.reason satisfies SeatSyncQueueReason
@@ -156,7 +176,7 @@ export function deliverSeatSync(
   envelope: QueueEnvelope,
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
-  const delivery = readDelivery(SeatSyncQueueMessage, envelope)
+  const delivery = readDelivery(BillingQueueMessage, envelope)
   return consumerInvocation(env, {
     event: 'seat_sync',
     delivery,
