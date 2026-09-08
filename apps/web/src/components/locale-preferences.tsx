@@ -15,7 +15,8 @@ import {
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogAction,
-  AlertDialogCancel
+  AlertDialogCancel,
+  AlertDialogFooter
 } from '@/components/ui/alert-dialog'
 import { callServerFn } from '@/lib/server-call'
 import { setLocalePreferencesServerFn } from '@/lib/server/account-preferences'
@@ -97,7 +98,7 @@ export function LocalePreferences() {
             name="locale"
             disabled={!hydrated || status === 'saving'}
             value={selectedLocale}
-            className="h-9 border border-input bg-background px-3 text-base sm:text-sm"
+            className="h-9 border border-input bg-background px-3 text-base max-md:h-11 sm:text-sm"
             onChange={(event) => {
               if (isLocale(event.target.value)) {
                 setSelectedLocale(event.target.value)
@@ -142,12 +143,12 @@ export function LocalePreferences() {
           <AlertDialogDescription>
             {m.shell_preferences_reload_description()}
           </AlertDialogDescription>
-          <div className="flex justify-end gap-2">
+          <AlertDialogFooter>
             <AlertDialogCancel>{m.shell_cancel()}</AlertDialogCancel>
             <AlertDialogAction onClick={() => void save()}>
               {m.shell_save()}
             </AlertDialogAction>
-          </div>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </Panel>

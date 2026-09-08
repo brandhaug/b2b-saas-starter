@@ -795,6 +795,7 @@
   "admin_audit_events": "Audit events",
   "admin_no_audit_events": "No audit events.",
   "admin_load_workspaces": "Load workspaces",
+  "admin_no_workspace_memberships": "{name} holds no workspace memberships.",
   "sso_routing": "routing",
   "sso_test_passed": "Connection test passed.",
   "sso_test_failed_status": "Connection test failed.",

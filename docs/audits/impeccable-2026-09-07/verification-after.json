@@ -1,0 +1,42 @@
+{
+  "coldSignIn": {
+    "url": "/sign-in",
+    "client": 320,
+    "scroll": 320,
+    "h1": "Sign in",
+    "newsreaderRequests": [],
+    "preloads": ["geist-latin-wght-normal.woff2", "geist-mono-latin-wght-normal.woff2"]
+  },
+  "desktopDocs": {
+    "url": "/en/docs/getting-started/quickstart",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Quickstart"
+  },
+  "landingPreloads": [
+    "geist-latin-wght-normal.woff2",
+    "geist-mono-latin-wght-normal.woff2",
+    "newsreader-latin-opsz-normal.woff2"
+  ],
+  "overview": {
+    "url": "/workspaces/starter-lab",
+    "client": 320,
+    "scroll": 320,
+    "h1": "Starter Lab"
+  },
+  "members": {
+    "url": "/workspaces/starter-lab/members",
+    "client": 320,
+    "scroll": 320,
+    "h1": "Members"
+  },
+  "dialog": {
+    "clientWidth": 254,
+    "scrollWidth": 254,
+    "clientHeight": 190,
+    "scrollHeight": 989,
+    "top": 32,
+    "bottom": 224
+  },
+  "cancelled": true
+}

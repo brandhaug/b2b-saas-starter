@@ -138,124 +138,134 @@ export function WorkspaceShell({
     rememberWorkspace(router, { slug: workspaceSlug, name: workspaceName })
   }, [router, workspaceSlug, workspaceName])
   return (
+    // prettier-ignore
     <CommandPaletteProvider viewer={viewer} systemRole={systemRole}>
       <div className="grid min-h-dvh bg-background lg:grid-cols-[16rem_1fr]">
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary px-3 py-2 text-sm focus:text-primary-foreground"
-        >
-          {m.common_skip_to_content()}
-        </a>
-        <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
-          <WorkspaceNav
-            workspace={sidebarWorkspace}
-            viewer={viewer}
-            systemRole={systemRole}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary px-3 py-2 text-sm focus:text-primary-foreground"
+      >
+        {m.common_skip_to_content()}
+      </a>
+      <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
+        <WorkspaceNav
+          workspace={sidebarWorkspace}
+          viewer={viewer}
+          systemRole={systemRole}
+        />
+      </aside>
+      <div className="min-w-0">
+        {impersonation === null ? null : (
+          <ImpersonationBanner
+            impersonation={impersonation}
+            {...(stopImpersonating === undefined ? {} : { stopImpersonating })}
           />
-        </aside>
-        <div className="min-w-0">
-          {impersonation === null ? null : (
-            <ImpersonationBanner
-              impersonation={impersonation}
-              {...(stopImpersonating === undefined ? {} : { stopImpersonating })}
-            />
-          )}
-          <div>
-            <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
-              <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-                <SheetTrigger
-                  render={
-                    <Button variant="ghost" size="icon" className="lg:hidden">
-                      <MenuIcon className="size-5" />
-                      <span className="sr-only">{m.common_open_navigation()}</span>
-                    </Button>
-                  }
-                />
-                <SheetContent
-                  side="left"
-                  className="flex flex-col gap-0 bg-sidebar text-sidebar-foreground border-sidebar-border"
-                >
-                  <SheetHeader>
-                    <SheetTitle className="sr-only">
-                      {m.common_workspace_navigation()}
-                    </SheetTitle>
-                    <SheetDescription className="sr-only">
-                      {m.switch_workspace_sections()}
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="p-4">
-                    <WorkspaceNav
-                      workspace={sidebarWorkspace}
-                      viewer={viewer}
-                      systemRole={systemRole}
-                      onNavigate={() => setMobileNavOpen(false)}
-                    />
-                  </div>
-                </SheetContent>
-              </Sheet>
-              {workspaceSlug === null ? (
-                <div className="min-w-0 flex-1" />
-              ) : (
-                <Link
-                  to="/workspaces/$workspaceSlug"
-                  params={{ workspaceSlug }}
-                  className="min-w-0 flex-1 truncate text-sm font-medium hover:underline underline-offset-2"
-                  title={workspaceName ?? workspaceSlug}
-                >
-                  {workspaceName}
-                </Link>
-              )}
-              <LanguageSwitcher />
-              <SearchButton />
-              {unreadCount === undefined ? null : (
-                // The badge is the notification feed's one always-visible entry
-                // point: it lands on the user-level notifications route, where
-                // the unread kinds are managed — same count, same label, now
-                // clickable.
-                <Badge
-                  variant="neutral"
-                  className="gap-1 font-mono tabular-nums"
-                  render={
-                    <Link
-                      to="/account/notifications"
-                      aria-label={m.unread_notifications({ count: unreadCount })}
-                    />
-                  }
-                >
-                  <BellIcon className="size-3" />
-                  {unreadCount}
-                </Badge>
-              )}
-              <UserMenu
-                workspaceSlug={workspaceSlug}
-                signingOut={signingOut}
-                systemRole={systemRole}
+        )}
+        <div>
+          <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <SheetTrigger
+                render={
+                  <Button variant="ghost" size="icon" className="lg:hidden">
+                    <MenuIcon className="size-5" />
+                    <span className="sr-only">{m.common_open_navigation()}</span>
+                  </Button>
+                }
               />
-            </header>
-            {signingOut.error === null ? null : (
-              <div className="border-b border-border px-4 py-2 sm:px-6">
-                <ActionFeedback error={signingOut.error} />
-              </div>
+              <SheetContent
+                side="left"
+                className="flex min-h-0 flex-col gap-0 overflow-hidden bg-sidebar text-sidebar-foreground border-sidebar-border"
+              >
+                <SheetHeader>
+                  <SheetTitle className="sr-only">
+                    {m.common_workspace_navigation()}
+                  </SheetTitle>
+                  <SheetDescription className="sr-only">
+                    {m.switch_workspace_sections()}
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+                  <WorkspaceNav
+                    workspace={sidebarWorkspace}
+                    viewer={viewer}
+                    systemRole={systemRole}
+                    onNavigate={() => setMobileNavOpen(false)}
+                  />
+                  <div className="mt-6 grid gap-4 border-t border-sidebar-border pt-4">
+                    <SearchButton />
+                    <LanguageSwitcher />
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+            {workspaceSlug === null ? (
+              <div className="min-w-0 flex-1" />
+            ) : (
+              <Link
+                to="/workspaces/$workspaceSlug"
+                params={{ workspaceSlug }}
+                className="min-w-0 flex-1 truncate text-sm font-medium hover:underline underline-offset-2"
+                title={workspaceName ?? workspaceSlug}
+              >
+                {workspaceName}
+              </Link>
             )}
-          </div>
-          {/* One content width for every shell page — the page body centers at
-            `max-w-4xl` instead of each page picking its own column. */}
-          <main id="main-content" className="px-4 py-6 sm:px-6">
-            <div className="mx-auto grid w-full max-w-4xl gap-6">
-              {children}
-              <footer className="border-t border-border pt-6">
-                <SupportDetails
-                  routeName={workspaceSlug === null ? 'application' : 'workspace'}
-                  workspaceId={
-                    workspaceSlug === null
-                      ? undefined
-                      : findWorkspace(directory, workspaceSlug)?.id
-                  }
-                />
-              </footer>
+            {/* The secondary controls move into the mobile sheet below md. */}
+            <div className="hidden shrink-0 md:block">
+              <LanguageSwitcher />
             </div>
-          </main>
+            <div className="hidden shrink-0 md:block">
+              <SearchButton />
+            </div>
+            {unreadCount === undefined ? null : (
+              // The badge is the notification feed's one always-visible entry
+              // point: it lands on the user-level notifications route, where
+              // the unread kinds are managed — same count, same label, now
+              // clickable.
+              <Badge
+                variant="neutral"
+                className="gap-1 font-mono tabular-nums max-md:min-h-11 max-md:min-w-11"
+                render={
+                  <Link
+                    to="/account/notifications"
+                    aria-label={m.unread_notifications({ count: unreadCount })}
+                  />
+                }
+              >
+                <BellIcon className="size-3" />
+                {unreadCount}
+              </Badge>
+            )}
+            <UserMenu
+              workspaceSlug={workspaceSlug}
+              signingOut={signingOut}
+              systemRole={systemRole}
+            />
+          </header>
+          {signingOut.error === null ? null : (
+            <div className="border-b border-border px-4 py-2 sm:px-6">
+              <ActionFeedback error={signingOut.error} />
+            </div>
+          )}
         </div>
+        {/* One content width for every shell page — the page body centers at
+            `max-w-4xl` instead of each page picking its own column. */}
+        <main id="main-content" className="px-4 py-6 sm:px-6">
+          <div className="mx-auto grid w-full max-w-4xl gap-6">
+            {children}
+            <footer className="border-t border-border pt-6">
+              <SupportDetails
+                routeName={workspaceSlug === null ? 'application' : 'workspace'}
+                workspaceId={
+                  workspaceSlug === null
+                    ? undefined
+                    : findWorkspace(directory, workspaceSlug)?.id
+                }
+              />
+            </footer>
+          </div>
+        </main>
+      </div>
       </div>
     </CommandPaletteProvider>
   )
@@ -360,7 +370,7 @@ function UserMenu({
  * from the body independently (DESIGN.md).
  */
 const navLinkClasses =
-  'flex items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground'
+  'flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground max-md:min-h-11'
 
 function WorkspaceNav({
   workspace,

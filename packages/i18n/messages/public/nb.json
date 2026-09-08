@@ -182,6 +182,7 @@
   "public_auth_member_hint": "Eller som vanlig medlem, for å se den rollebegrensede visningen:",
   "public_auth_open_seeded_workspace": "Åpne seedet arbeidsområde i stedet",
   "public_auth_otp_digit": "Siffer {index} av {length}",
+  "public_auth_initializing": "Klargjør det sikre skjemaet … Hvis denne meldingen blir stående, last inn siden på nytt med JavaScript aktivert.",
   "public_auth_magic_link_unusable": "Denne innloggingslenken kan ikke brukes",
   "public_auth_magic_link_invalid": "Lenken er ugyldig, har utløpt eller er allerede brukt. Hver lenke virker én gang og utløper ti minutter etter at den er sendt.",
   "public_auth_magic_link_existing": "Har du fortsatt e-posten? En nyere lenke erstatter en eldre. Du kan også logge inn med passordet ditt.",

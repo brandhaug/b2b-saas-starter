@@ -177,7 +177,7 @@ function MembershipList({
   if (memberships.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
-        {selectedName} holds no workspace memberships.
+        {m.admin_no_workspace_memberships({ name: selectedName ?? '' })}
       </p>
     )
   }

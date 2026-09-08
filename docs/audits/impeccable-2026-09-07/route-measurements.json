@@ -1,0 +1,571 @@
+[
+  {
+    "width": 1280,
+    "route": "/en",
+    "error": "Error: page.goto: net::ERR_ABORTED at http://localhost:3098/en\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3098/en\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "width": 1280,
+    "route": "/en/docs/getting-started/quickstart",
+    "url": "/en/docs/getting-started/quickstart",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Quickstart",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/en/blog/effect-v4-application-backbone",
+    "url": "/en/blog/effect-v4-application-backbone",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Effect v4 as the application backbone",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/en/faq",
+    "url": "/en/faq",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "FAQ",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/en/pricing",
+    "url": "/en/pricing",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Plans",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/en/privacy",
+    "url": "/en/privacy",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Privacy",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/help",
+    "url": "/en/help",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Contact support",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/sign-up",
+    "url": "/sign-up",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Create your account",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/forgot-password",
+    "url": "/forgot-password",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Reset your password",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/reset-password",
+    "url": "/reset-password",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "This link cannot be used",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/two-factor",
+    "url": "/two-factor",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Two-factor verification",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/workspaces/starter-lab",
+    "url": "/workspaces/starter-lab",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Starter Lab",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/workspaces/starter-lab/members",
+    "url": "/workspaces/starter-lab/members",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Members",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/workspaces/starter-lab/api-tokens",
+    "url": "/workspaces/starter-lab/api-tokens",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "API tokens",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/workspaces/starter-lab/webhooks",
+    "url": "/workspaces/starter-lab/webhooks",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Webhook endpoints",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/workspaces/starter-lab/audit",
+    "url": "/workspaces/starter-lab/audit",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Audit trail",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/workspaces/starter-lab/assistant",
+    "url": "/workspaces/starter-lab/assistant",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "AI assistant",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/workspaces/starter-lab/settings",
+    "url": "/workspaces/starter-lab/settings",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Workspace settings",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/account",
+    "url": "/account",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Account",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/account/notifications",
+    "url": "/account/notifications",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Notification preferences",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/admin",
+    "url": "/admin",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "System admin",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 1280,
+    "route": "/workspaces/starter-lab/billing",
+    "url": "/workspaces/starter-lab/billing",
+    "client": 1280,
+    "scroll": 1280,
+    "h1": "Billing",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": []
+  },
+  {
+    "width": 320,
+    "route": "/en",
+    "url": "/en",
+    "client": 320,
+    "scroll": 386,
+    "h1": "The hard parts, already wired.",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/en/docs/getting-started/quickstart",
+    "url": "/en/docs/getting-started/quickstart",
+    "client": 320,
+    "scroll": 386,
+    "h1": "Quickstart",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/en/blog/effect-v4-application-backbone",
+    "url": "/en/blog/effect-v4-application-backbone",
+    "client": 320,
+    "scroll": 386,
+    "h1": "Effect v4 as the application backbone",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/en/faq",
+    "url": "/en/faq",
+    "client": 320,
+    "scroll": 386,
+    "h1": "FAQ",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/en/pricing",
+    "url": "/en/pricing",
+    "client": 320,
+    "scroll": 386,
+    "h1": "Plans",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/en/privacy",
+    "url": "/en/privacy",
+    "client": 320,
+    "scroll": 386,
+    "h1": "Privacy",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/help",
+    "url": "/en/help",
+    "client": 320,
+    "scroll": 386,
+    "h1": "Contact support",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/sign-up",
+    "url": "/sign-up",
+    "client": 320,
+    "scroll": 386,
+    "h1": "Create your account",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/forgot-password",
+    "url": "/forgot-password",
+    "client": 320,
+    "scroll": 386,
+    "h1": "Reset your password",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/reset-password",
+    "url": "/reset-password",
+    "client": 320,
+    "scroll": 386,
+    "h1": "This link cannot be used",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/two-factor",
+    "url": "/two-factor",
+    "client": 320,
+    "scroll": 386,
+    "h1": "Two-factor verification",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "Sign in",
+        "right": 386
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/workspaces/starter-lab",
+    "url": "/workspaces/starter-lab",
+    "client": 320,
+    "scroll": 409,
+    "h1": "Starter Lab",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "4",
+        "right": 349
+      },
+      {
+        "text": "",
+        "right": 409
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/workspaces/starter-lab/members",
+    "url": "/workspaces/starter-lab/members",
+    "client": 320,
+    "scroll": 457,
+    "h1": "Members",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "4",
+        "right": 349
+      },
+      {
+        "text": "",
+        "right": 409
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/workspaces/starter-lab/api-tokens",
+    "url": "/workspaces/starter-lab/api-tokens",
+    "client": 320,
+    "scroll": 409,
+    "h1": "API tokens",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "4",
+        "right": 349
+      },
+      {
+        "text": "",
+        "right": 409
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/workspaces/starter-lab/webhooks",
+    "url": "/workspaces/starter-lab/webhooks",
+    "client": 320,
+    "scroll": 409,
+    "h1": "Webhook endpoints",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "4",
+        "right": 349
+      },
+      {
+        "text": "",
+        "right": 409
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/workspaces/starter-lab/audit",
+    "url": "/workspaces/starter-lab/audit",
+    "client": 320,
+    "scroll": 352,
+    "h1": "Audit trail",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "",
+        "right": 352
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/workspaces/starter-lab/assistant",
+    "url": "/workspaces/starter-lab/assistant",
+    "client": 320,
+    "scroll": 352,
+    "h1": "AI assistant",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "",
+        "right": 352
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/workspaces/starter-lab/settings",
+    "url": "/workspaces/starter-lab/settings",
+    "client": 320,
+    "scroll": 409,
+    "h1": "Workspace settings",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "4",
+        "right": 349
+      },
+      {
+        "text": "",
+        "right": 409
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/account",
+    "url": "/account",
+    "client": 320,
+    "scroll": 352,
+    "h1": "Account",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "",
+        "right": 352
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/account/notifications",
+    "url": "/account/notifications",
+    "client": 320,
+    "scroll": 352,
+    "h1": "Notification preferences",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "",
+        "right": 352
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/admin",
+    "url": "/admin",
+    "client": 320,
+    "scroll": 352,
+    "h1": "System admin",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "",
+        "right": 352
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "route": "/workspaces/starter-lab/billing",
+    "url": "/workspaces/starter-lab/billing",
+    "client": 320,
+    "scroll": 409,
+    "h1": "Billing",
+    "bg": "oklch(0.2429 0.0304 283.911)",
+    "overflow": [
+      {
+        "text": "4",
+        "right": 349
+      },
+      {
+        "text": "",
+        "right": 409
+      }
+    ]
+  }
+]

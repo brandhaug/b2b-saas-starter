@@ -182,6 +182,7 @@
   "public_auth_member_hint": "Or as a plain member, to see the role-gated view:",
   "public_auth_open_seeded_workspace": "Open seeded workspace instead",
   "public_auth_otp_digit": "Digit {index} of {length}",
+  "public_auth_initializing": "Preparing the secure form… If this message stays, reload with JavaScript enabled.",
   "public_auth_magic_link_unusable": "This sign-in link cannot be used",
   "public_auth_magic_link_invalid": "The link is invalid, has expired, or was already used. Each one works once and expires ten minutes after it is sent.",
   "public_auth_magic_link_existing": "Still have the email? A newer link replaces an older one. You can also sign in with your password.",

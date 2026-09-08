@@ -8,7 +8,8 @@ import {
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogAction,
-  AlertDialogCancel
+  AlertDialogCancel,
+  AlertDialogFooter
 } from '@/components/ui/alert-dialog'
 import { useClientValue } from '@/lib/client-only-value'
 import { presentationSettings } from '@/lib/i18n'
@@ -43,7 +44,7 @@ export function LanguageSwitcher() {
     <div data-locale-control className="grid gap-1">
       <select
         aria-label={m.shell_language()}
-        className="h-8 max-w-40 rounded-none border border-input bg-background px-2 text-base text-foreground sm:text-xs"
+        className="h-8 max-w-40 rounded-none border border-input bg-background px-2 text-base text-foreground max-md:h-11 sm:text-xs"
         value={getLocale()}
         disabled={!hydrated || status === 'saving'}
         onChange={(event) => {
@@ -83,7 +84,7 @@ export function LanguageSwitcher() {
           <AlertDialogDescription>
             {m.shell_unsaved_description()}
           </AlertDialogDescription>
-          <div className="flex justify-end gap-2">
+          <AlertDialogFooter>
             <AlertDialogCancel>{m.shell_cancel()}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
@@ -94,7 +95,7 @@ export function LanguageSwitcher() {
             >
               {m.shell_switch()}
             </AlertDialogAction>
-          </div>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

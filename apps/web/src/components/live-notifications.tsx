@@ -107,6 +107,7 @@ export function LiveNotifications({
   return (
     <Panel
       title={m.notifications_title()}
+      className="min-w-0"
       actions={
         <>
           <Button
@@ -187,7 +188,7 @@ export function LiveNotifications({
                   <ItemTitle className="line-clamp-none">
                     {notification.title}
                   </ItemTitle>
-                  <ItemDescription className="line-clamp-none">
+                  <ItemDescription className="line-clamp-none break-words">
                     {notification.message}
                   </ItemDescription>
                   {/* Mono tabular UTC, the tables' timestamp convention. */}
@@ -199,7 +200,7 @@ export function LiveNotifications({
                     <ActionFeedback error={failedMark.message} />
                   ) : null}
                 </ItemContent>
-                <ItemActions className="ml-auto self-center max-sm:basis-full max-sm:pt-1 max-sm:justify-end">
+                <ItemActions className="ml-auto min-w-0 flex-wrap self-center max-md:basis-full max-md:pt-1 max-md:justify-end">
                   {notification.read ? (
                     <Badge variant="neutral">{m.common_read()}</Badge>
                   ) : (

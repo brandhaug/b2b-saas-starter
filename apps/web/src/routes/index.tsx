@@ -10,6 +10,7 @@ import { getAllPostMeta } from '@/lib/blog'
 import { getAllDocMeta } from '@/lib/docs'
 import { loadDemoShowcaseServerFn } from '@/lib/server/demo-showcase'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import newsreaderLatinWoff2 from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url'
 
 export const Route = createFileRoute('/')({
   // The knowledge section lists recent content: metadata resolves here, so
@@ -44,6 +45,17 @@ export const Route = createFileRoute('/')({
       {
         property: 'og:description',
         content: m.landing_description()
+      }
+    ],
+    links: [
+      // Newsreader is the landing page's display face. Keeping this hint on
+      // the route means auth, docs, and workspace visits do not fetch it.
+      {
+        rel: 'preload',
+        href: newsreaderLatinWoff2,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous'
       }
     ]
   })

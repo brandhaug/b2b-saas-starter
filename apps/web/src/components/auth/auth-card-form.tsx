@@ -22,7 +22,9 @@ export type SubscribableForm = {
  * The e2e hydration signal is set here by construction: every auth form gets
  * `data-hydrated` once React hydrates, with no per-route copy to forget.
  *
- * Use AuthNoticeCard for confirmations and other content without a form.
+ * `form` may be `null` for a card that carries no form (e.g. the sent
+ * confirmation on forgot-password); the children then render without a
+ * `<form>` wrapper.
  */
 export function AuthCardForm({
   title,
@@ -36,7 +38,8 @@ export function AuthCardForm({
 }: {
   readonly title: string
   readonly description?: ReactNode
-  readonly form: SubscribableForm
+  /** `null` renders the children without a `<form>` wrapper. */
+  readonly form: SubscribableForm | null
   /** The submit control — an `<AuthSubmitButton>` in practice. */
   readonly submit?: ReactNode
   /** Submit failure message; rendered as a destructive alert inside the form. */
@@ -47,30 +50,82 @@ export function AuthCardForm({
   readonly footer?: ReactNode
   readonly children: ReactNode
 }) {
-  // Hydration signal for e2e: interacting before React hydrates falls through
-  // to a native GET submit, so the smoke test waits for this attribute.
+  // Hydration signal for e2e and the pre-hydration guard: the fieldset stays
+  // disabled until React attaches the submit handler, while method="post"
+  // keeps an unexpected native fallback from putting credentials in the URL.
   const hydrated = useClientValue(() => true, false)
+  const errorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (error) {
+      errorRef.current?.focus()
+    }
+  }, [error])
+  // One alert for both branches: a card without a form (the consent page)
+  // still has errors to show.
+  const errorAlert = error ? (
+    <Alert ref={errorRef} tabIndex={-1} variant="destructive">
+      <AlertDescription>{error}</AlertDescription>
+    </Alert>
+  ) : null
   return (
-    <AuthCardShell title={title} description={description} footer={footer}>
-      <form
-        data-hydrated={hydrated ? 'true' : undefined}
-        onSubmit={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          void form.handleSubmit()
-        }}
-        className="grid gap-4"
+    <PublicLayout>
+      {/* `flex-1` fills the space PublicLayout's `min-h-dvh flex-col` leaves
+          between the header and its `mt-auto` footer — no hardcoded chrome height. */}
+      <main
+        id="main-content"
+        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
       >
-        {children}
-        {submit}
-        <AuthErrorAlert error={error} />
-        {notice ? (
-          <Alert>
-            <AlertDescription>{notice}</AlertDescription>
-          </Alert>
-        ) : null}
-      </form>
-    </AuthCardShell>
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle as="h1">{title}</CardTitle>
+            {description ? (
+              <p className="text-sm text-muted-foreground">{description}</p>
+            ) : null}
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            {form === null ? (
+              <div className="grid gap-4">
+                {children}
+                {errorAlert}
+              </div>
+            ) : (
+              <form
+                method="post"
+                data-hydrated={hydrated ? 'true' : undefined}
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  void form.handleSubmit()
+                }}
+                className="grid gap-4"
+              >
+                <fieldset disabled={!hydrated} className="contents">
+                  {children}
+                  {submit}
+                </fieldset>
+                {errorAlert}
+                {notice ? (
+                  <Alert>
+                    <AlertDescription>{notice}</AlertDescription>
+                  </Alert>
+                ) : null}
+                {hydrated ? null : (
+                  <output className="text-sm text-muted-foreground">
+                    {m.public_auth_initializing()}
+                  </output>
+                )}
+              </form>
+            )}
+            {footer}
+            <p className="text-center text-sm text-muted-foreground">
+              <Link to="/help" reloadDocument className="underline underline-offset-4">
+                {m.public_meta_support()}
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      </main>
+    </PublicLayout>
   )
 }
 
@@ -88,64 +143,14 @@ export function AuthNoticeCard({
   readonly children: ReactNode
 }) {
   return (
-    <AuthCardShell title={title} description={description} footer={footer}>
-      <div className="grid gap-4">
-        {children}
-        <AuthErrorAlert error={error} />
-      </div>
-    </AuthCardShell>
-  )
-}
-
-function AuthErrorAlert({ error }: { readonly error: string | null | undefined }) {
-  const errorRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (error) {
-      errorRef.current?.focus()
-    }
-  }, [error])
-  return error ? (
-    <Alert ref={errorRef} tabIndex={-1} variant="destructive">
-      <AlertDescription>{error}</AlertDescription>
-    </Alert>
-  ) : null
-}
-
-function AuthCardShell({
-  title,
-  description,
-  footer,
-  children
-}: {
-  readonly title: string
-  readonly description?: ReactNode
-  readonly footer?: ReactNode
-  readonly children: ReactNode
-}) {
-  return (
-    <PublicLayout>
-      <main
-        id="main-content"
-        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
-      >
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle as="h1">{title}</CardTitle>
-            {description ? (
-              <p className="text-sm text-muted-foreground">{description}</p>
-            ) : null}
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {children}
-            {footer}
-            <p className="text-center text-sm text-muted-foreground">
-              <Link to="/help" reloadDocument className="underline underline-offset-4">
-                {m.public_meta_support()}
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
-      </main>
-    </PublicLayout>
+    <AuthCardForm
+      title={title}
+      description={description}
+      form={null}
+      {...(error === undefined ? {} : { error })}
+      footer={footer}
+    >
+      {children}
+    </AuthCardForm>
   )
 }
