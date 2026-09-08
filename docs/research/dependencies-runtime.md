@@ -1,6 +1,6 @@
 # Runtime dependency audit
 
-Audited 2026-09-07 against checked-in manifests, catalog and lockfile, relevant intent nodes, architecture, and ADRs 0002, 0039, 0050, 0068, 0071 and 0073. Versions below are repository pins, not claims about the latest registry release. This is a fit assessment, not a penetration test or a complete transitive vulnerability scan.
+Audited 2026-09-07 against checked-in manifests, catalog and lockfile, relevant intent nodes, architecture, and ADRs 0002, 0039, 0050, 0062 and 0068. Versions below are repository pins, not claims about the latest registry release. This is a fit assessment, not a penetration test or a complete transitive vulnerability scan.
 
 Keep the backend's main libraries. They support the explicit requirements with little duplication. Replacing Effect, Better Auth, Drizzle, or Alchemy would rewrite working contracts without an identified starter benefit. The worthwhile changes concern React Email package consolidation, integration and stale configuration.
 
@@ -23,7 +23,7 @@ Each external dependency in the backend packages and workers appears below. Repe
 | `posthog-node` 5.51.4                                                        | Keep; improve HTTP export scheduling                 | PostHog explicitly recommends this SDK on Workers and supplies a `workerd` export. A bare capture API call would save SDK code but make the repository own delivery, retries and compatibility. The concrete latency issue is the current awaited sink, not an unsupported library. [Workers guide](https://posthog.com/docs/libraries/cloudflare-workers)                                                                                                                                          |
 | `@react-email/components` 1.0.12, direct `@react-email/render` 2.1.0         | Migrated to `react-email` 6.9.3; keep `react` 19.2.8 | React Email 6 exports components and rendering utilities from `react-email`. All component and render imports now use that package, owned at runtime by `packages/email`. Separate direct component/render dependencies were removed; the render package remains transitive. Shared HTML/plain-text templates and the browser build boundary remain in place. [Official migration guide](https://react.email/docs/getting-started/updating-react-email)                                             |
 
-`packages/env` and `packages/failure` have no external runtime dependency. `packages/rate-limit`, `packages/ai`, `packages/api` and `packages/sdk` add only Effect beyond workspace packages. Do not add Redis for the existing binding-backed rate limits or an AI SDK for a text-only assistant merely to reduce local adapter code. ADR 0071 deliberately supports only system/user text, no tools or streaming, and keeps Workers AI plus the honest unconfigured adapter.
+`packages/env` and `packages/failure` have no external runtime dependency. `packages/rate-limit`, `packages/ai`, `packages/api` and `packages/sdk` add only Effect beyond workspace packages. Do not add Redis for the existing binding-backed rate limits or an AI SDK for a text-only assistant merely to reduce local adapter code. ADR 0008 deliberately supports only system/user text, no tools or streaming, and keeps Workers AI plus the honest unconfigured adapter.
 
 ## Backend tooling and infrastructure
 

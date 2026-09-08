@@ -17,10 +17,12 @@ All three Workers ──> packages/capabilities ────┤
 | [API Worker](apps/api/AGENTS.md)                | REST, OpenAPI/Scalar reference, and stateful streamable-HTTP MCP. Both interfaces dispatch through the workspace operation catalog. |
 | [Background Worker](apps/background/AGENTS.md)  | Webhook delivery, workspace exports, billing reconciliation, and notification email.                                                |
 | [Capabilities](packages/capabilities/AGENTS.md) | Business use cases with Effect contracts and equivalent Seed/Live adapters.                                                         |
+| [Billing](packages/billing/AGENTS.md)            | Stripe projections, checkout recovery, subscription lifecycle, and resource entitlements.                                         |
 | [Database](packages/db/AGENTS.md)               | Drizzle schema and migrations for shared D1 persistence.                                                                            |
 | [Auth](packages/auth/AGENTS.md)                 | Better Auth configuration and structural callback ports.                                                                            |
 | [Authorization](packages/authz/AGENTS.md)       | Permissions, workspace/system roles, token scope mapping, and guards. No database or auth-instance dependency.                      |
 | [Email](packages/email/AGENTS.md)               | Templates and the outbound sending boundary.                                                                                        |
+| [Email delivery](packages/email-delivery/AGENTS.md) | Send claims and sanitized delivery evidence for auth, invitations, and notifications.                                           |
 
 Auth and capabilities are siblings; neither imports the other. Apps provide structural bindings to plugin-backed capabilities. Route handlers and components gate access and adapt transport data; business behavior belongs in capabilities.
 
@@ -66,6 +68,8 @@ Console logging stays available without providers. Configured OTLP export is sco
 ### Recovery operations
 
 The [operations runbook](docs/operations.md) covers system-wide maintenance, shared-D1 recovery, independent encrypted backups and security evidence, and external-state reconciliation before reopening. Backups and queue monitors run outside the application Workers. Customer deployments require an isolated drill; repository reset and migration-squash policies apply only to disposable data.
+
+Routine record cleanup follows the approved [retention policy](docs/retention.md). Administrative workspace suspension is an independent access control; its rules are documented in the [workspace suspension policy](docs/workspace-suspension.md).
 
 ## Security
 

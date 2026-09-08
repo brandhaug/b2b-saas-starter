@@ -18,11 +18,13 @@ Open <http://localhost:3071>. Optional providers stay inactive until configured.
 
 ## Architecture
 
-Three Workers share one application layer in [packages/capabilities](packages/capabilities):
+Three Workers share the business-use-case layer in [packages/capabilities](packages/capabilities), with billing and email-delivery infrastructure in their dedicated packages:
 
 - `apps/web`: public content, authenticated UI, server functions, and Better Auth.
 - `apps/api`: REST and MCP interfaces over the same workspace operations.
 - `apps/background`: webhook delivery, exports, billing synchronization, and notification email.
+- `packages/billing`: Stripe lifecycle, checkout recovery, and resource entitlements.
+- `packages/email-delivery`: transactional send claims and sanitized delivery evidence.
 
 D1 stores application and authentication state. Cloudflare Queues carry background work; optional R2 stores workspace exports. Checked-in MDX supplies public docs and their navigation metadata. LLM summaries are checked-in public text files. Alchemy provisions deployment resources from [alchemy.run.ts](alchemy.run.ts).
 
@@ -42,6 +44,8 @@ pnpm run validate   # check, build, generated configs, local DB setup, and E2E
 
 - [Deployment](docs/deploying.md): Cloudflare credentials, CI, previews, and verification.
 - [Operations](docs/operations.md): monitoring, backups, and recovery before customer use.
+- [Retention](docs/retention.md): approved record-expiry policy and operator workflow.
+- [Workspace suspension](docs/workspace-suspension.md): administrative access controls and recovery rules.
 - [CONTEXT.md](CONTEXT.md): domain glossary.
 - [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md): audience and interface conventions.
 - [ADRs](docs/adr/README.md): current architectural decisions and rationale.

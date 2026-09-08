@@ -24,7 +24,7 @@ Retention policy, approval and cleanup changes use [retention](src/governance/re
 - `workspace-projections.ts` composes reads without its own adapters (ADR 0044). Each projection covers one permission; callers assemble and withhold segments spanning permissions.
 - Import identity types from `governance/workspace-identity.ts`.
 - Plugin adapters use `governance/plugin-binding-failure.ts` to distinguish refused writes from unreachable storage.
-- Transactional email claims and evidence belong to [email-delivery](src/email-delivery/email-delivery.AGENTS.md).
+- Transactional email claims and evidence belong to [email-delivery](../email-delivery/AGENTS.md).
 
 ## Changes
 
