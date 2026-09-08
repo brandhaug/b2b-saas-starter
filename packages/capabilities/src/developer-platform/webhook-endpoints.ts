@@ -421,12 +421,17 @@ type WebhookEndpointsInterface = {
    */
   readonly getDispatchTarget: (
     endpointId: string,
-    workspaceId: string
+    workspaceId: string,
+    /** Queue execution supplies the producer-stamped delivery identity. */
+    deliveryId: string
   ) => Effect.Effect<
     {
       readonly id: string
       readonly url: string
       readonly signingSecrets: ReadonlyArray<string>
+      /** Authoritative queued delivery contents, present for queue execution. */
+      readonly eventType: string
+      readonly payload: Json
     } | null,
     CapabilityUnavailable
   >

@@ -3,6 +3,16 @@ import {
   type WebhookDeliveryAttemptInput
 } from './webhook-delivery-plan.ts'
 
+export type QueuedTerminalAttempt = WebhookDeliveryAttemptInput & {
+  readonly id: string
+  readonly phase: 'terminal'
+}
+
+/** Trusted bookkeeping can originate history; queue observations can only settle existing history. */
+export type WebhookAttemptObservation =
+  | { readonly kind: 'trusted_attempt'; readonly input: WebhookDeliveryAttemptInput }
+  | { readonly kind: 'queued_terminal'; readonly input: QueuedTerminalAttempt }
+
 /** Bound evidence again at persistence, including callers other than the HTTP worker. */
 export function attemptEvidence(input: WebhookDeliveryAttemptInput) {
   let requestHeaders: Record<string, string> | null = null

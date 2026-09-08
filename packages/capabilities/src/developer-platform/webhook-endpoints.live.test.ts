@@ -197,8 +197,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
               const feed = yield* NotificationFeed
+              const sent = yield* webhooks.sendTestEvent({ endpointId: 'wh_live' })
               yield* webhooks.recordTerminalDeliveryAttempt({
-                deliveryId: 'whd_live_dlq',
+                deliveryId: sent.deliveryId,
                 endpointId: 'wh_live',
                 workspaceId: 'wrk_live',
                 eventType: 'demo.dead_letter',
@@ -210,14 +211,21 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const deadLetter = notifications.find(
                 (notification) =>
                   notification.title === 'Webhook delivery dead-lettered' &&
-                  notification.message.startsWith('demo.dead_letter ')
+                  notification.message.startsWith('webhook.test_event ')
               )
               expect(deadLetter).toBeDefined()
               // The message names the endpoint URL so it is actionable...
               expect(deadLetter?.message).toContain('https://example.com/hook')
               // ...and it is a broadcast row (unread, no target user).
               expect(deadLetter?.read).toBe(false)
-            })
+            }),
+            undefined,
+            {
+              webhookQueue: {
+                send: () => Promise.resolve(),
+                sendBatch: () => Promise.resolve()
+              }
+            }
           )
       )
 
@@ -331,10 +339,15 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const webhooks = yield* WebhookEndpoints
               const first = yield* webhooks.rotateSecret({ endpointId: 'wh_live' })
               const firstSecret = first.signingSecret
+              const sent = yield* webhooks.sendTestEvent({ endpointId: 'wh_live' })
 
               // While the grace window is open, a dispatch signs with the new
               // secret AND the one it replaced.
-              const during = yield* webhooks.getDispatchTarget('wh_live', 'wrk_live')
+              const during = yield* webhooks.getDispatchTarget(
+                'wh_live',
+                'wrk_live',
+                sent.deliveryId
+              )
               expect(during?.signingSecrets).toHaveLength(2)
               expect(during?.signingSecrets[0]).toBe(firstSecret)
 
@@ -344,10 +357,18 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const secondSecret = second.signingSecret
               const afterSecond = yield* webhooks.getDispatchTarget(
                 'wh_live',
-                'wrk_live'
+                'wrk_live',
+                sent.deliveryId
               )
               expect(afterSecond?.signingSecrets).toEqual([secondSecret, firstSecret])
-            })
+            }),
+            undefined,
+            {
+              webhookQueue: {
+                send: () => Promise.resolve(),
+                sendBatch: () => Promise.resolve()
+              }
+            }
           )
       )
     })

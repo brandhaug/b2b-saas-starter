@@ -25,7 +25,7 @@ import { type Env } from './queue-consumer.ts'
 
 // The pre-parity hand-written env shape, re-spelled here as the oracle:
 // `Env` must keep matching it key for key and type for type.
-type HandWrittenEnv = Partial<ServerEnv> & {
+type HandWrittenEnv = Partial<Omit<ServerEnv, 'WORKSPACE_EXPORT_BUCKET'>> & {
   readonly DB?: D1Database
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding
   readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding

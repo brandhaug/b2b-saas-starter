@@ -44,7 +44,7 @@ type ApiBindingTypes = {
 // entrypoint. It structurally satisfies `ProviderEnv` (packages/ai), so the
 // assistant selector takes this env straight — no key-by-key copy: an unset
 // var is absent or undefined, and the selector reads both as unconfigured.
-export type ApiEnv = Partial<ServerEnv> &
+export type ApiEnv = Partial<Omit<ServerEnv, ApiBindingName>> &
   Readonly<Partial<{ [B in ApiBindingName]: ApiBindingTypes[B] }>>
 
 // Capability env: the D1 binding selects Live vs Seed, and the webhook queue

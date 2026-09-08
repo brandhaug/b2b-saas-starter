@@ -388,7 +388,9 @@ export function makeLiveCapabilitiesLayer(
   // each use site would build distinct layers (Effect does not unify them), so
   // both the fan-out consumers and the merged layer share this value. The
   // seat-sync publisher follows the same rule for the same reason.
-  const publisher = LiveWebhookPublisher(options.webhookQueue)
+  const publisher = LiveWebhookPublisher(options.webhookQueue).pipe(
+    Layer.provide(LiveAuditEventLog)
+  )
   const seatSyncPublisher = LiveSeatSyncPublisher(options.seatSyncQueue)
   // Same one-instance rule for the preference store the feed resolves against.
   const preferences = LiveNotificationPreferences.pipe(Layer.provide(LiveAuditEventLog))

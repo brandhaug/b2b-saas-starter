@@ -40,14 +40,18 @@ const message: WebhookQueueMessage = {
 const target = {
   id: 'wh_1',
   url: 'https://example.com/hook',
-  signingSecrets: ['whsec_dGVzdF9zZWNyZXQ=']
+  signingSecrets: ['whsec_dGVzdF9zZWNyZXQ='],
+  eventType: message.eventType,
+  payload: message.payload
 }
 
 /** Same endpoint mid-rotation: the replaced secret still signs for 24h. */
 const rotatingTarget = {
   id: 'wh_1',
   url: 'https://example.com/hook',
-  signingSecrets: ['whsec_bmV3X3NlY3JldA==', 'whsec_b2xkX3NlY3JldA==']
+  signingSecrets: ['whsec_bmV3X3NlY3JldA==', 'whsec_b2xkX3NlY3JldA=='],
+  eventType: message.eventType,
+  payload: message.payload
 }
 
 // Mirrors the Live workspace check: the target only resolves when the

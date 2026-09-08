@@ -345,9 +345,8 @@ export function planDeliveryAttempt(
 
 export type WebhookDeliveryAttemptInput = {
   /**
-   * Delivery row id. The background worker mints it before dispatch so the
-   * signed payload's `deliveryId` matches the persisted row. Generated here
-   * when omitted.
+   * Delivery row id. Queue dispatch supplies the producer's reserved ID.
+   * Trusted bookkeeping can originate history and generates an ID if omitted.
    */
   readonly id?: string
   readonly endpointId: string
