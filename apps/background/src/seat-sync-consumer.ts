@@ -1,19 +1,19 @@
 import {
   Billing,
   type ReconcileWorkspaceInput
-} from '@b2b-saas-starter/capabilities/billing/billing'
+} from '@b2b-saas-starter/billing/billing'
+import {
+  BillingQueueMessage,
+  type SeatSyncQueueReason
+} from '@b2b-saas-starter/billing/seat-sync'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing-config'
+import { billingOptionsFromEnv } from '@b2b-saas-starter/billing/billing-config'
 import {
   selectCapabilitiesLayer,
   starterEnv,
   type StarterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
-import {
-  BillingQueueMessage,
-  type SeatSyncQueueReason
-} from '@b2b-saas-starter/capabilities/billing/seat-sync'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect, type Scope } from 'effect'
 
 import {

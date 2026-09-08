@@ -10,13 +10,19 @@ import {
 import { DateTime, Effect, Layer } from 'effect'
 import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
 
-import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
+import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
+import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
+import { Billing } from '@b2b-saas-starter/billing/billing'
+import { assertWithinPlanLimitFor } from '@b2b-saas-starter/billing/resource-admission'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import {
   AuditEventLog,
   type RecordAuditEventInput
 } from '../governance/audit-event-log.ts'
-import { type CapabilityUnavailable } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import {
   activeSigningSecrets,
   DELIVERIES_PAGE_SIZE,
@@ -45,7 +51,6 @@ import { randomWebhookSecret } from '../crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
@@ -115,6 +120,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
   never,
   | Database
   | RawD1
+  | Billing
   | AuditEventLog
   | WebhookPublisher
   | NotificationFeed
@@ -122,6 +128,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
 > = Layer.effect(WebhookEndpoints)(
   Effect.gen(function* () {
     const db = yield* Database
+    const billing = yield* Billing
     const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
     const entitlements = yield* ResourceEntitlements
@@ -297,7 +304,16 @@ export const LiveWebhookEndpoints: Layer.Layer<
           yield* ensureValidWebhookUrl(input.url)
           const ctx = yield* WorkspaceContext
           // Entitlement gate: the workspace's plan caps endpoint count.
-          yield* entitlements.admitCreation({ resource: 'webhook_endpoint' })
+          yield* assertWithinPlanLimitFor({
+            resource: 'webhook_endpoint',
+            db,
+            capability: 'webhook-endpoints',
+            table: webhookEndpoints,
+            where: eq(webhookEndpoints.workspaceId, ctx.workspace.id)
+          }).pipe(
+            Effect.provideService(Billing, billing),
+            Effect.provideService(BillingWorkspaceContext, ctx)
+          )
           const signingSecret = randomWebhookSecret()
           const createdAt = yield* DateTime.now
           const endpoint = {

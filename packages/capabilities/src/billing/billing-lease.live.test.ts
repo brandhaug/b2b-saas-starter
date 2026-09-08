@@ -6,7 +6,7 @@ import { expect, layer } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
 
 import { LIVE_SUITE_TIMEOUT, TestDatabase } from '../testing/live-harness.ts'
-import { makeBillingLease } from './billing-lease.ts'
+import { makeBillingLease } from '@b2b-saas-starter/billing/billing-lease'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('billing lease fencing', (it) => {
   it.effect(

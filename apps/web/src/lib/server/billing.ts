@@ -3,9 +3,9 @@ import {
   type BillingSynchronizationStatus,
   type ReconcileResult,
   type DisplayedPlan
-} from '@b2b-saas-starter/capabilities/billing/billing'
-import { type ResourceSelectionInput } from '@b2b-saas-starter/capabilities/billing/resource-entitlements'
-import { type ResourceEntitlementSummary } from '@b2b-saas-starter/capabilities/billing/plan-catalog'
+} from '@b2b-saas-starter/billing/billing'
+import { type ResourceSelectionInput } from '@b2b-saas-starter/billing/resource-entitlements'
+import { type ResourceEntitlementSummary } from '@b2b-saas-starter/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'

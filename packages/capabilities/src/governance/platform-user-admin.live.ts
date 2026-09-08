@@ -4,7 +4,7 @@ import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 
 import { UserAdminRejected } from '../errors.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'

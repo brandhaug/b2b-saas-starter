@@ -1,9 +1,9 @@
-import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 import {
   billingConfigured,
   billingOptionsFromEnv,
   type BillingOptions
-} from '@b2b-saas-starter/capabilities/billing/billing-config'
+} from '@b2b-saas-starter/billing/billing-config'
 import {
   selectCapabilitiesLayer,
   starterEnv,

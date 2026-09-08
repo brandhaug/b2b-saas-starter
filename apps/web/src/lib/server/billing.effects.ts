@@ -1,9 +1,5 @@
-import {
-  Billing,
-  type ReconcileResult
-} from '@b2b-saas-starter/capabilities/billing/billing'
-import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import { ResourceEntitlements } from '@b2b-saas-starter/capabilities/billing/resource-entitlements'
+import { Billing, type ReconcileResult } from '@b2b-saas-starter/billing/billing'
+import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { Effect } from 'effect'
@@ -22,6 +18,7 @@ import {
   type SelectResourcesInput,
   type PublicPricingPayload
 } from './billing'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 /**
  * The billing payload assembly and the checkout wiring, reached only
@@ -220,11 +217,7 @@ export async function startPortalSessionHandler(
   )
 }
 
-/**
- * Re-checks the authenticated workspace after Stripe sends the browser back.
- * The workspace id comes from the verified context, never from the request;
- * the slug only selects the workspace through the normal membership gate.
- */
+/** Re-check the authenticated workspace after Stripe sends the browser back. */
 export async function reconcileCheckoutReturnHandler(
   input: WorkspaceBillingInput
 ): Promise<ReconcileResult> {

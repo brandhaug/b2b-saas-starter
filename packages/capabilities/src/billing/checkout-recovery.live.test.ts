@@ -8,7 +8,7 @@ import { DateTime, Effect } from 'effect'
 import { eq } from 'drizzle-orm'
 import { expect, layer } from '@effect/vitest'
 
-import { Billing } from './billing.ts'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 import {
   baseClaim,
   reset,

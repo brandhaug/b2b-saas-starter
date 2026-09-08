@@ -4,7 +4,7 @@ import {
   type WorkspaceExportQueueBinding
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { type NotificationEmailQueueBinding } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
-import { type SeatSyncQueueBinding } from '@b2b-saas-starter/capabilities/billing/seat-sync'
+import { type SeatSyncQueueBinding } from '@b2b-saas-starter/billing/seat-sync'
 import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { type SendEmailBinding } from '@b2b-saas-starter/email'
 import { isMaintenanceMode, type ServerEnv } from '@b2b-saas-starter/env/server'

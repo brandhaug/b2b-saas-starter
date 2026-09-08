@@ -1,6 +1,6 @@
-import { BillingQueueMessage } from '@b2b-saas-starter/capabilities/billing/seat-sync'
-import { Billing } from '@b2b-saas-starter/capabilities/billing/billing'
-import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing-config'
+import { BillingQueueMessage } from '@b2b-saas-starter/billing/seat-sync'
+import { Billing } from '@b2b-saas-starter/billing/billing'
+import { billingOptionsFromEnv } from '@b2b-saas-starter/billing/billing-config'
 import {
   selectCapabilitiesLayer,
   starterEnv
@@ -36,18 +36,23 @@ export function processBillingDeadLetterMessage(
       }
       const billing = yield* Billing
       if (delivery.message.kind === 'billing.provider_event') {
+        const message = delivery.message
         const result = yield* billing.processProviderEvent({
-          providerEventId: delivery.message.providerEventId,
-          eventType: delivery.message.eventType,
-          providerCreatedAt: delivery.message.providerCreatedAt,
-          workspaceId: delivery.message.workspaceId,
-          subscription: delivery.message.subscription
+          providerEventId: message.providerEventId,
+          eventType: message.eventType,
+          providerCreatedAt: message.providerCreatedAt,
+          workspaceId: message.workspaceId,
+          subscription: message.subscription,
+          detail: {
+            source: message.eventType,
+            providerEventId: message.providerEventId,
+            providerCreatedAt: message.providerCreatedAt ?? ''
+          }
         })
         yield* Effect.annotateLogsScoped({
           outcome: 'terminal',
-          providerEventId: delivery.message.providerEventId,
-          recovery: 'provider_event',
-          billingOutcome: result.outcome
+          providerEventId: message.providerEventId,
+          recovery: result.outcome
         })
         return
       }

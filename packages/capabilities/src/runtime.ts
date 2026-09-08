@@ -1,7 +1,7 @@
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { Layer } from 'effect'
-import { type SeatSyncQueueBinding } from './billing/seat-sync.ts'
+import { type SeatSyncQueueBinding } from '@b2b-saas-starter/billing/seat-sync'
 import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
 import { type NotificationEmailQueueBinding } from './notifications/notification-email-queue.ts'
 import {
@@ -19,10 +19,11 @@ import { seedMembers, seedWorkspaceRecord } from './seed-fixture.ts'
 import {
   liveWorkspaceContext,
   seedWorkspaceContext,
-  type WorkspaceContext,
+  type WorkspaceServices,
   type ActorRef
 } from './workspace-context.ts'
-import { type CapabilityUnavailable, type WorkspaceNotFound } from './errors.ts'
+import { type WorkspaceNotFound } from './errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 type D1Binding = Parameters<typeof layerFromD1>[0]
 
@@ -128,7 +129,7 @@ export function selectWorkspaceContextLayer(
   slug: string,
   actor: ActorRef | undefined,
   actorType: AuditActorTypeValue
-): Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable> {
+): Layer.Layer<WorkspaceServices, WorkspaceNotFound | CapabilityUnavailable> {
   if (env.DB === undefined) {
     // Passing `seedMembers` makes the seed path enforce the same actor
     // membership semantics as the live path (fixture members allowed).
@@ -157,7 +158,7 @@ export function selectWorkspaceLayer(
   actor: ActorRef | undefined,
   actorType: AuditActorTypeValue
 ): Layer.Layer<
-  CapabilityServices | WorkspaceContext,
+  CapabilityServices | WorkspaceServices,
   WorkspaceNotFound | CapabilityUnavailable
 > {
   if (env.DB === undefined) {

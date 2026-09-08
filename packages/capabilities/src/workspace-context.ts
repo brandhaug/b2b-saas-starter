@@ -1,10 +1,15 @@
+import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaces } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
-import { WorkspaceNotFound, type CapabilityUnavailable } from './errors.ts'
-import { orUnavailable } from './internal/unavailable.ts'
+import { WorkspaceNotFound } from './errors.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
+
 import {
   findWorkspaceMember,
   SystemRole,
@@ -58,11 +63,19 @@ export class WorkspaceContext extends Context.Service<
   WorkspaceContextInterface
 >()('@b2b-saas-starter/capabilities/WorkspaceContext') {}
 
+export type WorkspaceServices = WorkspaceContext | BillingWorkspaceContext
+
+/** Billing receives the same verified identity as the workspace capabilities. */
+const BillingWorkspaceContextLayer = Layer.effect(
+  BillingWorkspaceContext,
+  WorkspaceContext
+)
+
 export function liveWorkspaceContext(
   slug: string,
   actor: ActorRef | undefined,
   actorType: AuditActorTypeValue
-): Layer.Layer<WorkspaceContext, WorkspaceNotFound | CapabilityUnavailable, Database> {
+): Layer.Layer<WorkspaceServices, WorkspaceNotFound | CapabilityUnavailable, Database> {
   return Layer.effect(WorkspaceContext)(
     Effect.gen(function* () {
       const db = yield* Database
@@ -91,7 +104,7 @@ export function liveWorkspaceContext(
         actorType
       }
     })
-  )
+  ).pipe((context) => BillingWorkspaceContextLayer.pipe(Layer.provideMerge(context)))
 }
 
 /**
@@ -109,7 +122,7 @@ export function seedWorkspaceContext(
   actor: ActorRef | undefined,
   members: ReadonlyArray<Member>,
   actorType: AuditActorTypeValue
-): Layer.Layer<WorkspaceContext, WorkspaceNotFound> {
+): Layer.Layer<WorkspaceServices, WorkspaceNotFound> {
   return Layer.effect(WorkspaceContext)(
     Effect.suspend((): Effect.Effect<WorkspaceContextInterface, WorkspaceNotFound> => {
       if (slug !== seedWorkspace.slug) {
@@ -133,7 +146,7 @@ export function seedWorkspaceContext(
         actorType
       })
     })
-  )
+  ).pipe((context) => BillingWorkspaceContextLayer.pipe(Layer.provideMerge(context)))
 }
 
 /** Test injection: a context built from already-resolved values, no membership checks. */
@@ -141,10 +154,10 @@ export function testWorkspaceContext(
   workspace: Workspace,
   actor: Actor | null = null,
   actorType: AuditActorTypeValue = 'user'
-): Layer.Layer<WorkspaceContext> {
+): Layer.Layer<WorkspaceServices> {
   return Layer.succeed(WorkspaceContext)({
     workspace,
     actor,
     actorType
-  })
+  }).pipe((context) => BillingWorkspaceContextLayer.pipe(Layer.provideMerge(context)))
 }

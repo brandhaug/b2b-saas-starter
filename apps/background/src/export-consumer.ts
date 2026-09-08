@@ -3,10 +3,8 @@ import {
   selectWorkspaceContextLayer,
   starterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
-import {
-  CapabilityUnavailable,
-  type WorkspaceNotFound
-} from '@b2b-saas-starter/capabilities/errors'
+import { type WorkspaceNotFound } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { buildWorkspaceExportArchive } from '@b2b-saas-starter/capabilities/governance/workspace-export-archive'
 import { errorMessage } from '@b2b-saas-starter/failure'
 import {

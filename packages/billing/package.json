@@ -1,0 +1,45 @@
+{
+  "name": "@b2b-saas-starter/billing",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./billing": "./src/billing.ts",
+    "./billing-config": "./src/billing-config.ts",
+    "./billing-lease": "./src/billing-lease.ts",
+    "./billing-state": "./src/billing-state.ts",
+    "./billing-sync-store": "./src/billing-sync-store.ts",
+    "./billing.live": "./src/billing.live.ts",
+    "./billing.seed": "./src/billing.seed.ts",
+    "./checkout.live": "./src/checkout.live.ts",
+    "./errors": "./src/errors.ts",
+    "./plan-catalog": "./src/plan-catalog.ts",
+    "./ports": "./src/ports.ts",
+    "./provider-test-fixtures": "./src/provider-test-fixtures.ts",
+    "./resource-admission": "./src/resource-admission.ts",
+    "./resource-entitlements": "./src/resource-entitlements.ts",
+    "./resource-entitlements.live": "./src/resource-entitlements.live.ts",
+    "./resource-entitlements.seed": "./src/resource-entitlements.seed.ts",
+    "./resource-inventory.seed": "./src/resource-inventory.seed.ts",
+    "./seat-sync": "./src/seat-sync.ts",
+    "./stripe": "./src/stripe.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run"
+  },
+  "dependencies": {
+    "@b2b-saas-starter/db": "workspace:*",
+    "@b2b-saas-starter/env": "workspace:*",
+    "@b2b-saas-starter/failure": "workspace:*",
+    "@b2b-saas-starter/logger": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}

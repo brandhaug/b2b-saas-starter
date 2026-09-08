@@ -1,7 +1,7 @@
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   AccountPreferencesService,
   SeedAccountPreferences

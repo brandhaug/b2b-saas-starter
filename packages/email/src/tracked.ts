@@ -2,7 +2,7 @@ import {
   EmailDelivery,
   type ClaimEmail,
   type SendOutcome
-} from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+} from '@b2b-saas-starter/email-delivery/email-delivery'
 import { Effect } from 'effect'
 import { EmailDispatcher, type EmailMessage, type EmailSendError } from './index.ts'
 

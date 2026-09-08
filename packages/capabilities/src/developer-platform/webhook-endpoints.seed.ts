@@ -1,13 +1,16 @@
 import {
   SeedResourceInventory,
   SeedResourceInventoryLayer
-} from '../billing/resource-inventory.seed.ts'
+} from '@b2b-saas-starter/billing/resource-inventory.seed'
 import { bestEffort } from '../internal/best-effort.ts'
 import { attemptEvidence } from './webhook-attempt-history.ts'
 import { DateTime, Duration, Effect, Layer } from 'effect'
 import { randomWebhookSecret } from '../crypto.ts'
 
-import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
+import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
+import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
+import { Billing } from '@b2b-saas-starter/billing/billing'
+import { assertWithinPlanLimit } from '@b2b-saas-starter/billing/resource-admission'
 import { newCapabilityId } from '../internal/ids.ts'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -159,11 +162,12 @@ export function SeedWebhookEndpoints(
 ): Layer.Layer<
   WebhookEndpoints,
   never,
-  AuditEventLog | WebhookPublisher | NotificationFeed | ResourceEntitlements
+  Billing | AuditEventLog | WebhookPublisher | NotificationFeed | ResourceEntitlements
 > {
   return Layer.effect(WebhookEndpoints)(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
+      const billing = yield* Billing
       const publisher = yield* WebhookPublisher
       const notificationFeed = yield* NotificationFeed
       const entitlements = yield* ResourceEntitlements
@@ -555,7 +559,15 @@ export function SeedWebhookEndpoints(
           const ctx = yield* WorkspaceContext
           // Same entitlement gate as Live — and because the store mutates, the
           // cap can actually trip here instead of being unreachable.
-          yield* entitlements.admitCreation({ resource: 'webhook_endpoint' })
+          yield* assertWithinPlanLimit({
+            resource: 'webhook_endpoint',
+            used: endpoints.filter(
+              (candidate) => candidate.workspaceId === ctx.workspace.id
+            ).length
+          }).pipe(
+            Effect.provideService(Billing, billing),
+            Effect.provideService(BillingWorkspaceContext, ctx)
+          )
           const endpoint: SeedEndpointRow = {
             id: yield* newCapabilityId('wh'),
             workspaceId: ctx.workspace.id,

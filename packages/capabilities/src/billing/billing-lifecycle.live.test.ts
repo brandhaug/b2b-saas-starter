@@ -1,6 +1,6 @@
 import * as TestClock from 'effect/testing/TestClock'
 import { type CapabilityServices } from '../layers.ts'
-import { type WorkspaceContext } from '../workspace-context.ts'
+import { type WorkspaceServices } from '../workspace-context.ts'
 import {
   auditEvents,
   billingNotices,
@@ -19,13 +19,13 @@ import {
   TestDatabase,
   LIVE_SUITE_TIMEOUT
 } from '../testing/live-harness.ts'
-import { Billing } from './billing.ts'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 import {
   initialSnapshot,
   lifecycleContract,
   type LifecycleSnapshot
 } from './billing-lifecycle.contract.ts'
-import { testItem, testPrice } from './provider-test-fixtures.ts'
+import { testItem, testPrice } from '@b2b-saas-starter/billing/provider-test-fixtures'
 
 const workspaceId = 'wrk_live'
 const bindings = {
@@ -214,7 +214,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
           effect: Effect.Effect<
             A,
             E,
-            WorkspaceContext | CapabilityServices | Database | RawD1
+            WorkspaceServices | CapabilityServices | Database | RawD1
           >
         ) {
           return inWorkspace('live-lab', effect, undefined, bindings)

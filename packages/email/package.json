@@ -16,8 +16,8 @@
     "dev": "email dev --dir src"
   },
   "dependencies": {
-    "@b2b-saas-starter/capabilities": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
+    "@b2b-saas-starter/email-delivery": "workspace:*",
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/failure": "workspace:*",
     "@b2b-saas-starter/i18n": "workspace:*",

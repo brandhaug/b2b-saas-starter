@@ -1,3 +1,4 @@
+import { latestInvitationEmailHistory } from '@b2b-saas-starter/capabilities/governance/invitation-email-history'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { AccountPreferencesService } from '@b2b-saas-starter/capabilities/governance/account-preferences'
 import {
@@ -12,11 +13,9 @@ import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
 import {
   EmailDelivery,
   canResendInvitation
-} from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
-import {
-  MembershipChangeRejected,
-  CapabilityUnavailable
-} from '@b2b-saas-starter/capabilities/errors'
+} from '@b2b-saas-starter/email-delivery/email-delivery'
+import { MembershipChangeRejected } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { env } from 'cloudflare:workers'
 import { RateLimiter, makeRateLimiterLayer } from '../rate-limit'
 import { WorkspaceInvitationEmail } from '@b2b-saas-starter/email/templates'
@@ -158,8 +157,7 @@ export async function resendInvitationHandler(
       }
       yield* requirePending(invitation)
       yield* requireUnexpired(invitation)
-      const history = yield* EmailDelivery
-      const latest = yield* history.latestInvitation(invitation.id)
+      const latest = yield* latestInvitationEmailHistory(invitation.id)
       if (!canResendInvitation(latest)) {
         return yield* Effect.fail(
           new CapabilityUnavailable({

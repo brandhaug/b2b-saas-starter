@@ -4,14 +4,16 @@ import { Database } from '@b2b-saas-starter/db/service'
 import { webhookEndpoints } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
-import { CapabilityUnavailable } from '../errors.ts'
+import {
+  CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { bestEffort } from '../internal/best-effort.ts'
 import {
   makeQueuePublisher,
   type QueueSendBinding
 } from '../internal/queue-publisher.ts'
 import { withTraceparent } from '../internal/traceparent.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 /**

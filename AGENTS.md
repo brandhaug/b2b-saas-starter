@@ -12,21 +12,23 @@ For issue/spec implementation, follow the [implement skill](.agents/skills/imple
 
 ## Intent Node Index
 
-| Area              | Intent Node                                                          |
-| ----------------- | -------------------------------------------------------------------- |
-| Web app           | [apps/web/AGENTS.md](apps/web/AGENTS.md)                             |
-| API worker        | [apps/api/AGENTS.md](apps/api/AGENTS.md)                             |
-| Background worker | [apps/background/AGENTS.md](apps/background/AGENTS.md)               |
-| HTTP contract     | [packages/api/AGENTS.md](packages/api/AGENTS.md)                     |
-| Capabilities      | [packages/capabilities/AGENTS.md](packages/capabilities/AGENTS.md)   |
-| Database          | [packages/db/AGENTS.md](packages/db/AGENTS.md)                       |
-| Authentication    | [packages/auth/AGENTS.md](packages/auth/AGENTS.md)                   |
-| Authorization     | [packages/authz/AGENTS.md](packages/authz/AGENTS.md)                 |
-| Email             | [packages/email/AGENTS.md](packages/email/AGENTS.md)                 |
-| Environment       | [packages/env/AGENTS.md](packages/env/AGENTS.md)                     |
-| Observability     | [packages/logger/AGENTS.md](packages/logger/AGENTS.md)               |
-| Typed SDK         | [packages/sdk/AGENTS.md](packages/sdk/AGENTS.md)                     |
-| Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md) |
+| Area              | Intent Node                                                            |
+| ----------------- | ---------------------------------------------------------------------- |
+| Web app           | [apps/web/AGENTS.md](apps/web/AGENTS.md)                               |
+| API worker        | [apps/api/AGENTS.md](apps/api/AGENTS.md)                               |
+| Background worker | [apps/background/AGENTS.md](apps/background/AGENTS.md)                 |
+| HTTP contract     | [packages/api/AGENTS.md](packages/api/AGENTS.md)                       |
+| Billing           | [packages/billing/AGENTS.md](packages/billing/AGENTS.md)               |
+| Email delivery    | [packages/email-delivery/AGENTS.md](packages/email-delivery/AGENTS.md) |
+| Capabilities      | [packages/capabilities/AGENTS.md](packages/capabilities/AGENTS.md)     |
+| Database          | [packages/db/AGENTS.md](packages/db/AGENTS.md)                         |
+| Authentication    | [packages/auth/AGENTS.md](packages/auth/AGENTS.md)                     |
+| Authorization     | [packages/authz/AGENTS.md](packages/authz/AGENTS.md)                   |
+| Email             | [packages/email/AGENTS.md](packages/email/AGENTS.md)                   |
+| Environment       | [packages/env/AGENTS.md](packages/env/AGENTS.md)                       |
+| Observability     | [packages/logger/AGENTS.md](packages/logger/AGENTS.md)                 |
+| Typed SDK         | [packages/sdk/AGENTS.md](packages/sdk/AGENTS.md)                       |
+| Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md)   |
 
 ## Setup
 
@@ -37,7 +39,7 @@ Run `pnpm run check` before committing and after `check:fix`; the pre-commit hoo
 ## Rules
 
 1. Effect v4 typed errors, services, schemas, and HTTP API contracts for application behavior.
-2. Business use cases live in `packages/capabilities`. Route handlers and UI components do not duplicate behavior.
+2. Business use cases live in `packages/capabilities`, with billing and transactional email evidence owned by `packages/billing` and `packages/email-delivery`. Capabilities composes their application dependencies. Route handlers and UI components do not duplicate behavior.
 3. Provider-light local development: an optional provider whose env vars are unset stays inactive instead of failing the app.
 4. Cloudflare-first primitives: Workers, D1, Queues, Email, Turnstile, Workers AI, Alchemy.
 5. Borrow interaction patterns from other products, never their domain language.

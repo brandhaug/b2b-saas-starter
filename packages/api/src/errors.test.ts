@@ -1,4 +1,4 @@
-import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { Option, Schema } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'

@@ -2,7 +2,8 @@ import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 
-import { CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
+import { MembershipChangeRejected } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type CapabilityServices } from '../layers.ts'
 import {
   fakeMemberBinding,

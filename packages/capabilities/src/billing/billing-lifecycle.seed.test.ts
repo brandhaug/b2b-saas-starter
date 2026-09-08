@@ -4,9 +4,13 @@ import { SeedAuditEventLog } from '../governance/audit-event-log.ts'
 import { SeedAccountPreferences } from '../governance/account-preferences.ts'
 import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
-import { Billing } from './billing.ts'
-import { SeedBilling, type SeedProviderSubscriptionFixture } from './billing.seed.ts'
+import { Billing } from '@b2b-saas-starter/billing/billing'
+import {
+  SeedBilling,
+  type SeedProviderSubscriptionFixture
+} from '@b2b-saas-starter/billing/billing.seed'
 import { initialSnapshot, lifecycleContract } from './billing-lifecycle.contract.ts'
+import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
 
 it.effect('Seed reconciles the full lifecycle and enforces deadlines on reads', () =>
   Effect.gen(function* () {
@@ -21,8 +25,8 @@ it.effect('Seed reconciles the full lifecycle and enforces deadlines on reads', 
       Layer.provide(audit)
     )
     const billingLayer = SeedBilling({ stripeConfigured: true, providerState }).pipe(
-      Layer.provide(audit),
-      Layer.provide(feed)
+      Layer.provide(BillingAuditLayer.pipe(Layer.provide(audit))),
+      Layer.provide(BillingNotificationLayer.pipe(Layer.provide(feed)))
     )
     yield* Effect.gen(function* () {
       const billing = yield* Billing

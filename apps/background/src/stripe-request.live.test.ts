@@ -1,6 +1,6 @@
 import { billingProviderEvents } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
-import { type SeatSyncQueueBinding } from '@b2b-saas-starter/capabilities/billing/seat-sync'
+import { type SeatSyncQueueBinding } from '@b2b-saas-starter/billing/seat-sync'
 import { Effect } from 'effect'
 import { eq } from 'drizzle-orm'
 import { expect, layer } from '@effect/vitest'
@@ -140,7 +140,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Stripe webhook ingress', (
               workspaceId: 'wrk_live',
               subscription: {
                 customerId: 'cus_live_ingress',
-                subscriptionId: 'sub_live_ingress'
+                subscriptionId: 'sub_live_ingress',
+                subscriptionItemId: 'si_live_ingress',
+                quantity: 3
               }
             })
           )

@@ -16,7 +16,7 @@ import {
 import { clampPageLimit, cutKeysetPage, type Page } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { decodeAuditEventMetadata } from './audit-event-metadata.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 

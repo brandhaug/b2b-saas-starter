@@ -10,7 +10,7 @@ Billing is an **Optional Provider** built on Stripe. Plan display, seat usage, a
 
 ## What exists where
 
-- **Plan catalog**: `packages/capabilities/src/billing/plan-catalog.ts` owns the `PLANS` constant, each plan's pricing shape (`flat` or `per_seat`), and its entitlement ceilings. The workspace billing page, the members page's seat prompt, and the entitlement gate read this one list. As rendered from the catalog:
+- **Plan catalog**: `packages/billing/src/plan-catalog.ts` owns the `PLANS` constant, each plan's pricing shape (`flat` or `per_seat`), and its entitlement ceilings. The workspace billing page, the members page's seat prompt, and the entitlement gate read this one list. As rendered from the catalog:
 
   | Plan       | Price                           | Billing shape | Entitlement ceilings              | Included seats | How you get on it             |
   | ---------- | ------------------------------- | ------------- | --------------------------------- | -------------- | ----------------------------- |

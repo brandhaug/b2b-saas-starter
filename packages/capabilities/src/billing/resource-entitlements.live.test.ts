@@ -1,4 +1,4 @@
-import { WorkspaceContext } from '../workspace-context.ts'
+import { WorkspaceContext, testWorkspaceContext } from '../workspace-context.ts'
 import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
 import { Deferred, Effect, Layer, Ref } from 'effect'
 import { expect, layer } from '@effect/vitest'
@@ -19,7 +19,7 @@ import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { LiveApiTokenRegistry } from '../developer-platform/api-token-registry.live.ts'
 import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
 import { failureTag } from '../internal/failure-tag.ts'
-import { ResourceEntitlements } from './resource-entitlements.ts'
+import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import {
   resourceEntitlementsContract,
   resourceAdmissionContract,
@@ -110,10 +110,26 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             }
             const foreignToken = yield* tokens
               .create({ name: 'foreign credential', scopes: ['read'] })
-              .pipe(Effect.provideService(WorkspaceContext, foreignContext))
+              .pipe(
+                Effect.provide(
+                  testWorkspaceContext(
+                    foreignContext.workspace,
+                    foreignContext.actor,
+                    foreignContext.actorType
+                  )
+                )
+              )
             const foreignEndpoint = yield* endpoints
               .create({ url: 'https://example.com/foreign', events: [] })
-              .pipe(Effect.provideService(WorkspaceContext, foreignContext))
+              .pipe(
+                Effect.provide(
+                  testWorkspaceContext(
+                    foreignContext.workspace,
+                    foreignContext.actor,
+                    foreignContext.actorType
+                  )
+                )
+              )
             expect(
               failureTag(
                 yield* Effect.exit(

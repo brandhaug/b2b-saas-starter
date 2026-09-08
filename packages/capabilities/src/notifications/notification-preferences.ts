@@ -3,14 +3,17 @@ import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Ref, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 
-import { type CapabilityUnavailable } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import {
   AuditEventLog,
   type RecordAuditEventInput
 } from '../governance/audit-event-log.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+
 import {
   NOTIFICATION_KINDS,
   NotificationChannel,

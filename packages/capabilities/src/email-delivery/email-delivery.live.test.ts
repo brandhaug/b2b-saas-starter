@@ -1,7 +1,7 @@
 import { expect, layer } from '@effect/vitest'
 import { Effect } from 'effect'
-import { emailDeliveryContractCases } from './email-delivery.contract.ts'
-import { LiveEmailDelivery } from './email-delivery.live.ts'
+import { emailDeliveryContractCases } from '@b2b-saas-starter/email-delivery/email-delivery.contract'
+import { LiveEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.live'
 import { LIVE_SUITE_TIMEOUT, TestDatabase } from '../testing/live-harness.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live email delivery', (it) => {

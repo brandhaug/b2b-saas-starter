@@ -2,7 +2,8 @@ import { ssoProvisionedRoles } from '@b2b-saas-starter/db/enums'
 import { type JsonObject } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, type Option, Schema } from 'effect'
 
-import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
+import { MembershipChangeRejected } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type WorkspaceContext } from '../workspace-context.ts'
 import { type AuditEventType, type AuditTargetType } from './audit-event-taxonomy.ts'
 

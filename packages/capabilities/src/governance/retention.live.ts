@@ -1,7 +1,7 @@
 import { RawD1, type D1Binding } from '@b2b-saas-starter/db/service'
 import { Clock, DateTime, Effect, Layer, Result } from 'effect'
 
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   emptyCounts,
   Retention,

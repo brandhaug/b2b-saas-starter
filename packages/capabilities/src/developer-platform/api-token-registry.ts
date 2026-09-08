@@ -4,10 +4,10 @@ import { Context, DateTime, Schema, type Effect } from 'effect'
 import {
   type AuthorizationDenied,
   type InvalidApiTokenInput,
-  type ApiTokenNotRotatable,
-  type CapabilityUnavailable,
-  type PlanLimitExceeded
+  type ApiTokenNotRotatable
 } from '../errors.ts'
+import { type PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { hashSha256 } from '../crypto.ts'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'

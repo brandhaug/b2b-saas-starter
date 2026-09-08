@@ -1,6 +1,6 @@
 import { type AuthEmailSender, type OneTimeCodePurpose } from '@b2b-saas-starter/auth'
 import { AccountPreferencesService } from '@b2b-saas-starter/capabilities/governance/account-preferences'
-import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'

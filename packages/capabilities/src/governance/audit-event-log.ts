@@ -6,7 +6,7 @@ import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 
 import { AuditEventMetadata, decodeAuditEventMetadata } from './audit-event-metadata.ts'
 
-import { type CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   seedKeysetPage,
   type KeysetCursorPosition,

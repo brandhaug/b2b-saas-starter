@@ -11,9 +11,9 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
   resourceEntitlementSummary,
   STARTER_PLAN
-} from '@b2b-saas-starter/capabilities/billing/plan-catalog'
-import { type ResourceSelectionInput } from '@b2b-saas-starter/capabilities/billing/resource-entitlements'
-import { type BillingLifecycle } from '@b2b-saas-starter/capabilities/billing/billing'
+} from '@b2b-saas-starter/billing/plan-catalog'
+import { type ResourceSelectionInput } from '@b2b-saas-starter/billing/resource-entitlements'
+import { type BillingLifecycle } from '@b2b-saas-starter/billing/billing'
 import { WorkspaceBillingPage } from './workspace-billing-page'
 import {
   type ReconcileCheckout,

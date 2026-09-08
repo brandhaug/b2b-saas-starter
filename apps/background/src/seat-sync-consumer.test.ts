@@ -1,15 +1,10 @@
 import {
   Billing,
-  type ProcessProviderEventInput,
-  type ProcessProviderEventResult,
   type ReconcileWorkspaceInput,
   type SeatSyncResult
-} from '@b2b-saas-starter/capabilities/billing/billing'
-import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
-import {
-  BillingQueueMessage,
-  SeatSyncQueueMessage
-} from '@b2b-saas-starter/capabilities/billing/seat-sync'
+} from '@b2b-saas-starter/billing/billing'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { SeatSyncQueueMessage } from '@b2b-saas-starter/billing/seat-sync'
 import {
   AuditEventLog,
   type RecordAuditEventInput
@@ -37,8 +32,7 @@ type SyncCall = { readonly workspaceId: string; readonly reason: string }
 function stubBilling(
   calls: Array<SyncCall>,
   result: () => Effect.Effect<SeatSyncResult, CapabilityUnavailable>,
-  reconciles: Array<ReconcileWorkspaceInput> = [],
-  providerEvents: Array<string> = []
+  reconciles: Array<ReconcileWorkspaceInput> = []
 ) {
   return Layer.succeed(Billing)({
     configured: Effect.succeed(false),
@@ -47,14 +41,7 @@ function stubBilling(
     displayedPlans: Effect.die('unused'),
     currentPlan: Effect.die('not used here'),
     synchronizationStatus: Effect.die('not used here'),
-    processProviderEvent: (input: ProcessProviderEventInput) =>
-      Effect.sync(() => {
-        providerEvents.push(input.providerEventId)
-        return {
-          outcome: 'applied',
-          providerEventId: input.providerEventId
-        } satisfies ProcessProviderEventResult
-      }),
+    processProviderEvent: () => Effect.die('not used here'),
     recordProviderEvent: () => Effect.die('not used here'),
     reconcileWorkspace: (input) =>
       Effect.sync(() => {
@@ -86,7 +73,7 @@ function run(
 ) {
   return Effect.map(
     processSeatSyncMessage(
-      readDelivery(BillingQueueMessage, { id: 'qmsg_seat', body, attempts: 0 })
+      readDelivery(SeatSyncQueueMessage, { id: 'qmsg_seat', body, attempts: 0 })
     ).pipe(Effect.provide(Layer.mergeAll(billing, stubAudit(audit)))),
     (outcome) => ({ outcome })
   )
@@ -150,25 +137,6 @@ describe('processSeatSyncMessage', () => {
       )
       expect(outcome).toBe<DeliveryOutcome>('ack')
       expect(calls).toEqual([{ workspaceId: 'wrk_starter', reason: 'member_added' }])
-    })
-  )
-
-  it.effect('processes a durable provider event message', () =>
-    Effect.gen(function* () {
-      const providerEvents: Array<string> = []
-      const { outcome } = yield* run(
-        {
-          kind: 'billing.provider_event',
-          providerEventId: 'evt_queue',
-          eventType: 'customer.subscription.updated',
-          providerCreatedAt: '2026-09-07T00:00:00.000Z',
-          workspaceId: 'wrk_starter',
-          subscription: { customerId: 'cus_starter', subscriptionId: 'sub_starter' }
-        },
-        stubBilling([], () => Effect.die('seat sync must not run'), [], providerEvents)
-      )
-      expect(outcome).toBe<DeliveryOutcome>('ack')
-      expect(providerEvents).toEqual(['evt_queue'])
     })
   )
 

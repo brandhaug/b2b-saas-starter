@@ -1,9 +1,7 @@
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import {
-  CapabilityUnavailable,
-  WorkspaceNotFound
-} from '@b2b-saas-starter/capabilities/errors'
+import { WorkspaceNotFound } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
   WORKSPACE_EXPORT_RETENTION_DAYS as CAPABILITY_RETENTION_DAYS,

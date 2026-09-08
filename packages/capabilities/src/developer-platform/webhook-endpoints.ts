@@ -1,6 +1,7 @@
 import { Context, Effect, Schema } from 'effect'
 
-import { type CapabilityUnavailable, type PlanLimitExceeded } from '../errors.ts'
+import { type PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Workspace } from '../governance/workspace-identity.ts'
 import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
 import { newCapabilityId } from '../internal/ids.ts'

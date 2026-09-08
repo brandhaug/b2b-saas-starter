@@ -9,7 +9,8 @@
  * every one of them can depend on, so the suppressions live here alone (see
  * the single-file override in `lint.config.ts`).
  *
- * It has no dependencies, not even `effect`: it is a string function.
+ * This entry point is a dependency-free string function. Typed Effect errors
+ * live in the separate `./capability` entry point.
  */
 
 /**

@@ -2,9 +2,13 @@ import { Database } from '@b2b-saas-starter/db/service'
 import { workspaces } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Option, Ref, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
-import { type CapabilityUnavailable, WorkspaceChangeRejected } from '../errors.ts'
+import { WorkspaceChangeRejected } from '../errors.ts'
+import {
+  type CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'

@@ -9,7 +9,7 @@ import {
   NotificationPreferences,
   type NotificationPreference
 } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
-import { type CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect } from 'effect'
 
 import { runCapabilities } from '../capabilities'

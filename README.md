@@ -46,7 +46,9 @@ apps/
   api/          Cloudflare Worker — public REST + MCP capability interfaces
   background/   Cloudflare Worker — webhook queue consumer
 packages/
-  capabilities/ Effect application layer (workspaces, webhooks, audit, ...)
+  capabilities/ Workspace use cases and application composition
+  billing/      Subscription lifecycle, Stripe, seats, entitlements
+  email-delivery/ Send claims and delivery evidence
   db/           Drizzle schema for the shared D1 database
   auth/         Better Auth factory
   authz/        Permission statements, static roles, and the requirePermission guard

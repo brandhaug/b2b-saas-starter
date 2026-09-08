@@ -1,6 +1,6 @@
 import { Context, Schema, type Effect } from 'effect'
 
-import { type CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
 
 /**

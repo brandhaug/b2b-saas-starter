@@ -1,6 +1,6 @@
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { failureTag } from '../internal/failure-tag.ts'
-import { Array, Effect, Exit, Layer } from 'effect'
+import { Effect, Layer } from 'effect'
 import { expect, it } from '@effect/vitest'
 import { SeedAuditEventLog, AuditEventLog } from '../governance/audit-event-log.ts'
 import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
@@ -8,24 +8,22 @@ import { SeedNotificationPreferences } from '../notifications/notification-prefe
 import { SeedAccountPreferences } from '../governance/account-preferences.ts'
 import { SeedApiTokenRegistry } from '../developer-platform/api-token-registry.seed.ts'
 import { SeedWebhookEndpoints } from '../developer-platform/webhook-endpoints.seed.ts'
-import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
 import { SeedWebhookPublisher } from '../developer-platform/webhook-publisher.ts'
 import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
 import { SeedLayer } from '../layers.ts'
 import { seedWorkspaceRecord } from '../seed-fixture.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
-import { SeedBilling } from './billing.seed.ts'
-import { type SubscriptionState } from './billing.ts'
-import { ResourceEntitlements } from './resource-entitlements.ts'
-import { SeedResourceEntitlements } from './resource-entitlements.seed.ts'
+import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
+import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
+import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
+import { SeedResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.seed'
 import {
   resourceEntitlementsContract,
-  resourceAdmissionContract,
   resourceDeadlineCases
 } from './resource-entitlements.contract.ts'
 
 function seedFixture(
-  state: Partial<SubscriptionState>,
+  state: (typeof resourceDeadlineCases)[number]['state'],
   audit: Layer.Layer<AuditEventLog> = SeedAuditEventLog([])
 ) {
   const feed = SeedNotificationFeed([]).pipe(
@@ -46,8 +44,12 @@ function seedFixture(
         ...state
       }
     ]
-  }).pipe(Layer.provide(audit), Layer.provide(feed))
+  }).pipe(
+    Layer.provide(BillingAuditLayer.pipe(Layer.provide(audit))),
+    Layer.provide(BillingNotificationLayer.pipe(Layer.provide(feed)))
+  )
   const selection = SeedResourceEntitlements().pipe(
+    Layer.provide(BillingAuditLayer),
     Layer.provide(billing),
     Layer.provide(audit)
   )
@@ -72,52 +74,6 @@ for (const scenario of resourceDeadlineCases) {
     )
   )
 }
-it.effect(
-  'Seed resource admission releases token states and retains disabled webhook slots',
-  () =>
-    resourceAdmissionContract(expect).pipe(
-      Effect.provide(
-        seedFixture({
-          status: 'active',
-          paymentVerified: true,
-          lastPaymentAt: '2026-09-01T00:00:00.000Z',
-          subscribedPlanId: 'starter'
-        })
-      )
-    )
-)
-it.effect(
-  'Seed webhook admission serializes concurrent creates at the Starter cap',
-  () =>
-    Effect.gen(function* () {
-      const endpoints = yield* WebhookEndpoints
-      const outcomes = yield* Effect.all(
-        [1, 2].map((id) =>
-          Effect.exit(
-            endpoints.create({
-              url: `https://example.com/concurrent-${id}`,
-              events: []
-            })
-          )
-        ),
-        { concurrency: 'unbounded' }
-      )
-      const successful = outcomes.filter(Exit.isSuccess)
-      const failed = outcomes.filter(Exit.isFailure)
-      expect(successful).toHaveLength(1)
-      expect(failed).toHaveLength(1)
-      expect(failureTag(Array.getUnsafe(failed, 0))).toBe('PlanLimitExceeded')
-    }).pipe(
-      Effect.provide(
-        seedFixture({
-          status: 'active',
-          paymentVerified: true,
-          lastPaymentAt: '2026-09-01T00:00:00.000Z',
-          subscribedPlanId: 'starter'
-        })
-      )
-    )
-)
 it.effect('full SeedLayer exposes the selection that rotation changes', () =>
   Effect.gen(function* () {
     const tokens = yield* ApiTokenRegistry

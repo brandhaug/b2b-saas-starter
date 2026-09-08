@@ -1,16 +1,16 @@
 import { UiError } from './ui-error'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
-  CapabilityUnavailable,
   AccountPreferencesRejected,
   MembershipChangeRejected,
-  PlanLimitExceeded,
   UserAdminRejected,
   WorkspaceSuspended,
   WorkspaceSuspensionUnauthorized,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
-import { billingOptionsFromEnv } from '@b2b-saas-starter/capabilities/billing/billing-config'
+import { PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { billingOptionsFromEnv } from '@b2b-saas-starter/billing/billing-config'
 import {
   selectCapabilitiesLayer,
   selectWorkspaceLayer,
@@ -18,7 +18,7 @@ import {
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
   type ActorRef,
-  type WorkspaceContext
+  type WorkspaceServices
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
 import { env as cloudflareEnv } from 'cloudflare:workers'
@@ -152,7 +152,7 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
  */
 export async function runWorkspaceCapabilities<A, E>(
   workspaceSlug: string,
-  effect: Effect.Effect<A, E, CapabilityServices | WorkspaceContext | Scope.Scope>,
+  effect: Effect.Effect<A, E, CapabilityServices | WorkspaceServices | Scope.Scope>,
   actor?: ActorRef,
   bindings?: CapabilityBindings
 ): Promise<A> {

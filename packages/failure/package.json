@@ -3,12 +3,16 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./capability": "./src/capability.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "vp test run --passWithNoTests"
+  },
+  "dependencies": {
+    "effect": "catalog:"
   },
   "devDependencies": {
     "typescript": "catalog:",

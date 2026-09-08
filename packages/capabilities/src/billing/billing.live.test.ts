@@ -8,7 +8,7 @@ import {
   LIVE_SUITE_TIMEOUT,
   TestDatabase
 } from '../testing/live-harness.ts'
-import { Billing } from './billing.ts'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live billing', (it) => {
   describe('live billing', () => {

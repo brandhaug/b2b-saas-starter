@@ -1,4 +1,4 @@
-import { WorkspaceContext } from '../workspace-context.ts'
+import { WorkspaceContext, testWorkspaceContext } from '../workspace-context.ts'
 import { Array, Effect, Layer } from 'effect'
 import { expect, layer } from '@effect/vitest'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -12,8 +12,9 @@ import {
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
 import { LiveApiTokenRegistry } from '../developer-platform/api-token-registry.live.ts'
-import { ResourceEntitlements } from './resource-entitlements.ts'
-import { LiveResourceEntitlements } from './resource-entitlements.live.ts'
+import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
+import { LiveResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.live'
+import { BillingAuditLayer } from '../billing-adapters.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'selection and rotation contention',
@@ -51,7 +52,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                       })
                     }
                     return yield* audit.prepareRecord(input)
-                  }).pipe(Effect.provideService(WorkspaceContext, ctx), Effect.orDie)
+                  }).pipe(
+                    Effect.provide(
+                      testWorkspaceContext(ctx.workspace, ctx.actor, ctx.actorType)
+                    ),
+                    Effect.orDie
+                  )
               })
             )
             yield* Effect.gen(function* () {
@@ -69,7 +75,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(new Set((yield* selection.getSelection()).apiTokenIds)).toEqual(
               new Set([b.id, c.id])
             )
-          }),
+          }).pipe(Effect.provide(BillingAuditLayer)),
           { userId: 'usr_owner' }
         )
     )
@@ -106,7 +112,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                       })
                     }
                     return yield* audit.prepareRecord(input)
-                  }).pipe(Effect.provideService(WorkspaceContext, ctx), Effect.orDie)
+                  }).pipe(
+                    Effect.provide(
+                      testWorkspaceContext(ctx.workspace, ctx.actor, ctx.actorType)
+                    ),
+                    Effect.orDie
+                  )
               })
             )
             const saved = yield* Effect.gen(function* () {
@@ -133,7 +144,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(new Set((yield* selection.getSelection()).apiTokenIds)).toEqual(
               new Set([replacement.id, c.id])
             )
-          }),
+          }).pipe(Effect.provide(BillingAuditLayer)),
           { userId: 'usr_owner' }
         )
     )

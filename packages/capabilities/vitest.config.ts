@@ -5,10 +5,16 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text-summary'],
-      include: ['src/**/*.ts'],
+      allowExternal: true,
+      include: [
+        'src/**/*.ts',
+        '../billing/src/**/*.ts',
+        '../email-delivery/src/**/*.ts'
+      ],
+      // Billing and email-delivery retain their Live integration tests here.
       // `src/testing/**` is the live suites' D1 fixture and fake plugin
       // bindings — test infrastructure, like the `*.test.ts` files it serves.
-      exclude: ['src/**/*.test.ts', 'src/testing/**'],
+      exclude: ['**/*.test.ts', 'src/testing/**'],
       // Ratchet, not target: set just below current coverage so CI fails on
       // decay. Raise alongside new tests; never lower to make a build pass.
       thresholds: {

@@ -61,7 +61,7 @@ type WebBindingTypes = {
   // membership mutations publish nothing and seat sync heals on the next
   // mutation or provider webhook (CLAUDE.md rule 3).
   readonly BILLING_QUEUE: import(
-    '@b2b-saas-starter/capabilities/billing/seat-sync'
+    '@b2b-saas-starter/billing/seat-sync'
   ).SeatSyncQueueBinding
 } & Readonly<
   Record<

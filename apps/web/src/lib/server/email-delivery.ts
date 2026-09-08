@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { type EmailDeliveryRecord } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
+import { type EmailDeliveryRecord } from '@b2b-saas-starter/email-delivery/email-delivery'
 
 export type EmailDeliveryRow = EmailDeliveryRecord & {
   readonly unconfirmed: boolean

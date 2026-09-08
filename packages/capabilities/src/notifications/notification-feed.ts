@@ -1,7 +1,7 @@
 import { Context, type Effect, Schema } from 'effect'
 import { type SQL } from 'drizzle-orm'
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
-import { type CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext, type Actor } from '../workspace-context.ts'
 import { type NotificationEmailQueueBinding } from './notification-email-queue.ts'

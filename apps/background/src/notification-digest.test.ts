@@ -5,7 +5,7 @@ import {
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { SeedNotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import { SeedEmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery.seed'
+import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
 import {
   WorkspaceSuspended,
   WorkspaceSuspensionService

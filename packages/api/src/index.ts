@@ -9,13 +9,13 @@ import {
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import {
-  CapabilityUnavailable,
   InvalidApiTokenInput,
   ApiTokenNotRotatable,
   PlanLimitExceeded,
   WorkspaceSuspended,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   CreateWebhookEndpointPayload,
   UpdateWebhookEndpointPayload,

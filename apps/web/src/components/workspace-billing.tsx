@@ -1,7 +1,7 @@
 import {
   type BillingLifecycle,
   type BillingSynchronizationStatus
-} from '@b2b-saas-starter/capabilities/billing/billing'
+} from '@b2b-saas-starter/billing/billing'
 import { Check, Minus, ExternalLink } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -11,8 +11,8 @@ import { Label } from '@/components/ui/label'
 import {
   type Plan,
   type ResourceEntitlementSummary
-} from '@b2b-saas-starter/capabilities/billing/plan-catalog'
-import { type ResourceSelectionInput } from '@b2b-saas-starter/capabilities/billing/resource-entitlements'
+} from '@b2b-saas-starter/billing/plan-catalog'
+import { type ResourceSelectionInput } from '@b2b-saas-starter/billing/resource-entitlements'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
 import { useServerAction } from '@/hooks/use-server-action'

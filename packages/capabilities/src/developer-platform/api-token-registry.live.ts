@@ -1,9 +1,12 @@
-import { prepareTokenSelectionRotation } from '../billing/resource-entitlements.live.ts'
+import { prepareTokenSelectionRotation } from '@b2b-saas-starter/billing/resource-entitlements.live'
+import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 import { apiTokens, workspaces } from '@b2b-saas-starter/db/schema'
 import { Database, type BatchStatement, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { and, desc, eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm'
 
+import { assertWithinPlanLimitFor } from '@b2b-saas-starter/billing/resource-admission'
 import { ApiTokenNotRotatable, AuthorizationDenied } from '../errors.ts'
 import {
   mintApiToken,
@@ -14,7 +17,7 @@ import {
 import { newCapabilityId } from '../internal/ids.ts'
 import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
+import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import {
@@ -23,7 +26,7 @@ import {
 } from '../governance/security-recovery-evidence.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
-import { ResourceEntitlements } from '../billing/resource-entitlements.ts'
+import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import {
   ApiTokenRegistry,
   hashApiToken,
@@ -68,11 +71,12 @@ export function LiveApiTokenRegistry(
 ): Layer.Layer<
   ApiTokenRegistry,
   never,
-  Database | RawD1 | AuditEventLog | WebhookPublisher | ResourceEntitlements
+  Database | RawD1 | Billing | AuditEventLog | WebhookPublisher | ResourceEntitlements
 > {
   return Layer.effect(ApiTokenRegistry)(
     Effect.gen(function* () {
       const db = yield* Database
+      const billing = yield* Billing
       const audit = yield* AuditEventLog
       const publisher = yield* WebhookPublisher
       const entitlements = yield* ResourceEntitlements
@@ -139,7 +143,24 @@ export function LiveApiTokenRegistry(
           // Entitlement gate: the workspace's plan caps token count. The
           // rule and the counting both live in the billing capability, so no
           // caller can forget the gate.
-          yield* entitlements.admitCreation({ resource: 'api_token' })
+          yield* assertWithinPlanLimitFor({
+            resource: 'api_token',
+            db,
+            capability: 'api-token-registry',
+            table: apiTokens,
+            where: and(
+              eq(apiTokens.workspaceId, ctx.workspace.id),
+              isNull(apiTokens.revokedAt),
+              isNull(apiTokens.replacedByTokenId),
+              or(
+                isNull(apiTokens.expiresAt),
+                gt(apiTokens.expiresAt, DateTime.formatIso(now))
+              )
+            )
+          }).pipe(
+            Effect.provideService(Billing, billing),
+            Effect.provideService(BillingWorkspaceContext, ctx)
+          )
           const token = mintApiToken()
           const createdAt = DateTime.formatIso(now)
           const row = {

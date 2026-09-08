@@ -1,7 +1,9 @@
 import { RawD1 } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
-import { orUnavailable } from '../internal/unavailable.ts'
-import { type CapabilityUnavailable } from '../errors.ts'
+import {
+  orUnavailable,
+  type CapabilityUnavailable
+} from '@b2b-saas-starter/failure/capability'
 
 const HealthCount = Schema.Struct({ count: Schema.Number })
 const decodeCount = Schema.decodeUnknownEffect(HealthCount)

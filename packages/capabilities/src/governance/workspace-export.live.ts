@@ -3,11 +3,13 @@ import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Option, Result } from 'effect'
 import { and, desc, eq } from 'drizzle-orm'
 
-import { CapabilityUnavailable } from '../errors.ts'
+import {
+  CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { randomHex } from '../crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { makeQueuePublisher } from '../internal/queue-publisher.ts'
-import { orUnavailable } from '../internal/unavailable.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'

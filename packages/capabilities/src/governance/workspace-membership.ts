@@ -1,12 +1,16 @@
 import { Context, Effect, Layer, Option, Ref, Schema } from 'effect'
-import { type CapabilityUnavailable, MembershipChangeRejected } from '../errors.ts'
+import { MembershipChangeRejected } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   seedKeysetPage,
   type ListPageInput,
   type Page
 } from '../internal/keyset-cursor.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
-import { publishSeatSyncWith, SeatSyncPublisher } from '../billing/seat-sync.ts'
+import {
+  publishSeatSyncWith,
+  SeatSyncPublisher
+} from '@b2b-saas-starter/billing/seat-sync'
 import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
 import {
   fabricateSeedMember,

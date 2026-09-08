@@ -11,7 +11,7 @@
 - `SendEmailBinding` is structural, not workers-types' `SendEmail`; both worker env declarations name it, so the shapes never assign.
 - `NOTIFICATION_EMAIL_TEMPLATES` is `satisfies`-pinned to `NotificationKind`: a new DB enum kind is a type error until a template exists. Never loosen it to an index signature.
 - Every template needs a `PreviewProps` static: the tests and react-email's preview server (`pnpm -C packages/email dev`) read it.
-- `./tracked` adapts dispatcher results and errors into sanitized outcomes for [`EmailDelivery.trackedAttempt`](../capabilities/src/email-delivery/email-delivery.AGENTS.md). The capability owns claims, persisted outcomes and metrics; keep that sequencing out of transport adapters.
+- `./tracked` adapts dispatcher results and errors into sanitized outcomes for [`EmailDelivery.trackedAttempt`](../email-delivery/AGENTS.md). The email-delivery package owns claims, persisted outcomes and metrics; keep that sequencing out of transport adapters.
 
 ## Usage Patterns
 

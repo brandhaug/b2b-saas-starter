@@ -1,7 +1,7 @@
 import { failureMessage } from '@b2b-saas-starter/failure'
 import { Effect, Option, Schema } from 'effect'
 
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 /**
  * The only shape this starter reads off a rejected Better Auth plugin call.

@@ -1,7 +1,8 @@
 import { workspaceExportStatuses } from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Effect, Option, Schema } from 'effect'
 
-import { type CapabilityUnavailable, type WorkspaceSuspended } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { type WorkspaceSuspended } from '../errors.ts'
 import { hmacSha256Hex } from '../crypto.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 

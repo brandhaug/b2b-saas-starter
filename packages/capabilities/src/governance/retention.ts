@@ -1,5 +1,5 @@
 import { Context, type Effect, Schema } from 'effect'
-import { type CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 export const RetentionPolicy = Schema.Struct({
   version: Schema.String,

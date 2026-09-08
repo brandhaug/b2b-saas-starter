@@ -1,5 +1,5 @@
 import { DateTime, Effect } from 'effect'
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'

@@ -1,11 +1,11 @@
-import { assertWithinPlanLimit } from './resource-admission.ts'
+import { assertWithinPlanLimit } from '@b2b-saas-starter/billing/resource-admission'
 import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
 import { SeedAccountPreferences } from '../governance/account-preferences.ts'
 import { Effect, Layer, Ref, Result } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
-import { CapabilityUnavailable } from '../errors.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   AuditEventLog,
   type RecordAuditEventInput
@@ -13,12 +13,13 @@ import {
 import { makeSeedRoster } from '../governance/workspace-membership.ts'
 import { type Member } from '../governance/workspace-identity.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
-import { Billing } from './billing.ts'
+import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 import {
   SeedBilling,
   type SeedProviderSubscriptionFixture,
   type SeedSubscriptionFixture
-} from './billing.seed.ts'
+} from '@b2b-saas-starter/billing/billing.seed'
 import {
   planById,
   PLANS,
@@ -27,8 +28,11 @@ import {
   EMPTY_RESOURCE_SELECTION,
   seatUsage,
   STARTER_PLAN
-} from './plan-catalog.ts'
-import { subscriptionLinkForStripeEvent, verifyStripeSignature } from './stripe.ts'
+} from '@b2b-saas-starter/billing/plan-catalog'
+import {
+  subscriptionLinkForStripeEvent,
+  verifyStripeSignature
+} from '@b2b-saas-starter/billing/stripe'
 
 /**
  * A recording in-memory `AuditEventLog`: the seed audit layer's writes are a
@@ -88,8 +92,11 @@ function billingFixture(options?: {
             }
           })),
           workspacePlans: { wrk_billing: options?.planId ?? 'team' },
-          roster
-        }).pipe(Layer.provide(auditLayer), Layer.provide(feed)),
+          members: Ref.get(roster)
+        }).pipe(
+          Layer.provide(BillingAuditLayer.pipe(Layer.provide(auditLayer))),
+          Layer.provide(BillingNotificationLayer.pipe(Layer.provide(feed)))
+        ),
         auditLayer,
         testWorkspaceContext({
           id: 'wrk_billing',

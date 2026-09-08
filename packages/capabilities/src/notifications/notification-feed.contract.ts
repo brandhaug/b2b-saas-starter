@@ -1,6 +1,6 @@
 import { Effect } from 'effect'
 import { type ContractExpect } from '../governance/contract-expect.ts'
-import { type CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { NotificationFeed, type SeedNotification } from './notification-feed.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
