@@ -1,6 +1,6 @@
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 import { failureMessage } from '@b2b-saas-starter/failure'
-import { render } from '@react-email/render'
+import { render, toPlainText } from 'react-email'
 import { Context, Effect, Layer, Option, Schema } from 'effect'
 import { type ReactElement } from 'react'
 
@@ -97,8 +97,8 @@ function renderMessage(
       try: () => render(message.element),
       catch: (cause) => new EmailRenderError({ message: failureMessage(cause) })
     })
-    const text = yield* Effect.tryPromise({
-      try: () => render(message.element, { plainText: true }),
+    const text = yield* Effect.try({
+      try: () => toPlainText(html),
       catch: (cause) => new EmailRenderError({ message: failureMessage(cause) })
     })
     return { html, text }

@@ -16,7 +16,7 @@ import {
   EmailSendError,
   type EmailMessage
 } from '@b2b-saas-starter/email'
-import { render } from '@react-email/render'
+import { render } from 'react-email'
 import { describe, expect, it } from '@effect/vitest'
 import { Duration, Effect, Layer } from 'effect'
 import { TestClock } from 'effect/testing'

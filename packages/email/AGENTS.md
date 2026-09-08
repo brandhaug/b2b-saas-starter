@@ -22,7 +22,7 @@
 ## Anti-patterns
 
 - Never read `EMAIL` or `CLOUDFLARE_EMAIL_FROM` at a call site, or call `render` or a mail API outside `EmailDispatcher`.
-- Never import `./templates` or `@react-email/*` from browser-bound code; `apps/web/scripts/assert-client-boundary.mjs` fails the build.
+- Keep `./templates`, `react-email`, and `@react-email/*` in server code; `apps/web/scripts/assert-client-boundary.mjs` guards the browser bundle.
 
 ## Dependencies & Edges
 

@@ -12,15 +12,6 @@ allowBuilds:
   msgpackr-extract: true
   workerd: true
 
-auditConfig:
-  ignoreGhsas:
-    # GHSA-jmr9-qjv8-65gv (extract-zip symlink path traversal) has no fixed
-    # release upstream (2.0.1 is both latest and vulnerable) — pulled in
-    # transitively via alchemy's Cloudflare runtime tooling, which runs at
-    # deploy time only, not in shipped Worker code. Re-check when extract-zip
-    # cuts a patch.
-    - GHSA-jmr9-qjv8-65gv
-
 catalog:
   '@babel/core': 8.0.1
   '@base-ui/react': 1.8.0
@@ -42,8 +33,6 @@ catalog:
   '@mdx-js/rollup': 3.1.1
   '@oxlint/plugins': 1.80.0
   '@playwright/test': 1.62.1
-  '@react-email/components': 1.0.12
-  '@react-email/render': 2.1.0
   '@react-email/ui': 6.9.3
   '@rolldown/plugin-babel': 0.2.3
   '@sentry/cloudflare': 10.73.0
@@ -60,7 +49,6 @@ catalog:
   '@tanstack/react-table': 9.2.3
   '@testing-library/dom': 10.4.1
   '@testing-library/react': 16.3.3
-  '@types/babel__core': 7.20.5
   '@types/mdx': 2.0.14
   '@types/node': 26.4.0
   '@types/react': 19.2.18
@@ -133,6 +121,9 @@ overrides:
   # only has to resolve and export `parse`.
   toml: 5.0.0
   undici: 7.29.0
+  # GHSA-5qjj-4xww-7phc: Alchemy's Prisma dev tool pins vulnerable 1.2.0.
+  # Remove when @prisma/dev updates its own dependency to >=1.4.2.
+  '@prisma/dev>valibot': 1.4.2
   ws: 8.21.0
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
