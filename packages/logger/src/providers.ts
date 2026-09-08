@@ -30,6 +30,12 @@ import { type CloudflareOptions } from '@sentry/cloudflare'
 
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 
+import {
+  diagnosticFields,
+  diagnosticLabel,
+  sentryPrivacyOptions
+} from './sanitization.ts'
+
 import { addWideEventSink, type WideEventRecord } from './wide-event.ts'
 
 /** Env fields the vendor glue reads. All optional; absence disables the vendor. */
@@ -56,7 +62,7 @@ export function makeSentryOptions(
   const release = env.SERVICE_VERSION ?? env.GIT_COMMIT_SHA
   const options: CloudflareOptions = {
     initialScope: { tags: { service } },
-    tracesSampleRate: 1
+    ...sentryPrivacyOptions
   }
   if (hasValue(env.SENTRY_DSN)) {
     options.dsn = env.SENTRY_DSN
@@ -166,7 +172,7 @@ export async function captureMonitoringSignal(
     level: 'error',
     fingerprint: ['operations', signal],
     tags: { signal },
-    extra: evidence
+    extra: diagnosticFields(evidence)
   })
   Sentry.metrics.count('operations.failures', 1, { attributes: { signal } })
 }
@@ -187,17 +193,19 @@ async function captureSentryError(record: WideEventRecord): Promise<void> {
     return
   }
 
-  // The raw failure value keeps its stack when it is an Error; Sentry
-  // serializes anything else. Interrupt-only scopes never reach this point.
-  const exception = record.error ?? `${record.service} failed ${record.event}`
+  // SDK enrichment is filtered again by beforeSend. Never hand the vendor
+  // a raw provider exception or its nested customer/request data.
+  // oxlint-disable-next-line effect/noNewError -- a scrubbed vendor exception, not an application failure
+  const exception = new Error('Application failure')
+  exception.name = diagnosticLabel(record.errorTag ?? record.errorKind)
   // Undefined tag values are dropped by Sentry's payload serializer, so the
   // optional fields are simply passed through.
   sentry.captureException(exception, {
     tags: {
-      service: record.service,
-      event: record.event,
+      service: diagnosticLabel(record.service),
+      event: diagnosticLabel(record.event),
       errorKind: record.errorKind,
-      errorTag: record.errorTag
+      errorTag: diagnosticLabel(record.errorTag)
     },
     // Joins the Sentry issue back to the OTel trace the wide event opened.
     contexts: {
@@ -228,16 +236,18 @@ async function capturePostHogEvent(record: WideEventRecord): Promise<void> {
   })
   try {
     const properties = {
-      service: record.service,
+      service: diagnosticLabel(record.service),
       status: record.status,
       durationMs: record.durationMs,
       // Undefined values are dropped by JSON serialization.
-      traceId: record.traceId,
-      environment: env.ENVIRONMENT
+      traceId: diagnosticFields({ traceId: record.traceId })['traceId'],
+      environment: diagnosticLabel(env.ENVIRONMENT)
     }
     await client.captureImmediate({
-      distinctId: record.traceId,
-      event: record.event,
+      distinctId: String(
+        diagnosticFields({ traceId: record.traceId })['traceId'] ?? 'anonymous'
+      ),
+      event: diagnosticLabel(record.event),
       properties
     })
   } finally {

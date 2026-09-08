@@ -648,6 +648,10 @@ const decodeWideEventLine = Schema.decodeUnknownSync(
   Schema.fromJsonString(WideEventLine)
 )
 
+const encodeWideEventLines = Schema.encodeSync(
+  Schema.fromJsonString(Schema.Array(WideEventLine))
+)
+
 describe('request observability', () => {
   it.effect('the wide event carries the Cloudflare colo the request arrived at', () => {
     const lines: Array<typeof WideEventLine.Type> = []
@@ -656,7 +660,7 @@ describe('request observability', () => {
       .mockImplementation((...args: ReadonlyArray<unknown>) => {
         lines.push(decodeWideEventLine(args[0]))
       })
-    const request = get('/health')
+    const request = get('/health?token=customer-sensitive-canary')
     // What Cloudflare hands a Worker: the `cf` object the envelope mines for
     // the colo. `undici`'s `Request` has none, so the platform field is
     // attached here the way the runtime would.
@@ -669,10 +673,11 @@ describe('request observability', () => {
       const events = lines.filter((line) => line.message === 'request.health')
       // Exactly one event per request, and it names the colo as its region.
       expect(events).toHaveLength(1)
+      expect(encodeWideEventLines(events)).not.toContain('customer-sensitive-canary')
+      expect(events[0]?.annotations['pathname']).toBeUndefined()
       expect(events[0]?.annotations).toMatchObject({
         service: 'api',
         status: 'ok',
-        pathname: '/health',
         method: 'GET',
         region: 'ARN'
       })

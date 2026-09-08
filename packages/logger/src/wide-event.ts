@@ -23,6 +23,7 @@ import {
   readTraceHeader,
   type TraceContinuation
 } from './trace.ts'
+import { diagnosticAnnotations, diagnosticLabel } from './sanitization.ts'
 import { failureMessage } from '@b2b-saas-starter/failure'
 
 /** The mutable draft `withRequestScope` fills before the sinks read it. */
@@ -241,7 +242,13 @@ function emitWideEvent(
       { service: options.service, event: options.event, status: outcome.status },
       Duration.millis(durationMs)
     )
-    const annotated = Effect.annotateLogs({ durationMs, ...outcome })
+    // Only the canonical emission marks a code-owned event label. Body logs do
+    // not inherit it, so arbitrary message text cannot become a diagnostic label.
+    const annotated = Effect.annotateLogs({
+      event: options.event,
+      durationMs,
+      ...outcome
+    })
     if (Exit.isFailure(exit)) {
       yield* Effect.logError(options.event, exit.cause).pipe(annotated)
     } else {
@@ -358,6 +365,21 @@ export function withTriggerScope<A, E, R>(
  * event is visible from the trace even when no log backend is configured.
  */
 export const WideEventLoggerLive: Layer.Layer<never> = Logger.layer([
-  Logger.consoleJson,
+  Logger.withConsoleLog(
+    Logger.map(Logger.formatStructured, (record) =>
+      // oxlint-disable-next-line effect/noGlobals -- console JSON is the output boundary
+      JSON.stringify({
+        level: record.level,
+        timestamp: record.timestamp,
+        fiberId: record.fiberId,
+        message: diagnosticLabel(record.annotations['event']),
+        annotations: diagnosticAnnotations(record.annotations),
+        cause: Option.fromUndefinedOr(record.cause).pipe(
+          Option.map(() => '[omitted]'),
+          Option.getOrUndefined
+        )
+      })
+    )
+  ),
   Logger.tracerLogger
 ])
