@@ -1,0 +1,4 @@
+# Temporary risk acceptance requires independent review. See docs/dependency-security.md.
+# Each entry must specify id, exact paths and versioned purls, expired_at, and
+# a statement containing rationale, owner, approval evidence, and mitigation.
+vulnerabilities: []

@@ -2,119 +2,121 @@
 
 ## AC-12.1: scope and failure policy
 
-The `audit` job in [Audit](../.github/workflows/audit.yml) evaluates the complete
-lockfile, including production, development, transitive and optional dependencies.
-Every high or critical advisory fails unless each affected version and dependency
-path has a current exception. Lower severities remain informational. Pull requests,
-pushes to `master`, manual runs and Monday 09:00 UTC runs use the same policy.
-Scheduled runs detect newly disclosed findings even when no dependency changes.
+The `audit` job in [Audit](../.github/workflows/audit.yml) uses pinned Trivy v0.74.0
+to scan `pnpm-lock.yaml`, including production, development, transitive and optional
+dependencies. High and critical findings fail unless covered by a current exception.
+Pull requests, pushes to `master`, manual runs and Monday 09:00 UTC runs use the same
+policy. Scheduled runs detect newly disclosed vulnerabilities without a code change.
+Database download failures and scanner errors also fail the job.
 
-For PRs targeting the protected default branch, the job runs the evaluator and
-exception file from the exact PR base commit. Other targets, push, scheduled and
-manual jobs use the default branch as the policy source. Retargeting reruns the
-audit. Scanning stays in the PR dependency directory, and the job records the
-resolved trusted revision. The second checkout retains no credentials. The evaluator
-imports only Node builtins, so it cannot resolve implementation packages from the
-PR tree. Policy and evaluator edits take effect only after a reviewed base update.
+The scan copies only the lockfile to a temporary directory, installs no application
+dependencies, and explicitly enables development dependencies. It uses Trivy's
+public vulnerability database rather than the npm registry audit endpoint. Results
+can differ from `pnpm audit` because the tools use different advisory sources.
 
-Run the same check locally after `vp install`, supplying a separate checkout of
-that trusted base:
+For PRs targeting the default branch, exceptions come from the exact PR base commit.
+Other targets and non-PR runs use the default branch. Retargeting reruns the check.
+The workflow logs the selected revision; both checkouts retain no credentials. The
+initial base predates `.trivyignore.yaml`, so bootstrap applies no exceptions.
+Proposed exception changes take effect after review and merge into the base.
 
-```bash
-node .github/scripts/run-dependency-audit.ts /path/to/trusted-base-checkout
-```
-
-To test a proposed policy locally, run the evaluator directly. This is diagnostic
-evidence and does not establish approval for those proposed records:
+Install Trivy v0.74.0, then run locally from the repo root:
 
 ```bash
-node .github/scripts/dependency-audit.ts
+audit_input="$(mktemp -d)"
+cp pnpm-lock.yaml "$audit_input/pnpm-lock.yaml"
+trivy fs --config /dev/null --scanners vuln --pkg-types library \
+  --include-dev-deps --severity HIGH,CRITICAL --exit-code 1 \
+  --ignorefile .trivyignore.yaml --format template \
+  --template '@.github/trivy-report.tpl' "$audit_input"
 ```
 
-The evaluator requests [pnpm's complete audit JSON report](https://pnpm.io/cli/audit)
-with `--audit-level=info`, then applies the high/critical baseline. pnpm filters
-advisories by audit level while retaining all severity counts. The evaluator retries
-unusable reports and registry failures three times, with a minute between attempts,
-then fails. An unavailable registry is incomplete security evidence. It never passes
-because the registry failed. Valid findings fail immediately without retries.
-Do not add pnpm advisory ignore lists or use `--ignore-unfixable`,
-`--ignore-registry-errors`, `--prod` or `--no-optional` to bypass this policy.
-
-During bootstrap, the base predates this evaluator. The runner makes one native
-`pnpm audit --json --audit-level=high` attempt and applies no exceptions. Native
-pnpm 11.25 returns success for lower-only findings and fails for high/critical or
-registry errors. Raw bootstrap output is withheld; a failure identifies the local
-command to diagnose it. A missing trusted checkout fails before scanning.
+This local command uses the current checkout's exceptions. To reproduce CI's policy,
+pass the `.trivyignore.yaml` from its logged trusted revision instead. Do not add
+`--ignore-unfixed` or remove `--include-dev-deps` to bypass findings.
 
 ## AC-12.2: temporary exceptions
 
-[The exception file](../.github/dependency-audit-exceptions.json) starts empty.
-Prefer updating the affected dependency. An exception requires a separate policy
-update independently reviewed by the repository owner or delegated security
-approver, before a dependency PR can use it. The dependency change author cannot
-self-approve risk acceptance. Approval must name the finding, scope, mitigation
-and expiry. Keep supporting evidence in the linked record and verify it during
-review. Update the dependency PR against that new base so its next run selects the
-approved policy revision. If existing findings block a policy-only update, the operator must retain
-independent approval for that update under a controlled administrative process;
-the workflow does not waive the existing failure.
+[`.trivyignore.yaml`](../.trivyignore.yaml) starts empty. Trivy owns finding matching,
+package/version scope and expiry. Independent PR review checks the decision evidence;
+there is no custom metadata validator or audit report parser.
 
-Each record has this shape. This is a synthetic example, not an approved exception:
+Use this native Trivy record shape. This is a synthetic example, not an approved
+exception:
 
-```json
-{
-  "finding": "GHSA-2345-6789-cfgh",
-  "package": "fixture-package",
-  "version": "1.0.0",
-  "severity": "high",
-  "scope": {
-    "path": "apps__web>fixture-package",
-    "dev": false,
-    "optional": false
-  },
-  "rationale": "Explain why temporary acceptance is justified for this exact use",
-  "owner": "@responsible-maintainer",
-  "approvalEvidence": "https://github.com/brandhaug/b2b-saas-starter/issues/341#issuecomment-1",
-  "mitigation": "Describe the compensating control and the planned fix",
-  "expires": "2030-02-01T00:00:00.000Z"
-}
+```yaml
+vulnerabilities:
+  - id: CVE-2099-12345
+    paths:
+      - pnpm-lock.yaml
+    purls:
+      - pkg:npm/fixture-package@1.0.0
+    expired_at: 2030-02-01T00:00:00Z
+    statement: >-
+      Rationale: Explain why temporary acceptance is justified.
+      Owner: @responsible-maintainer.
+      Approval: Link to the independent approving PR review or decision record.
+      Mitigation: Describe the compensating control and planned fix.
 ```
 
-Copy the GHSA, package, installed version, severity, path and dependency flags
-from the check output. Matching is exact, with one record per path. Wildcards and
-version ranges are invalid. Expiry is an absolute UTC timestamp and suppression
-stops at that instant. Changed advisories, versions, severities, paths or dependency
-flags require a new approval. Missing fields, unknown fields and invalid dates fail
-the check. Remove obsolete records after fixes; renewals require fresh review.
-pnpm 11.25 caps each finding at 100 paths. At that limit the check disables
-exceptions for the finding because the affected scope may be incomplete.
+Copy the finding ID and exact versioned package URL from Trivy's JSON report, and
+use the target `pnpm-lock.yaml`. Each exception covers that package version across
+the workspace lockfile, including every dependency path and dependency type where
+it occurs. It does not distinguish workspace importers. Approvers must assess that
+whole scope. Use separate records for different findings or versions.
 
-Link syntax does not prove approval. Trust comes from the independently reviewed
-base policy and the operator protections below. Reviewers must verify the linked
-decision. This repository-specific link restriction must be adapted when forking
-the starter. Never put credentials or personal data in exception text or links.
+Reviewers must require all of the example's fields, exact versioned PURLs, the exact
+lockfile path, and a finite UTC expiry. Do not approve wildcard paths, versionless
+PURLs, missing expiry, or an empty statement. Trivy permits broader/permanent ignore
+records, so these restrictions are enforced through review. Malformed YAML fails
+parsing; a valid expired exception stops suppressing the finding automatically.
+The native YAML ignore format is marked experimental upstream; keep the Trivy
+version pinned and rerun the regression cases when upgrading.
+
+Prefer fixing the dependency. For an exception, submit a separate policy PR and
+obtain approval from the repository owner or delegated security approver who is
+independent of the dependency change author. The review must cover finding, scope,
+rationale, owner, mitigation and expiry. Record the approving review URL in the
+statement; reapproval of the final policy change is required. Link syntax alone
+is not proof of approval. Keep credentials and personal data out of the record.
+
+Merge the reviewed policy first, then update the dependency PR against the new base.
+If current findings block the policy-only PR, an operator must retain independent
+approval under a controlled administrative process; the scanner does not waive its
+failure. Remove obsolete exceptions after fixes. Renewals require fresh approval.
+Keep the policy empty until the repository protections below are active.
+
+See [Trivy's native ignore format](https://trivy.dev/docs/latest/configuration/filtering/)
+and [pnpm scanning coverage](https://trivy.dev/docs/latest/coverage/language/nodejs/).
 
 ## AC-12.3: regression evidence
 
 ```bash
-node --test .github/scripts/dependency-audit.test.ts .github/scripts/run-dependency-audit.test.ts
+TRIVY_BINARY=trivy node --test .github/scripts/trivy.test.ts
 pnpm run test:scripts
 ```
 
-Synthetic pnpm reports cover failing high/critical findings, a fixed report,
-accepted and expired exceptions, scope mismatches, incomplete reports and safe
-output. CLI tests cover pnpm's filtered-report shape, bootstrap exit codes, and a
-copied base evaluator without any installed packages. They prove that a proposed
-exception/evaluator cannot replace the selected base policy, and that scanning
-still reads the PR dependencies. Tests install no vulnerable package and run in
-the audit job and the existing script test suite.
+The first command exercises Trivy's real filter using synthetic JSON scan reports.
+It proves high/critical failure, fixed and lower-severity success, accepted and
+expired exceptions, and mismatched finding, package, version and lockfile failures.
+No vulnerable package is installed and these cases require no database or network.
+The audit job always supplies `TRIVY_BINARY` and runs these cases. The general script
+suite explicitly skips them when that variable is unset, so ordinary development
+does not require installing Trivy.
+
+The output template reports finding ID, severity, package, installed/fixed versions
+and target. Tests verify that provider titles, descriptions and URLs do not leak
+through it. CI withholds scanner stderr, which may contain infrastructure diagnostics;
+use the local command to diagnose database access without publishing credentials.
+A scan without findings exits successfully with no finding lines. Scheduled failures
+need an owner to triage and resolve them; the check does not remediate dependencies.
 
 ## AC-12.4: required-check setting and operator evidence
 
 Require the exact check name `audit`, with GitHub Actions as its source, in the
 active default-branch ruleset under Settings → Rules → Rulesets. Keep existing
 required checks. Also require independent review before changes to the exception
-policy, evaluator, runner or workflow can enter the trusted default branch.
+policy or workflow can enter the trusted default branch.
 
 Configure "Require a pull request before merging" with at least one approving
 review, dismissal of stale approvals after pushes, and approval of the most recent
@@ -172,11 +174,3 @@ Fork operators must inspect their own ruleset IDs, branch selectors, enforcement
 and bypass permissions. Retain the observed settings, timestamp, PR head and check
 run URL as operating evidence. An unavailable API or missing permission leaves
 this evidence incomplete; do not infer enforcement from a green workflow.
-
-The check prints advisory IDs, canonical public advisory links, package versions
-and affected paths. Follow the advisory to choose a fix and coordinate an existing
-dependency PR where possible. It withholds raw registry output, stderr, advisory
-titles and exception prose because those can contain credentials. Diagnose registry
-authentication locally without copying credentials or raw configuration into CI
-logs, artifacts or issues. Scheduled failures need an owner to triage and resolve
-them; a required PR check does not itself remediate the deployed application.
