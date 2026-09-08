@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vite-plus/test'
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Effect, Layer } from 'effect'
+import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   Billing,
   type BillingLifecycle,
@@ -16,8 +17,12 @@ import {
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import { planById } from '@b2b-saas-starter/billing/plan-catalog'
 
-type TestState = { role: 'owner' | 'admin' }
-const state = vi.hoisted<TestState>(() => ({ role: 'owner' }))
+type TestState = { role: 'owner' | 'admin'; denyPermission: boolean }
+const state = vi.hoisted<TestState>(() => ({ role: 'owner', denyPermission: false }))
+const reconcileCalls = vi.hoisted<
+  Array<{ workspaceId: string; reason: string | undefined }>
+>(() => [])
+const permissionCalls = vi.hoisted<Array<unknown>>(() => [])
 const roles: ReadonlyArray<'owner' | 'admin'> = ['owner', 'admin']
 
 vi.mock('./auth', () => ({
@@ -25,7 +30,13 @@ vi.mock('./auth', () => ({
 }))
 
 vi.mock('./authorize', () => ({
-  requireWorkspacePermission: () => Effect.succeed(undefined),
+  requireWorkspacePermission: (permission: unknown) => {
+    permissionCalls.push(permission)
+    if (state.denyPermission) {
+      return Effect.fail(new AuthorizationDenied({ reason: 'insufficient_permission' }))
+    }
+    return Effect.succeed(undefined)
+  },
   whenPermitted: (_permission: unknown, effect: Effect.Effect<unknown>) => effect
 }))
 
@@ -67,7 +78,15 @@ vi.mock('../capabilities', () => ({
         })
       ),
       startPortalSession: (_input: { readonly returnUrl: string }) =>
-        Effect.succeed({ url: 'https://billing.stripe.com/p/session/test' })
+        Effect.succeed({ url: 'https://billing.stripe.com/p/session/test' }),
+      reconcileWorkspace: (input) => {
+        reconcileCalls.push({ workspaceId: input.workspaceId, reason: input.reason })
+        return Effect.succeed({
+          workspaceId: input.workspaceId,
+          outcome: 'delayed',
+          drift: ['provider_snapshot_missing']
+        })
+      }
     })
     const resources = Layer.mock(ResourceEntitlements, {
       getSelection: () => Effect.succeed({ apiTokenIds: [], webhookEndpointIds: [] }),
@@ -108,10 +127,38 @@ vi.mock('../capabilities', () => ({
   }
 }))
 
-const { loadWorkspaceBillingHandler, startPortalSessionHandler } =
-  await import('./billing.effects')
+const {
+  loadWorkspaceBillingHandler,
+  startPortalSessionHandler,
+  reconcileCheckoutReturnHandler
+} = await import('./billing.effects')
 
 describe('billing loader recovery controls', () => {
+  beforeEach(() => {
+    state.role = 'owner'
+    state.denyPermission = false
+    reconcileCalls.length = 0
+    permissionCalls.length = 0
+  })
+
+  it('reconciles the verified workspace on checkout return', async () => {
+    await expect(
+      reconcileCheckoutReturnHandler({ workspaceSlug: 'starter-lab' })
+    ).resolves.toMatchObject({ outcome: 'delayed' })
+    expect(reconcileCalls).toEqual([
+      { workspaceId: 'wrk_starter', reason: 'checkout_return' }
+    ])
+    expect(permissionCalls).toEqual([{ organization: ['update'] }])
+  })
+
+  it('does not reconcile when the workspace permission is denied', async () => {
+    state.denyPermission = true
+    await expect(
+      reconcileCheckoutReturnHandler({ workspaceSlug: 'starter-lab' })
+    ).rejects.toMatchObject({ _tag: 'AuthorizationDenied' })
+    expect(reconcileCalls).toEqual([])
+  })
+
   it.each(roles)(
     'renders the billing payload when provider pricing fails for %s',
     async (role) => {
