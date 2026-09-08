@@ -13,7 +13,7 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "vp test run --passWithNoTests",
-    "dev": "email dev --dir src"
+    "dev": "email dev --dir src/previews"
   },
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",

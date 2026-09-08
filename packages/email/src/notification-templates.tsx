@@ -108,9 +108,9 @@ function NotificationFooter({
   readonly locale?: Locale | undefined
 }) {
   return (
-    <Text className="text-xs text-gray-500 mt-8">
+    <Text className="text-sm text-muted-foreground mt-8">
       {m.backend_email_notification_footer({}, { locale })}{' '}
-      <Link href={preferencesUrl} className="text-brand underline">
+      <Link href={preferencesUrl} className="text-primary underline">
         {m.backend_email_notification_footer_link({}, { locale })}
       </Link>
       .
@@ -129,7 +129,7 @@ function WorkspaceLine({
     return null
   }
   return (
-    <Text className="text-sm text-gray-500 mt-2 mb-0">
+    <Text className="text-sm text-muted-foreground mt-2 mb-0">
       {m.backend_email_notification_workspace({ workspaceName }, { locale })}
     </Text>
   )
@@ -148,11 +148,11 @@ function NotificationBody({
 }: NotificationBodyProps) {
   const locale = requestedLocale ?? DEFAULT_LOCALE
   return (
-    <EmailLayout preview={kindLabel} heading={kindLabel} locale={locale}>
-      <Text className="text-base text-gray-700 mt-4">{lead}</Text>
-      <Section className="bg-gray-50 rounded-md px-4 py-3 mt-4">
-        <Text className="text-base font-medium text-gray-900 m-0">{title}</Text>
-        <Text className="text-sm text-gray-700 mt-1 mb-0">{message}</Text>
+    <EmailLayout preview={title} heading={kindLabel} locale={locale}>
+      <Text className="text-base text-foreground mt-4">{lead}</Text>
+      <Section className="bg-muted px-4 py-3 mt-4">
+        <Text className="text-base font-medium text-foreground m-0">{title}</Text>
+        <Text className="text-sm text-foreground mt-1 mb-0">{message}</Text>
         <WorkspaceLine workspaceName={workspaceName} locale={locale} />
       </Section>
       <ActionLink href={openUrl} label={action} locale={locale} />
@@ -213,24 +213,73 @@ export function AnnouncementEmail(props: NotificationEmailProps) {
   return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
 }
 
-const previewNotification = {
+const previewBase = {
   kindLabel: 'API token created',
   title: 'API token created',
-  message: 'Ops Lead minted "MCP local client" with read and write scopes.',
+  message: 'Ops Lead created "MCP local client" with read and write scopes.',
   workspaceName: 'Starter Lab',
   openUrl: 'http://localhost:3071/workspaces/starter-lab/api-tokens',
   preferencesUrl: 'http://localhost:3071/account/notifications?kind=api_token.created'
 } satisfies NotificationEmailProps
 
-ApiTokenCreatedEmail.PreviewProps = previewNotification
-ApiTokenRevokedEmail.PreviewProps = previewNotification
-MemberRoleChangedEmail.PreviewProps = previewNotification
-TwoFactorChangedNotificationEmail.PreviewProps = previewNotification
-WebhookDeliveryFailedEmail.PreviewProps = previewNotification
-MemberJoinedEmail.PreviewProps = previewNotification
-PlanChangedEmail.PreviewProps = previewNotification
+ApiTokenCreatedEmail.PreviewProps = previewBase
+ApiTokenRevokedEmail.PreviewProps = {
+  ...previewBase,
+  kindLabel: 'API token revoked',
+  title: 'API token revoked',
+  message:
+    'Ops Lead revoked "MCP local client". Integrations using this token will stop working.',
+  preferencesUrl: 'http://localhost:3071/account/notifications?kind=api_token.revoked'
+}
+MemberRoleChangedEmail.PreviewProps = {
+  ...previewBase,
+  kindLabel: 'Workspace role changed',
+  title: 'Workspace role changed',
+  message: 'Jordan Lee changed your role from member to administrator.',
+  openUrl: 'http://localhost:3071/workspaces/starter-lab/members',
+  preferencesUrl:
+    'http://localhost:3071/account/notifications?kind=workspace_member.role_changed'
+}
+TwoFactorChangedNotificationEmail.PreviewProps = {
+  ...previewBase,
+  kindLabel: 'Two-factor authentication changed',
+  title: 'Two-factor authentication changed',
+  message:
+    'Two-factor authentication was enabled for your account. If that was not you, reset your password now.',
+  workspaceName: null,
+  openUrl: 'http://localhost:3071/account',
+  preferencesUrl: 'http://localhost:3071/account/notifications?kind=two_factor.changed'
+}
+WebhookDeliveryFailedEmail.PreviewProps = {
+  ...previewBase,
+  kindLabel: 'Webhook delivery failed',
+  title: 'Webhook delivery failed',
+  message:
+    'https://example.com/webhooks/starter rejected billing.plan_changed and will not be retried.',
+  openUrl: 'http://localhost:3071/workspaces/starter-lab/webhooks',
+  preferencesUrl:
+    'http://localhost:3071/account/notifications?kind=webhook.delivery_failed'
+}
+MemberJoinedEmail.PreviewProps = {
+  ...previewBase,
+  kindLabel: 'Member joined',
+  title: 'Invitation accepted',
+  message: 'Taylor Morgan joined Starter Lab as a member.',
+  openUrl: 'http://localhost:3071/workspaces/starter-lab/members',
+  preferencesUrl:
+    'http://localhost:3071/account/notifications?kind=workspace_member.joined'
+}
+PlanChangedEmail.PreviewProps = {
+  ...previewBase,
+  kindLabel: 'Plan changed',
+  title: 'Plan changed to Team',
+  message: 'The workspace now serves the Team plan limits.',
+  openUrl: 'http://localhost:3071/workspaces/starter-lab/billing',
+  preferencesUrl:
+    'http://localhost:3071/account/notifications?kind=billing.plan_changed'
+}
 AccountImpersonatedEmail.PreviewProps = {
-  ...previewNotification,
+  ...previewBase,
   kindLabel: 'Account impersonated',
   title: 'A System Admin accessed your account',
   message:
@@ -240,7 +289,14 @@ AccountImpersonatedEmail.PreviewProps = {
   preferencesUrl:
     'http://localhost:3071/account/notifications?kind=account.impersonated'
 }
-AnnouncementEmail.PreviewProps = previewNotification
+AnnouncementEmail.PreviewProps = {
+  ...previewBase,
+  kindLabel: 'Announcements',
+  title: 'Workspace export ready',
+  message: 'Your export of Starter Lab is ready to download from workspace settings.',
+  openUrl: 'http://localhost:3071/workspaces/starter-lab',
+  preferencesUrl: 'http://localhost:3071/account/notifications?kind=announcement'
+}
 
 /** One line of the digest: what happened, where, and the app link for it. */
 export type DigestItem = {
@@ -274,15 +330,15 @@ function digestRowHeading(item: DigestItem): string {
 
 function DigestRow({ item }: { readonly item: DigestItem }) {
   return (
-    <Section className="border-solid border-0 border-b border-gray-200 py-3">
-      <Text className="text-xs uppercase tracking-wide text-gray-500 m-0">
+    <Section className="border-solid border-0 border-b border-border py-3">
+      <Text className="text-sm text-muted-foreground m-0">
         {digestRowHeading(item)}
       </Text>
-      <Text className="text-base font-medium text-gray-900 mt-1 mb-0">
+      <Text className="text-base font-medium text-foreground mt-1 mb-0">
         {item.title}
       </Text>
-      <Text className="text-sm text-gray-700 mt-1 mb-0">{item.message}</Text>
-      <Text className="text-xs text-gray-400 mt-1 mb-0">{item.createdAt}</Text>
+      <Text className="text-sm text-foreground mt-1 mb-0">{item.message}</Text>
+      <Text className="text-sm text-muted-foreground mt-1 mb-0">{item.createdAt}</Text>
     </Section>
   )
 }
@@ -312,7 +368,7 @@ export function NotificationDigestEmail({
       heading={m.backend_email_notification_digest_heading({}, { locale })}
       locale={locale}
     >
-      <Text className="text-base text-gray-700 mt-4">
+      <Text className="text-base text-foreground mt-4">
         {m.backend_email_notification_digest_greeting(
           { recipientName, countLine },
           { locale }
@@ -348,10 +404,11 @@ NotificationDigestEmail.PreviewProps = {
     {
       id: 'not_preview_2',
       kindLabel: 'Announcements',
-      title: 'Cloudflare Email needs configuration',
-      message: 'Set CLOUDFLARE_EMAIL_FROM before enabling real email delivery.',
+      title: 'Workspace export ready',
+      message:
+        'Your export of Starter Lab is ready to download from workspace settings.',
       workspaceName: 'Starter Lab',
-      createdAt: '2026-05-16 08:10 UTC'
+      createdAt: '2026-05-16 07:45 UTC'
     }
   ],
   openUrl: 'http://localhost:3071/workspaces',

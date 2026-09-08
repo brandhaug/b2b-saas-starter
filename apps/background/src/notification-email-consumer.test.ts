@@ -154,9 +154,7 @@ describe('processNotificationEmailMessage', () => {
       expect(outcome).toBe('ack')
       expect(sent).toHaveLength(1)
       expect(sent[0]?.to).toBe('owner@example.com')
-      expect(sent[0]?.subject).toBe(
-        '[B2B SaaS Starter] API token created: API token created'
-      )
+      expect(sent[0]?.subject).toBe('[B2B SaaS Starter] API token created')
       const html = yield* Effect.promise(() => render(sent[0]!.element))
       expect(html).toContain('Ops Lead minted')
       expect(html).toContain('https://app.test/workspaces/starter-lab/api-tokens')

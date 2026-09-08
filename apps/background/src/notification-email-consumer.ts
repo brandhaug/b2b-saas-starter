@@ -148,7 +148,7 @@ export function processNotificationEmailMessage(
       {
         to: context.recipient.email,
         subject: m.backend_email_subject_notification(
-          { kindLabel, title: copy.title },
+          { title: copy.title },
           { locale }
         ),
         element: notificationEmailFor(kind, {
