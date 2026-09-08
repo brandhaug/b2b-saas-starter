@@ -17,18 +17,27 @@
         "password_changed": "Your password was changed",
         "backup_codes_rotated": "Your two-factor recovery codes were replaced",
         "account_deleted": "Your account was deleted",
-        "notification": "[B2B SaaS Starter] {kindLabel}: {title}",
-        "digest": "[B2B SaaS Starter] Your daily digest: {count} unread"
+        "notification": "[B2B SaaS Starter] {title}",
+        "digest": [
+          {
+            "declarations": ["input count", "local category = count: plural"],
+            "selectors": ["category"],
+            "match": {
+              "category=one": "[B2B SaaS Starter] Your daily digest: {count} unread notification",
+              "category=other": "[B2B SaaS Starter] Your daily digest: {count} unread notifications"
+            }
+          }
+        ]
       },
       "auth": {
         "reset_description": "Somebody asked to reset the password for your B2B SaaS Starter account. If that was you, choose a new password within thirty minutes; the link works once and then expires.",
         "reset_action": "Choose a new password",
         "reset_ignore": "If you did not ask for a reset, you can ignore this email; your password stays unchanged.",
-        "verify_description": "Confirm your email address to finish setting up your B2B SaaS Starter account. The link works once and expires in an hour.",
+        "verify_description": "Confirm your email address to finish setting up your B2B SaaS Starter account. The link expires in one hour.",
         "verify_action": "Verify my email",
         "magic_description": "Somebody asked for a sign-in link for this email address. If that was you, open the link to sign in without a password. It works once and expires in ten minutes.",
         "magic_action": "Sign in",
-        "magic_ignore": "If you did not ask for the link, you can ignore this email; opening it is the only thing the link can do.",
+        "magic_ignore": "If you did not request this link, do not open it. You can ignore this email.",
         "otp_description": "Use the code below to continue.",
         "otp_expiry": "The code works once, expires in ten minutes, and stops working after three failed attempts.",
         "otp_ignore": "If you did not request this code, you can ignore this email; your account is unchanged.",
@@ -38,21 +47,20 @@
         "reset_body": "Use the link below to choose a new password.",
         "magic_link_heading": "Sign in to B2B SaaS Starter",
         "magic_link_body": "Use the link below to sign in.",
-        "one_time_code_heading": "Your verification code",
+        "one_time_code_heading": "Confirm your new email address",
         "sign_in_code_heading": "Sign in to B2B SaaS Starter",
         "one_time_code_body": "Enter this code to continue: {code}",
         "password_changed_heading": "Your password was changed",
-        "password_changed_body": "Your password was changed through {via}. If you did not do this, reset your password immediately.",
+        "password_changed_body": "The password for your B2B SaaS Starter account was just {via}. If that was you, sign in with the new password the next time you need it.",
         "two_factor_enabled": "Two-factor authentication was turned on.",
         "two_factor_disabled": "Two-factor authentication was turned off.",
         "passkey_added": "A passkey was added to your account.",
         "passkey_removed": "A passkey was removed from your account.",
-        "backup_codes": "Your previously saved two-factor recovery codes stopped working. Store the new codes somewhere safe.",
-        "account_deleted": "Your account was deleted. {workspacesDeleted} workspaces were deleted and you left {workspacesLeft} workspaces.",
+        "backup_codes": "Your previously saved two-factor recovery codes stopped working.",
         "action_fallback": "If the button does not work, copy this URL into your browser:",
         "invitation_preview": "You have been invited to {workspaceName}",
         "invitation_heading": "Join {workspaceName}",
-        "invitation_body": "You have been invited to a B2B SaaS Starter workspace. Accept the invitation to review reports, tokens, and settings.",
+        "invitation_body": "You have been invited to a workspace in B2B SaaS Starter. Accept the invitation to join your team.",
         "invitation_action": "Accept invitation",
         "security_warning": "If you did not make this change, reset your password immediately and review your account security settings.",
         "two_factor_enabled_preview": "Two-factor authentication enabled",
@@ -66,8 +74,6 @@
         "password_reset_preview": "Your password was reset",
         "password_changed_preview": "Your password was changed",
         "password_reset_heading": "Your password was reset",
-        "password_changed_heading": "Your password was changed",
-        "password_changed_body": "The password for your B2B SaaS Starter account was just {via}. If that was you, sign in with the new password the next time you need it.",
         "password_reset_via": "reset through the link we emailed you",
         "password_changed_via": "changed from your account settings",
         "backup_codes_preview": "Your two-factor recovery codes were replaced",
@@ -76,7 +82,27 @@
         "account_deleted_preview": "Your B2B SaaS Starter account was deleted",
         "account_deleted_heading": "Your account was deleted",
         "account_deleted_body": "Your B2B SaaS Starter account has been permanently deleted, along with every session signed in as you.",
-        "account_deleted_warning": "If you did not delete this account, reset the password of any account that shares this password and contact support immediately."
+        "account_deleted_warning": "If you did not delete this account, reset the password of any account that shares this password and contact support immediately.",
+        "workspaces_deleted": [
+          {
+            "declarations": ["input count", "local category = count: plural"],
+            "selectors": ["category"],
+            "match": {
+              "category=one": "1 workspace was deleted.",
+              "category=other": "{count} workspaces were deleted."
+            }
+          }
+        ],
+        "workspaces_left": [
+          {
+            "declarations": ["input count", "local category = count: plural"],
+            "selectors": ["category"],
+            "match": {
+              "category=one": "You left 1 workspace.",
+              "category=other": "You left {count} workspaces."
+            }
+          }
+        ]
       },
       "notification": {
         "kind_api_token_created": "API token created",
@@ -91,29 +117,29 @@
         "footer": "You receive this email because of your notification preferences.",
         "footer_link": "Change how you get these emails or unsubscribe",
         "workspace": "Workspace: {workspaceName}",
-        "api_token_created_lead": "Somebody minted a new API token in a workspace you belong to. If nobody on your team did this, revoke it now.",
+        "api_token_created_lead": "A new API token was created in a workspace you belong to. If you do not recognize it, ask a workspace owner or admin to review it.",
         "api_token_created_action": "Review API tokens",
         "api_token_revoked_lead": "An API token in a workspace you belong to no longer works. Integrations that used it will start failing.",
         "api_token_revoked_action": "Review API tokens",
-        "role_changed_lead": "An owner or admin changed what you can do in this workspace.",
+        "role_changed_lead": "A member's role in this workspace changed.",
         "role_changed_action": "Open the workspace",
         "two_factor_changed_lead": "Two-factor authentication was turned on or off for your account. If that was not you, reset your password now.",
         "two_factor_changed_action": "Review account security",
-        "webhook_failed_lead": "A webhook endpoint rejected a delivery or gave up after retries. The delivery history has the response codes.",
+        "webhook_failed_lead": "A webhook delivery failed. Review the delivery history for the error and retry status.",
         "webhook_failed_action": "Open webhook endpoints",
         "member_joined_lead": "Somebody accepted an invitation to a workspace you belong to.",
         "member_joined_action": "See members",
         "plan_changed_lead": "A workspace you belong to is on a different plan. Limits and entitlements follow the new plan from now on.",
         "plan_changed_action": "Open billing",
-        "impersonated_lead": "A System Admin opened an impersonation session on your account for support. It is recorded in the audit trail and cannot change your password, two-factor settings, or email.",
+        "impersonated_lead": "A System Admin opened an impersonation session on your account. It is recorded in the audit trail and cannot change your password, two-factor settings, or email.",
         "impersonated_action": "Review account security",
-        "announcement_lead": "A notice for everyone in the workspace.",
+        "announcement_lead": "You have a new notification.",
         "announcement_action": "Open the workspace",
         "digest_one": "One unread notification from the last 24 hours.",
         "digest_many": "{count} unread notifications from the last 24 hours.",
         "digest_heading": "Your daily notification digest",
         "digest_open": "Open your workspaces",
-        "digest_greeting": "Hi {recipientName}, {countLine}",
+        "digest_greeting": "{recipientName}, here is your daily summary. {countLine}",
         "event_webhook_permanent_title": "Webhook delivery failed",
         "event_webhook_permanent_message": "{endpointUrl}: {eventType} was rejected and will not be retried.",
         "event_webhook_dead_letter_title": "Webhook delivery dead-lettered",
@@ -134,7 +160,7 @@
         "event_member_role_admin": "administrator",
         "event_member_role_member": "member",
         "event_token_created_title": "API token created",
-        "event_token_created_message": "{actorName} minted \"{tokenName}\" with {scopes} scopes.",
+        "event_token_created_message": "{actorName} created \"{tokenName}\" with {scopes} scopes.",
         "event_sso_failed_title": "SSO connection failed its test",
         "event_sso_failed_message": "The {protocol} connection for {domain} failed: {reason}",
         "event_sso_reason_discovery_unreachable": "The identity provider could not be reached.",

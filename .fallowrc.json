@@ -3,7 +3,11 @@
   "rules": {
     "circular-dependencies": "error"
   },
-  "entry": ["alchemy.run.ts", "packages/i18n/scripts/catalog-validation.test.mjs"],
+  "entry": [
+    "alchemy.run.ts",
+    "packages/i18n/scripts/catalog-validation.test.mjs",
+    "packages/email/src/previews/*.tsx"
+  ],
   "ignoreExportsUsedInFile": true,
   "ignoreDependencies": [
     "@b2b-saas-starter/db",
