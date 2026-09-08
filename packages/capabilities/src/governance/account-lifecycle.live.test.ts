@@ -10,7 +10,7 @@ import {
 import { Database, layerFromD1 } from '@b2b-saas-starter/db/service'
 import { Effect, Layer } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 
 import {
   AccountLifecycle,
@@ -19,6 +19,7 @@ import {
 } from './account-lifecycle.ts'
 import { accountLifecycleContractCases } from './account-lifecycle.contract.ts'
 import { makeAdminAccountLifecycleBinding } from './account-lifecycle-admin.live.ts'
+import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 import { CapabilityUnavailable } from '../errors.ts'
 import { makeLiveCapabilitiesLayer, type CapabilityServices } from '../layers.ts'
 import { type StarterEnv } from '../runtime.ts'
@@ -107,6 +108,63 @@ const contractState = Effect.gen(function* () {
 })
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (it) => {
+  it.effect('blocks indirect deletion of a suspended sole-member workspace', () =>
+    Effect.gen(function* () {
+      const db = yield* Database
+      const d1 = yield* TestD1
+      yield* db.insert(user).values({
+        id: 'usr_suspended_solo',
+        email: 'suspended-solo@live.test',
+        name: 'Solo'
+      })
+      yield* db.insert(workspaces).values({
+        id: 'wrk_suspended_solo',
+        slug: 'suspended-solo',
+        name: 'Suspended solo'
+      })
+      yield* db.insert(workspaceMembers).values({
+        id: 'mem_suspended_solo',
+        workspaceId: 'wrk_suspended_solo',
+        userId: 'usr_suspended_solo',
+        role: 'owner'
+      })
+      yield* Effect.gen(function* () {
+        const suspension = yield* WorkspaceSuspensionService
+        const lifecycle = yield* AccountLifecycle
+        yield* suspension.transition({
+          workspaceId: 'wrk_suspended_solo',
+          action: 'suspend',
+          actor: { userId: 'usr_sysadmin' },
+          internalReason: 'Review',
+          customerExplanation: 'Contact support.'
+        })
+        const refusal = yield* lifecycle
+          .prepareDeletion('usr_suspended_solo')
+          .pipe(Effect.flip)
+        expect(refusal._tag).toBe('AccountDeletionBlocked')
+        const memberships = yield* db
+          .select()
+          .from(workspaceMembers)
+          .where(eq(workspaceMembers.userId, 'usr_suspended_solo'))
+        expect(memberships).toHaveLength(1)
+        const rows = yield* db
+          .select()
+          .from(workspaces)
+          .where(eq(workspaces.id, 'wrk_suspended_solo'))
+        expect(rows).toHaveLength(1)
+        yield* suspension.transition({
+          workspaceId: 'wrk_suspended_solo',
+          action: 'unsuspend',
+          actor: { userId: 'usr_sysadmin' },
+          internalReason: 'Resolved'
+        })
+        expect((yield* lifecycle.planDeletion('usr_suspended_solo')).canDelete).toBe(
+          true
+        )
+      }).pipe(Effect.provide(accountLifecycleLayer(d1)))
+    })
+  )
+
   // The Seed half of this same list runs in index.test.ts against an
   // equivalent roster.
   describe('live account lifecycle contract', () => {
@@ -384,7 +442,15 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         )
         expect(deliveries.map((row) => row.id)).toEqual(['email_other_recipient'])
         const remainingNotifications = yield* Effect.flatMap(Database, (database) =>
-          database.select().from(notifications)
+          database
+            .select()
+            .from(notifications)
+            .where(
+              inArray(notifications.id, [
+                'notification_mixed_personal',
+                'notification_mixed_other'
+              ])
+            )
         )
         expect(remainingNotifications.map((row) => row.id)).toEqual([
           'notification_mixed_other'

@@ -22,6 +22,8 @@ import { Workspace, WorkspaceRole } from './workspace-identity.ts'
 const AccountDeletionAction = Schema.Literals([
   /** The user is the only owner and other members remain: deletion is blocked until ownership is transferred. */
   'blocked_sole_owner',
+  /** Deleting this account would remove a suspended workspace; operator review is required. */
+  'blocked_suspended_workspace',
   /** Other owners remain: the user's membership is removed, the workspace stays. */
   'leave',
   /** The user is the only member: the workspace goes with the account. */
@@ -38,7 +40,7 @@ type AccountDeletionStep = typeof AccountDeletionStep.Type
 
 export const AccountDeletionPlan = Schema.Struct({
   steps: Schema.Array(AccountDeletionStep),
-  /** `false` while any step is `blocked_sole_owner`. */
+  /** `false` while any workspace prevents deletion. */
   canDelete: Schema.Boolean
 })
 export type AccountDeletionPlan = typeof AccountDeletionPlan.Type
@@ -59,6 +61,8 @@ export type MembershipForDeletion = {
   readonly role: WorkspaceRole
   readonly ownerCount: number
   readonly memberCount: number
+  /** Suspension prevents an account deletion from removing this workspace. */
+  readonly suspended?: boolean | undefined
 }
 
 /**
@@ -78,7 +82,9 @@ export function planAccountDeletion(
 ): AccountDeletionPlan {
   const steps = memberships.map((membership): AccountDeletionStep => {
     let action: AccountDeletionAction = 'leave'
-    if (membership.memberCount <= 1) {
+    if (membership.suspended === true && membership.memberCount <= 1) {
+      action = 'blocked_suspended_workspace'
+    } else if (membership.memberCount <= 1) {
       action = 'delete_workspace'
     } else if (membership.role === 'owner' && membership.ownerCount <= 1) {
       action = 'blocked_sole_owner'
@@ -87,7 +93,9 @@ export function planAccountDeletion(
   })
   return {
     steps,
-    canDelete: steps.every((step) => step.action !== 'blocked_sole_owner')
+    canDelete: steps.every(
+      (step) => step.action === 'leave' || step.action === 'delete_workspace'
+    )
   }
 }
 
@@ -97,7 +105,10 @@ export function blockingWorkspaces(
 ): ReadonlyArray<Workspace> {
   const blocked: Array<Workspace> = []
   for (const step of plan.steps) {
-    if (step.action === 'blocked_sole_owner') {
+    if (
+      step.action === 'blocked_sole_owner' ||
+      step.action === 'blocked_suspended_workspace'
+    ) {
       blocked.push(step.workspace)
     }
   }

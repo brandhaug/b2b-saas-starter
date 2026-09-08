@@ -365,7 +365,7 @@ describe('seed notification feed: email and digest reads', () => {
         expect(loaded).toMatchObject({
           notification: { id: 'not_targeted', kind: 'workspace_member.role_changed' },
           recipient: { userId: 'usr_dev', email: 'engineer@example.com' },
-          workspace: { slug: 'starter-lab', name: 'Starter Lab' }
+          workspace: { id: 'wrk_starter', slug: 'starter-lab', name: 'Starter Lab' }
         })
         expect(yield* feed.loadForEmail('not_targeted', 'usr_demo')).toBeNull()
         expect(yield* feed.loadForEmail('not_read', 'usr_demo')).toBeNull()

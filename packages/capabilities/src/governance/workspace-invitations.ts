@@ -58,6 +58,7 @@ export type AcceptInvitationInput = InvitationRef & {
  */
 const InvitationDetail = Schema.Struct({
   ...Invitation.fields,
+  workspaceId: Schema.String,
   workspaceSlug: Schema.String,
   workspaceName: Schema.String
 })

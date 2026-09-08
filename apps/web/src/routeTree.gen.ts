@@ -35,6 +35,7 @@ import { Route as MagicLinkVerifyRouteImport } from './routes/magic-link.verify'
 import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as SignInEmailCodeRouteImport } from './routes/sign-in_.email-code'
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
+import { Route as WorkspacesWorkspaceSlugRouteImport } from './routes/workspaces.$workspaceSlug'
 import { Route as DotwellKnownOauthAuthorizationServerSplatRouteImport } from './routes/[.]well-known.oauth-authorization-server.$'
 import { Route as KnowledgeBlogIndexRouteImport } from './routes/_knowledge.blog.index'
 import { Route as KnowledgeBlogSlugRouteImport } from './routes/_knowledge.blog.$slug'
@@ -47,6 +48,7 @@ import { Route as WorkspacesWorkspaceSlugAuditRouteImport } from './routes/works
 import { Route as WorkspacesWorkspaceSlugBillingRouteImport } from './routes/workspaces.$workspaceSlug.billing'
 import { Route as WorkspacesWorkspaceSlugMembersRouteImport } from './routes/workspaces.$workspaceSlug.members'
 import { Route as WorkspacesWorkspaceSlugSettingsRouteImport } from './routes/workspaces.$workspaceSlug.settings'
+import { Route as WorkspacesWorkspaceSlugSuspendedRouteImport } from './routes/workspaces.$workspaceSlug.suspended'
 import { Route as WorkspacesWorkspaceSlugWebhooksRouteImport } from './routes/workspaces.$workspaceSlug.webhooks'
 import { Route as KnowledgeDocsCategorySlugRouteImport } from './routes/_knowledge.docs.$category.$slug'
 
@@ -180,6 +182,11 @@ const WorkspacesIndexRoute = WorkspacesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => WorkspacesRoute,
 } as any)
+const WorkspacesWorkspaceSlugRoute = WorkspacesWorkspaceSlugRouteImport.update({
+  id: '/$workspaceSlug',
+  path: '/$workspaceSlug',
+  getParentRoute: () => WorkspacesRoute,
+} as any)
 const DotwellKnownOauthAuthorizationServerSplatRoute =
   DotwellKnownOauthAuthorizationServerSplatRouteImport.update({
     id: '/$',
@@ -208,51 +215,57 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 } as any)
 const WorkspacesWorkspaceSlugIndexRoute =
   WorkspacesWorkspaceSlugIndexRouteImport.update({
-    id: '/$workspaceSlug/',
-    path: '/$workspaceSlug/',
-    getParentRoute: () => WorkspacesRoute,
+    id: '/',
+    path: '/',
+    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
   } as any)
 const WorkspacesWorkspaceSlugApiTokensRoute =
   WorkspacesWorkspaceSlugApiTokensRouteImport.update({
-    id: '/$workspaceSlug/api-tokens',
-    path: '/$workspaceSlug/api-tokens',
-    getParentRoute: () => WorkspacesRoute,
+    id: '/api-tokens',
+    path: '/api-tokens',
+    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
   } as any)
 const WorkspacesWorkspaceSlugAssistantRoute =
   WorkspacesWorkspaceSlugAssistantRouteImport.update({
-    id: '/$workspaceSlug/assistant',
-    path: '/$workspaceSlug/assistant',
-    getParentRoute: () => WorkspacesRoute,
+    id: '/assistant',
+    path: '/assistant',
+    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
   } as any)
 const WorkspacesWorkspaceSlugAuditRoute =
   WorkspacesWorkspaceSlugAuditRouteImport.update({
-    id: '/$workspaceSlug/audit',
-    path: '/$workspaceSlug/audit',
-    getParentRoute: () => WorkspacesRoute,
+    id: '/audit',
+    path: '/audit',
+    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
   } as any)
 const WorkspacesWorkspaceSlugBillingRoute =
   WorkspacesWorkspaceSlugBillingRouteImport.update({
-    id: '/$workspaceSlug/billing',
-    path: '/$workspaceSlug/billing',
-    getParentRoute: () => WorkspacesRoute,
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
   } as any)
 const WorkspacesWorkspaceSlugMembersRoute =
   WorkspacesWorkspaceSlugMembersRouteImport.update({
-    id: '/$workspaceSlug/members',
-    path: '/$workspaceSlug/members',
-    getParentRoute: () => WorkspacesRoute,
+    id: '/members',
+    path: '/members',
+    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
   } as any)
 const WorkspacesWorkspaceSlugSettingsRoute =
   WorkspacesWorkspaceSlugSettingsRouteImport.update({
-    id: '/$workspaceSlug/settings',
-    path: '/$workspaceSlug/settings',
-    getParentRoute: () => WorkspacesRoute,
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
+  } as any)
+const WorkspacesWorkspaceSlugSuspendedRoute =
+  WorkspacesWorkspaceSlugSuspendedRouteImport.update({
+    id: '/suspended',
+    path: '/suspended',
+    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
   } as any)
 const WorkspacesWorkspaceSlugWebhooksRoute =
   WorkspacesWorkspaceSlugWebhooksRouteImport.update({
-    id: '/$workspaceSlug/webhooks',
-    path: '/$workspaceSlug/webhooks',
-    getParentRoute: () => WorkspacesRoute,
+    id: '/webhooks',
+    path: '/webhooks',
+    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
   } as any)
 const KnowledgeDocsCategorySlugRoute =
   KnowledgeDocsCategorySlugRouteImport.update({
@@ -285,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/magic-link/verify': typeof MagicLinkVerifyRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/sign-in/email-code': typeof SignInEmailCodeRoute
+  '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
@@ -296,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+  '/workspaces/$workspaceSlug/suspended': typeof WorkspacesWorkspaceSlugSuspendedRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
   '/blog/': typeof KnowledgeBlogIndexRoute
   '/docs/': typeof KnowledgeDocsIndexRoute
@@ -336,6 +351,7 @@ export interface FileRoutesByTo {
   '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+  '/workspaces/$workspaceSlug/suspended': typeof WorkspacesWorkspaceSlugSuspendedRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
   '/blog': typeof KnowledgeBlogIndexRoute
   '/docs': typeof KnowledgeDocsIndexRoute
@@ -368,6 +384,7 @@ export interface FileRoutesById {
   '/magic-link/verify': typeof MagicLinkVerifyRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/sign-in_/email-code': typeof SignInEmailCodeRoute
+  '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugRouteWithChildren
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
@@ -379,6 +396,7 @@ export interface FileRoutesById {
   '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+  '/workspaces/$workspaceSlug/suspended': typeof WorkspacesWorkspaceSlugSuspendedRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
   '/_knowledge/blog/': typeof KnowledgeBlogIndexRoute
   '/_knowledge/docs/': typeof KnowledgeDocsIndexRoute
@@ -411,6 +429,7 @@ export interface FileRouteTypes {
     | '/magic-link/verify'
     | '/oauth/consent'
     | '/sign-in/email-code'
+    | '/workspaces/$workspaceSlug'
     | '/help/'
     | '/workspaces/'
     | '/.well-known/oauth-authorization-server/$'
@@ -422,6 +441,7 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
+    | '/workspaces/$workspaceSlug/suspended'
     | '/workspaces/$workspaceSlug/webhooks'
     | '/blog/'
     | '/docs/'
@@ -462,6 +482,7 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
+    | '/workspaces/$workspaceSlug/suspended'
     | '/workspaces/$workspaceSlug/webhooks'
     | '/blog'
     | '/docs'
@@ -493,6 +514,7 @@ export interface FileRouteTypes {
     | '/magic-link/verify'
     | '/oauth/consent'
     | '/sign-in_/email-code'
+    | '/workspaces/$workspaceSlug'
     | '/help/'
     | '/workspaces/'
     | '/.well-known/oauth-authorization-server/$'
@@ -504,6 +526,7 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/billing'
     | '/workspaces/$workspaceSlug/members'
     | '/workspaces/$workspaceSlug/settings'
+    | '/workspaces/$workspaceSlug/suspended'
     | '/workspaces/$workspaceSlug/webhooks'
     | '/_knowledge/blog/'
     | '/_knowledge/docs/'
@@ -722,6 +745,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkspacesIndexRouteImport
       parentRoute: typeof WorkspacesRoute
     }
+    '/workspaces/$workspaceSlug': {
+      id: '/workspaces/$workspaceSlug'
+      path: '/$workspaceSlug'
+      fullPath: '/workspaces/$workspaceSlug'
+      preLoaderRoute: typeof WorkspacesWorkspaceSlugRouteImport
+      parentRoute: typeof WorkspacesRoute
+    }
     '/.well-known/oauth-authorization-server/$': {
       id: '/.well-known/oauth-authorization-server/$'
       path: '/$'
@@ -759,59 +789,66 @@ declare module '@tanstack/react-router' {
     }
     '/workspaces/$workspaceSlug/': {
       id: '/workspaces/$workspaceSlug/'
-      path: '/$workspaceSlug'
+      path: '/'
       fullPath: '/workspaces/$workspaceSlug/'
       preLoaderRoute: typeof WorkspacesWorkspaceSlugIndexRouteImport
-      parentRoute: typeof WorkspacesRoute
+      parentRoute: typeof WorkspacesWorkspaceSlugRoute
     }
     '/workspaces/$workspaceSlug/api-tokens': {
       id: '/workspaces/$workspaceSlug/api-tokens'
-      path: '/$workspaceSlug/api-tokens'
+      path: '/api-tokens'
       fullPath: '/workspaces/$workspaceSlug/api-tokens'
       preLoaderRoute: typeof WorkspacesWorkspaceSlugApiTokensRouteImport
-      parentRoute: typeof WorkspacesRoute
+      parentRoute: typeof WorkspacesWorkspaceSlugRoute
     }
     '/workspaces/$workspaceSlug/assistant': {
       id: '/workspaces/$workspaceSlug/assistant'
-      path: '/$workspaceSlug/assistant'
+      path: '/assistant'
       fullPath: '/workspaces/$workspaceSlug/assistant'
       preLoaderRoute: typeof WorkspacesWorkspaceSlugAssistantRouteImport
-      parentRoute: typeof WorkspacesRoute
+      parentRoute: typeof WorkspacesWorkspaceSlugRoute
     }
     '/workspaces/$workspaceSlug/audit': {
       id: '/workspaces/$workspaceSlug/audit'
-      path: '/$workspaceSlug/audit'
+      path: '/audit'
       fullPath: '/workspaces/$workspaceSlug/audit'
       preLoaderRoute: typeof WorkspacesWorkspaceSlugAuditRouteImport
-      parentRoute: typeof WorkspacesRoute
+      parentRoute: typeof WorkspacesWorkspaceSlugRoute
     }
     '/workspaces/$workspaceSlug/billing': {
       id: '/workspaces/$workspaceSlug/billing'
-      path: '/$workspaceSlug/billing'
+      path: '/billing'
       fullPath: '/workspaces/$workspaceSlug/billing'
       preLoaderRoute: typeof WorkspacesWorkspaceSlugBillingRouteImport
-      parentRoute: typeof WorkspacesRoute
+      parentRoute: typeof WorkspacesWorkspaceSlugRoute
     }
     '/workspaces/$workspaceSlug/members': {
       id: '/workspaces/$workspaceSlug/members'
-      path: '/$workspaceSlug/members'
+      path: '/members'
       fullPath: '/workspaces/$workspaceSlug/members'
       preLoaderRoute: typeof WorkspacesWorkspaceSlugMembersRouteImport
-      parentRoute: typeof WorkspacesRoute
+      parentRoute: typeof WorkspacesWorkspaceSlugRoute
     }
     '/workspaces/$workspaceSlug/settings': {
       id: '/workspaces/$workspaceSlug/settings'
-      path: '/$workspaceSlug/settings'
+      path: '/settings'
       fullPath: '/workspaces/$workspaceSlug/settings'
       preLoaderRoute: typeof WorkspacesWorkspaceSlugSettingsRouteImport
-      parentRoute: typeof WorkspacesRoute
+      parentRoute: typeof WorkspacesWorkspaceSlugRoute
+    }
+    '/workspaces/$workspaceSlug/suspended': {
+      id: '/workspaces/$workspaceSlug/suspended'
+      path: '/suspended'
+      fullPath: '/workspaces/$workspaceSlug/suspended'
+      preLoaderRoute: typeof WorkspacesWorkspaceSlugSuspendedRouteImport
+      parentRoute: typeof WorkspacesWorkspaceSlugRoute
     }
     '/workspaces/$workspaceSlug/webhooks': {
       id: '/workspaces/$workspaceSlug/webhooks'
-      path: '/$workspaceSlug/webhooks'
+      path: '/webhooks'
       fullPath: '/workspaces/$workspaceSlug/webhooks'
       preLoaderRoute: typeof WorkspacesWorkspaceSlugWebhooksRouteImport
-      parentRoute: typeof WorkspacesRoute
+      parentRoute: typeof WorkspacesWorkspaceSlugRoute
     }
     '/_knowledge/docs/$category/$slug': {
       id: '/_knowledge/docs/$category/$slug'
@@ -845,28 +882,47 @@ const KnowledgeRouteWithChildren = KnowledgeRoute._addFileChildren(
   KnowledgeRouteChildren,
 )
 
-interface WorkspacesRouteChildren {
-  WorkspacesIndexRoute: typeof WorkspacesIndexRoute
+interface WorkspacesWorkspaceSlugRouteChildren {
   WorkspacesWorkspaceSlugApiTokensRoute: typeof WorkspacesWorkspaceSlugApiTokensRoute
   WorkspacesWorkspaceSlugAssistantRoute: typeof WorkspacesWorkspaceSlugAssistantRoute
   WorkspacesWorkspaceSlugAuditRoute: typeof WorkspacesWorkspaceSlugAuditRoute
   WorkspacesWorkspaceSlugBillingRoute: typeof WorkspacesWorkspaceSlugBillingRoute
   WorkspacesWorkspaceSlugMembersRoute: typeof WorkspacesWorkspaceSlugMembersRoute
   WorkspacesWorkspaceSlugSettingsRoute: typeof WorkspacesWorkspaceSlugSettingsRoute
+  WorkspacesWorkspaceSlugSuspendedRoute: typeof WorkspacesWorkspaceSlugSuspendedRoute
   WorkspacesWorkspaceSlugWebhooksRoute: typeof WorkspacesWorkspaceSlugWebhooksRoute
   WorkspacesWorkspaceSlugIndexRoute: typeof WorkspacesWorkspaceSlugIndexRoute
 }
 
+const WorkspacesWorkspaceSlugRouteChildren: WorkspacesWorkspaceSlugRouteChildren =
+  {
+    WorkspacesWorkspaceSlugApiTokensRoute:
+      WorkspacesWorkspaceSlugApiTokensRoute,
+    WorkspacesWorkspaceSlugAssistantRoute:
+      WorkspacesWorkspaceSlugAssistantRoute,
+    WorkspacesWorkspaceSlugAuditRoute: WorkspacesWorkspaceSlugAuditRoute,
+    WorkspacesWorkspaceSlugBillingRoute: WorkspacesWorkspaceSlugBillingRoute,
+    WorkspacesWorkspaceSlugMembersRoute: WorkspacesWorkspaceSlugMembersRoute,
+    WorkspacesWorkspaceSlugSettingsRoute: WorkspacesWorkspaceSlugSettingsRoute,
+    WorkspacesWorkspaceSlugSuspendedRoute:
+      WorkspacesWorkspaceSlugSuspendedRoute,
+    WorkspacesWorkspaceSlugWebhooksRoute: WorkspacesWorkspaceSlugWebhooksRoute,
+    WorkspacesWorkspaceSlugIndexRoute: WorkspacesWorkspaceSlugIndexRoute,
+  }
+
+const WorkspacesWorkspaceSlugRouteWithChildren =
+  WorkspacesWorkspaceSlugRoute._addFileChildren(
+    WorkspacesWorkspaceSlugRouteChildren,
+  )
+
+interface WorkspacesRouteChildren {
+  WorkspacesWorkspaceSlugRoute: typeof WorkspacesWorkspaceSlugRouteWithChildren
+  WorkspacesIndexRoute: typeof WorkspacesIndexRoute
+}
+
 const WorkspacesRouteChildren: WorkspacesRouteChildren = {
+  WorkspacesWorkspaceSlugRoute: WorkspacesWorkspaceSlugRouteWithChildren,
   WorkspacesIndexRoute: WorkspacesIndexRoute,
-  WorkspacesWorkspaceSlugApiTokensRoute: WorkspacesWorkspaceSlugApiTokensRoute,
-  WorkspacesWorkspaceSlugAssistantRoute: WorkspacesWorkspaceSlugAssistantRoute,
-  WorkspacesWorkspaceSlugAuditRoute: WorkspacesWorkspaceSlugAuditRoute,
-  WorkspacesWorkspaceSlugBillingRoute: WorkspacesWorkspaceSlugBillingRoute,
-  WorkspacesWorkspaceSlugMembersRoute: WorkspacesWorkspaceSlugMembersRoute,
-  WorkspacesWorkspaceSlugSettingsRoute: WorkspacesWorkspaceSlugSettingsRoute,
-  WorkspacesWorkspaceSlugWebhooksRoute: WorkspacesWorkspaceSlugWebhooksRoute,
-  WorkspacesWorkspaceSlugIndexRoute: WorkspacesWorkspaceSlugIndexRoute,
 }
 
 const WorkspacesRouteWithChildren = WorkspacesRoute._addFileChildren(

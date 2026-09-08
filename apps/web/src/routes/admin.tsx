@@ -24,7 +24,12 @@ import { RoutePending } from '@/components/route-pending'
 import { formatDateTime } from '@/lib/format-date'
 import { auditActorTypeLabel } from '@/lib/audit-labels'
 import { auditActorTypeVariant } from '@/lib/badge-variants'
-import { type SystemUser } from '@/lib/server/admin'
+import {
+  type SystemUser,
+  transitionAdminWorkspaceServerFn,
+  type AdminWorkspace
+} from '@/lib/server/admin'
+import { WorkspaceSuspensionPanel } from '@/components/workspace-suspension-panel'
 import { requireAdmin } from '@/lib/server/auth'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -103,6 +108,18 @@ function auditColumns(): Array<DataTableColumnDef<AuditEvent>> {
   ]
 }
 
+function suspensionView(workspace: AdminWorkspace) {
+  const base = { status: workspace.suspension.status }
+  const withExplanation =
+    workspace.suspension.customerExplanation === null
+      ? base
+      : { ...base, customerExplanation: workspace.suspension.customerExplanation }
+  if (workspace.suspension.changedAt === null) {
+    return withExplanation
+  }
+  return { ...withExplanation, suspendedAt: workspace.suspension.changedAt }
+}
+
 export const Route = createFileRoute('/admin')({
   // requireAdmin gates on the Better Auth admin role (non-admins get a 404).
   // /admin keeps its own gate instead of joining the /workspaces layout —
@@ -119,7 +136,8 @@ export const Route = createFileRoute('/admin')({
 })
 
 function AdminPage() {
-  const { users, events, failedDeliveries, emailDeliveries } = Route.useLoaderData()
+  const { users, events, failedDeliveries, emailDeliveries, workspaces } =
+    Route.useLoaderData()
   const { session } = Route.useRouteContext()
 
   return (
@@ -141,6 +159,41 @@ function AdminPage() {
           <DataTablePagination />
         </DataTable>
         <AdminUserActions users={users} />
+      </Panel>
+
+      <Panel
+        title={m.admin_workspace_lifecycle()}
+        description={m.admin_workspace_lifecycle_description()}
+      >
+        <div className="grid gap-3">
+          {workspaces.map((workspace: AdminWorkspace) => (
+            <WorkspaceSuspensionPanel
+              key={workspace.id}
+              workspaceId={workspace.id}
+              workspaceName={workspace.name}
+              suspension={suspensionView(workspace)}
+              suspend={({ data }) =>
+                transitionAdminWorkspaceServerFn({
+                  data: {
+                    workspaceId: data.workspaceId,
+                    action: 'suspend',
+                    internalReason: data.internalReason,
+                    customerExplanation: data.customerExplanation
+                  }
+                })
+              }
+              reactivate={({ data }) =>
+                transitionAdminWorkspaceServerFn({
+                  data: {
+                    workspaceId: data.workspaceId,
+                    action: 'unsuspend',
+                    internalReason: data.internalReason
+                  }
+                })
+              }
+            />
+          ))}
+        </div>
       </Panel>
 
       <AdminFailedDeliveries initialPage={failedDeliveries} />

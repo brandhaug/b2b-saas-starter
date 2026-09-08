@@ -1,4 +1,9 @@
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
+import {
+  WorkspaceSuspensionService,
+  workspaceSuspensionOperationForPermission,
+  type WorkspaceSuspensionOperation
+} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { withHttpInvocation } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
@@ -9,7 +14,10 @@ import {
 } from '@b2b-saas-starter/authz/client'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import {
+  CapabilityUnavailable,
+  type WorkspaceSuspended
+} from '@b2b-saas-starter/capabilities/errors'
 import { selectWorkspaceContextLayer } from '@b2b-saas-starter/capabilities/runtime'
 import {
   WorkspaceContext,
@@ -228,7 +236,11 @@ export function verifyMcpCredential(
 export function enforcePermission(
   permission: PermissionRequest,
   expectedWorkspaceSlug?: string
-): Effect.Effect<void, AuthorizationDenied, ApiPrincipal | Scope.Scope> {
+): Effect.Effect<
+  void,
+  AuthorizationDenied | WorkspaceSuspended | CapabilityUnavailable,
+  ApiPrincipal | WorkspaceSuspensionService | Scope.Scope
+> {
   return Effect.gen(function* () {
     const verified = yield* ApiPrincipal
 
@@ -249,6 +261,11 @@ export function enforcePermission(
     }
 
     yield* requirePermission(tokenPrincipal(verified.scopes), permission)
+    const suspension = yield* WorkspaceSuspensionService
+    yield* suspension.requireAllowed(
+      verified.workspaceId,
+      workspaceSuspensionOperationForPermission(permission)
+    )
   })
 }
 
@@ -320,9 +337,15 @@ export function provideWorkspace<A, E, R>(
   slug: string,
   body: Effect.Effect<A, E, R>,
   actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue
+  actorType: AuditActorTypeValue,
+  operation: WorkspaceSuspensionOperation = 'product'
 ) {
-  return body.pipe(
+  return Effect.gen(function* () {
+    const ctx = yield* WorkspaceContext
+    const suspension = yield* WorkspaceSuspensionService
+    yield* suspension.requireAllowed(ctx.workspace.id, operation)
+    return yield* body
+  }).pipe(
     Effect.provide(selectWorkspaceContextLayer(starterEnv(env), slug, actor, actorType))
   )
 }

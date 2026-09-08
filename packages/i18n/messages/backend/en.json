@@ -141,7 +141,11 @@
         "event_sso_reason_discovery_invalid": "The identity provider returned invalid discovery data.",
         "event_sso_reason_saml_metadata_invalid": "The SAML metadata is invalid.",
         "event_sso_reason_saml_metadata_missing_entry_point": "The SAML metadata has no HTTP-Redirect sign-in endpoint.",
-        "event_sso_reason_unknown": "The connection configuration is invalid."
+        "event_sso_reason_unknown": "The connection configuration is invalid.",
+        "event_workspace_suspension_changed_suspended_title": "Workspace access temporarily limited",
+        "event_workspace_suspension_changed_suspended_message": "Workspace activity is paused while the workspace is suspended. Billing and account recovery remain available.{customerExplanation}",
+        "event_workspace_suspension_changed_active_title": "Workspace access restored",
+        "event_workspace_suspension_changed_active_message": "Workspace activity has been restored."
       }
     }
   }

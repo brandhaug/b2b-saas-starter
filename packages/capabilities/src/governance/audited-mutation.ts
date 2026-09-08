@@ -92,3 +92,24 @@ export function auditedMutations(
       }).pipe(Effect.provideService(RawD1, d1))
   })
 }
+
+/**
+ * Commit a conditional single-row transition and its conditional audit insert.
+ * The audit predicate must match the transition's unique id. The D1 change
+ * count identifies the winning request without a racy read after the batch.
+ */
+export const commitAuditedTransition = Effect.fn('Audit.commitTransition')(function* (
+  write: BatchStatement,
+  records: ReadonlyArray<BatchStatement>
+) {
+  const d1 = yield* RawD1
+  const results = yield* Effect.tryPromise(() =>
+    d1.batch(
+      [write, ...records].map((statement) => {
+        const query = statement.toSQL()
+        return d1.prepare(query.sql).bind(...query.params)
+      })
+    )
+  )
+  return results[0]?.meta.changes === 1
+})

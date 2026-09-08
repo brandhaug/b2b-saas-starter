@@ -7,6 +7,10 @@ import { SeedNotificationPreferences } from '@b2b-saas-starter/capabilities/noti
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { SeedEmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery.seed'
 import {
+  WorkspaceSuspended,
+  WorkspaceSuspensionService
+} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import {
   EmailDispatcher,
   EmailSendError,
   type EmailDeliveryResult,
@@ -21,7 +25,7 @@ import { buildDigests, runNotificationDigest } from './notification-digest.ts'
 
 const owner = { userId: 'usr_owner', email: 'owner@example.com', name: 'Owner' }
 const member = { userId: 'usr_member', email: 'member@example.com', name: 'Member' }
-const workspace = { slug: 'starter-lab', name: 'Starter Lab' }
+const workspace = { id: 'wrk_1', slug: 'starter-lab', name: 'Starter Lab' }
 
 function candidate(
   recipient: typeof owner,
@@ -105,6 +109,8 @@ describe('runNotificationDigest', () => {
       unreadCount: Effect.die('unused in digest tests'),
       markRead: () => Effect.die('unused in digest tests'),
       notifyUser: () => Effect.die('unused in digest tests'),
+      prepareWorkspaceOwners: () =>
+        Effect.succeed({ writes: [], publish: Effect.void }),
       notifyWorkspaceOwners: () => Effect.die('unused in digest tests'),
       create: () => Effect.die('unused in digest tests'),
       loadForEmail: () => Effect.die('unused in digest tests'),
@@ -150,6 +156,52 @@ describe('runNotificationDigest', () => {
     // The member turned webhook failures off; everything else is on defaults.
     { userId: member.userId, kind: 'webhook.delivery_failed', channel: 'off' }
   ]).pipe(Layer.provide(SeedAuditEventLog([])))
+  const activeSuspension = Layer.succeed(WorkspaceSuspensionService)({
+    list: Effect.succeed([]),
+    get: () => Effect.die('unused'),
+    requireAllowed: () => Effect.void,
+    transition: () => Effect.die('unused')
+  })
+
+  it.effect(
+    'consumes a suspended digest item and does not replay it after recovery',
+    () => {
+      let suspended = true
+      const suspension = Layer.succeed(WorkspaceSuspensionService)({
+        list: Effect.succeed([]),
+        get: () => Effect.die('unused'),
+        requireAllowed: () => {
+          if (suspended) {
+            return Effect.fail(new WorkspaceSuspended({ workspaceId: 'wrk_1' }))
+          }
+          return Effect.void
+        },
+        transition: () => Effect.die('unused')
+      })
+      const rows = [
+        candidate(owner, 'suspended-1', 'announcement', '2026-09-03T07:00:00.000Z')
+      ]
+      return Effect.gen(function* () {
+        yield* TestClock.setTime(FROZEN_NOW)
+        const first = yield* runNotificationDigest('https://app.test')
+        suspended = false
+        const second = yield* runNotificationDigest('https://app.test')
+        expect(first.sent).toBe(0)
+        expect(second.sent).toBe(0)
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            stubFeed([], rows),
+            preferences,
+            stubDispatcher([], false),
+            SeedEmailDelivery(),
+            activeSuspension,
+            suspension
+          )
+        )
+      )
+    }
+  )
 
   it.effect('cuts a 24h window ending now and sends one digest per recipient', () =>
     Effect.gen(function* () {
@@ -176,7 +228,8 @@ describe('runNotificationDigest', () => {
               stubFeed(seen, rows),
               preferences,
               stubDispatcher(sent),
-              SeedEmailDelivery()
+              SeedEmailDelivery(),
+              activeSuspension
             )
           )
         )
@@ -231,6 +284,7 @@ describe('runNotificationDigest', () => {
               ),
               preferences,
               SeedEmailDelivery(),
+              activeSuspension,
               stubDispatcher(sent)
             )
           )
@@ -248,7 +302,8 @@ describe('runNotificationDigest', () => {
       stubFeed([], rows),
       preferences,
       stubDispatcher(sent, true),
-      SeedEmailDelivery()
+      SeedEmailDelivery(),
+      activeSuspension
     )
     return Effect.scoped(
       Effect.gen(function* () {
@@ -294,7 +349,8 @@ describe('runNotificationDigest', () => {
       stubFeed([], rows),
       preferences,
       dispatcher,
-      SeedEmailDelivery()
+      SeedEmailDelivery(),
+      activeSuspension
     )
     return Effect.scoped(
       Effect.gen(function* () {

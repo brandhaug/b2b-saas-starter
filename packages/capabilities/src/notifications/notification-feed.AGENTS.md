@@ -26,3 +26,5 @@ The one place a Notification row is created (ADR 0061). Producers call `create` 
 - No `workspaceId` parameter on `notifyUser`; it is for account-level notices.
 
 > TODO(intent): severity field, per-actor read state, producers for tokens, role changes, plan changes.
+
+- `prepareWorkspaceOwners` prepares conditional notification statements for a producer-owned D1 batch. The producer calls `publish` only after a successful commit. Workspace suspension uses it so a failed notification insert cannot leave an unannounced state change. Seed prepares in-memory rows and publishes them inside the successful transition.

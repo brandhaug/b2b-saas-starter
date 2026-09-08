@@ -141,7 +141,11 @@
         "event_sso_reason_discovery_invalid": "Identitetstilbyderen returnerte ugyldige oppdagelsesdata.",
         "event_sso_reason_saml_metadata_invalid": "SAML-metadataene er ugyldige.",
         "event_sso_reason_saml_metadata_missing_entry_point": "SAML-metadataene har ikke et HTTP-Redirect-innloggingsendepunkt.",
-        "event_sso_reason_unknown": "Tilkoblingskonfigurasjonen er ugyldig."
+        "event_sso_reason_unknown": "Tilkoblingskonfigurasjonen er ugyldig.",
+        "event_workspace_suspension_changed_suspended_title": "Tilgang til arbeidsområdet er midlertidig begrenset",
+        "event_workspace_suspension_changed_suspended_message": "Aktiviteten i arbeidsområdet er satt på pause mens arbeidsområdet er suspendert. Fakturering og kontogjenoppretting er fortsatt tilgjengelig.{customerExplanation}",
+        "event_workspace_suspension_changed_active_title": "Tilgang til arbeidsområdet er gjenopprettet",
+        "event_workspace_suspension_changed_active_message": "Aktiviteten i arbeidsområdet er gjenopprettet."
       }
     }
   }

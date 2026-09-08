@@ -15,6 +15,10 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import {
+  WorkspaceSuspended,
+  WorkspaceSuspensionService
+} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
   testWorkspaceContext,
@@ -47,7 +51,10 @@ type Recorded = {
   readonly failed: Array<FailWorkspaceExportInput>
 }
 
-function stubExports(recorded: Recorded): Layer.Layer<WorkspaceExports> {
+function stubExports(
+  recorded: Recorded,
+  completeSuspended = false
+): Layer.Layer<WorkspaceExports> {
   const unused = Effect.die('unused in consumer tests')
   const service: WorkspaceExportsInterface = {
     availability: Effect.succeed({ available: true }),
@@ -55,11 +62,15 @@ function stubExports(recorded: Recorded): Layer.Layer<WorkspaceExports> {
     request: unused,
     issueDownloadLink: () => unused,
     openDownload: () => unused,
-    complete: (input) =>
-      Effect.sync(() => {
+    complete: (input) => {
+      if (completeSuspended) {
+        return Effect.fail(new WorkspaceSuspended({ workspaceId: input.workspaceId }))
+      }
+      return Effect.sync(() => {
         recorded.completed.push(input)
         return true
-      }),
+      })
+    },
     fail: (input) =>
       Effect.sync(() => {
         recorded.failed.push(input)
@@ -122,6 +133,7 @@ function stubReads(failing = false) {
       replayDelivery: () => unused,
       sendTestEvent: () => unused,
       rotateSecret: () => unused,
+      isDeliverySettled: () => Effect.succeed(false),
       getDispatchTarget: () => unused,
       recordDeliveryAttempt: () => unused,
       recordTerminalDeliveryAttempt: () => unused
@@ -140,6 +152,7 @@ function stubReads(failing = false) {
       markRead: () => unused,
       notifyUser: () => unused,
       notifyWorkspaceOwners: () => unused,
+      prepareWorkspaceOwners: () => unused,
       create: () => unused,
       loadForEmail: () => unused,
       listDigestCandidates: () => unused,
@@ -161,9 +174,27 @@ function run(
     readonly attempts?: number
     readonly resolve?: ResolveWorkspace
     readonly failing?: boolean
+    readonly suspended?: boolean
+    readonly completeSuspended?: boolean
   } = {}
 ) {
   const recorded: Recorded = { completed: [], failed: [] }
+  const activeSuspension = Layer.succeed(WorkspaceSuspensionService)({
+    list: Effect.succeed([]),
+    get: () => Effect.die('unused'),
+    requireAllowed: () => Effect.void,
+    transition: () => Effect.die('unused')
+  })
+  let suspensionLayer = activeSuspension
+  if (options.suspended) {
+    suspensionLayer = Layer.succeed(WorkspaceSuspensionService)({
+      list: Effect.succeed([]),
+      get: () => Effect.die('unused'),
+      requireAllowed: () =>
+        Effect.fail(new WorkspaceSuspended({ workspaceId: 'wrk_1' })),
+      transition: () => Effect.die('unused')
+    })
+  }
   return processWorkspaceExportMessage(
     readDelivery(WorkspaceExportQueueMessage, {
       id: 'qmsg_export',
@@ -173,7 +204,11 @@ function run(
     options.resolve ?? resolveLab
   ).pipe(
     Effect.provide(
-      Layer.mergeAll(stubExports(recorded), stubReads(options.failing ?? false))
+      Layer.mergeAll(
+        stubExports(recorded, options.completeSuspended ?? false),
+        stubReads(options.failing ?? false),
+        suspensionLayer
+      )
     ),
     Effect.map((outcome) => ({ outcome, recorded }))
   )
@@ -191,6 +226,30 @@ describe('processWorkspaceExportMessage', () => {
       // A real gzip container: magic bytes first.
       expect([...(completed?.archive.subarray(0, 2) ?? [])]).toEqual([0x1f, 0x8b])
       expect(completed?.archive.length).toBeGreaterThan(22)
+    })
+  )
+
+  it.effect('settles a queued export while suspended', () =>
+    Effect.gen(function* () {
+      const { outcome, recorded } = yield* run(message, { suspended: true })
+      expect(outcome).toBe('ack')
+      expect(recorded.completed).toHaveLength(0)
+      expect(recorded.failed).toEqual([
+        expect.objectContaining({ reason: 'workspace_suspended' })
+      ])
+    })
+  )
+
+  it.effect('settles when suspension starts before completion', () =>
+    Effect.gen(function* () {
+      const { outcome, recorded } = yield* run(message, {
+        completeSuspended: true
+      })
+      expect(outcome).toBe('ack')
+      expect(recorded.completed).toHaveLength(0)
+      expect(recorded.failed).toEqual([
+        expect.objectContaining({ reason: 'workspace_suspended' })
+      ])
     })
   )
 

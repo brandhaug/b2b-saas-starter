@@ -16,6 +16,7 @@ import {
   type WorkspaceExportQueueBinding,
   type WorkspaceExportQueueMessage
 } from './workspace-export.ts'
+import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 
 /**
  * Stub queue and bucket: the Live adapter's platform ports, in memory. The
@@ -394,6 +395,117 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           bindings
         )
         expect(twice).toBe(false)
+      })
+    )
+
+    it.effect('refuses export requests while the workspace is suspended', () =>
+      Effect.gen(function* () {
+        const ports = stubPorts()
+        const bindings = { workspaceExports: ports.workspaceExports }
+        yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
+            suspension.transition({
+              workspaceId: 'wrk_live',
+              action: 'suspend',
+              actor: { userId: 'usr_sysadmin' },
+              internalReason: 'export policy review',
+              customerExplanation: 'Access is temporarily limited.'
+            })
+          )
+        )
+        const refused = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => Effect.exit(exports.request)),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        expect(refused._tag).toBe('Failure')
+        yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
+            suspension.transition({
+              workspaceId: 'wrk_live',
+              action: 'unsuspend',
+              actor: { userId: 'usr_sysadmin' },
+              internalReason: 'test cleanup'
+            })
+          )
+        )
+      })
+    )
+
+    it.effect('refuses signed-link issuance and download after suspension', () =>
+      Effect.gen(function* () {
+        const ports = stubPorts()
+        const bindings = { workspaceExports: ports.workspaceExports }
+        const requested = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => exports.request),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) =>
+            exports.complete({
+              exportId: requested.id,
+              workspaceId: 'wrk_live',
+              archive
+            })
+          ),
+          undefined,
+          bindings
+        )
+        const link = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) =>
+            exports.issueDownloadLink({ exportId: requested.id })
+          ),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        expect(Option.isSome(link)).toBe(true)
+        if (Option.isNone(link)) {
+          return
+        }
+        const params = linkParams(link.value.path)
+        yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
+            suspension.transition({
+              workspaceId: 'wrk_live',
+              action: 'suspend',
+              actor: { userId: 'usr_sysadmin' },
+              internalReason: 'download policy review',
+              customerExplanation: 'Access is temporarily limited.'
+            })
+          )
+        )
+        const refusedLink = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) =>
+            Effect.exit(exports.issueDownloadLink({ exportId: requested.id }))
+          ),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        expect(refusedLink._tag).toBe('Failure')
+        const refusedDownload = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) =>
+            Effect.exit(
+              exports.openDownload({
+                exportId: requested.id,
+                expires: params.expires,
+                signature: params.signature
+              })
+            )
+          ),
+          undefined,
+          bindings
+        )
+        expect(refusedDownload._tag).toBe('Failure')
       })
     )
   })

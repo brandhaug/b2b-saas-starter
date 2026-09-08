@@ -155,7 +155,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           )
           expect(pair).toMatchObject({
             recipient: { userId: 'usr_owner', email: 'owner@live.test' },
-            workspace: { slug: 'live-lab', name: 'Live Lab' }
+            workspace: { id: 'wrk_live', slug: 'live-lab', name: 'Live Lab' }
           })
         })
     )
@@ -186,7 +186,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
         expect(loaded).toMatchObject({
           notification: { id: created.id, kind: 'workspace_member.role_changed' },
           recipient: { userId: 'usr_owner', email: 'owner@live.test' },
-          workspace: { slug: 'live-lab' }
+          workspace: { id: 'wrk_live', slug: 'live-lab' }
         })
 
         // Another user is not a recipient of a targeted row.

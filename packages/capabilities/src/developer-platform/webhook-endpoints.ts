@@ -401,6 +401,13 @@ type WebhookEndpointsInterface = {
     WorkspaceContext
   >
 
+  /** Persisted outcomes that must not dispatch again on queue redelivery. */
+  readonly isDeliverySettled: (input: {
+    readonly deliveryId: string
+    readonly endpointId: string
+    readonly workspaceId: string
+  }) => Effect.Effect<boolean, CapabilityUnavailable>
+
   /**
    * Background-worker surface — no `WorkspaceContext` exists on the queue
    * consumer, so the workspace ID travels in the queue message (stamped by

@@ -12,6 +12,7 @@ import {
 import { AuditEventLog } from './audit-event-log.ts'
 import { type Workspace } from './workspace-identity.ts'
 import { type SeedRoster } from './workspace-membership.ts'
+import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 
 /**
  * In-memory account lifecycle, never Better Auth. The fixture has one
@@ -29,10 +30,11 @@ import { type SeedRoster } from './workspace-membership.ts'
 export function SeedAccountLifecycle(options: {
   readonly roster: SeedRoster
   readonly workspace: Workspace
-}): Layer.Layer<AccountLifecycle, never, AuditEventLog> {
+}): Layer.Layer<AccountLifecycle, never, AuditEventLog | WorkspaceSuspensionService> {
   return Layer.effect(AccountLifecycle)(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
+      const suspension = yield* WorkspaceSuspensionService
       // Workspaces the seed deleted with an account. The roster empties with
       // them, so `planDeletion` for a later user answers from what is left.
       const deletedWorkspaces = yield* Ref.make<ReadonlyArray<string>>([])
@@ -44,13 +46,21 @@ export function SeedAccountLifecycle(options: {
         if (!member || gone.includes(options.workspace.id)) {
           return [] satisfies ReadonlyArray<MembershipForDeletion>
         }
+        const state = yield* suspension
+          .get(options.workspace.id)
+          .pipe(
+            Effect.catchTag('WorkspaceSuspended', () =>
+              Effect.succeed({ status: 'suspended' })
+            )
+          )
         return [
           {
             workspace: options.workspace,
             memberId: member.id,
             role: member.role,
             ownerCount: roster.filter((candidate) => candidate.role === 'owner').length,
-            memberCount: roster.length
+            memberCount: roster.length,
+            suspended: state.status === 'suspended'
           }
         ] satisfies ReadonlyArray<MembershipForDeletion>
       })

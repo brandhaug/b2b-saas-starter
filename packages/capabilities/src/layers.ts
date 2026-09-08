@@ -1,5 +1,5 @@
 import { type Database, type RawD1 } from '@b2b-saas-starter/db/service'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Ref } from 'effect'
 import { type EmailDelivery } from './email-delivery/email-delivery.ts'
 import { SeedEmailDelivery } from './email-delivery/email-delivery.seed.ts'
 import { LiveEmailDelivery } from './email-delivery/email-delivery.live.ts'
@@ -22,6 +22,7 @@ import {
 } from './developer-platform/webhook-publisher.ts'
 
 // governance
+import { type Workspace } from './governance/workspace-identity.ts'
 import {
   type AccountLifecycle,
   type AccountLifecycleBinding
@@ -75,6 +76,9 @@ import {
 } from './governance/workspace-export.live.ts'
 import { SeedWorkspaceExports } from './governance/workspace-export.seed.ts'
 import { type WorkspaceExports } from './governance/workspace-export.ts'
+import { type WorkspaceSuspensionService } from './governance/workspace-suspension.ts'
+import { LiveWorkspaceSuspension } from './governance/workspace-suspension.live.ts'
+import { SeedWorkspaceSuspension } from './governance/workspace-suspension.seed.ts'
 import { LiveSsoConnections } from './governance/workspace-sso-connections.live.ts'
 import { SeedSsoConnections } from './governance/workspace-sso-connections.seed.ts'
 import {
@@ -150,6 +154,7 @@ export type CapabilityServices =
   | WorkspaceLifecycle
   | WorkspaceMembership
   | WorkspaceOnboarding
+  | WorkspaceSuspensionService
 
 export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 
@@ -163,17 +168,26 @@ export type CapabilitiesLayer = Layer.Layer<CapabilityServices>
 const SeedGovernance = Layer.unwrap(
   Effect.gen(function* () {
     const roster = yield* makeSeedRoster(seedMembers)
+    const catalog = yield* Ref.make<ReadonlyArray<Workspace>>([seedWorkspaceRecord])
+    const suspension = SeedWorkspaceSuspension({
+      workspace: seedWorkspaceRecord,
+      catalog,
+      systemUsers: seedSystemUsers
+    }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications))
     return Layer.mergeAll(
       // The account-lifecycle seed shares the roster so the ownership rule
       // reads the same membership state the membership and invitation seeds
       // write, and it writes its audit events into the shared fixture log
       // provided on the merged layer below.
       SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
-        Layer.provide(SeedAuditLog)
+        Layer.provide(SeedAuditLog),
+        Layer.provide(suspension)
       ),
       SeedWorkspaceInvitations({ roster, workspace: seedWorkspaceRecord }),
       SeedWorkspaceMembership(roster, seedWorkspaceRecord),
-      SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord }),
+      SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord, catalog }).pipe(
+        Layer.provide(suspension)
+      ),
       /**
        * Billing rides the governance seed so its audit writes land in the
        * same fixture log every other capability reads, and its seat counts
@@ -182,7 +196,8 @@ const SeedGovernance = Layer.unwrap(
       SeedBilling({
         roster,
         workspacePlans: { [seedWorkspaceRecord.id]: seedWorkspaceRecord.planId }
-      }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications))
+      }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications)),
+      suspension
     )
   })
 )
@@ -374,6 +389,10 @@ export function makeLiveCapabilitiesLayer(
   }).pipe(Layer.provide(preferences))
   const billing = LiveBilling(options.billing)
   const entitlements = LiveResourceEntitlements.pipe(Layer.provide(billing))
+  const suspension = LiveWorkspaceSuspension.pipe(
+    Layer.provide(LiveAuditEventLog),
+    Layer.provide(feed)
+  )
   return Layer.mergeAll(
     LiveRetention,
     LiveEmailDelivery,
@@ -391,10 +410,13 @@ export function makeLiveCapabilitiesLayer(
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
     LiveWorkspaceMembership(options.memberBinding, options.securityEvidence),
-    LiveWorkspaceLifecycle(options.lifecycleBinding, options.securityEvidence),
+    LiveWorkspaceLifecycle(options.lifecycleBinding, options.securityEvidence).pipe(
+      Layer.provide(suspension)
+    ),
     LivePlatformUserAdmin(options.userAdminBinding),
     LiveWorkspaceOnboarding,
-    LiveWorkspaceExports(options.workspaceExports),
+    LiveWorkspaceExports(options.workspaceExports).pipe(Layer.provide(suspension)),
+    suspension,
     seatSyncPublisher
   ).pipe(
     Layer.provide(LiveAuditEventLog),

@@ -9,6 +9,10 @@ import {
   type SeedNotificationPreference
 } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import {
+  WorkspaceSuspended,
+  WorkspaceSuspensionService
+} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { SeedEmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery.seed'
 import { EmailDelivery } from '@b2b-saas-starter/capabilities/email-delivery/email-delivery'
 import {
@@ -36,7 +40,7 @@ const context: NotificationEmailContext = {
     read: false
   },
   recipient: { userId: 'usr_owner', email: 'owner@example.com', name: 'Owner' },
-  workspace: { slug: 'starter-lab', name: 'Starter Lab' }
+  workspace: { id: 'wrk_1', slug: 'starter-lab', name: 'Starter Lab' }
 }
 
 function stubFeed(
@@ -48,6 +52,7 @@ function stubFeed(
     unreadCount: Effect.die('unused'),
     markRead: () => Effect.die('unused'),
     notifyUser: () => Effect.die('unused'),
+    prepareWorkspaceOwners: () => Effect.succeed({ writes: [], publish: Effect.void }),
     notifyWorkspaceOwners: () => Effect.die('unused'),
     create: () => Effect.die('unused'),
     loadForEmail: () => Effect.succeed(found),
@@ -113,6 +118,12 @@ function run(
     })
   }
   const preferences = SeedNotificationPreferences(stored).pipe(Layer.provide(audit))
+  const activeSuspension = Layer.succeed(WorkspaceSuspensionService)({
+    list: Effect.succeed([]),
+    get: () => Effect.die('unused'),
+    requireAllowed: () => Effect.void,
+    transition: () => Effect.die('unused')
+  })
   return processNotificationEmailMessage(
     readDelivery(NotificationEmailQueueMessage, {
       id: 'q1',
@@ -126,7 +137,8 @@ function run(
         stubFeed(found),
         preferences,
         stubDispatcher(sent, options.fail),
-        SeedEmailDelivery()
+        SeedEmailDelivery(),
+        activeSuspension
       )
     ),
     Effect.map((outcome) => ({ outcome, sent }))
@@ -162,6 +174,47 @@ describe('processNotificationEmailMessage', () => {
       expect(off).toEqual({ outcome: 'ack', sent: [] })
     })
   )
+
+  it.effect('settles a queued business email when the workspace is suspended', () => {
+    const sent: Array<EmailMessage> = []
+    return Effect.gen(function* () {
+      const outcome = yield* processNotificationEmailMessage(
+        readDelivery(NotificationEmailQueueMessage, {
+          id: 'q-suspended',
+          body: message,
+          attempts: 1
+        }),
+        'https://app.test'
+      )
+      const delivery = yield* EmailDelivery
+      const record = yield* delivery.get('notification:not_1:usr_owner')
+      expect(outcome).toBe('ack')
+      expect(sent).toHaveLength(0)
+      expect(record?.status).toBe('failed')
+      expect(record?.reason).toBe('workspace_suspended')
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          stubFeed({
+            ...context,
+            notification: { ...context.notification, kind: 'announcement' }
+          }),
+          SeedNotificationPreferences([
+            { userId: 'usr_owner', kind: 'announcement', channel: 'instant' }
+          ]).pipe(Layer.provide(audit)),
+          stubDispatcher(sent),
+          SeedEmailDelivery(),
+          Layer.succeed(WorkspaceSuspensionService)({
+            list: Effect.succeed([]),
+            get: () => Effect.die('unused'),
+            requireAllowed: () =>
+              Effect.fail(new WorkspaceSuspended({ workspaceId: 'wrk_1' })),
+            transition: () => Effect.die('unused')
+          })
+        )
+      )
+    )
+  })
 
   it.effect('acks without sending when the notification is gone or already read', () =>
     Effect.gen(function* () {
@@ -219,7 +272,13 @@ describe('processNotificationEmailMessage', () => {
           stubFeed(context),
           SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
           stubDispatcher(sent),
-          SeedEmailDelivery()
+          SeedEmailDelivery(),
+          Layer.succeed(WorkspaceSuspensionService)({
+            list: Effect.succeed([]),
+            get: () => Effect.die('unused'),
+            requireAllowed: () => Effect.void,
+            transition: () => Effect.die('unused')
+          })
         )
       )
     )
@@ -255,7 +314,13 @@ describe('processNotificationEmailMessage', () => {
             stubFeed(context),
             SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
             stubDispatcher(sent, false, true),
-            SeedEmailDelivery()
+            SeedEmailDelivery(),
+            Layer.succeed(WorkspaceSuspensionService)({
+              list: Effect.succeed([]),
+              get: () => Effect.die('unused'),
+              requireAllowed: () => Effect.void,
+              transition: () => Effect.die('unused')
+            })
           )
         )
       )
@@ -296,7 +361,13 @@ describe('processNotificationEmailMessage', () => {
           stubFeed(context),
           SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
           stubDispatcher([], true),
-          SeedEmailDelivery()
+          SeedEmailDelivery(),
+          Layer.succeed(WorkspaceSuspensionService)({
+            list: Effect.succeed([]),
+            get: () => Effect.die('unused'),
+            requireAllowed: () => Effect.void,
+            transition: () => Effect.die('unused')
+          })
         )
       )
     )
@@ -339,7 +410,13 @@ describe('processNotificationEmailMessage', () => {
             stubFeed(context),
             SeedNotificationPreferences([]).pipe(Layer.provide(audit)),
             stubDispatcher([], true),
-            SeedEmailDelivery()
+            SeedEmailDelivery(),
+            Layer.succeed(WorkspaceSuspensionService)({
+              list: Effect.succeed([]),
+              get: () => Effect.die('unused'),
+              requireAllowed: () => Effect.void,
+              transition: () => Effect.die('unused')
+            })
           )
         )
       )

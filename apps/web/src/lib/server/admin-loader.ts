@@ -1,17 +1,21 @@
 import {
   listSystemUsersServerFn,
   loadAdminAuditEventsServerFn,
-  loadFailedDeliveriesServerFn
+  loadFailedDeliveriesServerFn,
+  listAdminWorkspacesServerFn
 } from './admin'
 import { loadSystemEmailDeliveryServerFn } from './email-delivery'
 
 export async function loadAdminPage() {
-  // oxlint-disable-next-line effect/noNewPromise -- parallel client-safe server-fn calls; importing Effect here would ship its runtime
-  const [users, events, failedDeliveries, emailDeliveries] = await Promise.all([
-    listSystemUsersServerFn(),
-    loadAdminAuditEventsServerFn(),
-    loadFailedDeliveriesServerFn({ data: {} }),
-    loadSystemEmailDeliveryServerFn()
-  ])
-  return { users, events, failedDeliveries, emailDeliveries }
+  // oxlint-disable effect/noNewPromise -- parallel client-safe server-fn calls; importing Effect here would ship its runtime
+  const [users, events, failedDeliveries, emailDeliveries, workspaces] =
+    await Promise.all([
+      listSystemUsersServerFn(),
+      loadAdminAuditEventsServerFn(),
+      loadFailedDeliveriesServerFn({ data: {} }),
+      loadSystemEmailDeliveryServerFn(),
+      listAdminWorkspacesServerFn()
+    ])
+  // oxlint-enable effect/noNewPromise
+  return { users, events, failedDeliveries, emailDeliveries, workspaces }
 }

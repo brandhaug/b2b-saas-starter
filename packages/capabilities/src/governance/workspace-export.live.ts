@@ -12,6 +12,7 @@ import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { auditedMutations } from './audited-mutation.ts'
+import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 import { workspaceExportFileName } from './workspace-export-archive.ts'
 import {
   issueWorkspaceExportDownloadLink,
@@ -93,13 +94,17 @@ export function LiveWorkspaceExports(
 ): Layer.Layer<
   WorkspaceExports,
   never,
-  Database | RawD1 | AuditEventLog | NotificationFeed
+  Database | RawD1 | AuditEventLog | NotificationFeed | WorkspaceSuspensionService
 > {
   return Layer.effect(WorkspaceExports)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
       const feed = yield* NotificationFeed
+      const suspension = yield* WorkspaceSuspensionService
+      function requireProduct(workspaceId: string) {
+        return suspension.requireAllowed(workspaceId, 'product')
+      }
       const auditedMutation = yield* auditedMutations({
         prepareAuditRecord: audit.prepareRecord,
         unavailable
@@ -162,6 +167,7 @@ export function LiveWorkspaceExports(
         )(),
         list: Effect.fn('WorkspaceExports.list')(function* () {
           const ctx = yield* WorkspaceContext
+          yield* requireProduct(ctx.workspace.id)
           const rows = yield* unavailable(
             db
               .select()
@@ -179,6 +185,7 @@ export function LiveWorkspaceExports(
             })
           }
           const ctx = yield* WorkspaceContext
+          yield* requireProduct(ctx.workspace.id)
           const id = yield* newCapabilityId('exp')
           const createdAt = DateTime.formatIso(yield* DateTime.now)
           const row = {
@@ -230,6 +237,7 @@ export function LiveWorkspaceExports(
             if (!found || found.row.workspaceId !== ctx.workspace.id) {
               return Option.none()
             }
+            yield* requireProduct(ctx.workspace.id)
             return yield* issueWorkspaceExportDownloadLink({
               downloadSecret: found.row.downloadSecret,
               record: toRecord(found.row),
@@ -248,6 +256,7 @@ export function LiveWorkspaceExports(
             })
           }
           const found = yield* findRow(input.exportId)
+          yield* requireProduct(input.workspaceId)
           if (!found || found.row.workspaceId !== input.workspaceId) {
             return false
           }
@@ -325,6 +334,9 @@ export function LiveWorkspaceExports(
           }
           const now = yield* DateTime.now
           const found = yield* findRow(input.exportId)
+          if (found) {
+            yield* requireProduct(found.row.workspaceId)
+          }
           if (!found) {
             return Option.none()
           }

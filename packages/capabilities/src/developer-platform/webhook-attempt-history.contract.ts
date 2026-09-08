@@ -12,6 +12,49 @@ export function webhookAttemptHistoryCases(
 ): ReadonlyArray<DeveloperPlatformContractCase> {
   return [
     {
+      name: 'terminal delivery state survives endpoint recovery and stays scoped to its workspace',
+      assert: Effect.gen(function* () {
+        const service = yield* WebhookEndpoints
+        const ctx = yield* WorkspaceContext
+        const { endpoint } = yield* service.create({
+          url: 'https://example.com/settled-delivery',
+          events: ['demo.event']
+        })
+        const identity = {
+          deliveryId: 'whd_settled',
+          endpointId: endpoint.id,
+          workspaceId: ctx.workspace.id
+        }
+        expect(yield* service.isDeliverySettled(identity)).toBe(false)
+        yield* service.recordDeliveryAttempt({
+          id: identity.deliveryId,
+          endpointId: endpoint.id,
+          workspaceId: ctx.workspace.id,
+          eventType: 'demo.event',
+          attempts: 1,
+          status: 'failed',
+          payload: {}
+        })
+        expect(yield* service.isDeliverySettled(identity)).toBe(false)
+        yield* service.recordTerminalDeliveryAttempt({
+          ...identity,
+          eventType: 'demo.event',
+          attempts: 2,
+          status: 'failed_permanent',
+          failureReason: 'workspace_suspended',
+          payload: {}
+        })
+        yield* service.update({ endpointId: endpoint.id, enabled: true })
+        expect(yield* service.isDeliverySettled(identity)).toBe(true)
+        expect(
+          yield* service.isDeliverySettled({ ...identity, workspaceId: 'wrk_other' })
+        ).toBe(false)
+        expect(
+          yield* service.isDeliverySettled({ ...identity, endpointId: 'wh_other' })
+        ).toBe(false)
+      })
+    },
+    {
       name: 'concurrent independent failures reach the atomic disable rung exactly once and re-enable remains effective',
       assert: Effect.gen(function* () {
         const service = yield* WebhookEndpoints

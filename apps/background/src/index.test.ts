@@ -10,6 +10,7 @@ import {
   type CreateNotificationInput,
   type NotifyWorkspaceOwnersInput
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import {
@@ -90,6 +91,7 @@ function stubEndpoints(
     listDeliveries: () => Effect.die('unused in delivery tests'),
     listGlobalDeliveries: () => Effect.die('unused in delivery tests'),
     replayDeliveryAsAdmin: () => Effect.die('unused in delivery tests'),
+    isDeliverySettled: () => Effect.succeed(false),
     getDispatchTarget: (endpointId, workspaceId) =>
       Effect.succeed(resolveTarget(dispatchTarget, endpointId, workspaceId)),
     recordDeliveryAttempt: (input) =>
@@ -162,6 +164,7 @@ function stubFeed(
           read: false
         }
       }),
+    prepareWorkspaceOwners: () => Effect.succeed({ writes: [], publish: Effect.void }),
     notifyWorkspaceOwners: (input) =>
       Effect.sync(() => {
         ownerNotices.push(input)
@@ -221,7 +224,13 @@ describe('processWebhookMessage', () => {
         Layer.mergeAll(
           stubEndpoints(dispatchTarget, recorded, streak),
           stubFeed(created, ownerNotices),
-          stubHttp(status, captured)
+          stubHttp(status, captured),
+          Layer.succeed(WorkspaceSuspensionService)({
+            list: Effect.succeed([]),
+            get: () => Effect.die('unused'),
+            requireAllowed: () => Effect.void,
+            transition: () => Effect.die('unused')
+          })
         )
       ),
       Effect.map((outcome) => ({
@@ -538,7 +547,13 @@ describe('processDeadLetterMessage', () => {
       Effect.provide(
         Layer.mergeAll(
           stubEndpoints(target, recorded, streak),
-          stubFeed([], ownerNotices)
+          stubFeed([], ownerNotices),
+          Layer.succeed(WorkspaceSuspensionService)({
+            list: Effect.succeed([]),
+            get: () => Effect.die('unused'),
+            requireAllowed: () => Effect.void,
+            transition: () => Effect.die('unused')
+          })
         )
       ),
       Effect.map(() => ({ recorded, ownerNotices }))

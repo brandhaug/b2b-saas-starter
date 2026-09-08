@@ -31,6 +31,7 @@ import {
   type WorkspaceExportAvailability
 } from './workspace-export.ts'
 import { type Workspace } from './workspace-identity.ts'
+import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 
 /**
  * A fixture export the Seed layer starts with: `ready`, with a deterministic
@@ -106,13 +107,20 @@ export function SeedWorkspaceExports(options: {
 }): Layer.Layer<
   WorkspaceExports,
   never,
-  AuditEventLog | NotificationFeed | WorkspaceExportSnapshotServices
+  | AuditEventLog
+  | NotificationFeed
+  | WorkspaceExportSnapshotServices
+  | WorkspaceSuspensionService
 > {
   return Layer.effect(WorkspaceExports)(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
       const feed = yield* NotificationFeed
       const snapshotServices = yield* Effect.context<WorkspaceExportSnapshotServices>()
+      const suspension = yield* WorkspaceSuspensionService
+      function requireProduct(workspaceId: string) {
+        return suspension.requireAllowed(workspaceId, 'product')
+      }
       const rows: Array<SeedExportRow> = []
 
       // The archive builder over the shared seed services, for the fixture
@@ -206,6 +214,7 @@ export function SeedWorkspaceExports(options: {
         )(),
         list: Effect.fn('WorkspaceExports.list')(function* () {
           const ctx = yield* WorkspaceContext
+          yield* requireProduct(ctx.workspace.id)
           return rows
             .filter((row) => row.workspaceId === ctx.workspace.id)
             .toSorted(byRequestedAtDesc)
@@ -213,6 +222,7 @@ export function SeedWorkspaceExports(options: {
         })(),
         request: Effect.fn('WorkspaceExports.request')(function* () {
           const ctx = yield* WorkspaceContext
+          yield* requireProduct(ctx.workspace.id)
           const id = yield* newCapabilityId('exp')
           const requestedAt = yield* DateTime.now
           const row: SeedExportRow = {
@@ -259,6 +269,7 @@ export function SeedWorkspaceExports(options: {
             if (!row) {
               return Option.none()
             }
+            yield* requireProduct(ctx.workspace.id)
             return yield* issueWorkspaceExportDownloadLink({
               downloadSecret: row.downloadSecret,
               record: row.record,
@@ -270,6 +281,7 @@ export function SeedWorkspaceExports(options: {
           input: CompleteWorkspaceExportInput
         ) {
           const row = findPending(input.exportId, input.workspaceId)
+          yield* requireProduct(input.workspaceId)
           if (!row) {
             return false
           }
@@ -297,6 +309,9 @@ export function SeedWorkspaceExports(options: {
         ) {
           const now = yield* DateTime.now
           const row = rows.find((candidate) => candidate.record.id === input.exportId)
+          if (row) {
+            yield* requireProduct(row.workspaceId)
+          }
           if (
             !row ||
             row.archive === null ||

@@ -77,7 +77,8 @@ export function LiveAccountLifecycle(
               id: workspaces.id,
               slug: workspaces.slug,
               name: workspaces.name,
-              planId: workspaces.planId
+              planId: workspaces.planId,
+              suspended: workspaces.suspensionStatus
             })
             .from(workspaceMembers)
             .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
@@ -108,7 +109,8 @@ export function LiveAccountLifecycle(
           ownerCount: crowds.filter(
             (crowd) => crowd.workspaceId === row.id && crowd.role === 'owner'
           ).length,
-          memberCount: crowds.filter((crowd) => crowd.workspaceId === row.id).length
+          memberCount: crowds.filter((crowd) => crowd.workspaceId === row.id).length,
+          suspended: row.suspended === 'suspended'
         }))
       })
 

@@ -13,7 +13,7 @@ Creates, renames, and hard-deletes workspaces through the `WorkspaceLifecycleBin
 
 ## Patterns & Pitfalls
 
-- The Seed adapter keeps created rows in a local `Ref`, refuses taken slugs including the fixture's, and optionally adds the creator to the shared `SeedRoster` as owner.
+- The Seed adapter shares a workspace catalog with Seed suspension in `layers.ts`; creation, rename, and deletion update the identities suspension resolves. It refuses slugs still in that catalog and optionally adds the creator to the shared `SeedRoster` as owner.
 - Contract cases assert no id shapes or rosters, because Seed fabricates identities and mints ids from `Clock`.
 
 ## Anti-patterns

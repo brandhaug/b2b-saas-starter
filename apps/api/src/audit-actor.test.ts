@@ -4,6 +4,7 @@ import {
   SeedAuditEventLog
 } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/seed-fixture'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { it } from '@effect/vitest'
 import { Effect } from 'effect'
 import { describe, expect } from 'vite-plus/test'
@@ -62,7 +63,10 @@ describe('MCP audit provenance', () => {
           }),
           mcpCallerActor(caller),
           mcpCallerActorType(caller)
-        ).pipe(Effect.provide(SeedAuditEventLog([])))
+        ).pipe(
+          Effect.provide(SeedAuditEventLog([])),
+          Effect.provide(selectCapabilitiesLayer({}))
+        )
     )
   }
 })

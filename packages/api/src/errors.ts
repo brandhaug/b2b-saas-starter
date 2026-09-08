@@ -1,5 +1,8 @@
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
-import { CapabilityUnavailable } from '@b2b-saas-starter/capabilities/errors'
+import {
+  CapabilityUnavailable,
+  WorkspaceSuspended
+} from '@b2b-saas-starter/capabilities/errors'
 import { Schema } from 'effect'
 
 /**
@@ -43,6 +46,7 @@ export class RateLimited extends Schema.TaggedError<RateLimited>()(
 const GUARD_FAILURE_SCHEMAS = [
   Unauthorized,
   AuthorizationDenied,
+  WorkspaceSuspended,
   RateLimited,
   CapabilityUnavailable
 ] as const
@@ -61,6 +65,7 @@ const encodeGuardFailure = Schema.encodeSync(GuardFailure)
 const GUARD_FAILURE_STATUS = {
   Unauthorized: 401,
   AuthorizationDenied: 403,
+  WorkspaceSuspended: 403,
   RateLimited: 429,
   CapabilityUnavailable: 503
 } satisfies Record<GuardFailure['_tag'], number>

@@ -22,6 +22,7 @@ const createToken = vi.fn<CreateApiToken>()
 function renderPanel(input: {
   readonly role: 'owner' | 'member'
   readonly tokens?: ReadonlyArray<ApiToken>
+  readonly creation?: 'visible' | 'hidden'
 }) {
   return renderWithRouter(
     <ApiTokensPanel
@@ -30,6 +31,7 @@ function renderPanel(input: {
       viewer={{ role: input.role }}
       revokeToken={revokeToken}
       createToken={createToken}
+      {...(input.creation === undefined ? {} : { creation: input.creation })}
     />
   )
 }
@@ -48,6 +50,13 @@ describe('ApiTokensPanel', () => {
     expect(screen.getByRole('button', { name: 'Revoke' })).toBeTruthy()
     expect(screen.queryByText('Your role cannot mint tokens.')).toBeNull()
     expect(screen.queryByText('Your role cannot revoke tokens.')).toBeNull()
+  })
+
+  it('keeps revoke but removes mint and replacement controls in recovery mode', async () => {
+    await renderPanel({ role: 'owner', creation: 'hidden' })
+    expect(screen.queryByRole('heading', { name: 'Create a token' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Revoke' })).toBeTruthy()
   })
 
   it('replaces each control with its reason for a role that holds neither', async () => {

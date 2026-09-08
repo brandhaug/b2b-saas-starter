@@ -1,7 +1,7 @@
 import { workspaceExportStatuses } from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Effect, Option, Schema } from 'effect'
 
-import { type CapabilityUnavailable } from '../errors.ts'
+import { type CapabilityUnavailable, type WorkspaceSuspended } from '../errors.ts'
 import { hmacSha256Hex } from '../crypto.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 
@@ -127,7 +127,7 @@ export type WorkspaceExportsInterface = {
   /** Every export of the current workspace, newest first. */
   readonly list: Effect.Effect<
     ReadonlyArray<WorkspaceExport>,
-    CapabilityUnavailable,
+    CapabilityUnavailable | WorkspaceSuspended,
     WorkspaceContext
   >
 
@@ -139,7 +139,7 @@ export type WorkspaceExportsInterface = {
    */
   readonly request: Effect.Effect<
     WorkspaceExport,
-    CapabilityUnavailable,
+    CapabilityUnavailable | WorkspaceSuspended,
     WorkspaceContext
   >
 
@@ -152,7 +152,7 @@ export type WorkspaceExportsInterface = {
     readonly exportId: string
   }) => Effect.Effect<
     Option.Option<WorkspaceExportDownloadLink>,
-    CapabilityUnavailable,
+    CapabilityUnavailable | WorkspaceSuspended,
     WorkspaceContext
   >
 
@@ -166,7 +166,7 @@ export type WorkspaceExportsInterface = {
    */
   readonly complete: (
     input: CompleteWorkspaceExportInput
-  ) => Effect.Effect<boolean, CapabilityUnavailable>
+  ) => Effect.Effect<boolean, CapabilityUnavailable | WorkspaceSuspended>
 
   /** Marks a pending export `failed` with a reason. Same matching as `complete`. */
   readonly fail: (
@@ -181,7 +181,10 @@ export type WorkspaceExportsInterface = {
    */
   readonly openDownload: (
     input: OpenWorkspaceExportDownloadInput
-  ) => Effect.Effect<Option.Option<WorkspaceExportDownload>, CapabilityUnavailable>
+  ) => Effect.Effect<
+    Option.Option<WorkspaceExportDownload>,
+    CapabilityUnavailable | WorkspaceSuspended
+  >
 }
 
 export class WorkspaceExports extends Context.Service<

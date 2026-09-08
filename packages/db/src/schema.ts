@@ -15,6 +15,7 @@ import {
   ssoProvisionedRoles,
   systemRoles,
   workspaceExportStatuses,
+  workspaceSuspensionStatuses,
   workspaceRoles,
   type ApiTokenScopeValue
 } from './enums.ts'
@@ -45,6 +46,7 @@ export {
   ssoProvisionedRoles,
   systemRoles,
   workspaceExportStatuses,
+  workspaceSuspensionStatuses,
   workspaceRoles,
   type ApiTokenScopeValue,
   type AuditActorTypeValue,
@@ -55,6 +57,7 @@ export {
   type SsoProvisionedRoleValue,
   type SystemRoleValue,
   type WorkspaceExportStatus,
+  type WorkspaceSuspensionStatus,
   type BillingCheckoutStatus,
   type BillingProviderEventStatus,
   type BillingSynchronizationStatus
@@ -318,6 +321,19 @@ export const workspaces = sqliteTable('workspaces', {
   // goes through a plugin endpoint needs it back. Epoch integer like the
   // rest of this plugin-shaped table.
   onboardingDismissedAt: integer('onboardingDismissedAt', { mode: 'timestamp' }),
+  // Capability-owned lifecycle state. Never declare these as organization
+  // additionalFields: the plugin must not expose internal reasons to customers.
+  suspensionStatus: text('suspensionStatus', { enum: workspaceSuspensionStatuses })
+    .default('active')
+    .notNull(),
+  suspensionInternalReason: text('suspensionInternalReason'),
+  suspensionCustomerExplanation: text('suspensionCustomerExplanation'),
+  suspensionChangedAt: text('suspensionChangedAt'),
+  suspensionTransitionId: text('suspensionTransitionId'),
+  suspensionChangedByUserId: text('suspensionChangedByUserId').references(
+    () => user.id,
+    { onDelete: 'set null' }
+  ),
   ...authTimestamps()
 })
 
