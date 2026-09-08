@@ -1,4 +1,5 @@
 import { createClientOnlyFn } from '@tanstack/react-start'
+import { sentryPrivacyOptions } from '@b2b-saas-starter/logger/sanitization'
 import { useEffect } from 'react'
 
 import { type ClientTelemetryConfig } from './server/telemetry-config'
@@ -45,10 +46,7 @@ export function ClientTelemetry({
         if (!cancelled && Sentry.getClient() === undefined) {
           Sentry.init({
             dsn: sentryDsn,
-            // 100% traces would sample every browser session — an order of
-            // magnitude noisier (and pricier) than the server's per-request
-            // sampling. Errors stay at the SDK default (100%).
-            tracesSampleRate: 0.1,
+            ...sentryPrivacyOptions,
             // Session replay stays off until a starter use case asks for it.
             integrations: []
           })
@@ -62,9 +60,31 @@ export function ClientTelemetry({
         if (!cancelled && !posthog.__loaded) {
           posthog.init(posthogKey, {
             api_host: posthogHost ?? 'https://us.i.posthog.com',
+            autocapture: false,
             capture_pageview: 'history_change',
             capture_pageleave: true,
-            persistence: 'localStorage+cookie'
+            capture_exceptions: false,
+            disable_session_recording: true,
+            person_profiles: 'never',
+            persistence: 'memory',
+            advanced_disable_flags: true,
+            disable_external_dependency_loading: true,
+            before_send: (event) => {
+              if (event?.event !== '$pageview' && event?.event !== '$pageleave') {
+                return null
+              }
+              // Per-event correlation, never a user/device identity. The project
+              // token is required by ingestion; every data property is rebuilt.
+              return {
+                event: event.event,
+                uuid: event.uuid,
+                properties: {
+                  token: posthogKey,
+                  distinct_id: event.uuid,
+                  $process_person_profile: false
+                }
+              }
+            }
           })
         }
       }

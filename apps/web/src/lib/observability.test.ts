@@ -74,7 +74,7 @@ function nestedEntries(record: Captured): ReadonlyArray<Record<string, unknown>>
 
 describe('runWebRequestScope', () => {
   it('emits exactly one canonical line, with every nested run folded into it', async () => {
-    const request = new Request('http://localhost/workspaces/acme')
+    const request = new Request('http://localhost/workspaces/customer-sensitive-canary')
     ambient.request = request
 
     const response = await runWebRequestScope(
@@ -85,7 +85,10 @@ describe('runWebRequestScope', () => {
         // oxlint-disable-next-line starter/no-run-promise-in-tests -- a bare runtime inside the promise callback is the interop under test, the documented shape loaders and server fns use
         await Effect.runPromise(
           withWebRequestScope(
-            { event: 'capability.workspace', metadata: { workspaceSlug: 'acme' } },
+            {
+              event: 'capability.workspace',
+              metadata: { workspaceSlug: 'customer-sensitive-canary' }
+            },
             Effect.annotateLogsScoped({ unreadCount: 42 }),
             lookupRequest
           )
@@ -105,11 +108,11 @@ describe('runWebRequestScope', () => {
 
     expect(response.status).toBe(201)
     const record = only()
+    expect(JSON.stringify(record)).not.toContain('customer-sensitive-canary')
     expect(record.message).toBe('web.request')
     expect(record.level).toBe('INFO')
     expect(record.annotations).toMatchObject({
       service: 'web',
-      pathname: '/workspaces/acme',
       handlerType: 'router',
       statusCode: 201
     })
@@ -118,7 +121,6 @@ describe('runWebRequestScope', () => {
     expect(nestedEntries(record)).toEqual([
       {
         event: 'capability.workspace',
-        workspaceSlug: 'acme',
         unreadCount: 42,
         status: 'ok'
       },
@@ -130,8 +132,12 @@ describe('runWebRequestScope', () => {
     // Start re-wraps the request as it flows through the handler chain, so the
     // middleware and the loaders can hold different `Request` objects. The
     // second `registry.set` in `registerAndRun` is what covers that.
-    const registered = new Request('http://localhost/workspaces/acme')
-    ambient.request = new Request('http://localhost/workspaces/acme')
+    const registered = new Request(
+      'http://localhost/workspaces/customer-sensitive-canary'
+    )
+    ambient.request = new Request(
+      'http://localhost/workspaces/customer-sensitive-canary'
+    )
 
     await runWebRequestScope(
       { request: registered, handlerType: 'router' },
@@ -150,6 +156,7 @@ describe('runWebRequestScope', () => {
     )
 
     const record = only()
+    expect(JSON.stringify(record)).not.toContain('customer-sensitive-canary')
     expect(record.message).toBe('web.request')
     expect(nestedEntries(record)).toEqual([
       { event: 'capability.global', status: 'ok' }
@@ -285,20 +292,23 @@ describe('withWebRequestScope', () => {
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- a bare runtime inside the promise callback is the interop under test, the documented shape loaders and server fns use
     await Effect.runPromise(
       withWebRequestScope(
-        { event: 'capability.global', metadata: { workspaceSlug: 'acme' } },
+        {
+          event: 'capability.global',
+          metadata: { workspaceSlug: 'customer-sensitive-canary' }
+        },
         Effect.void,
         lookupRequest
       )
     )
 
     const record = only()
+    expect(JSON.stringify(record)).not.toContain('customer-sensitive-canary')
     expect(record.message).toBe('capability.global')
     // The marker is the point: a missed join shows up in the log stream instead
     // of looking like a normal second event.
     expect(record.annotations).toMatchObject({
       service: 'web',
       scope: 'standalone',
-      workspaceSlug: 'acme',
       status: 'ok'
     })
   })

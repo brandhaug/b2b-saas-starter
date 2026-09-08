@@ -23,6 +23,7 @@ import {
   readTraceHeader,
   type TraceContinuation
 } from './trace.ts'
+import { diagnosticAnnotations, diagnosticLabel } from './sanitization.ts'
 import { failureMessage } from '@b2b-saas-starter/failure'
 
 /** The mutable draft `withRequestScope` fills before the sinks read it. */
@@ -358,6 +359,21 @@ export function withTriggerScope<A, E, R>(
  * event is visible from the trace even when no log backend is configured.
  */
 export const WideEventLoggerLive: Layer.Layer<never> = Logger.layer([
-  Logger.consoleJson,
+  Logger.withConsoleLog(
+    Logger.map(Logger.formatStructured, (record) =>
+      // oxlint-disable-next-line effect/noGlobals -- console JSON is the output boundary
+      JSON.stringify({
+        level: record.level,
+        timestamp: record.timestamp,
+        fiberId: record.fiberId,
+        message: diagnosticLabel(record.message),
+        annotations: diagnosticAnnotations(record.annotations),
+        cause: Option.fromUndefinedOr(record.cause).pipe(
+          Option.map(() => '[omitted]'),
+          Option.getOrUndefined
+        )
+      })
+    )
+  ),
   Logger.tracerLogger
 ])

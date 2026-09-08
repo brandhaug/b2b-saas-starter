@@ -5,6 +5,7 @@ import { Otlp } from 'effect/unstable/observability'
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 
 import { readWideEventEnvironment } from './environment.ts'
+import { SanitizedOtlpSerialization } from './otlp-sanitization.ts'
 
 export type ObservabilityEnv = ProviderEnvOf<
   | 'OTEL_EXPORTER_OTLP_ENDPOINT'
@@ -88,7 +89,7 @@ export function makeOtlpLayer(
   if (!endpoint) {
     return Layer.empty
   }
-  return Otlp.layerJson({
+  return Otlp.layer({
     baseUrl: endpoint,
     headers: otlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS),
     resource: {
@@ -104,5 +105,5 @@ export function makeOtlpLayer(
     metricsExportInterval: Duration.seconds(1),
     tracerExportInterval: Duration.seconds(1),
     shutdownTimeout: Duration.seconds(3)
-  }).pipe(Layer.provide(FetchHttpClient.layer))
+  }).pipe(Layer.provide([FetchHttpClient.layer, SanitizedOtlpSerialization]))
 }
