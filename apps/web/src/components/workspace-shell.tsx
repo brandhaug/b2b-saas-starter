@@ -138,6 +138,7 @@ export function WorkspaceShell({
     rememberWorkspace(router, { slug: workspaceSlug, name: workspaceName })
   }, [router, workspaceSlug, workspaceName])
   return (
+    // prettier-ignore
     <CommandPaletteProvider viewer={viewer} systemRole={systemRole}>
       <div className="grid min-h-dvh bg-background lg:grid-cols-[16rem_1fr]">
       <a

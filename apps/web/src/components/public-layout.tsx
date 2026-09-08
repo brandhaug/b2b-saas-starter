@@ -24,6 +24,7 @@ import { LanguageSwitcher } from '@/components/language-switcher'
 export function PublicLayout({ children }: { readonly children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   return (
+    // prettier-ignore
     <CommandPaletteProvider>
       <div className="marketing flex min-h-dvh flex-col bg-background">
         {/* Rendered in the tree, hoisted to <head> by React 19 — see the import
