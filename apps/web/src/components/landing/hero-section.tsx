@@ -17,7 +17,7 @@ const BILL_OF_MATERIALS: ReadonlyArray<string> = [
   'Alchemy v2'
 ]
 
-function HeroSection({ showDemo }: { readonly showDemo: boolean }) {
+function HeroSection() {
   return (
     <section className="border-b border-border">
       <div className="mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:pt-28 lg:pb-16">
@@ -43,18 +43,11 @@ function HeroSection({ showDemo }: { readonly showDemo: boolean }) {
               {m.landing_description()}
             </p>
             <div className="rise rise-4 mt-9 flex flex-wrap items-center gap-3">
-              {/* The demo tree renders the reference dashboard for the seed
-                  workspace with no sign-in and no mutation path; the real app
-                  is one sign-in away from there. No second "Sign in" button:
-                  the header carries one on every scroll position, and a
-                  second at the fold read as a duplicate control, not a
-                  choice. */}
-              {showDemo ? (
-                <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
-                  {m.action_open_demo()}
-                  <ArrowRightIcon className="size-4" />
-                </Button>
-              ) : null}
+              <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
+                {m.action_open_demo()}
+                <ArrowRightIcon className="size-4" />
+              </Button>
+
               <a
                 href={GITHUB_URL}
                 target="_blank"

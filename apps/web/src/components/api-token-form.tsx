@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { SecretReveal } from '@/components/secret-reveal'
 import { createApiTokenServerFn } from '@/lib/server/api-tokens'
-import { callServerFn } from '@/lib/server-call'
+import { useServerCall } from '@/hooks/use-server-call'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 type ApiTokenValues = {
@@ -65,6 +65,7 @@ export function ApiTokenForm({
   readonly onCreated?: OnApiTokenCreated
   readonly createToken?: CreateApiToken
 }) {
+  const callServerFn = useServerCall()
   const [created, setCreated] = useState<CreatedApiToken | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const form = useForm({

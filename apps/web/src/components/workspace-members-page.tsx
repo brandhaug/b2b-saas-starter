@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { WorkspaceLink } from '@/components/workspace-link'
 import { InvitationPanel } from '@/components/invitation-panel'
 import { EmailDeliveryPanel } from '@/components/email-delivery-panel'
 import { MembersPanel } from '@/components/members-panel'
@@ -55,13 +55,13 @@ export function WorkspaceMembersPage({
               used: seatUsage.used,
               included: seatUsage.included ?? 0
             })}{' '}
-            <Link
+            <WorkspaceLink
               to="/workspaces/$workspaceSlug/billing"
-              params={{ workspaceSlug }}
+              workspaceSlug={workspaceSlug}
               className="font-medium text-foreground underline underline-offset-4"
             >
               {m.upgrade_plan_to_cover_team()}
-            </Link>
+            </WorkspaceLink>
           </AlertDescription>
         </Alert>
       ) : null}

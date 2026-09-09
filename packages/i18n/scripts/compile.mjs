@@ -170,7 +170,10 @@ await compile({
       match: path,
       exclude: true
     })),
-    ...routeConfig.accountPresentationPaths.map((path) => ({
+    ...[
+      ...routeConfig.accountPresentationPaths,
+      ...routeConfig.guestPresentationPaths
+    ].map((path) => ({
       match: `${path}/:path(.*)?`,
       strategy: ['cookie', 'preferredLanguage', 'baseLocale']
     }))

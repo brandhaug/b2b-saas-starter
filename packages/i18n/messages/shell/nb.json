@@ -1,5 +1,5 @@
 {
-  "shell_demo_read_only": "Den aktive demoen er skrivebeskyttet. Klon startpakken og logg inn som demo@starter.local for å gjøre endringer.",
+  "shell_demo_read_only": "Denne forhåndsvisningen er skrivebeskyttet. Ingen endringer ble gjort. Logg inn for å bruke denne handlingen.",
   "shell_description": "B2B SaaS-startmal for Cloudflare med TanStack Start, Effect v4, Drizzle D1, Better Auth, REST, MCP, e-post og tester.",
   "shell_not_found": "Fant ikke siden",
   "shell_not_found_description": "Siden du leter etter, finnes ikke.",
@@ -155,5 +155,7 @@
   "shell_diagram_topology": "B2B-SAAS-STARTER · FORESPØRSELSFLYT",
   "shell_diagram_sheet": "CLOUDFLARE-FIRST · ALCHEMY v2 · ARK 1/1",
   "shell_trace_workspace_group": "HttpApiEndpoint · arbeidsområdegruppen",
-  "shell_trace_overview": "Effect · oversiktsprojeksjonen"
+  "shell_trace_overview": "Effect · oversiktsprojeksjonen",
+  "demo_preview_notice": "Forhåndsvisning med eksempeldata. Handlinger gjør ingen endringer.",
+  "demo_try_sign_in": "Prøv innlogging"
 }
