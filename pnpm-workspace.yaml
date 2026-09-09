@@ -130,8 +130,8 @@ overrides:
   ws: 8.21.0
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
-  "@hono/node-server@<1.19.13": 1.19.13
-  "@hono/node-server@<1.19.15": 1.19.15
+  '@hono/node-server@<1.19.13': 1.19.13
+  '@hono/node-server@<1.19.15': 1.19.15
 patchedDependencies:
   '@better-auth/oauth-provider@1.7.2': patches/@better-auth__oauth-provider@1.7.2.patch
 peerDependencyRules:
