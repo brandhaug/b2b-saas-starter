@@ -27,6 +27,65 @@ for SOC 2, [ISO/IEC 27001:2022](https://www.iso.org/standard/27001) for an infor
 security management system, and the [European Commission's GDPR guidance for organizations](https://commission.europa.eu/law/law-topic/data-protection/information-business-and-organisations_en).
 These sources do not turn the rows below into an exhaustive standards mapping.
 
+## Operator assessment runbooks
+
+### Risk assessment
+
+The deployment owner leads this assessment before customer use, when a new data
+flow or material control changes, and on a review schedule chosen by the
+operator. The owner maps the change to the [data inventory](#data-inventory),
+provider register, retention policy, recovery procedure, and monitoring setup.
+
+1. Describe the intended processing, data categories, users, providers,
+   jurisdictions, access paths, retention, and failure modes.
+2. Rate confidentiality, integrity, availability, and rights impact using the
+   organization's chosen method. Identify affected people, dependencies,
+   plausible misuse, and safeguards already in place.
+3. Decide whether to enable, restrict, defer, or redesign the change. Escalate
+   legal, contractual, or high-impact questions to the responsible adviser.
+4. Assign each remaining action to an owner with a due date. Record the
+   likelihood, impact, remaining risk, and named decision owner who accepts or
+   rejects that remaining risk. Recheck the decision after implementation on a
+   named deployment and revision.
+
+Keep a dated, attributable, access-controlled record with the assessor, scope,
+method or rating, likelihood, impact, remaining risk, named risk decision owner,
+decision, evidence links, action owners and due dates, and next review date. This
+is an operator assessment, not proof that the controls operated effectively.
+
+### Vendor review
+
+The deployment owner reviews each enabled provider before activation, after a
+material service, region, subprocessor, contract, or data-flow change, and on a
+schedule the operator records. Optional providers with no configuration remain
+inactive. The owner uses the [provider and region register](#provider-and-region-register)
+as the inventory.
+
+1. Confirm the provider account, service, endpoint, region, data categories,
+   recipients, legal role, subprocessors, transfer mechanism, retention,
+   deletion path, security contact, and incident contact.
+2. Read the current provider terms, DPA or contract, security documentation,
+   and status or incident process. Check that the deployment's contacts,
+   credentials, budget, and recovery path are current.
+3. Decide whether the provider is approved, approved with restrictions, or
+   blocked. Update the register, privacy notice inputs, and deployment secrets
+   only after the decision is attributable.
+
+Keep a dated, attributable, access-controlled record with the reviewer, provider
+and service, documents and contract references, decision, restrictions, open
+actions, and next review date. Do not put credentials or provider payloads in the
+repository.
+
+### Discovery links
+
+Start with the [recovery and production monitoring runbook](operations.md),
+[D1 backup and recovery](backup-recovery.md), [retention policy](retention.md),
+[production monitoring](monitoring.md), and the [provider and region register](#provider-and-region-register).
+For legal and breach-notification orientation, use the [EDPB personal-data breach
+guidance](https://www.edpb.europa.eu/topics/security-data-breaches/personal-data-breaches_en)
+and [SME risk guide](https://www.edpb.europa.eu/sme/assess-the-risks/data-breaches_en),
+then obtain advice for the deployment's facts.
+
 ## Data inventory
 
 The [schema](../packages/db/src/schema.ts) owns stored fields; the
