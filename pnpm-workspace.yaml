@@ -124,6 +124,9 @@ overrides:
   # GHSA-5qjj-4xww-7phc: Alchemy's Prisma dev tool pins vulnerable 1.2.0.
   # Remove when @prisma/dev updates its own dependency to >=1.4.2.
   '@prisma/dev>valibot': 1.4.2
+  # CVE-2026-29087: @prisma/dev pins a vulnerable node-server release.
+  # Remove when @prisma/dev updates its own dependency to >=1.19.10.
+  '@prisma/dev>@hono/node-server': 1.19.10
   ws: 8.21.0
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
