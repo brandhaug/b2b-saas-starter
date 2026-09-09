@@ -21,7 +21,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { WebhookForm, type CreateWebhookEndpoint } from '@/components/webhook-form'
 import { ConfirmButton } from '@/components/confirm-button'
 import { ActionFeedback } from '@/components/page/action-feedback'
-import { CreateSection, ListSection, Panel } from '@/components/page/panel'
+import { CreateAction, ListSection, Panel } from '@/components/page/panel'
 import { Identifier } from '@/components/page/identifier'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { SecretReveal } from '@/components/secret-reveal'
@@ -201,7 +201,7 @@ export function WebhooksPanel({
 
   return (
     <Panel>
-      <CreateSection
+      <CreateAction
         allowed={canCreate}
         title={m.register_endpoint()}
         deniedReason={m.endpoint_register_denied()}
@@ -211,9 +211,9 @@ export function WebhooksPanel({
           onCreated={() => void router.invalidate()}
           {...(createEndpoint === undefined ? {} : { createEndpoint })}
         />
-      </CreateSection>
+      </CreateAction>
 
-      <ListSection title={m.endpoints_title()}>
+      <ListSection as="h2" title={m.endpoints_title()}>
         {endpoints.length === 0 ? (
           <Empty>
             <EmptyHeader>

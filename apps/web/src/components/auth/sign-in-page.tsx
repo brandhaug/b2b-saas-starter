@@ -393,7 +393,11 @@ export function SignInPage({
       footer={signInFooter({
         mode,
         redirect,
-        socialProviders
+        socialProviders,
+        onUseLink: () => {
+          setSubmitError(null)
+          setMode('link')
+        }
       })}
     >
       <LastSignInMethodHint />
@@ -445,18 +449,6 @@ export function SignInPage({
           />
         )}
       </passwordForm.Field>
-
-      <Button
-        type="button"
-        variant="link"
-        onClick={() => {
-          setSubmitError(null)
-          setMode('link')
-        }}
-        className="justify-start p-0 text-sm"
-      >
-        {m.email_me_sign_in_link()}
-      </Button>
     </AuthCardForm>
   )
 }
@@ -471,9 +463,11 @@ export function SignInPage({
 function signInFooter({
   mode,
   redirect,
-  socialProviders
+  socialProviders,
+  onUseLink
 }: {
   mode: 'password' | 'link'
+  onUseLink?: () => void
   redirect?: string | undefined
   socialProviders: ReadonlyArray<SocialProviderId>
 }) {
@@ -481,24 +475,26 @@ function signInFooter({
     <>
       {mode === 'password' ? (
         <>
-          {/* The passkey block sits at the point of action, after the form:
-              same destination, different credential. Conditional-UI browsers
-              also offer passkeys straight from the email field above. */}
-          <PasskeySignIn redirect={redirect} />
-          {socialProviders.length > 0 ? (
-            <p className="text-xs text-muted-foreground">
-              {m.social_sign_in_description()}
-            </p>
-          ) : null}
-          <p className="text-right">
-            <Link
-              to="/sign-in/email-code"
-              search={redirect ? { redirect } : {}}
-              className="text-sm text-primary underline underline-offset-4"
-            >
-              {m.email_code_instead()}
-            </Link>
-          </p>
+          <div className="grid gap-3">
+            <PasskeySignIn redirect={redirect} />
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+              <Button type="button" variant="link" onClick={onUseLink}>
+                {m.auth_email_link()}
+              </Button>
+              <Link
+                to="/sign-in/email-code"
+                search={redirect ? { redirect } : {}}
+                className="text-sm text-primary underline underline-offset-4"
+              >
+                {m.auth_email_code()}
+              </Link>
+            </div>
+            {socialProviders.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {m.social_sign_in_description()}
+              </p>
+            ) : null}
+          </div>
           <p className="text-right">
             <Link
               to="/forgot-password"

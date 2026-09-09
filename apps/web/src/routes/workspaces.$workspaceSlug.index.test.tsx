@@ -74,15 +74,13 @@ async function renderDashboard(data: WorkspaceDashboardPayload) {
 }
 
 describe('WorkspaceDashboardPage', () => {
-  it('renders the attention feed, notifications, and webhook delivery for an owner', async () => {
+  it('renders attention and notifications without duplicating delivery reports', async () => {
     const rendered = await renderDashboard(await loadDashboard())
     await rendered.findByText('Needs attention')
-    // The seed's standing attention items: one token minted but never used,
-    // and the newest audit events as informational entries.
+    // Attention stays actionable; the audit page owns recent history.
     screen.getByText(/never used/)
-    screen.getByText('API token created')
-    // The chart trails the feed.
-    screen.getByText('Webhook delivery')
+    expect(screen.queryByText('API token created')).toBeNull()
+    expect(screen.queryByText('Webhook delivery')).toBeNull()
   })
 
   it('offers mark-as-read and reports the change through the port', async () => {
@@ -113,7 +111,6 @@ describe('WorkspaceDashboardPage', () => {
 
   it('shows the owner the Seed Workspace checklist with a dismiss control', async () => {
     await renderDashboard(await loadDashboard())
-    screen.getByText('Set up your workspace')
     screen.getByText('3 of 4')
     screen.getByRole('button', { name: 'Dismiss' })
   })
@@ -121,7 +118,6 @@ describe('WorkspaceDashboardPage', () => {
   it('shows a member the checklist read-only, without the developer-platform steps', async () => {
     actor.userId = 'usr_dev'
     await renderDashboard(await loadDashboard())
-    screen.getByText('Set up your workspace')
     expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
     expect(screen.queryByText('Create an API token')).toBeNull()
   })

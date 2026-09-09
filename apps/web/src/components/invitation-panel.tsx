@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/item'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Identifier } from '@/components/page/identifier'
-import { CreateSection, ListSection, Panel } from '@/components/page/panel'
+import { CreateAction, ListSection, Panel } from '@/components/page/panel'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
 import { viewerCan, WORKSPACE_ROLES, type Viewer } from '@/lib/permissions'
@@ -152,7 +152,7 @@ export function InvitationPanel({
       title={m.panel_invitations()}
       description={m.panel_invitations_description()}
     >
-      <CreateSection
+      <CreateAction
         allowed={canInvite}
         title={m.form_invite_member()}
         deniedReason={m.workspace_invite_denied()}
@@ -232,7 +232,7 @@ export function InvitationPanel({
           <ActionFeedback error={send.error} />
           <ActionFeedback error={resend.error} />
         </form>
-      </CreateSection>
+      </CreateAction>
 
       <ListSection title={m.pending_invitations()}>
         {invitations.length === 0 ? (

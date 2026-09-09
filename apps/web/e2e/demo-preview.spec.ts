@@ -52,6 +52,7 @@ test('preview forms and destructive dialogs explain refusal without sending or c
   await page
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })
+  await page.getByRole('button', { name: 'Invite a member', exact: true }).click()
   await page.getByLabel('Invite by email', { exact: true }).fill('visitor@example.com')
   await page.getByRole('button', { name: 'Send invitation', exact: true }).click()
   await expect(
@@ -96,11 +97,16 @@ test('token creation, replacement, and webhook creation refuse locally', async (
   await page
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })
+  await page.getByRole('button', { name: 'Create a token', exact: true }).click()
   await page.getByLabel('Token name', { exact: true }).fill('Visitor token')
   await page.getByRole('button', { name: 'Create token', exact: true }).click()
   await expect(
     page.getByText(/This preview is read-only. No changes were made./)
   ).toBeVisible()
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Close', exact: true })
+    .click()
   await page
     .getByRole('listitem')
     .filter({ hasText: 'Local admin token' })
@@ -120,6 +126,7 @@ test('token creation, replacement, and webhook creation refuse locally', async (
   await page
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })
+  await page.getByRole('button', { name: 'Register an endpoint', exact: true }).click()
   await page
     .getByLabel('Endpoint URL', { exact: true })
     .fill('https://example.com/visitor')

@@ -79,10 +79,10 @@ describe('WebhooksPanel', () => {
 
   it('offers the create form and the row controls to a role that holds them', async () => {
     await renderPanel({ role: 'owner' })
-    expect(screen.getByRole('heading', { name: 'Register an endpoint' })).toBeTruthy()
-    expect(screen.getByLabelText('Endpoint URL')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Disable' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Rotate secret' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Register an endpoint' }))
+    expect(screen.getByLabelText('Endpoint URL')).toBeTruthy()
   })
 
   it('replaces the form with its reason for a role that cannot register', async () => {

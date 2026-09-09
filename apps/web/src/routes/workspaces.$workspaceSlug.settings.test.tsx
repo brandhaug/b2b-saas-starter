@@ -161,7 +161,7 @@ describe('WorkspaceSettingsPage lifecycle ports', () => {
 describe('WorkspaceSettingsPage data export', () => {
   it('offers explicit export and download actions to an owner', async () => {
     await renderPage()
-    screen.getByRole('heading', { name: 'Data export' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Data export' }))
     screen.getByRole('button', { name: 'Request export' })
     expect(
       screen.getByRole('button', { name: 'Download archive' }).getAttribute('href')
@@ -187,6 +187,7 @@ describe('WorkspaceSettingsPage data export', () => {
       }
     })
     expect(screen.queryByRole('button', { name: 'Request export' })).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: 'Data export' }))
     screen.getByText('Set WORKSPACE_EXPORT_BUCKET to enable.')
     screen.getByText('No exports yet')
   })
@@ -210,6 +211,7 @@ describe('WorkspaceSettingsPage data export', () => {
       { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
     )
     await screen.findByRole('heading', { name: 'Workspace settings' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Data export' }))
     fireEvent.click(screen.getByRole('button', { name: 'Request export' }))
     await waitFor(() =>
       expect(requestExport).toHaveBeenCalledWith({

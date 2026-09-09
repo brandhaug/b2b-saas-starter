@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { AttentionFeed } from '@/components/attention-feed'
 import {
   LiveNotifications,
@@ -11,21 +11,9 @@ import {
 } from '@/components/onboarding-checklist'
 import { attentionItems } from '@/lib/attention'
 import { PageHeader } from '@/components/page/page-header'
-import { Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { type WorkspaceDashboardPayload } from '@/lib/server/workspace-dashboard'
 import { m } from '@b2b-saas-starter/i18n/messages'
-
-// Lazy: recharts (and its d3 dependencies) is the heaviest module on this
-// route, and the chart is below-fold secondary content — it must not sit in
-// the dashboard's first chunk. `defaultPreload: 'intent'` warms the chunk on
-// navigation intent.
-async function loadWebhookSuccessChart() {
-  const chart = await import('@/components/charts/webhook-success-chart')
-  return { default: chart.WebhookSuccessChart }
-}
-
-const WebhookSuccessChart = lazy(loadWebhookSuccessChart)
 
 /**
  * The workspace overview page. Lives beside the route file (not in it) so the
@@ -69,24 +57,13 @@ export function WorkspaceDashboardPage({
         title={workspace.name}
         description={m.dashboard_attention_description()}
       />
-      {/* Derived from live state on every load; renders nothing once an
-          owner or admin dismissed it for the workspace. */}
-      <OnboardingChecklist
-        workspaceSlug={workspace.slug}
-        progress={progress}
-        viewer={viewer}
-        dismissalHint={dismissalHint}
-        {...(ports?.dismissOnboardingChecklist === undefined
-          ? {}
-          : { dismiss: ports.dismissOnboardingChecklist })}
-      />
       <AttentionFeed
         workspaceSlug={workspace.slug}
         items={attentionItems({
           invitations: data.invitations,
           apiTokens: data.apiTokens,
           webhooks,
-          auditEvents: data.auditEvents
+          auditEvents: null
         })}
       />
       <LiveNotifications
@@ -99,15 +76,17 @@ export function WorkspaceDashboardPage({
           ? {}
           : { markRead: ports.markNotificationsRead })}
       />
-      {/* `null` means the actor holds no `webhook:list`, so the loader never
-          read the endpoints — there is nothing to chart and nothing to hide. */}
-      {webhooks === null ? null : (
-        <Panel title={m.webhook_delivery()}>
-          <Suspense fallback={null}>
-            <WebhookSuccessChart webhooks={webhooks} />
-          </Suspense>
-        </Panel>
-      )}
+      {/* Derived from live state on every load; renders nothing once an
+          owner or admin dismissed it for the workspace. */}
+      <OnboardingChecklist
+        workspaceSlug={workspace.slug}
+        progress={progress}
+        viewer={viewer}
+        dismissalHint={dismissalHint}
+        {...(ports?.dismissOnboardingChecklist === undefined
+          ? {}
+          : { dismiss: ports.dismissOnboardingChecklist })}
+      />
     </WorkspaceShell>
   )
 }

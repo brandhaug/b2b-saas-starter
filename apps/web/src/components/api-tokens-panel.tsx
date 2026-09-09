@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/item'
 import { ConfirmButton } from '@/components/confirm-button'
 import { ActionFeedback } from '@/components/page/action-feedback'
-import { CreateSection, ListSection, Panel } from '@/components/page/panel'
+import { CreateAction, ListSection, Panel } from '@/components/page/panel'
 import { Identifier } from '@/components/page/identifier'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { formatTimestampOr } from '@/lib/format-date'
@@ -106,7 +106,7 @@ export function ApiTokensPanel({
   return (
     <Panel>
       {creation === 'visible' ? (
-        <CreateSection
+        <CreateAction
           allowed={canCreate}
           title={m.tokens_create_title()}
           deniedReason={m.token_mint_denied()}
@@ -118,7 +118,7 @@ export function ApiTokensPanel({
             }}
             {...(createToken === undefined ? {} : { createToken })}
           />
-        </CreateSection>
+        </CreateAction>
       ) : null}
 
       {replacing ? (
@@ -132,6 +132,7 @@ export function ApiTokensPanel({
         />
       ) : null}
       <ListSection
+        as="h2"
         title={m.tokens_title()}
         footer={
           canRevoke ? undefined : (
