@@ -1,5 +1,14 @@
 import { type ReactNode, useId } from 'react'
 
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetTitle
+} from '@/components/ui/sheet'
+
 import { cn } from '@/lib/utils'
 
 /**
@@ -75,9 +84,11 @@ export function Panel({
  */
 export function ListSection({
   title,
+  as: Heading = 'h3',
   footer,
   children
 }: {
+  readonly as?: 'h2' | 'h3'
   readonly title: string
   /** Trailing copy under the rows, such as a denied-action reason. */
   readonly footer?: ReactNode
@@ -87,9 +98,9 @@ export function ListSection({
   const titleId = useId()
   return (
     <section aria-labelledby={titleId} className="grid gap-2">
-      <h3 id={titleId} className="text-sm font-semibold">
+      <Heading id={titleId} className="text-sm font-semibold">
         {title}
-      </h3>
+      </Heading>
       {children}
       {footer}
     </section>
@@ -127,5 +138,35 @@ export function CreateSection({
       </h3>
       {children}
     </section>
+  )
+}
+
+/** A focused creation form opened from an explicit action. */
+export function CreateAction({
+  allowed,
+  title,
+  deniedReason,
+  children
+}: {
+  readonly allowed: boolean
+  readonly title: string
+  readonly deniedReason: string
+  readonly children: ReactNode
+}) {
+  if (!allowed) {
+    return <p className="text-sm text-muted-foreground">{deniedReason}</p>
+  }
+  return (
+    <div className="flex justify-end">
+      <Sheet>
+        <SheetTrigger render={<Button />}>{title}</SheetTrigger>
+        <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>{title}</SheetTitle>
+          </SheetHeader>
+          <div className="grid gap-4 px-4 pb-6">{children}</div>
+        </SheetContent>
+      </Sheet>
+    </div>
   )
 }

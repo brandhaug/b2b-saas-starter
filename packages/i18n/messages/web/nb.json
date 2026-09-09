@@ -932,5 +932,9 @@
   "security_authenticator_code": "Kode fra autentiseringsappen",
   "security_recovery_email_subject": "Kontogjenoppretting startet",
   "security_recovery_email_body": "En lagret reservekode ble brukt til å starte en gjenopprettingsøkt for kontoen din. Økten kan reparere innloggingsmetoder i opptil én time. Privilegert tilgang krever en ny bekreftelse med autentiseringsapp eller passnøkkel.",
-  "security_recovery_email_warning": "Hvis dette ikke var deg, tilbakekall øktene dine og kontakt operatøren umiddelbart."
+  "security_recovery_email_warning": "Hvis dette ikke var deg, tilbakekall øktene dine og kontakt operatøren umiddelbart.",
+  "auth_demo_credentials": "Innlogging for demo",
+  "auth_email_link": "E-postlenke",
+  "auth_email_code": "E-postkode",
+  "auth_view_demo_credentials": "Vis innlogging for demo"
 }

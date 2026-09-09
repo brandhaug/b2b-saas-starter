@@ -26,7 +26,7 @@ async function renderChecklist(
   data: WorkspaceProgressProjection = progress,
   dismissalHint?: ReactNode
 ) {
-  return renderWithRouter(
+  const rendered = await renderWithRouter(
     <OnboardingChecklist
       workspaceSlug="starter-lab"
       progress={data}
@@ -39,6 +39,7 @@ async function renderChecklist(
       destinations: ['/workspaces/starter-lab/api-tokens', '/account']
     }
   )
+  return rendered
 }
 
 describe('OnboardingChecklist', () => {

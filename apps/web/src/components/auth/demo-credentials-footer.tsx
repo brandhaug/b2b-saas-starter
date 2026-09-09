@@ -1,3 +1,11 @@
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetTitle
+} from '@/components/ui/sheet'
 import { Link } from '@tanstack/react-router'
 import {
   DEMO_CREDENTIALS,
@@ -17,36 +25,46 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  */
 export function DemoCredentialsFooter() {
   return (
-    <>
-      <p className="text-xs text-muted-foreground">
-        {m.public_auth_seeded_database_hint()}{' '}
-        <code className="rounded-sm bg-muted px-1 py-0.5">
-          {DEMO_CREDENTIALS.email}
-        </code>{' '}
-        /{' '}
-        <code className="rounded-sm bg-muted px-1 py-0.5">
-          {DEMO_CREDENTIALS.password}
-        </code>
-        .
-      </p>
-      <p className="text-xs text-muted-foreground">
-        {m.public_auth_member_hint()}{' '}
-        <code className="rounded-sm bg-muted px-1 py-0.5">
-          {DEMO_MEMBER_CREDENTIALS.email}
-        </code>{' '}
-        /{' '}
-        <code className="rounded-sm bg-muted px-1 py-0.5">
-          {DEMO_MEMBER_CREDENTIALS.password}
-        </code>
-        .
-      </p>
-      <Link
-        to="/workspaces/$workspaceSlug"
-        params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
-        className="text-center text-sm text-primary underline underline-offset-4"
-      >
-        {m.public_auth_open_seeded_workspace()}
-      </Link>
-    </>
+    <Sheet>
+      <SheetTrigger render={<Button variant="link" />}>
+        {m.auth_view_demo_credentials()}
+      </SheetTrigger>
+      <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
+        <SheetHeader>
+          <SheetTitle>{m.auth_demo_credentials()}</SheetTitle>
+        </SheetHeader>
+        <div className="grid gap-4 px-4 pb-6">
+          <p className="text-xs text-muted-foreground">
+            {m.public_auth_seeded_database_hint()}{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_CREDENTIALS.email}
+            </code>{' '}
+            /{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_CREDENTIALS.password}
+            </code>
+            .
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {m.public_auth_member_hint()}{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_MEMBER_CREDENTIALS.email}
+            </code>{' '}
+            /{' '}
+            <code className="rounded-sm bg-muted px-1 py-0.5">
+              {DEMO_MEMBER_CREDENTIALS.password}
+            </code>
+            .
+          </p>
+          <Link
+            to="/workspaces/$workspaceSlug"
+            params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
+            className="text-center text-sm text-primary underline underline-offset-4"
+          >
+            {m.public_auth_open_seeded_workspace()}
+          </Link>
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }

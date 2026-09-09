@@ -1,3 +1,4 @@
+import { SectionTabs } from '@/components/page/section-tabs'
 import { WorkspaceLink } from '@/components/workspace-link'
 import { InvitationPanel } from '@/components/invitation-panel'
 import { EmailDeliveryPanel } from '@/components/email-delivery-panel'
@@ -65,25 +66,45 @@ export function WorkspaceMembersPage({
           </AlertDescription>
         </Alert>
       ) : null}
-      <MembersPanel
-        workspaceSlug={workspaceSlug}
-        members={members}
-        viewer={viewer}
-        actorUserId={actorUserId}
-      />
-      {/* `null` means this actor may not read the invitation segment; the
+      <SectionTabs
+        defaultValue="members"
+        sections={[
+          {
+            value: 'members',
+            label: m.nav_members(),
+            content: (
+              <div className="grid gap-6">
+                {' '}
+                <MembersPanel
+                  workspaceSlug={workspaceSlug}
+                  members={members}
+                  viewer={viewer}
+                  actorUserId={actorUserId}
+                />
+                {/* `null` means this actor may not read the invitation segment; the
           panel gates its own form against `invitation:create`. */}
-      {invitations === null ? null : (
-        <InvitationPanel
-          workspaceSlug={workspaceSlug}
-          viewer={viewer}
-          invitations={invitations}
-          emailDeliveries={data.emailDeliveries ?? []}
-        />
-      )}
-      {data.emailDeliveries === null ? null : (
-        <EmailDeliveryPanel records={data.emailDeliveries} />
-      )}
+                {invitations === null ? null : (
+                  <InvitationPanel
+                    workspaceSlug={workspaceSlug}
+                    viewer={viewer}
+                    invitations={invitations}
+                    emailDeliveries={data.emailDeliveries ?? []}
+                  />
+                )}
+              </div>
+            )
+          },
+          ...(data.emailDeliveries === null
+            ? []
+            : [
+                {
+                  value: 'delivery',
+                  label: m.email_delivery_title(),
+                  content: <EmailDeliveryPanel records={data.emailDeliveries} />
+                }
+              ])
+        ]}
+      />
     </WorkspaceShell>
   )
 }

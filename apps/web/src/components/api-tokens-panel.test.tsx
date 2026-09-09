@@ -45,16 +45,16 @@ describe('ApiTokensPanel', () => {
 
   it('offers the create form and the revoke control to a role that holds both', async () => {
     await renderPanel({ role: 'owner' })
-    expect(screen.getByRole('heading', { name: 'Create a token' })).toBeTruthy()
-    expect(screen.getByLabelText('Token name')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Revoke' })).toBeTruthy()
     expect(screen.queryByText('Your role cannot mint tokens.')).toBeNull()
     expect(screen.queryByText('Your role cannot revoke tokens.')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Create a token' }))
+    expect(screen.getByLabelText('Token name')).toBeTruthy()
   })
 
   it('keeps revoke but removes mint and replacement controls in recovery mode', async () => {
     await renderPanel({ role: 'owner', creation: 'hidden' })
-    expect(screen.queryByRole('heading', { name: 'Create a token' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Create a token' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Revoke' })).toBeTruthy()
   })

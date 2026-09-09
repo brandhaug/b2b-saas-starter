@@ -140,35 +140,28 @@ export function OnboardingChecklist({
   const allDone = progress.completedCount === progress.totalCount
 
   return (
-    // The page Panel anatomy, not a hand-rolled Card: the title owns its row
-    // and wraps to full width on a phone, and the action slot is Panel's own,
-    // so the count and Dismiss can never squeeze the title to three lines.
     <Panel
       title={m.setup_workspace()}
-      description={
-        allDone ? m.setup_workspace_complete() : m.setup_workspace_description()
-      }
-      actions={
-        <>
-          <span className="font-mono text-sm tabular-nums text-muted-foreground">
-            {m.onboarding_progress({
-              completedCount: progress.completedCount,
-              totalCount: progress.totalCount
-            })}
-          </span>
-          {canDismiss ? (
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={dismissal.pending}
-              onClick={() => dismissal.run()}
-            >
-              {m.dismiss_action()}
-            </Button>
-          ) : null}
-        </>
-      }
+      {...(allDone ? { description: m.setup_workspace_complete() } : {})}
     >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {m.onboarding_progress({
+            completedCount: progress.completedCount,
+            totalCount: progress.totalCount
+          })}
+        </span>
+        {canDismiss ? (
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={dismissal.pending}
+            onClick={() => dismissal.run()}
+          >
+            {m.dismiss_action()}
+          </Button>
+        ) : null}
+      </div>
       <ul className="grid gap-2 text-sm">
         {progress.steps.map((step) => {
           const copy = stepCopy()[step.id]

@@ -1,3 +1,4 @@
+import { SectionTabs } from '@/components/page/section-tabs'
 import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
@@ -65,59 +66,80 @@ export function WorkspaceSettingsPage({
         title={m.workspace_settings()}
         description={m.workspace_settings_description()}
       />
-      {/* Rename and delete are gated per action, not per page: an admin may
-          rename but never delete, a member sees neither. The server functions
-          enforce the same statements. */}
-      <Panel title={m.nav_general()}>
-        {canRename || canDelete ? (
-          <WorkspaceGeneralSettings
-            workspaceSlug={workspaceSlug}
-            currentName={workspaceName}
-            canRename={canRename}
-            canDelete={canDelete}
-            {...(ports === undefined
-              ? {}
-              : {
-                  ports: {
-                    rename: ports.renameWorkspace,
-                    remove: ports.deleteWorkspace
-                  }
-                })}
-          />
-        ) : (
-          <p className="text-xs text-muted-foreground">{m.workspace_manage_denied()}</p>
-        )}
-      </Panel>
-      {/* Single sign-on (ADR 0069): the segment is absent for an actor
-          without sso:list, and the panel degrades each control per statement
-          (sso:create/update/remove) against the payload's viewer. */}
-      {ssoConnections === null ? null : (
-        <Panel title={m.sso_title()}>
-          <div className="grid gap-3">
-            <p className="text-sm text-muted-foreground">{m.sso_description()}</p>
-            <SsoPanel
-              workspaceSlug={workspaceSlug}
-              connections={ssoConnections}
-              viewer={viewer}
-            />
-          </div>
-        </Panel>
-      )}
-      {/* Owner-only: the loader hands the segment to nobody else, so the whole
-          panel is absent for admins and members rather than disabled. When the
-          deployment has no export bucket, the panel explains that instead of
-          offering a button that would fail. */}
-      {exports === null ? null : (
-        <Panel title={m.data_export()}>
-          <WorkspaceExportPanel
-            workspaceSlug={workspaceSlug}
-            segment={exports}
-            {...(ports?.requestExport === undefined
-              ? {}
-              : { requestExport: ports.requestExport })}
-          />
-        </Panel>
-      )}
+      <SectionTabs
+        defaultValue="general"
+        sections={[
+          {
+            value: 'general',
+            label: m.nav_general(),
+            content: (
+              <Panel title={m.nav_general()}>
+                {canRename || canDelete ? (
+                  <WorkspaceGeneralSettings
+                    workspaceSlug={workspaceSlug}
+                    currentName={workspaceName}
+                    canRename={canRename}
+                    canDelete={canDelete}
+                    {...(ports === undefined
+                      ? {}
+                      : {
+                          ports: {
+                            rename: ports.renameWorkspace,
+                            remove: ports.deleteWorkspace
+                          }
+                        })}
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {m.workspace_manage_denied()}
+                  </p>
+                )}
+              </Panel>
+            )
+          },
+          ...(ssoConnections === null
+            ? []
+            : [
+                {
+                  value: 'sso',
+                  label: m.sso_title(),
+                  content: (
+                    <Panel title={m.sso_title()}>
+                      <div className="grid gap-3">
+                        <p className="text-sm text-muted-foreground">
+                          {m.sso_description()}
+                        </p>
+                        <SsoPanel
+                          workspaceSlug={workspaceSlug}
+                          connections={ssoConnections}
+                          viewer={viewer}
+                        />
+                      </div>
+                    </Panel>
+                  )
+                }
+              ]),
+          ...(exports === null
+            ? []
+            : [
+                {
+                  value: 'exports',
+                  label: m.data_export(),
+                  content: (
+                    <Panel title={m.data_export()}>
+                      <WorkspaceExportPanel
+                        workspaceSlug={workspaceSlug}
+                        segment={exports}
+                        {...(ports?.requestExport === undefined
+                          ? {}
+                          : { requestExport: ports.requestExport })}
+                      />
+                    </Panel>
+                  )
+                }
+              ])
+        ]}
+      />
     </WorkspaceShell>
   )
 }

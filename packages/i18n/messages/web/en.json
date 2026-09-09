@@ -932,5 +932,9 @@
   "security_authenticator_code": "Authenticator code",
   "security_recovery_email_subject": "Account recovery started",
   "security_recovery_email_body": "A saved backup code was used to start a recovery session for your account. This session can repair sign-in methods for up to one hour. Privileged access requires a newly verified authenticator or passkey.",
-  "security_recovery_email_warning": "If this was not you, revoke your sessions and contact your operator immediately."
+  "security_recovery_email_warning": "If this was not you, revoke your sessions and contact your operator immediately.",
+  "auth_demo_credentials": "Demo credentials",
+  "auth_email_link": "Email link",
+  "auth_email_code": "Email code",
+  "auth_view_demo_credentials": "View demo credentials"
 }

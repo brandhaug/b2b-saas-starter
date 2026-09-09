@@ -426,7 +426,7 @@ describe('SignInPage', () => {
 
   it('offers the email-code path without touching the credential form', async () => {
     await renderPage('/workspaces')
-    const entry = screen.getByRole('link', { name: m.email_code_instead() })
+    const entry = screen.getByRole('link', { name: m.auth_email_code() })
     expect(entry.getAttribute('href')).toBe(
       '/sign-in/email-code?redirect=%2Fworkspaces'
     )
@@ -446,7 +446,7 @@ describe('SignInPage link mode', () => {
   })
 
   async function switchToLinkMode() {
-    fireEvent.click(screen.getByRole('button', { name: m.email_me_sign_in_link() }))
+    fireEvent.click(screen.getByRole('button', { name: m.auth_email_link() }))
     await screen.findByText('Sign in with password instead')
   }
 
