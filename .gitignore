@@ -2,6 +2,7 @@ node_modules
 .context
 .tanstack
 dist
+dist-e2e
 .output
 .wrangler
 .alchemy
@@ -10,6 +11,7 @@ dist
 !.env.example
 bun.lockb
 test-results
+.auth
 playwright-report
 coverage
 *.tsbuildinfo

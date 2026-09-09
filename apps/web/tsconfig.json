@@ -6,5 +6,11 @@
     },
     "types": ["vite/client", "@cloudflare/workers-types", "@types/node"]
   },
-  "include": ["src", "content", "vite.config.ts", "playwright.config.ts"]
+  "include": [
+    "src",
+    "content",
+    "scripts/*.ts",
+    "vite.config.ts",
+    "playwright.config.ts"
+  ]
 }

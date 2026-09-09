@@ -33,6 +33,7 @@ await test('e2e preserves failure artifacts and clears stale workers before retr
     'pnpm run test:e2e',
     'preserve 1',
     'pkill -f vite dev',
+    'pkill -f vite preview',
     'pkill -f workerd',
     'pnpm run test:e2e'
   ])
@@ -94,6 +95,7 @@ for (const directory of ['test-results', 'playwright-report']) {
   fs.writeFileSync(path + '/evidence.txt', second ? 'success' : 'failure trace')
 }
 fs.writeFileSync('attempted', '')
+fs.appendFileSync('arguments.jsonl', JSON.stringify(process.argv.slice(2)) + '\\n')
 process.exit(second ? 0 : 1)
 `,
     { mode: 0o755 }
@@ -103,7 +105,7 @@ process.exit(second ? 0 : 1)
   })
   const result = spawnSync(
     process.execPath,
-    [fileURLToPath(new URL('./run-check.ts', import.meta.url)), 'e2e'],
+    [fileURLToPath(new URL('./run-check.ts', import.meta.url)), 'e2e', '--shard=2/2'],
     {
       cwd: folder,
       env: { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH}` },
@@ -111,6 +113,16 @@ process.exit(second ? 0 : 1)
     }
   )
   assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(
+    readFileSync(join(folder, 'arguments.jsonl'), 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line)),
+    [
+      ['run', 'test:e2e', '--shard=2/2'],
+      ['run', 'test:e2e', '--shard=2/2']
+    ]
+  )
   for (const directory of ['test-results', 'playwright-report']) {
     assert.equal(
       readFileSync(

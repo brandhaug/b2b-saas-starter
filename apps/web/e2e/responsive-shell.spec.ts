@@ -1,7 +1,7 @@
-import { expect, test, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { expect, test } from './authentication'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
 import { isolatedClientIp } from './test-isolation'
-import { signInAsOwner } from './authentication'
 
 test.use({ viewport: { width: 320, height: 740 }, reducedMotion: 'reduce' })
 
@@ -56,10 +56,10 @@ test('the short mobile navigation can scroll to Account', async ({ page }) => {
 })
 
 test.describe('owner controls on a narrow screen', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ ownerPage }) => {
     test.skip(!hasLocalD1State(), 'requires migrated and seeded local D1')
-    await signInAsOwner(page, '/workspaces/starter-lab/members')
-    await page.locator('header select:enabled').waitFor({ state: 'attached' })
+    await ownerPage.goto('/workspaces/starter-lab/members')
+    await ownerPage.locator('header select:enabled').waitFor({ state: 'attached' })
   })
 
   test('the roster and armed removal fit without horizontal panning', async ({

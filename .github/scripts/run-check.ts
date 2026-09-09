@@ -33,10 +33,12 @@ const dependencies: Dependencies = {
 
 export async function runCheck(
   check: Check,
-  operations: Dependencies = dependencies
+  operations: Dependencies = dependencies,
+  e2eArgs: ReadonlyArray<string> = []
 ): Promise<number> {
   const attempts = check === 'e2e' ? 2 : 3
-  const args = check === 'e2e' ? ['run', 'test:e2e'] : ['audit', '--audit-level=high']
+  const args =
+    check === 'e2e' ? ['run', 'test:e2e', ...e2eArgs] : ['audit', '--audit-level=high']
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     if (operations.run('pnpm', args) === 0) {
       return 0
@@ -49,6 +51,7 @@ export async function runCheck(
         // Playwright clears these directories when the next attempt starts.
         operations.preserve(attempt)
         operations.run('pkill', ['-f', 'vite dev'])
+        operations.run('pkill', ['-f', 'vite preview'])
         operations.run('pkill', ['-f', 'workerd'])
       } else {
         // Registry outages should not immediately exhaust the audit retries.
@@ -66,6 +69,6 @@ if (process.argv[1] === import.meta.filename) {
     console.error('usage: node .github/scripts/run-check.ts <e2e|audit>')
     process.exitCode = 64
   } else {
-    process.exitCode = await runCheck(check)
+    process.exitCode = await runCheck(check, dependencies, process.argv.slice(3))
   }
 }

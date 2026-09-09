@@ -2,19 +2,19 @@ import { defineConfig, devices } from '@playwright/test'
 
 const port = Number(process.env.E2E_PORT ?? 3071)
 const baseURL = `http://localhost:${port}`
+const devServer = process.env.E2E_SERVER === 'dev'
 
 export default defineConfig({
   testDir: './e2e',
-  // 90s, not 30s: specs run in parallel workers, and the first ones to open
-  // /sign-in pay Vite's full cold-transform bill — much heavier since React
-  // Compiler joined the dev pipeline. On a cold CI runner that bill
-  // alone ate the old 30s budget before hydration could finish.
+  workers: process.env.CI ? 2 : '50%',
+  reporter: [['list'], ['json', { outputFile: 'playwright-report/results.json' }]],
+  // Multi-step authentication ceremonies and optional dev-server cold starts
+  // share this budget. Built previews avoid transforms during browser tests.
   timeout: 90_000,
   // Hydration is setup: its Locator.waitFor calls use the test budget above.
   // Assertions after the page becomes interactive keep this shorter deadline.
   expect: { timeout: 5000 },
-  // One retry in CI: the remaining variance is dev-server warm-up, not app
-  // behaviour, and a rerun lands on an already-warm transform cache.
+  // Keep a trace for transient browser failures.
   retries: process.env.CI ? 1 : 0,
   use: {
     baseURL,
@@ -25,7 +25,9 @@ export default defineConfig({
     // taken, and the readiness probe below polls :3071 until the webServer
     // timeout — a three-minute hang whose only symptom is a missing banner.
     // Fail fast instead so the cause is visible.
-    command: `pnpm run dev --port ${port} --strictPort`,
+    command: devServer
+      ? `pnpm run dev --port ${port} --strictPort`
+      : `pnpm run build:e2e && pnpm run serve:e2e --port ${port} --strictPort`,
     url: baseURL,
     env: {
       BETTER_AUTH_URL: baseURL,
@@ -35,11 +37,8 @@ export default defineConfig({
     // saves a cold start. CI always starts its own: a process still holding
     // the port there is a leak from an earlier step, and silently testing
     // against it would hide the real state of the branch.
-    reuseExistingServer: !process.env.CI,
-    // The dev server answers in ~5s locally and ~9s on CI. The headroom is for
-    // the workerd proxy behind the `DB` binding (see
-    // src/lib/cloudflare-workers-shim-dev.ts), which is the slow part of a
-    // cold start.
+    reuseExistingServer: devServer && !process.env.CI,
+    // Includes the build and local D1 proxy startup.
     timeout: 180_000,
     // Vite writes its ready banner and the D1 attach notice to stdout, which
     // Playwright drops by default. Without them a startup timeout says only

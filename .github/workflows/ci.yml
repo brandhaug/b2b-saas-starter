@@ -122,31 +122,29 @@ jobs:
             exit 1
           fi
 
-  e2e:
+  e2e-shards:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm exec playwright install --with-deps chromium
-      # Migrate + seed the local D1 so the dev server attaches it (see
-      # apps/web/src/lib/cloudflare-workers-shim-dev.ts) and the authenticated
-      # sign-in flow test runs instead of skipping.
+      - run: pnpm exec playwright install --with-deps --only-shell chromium
+      # The compiled preview attaches this local D1 for real authentication.
       - run: pnpm run db:migrate:local
       - run: pnpm run db:seed
-      # Playwright's webServer config (apps/web/playwright.config.ts) starts
-      # `pnpm run dev` on :3071 itself — no separate server step needed.
-      # The webServer startup has flaked on CI (Vite never became ready within
-      # its 180s budget on multiple master runs); that kills the
-      # whole run before any test executes, so Playwright's own per-test
-      # retries never apply. Retry the run once: a second attempt lands on a
-      # warm runner and a fresh server process.
+      # Each shard builds and serves a compiled app against its own local D1.
+      # The wrapper preserves first-attempt evidence if server startup fails.
       - name: Run e2e tests
-        run: node .github/scripts/run-check.ts e2e
+        run: node .github/scripts/run-check.ts e2e --shard=${{ matrix.shard }}/2
       - name: Upload Playwright results and traces
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-results-${{ github.run_attempt }}
+          name: playwright-results-${{ matrix.shard }}-${{ github.run_attempt }}
           path: |
             apps/web/test-results
             apps/web/test-results-attempt-*
@@ -154,6 +152,17 @@ jobs:
             apps/web/playwright-report-attempt-*
           if-no-files-found: ignore
           retention-days: 14
+
+  # Preserve the required check name while each shard owns its local D1.
+  e2e:
+    if: ${{ always() }}
+    needs: [e2e-shards]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify every E2E shard succeeded
+        env:
+          RESULT: ${{ needs.e2e-shards.result }}
+        run: test "$RESULT" = success
 
   deploy:
     if: >-
