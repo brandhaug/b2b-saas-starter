@@ -23,7 +23,8 @@ vi.mock('./strong-authentication-http', () => ({
   strongAuthenticationHttpResponse: state.strong
 }))
 vi.mock('./auth-organization-suspension', () => ({
-  isOrganizationProductAction: () => false,
+  isOrganizationProductAction: (exchange: { pathname: string }) =>
+    exchange.pathname.includes('/organization/'),
   suspendedOrganizationResponse: state.suspension
 }))
 vi.mock('./impersonation-guard', () => ({

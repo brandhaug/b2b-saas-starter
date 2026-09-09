@@ -122,9 +122,8 @@ const current = fixtureSession({ userId: 'usr_admin' })
 function request(path: string, method: 'POST' | 'GET' = 'POST', session = current) {
   const exchange = { method, pathname: `/api/auth${path}` }
   return strongAuthenticationHttpResponse(
-    exchange,
     session,
-    classifyAuthRequest(exchange)
+    classifyAuthRequest(exchange).strongAuthentication
   )
 }
 
@@ -321,9 +320,8 @@ describe('raw product endpoint exclusions', () => {
     expect(await response?.json()).toEqual({ code: 'capability_route_required' })
     const exchange = { method: 'GET', pathname: `/api/auth${path}` }
     const anonymous = await strongAuthenticationHttpResponse(
-      exchange,
       undefined,
-      classifyAuthRequest(exchange)
+      classifyAuthRequest(exchange).strongAuthentication
     )
     expect(anonymous?.status).toBe(403)
   })
@@ -342,9 +340,8 @@ describe('raw product endpoint exclusions', () => {
       await (() => {
         const exchange = { method: 'GET', pathname: `/api/auth${path}` }
         return strongAuthenticationHttpResponse(
-          exchange,
           undefined,
-          classifyAuthRequest(exchange)
+          classifyAuthRequest(exchange).strongAuthentication
         )
       })()
     ).toBeNull()

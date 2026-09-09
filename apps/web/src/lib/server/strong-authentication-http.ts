@@ -2,8 +2,7 @@ import { type Session } from '@b2b-saas-starter/auth'
 import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { Effect } from 'effect'
 import { runCapabilities } from '../capabilities'
-import { type AuthExchange } from './auth-audit/exchanges'
-import { type AuthRequestClassification } from './auth-request-guard'
+import { type StrongAuthenticationAction } from './auth-request-guard'
 
 function deny(code = 'strong_authentication_required') {
   return new Response(JSON.stringify({ code }), {
@@ -14,26 +13,16 @@ function deny(code = 'strong_authentication_required') {
 
 /** The HTTP organization plugin has no capability audit/authorization context. */
 export async function strongAuthenticationHttpResponse(
-  exchange: AuthExchange,
   session: Session | undefined,
-  classification: AuthRequestClassification
+  action: StrongAuthenticationAction
 ): Promise<Response | null> {
-  const { path } = classification
-  if (
-    classification.organizationProduct ||
-    classification.ssoProduct ||
-    path === '/oauth2/continue' ||
-    path === '/oauth2/consent' ||
-    path === '/delete-user' ||
-    path === '/delete-user/callback'
-  ) {
+  if (action.kind === 'capability-route') {
     return deny('capability_route_required')
   }
-  const recent = classification.recentAuthentication
-  if (!session || (!recent && !classification.strongAuthenticationContext)) {
+  if (action.kind === 'none' || !session) {
     return null
   }
-  if (classification.urgentAdminAction) {
+  if (action.kind === 'admin' && action.urgent) {
     return null
   }
   const status = await runCapabilities(
@@ -41,14 +30,14 @@ export async function strongAuthenticationHttpResponse(
       authentication.status({ userId: session.user.id, sessionId: session.session.id })
     )
   )
-  if (recent) {
+  if (action.kind === 'recent') {
     if (session.session.impersonatedBy) {
       return deny()
     }
     // Recovery is a short-lived, restricted session whose only useful
     // purpose is repairing the factors that will end recovery. It does not
     // satisfy unrelated recent-authentication requirements.
-    if (status.recovering && classification.recoveryFactorAction) {
+    if (status.recovering && action.recoveryFactorAction) {
       return null
     }
     if (status.recent) {
@@ -56,9 +45,9 @@ export async function strongAuthenticationHttpResponse(
     }
     return deny()
   }
-  if (classification.adminAction) {
+  if (action.kind === 'admin') {
     return (
-      exchange.method === 'POST' ? status.recent && status.qualified : status.qualified
+      action.method === 'POST' ? status.recent && status.qualified : status.qualified
     )
       ? null
       : deny()
@@ -72,7 +61,7 @@ export async function strongAuthenticationHttpResponse(
   if (status.hasFactors) {
     return deny()
   }
-  if (path.startsWith('/passkey/')) {
+  if (action.kind === 'passkey') {
     return status.passwordVerified ? null : deny()
   }
   // Initial TOTP enrollment and password management retain Better Auth's own

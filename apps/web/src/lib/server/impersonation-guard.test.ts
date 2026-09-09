@@ -63,8 +63,8 @@ describe('impersonationGuardResponse', () => {
   it.effect('answers 403 for a forbidden action on an impersonation session', () =>
     Effect.gen(function* () {
       const response = yield* impersonationGuardResponse(
-        post('/api/auth/change-password'),
-        impersonated
+        impersonated,
+        impersonationForbiddenAction(post('/api/auth/change-password'))
       )
       if (response === null) {
         return yield* Effect.fail('the guard must answer a forbidden action')
@@ -82,16 +82,22 @@ describe('impersonationGuardResponse', () => {
     () =>
       Effect.gen(function* () {
         expect(
-          yield* impersonationGuardResponse(post('/api/auth/change-password'), ordinary)
-        ).toBeNull()
-        expect(
           yield* impersonationGuardResponse(
-            post('/api/auth/change-password'),
-            undefined
+            ordinary,
+            impersonationForbiddenAction(post('/api/auth/change-password'))
           )
         ).toBeNull()
         expect(
-          yield* impersonationGuardResponse(post('/api/auth/sign-out'), impersonated)
+          yield* impersonationGuardResponse(
+            undefined,
+            impersonationForbiddenAction(post('/api/auth/change-password'))
+          )
+        ).toBeNull()
+        expect(
+          yield* impersonationGuardResponse(
+            impersonated,
+            impersonationForbiddenAction(post('/api/auth/sign-out'))
+          )
         ).toBeNull()
       })
   )

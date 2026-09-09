@@ -38,7 +38,9 @@ async function guardedHandler(
 ) {
   const handler = vi.fn(async () => new Response('plugin'))
   const exchange = { method: request.method, pathname: new URL(request.url).pathname }
-  const refusal = await enforceOrganizationSuspension(request, exchange, identity, deps)
+  const refusal = isOrganizationProductAction(exchange)
+    ? await enforceOrganizationSuspension(request, identity, deps)
+    : null
   return { response: refusal ?? (await handler()), handler }
 }
 

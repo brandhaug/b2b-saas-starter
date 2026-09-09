@@ -48,6 +48,12 @@ const URGENT_ADMIN_ACTIONS = new Set([
   '/admin/revoke-user-sessions',
   '/admin/stop-impersonating'
 ])
+const CAPABILITY_ROUTE_ACTIONS = new Set([
+  '/oauth2/continue',
+  '/oauth2/consent',
+  '/delete-user',
+  '/delete-user/callback'
+])
 
 /** Only protocol transport is public; connection management remains gated. */
 function isSsoProductAction(path: string): boolean {
@@ -70,12 +76,23 @@ export type AuthRequestClassification = {
   readonly organizationProduct: boolean
   readonly ssoProduct: boolean
   readonly impersonationAction: ImpersonationForbiddenAction | null
-  readonly recentAuthentication: boolean
-  readonly strongAuthenticationContext: boolean
-  readonly recoveryFactorAction: boolean
-  readonly urgentAdminAction: boolean
-  readonly adminAction: boolean
+  readonly strongAuthentication: StrongAuthenticationAction
 }
+
+export type StrongAuthenticationAction =
+  | { readonly kind: 'capability-route' }
+  | {
+      readonly kind: 'recent'
+      readonly recoveryFactorAction: boolean
+    }
+  | {
+      readonly kind: 'admin'
+      readonly method: AuthExchange['method']
+      readonly urgent: boolean
+    }
+  | { readonly kind: 'passkey' }
+  | { readonly kind: 'additional-factor' }
+  | { readonly kind: 'none' }
 
 /** Request facts used by every pre-handler guard, computed once per exchange. */
 export function classifyAuthRequest(exchange: AuthExchange): AuthRequestClassification {
@@ -84,23 +101,34 @@ export function classifyAuthRequest(exchange: AuthExchange): AuthRequestClassifi
   const organizationProduct = isOrganizationProductAction(exchange)
   const recentAuthentication =
     exchange.method === 'POST' && RECENT_AUTHENTICATION_ACTIONS.has(path)
-  const strongAuthenticationContext =
-    recentAuthentication ||
-    path.startsWith('/admin/') ||
-    (impersonationAction !== null && impersonationAction !== 'delete_account') ||
-    ADDITIONAL_FACTOR_CHANGES.has(path)
+  const ssoProduct = isSsoProductAction(path)
+  let strongAuthentication: StrongAuthenticationAction = { kind: 'none' }
+  if (organizationProduct || ssoProduct || CAPABILITY_ROUTE_ACTIONS.has(path)) {
+    strongAuthentication = { kind: 'capability-route' }
+  } else if (recentAuthentication) {
+    strongAuthentication = {
+      kind: 'recent',
+      recoveryFactorAction: RECOVERY_FACTOR_ACTIONS.has(path)
+    }
+  } else if (path.startsWith('/admin/')) {
+    strongAuthentication = {
+      kind: 'admin',
+      method: exchange.method,
+      urgent: URGENT_ADMIN_ACTIONS.has(path)
+    }
+  } else if (path.startsWith('/passkey/')) {
+    strongAuthentication = { kind: 'passkey' }
+  } else if (ADDITIONAL_FACTOR_CHANGES.has(path)) {
+    strongAuthentication = { kind: 'additional-factor' }
+  }
   return {
     path,
     auditContext:
       needsPreHandlerActor(exchange) || exchange.pathname.endsWith('/unlink-account'),
     organizationProduct,
-    ssoProduct: isSsoProductAction(path),
+    ssoProduct,
     impersonationAction,
-    recentAuthentication,
-    strongAuthenticationContext,
-    recoveryFactorAction: RECOVERY_FACTOR_ACTIONS.has(path),
-    urgentAdminAction: URGENT_ADMIN_ACTIONS.has(path),
-    adminAction: path.startsWith('/admin/')
+    strongAuthentication
   }
 }
 
@@ -127,7 +155,8 @@ async function readPreHandlerContext(
   const needsContext =
     classification.auditContext ||
     classification.impersonationAction !== null ||
-    classification.strongAuthenticationContext ||
+    (classification.strongAuthentication.kind !== 'none' &&
+      classification.strongAuthentication.kind !== 'capability-route') ||
     classification.organizationProduct
   if (!needsContext) {
     return { session: undefined, audit: undefined }
@@ -193,28 +222,22 @@ export const runAuthRequestGuards = Effect.fn('AuthRequestGuard.run')(function* 
   )
 
   const strongAuthResponse = yield* Effect.promise(() =>
-    strongAuthenticationHttpResponse(exchange, session, classification)
+    strongAuthenticationHttpResponse(session, classification.strongAuthentication)
   )
   if (strongAuthResponse !== null) {
     yield* Effect.annotateLogsScoped({ outcome: 'strong_authentication_required' })
     return refused(strongAuthResponse, context)
   }
 
-  const suspensionResponse = yield* Effect.promise(() =>
-    suspendedOrganizationResponse(
-      request,
-      exchange,
-      session,
-      classification.organizationProduct
-    )
-  )
+  const suspensionResponse = classification.organizationProduct
+    ? yield* Effect.promise(() => suspendedOrganizationResponse(request, session))
+    : null
   if (suspensionResponse !== null) {
     yield* Effect.annotateLogsScoped({ outcome: 'workspace_suspended' })
     return refused(suspensionResponse, context)
   }
 
   const guardResponse = yield* impersonationGuardResponse(
-    exchange,
     session?.session,
     classification.impersonationAction
   )
