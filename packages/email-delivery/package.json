@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vp test run --coverage"
+    "test": "vp run test:coverage"
   },
   "dependencies": {
     "@b2b-saas-starter/db": "workspace:*",

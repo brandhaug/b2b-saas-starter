@@ -45,6 +45,15 @@ D1 and two browser workers. Each shard uploads a JSON timing report at
 session-revocation tests authenticate afresh; ordinary owner UI tests reuse a
 qualified session per worker in fresh browser contexts.
 
+CI runs web, capabilities, and the remaining workspace tests in separate jobs.
+Script and operations tests run with the remaining packages. Test jobs restore
+their own task cache and Vitest result metadata for the current lockfile.
+Capabilities and email-delivery exclude generated coverage files and pnpm's
+generated install metadata from task inputs. They explicitly track the root
+lockfile and workspace configuration, and retain automatic source and dependency
+tracking. To inspect a
+cache miss locally, run `vp run --last-details` immediately after the test task.
+
 ## Database
 
 Local D1 runs through Wrangler's Miniflare, no Cloudflare account needed:
