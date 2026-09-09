@@ -50,7 +50,18 @@ runs:
       if: ${{ inputs.cache-task == 'true' }}
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
-        path: node_modules/.vite/task-cache
-        key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}-${{ github.run_attempt }}
+        # Vite Task reads Vitest's result metadata. Restore it too so a fresh
+        # runner does not invalidate test tasks because that metadata is missing.
+        path: |
+          node_modules/.vite/task-cache
+          node_modules/.vite/vitest
+          apps/*/node_modules/.vite/vitest
+          packages/*/node_modules/.vite/vitest
+          infra/node_modules/.vite/vitest
+        # Task fingerprints already invalidate entries when source/config
+        # inputs change. Keep the archive scoped to this job and lockfile so
+        # a cache from quality/build cannot be mistaken for a test cache, and
+        # dependency changes never fall back to an older dependency graph.
+        key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ github.job }}-${{ strategy.job-index }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
         restore-keys: |
-          vite-task-${{ runner.os }}-${{ runner.arch }}-
+          vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ github.job }}-${{ strategy.job-index }}-${{ hashFiles('pnpm-lock.yaml') }}-

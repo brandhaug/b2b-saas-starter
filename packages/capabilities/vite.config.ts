@@ -1,6 +1,23 @@
 import { defineConfig } from 'vite-plus'
 
 export default defineConfig({
+  run: {
+    tasks: {
+      'test:coverage': {
+        command: 'vp test run --coverage',
+        // Coverage temp files and pnpm's fresh-install prunedAt timestamp
+        // change between runs. Track dependency changes through the lockfile
+        // and workspace configuration while retaining automatic source tracking.
+        input: [
+          { auto: true },
+          { pattern: '!node_modules/.modules.yaml', base: 'workspace' },
+          { pattern: 'pnpm-lock.yaml', base: 'workspace' },
+          { pattern: 'pnpm-workspace.yaml', base: 'workspace' },
+          '!coverage/**'
+        ]
+      }
+    }
+  },
   test: {
     // Each live suite starts a D1 proxy. Bound concurrent proxies so local
     // validation does not exhaust ephemeral localhost ports.

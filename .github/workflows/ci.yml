@@ -46,11 +46,17 @@ jobs:
         if: success()
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: node_modules/.vite/task-cache
+          path: |
+            node_modules/.vite/task-cache
+            node_modules/.vite/vitest
+            apps/*/node_modules/.vite/vitest
+            packages/*/node_modules/.vite/vitest
+            infra/node_modules/.vite/vitest
           key: ${{ steps.setup.outputs.vite-task-cache-primary-key }}
 
-  # Web tests can start immediately instead of waiting for dependency tests.
-  # The complementary filters include every workspace, including new packages.
+  # Web and capabilities tests can start immediately instead of waiting for
+  # dependency tests. The complementary filters include every workspace,
+  # including new packages, exactly once.
   tests:
     runs-on: ubuntu-latest
     strategy:
@@ -59,6 +65,8 @@ jobs:
         include:
           - name: web
             filter: web
+          - name: capabilities
+            filter: capabilities
           - name: packages
             filter: '!web'
     name: Tests (${{ matrix.name }})
@@ -73,13 +81,20 @@ jobs:
       - run: pnpm -C packages/i18n generate
       # Includes the coverage ratchet on the application layer: the
       # capabilities `test` script runs with --coverage (thresholds live in
-      # packages/capabilities/vitest.config.ts) — fails on decay.
+      # packages/capabilities/vite.config.ts) — fails on decay.
       - name: Run workspace tests
         env:
           TEST_FILTER: ${{ matrix.filter }}
         # The root test script recursively runs workspace tests. Exclude that
         # orchestration script so each package executes in exactly one group.
-        run: vp run --filter "$TEST_FILTER" --filter '!b2b-saas-starter' --fail-if-no-match test
+        run: |
+          if [[ "${{ matrix.name }}" == packages ]]; then
+            # Each Vitest task has its own workers and D1 proxies. Give each
+            # package the runner while web and capabilities run in separate jobs.
+            vp run --filter "$TEST_FILTER" --filter '!capabilities' --filter '!b2b-saas-starter' --concurrency-limit 1 --fail-if-no-match test
+          else
+            vp run --filter "$TEST_FILTER" --filter '!b2b-saas-starter' --fail-if-no-match test
+          fi
       - name: Run script tests
         if: ${{ matrix.name == 'packages' }}
         run: pnpm run test:scripts
@@ -90,7 +105,12 @@ jobs:
         if: success()
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: node_modules/.vite/task-cache
+          path: |
+            node_modules/.vite/task-cache
+            node_modules/.vite/vitest
+            apps/*/node_modules/.vite/vitest
+            packages/*/node_modules/.vite/vitest
+            infra/node_modules/.vite/vitest
           key: ${{ steps.setup.outputs.vite-task-cache-primary-key }}
 
   build:
@@ -108,7 +128,12 @@ jobs:
         if: success()
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: node_modules/.vite/task-cache
+          path: |
+            node_modules/.vite/task-cache
+            node_modules/.vite/vitest
+            apps/*/node_modules/.vite/vitest
+            packages/*/node_modules/.vite/vitest
+            infra/node_modules/.vite/vitest
           key: ${{ steps.setup.outputs.vite-task-cache-primary-key }}
 
   # Keep the existing required check name, and fail on skipped/cancelled jobs.
