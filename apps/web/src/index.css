@@ -370,7 +370,51 @@
   animation-delay: 280ms;
 }
 
+.trace-signal {
+  stroke-dasharray: 12 112;
+  stroke-dashoffset: 12;
+  animation: trace-travel 7.2s linear infinite;
+}
+
+@keyframes trace-travel {
+  0% {
+    stroke-dashoffset: 12;
+    opacity: 0;
+  }
+  3% {
+    opacity: 1;
+  }
+  25% {
+    stroke-dashoffset: -100;
+    opacity: 1;
+  }
+  28%,
+  100% {
+    stroke-dashoffset: -112;
+    opacity: 0;
+  }
+}
+
+.trace-node-body,
+.trace-node-label {
+  transition:
+    fill 350ms ease,
+    stroke 350ms ease;
+}
+
+.trace-node[data-active='true'] .trace-node-body {
+  fill: color-mix(in oklab, var(--signal) 12%, var(--card));
+  stroke: var(--signal);
+}
+
+.trace-node[data-active='true'] .trace-node-label {
+  fill: var(--signal);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .trace-signal {
+    animation: none;
+  }
   .rise {
     animation: none;
   }

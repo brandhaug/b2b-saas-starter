@@ -677,6 +677,7 @@ const { lint = {} } = defineConfig({
                 '^grid-paper$',
                 '^band-deep$',
                 '^schematic-pulse$',
+                '^trace-(signal|node|node-body|node-label)$',
                 '^rise(-[0-9]+)?$',
                 '^(bg|text)-brand$'
               ]

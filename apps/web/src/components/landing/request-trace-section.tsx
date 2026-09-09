@@ -5,9 +5,7 @@ import {
   type SchematicNode
 } from '@/components/landing/architecture-schematic'
 import { SnippetPanel } from '@/components/landing/snippet-panel'
-import { useOverflowFade } from '@/hooks/use-overflow-fade'
 import { DEPLOY_COMMAND } from '@/lib/toolchain'
-import { cn } from '@/lib/utils'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
@@ -172,10 +170,6 @@ function RequestTraceSection({
 }) {
   const sectionRef = useRef<HTMLElement | null>(null)
   const [activeStage, setActiveStage] = useState<StageId>('request')
-  // The mobile schematic's width hides behind its horizontal scroll; the
-  // fade mask marks the hidden width as scrollable while any of it remains.
-  const { ref: schematicRef, fadeRight: schematicFadeRight } =
-    useOverflowFade<HTMLElement>()
 
   // Which stage is "current" is decided by a focus band around the top third
   // of the viewport; the rail lights that stage's node. A keyboard reader
@@ -221,23 +215,9 @@ function RequestTraceSection({
           </p>
         </div>
 
-        {/* The schematic as a map, not just an artifact: once, scrollable,
-            above the spine on small screens; sticky at reduced scale beside
-            it from `lg`. Identical drawing, one text alternative. The fade
-            mask is on only while drawing hides past the right edge, so the
-            hidden width reads as scrollable. */}
         <figure
-          ref={schematicRef}
-          // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <figure> is the semantic element; role="region" exposes the scrollable area without losing figure semantics.
-          role="region"
           aria-label={m.public_architecture_aria()}
-          // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focus stop to pan the horizontally overflowing schematic.
-          tabIndex={0}
-          className={cn(
-            'mt-10 min-w-0 overflow-x-auto border border-border bg-card p-3 lg:hidden',
-            schematicFadeRight &&
-              '[mask-image:linear-gradient(to_right,black_calc(100%_-_2.5rem),transparent_100%)]'
-          )}
+          className="mx-auto mt-10 max-w-md lg:hidden"
         >
           <ArchitectureSchematic activeNodes={activeNodes} />
         </figure>
@@ -276,7 +256,7 @@ function RequestTraceSection({
             }}
           >
             <article data-stage="request" className="pt-2">
-              <StageMarker index="01" node="curl / SDK" />
+              <StageMarker index="01" node="HTTP client" />
               <h3 className="mt-3 text-xl font-semibold text-balance">
                 {m.public_request_stage_request()}
               </h3>
@@ -398,19 +378,9 @@ function RequestTraceSection({
             </article>
           </div>
 
-          {/* The sticky rail: the schematic's dense redraw, the node under
-              discussion lit. Fixed 11px labels — see `DenseSchematic`. Pure
-              color-state; nothing here gates content. */}
           <div className="hidden lg:block">
-            <div className="sticky top-24 border border-border bg-card p-4">
-              <ArchitectureSchematic
-                variant="dense"
-                activeNodes={activeNodes}
-                className="w-full transition-colors duration-300"
-              />
-              <p className="mt-3 font-mono text-2xs text-muted-foreground">
-                {m.public_request_rail()}
-              </p>
+            <div className="sticky top-24">
+              <ArchitectureSchematic activeNodes={activeNodes} />
             </div>
           </div>
         </div>
