@@ -14,25 +14,12 @@ import {
 import { runCapabilities } from '@/lib/capabilities'
 import {
   exchangeRow,
-  needsPreHandlerActor,
   type AuthExchange,
   type CredentialChange
 } from '@/lib/server/auth-audit/exchanges'
 import { recordAuthAudit } from '@/lib/server/auth-audit/record'
 import { recordSsoSignInAudit } from '@/lib/server/auth-audit/sso-sign-in'
-import {
-  readAndReportBody,
-  readRequestUserId,
-  type AuthAuditContext
-} from '@/lib/server/auth-audit/shared'
-import {
-  enforceSsoRequired,
-  refuseDisabledConnection
-} from '@/lib/server/sso-sign-in-gate'
-import {
-  impersonationForbiddenAction,
-  impersonationGuardResponse
-} from '@/lib/server/impersonation-guard'
+import { readAndReportBody, readRequestUserId } from '@/lib/server/auth-audit/shared'
 import { enforceTwoFactorSignIn } from '@/lib/server/two-factor-sign-in-gate'
 import { makeTurnstileLayer } from '@/lib/server/turnstile.effects'
 import {
@@ -45,14 +32,7 @@ import {
 import { notifyCredentialChangedEffect } from '@/lib/server/credential-change-notification'
 import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
 import { recordEvidence } from '@/lib/server/security-evidence-sink'
-import {
-  isOrganizationProductAction,
-  suspendedOrganizationResponse
-} from '@/lib/server/auth-organization-suspension'
-import {
-  needsStrongAuthenticationContext,
-  strongAuthenticationHttpResponse
-} from '@/lib/server/strong-authentication-http'
+import { runAuthRequestGuards } from '@/lib/server/auth-request-guard'
 
 /**
  * The credential-change sender, bound to the provider-light email dispatcher:
@@ -87,72 +67,6 @@ async function sendCredentialChangeEmail(input: {
     case 'backup-codes': {
       return sendBackupCodesRotatedEmail({ email: input.email, locale })
     }
-  }
-}
-
-/**
- * The request's session, read BEFORE the auth handler consumes the request. A
- * failed session read must never fail the auth request it observes, so it
- * resolves `null` on any error.
- */
-function readPreHandlerSession(request: Request) {
-  return authRuntime
-    .runPromise(
-      withWebRequestScope(
-        { event: 'auth.session' },
-        Effect.flatMap(Auth.Tag, (auth) =>
-          auth.api.getSession({ headers: request.headers })
-        )
-      )
-    )
-    .catch(() => null)
-}
-
-type PreHandlerSession = NonNullable<Awaited<ReturnType<typeof readPreHandlerSession>>>
-
-/**
- * Everything the pre-handler reads need, gathered once: the session, for the
- * audits whose responses never name their actor (admin responses never name
- * their actor; sign-out and the session revocations name nobody) and for the
- * impersonation guard (ADR 0054); plus, for admin mutations, a clone of the
- * JSON body (`userId` target). `undefined` throughout for anything else, or a
- * request that carries no session — anonymous probes are rate-limited noise.
- */
-async function readPreHandlerContext(
-  request: Request,
-  exchange: AuthExchange
-): Promise<{
-  readonly session: PreHandlerSession | undefined
-  readonly audit: AuthAuditContext | undefined
-}> {
-  // The social callbacks are GET rows with a session actor — the only GETs
-  // that need one — so the method guard lives in `needsPreHandlerActor`'s row
-  // lookup, not here.
-  const audited =
-    needsPreHandlerActor(exchange) || exchange.pathname.endsWith('/unlink-account')
-  const guarded =
-    impersonationForbiddenAction(exchange) !== null ||
-    needsStrongAuthenticationContext(exchange)
-  const organization = isOrganizationProductAction(exchange)
-  if (!audited && !guarded && !organization) {
-    return { session: undefined, audit: undefined }
-  }
-  // The clone is taken before the handler runs — Better Auth consumes the
-  // original request's body.
-  const requestClone = request.clone()
-  const session = await readPreHandlerSession(request)
-  if (!session) {
-    return { session: undefined, audit: undefined }
-  }
-  return {
-    session,
-    audit: audited
-      ? {
-          actorUserId: session.user.id,
-          actorEmail: session.user.email,
-          request: requestClone
-        }
-      : undefined
   }
 }
 
@@ -237,63 +151,15 @@ async function handleAuth(request: Request): Promise<Response> {
           })
           return turnstileResponse
         }
-        // Pre-handler reads before Better Auth runs: the session (for the
-        // audits whose responses never name their actor, and for the
-        // impersonation guard) and — for admin mutations — a body clone that
-        // the handler's consumption of the request would otherwise make
-        // unreadable.
-        const { session, audit: context } = yield* Effect.promise(() =>
-          readPreHandlerContext(request, exchange)
-        )
-        const strongAuthResponse = yield* Effect.promise(() =>
-          strongAuthenticationHttpResponse(exchange, session)
-        )
-        if (strongAuthResponse !== null) {
-          yield* Effect.annotateLogsScoped({
-            outcome: 'strong_authentication_required'
-          })
-          return strongAuthResponse
-        }
-        const suspensionResponse = yield* Effect.promise(() =>
-          suspendedOrganizationResponse(request, exchange, session)
-        )
-        if (suspensionResponse !== null) {
-          yield* Effect.annotateLogsScoped({ outcome: 'workspace_suspended' })
-          return suspensionResponse
-        }
-        // An impersonation session may not change the account's password,
-        // second factor or email, or delete it (ADR 0054). Decided by the
-        // capability's guard, answered here before Better Auth sees the request.
-        const guardResponse = yield* impersonationGuardResponse(
+        const guardedRequest = yield* runAuthRequestGuards(
+          request,
           exchange,
-          session?.session
+          (pluginRequest) => handleWebRequest(Auth.Tag, pluginRequest)
         )
-        if (guardResponse !== null) {
-          yield* Effect.annotateLogsScoped({
-            outcome: 'impersonation_blocked',
-            statusCode: guardResponse.status
-          })
-          return guardResponse
+        if (guardedRequest.outcome === 'refused') {
+          return guardedRequest.response
         }
-        // The require-SSO gate (ADR 0069): a workspace that demands SSO for
-        // its domain refuses the credential path here, so the sign-in page's
-        // routing is backed by an enforcement point. Null = not applicable.
-        const ssoRequiredResponse = yield* enforceSsoRequired(request, exchange)
-        if (ssoRequiredResponse !== null) {
-          yield* Effect.annotateLogsScoped({ outcome: 'sso_required' })
-          return ssoRequiredResponse
-        }
-        // The same rule's SSO half: the plugin serves any stored connection,
-        // so a disabled one is refused before it can start an OIDC flow an
-        // owner believes is retired or still untested.
-        const disabledSsoResponse = yield* refuseDisabledConnection(request, exchange)
-        if (disabledSsoResponse !== null) {
-          yield* Effect.annotateLogsScoped({ outcome: 'sso_connection_disabled' })
-          return disabledSsoResponse
-        }
-        // The effectful-better-auth mount. The Auth service comes from
-        // authRuntime's layer; only the request is handed over per call.
-        const response = yield* handleWebRequest(Auth.Tag, request)
+        const { response, context } = guardedRequest
         // The two-factor gate for the mailbox-only sign-ins (the email-OTP
         // verify and the magic-link consume): the plugin's challenge hook
         // covers the credential endpoints, so these two would otherwise mint

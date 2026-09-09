@@ -53,9 +53,9 @@ export function impersonationForbiddenAction(
  */
 export function impersonationGuardResponse(
   exchange: AuthExchange,
-  session: ImpersonationAwareSession | undefined
+  session: ImpersonationAwareSession | undefined,
+  action: ImpersonationForbiddenAction | null = impersonationForbiddenAction(exchange)
 ): Effect.Effect<Response | null> {
-  const action = impersonationForbiddenAction(exchange)
   if (action === null || session === undefined) {
     return Effect.succeed(null)
   }

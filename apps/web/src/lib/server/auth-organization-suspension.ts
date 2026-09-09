@@ -103,9 +103,10 @@ export async function enforceOrganizationSuspension(
   request: Request,
   exchange: AuthExchange,
   session: SessionIdentity | undefined,
-  dependencies: OrganizationSuspensionDependencies
+  dependencies: OrganizationSuspensionDependencies,
+  organizationProduct = isOrganizationProductAction(exchange)
 ): Promise<Response | null> {
-  if (!isOrganizationProductAction(exchange) || session === undefined) {
+  if (!organizationProduct || session === undefined) {
     return null
   }
 
@@ -157,36 +158,45 @@ export async function enforceOrganizationSuspension(
 export async function suspendedOrganizationResponse(
   request: Request,
   exchange: AuthExchange,
-  session: SessionIdentity | undefined
+  session: SessionIdentity | undefined,
+  organizationProduct = isOrganizationProductAction(exchange)
 ): Promise<Response | null> {
-  return enforceOrganizationSuspension(request, exchange, session, {
-    listWorkspaces: (userId) =>
-      runCapabilities(
-        Effect.map(
-          Effect.flatMap(WorkspaceMembership, (service) =>
-            service.listWorkspacesForUser(userId)
-          ),
-          (memberships) => memberships.map(({ workspace }) => workspace)
+  return enforceOrganizationSuspension(
+    request,
+    exchange,
+    session,
+    {
+      listWorkspaces: (userId) =>
+        runCapabilities(
+          Effect.map(
+            Effect.flatMap(WorkspaceMembership, (service) =>
+              service.listWorkspacesForUser(userId)
+            ),
+            (memberships) => memberships.map(({ workspace }) => workspace)
+          )
+        ),
+      invitationDetail: (invitationId) =>
+        runCapabilities(
+          Effect.map(
+            Effect.flatMap(WorkspaceInvitations, (service) =>
+              service.find(invitationId)
+            ),
+            Option.match({
+              onNone: () => undefined,
+              onSome: ({ workspaceId, email }) => ({ workspaceId, email })
+            })
+          )
+        ),
+      isProductAllowed: (workspaceId) =>
+        runCapabilities(
+          Effect.flatMap(WorkspaceSuspensionService, (service) =>
+            service.requireAllowed(workspaceId, 'product')
+          ).pipe(
+            Effect.as(true),
+            Effect.catchTag('WorkspaceSuspended', () => Effect.succeed(false))
+          )
         )
-      ),
-    invitationDetail: (invitationId) =>
-      runCapabilities(
-        Effect.map(
-          Effect.flatMap(WorkspaceInvitations, (service) => service.find(invitationId)),
-          Option.match({
-            onNone: () => undefined,
-            onSome: ({ workspaceId, email }) => ({ workspaceId, email })
-          })
-        )
-      ),
-    isProductAllowed: (workspaceId) =>
-      runCapabilities(
-        Effect.flatMap(WorkspaceSuspensionService, (service) =>
-          service.requireAllowed(workspaceId, 'product')
-        ).pipe(
-          Effect.as(true),
-          Effect.catchTag('WorkspaceSuspended', () => Effect.succeed(false))
-        )
-      )
-  })
+    },
+    organizationProduct
+  )
 }

@@ -11,6 +11,7 @@ import {
 import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { fixtureSession } from '@/test/fixture-session'
 import { deleteAccountHandler } from './account-delete.effects'
+import { classifyAuthRequest } from './auth-request-guard'
 import { strongAuthenticationHttpResponse } from './strong-authentication-http'
 
 const deletion = vi.hoisted(() => ({
@@ -119,9 +120,11 @@ beforeEach(() => {
 })
 const current = fixtureSession({ userId: 'usr_admin' })
 function request(path: string, method: 'POST' | 'GET' = 'POST', session = current) {
+  const exchange = { method, pathname: `/api/auth${path}` }
   return strongAuthenticationHttpResponse(
-    { method, pathname: `/api/auth${path}` },
-    session
+    exchange,
+    session,
+    classifyAuthRequest(exchange)
   )
 }
 
@@ -316,9 +319,11 @@ describe('raw product endpoint exclusions', () => {
     const response = await request(path)
     expect(response?.status).toBe(403)
     expect(await response?.json()).toEqual({ code: 'capability_route_required' })
+    const exchange = { method: 'GET', pathname: `/api/auth${path}` }
     const anonymous = await strongAuthenticationHttpResponse(
-      { method: 'GET', pathname: `/api/auth${path}` },
-      undefined
+      exchange,
+      undefined,
+      classifyAuthRequest(exchange)
     )
     expect(anonymous?.status).toBe(403)
   })
@@ -334,10 +339,14 @@ describe('raw product endpoint exclusions', () => {
   ])('preserves the SSO protocol endpoint %s', async (path) => {
     expect(await request(path)).toBeNull()
     expect(
-      await strongAuthenticationHttpResponse(
-        { method: 'GET', pathname: `/api/auth${path}` },
-        undefined
-      )
+      await (() => {
+        const exchange = { method: 'GET', pathname: `/api/auth${path}` }
+        return strongAuthenticationHttpResponse(
+          exchange,
+          undefined,
+          classifyAuthRequest(exchange)
+        )
+      })()
     ).toBeNull()
   })
 })
