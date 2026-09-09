@@ -3,6 +3,7 @@ import {
   type DigestCandidate,
   type DigestWindow
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+import { layerWithoutDependencies as NotificationEmailEligibilityLayer } from '@b2b-saas-starter/capabilities/notifications/notification-email-eligibility'
 import { SeedNotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { SeedAuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
@@ -49,25 +50,10 @@ function candidate(
 
 describe('buildDigests', () => {
   it('groups per recipient, keeps digest kinds only, newest first', () => {
-    const digests = buildDigests(
-      [
-        candidate(owner, 'n1', 'webhook.delivery_failed', '2026-09-02T09:00:00.000Z'),
-        candidate(owner, 'n2', 'announcement', '2026-09-02T10:00:00.000Z'),
-        // Security kind on its default: instant, so not in the digest.
-        candidate(owner, 'n3', 'api_token.created', '2026-09-02T13:00:00.000Z'),
-        candidate(member, 'n1', 'webhook.delivery_failed', '2026-09-02T10:00:00.000Z')
-      ],
-      (userId, kind) => {
-        // The member turned webhook failures off.
-        if (userId === member.userId && kind === 'webhook.delivery_failed') {
-          return 'off'
-        }
-        if (kind === 'api_token.created') {
-          return 'instant'
-        }
-        return 'digest'
-      }
-    )
+    const digests = buildDigests([
+      candidate(owner, 'n1', 'webhook.delivery_failed', '2026-09-02T09:00:00.000Z'),
+      candidate(owner, 'n2', 'announcement', '2026-09-02T10:00:00.000Z')
+    ])
     expect(digests).toHaveLength(1)
     expect(digests[0]?.recipient).toEqual(owner)
     expect(digests[0]?.items.map((item) => item.title)).toEqual([
@@ -81,13 +67,10 @@ describe('buildDigests', () => {
   })
 
   it('orders digests by recipient email so a run is deterministic', () => {
-    const digests = buildDigests(
-      [
-        candidate(owner, 'n1', 'announcement', '2026-09-02T10:00:00.000Z'),
-        candidate(member, 'n1', 'announcement', '2026-09-02T10:00:00.000Z')
-      ],
-      () => 'digest'
-    )
+    const digests = buildDigests([
+      candidate(owner, 'n1', 'announcement', '2026-09-02T10:00:00.000Z'),
+      candidate(member, 'n1', 'announcement', '2026-09-02T10:00:00.000Z')
+    ])
     expect(digests.map((digest) => digest.recipient.email)).toEqual([
       'member@example.com',
       'owner@example.com'
@@ -163,6 +146,23 @@ describe('runNotificationDigest', () => {
     transition: () => Effect.die('unused')
   })
 
+  function layersFor(
+    feed: Layer.Layer<NotificationFeed>,
+    dispatcher: Layer.Layer<EmailDispatcher>,
+    suspension: Layer.Layer<WorkspaceSuspensionService> = activeSuspension
+  ) {
+    const dependencies = Layer.mergeAll(
+      feed,
+      preferences,
+      SeedEmailDelivery(),
+      suspension
+    )
+    const eligibility = NotificationEmailEligibilityLayer.pipe(
+      Layer.provide(dependencies)
+    )
+    return Layer.mergeAll(dependencies, eligibility, dispatcher)
+  }
+
   it.effect(
     'consumes a suspended digest item and does not replay it after recovery',
     () => {
@@ -190,14 +190,7 @@ describe('runNotificationDigest', () => {
         expect(second.sent).toBe(0)
       }).pipe(
         Effect.provide(
-          Layer.mergeAll(
-            stubFeed([], rows),
-            preferences,
-            stubDispatcher([], false),
-            SeedEmailDelivery(),
-            activeSuspension,
-            suspension
-          )
+          layersFor(stubFeed([], rows), stubDispatcher([], false), suspension)
         )
       )
     }
@@ -223,15 +216,7 @@ describe('runNotificationDigest', () => {
       ]
       const summary = yield* Effect.scoped(
         runNotificationDigest('https://app.test').pipe(
-          Effect.provide(
-            Layer.mergeAll(
-              stubFeed(seen, rows),
-              preferences,
-              stubDispatcher(sent),
-              SeedEmailDelivery(),
-              activeSuspension
-            )
-          )
+          Effect.provide(layersFor(stubFeed(seen, rows), stubDispatcher(sent)))
         )
       )
 
@@ -270,7 +255,7 @@ describe('runNotificationDigest', () => {
       const summary = yield* Effect.scoped(
         runNotificationDigest('https://app.test').pipe(
           Effect.provide(
-            Layer.mergeAll(
+            layersFor(
               stubFeed(
                 [],
                 [
@@ -282,9 +267,6 @@ describe('runNotificationDigest', () => {
                   )
                 ]
               ),
-              preferences,
-              SeedEmailDelivery(),
-              activeSuspension,
               stubDispatcher(sent)
             )
           )
@@ -298,13 +280,7 @@ describe('runNotificationDigest', () => {
   it.effect('does not resend a provider-accepted digest in the same window', () => {
     const sent: Array<EmailMessage> = []
     const rows = [candidate(owner, 'n1', 'announcement', '2026-09-03T07:00:00.000Z')]
-    const layers = Layer.mergeAll(
-      stubFeed([], rows),
-      preferences,
-      stubDispatcher(sent, true),
-      SeedEmailDelivery(),
-      activeSuspension
-    )
+    const layers = layersFor(stubFeed([], rows), stubDispatcher(sent, true))
     return Effect.scoped(
       Effect.gen(function* () {
         yield* TestClock.setTime(FROZEN_NOW)
@@ -345,13 +321,7 @@ describe('runNotificationDigest', () => {
         })
       }
     })
-    const layers = Layer.mergeAll(
-      stubFeed([], rows),
-      preferences,
-      dispatcher,
-      SeedEmailDelivery(),
-      activeSuspension
-    )
+    const layers = layersFor(stubFeed([], rows), dispatcher)
     return Effect.scoped(
       Effect.gen(function* () {
         yield* TestClock.setTime(FROZEN_NOW)

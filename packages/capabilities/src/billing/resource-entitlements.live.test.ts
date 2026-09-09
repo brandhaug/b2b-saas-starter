@@ -30,41 +30,46 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'Live resource authority',
   (it) => {
     for (const scenario of resourceDeadlineCases) {
-      it.effect(`Live resource authority after ${scenario.name}`, () =>
-        Effect.gen(function* () {
-          const db = yield* Database
-          yield* db.delete(apiTokens).where(eq(apiTokens.workspaceId, 'wrk_live'))
-          yield* db
-            .delete(webhookEndpoints)
-            .where(eq(webhookEndpoints.workspaceId, 'wrk_live'))
-          yield* db
-            .delete(workspaceResourceSelections)
-            .where(eq(workspaceResourceSelections.workspaceId, 'wrk_live'))
-          yield* db
-            .delete(workspaceSubscriptions)
-            .where(eq(workspaceSubscriptions.workspaceId, 'wrk_live'))
-          yield* db.insert(workspaceSubscriptions).values({
-            workspaceId: 'wrk_live',
-            stripeCustomerId: 'cus_resources',
-            stripeSubscriptionId: 'sub_resources',
-            subscribedPlanId: 'team',
-            updatedAt: '2026-09-01T00:00:00.000Z',
-            ...scenario.state
-          })
-          yield* inWorkspace(
-            'live-lab',
-            resourceEntitlementsContract(expect),
-            {
-              userId: 'usr_owner'
-            },
-            {
-              webhookQueue: {
-                send: () => Promise.resolve(),
-                sendBatch: () => Promise.resolve()
+      it.effect(
+        `Live resource authority after ${scenario.name}`,
+        () =>
+          Effect.gen(function* () {
+            const db = yield* Database
+            yield* db.delete(apiTokens).where(eq(apiTokens.workspaceId, 'wrk_live'))
+            yield* db
+              .delete(webhookEndpoints)
+              .where(eq(webhookEndpoints.workspaceId, 'wrk_live'))
+            yield* db
+              .delete(workspaceResourceSelections)
+              .where(eq(workspaceResourceSelections.workspaceId, 'wrk_live'))
+            yield* db
+              .delete(workspaceSubscriptions)
+              .where(eq(workspaceSubscriptions.workspaceId, 'wrk_live'))
+            yield* db.insert(workspaceSubscriptions).values({
+              workspaceId: 'wrk_live',
+              stripeCustomerId: 'cus_resources',
+              stripeSubscriptionId: 'sub_resources',
+              subscribedPlanId: 'team',
+              updatedAt: '2026-09-01T00:00:00.000Z',
+              ...scenario.state
+            })
+            yield* inWorkspace(
+              'live-lab',
+              resourceEntitlementsContract(expect),
+              {
+                userId: 'usr_owner'
+              },
+              {
+                webhookQueue: {
+                  send: () => Promise.resolve(),
+                  sendBatch: () => Promise.resolve()
+                }
               }
-            }
-          )
-        })
+            )
+          }),
+        // This live contract performs several D1-backed resource operations;
+        // on a contended CI runner it can exceed Vitest's default test budget.
+        { timeout: 60_000 }
       )
     }
     it.effect(
