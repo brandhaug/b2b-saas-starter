@@ -20,6 +20,7 @@ jobs:
     name: Export encrypted production D1 backup
     if: >-
       vars.BACKUP_ENABLED == 'true' &&
+      (github.event_name != 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) &&
       (github.event_name == 'workflow_dispatch' || github.event.schedule == '17 2 * * *')
     runs-on: ubuntu-latest
     # Keep these credentials in a dedicated environment with no deployment
@@ -27,7 +28,9 @@ jobs:
     environment: backup
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Create, encrypt, upload, and prune backup
         env:
@@ -49,7 +52,7 @@ jobs:
           node scripts/d1-backup.ts backup | tee backup-evidence.json
       - name: Publish backup evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: d1-backup-evidence-${{ github.run_id }}
           path: backup-evidence.json
@@ -60,12 +63,15 @@ jobs:
     name: Verify backup freshness and integrity
     if: >-
       vars.BACKUP_ENABLED == 'true' &&
+      (github.event_name != 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) &&
       (github.event_name == 'workflow_dispatch' || github.event.schedule == '47 4 * * *')
     runs-on: ubuntu-latest
     environment: backup
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Verify latest completed backup
         env:

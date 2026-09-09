@@ -21,7 +21,11 @@ runs:
   steps:
     - name: Install Vite+ (pinned)
       run: |
-        curl -fsSL https://vite.plus | VP_VERSION=0.3.0 VP_NODE_MANAGER=yes bash
+        installer="$(mktemp)"
+        trap 'rm -f "$installer"' EXIT
+        curl -fsSL https://vite.plus -o "$installer"
+        echo 'd4a1ffa8245bdfcf39a786d545be6a43e231b771c32d7c02414bb96d4f5d9cdc  '"$installer" | shasum -a 256 -c -
+        VP_VERSION=0.3.0 VP_NODE_MANAGER=yes bash "$installer"
         # The installer does not touch PATH, so expose its bin dir (vp + managed
         # node/npm/corepack) to later steps.
         echo "$HOME/.local/share/vite-plus/bin" >> "$GITHUB_PATH"
@@ -33,7 +37,7 @@ runs:
       env:
         COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
       shell: bash
-    - uses: actions/cache@v4
+    - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
       with:
         path: ~/.local/share/pnpm/store
         key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
@@ -44,7 +48,7 @@ runs:
     - name: Restore Vite Task cache
       id: vite-task-cache-restore
       if: ${{ inputs.cache-task == 'true' }}
-      uses: actions/cache/restore@v6
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: node_modules/.vite/task-cache
         key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}-${{ github.run_attempt }}

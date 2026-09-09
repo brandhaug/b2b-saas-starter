@@ -139,20 +139,29 @@ and sets `ENVIRONMENT=preview`. A preview is publicly reachable and
 signs in with the documented demo credentials, so never point one at
 real data.
 
-### Repository secrets for previews
+### Preview environment secrets
 
-The workflow reads **repository** secrets (Settings → Secrets and
-variables → Actions), not the `production` environment:
+The workflow reads secrets from the dedicated `preview` environment (Settings →
+Environments → preview), not repository secrets or the `production` environment:
 
-| Secret                       | Required | Value                                                                                           |
-| ---------------------------- | -------- | ----------------------------------------------------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`       | yes      | A token with the permissions from step 2 above; a separate token from production is a good idea |
-| `CLOUDFLARE_ACCOUNT_ID`      | yes      | From step 1 above                                                                               |
-| `PREVIEW_BETTER_AUTH_SECRET` | yes      | `openssl rand -base64 32`; shared by all preview stages, never the production value             |
+| Secret                          | Required | Value                                                                                          |
+| ------------------------------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `PREVIEW_CLOUDFLARE_API_TOKEN`  | yes      | A token with only preview-stage permissions; it must not deploy or change production resources |
+| `PREVIEW_CLOUDFLARE_ACCOUNT_ID` | yes      | From step 1 above                                                                              |
+| `PREVIEW_BETTER_AUTH_SECRET`    | yes      | `openssl rand -base64 32`; shared by all preview stages, never the production value            |
 
 `BETTER_AUTH_URL` is not a secret here: the workflow resolves the
 account's `workers.dev` subdomain through the API and `alchemy.run.ts`
 derives the URL from the stage's web Worker name.
+
+Create a matching `preview-cleanup` environment with these exact three secrets:
+`PREVIEW_CLOUDFLARE_API_TOKEN`, `PREVIEW_CLOUDFLARE_ACCOUNT_ID`, and
+`PREVIEW_BETTER_AUTH_SECRET`. Give it no required reviewers. Closed pull requests
+must be able to destroy their stage without waiting for approval; both environments
+must stay limited to preview resources and separate from production.
+Set the repository Actions variable `PREVIEW_ENABLED=true` only after both
+environments and their credentials are verified. With the variable unset, preview
+jobs are intentionally skipped instead of running with empty credentials.
 
 ### Running a preview stage from a laptop
 
