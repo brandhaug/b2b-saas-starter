@@ -24,6 +24,7 @@ import { presentationSettings } from '@/lib/i18n'
 import { hasEditedForms } from '@/lib/unsaved-form'
 import { callServerFn } from '@/lib/server-call'
 import { setLocalePreferencesServerFn } from '@/lib/server/account-preferences'
+import { LocaleFlag } from '@/components/locale-flag'
 
 export function LanguageSwitcher() {
   const hydrated = useClientValue(() => true, false)
@@ -72,12 +73,21 @@ export function LanguageSwitcher() {
           aria-label={m.shell_language()}
           className="min-w-32 max-w-40 pr-3 text-base sm:text-xs"
         >
-          <SelectValue />
+          <SelectValue>
+            <LocaleFlag locale={getLocale()} />
+            {getLocale() === 'nb' ? 'Norsk' : 'English'}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
-            <SelectItem value="en">English</SelectItem>
-            <SelectItem value="nb">Norsk bokmål</SelectItem>
+            <SelectItem value="en">
+              <LocaleFlag locale="en" />
+              English
+            </SelectItem>
+            <SelectItem value="nb">
+              <LocaleFlag locale="nb" />
+              Norsk
+            </SelectItem>
           </SelectGroup>
         </SelectContent>
       </Select>

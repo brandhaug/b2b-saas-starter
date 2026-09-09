@@ -16,7 +16,7 @@ test('switches public language, keeps it through navigation and refresh, and exp
   await page.goto('/en/#faq')
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await page.getByRole('combobox', { name: 'Language', exact: true }).click()
-  await page.getByRole('option', { name: 'Norsk bokmål' }).click()
+  await page.getByRole('option', { name: 'Norsk' }).click()
   await expect(page).toHaveURL(/\/nb\/?(?:#faq)?$/u)
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(page.locator('link[rel="alternate"][hreflang="en"]')).toHaveAttribute(
@@ -32,7 +32,7 @@ test('switches public language, keeps it through navigation and refresh, and exp
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(
     page.getByRole('combobox', { name: 'Språk', exact: true })
-  ).toContainText('Norsk bokmål')
+  ).toContainText('Norsk')
 })
 
 test('warns before a language switch discards form edits', async ({ page }) => {
@@ -40,14 +40,14 @@ test('warns before a language switch discards form edits', async ({ page }) => {
   await page.locator('form[data-hydrated="true"]').waitFor()
   await page.getByRole('textbox', { name: /email/iu }).fill('draft@example.com')
   await page.getByRole('combobox', { name: 'Language', exact: true }).click()
-  await page.getByRole('option', { name: 'Norsk bokmål' }).click()
+  await page.getByRole('option', { name: 'Norsk' }).click()
   await expect(page.getByRole('alertdialog')).toBeVisible()
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(page.getByRole('textbox', { name: /email/iu })).toHaveValue(
     'draft@example.com'
   )
   await page.getByRole('combobox', { name: 'Language', exact: true }).click()
-  await page.getByRole('option', { name: 'Norsk bokmål' }).click()
+  await page.getByRole('option', { name: 'Norsk' }).click()
   await page.getByRole('button', { name: 'Switch language', exact: true }).click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(page).toHaveURL(/\/sign-in$/u)
@@ -95,7 +95,7 @@ test('saved account language and time zone override browser preferences in a new
     await page.goto('/account')
     await page.locator('html[data-authenticated="true"]').waitFor()
     await page.locator('form').getByRole('combobox', { name: 'Language' }).click()
-    await page.getByRole('option', { name: 'Norsk bokmål' }).click()
+    await page.getByRole('option', { name: 'Norsk' }).click()
     await page.locator('input[name="timeZone"]').fill('Europe/Oslo')
     await page.getByRole('button', { name: 'Save preferences', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
@@ -125,7 +125,7 @@ test('saved account language and time zone override browser preferences in a new
       )
       await expect(
         secondPage.locator('form').getByRole('combobox', { name: 'Språk' })
-      ).toContainText('Norsk bokmål')
+      ).toContainText('Norsk')
       await expect(secondPage.locator('input[name="timeZone"]')).toHaveValue(
         'Europe/Oslo'
       )

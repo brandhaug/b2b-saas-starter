@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { callServerFn } from '@/lib/server-call'
 import { setLocalePreferencesServerFn } from '@/lib/server/account-preferences'
+import { LocaleFlag } from '@/components/locale-flag'
 
 /** Time-zone detection happens after hydration and never overwrites a preference. */
 export function LocaleBootstrap() {
@@ -117,12 +118,21 @@ export function LocalePreferences() {
               aria-labelledby={`${id}-language-label`}
               className="w-full pr-3 text-base sm:text-sm"
             >
-              <SelectValue />
+              <SelectValue>
+                <LocaleFlag locale={selectedLocale} />
+                {selectedLocale === 'nb' ? 'Norsk' : 'English'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="en">English</SelectItem>
-                <SelectItem value="nb">Norsk bokmål</SelectItem>
+                <SelectItem value="en">
+                  <LocaleFlag locale="en" />
+                  English
+                </SelectItem>
+                <SelectItem value="nb">
+                  <LocaleFlag locale="nb" />
+                  Norsk
+                </SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>

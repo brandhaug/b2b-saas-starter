@@ -10,14 +10,14 @@ function KnowledgeSection({
   readonly recentDocs: ReadonlyArray<DocMeta>
 }) {
   return (
-    <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
+    <section className="mx-auto max-w-3xl px-4 py-24 sm:px-6">
       <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
         {m.public_knowledge_heading()}
       </h2>
       <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
         {m.public_knowledge_description()}
       </p>
-      <div className="mt-12 max-w-2xl">
+      <div className="mt-12">
         <div>
           <p className="border-b border-border pb-3 font-mono text-xs text-muted-foreground">
             {m.public_knowledge_docs()}
