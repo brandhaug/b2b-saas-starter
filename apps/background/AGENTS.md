@@ -16,7 +16,14 @@ Per queue the outcome table is the contract; the non-obvious parts:
 - Webhooks retry a retryable failure (5xx, 408, 429, network, timeout) at `backoffSeconds(attempts)`; a 4xx or SSRF rejection is `failed_permanent`; undispatchable or malformed acks.
 - [Webhook Attempt completion](../../packages/capabilities/src/developer-platform/webhook-attempt-completion.ts) owns planning, recording and accepted-only warnings. The worker owns signing and HTTP dispatch; it follows completion's queue disposition, including for duplicate or late observations.
 - The DLQ consumer acks after writing the terminal `dead_lettered` row, but retries if that write fails, so a D1 blip cannot lose the evidence.
-- Exports resolve `WorkspaceContext` from the slug with no actor, ownership having been checked at request time; a slug naming another `workspaceId` fails the row. No DLQ, the row is the record. `WORKSPACE_EXPORT_RETENTION_DAYS` is declared twice, in `infra/bindings.ts` (R2 lifecycle rule) and the capability; `export-consumer.test.ts` fails if they diverge.
+- Exports use the capability-owned generation workflow after resolving
+  `WorkspaceContext` from the slug with no actor, ownership having been checked
+  at request time; a slug naming another `workspaceId` fails the row. The queue
+  adapter keeps decoding, tracing, and platform retry scheduling; generation
+  owns snapshot/build/completion and terminal settlement. No DLQ, the row is
+  the record. `WORKSPACE_EXPORT_RETENTION_DAYS` is declared twice, in
+  `infra/bindings.ts` (R2 lifecycle rule) and the capability;
+  `export-consumer.test.ts` fails if they diverge.
 - Seat sync uses the billing queue and its dead-letter queue. The primary queue
   retries six times; the dead-letter consumer calls `Billing.reconcileWorkspace`
   so recovery does not require a later mutation. Its Stripe env is

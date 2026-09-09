@@ -1,4 +1,4 @@
-import { DateTime, Effect } from 'effect'
+import { Context, DateTime, Effect } from 'effect'
 
 import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
 import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
@@ -23,6 +23,34 @@ export type WorkspaceExportSnapshotServices =
   | WebhookEndpoints
   | WorkspaceInvitations
   | WorkspaceMembership
+
+export type WorkspaceExportSnapshotServiceValues = {
+  readonly apiTokenRegistry: typeof ApiTokenRegistry.Service
+  readonly auditEventLog: typeof AuditEventLog.Service
+  readonly notificationFeed: typeof NotificationFeed.Service
+  readonly webhookEndpoints: typeof WebhookEndpoints.Service
+  readonly workspaceInvitations: typeof WorkspaceInvitations.Service
+  readonly workspaceMembership: typeof WorkspaceMembership.Service
+}
+
+/**
+ * Keeps a snapshot's captured dependencies to the read services it declares.
+ * In particular, do not use `Effect.context` here: it retains every service
+ * in the ambient context, including a caller's `WorkspaceContext`, which can
+ * defeat a queue resolver supplied later.
+ */
+export function workspaceExportSnapshotContext(
+  services: WorkspaceExportSnapshotServiceValues
+): Context.Context<WorkspaceExportSnapshotServices> {
+  return Context.mergeAll(
+    Context.make(ApiTokenRegistry, services.apiTokenRegistry),
+    Context.make(AuditEventLog, services.auditEventLog),
+    Context.make(NotificationFeed, services.notificationFeed),
+    Context.make(WebhookEndpoints, services.webhookEndpoints),
+    Context.make(WorkspaceInvitations, services.workspaceInvitations),
+    Context.make(WorkspaceMembership, services.workspaceMembership)
+  )
+}
 
 /**
  * Every page of the workspace's audit trail, newest first — complete or the

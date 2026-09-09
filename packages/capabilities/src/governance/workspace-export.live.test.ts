@@ -3,12 +3,17 @@ import { TestClock } from 'effect/testing'
 import { describe, expect, layer } from '@effect/vitest'
 
 import { NotificationFeed } from '../notifications/notification-feed.ts'
+import { testWorkspaceContext } from '../workspace-context.ts'
 import {
   inWorkspace,
   LIVE_SUITE_TIMEOUT,
   TestDatabase
 } from '../testing/live-harness.ts'
 import { AuditEventLog } from './audit-event-log.ts'
+import {
+  WorkspaceExportGeneration,
+  WorkspaceExportGenerationLayer
+} from './workspace-export-generation.ts'
 import {
   WorkspaceExports,
   WORKSPACE_EXPORT_RETENTION_DAYS,
@@ -24,7 +29,7 @@ import { WorkspaceSuspensionService } from './workspace-suspension.ts'
  * reads back from. Together they let the whole request → complete → download
  * lifecycle run against a real D1 without Cloudflare.
  */
-function stubPorts() {
+function stubPorts(options: { readonly failPut?: boolean } = {}) {
   const sent: Array<WorkspaceExportQueueMessage> = []
   const objects = new Map<string, Uint8Array>()
   const queue: WorkspaceExportQueueBinding = {
@@ -35,6 +40,9 @@ function stubPorts() {
   }
   const bucket: WorkspaceExportBucketBinding = {
     put: (key, value) => {
+      if (options.failPut) {
+        return Promise.reject(new Error('bucket unavailable'))
+      }
       objects.set(key, value)
       return Promise.resolve()
     },
@@ -205,20 +213,35 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         )
         expect(Option.isNone(early)).toBe(true)
 
-        // The background half: no WorkspaceContext, ids from the message.
-        const completed = yield* inWorkspace(
+        // The background half: the generation workflow resolves the context,
+        // snapshots through the real capability adapters, and completes the row.
+        const generated = yield* inWorkspace(
           'live-lab',
-          Effect.flatMap(WorkspaceExports, (exports) =>
-            exports.complete({
-              exportId: requested.id,
-              workspaceId: 'wrk_live',
-              archive
+          Effect.flatMap(WorkspaceExportGeneration, (generation) =>
+            generation.generate({
+              message: {
+                exportId: requested.id,
+                workspaceId: 'wrk_live',
+                workspaceSlug: 'live-lab'
+              },
+              finalAttempt: false
             })
+          ).pipe(
+            Effect.provide(
+              WorkspaceExportGenerationLayer((slug) =>
+                testWorkspaceContext({
+                  id: 'wrk_live',
+                  slug,
+                  name: 'Live Lab',
+                  planId: 'team'
+                })
+              )
+            )
           ),
           undefined,
           bindings
         )
-        expect(completed).toBe(true)
+        expect(generated._tag).toBe('ready')
         expect([...ports.objects.keys()]).toEqual([
           `workspaces/wrk_live/${requested.id}.json.gz`
         ])
@@ -244,7 +267,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           bindings
         )
         const ready = listed.find((row) => row.id === requested.id)
-        expect(ready).toMatchObject({ status: 'ready', sizeBytes: archive.length })
+        expect(ready).toMatchObject({ status: 'ready' })
+        expect(ready?.sizeBytes).toBeGreaterThan(0)
         expect(ready?.expiresAt).not.toBeNull()
 
         // The requester was notified.
@@ -286,7 +310,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           expect.fail('expected the archive')
         }
         expect(download.value.fileName).toBe(`live-lab-export-${requested.id}.json.gz`)
-        expect([...download.value.body]).toEqual([...archive])
+        expect([...download.value.body.subarray(0, 2)]).toEqual([0x1f, 0x8b])
+        expect(download.value.sizeBytes).toBe(ready?.sizeBytes)
 
         const tampered = yield* inWorkspace(
           'live-lab',
@@ -346,6 +371,62 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           )?.actorType
         ).toBe('api_token')
       })
+    )
+
+    it.effect(
+      'settles a resolver workspace mismatch instead of completing the row',
+      () =>
+        Effect.gen(function* () {
+          const ports = stubPorts()
+          const bindings = { workspaceExports: ports.workspaceExports }
+          const requested = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceExports, (exports) => exports.request),
+            { userId: 'usr_owner' },
+            bindings
+          )
+          const generated = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceExportGeneration, (generation) =>
+              generation.generate({
+                message: {
+                  exportId: requested.id,
+                  workspaceId: 'wrk_live',
+                  workspaceSlug: 'live-lab'
+                },
+                finalAttempt: true
+              })
+            ).pipe(
+              Effect.provide(
+                WorkspaceExportGenerationLayer((slug) =>
+                  testWorkspaceContext({
+                    id: 'wrk_recreated',
+                    slug,
+                    name: 'Recreated Live Lab',
+                    planId: 'team'
+                  })
+                )
+              )
+            ),
+            undefined,
+            bindings
+          )
+          expect(generated).toEqual({
+            _tag: 'skipped',
+            reason: 'workspace_mismatch'
+          })
+          const listed = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceExports, (exports) => exports.list),
+            undefined,
+            bindings
+          )
+          expect(listed.find((row) => row.id === requested.id)).toMatchObject({
+            status: 'failed',
+            failureReason: 'workspace_mismatch'
+          })
+          expect(ports.objects.size).toBe(0)
+        })
     )
 
     it.effect('marks a pending export failed once, and only in its own workspace', () =>
@@ -411,6 +492,61 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         )
         expect(twice).toBe(false)
       })
+    )
+
+    it.effect(
+      'settles a final completion failure instead of leaving the row pending',
+      () =>
+        Effect.gen(function* () {
+          const ports = stubPorts({ failPut: true })
+          const bindings = { workspaceExports: ports.workspaceExports }
+          const requested = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceExports, (exports) => exports.request),
+            { userId: 'usr_owner' },
+            bindings
+          )
+          const generated = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceExportGeneration, (generation) =>
+              generation.generate({
+                message: {
+                  exportId: requested.id,
+                  workspaceId: 'wrk_live',
+                  workspaceSlug: 'live-lab'
+                },
+                finalAttempt: true
+              })
+            ).pipe(
+              Effect.provide(
+                WorkspaceExportGenerationLayer((slug) =>
+                  testWorkspaceContext({
+                    id: 'wrk_live',
+                    slug,
+                    name: 'Live Lab',
+                    planId: 'team'
+                  })
+                )
+              )
+            ),
+            undefined,
+            bindings
+          )
+          expect(generated).toMatchObject({ _tag: 'skipped' })
+          if (generated._tag === 'skipped') {
+            expect(generated.reason).toMatch(/^unavailable: /)
+          }
+          const listed = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceExports, (exports) => exports.list),
+            undefined,
+            bindings
+          )
+          expect(listed.find((row) => row.id === requested.id)).toMatchObject({
+            status: 'failed',
+            failureReason: 'unavailable: bucket unavailable'
+          })
+        })
     )
 
     it.effect('refuses export requests while the workspace is suspended', () =>

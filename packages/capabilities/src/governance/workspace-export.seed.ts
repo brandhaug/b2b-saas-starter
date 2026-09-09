@@ -1,11 +1,9 @@
 import { DateTime, Effect, Layer, Option, Result } from 'effect'
 
-import {
-  type CapabilityUnavailable,
-  orUnavailable
-} from '@b2b-saas-starter/failure/capability'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
 
+import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
 import {
   NotificationFeed,
   type NotificationFeedInterface
@@ -13,14 +11,15 @@ import {
 import { type NotificationEvent } from '../notifications/notification-events.ts'
 import { testWorkspaceContext, WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, type AuditEventLogInterface } from './audit-event-log.ts'
+import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
+import { workspaceExportFileName } from './workspace-export-archive.ts'
+import { buildWorkspaceExportArchiveEffect } from './workspace-export-generation.ts'
 import {
-  buildWorkspaceExportArchive,
-  workspaceExportFileName
-} from './workspace-export-archive.ts'
-import {
-  collectWorkspaceExportSnapshot,
+  workspaceExportSnapshotContext,
   type WorkspaceExportSnapshotServices
 } from './workspace-export-snapshot.ts'
+import { WorkspaceInvitations } from './workspace-invitations.ts'
+import { WorkspaceMembership } from './workspace-membership.ts'
 import {
   issueWorkspaceExportDownloadLink,
   isWorkspaceExportDownloadable,
@@ -121,30 +120,24 @@ export function SeedWorkspaceExports(options: {
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
       const feed = yield* NotificationFeed
-      const snapshotServices = yield* Effect.context<WorkspaceExportSnapshotServices>()
+      const snapshotContext = workspaceExportSnapshotContext({
+        apiTokenRegistry: yield* ApiTokenRegistry,
+        auditEventLog: audit,
+        notificationFeed: feed,
+        webhookEndpoints: yield* WebhookEndpoints,
+        workspaceInvitations: yield* WorkspaceInvitations,
+        workspaceMembership: yield* WorkspaceMembership
+      })
       const suspension = yield* WorkspaceSuspensionService
       function requireProduct(workspaceId: string) {
         return suspension.requireAllowed(workspaceId, 'product')
       }
       const rows: Array<SeedExportRow> = []
 
-      // The archive builder over the shared seed services, for the fixture
-      // export (a trusted context, like the queue consumer's) and for requests
-      // (the requester's own context). The gzip is a promise, so the builder
-      // folds it into the effect channel with the same `CapabilityUnavailable`
-      // a failed read would surface.
-      const archiveUnavailable = orUnavailable('workspace-export-archive')
       function buildArchive(exportId: string, generatedAt: DateTime.Utc) {
-        return collectWorkspaceExportSnapshot({ exportId, generatedAt }).pipe(
-          Effect.flatMap((snapshot) =>
-            archiveUnavailable(
-              Effect.tryPromise({
-                try: () => buildWorkspaceExportArchive(snapshot),
-                catch: (cause) => cause
-              })
-            )
-          ),
-          Effect.provide(snapshotServices)
+        return buildWorkspaceExportArchiveEffect({ exportId, generatedAt }).pipe(
+          Effect.provide(snapshotContext),
+          Effect.map(({ archive }) => archive)
         )
       }
 
