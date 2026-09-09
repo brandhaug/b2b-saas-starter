@@ -107,7 +107,13 @@ Plugin-backed workspace mutations require session bindings. The API cannot subst
 
 ### Audit log
 
-[AuditEventLog](packages/capabilities/src/governance/audit-event-log.AGENTS.md) persists security and business events. D1-backed mutations batch their state change with the audit event. Plugin-backed mutations cannot share that transaction, so their audit write may diverge; [ADR 0051](docs/adr/0051-workspace-membership-on-better-auth-organization-plugin.md) records the trade-off.
+[AuditEventLog](packages/capabilities/src/governance/audit-event-log.AGENTS.md) persists security and business events. D1-backed mutations batch their state change with the audit event. Plugin-backed mutations cannot share that transaction, so their audit write may diverge; [ADR 0051](docs/adr/0051-workspace-membership-on-better-auth-organization-plugin.md) records the trade-off. The boundary inventory is:
+
+- D1-owned capability writes use `auditedMutations`: the state statements and audit insert are one D1 batch, so an audit failure rolls back the mutation.
+- Better Auth plugin writes for memberships, invitations, workspace lifecycle, SSO, account deletion, and MCP consent complete first and then use `recordCompletedAudit`. A failed audit is reported as `audit_write_gap` with safe operation and identity references; the completed plugin result remains the caller-visible result.
+- Auth catchall exchanges and provider callbacks use their existing best-effort audit ports. Their failure outcome is `dropped` with `authAuditError` or `authAuditBodyError` on the wide event, and the application logs the dropped record.
+
+The post-action paths do not promise reconstruction from the application audit table. Operators use the mutation's provider or plugin state, request or trace references, and the `audit_write_gap` signal to investigate; they append a corrected event only when the completed action can be established, otherwise they record an uncertain gap and restrict access where the action was security-sensitive.
 
 Independent deletion and revocation evidence prevents a database restore from silently reopening revoked access. [Recovery procedures](docs/operations.md#independent-security-evidence-store) define its external contract and gap handling.
 

@@ -9,6 +9,7 @@ import { withHttpInvocation } from './invocation.ts'
 import { makeOtlpLayer } from './otlp.ts'
 import { WideEventLoggerLive, withRequestScope } from './wide-event.ts'
 import { makeSentryOptions, wireWideEventProviders } from './providers.ts'
+import { diagnosticFields } from './sanitization.ts'
 
 async function requestBody(init: RequestInit | undefined): Promise<string> {
   const bytes = new Uint8Array(await new Response(init?.body).arrayBuffer())
@@ -41,6 +42,31 @@ function nestedFailure() {
 }
 
 describe('telemetry output policy', () => {
+  it('keeps safe audit-gap references in monitoring diagnostics', () => {
+    expect(
+      diagnosticFields({
+        signal: 'audit_write_gap',
+        operation: 'workspace_lifecycle.create',
+        capability: 'audit-event-log',
+        reason: 'database_unavailable',
+        subjectId: 'usr_test',
+        targetId: 'wrk_test',
+        eventType: 'workspace.created',
+        workspaceId: 'wrk_test',
+        secret: 'omit-me'
+      })
+    ).toEqual({
+      signal: 'audit_write_gap',
+      operation: 'workspace_lifecycle.create',
+      capability: 'audit-event-log',
+      reason: 'database_unavailable',
+      subjectId: 'usr_test',
+      targetId: 'wrk_test',
+      eventType: 'workspace.created',
+      workspaceId: 'wrk_test'
+    })
+  })
+
   it('removes nested exceptions and annotation content from console and all OTLP signals', async () => {
     const consoleLines: Array<string> = []
     const payloads: Array<{ url: string; body: string }> = []
