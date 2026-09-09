@@ -3,7 +3,6 @@ import { DateTime, Effect, Layer, Option, Result } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
 
-import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
 import {
   NotificationFeed,
   type NotificationFeedInterface
@@ -11,15 +10,12 @@ import {
 import { type NotificationEvent } from '../notifications/notification-events.ts'
 import { testWorkspaceContext, WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, type AuditEventLogInterface } from './audit-event-log.ts'
-import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
 import { workspaceExportFileName } from './workspace-export-archive.ts'
 import { buildWorkspaceExportArchiveEffect } from './workspace-export-generation.ts'
 import {
-  workspaceExportSnapshotContext,
+  workspaceExportSnapshotContextEffect,
   type WorkspaceExportSnapshotServices
 } from './workspace-export-snapshot.ts'
-import { WorkspaceInvitations } from './workspace-invitations.ts'
-import { WorkspaceMembership } from './workspace-membership.ts'
 import {
   issueWorkspaceExportDownloadLink,
   isWorkspaceExportDownloadable,
@@ -120,14 +116,7 @@ export function SeedWorkspaceExports(options: {
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
       const feed = yield* NotificationFeed
-      const snapshotContext = workspaceExportSnapshotContext({
-        apiTokenRegistry: yield* ApiTokenRegistry,
-        auditEventLog: audit,
-        notificationFeed: feed,
-        webhookEndpoints: yield* WebhookEndpoints,
-        workspaceInvitations: yield* WorkspaceInvitations,
-        workspaceMembership: yield* WorkspaceMembership
-      })
+      const snapshotContext = yield* workspaceExportSnapshotContextEffect()
       const suspension = yield* WorkspaceSuspensionService
       function requireProduct(workspaceId: string) {
         return suspension.requireAllowed(workspaceId, 'product')

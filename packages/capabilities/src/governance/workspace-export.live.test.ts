@@ -1,9 +1,11 @@
-import { DateTime, Effect, Option } from 'effect'
+import { DateTime, Effect, Layer, Option } from 'effect'
 import { TestClock } from 'effect/testing'
 import { describe, expect, layer } from '@effect/vitest'
 
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
+import { WorkspaceSuspended, WorkspaceNotFound } from '../errors.ts'
 import {
   inWorkspace,
   LIVE_SUITE_TIMEOUT,
@@ -17,10 +19,12 @@ import {
 import {
   WorkspaceExports,
   WORKSPACE_EXPORT_RETENTION_DAYS,
+  type WorkspaceExportsInterface,
   type WorkspaceExportBucketBinding,
   type WorkspaceExportQueueBinding,
   type WorkspaceExportQueueMessage
 } from './workspace-export.ts'
+import { WorkspaceMembership } from './workspace-membership.ts'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 
 /**
@@ -427,6 +431,430 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           })
           expect(ports.objects.size).toBe(0)
         })
+    )
+
+    it.effect('settles an unknown resolver workspace as a failed export', () =>
+      Effect.gen(function* () {
+        const ports = stubPorts()
+        const bindings = { workspaceExports: ports.workspaceExports }
+        const requested = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => exports.request),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        const generated = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExportGeneration, (generation) =>
+            generation.generate({
+              message: {
+                exportId: requested.id,
+                workspaceId: 'wrk_live',
+                workspaceSlug: 'deleted-lab'
+              },
+              finalAttempt: false
+            })
+          ).pipe(
+            Effect.provide(
+              WorkspaceExportGenerationLayer((slug) =>
+                Layer.unwrap(Effect.fail(new WorkspaceNotFound({ slug })))
+              )
+            )
+          ),
+          undefined,
+          bindings
+        )
+        expect(generated).toEqual({
+          _tag: 'skipped',
+          reason: 'workspace_not_found'
+        })
+        const listed = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => exports.list),
+          undefined,
+          bindings
+        )
+        expect(listed.find((row) => row.id === requested.id)).toMatchObject({
+          status: 'failed',
+          failureReason: 'workspace_not_found'
+        })
+      })
+    )
+
+    it.effect('settles suspension before snapshot without writing an artifact', () =>
+      Effect.gen(function* () {
+        const ports = stubPorts()
+        const bindings = { workspaceExports: ports.workspaceExports }
+        const requested = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => exports.request),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
+            suspension.transition({
+              workspaceId: 'wrk_live',
+              action: 'suspend',
+              actor: { userId: 'usr_sysadmin' },
+              internalReason: 'generation test',
+              customerExplanation: 'Exports are paused.'
+            })
+          )
+        )
+        const generated = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExportGeneration, (generation) =>
+            generation.generate({
+              message: {
+                exportId: requested.id,
+                workspaceId: 'wrk_live',
+                workspaceSlug: 'live-lab'
+              },
+              finalAttempt: true
+            })
+          ).pipe(
+            Effect.provide(
+              WorkspaceExportGenerationLayer((slug) =>
+                testWorkspaceContext({
+                  id: 'wrk_live',
+                  slug,
+                  name: 'Live Lab',
+                  planId: 'team'
+                })
+              )
+            )
+          ),
+          undefined,
+          bindings
+        )
+        expect(generated).toEqual({
+          _tag: 'skipped',
+          reason: 'workspace_suspended'
+        })
+        expect(ports.objects.size).toBe(0)
+        yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
+            suspension.transition({
+              workspaceId: 'wrk_live',
+              action: 'unsuspend',
+              actor: { userId: 'usr_sysadmin' },
+              internalReason: 'generation test cleanup'
+            })
+          )
+        )
+        const listed = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => exports.list),
+          undefined,
+          bindings
+        )
+        expect(listed.find((row) => row.id === requested.id)).toMatchObject({
+          status: 'failed',
+          failureReason: 'workspace_suspended'
+        })
+      })
+    )
+
+    it.effect('settles suspension during completion without replacing the row', () =>
+      Effect.gen(function* () {
+        const ports = stubPorts()
+        const bindings = { workspaceExports: ports.workspaceExports }
+        const requested = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => exports.request),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        const exports = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (service) => Effect.succeed(service)),
+          undefined,
+          bindings
+        )
+        const duringCompletion: WorkspaceExportsInterface = {
+          ...exports,
+          complete: () =>
+            Effect.fail(new WorkspaceSuspended({ workspaceId: 'wrk_live' }))
+        }
+        const generated = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExportGeneration, (generation) =>
+            generation.generate({
+              message: {
+                exportId: requested.id,
+                workspaceId: 'wrk_live',
+                workspaceSlug: 'live-lab'
+              },
+              finalAttempt: false
+            })
+          ).pipe(
+            Effect.provide(
+              WorkspaceExportGenerationLayer((slug) =>
+                testWorkspaceContext({
+                  id: 'wrk_live',
+                  slug,
+                  name: 'Live Lab',
+                  planId: 'team'
+                })
+              ).pipe(Layer.provide(Layer.succeed(WorkspaceExports)(duringCompletion)))
+            )
+          ),
+          undefined,
+          bindings
+        )
+        expect(generated).toEqual({
+          _tag: 'skipped',
+          reason: 'workspace_suspended'
+        })
+        expect(ports.objects.size).toBe(0)
+        const listed = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (service) => service.list),
+          undefined,
+          bindings
+        )
+        expect(listed.find((row) => row.id === requested.id)).toMatchObject({
+          status: 'failed',
+          failureReason: 'workspace_suspended'
+        })
+      })
+    )
+
+    it.effect(
+      'retries a transient snapshot failure and settles it on the final attempt',
+      () =>
+        Effect.gen(function* () {
+          const ports = stubPorts()
+          const bindings = { workspaceExports: ports.workspaceExports }
+          const requested = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceExports, (exports) => exports.request),
+            { userId: 'usr_owner' },
+            bindings
+          )
+          const membership = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceMembership, (service) => Effect.succeed(service)),
+            undefined,
+            bindings
+          )
+          const failingMembership = WorkspaceMembership.of({
+            ...membership,
+            listMembers: Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'workspace-membership',
+                reason: 'snapshot unavailable'
+              })
+            )
+          })
+          const generated = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceExportGeneration, (generation) =>
+              generation.generate({
+                message: {
+                  exportId: requested.id,
+                  workspaceId: 'wrk_live',
+                  workspaceSlug: 'live-lab'
+                },
+                finalAttempt: false
+              })
+            ).pipe(
+              Effect.provide(
+                WorkspaceExportGenerationLayer((slug) =>
+                  testWorkspaceContext({
+                    id: 'wrk_live',
+                    slug,
+                    name: 'Live Lab',
+                    planId: 'team'
+                  })
+                ).pipe(
+                  Layer.provide(Layer.succeed(WorkspaceMembership)(failingMembership))
+                )
+              )
+            ),
+            undefined,
+            bindings
+          )
+          expect(generated).toMatchObject({
+            _tag: 'retry',
+            reason: 'snapshot unavailable'
+          })
+          const finalGenerated = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceExportGeneration, (generation) =>
+              generation.generate({
+                message: {
+                  exportId: requested.id,
+                  workspaceId: 'wrk_live',
+                  workspaceSlug: 'live-lab'
+                },
+                finalAttempt: true
+              })
+            ).pipe(
+              Effect.provide(
+                WorkspaceExportGenerationLayer((slug) =>
+                  testWorkspaceContext({
+                    id: 'wrk_live',
+                    slug,
+                    name: 'Live Lab',
+                    planId: 'team'
+                  })
+                ).pipe(
+                  Layer.provide(Layer.succeed(WorkspaceMembership)(failingMembership))
+                )
+              )
+            ),
+            undefined,
+            bindings
+          )
+          expect(finalGenerated).toMatchObject({
+            _tag: 'skipped',
+            reason: 'unavailable: snapshot unavailable'
+          })
+          const listed = yield* inWorkspace(
+            'live-lab',
+            Effect.flatMap(WorkspaceExports, (exports) => exports.list),
+            undefined,
+            bindings
+          )
+          expect(listed.find((row) => row.id === requested.id)).toMatchObject({
+            status: 'failed',
+            failureReason: 'unavailable: snapshot unavailable'
+          })
+        })
+    )
+
+    it.effect('returns retry for a transient completion failure', () =>
+      Effect.gen(function* () {
+        const ports = stubPorts({ failPut: true })
+        const bindings = { workspaceExports: ports.workspaceExports }
+        const requested = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => exports.request),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        const generated = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExportGeneration, (generation) =>
+            generation.generate({
+              message: {
+                exportId: requested.id,
+                workspaceId: 'wrk_live',
+                workspaceSlug: 'live-lab'
+              },
+              finalAttempt: false
+            })
+          ).pipe(
+            Effect.provide(
+              WorkspaceExportGenerationLayer((slug) =>
+                testWorkspaceContext({
+                  id: 'wrk_live',
+                  slug,
+                  name: 'Live Lab',
+                  planId: 'team'
+                })
+              )
+            )
+          ),
+          undefined,
+          bindings
+        )
+        expect(generated).toMatchObject({ _tag: 'retry' })
+        const listed = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => exports.list),
+          undefined,
+          bindings
+        )
+        expect(listed.find((row) => row.id === requested.id)?.status).toBe('pending')
+      })
+    )
+
+    it.effect('keeps a pending row and exposes a terminal settlement outage', () =>
+      Effect.gen(function* () {
+        const ports = stubPorts()
+        const bindings = { workspaceExports: ports.workspaceExports }
+        const requested = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (exports) => exports.request),
+          { userId: 'usr_owner' },
+          bindings
+        )
+        const exports = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (service) => Effect.succeed(service)),
+          undefined,
+          bindings
+        )
+        const membership = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceMembership, (service) => Effect.succeed(service)),
+          undefined,
+          bindings
+        )
+        const failingMembership = WorkspaceMembership.of({
+          ...membership,
+          listMembers: Effect.fail(
+            new CapabilityUnavailable({
+              capability: 'workspace-membership',
+              reason: 'snapshot unavailable'
+            })
+          )
+        })
+        const failingSettlement: WorkspaceExportsInterface = {
+          ...exports,
+          fail: () =>
+            Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'workspace-exports',
+                reason: 'settlement unavailable'
+              })
+            )
+        }
+        const exited = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExportGeneration, (generation) =>
+            Effect.exit(
+              generation.generate({
+                message: {
+                  exportId: requested.id,
+                  workspaceId: 'wrk_live',
+                  workspaceSlug: 'live-lab'
+                },
+                finalAttempt: true
+              })
+            )
+          ).pipe(
+            Effect.provide(
+              WorkspaceExportGenerationLayer((slug) =>
+                testWorkspaceContext({
+                  id: 'wrk_live',
+                  slug,
+                  name: 'Live Lab',
+                  planId: 'team'
+                })
+              ).pipe(
+                Layer.provide(Layer.succeed(WorkspaceExports)(failingSettlement)),
+                Layer.provide(Layer.succeed(WorkspaceMembership)(failingMembership))
+              )
+            )
+          ),
+          undefined,
+          bindings
+        )
+        expect(exited._tag).toBe('Failure')
+        const listed = yield* inWorkspace(
+          'live-lab',
+          Effect.flatMap(WorkspaceExports, (service) => service.list),
+          undefined,
+          bindings
+        )
+        expect(listed.find((row) => row.id === requested.id)?.status).toBe('pending')
+      })
     )
 
     it.effect('marks a pending export failed once, and only in its own workspace', () =>

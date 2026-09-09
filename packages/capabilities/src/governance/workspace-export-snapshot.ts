@@ -53,6 +53,28 @@ export function workspaceExportSnapshotContext(
 }
 
 /**
+ * Acquires the snapshot's explicit read allowlist once for an adapter. Keeping
+ * this recipe here makes Seed and queued generation agree when a snapshot
+ * service is added, without capturing ambient context such as WorkspaceContext.
+ */
+export function workspaceExportSnapshotContextEffect(): Effect.Effect<
+  Context.Context<WorkspaceExportSnapshotServices>,
+  never,
+  WorkspaceExportSnapshotServices
+> {
+  return Effect.gen(function* () {
+    return workspaceExportSnapshotContext({
+      apiTokenRegistry: yield* ApiTokenRegistry,
+      auditEventLog: yield* AuditEventLog,
+      notificationFeed: yield* NotificationFeed,
+      webhookEndpoints: yield* WebhookEndpoints,
+      workspaceInvitations: yield* WorkspaceInvitations,
+      workspaceMembership: yield* WorkspaceMembership
+    })
+  })
+}
+
+/**
  * Every page of the workspace's audit trail, newest first — complete or the
  * export fails. The walk's runaway guard stops at 25 pages of the read's own
  * default size, and a `workspace.export` that hit it would be a silent

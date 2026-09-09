@@ -3,21 +3,15 @@ import { Context, DateTime, Effect, Layer, Result } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type WorkspaceNotFound } from '../errors.ts'
 import { errorMessage } from '@b2b-saas-starter/failure'
-import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
-import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
-import { NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   buildWorkspaceExportArchive,
   type WorkspaceExportSnapshot
 } from './workspace-export-archive.ts'
 import {
   collectWorkspaceExportSnapshot,
-  workspaceExportSnapshotContext,
+  workspaceExportSnapshotContextEffect,
   type WorkspaceExportSnapshotServices
 } from './workspace-export-snapshot.ts'
-import { AuditEventLog } from './audit-event-log.ts'
-import { WorkspaceInvitations } from './workspace-invitations.ts'
-import { WorkspaceMembership } from './workspace-membership.ts'
 import {
   WorkspaceExports,
   type FailWorkspaceExportInput,
@@ -132,14 +126,7 @@ export function WorkspaceExportGenerationLayer(
       const exports = yield* WorkspaceExports
       const suspension = yield* WorkspaceSuspensionService
       const scope = yield* Effect.scope
-      const snapshotContext = workspaceExportSnapshotContext({
-        apiTokenRegistry: yield* ApiTokenRegistry,
-        auditEventLog: yield* AuditEventLog,
-        notificationFeed: yield* NotificationFeed,
-        webhookEndpoints: yield* WebhookEndpoints,
-        workspaceInvitations: yield* WorkspaceInvitations,
-        workspaceMembership: yield* WorkspaceMembership
-      })
+      const snapshotContext = yield* workspaceExportSnapshotContextEffect()
 
       const generate = Effect.fn('WorkspaceExportGeneration.generate')(function* (
         input: WorkspaceExportGenerationInput
