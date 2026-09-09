@@ -6,7 +6,7 @@ import { GITHUB_URL } from '@/components/landing/github-url'
 import { DEV_SERVERS, SETUP_STEPS } from '@/lib/toolchain'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-function ClosingSection({ showDemo }: { readonly showDemo: boolean }) {
+function ClosingSection() {
   // The whole command block, one click into the clipboard: the clone line
   // plus every quickstart step, `&&`-joined so it pastes as one paste. Same
   // copy pattern as secret-reveal: await, confirm visibly, clear after 2s.
@@ -35,12 +35,11 @@ function ClosingSection({ showDemo }: { readonly showDemo: boolean }) {
             {m.landing_fork_description()}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            {showDemo ? (
-              <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
-                {m.action_open_demo()}
-                <ArrowRightIcon className="size-4" />
-              </Button>
-            ) : null}
+            <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
+              {m.action_open_demo()}
+              <ArrowRightIcon className="size-4" />
+            </Button>
+
             <Button
               nativeButton={false}
               render={<Link to="/docs" />}

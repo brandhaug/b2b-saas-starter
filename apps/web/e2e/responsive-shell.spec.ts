@@ -39,7 +39,9 @@ for (const { locale, signInLabel } of [
   })
 }
 
-test('the short mobile navigation can scroll to Account', async ({ page }) => {
+test('the short preview navigation can scroll to the explicit sign-in exit', async ({
+  page
+}) => {
   await page.setViewportSize({ width: 320, height: 400 })
   await page.goto('/demo')
   await page
@@ -49,7 +51,7 @@ test('the short mobile navigation can scroll to Account', async ({ page }) => {
   await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  const account = dialog.getByRole('link', { name: 'Account', exact: true })
+  const account = dialog.getByRole('link', { name: 'Try sign-in', exact: true })
   await account.scrollIntoViewIfNeeded()
   await expect(account).toBeInViewport({ ratio: 1 })
   await account.click()

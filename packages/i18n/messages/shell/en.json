@@ -1,5 +1,5 @@
 {
-  "shell_demo_read_only": "The live demo is read-only. Clone the starter and sign in as demo@starter.local to interact.",
+  "shell_demo_read_only": "This preview is read-only. No changes were made. Sign in to use this action.",
   "shell_description": "Cloudflare-first B2B SaaS starter with TanStack Start, Effect v4, Drizzle D1, Better Auth, REST, MCP, email, and tests.",
   "shell_not_found": "Page not found",
   "shell_not_found_description": "The page you are looking for does not exist.",
@@ -155,5 +155,7 @@
   "shell_diagram_topology": "B2B-SAAS-STARTER · REQUEST TOPOLOGY",
   "shell_diagram_sheet": "CLOUDFLARE-FIRST · ALCHEMY v2 · SHEET 1/1",
   "shell_trace_workspace_group": "HttpApiEndpoint · the workspace group",
-  "shell_trace_overview": "Effect · the overview projection"
+  "shell_trace_overview": "Effect · the overview projection",
+  "demo_preview_notice": "Preview with sample data. Actions do not make changes.",
+  "demo_try_sign_in": "Try sign-in"
 }

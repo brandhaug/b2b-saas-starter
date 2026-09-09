@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
-import { callServerFn } from '@/lib/server-call'
+import { useServerCall } from '@/hooks/use-server-call'
 import { UiError, isStrongAuthenticationError } from '@/lib/ui-error'
 
 /**
@@ -48,6 +48,7 @@ export function useServerAction<I = void, A = void>(
   }
 ): ServerAction<I, A> {
   const router = useRouter()
+  const callServerFn = useServerCall()
   function checkedCall(input: I) {
     // oxlint-disable-next-line effect/noNewPromise -- client-side promise boundary also captures synchronous server-call failures without bundling Effect
     return Promise.resolve()

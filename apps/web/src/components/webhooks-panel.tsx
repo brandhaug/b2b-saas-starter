@@ -39,6 +39,7 @@ import {
   type ReplayDelivery,
   type SendTestEvent
 } from '@/components/webhook-deliveries-drawer'
+import { type ListDeliveryAttempts } from '@/components/webhook-delivery-timeline'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -120,7 +121,8 @@ export function WebhooksPanel({
   rotateSecret = rotateWebhookSecretServerFn,
   createEndpoint,
   replayDelivery = replayWebhookDeliveryServerFn,
-  sendTestEvent = sendTestEventServerFn
+  sendTestEvent = sendTestEventServerFn,
+  listDeliveryAttempts
 }: {
   readonly workspaceSlug: string
   readonly endpoints: ReadonlyArray<
@@ -134,6 +136,7 @@ export function WebhooksPanel({
   readonly createEndpoint?: CreateWebhookEndpoint
   readonly replayDelivery?: ReplayDelivery
   readonly sendTestEvent?: SendTestEvent
+  readonly listDeliveryAttempts?: ListDeliveryAttempts
 }) {
   const router = useRouter()
   const [rotatedSecret, setRotatedSecret] = useState<{
@@ -325,6 +328,7 @@ export function WebhooksPanel({
           viewer={viewer}
           replayDelivery={replayDelivery}
           sendTestEvent={sendTestEvent}
+          {...(listDeliveryAttempts === undefined ? {} : { listDeliveryAttempts })}
         />
       )}
     </Panel>

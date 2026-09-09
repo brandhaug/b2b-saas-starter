@@ -14,7 +14,7 @@ import {
   replaceApiTokenServerFn,
   type ReplaceApiTokenInput
 } from '@/lib/server/api-tokens'
-import { callServerFn } from '@/lib/server-call'
+import { useServerCall } from '@/hooks/use-server-call'
 import { formatDateTime, formatTimestampOr } from '@/lib/format-date'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -37,6 +37,7 @@ export function ApiTokenReplacementForm({
   readonly onReplaced: () => Promise<void>
   readonly onClose: () => void
 }) {
+  const callServerFn = useServerCall()
   const [created, setCreated] = useState<ReplacedApiToken | null>(null)
   const [error, setError] = useState<string | null>(null)
   const form = useForm({

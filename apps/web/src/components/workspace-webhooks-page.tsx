@@ -3,6 +3,7 @@ import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WebhooksPanel } from '@/components/webhooks-panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { type WorkspaceWebhooksPayload } from '@/lib/server/webhooks'
+import { type ListDeliveryAttempts } from '@/components/webhook-delivery-timeline'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
@@ -17,12 +18,14 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 export function WorkspaceWebhooksPage({
   workspaceSlug,
   data,
-  systemRole
+  systemRole,
+  ports
 }: {
   readonly workspaceSlug: string
   readonly data: WorkspaceWebhooksPayload
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
+  readonly ports?: { readonly listDeliveryAttempts?: ListDeliveryAttempts }
 }) {
   const { viewer, unreadCount, endpoints } = data
 
@@ -42,6 +45,9 @@ export function WorkspaceWebhooksPage({
         workspaceSlug={workspaceSlug}
         endpoints={endpoints}
         viewer={viewer}
+        {...(ports?.listDeliveryAttempts === undefined
+          ? {}
+          : { listDeliveryAttempts: ports.listDeliveryAttempts })}
       />
     </WorkspaceShell>
   )
