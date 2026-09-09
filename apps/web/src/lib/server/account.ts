@@ -27,6 +27,13 @@ export const loadAccountPageServerFn = createServerFn({
   return loadAccountPageHandler()
 })
 
+export const exportPersonalDataServerFn = createServerFn({ method: 'POST' }).handler(
+  async (): Promise<{ readonly fileName: string; readonly json: string }> => {
+    const { exportPersonalDataHandler } = await import('./account.effects')
+    return exportPersonalDataHandler()
+  }
+)
+
 const DeleteAccountInput = Schema.Struct({
   password: Schema.NonEmptyString
 })

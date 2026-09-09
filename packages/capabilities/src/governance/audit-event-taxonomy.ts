@@ -50,6 +50,7 @@ export const AUDIT_EVENT_TYPES = [
   'workspace.export_requested',
   'workspace.export_completed',
   'workspace.export_downloaded',
+  'auth.personal_data_exported',
   // governance — membership
   'workspace_member.added',
   'workspace_member.removed',

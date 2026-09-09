@@ -9,6 +9,12 @@ import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { type NotificationPreferenceRow } from './notification-preferences'
 import { notificationPreferencesPayload } from './notification-preferences.effects'
+import {
+  PersonalDataExports,
+  renderPersonalDataExport
+} from '@b2b-saas-starter/capabilities/governance/personal-data-export'
+import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { requireRecentAuthentication } from './strong-authentication.effects'
 
 /**
  * The `/account` page's server reads, testable against the Seed layer like
@@ -62,4 +68,32 @@ export async function loadAccountPageHandler(): Promise<
       })
     )
   )
+}
+
+export async function exportPersonalDataHandler(): Promise<{
+  readonly fileName: string
+  readonly json: string
+}> {
+  const session = await requireRequestSession()
+  await requireRecentAuthentication(session)
+  const data = await runCapabilities(
+    Effect.gen(function* () {
+      const exports = yield* PersonalDataExports
+      const result = yield* exports.collect(session.user.id)
+      const audit = yield* AuditEventLog
+      yield* audit.record({
+        actorUserId: session.user.id,
+        actorType: 'user',
+        eventType: 'auth.personal_data_exported',
+        targetType: 'user',
+        targetId: session.user.id,
+        metadata: {}
+      })
+      return result
+    })
+  )
+  return {
+    fileName: `personal-data-${session.user.id}.json`,
+    json: renderPersonalDataExport(data)
+  }
 }

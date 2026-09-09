@@ -1,0 +1,23 @@
+---
+title: Personal data export
+description: What an authenticated account export contains and omits.
+---
+
+The account page provides an authenticated personal-data export. It is separate
+from a Workspace Export and is always collected for the current session user;
+the caller cannot select another user.
+
+The JSON archive includes the account profile, account preferences, memberships
+across the user's Workspaces, notification preferences, notifications addressed
+to that user, session metadata (without tokens), linked-provider metadata
+(without OAuth credentials), and passkey metadata (without private keys).
+
+Workspace-owned records, other members' notifications, passwords, bearer
+tokens, token hashes, OAuth access or refresh tokens, two-factor secrets and
+backup codes are excluded. Shared Workspace records remain owned by the
+Workspace and are handled by Workspace Export and the account-deletion flow.
+
+The server reads the identity from the authenticated session and performs the
+same check at request time. The generated document is returned only to that
+request and is not persisted as a shared artifact; operators should retain a
+rights-request record separately according to their retention policy.
