@@ -21,7 +21,7 @@ import {
   type AccountLifecycleBinding,
   type MembershipForDeletion
 } from './account-lifecycle.ts'
-import { AuditEventLog } from './audit-event-log.ts'
+import { AuditEventLog, recordCompletedAudit } from './audit-event-log.ts'
 import { scrubAuditEventsForAccount } from './account-lifecycle-audit.live.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
@@ -165,15 +165,19 @@ export function LiveAccountLifecycle(
             // A system event: `audit_events.workspace_id` cascades from the
             // row the binding just removed, so attributing the event to the
             // deleted workspace would delete it alongside its subject.
-            yield* audit.record({
-              workspaceId: null,
-              actorUserId: userId,
-              actorType: 'user',
-              eventType: 'workspace.deleted',
-              targetType: 'workspace',
-              targetId: workspaceId,
-              metadata: {}
-            })
+            yield* recordCompletedAudit(
+              audit,
+              {
+                workspaceId: null,
+                actorUserId: userId,
+                actorType: 'user',
+                eventType: 'workspace.deleted',
+                targetType: 'workspace',
+                targetId: workspaceId,
+                metadata: {}
+              },
+              'account_lifecycle.workspace_deleted'
+            )
           } else {
             yield* callBinding(binding, (bound) =>
               bound.leaveWorkspace({
@@ -189,15 +193,19 @@ export function LiveAccountLifecycle(
               },
               securityEvidence
             )
-            yield* audit.record({
-              workspaceId,
-              actorUserId: userId,
-              actorType: 'user',
-              eventType: 'workspace_member.removed',
-              targetType: 'workspace_member',
-              targetId: userId,
-              metadata: { reason: 'account_deleted' }
-            })
+            yield* recordCompletedAudit(
+              audit,
+              {
+                workspaceId,
+                actorUserId: userId,
+                actorType: 'user',
+                eventType: 'workspace_member.removed',
+                targetType: 'workspace_member',
+                targetId: userId,
+                metadata: { reason: 'account_deleted' }
+              },
+              'account_lifecycle.workspace_access_removed'
+            )
           }
         }
         // Personal delivery and notification rows are account data. The
@@ -252,17 +260,21 @@ export function LiveAccountLifecycle(
             { kind: 'account_deleted', subjectId: input.userId },
             securityEvidence
           )
-          yield* audit.record({
-            workspaceId: null,
-            // Actorless on purpose: `audit_events.actor_user_id` restricts on
-            // `user.id`, and the actor row is gone by the time this runs.
-            actorUserId: null,
-            actorType: 'user',
-            eventType: 'account.deleted',
-            targetType: 'user',
-            targetId: input.userId,
-            metadata: deletionMetadata(input.plan)
-          })
+          yield* recordCompletedAudit(
+            audit,
+            {
+              workspaceId: null,
+              // Actorless on purpose: `audit_events.actor_user_id` restricts on
+              // `user.id`, and the actor row is gone by the time this runs.
+              actorUserId: null,
+              actorType: 'user',
+              eventType: 'account.deleted',
+              targetType: 'user',
+              targetId: input.userId,
+              metadata: deletionMetadata(input.plan)
+            },
+            'account_lifecycle.account_deleted'
+          )
         })
       }
 

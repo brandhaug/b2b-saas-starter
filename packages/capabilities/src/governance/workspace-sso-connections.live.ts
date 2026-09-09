@@ -7,7 +7,7 @@ import { MembershipChangeRejected } from '../errors.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { WorkspaceContext } from '../workspace-context.ts'
-import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
+import { AuditEventLog, recordCompletedMutationAudit } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   pickSignInTarget,
@@ -235,10 +235,14 @@ export function LiveSsoConnections(
               )
             }
             const connection = toConnection(row.value)
-            yield* recordInWorkspace(audit, {
-              ...ssoAuditEvent('created', connection),
-              targetId: connection.id
-            })
+            yield* recordCompletedMutationAudit(
+              audit,
+              {
+                ...ssoAuditEvent('created', connection),
+                targetId: connection.id
+              },
+              'workspace_sso.create'
+            )
             return connection
           }),
         update: (input) =>
@@ -266,10 +270,14 @@ export function LiveSsoConnections(
             const row = yield* readInWorkspace(ctx.workspace.id, input.providerId)
             const connection = Option.map(row, toConnection)
             if (Option.isSome(connection)) {
-              yield* recordInWorkspace(audit, {
-                ...ssoAuditEvent('updated', connection.value),
-                targetId: connection.value.id
-              })
+              yield* recordCompletedMutationAudit(
+                audit,
+                {
+                  ...ssoAuditEvent('updated', connection.value),
+                  targetId: connection.value.id
+                },
+                'workspace_sso.update'
+              )
             }
             return connection
           }),
@@ -282,10 +290,14 @@ export function LiveSsoConnections(
             }
             const connection = toConnection(existing.value)
             yield* callBinding(binding, (bound) => bound.remove({ providerId }))
-            yield* recordInWorkspace(audit, {
-              ...ssoAuditEvent('removed', connection),
-              targetId: connection.id
-            })
+            yield* recordCompletedMutationAudit(
+              audit,
+              {
+                ...ssoAuditEvent('removed', connection),
+                targetId: connection.id
+              },
+              'workspace_sso.remove'
+            )
             return true
           }),
         resolveRouting: (email) =>

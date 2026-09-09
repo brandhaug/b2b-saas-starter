@@ -10,7 +10,11 @@ import {
 import { newCapabilityId } from '../internal/ids.ts'
 
 import { WorkspaceContext } from '../workspace-context.ts'
-import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
+import {
+  AuditEventLog,
+  recordCompletedMutationAudit,
+  recordCompletedAudit
+} from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   recordSecurityEvidence,
@@ -200,12 +204,16 @@ export function SeedWorkspaceLifecycle(options: {
             })
             const audit = yield* Effect.serviceOption(AuditEventLog)
             if (Option.isSome(audit)) {
-              yield* recordInWorkspace(audit.value, {
-                eventType: 'workspace.renamed',
-                targetType: 'workspace',
-                targetId: ctx.workspace.id,
-                metadata: { name: input.name }
-              })
+              yield* recordCompletedMutationAudit(
+                audit.value,
+                {
+                  eventType: 'workspace.renamed',
+                  targetType: 'workspace',
+                  targetId: ctx.workspace.id,
+                  metadata: { name: input.name }
+                },
+                'workspace_lifecycle.rename'
+              )
             }
             return renamed
           }),
@@ -278,15 +286,19 @@ export function LiveWorkspaceLifecycle(
             // from, so this one names the created workspace and its creator
             // directly. The ADR 0051 non-atomicity `recordInWorkspace`
             // documents applies here too.
-            yield* audit.record({
-              workspaceId: workspace.id,
-              actorUserId: input.userId,
-              actorType: 'user',
-              eventType: 'workspace.created',
-              targetType: 'workspace',
-              targetId: workspace.id,
-              metadata: { name: workspace.name, slug: workspace.slug }
-            })
+            yield* recordCompletedAudit(
+              audit,
+              {
+                workspaceId: workspace.id,
+                actorUserId: input.userId,
+                actorType: 'user',
+                eventType: 'workspace.created',
+                targetType: 'workspace',
+                targetId: workspace.id,
+                metadata: { name: workspace.name, slug: workspace.slug }
+              },
+              'workspace_lifecycle.create'
+            )
             return workspace
           }),
         rename: (input) =>
@@ -312,12 +324,16 @@ export function LiveWorkspaceLifecycle(
               )
             }
             const renamed: Workspace = toWorkspace(row)
-            yield* recordInWorkspace(audit, {
-              eventType: 'workspace.renamed',
-              targetType: 'workspace',
-              targetId: ctx.workspace.id,
-              metadata: { name: input.name }
-            })
+            yield* recordCompletedMutationAudit(
+              audit,
+              {
+                eventType: 'workspace.renamed',
+                targetType: 'workspace',
+                targetId: ctx.workspace.id,
+                metadata: { name: input.name }
+              },
+              'workspace_lifecycle.rename'
+            )
             return renamed
           }),
         remove: Effect.gen(function* () {
@@ -338,15 +354,19 @@ export function LiveWorkspaceLifecycle(
           // `workspaces.id`, so attributing this row to the deleted workspace
           // would delete it alongside the thing it describes. The actor stays
           // the deleting user — only the workspace attribution is dropped.
-          yield* audit.record({
-            workspaceId: null,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
-            eventType: 'workspace.deleted',
-            targetType: 'workspace',
-            targetId: removed.id,
-            metadata: {}
-          })
+          yield* recordCompletedAudit(
+            audit,
+            {
+              workspaceId: null,
+              actorUserId: ctx.actor?.userId ?? null,
+              actorType: ctx.actorType,
+              eventType: 'workspace.deleted',
+              targetType: 'workspace',
+              targetId: removed.id,
+              metadata: {}
+            },
+            'workspace_lifecycle.remove'
+          )
         })
       }
     })

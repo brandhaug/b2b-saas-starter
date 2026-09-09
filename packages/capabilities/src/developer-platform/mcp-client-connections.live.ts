@@ -10,7 +10,7 @@ import { DateTime, Effect, Layer } from 'effect'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
-import { AuditEventLog } from '../governance/audit-event-log.ts'
+import { AuditEventLog, recordCompletedAudit } from '../governance/audit-event-log.ts'
 import {
   recordSecurityEvidence,
   type SecurityEvidenceSink
@@ -160,7 +160,12 @@ export function LiveMcpClientConnections(
               })
             )
           ),
-        recordGrant: (input) => audit.record(consentGrantedAuditEvent(input)),
+        recordGrant: (input) =>
+          recordCompletedAudit(
+            audit,
+            consentGrantedAuditEvent(input),
+            'mcp_client_connections.grant'
+          ),
         revoke: (input) =>
           Effect.gen(function* () {
             // Ownership is part of the lookup, so another user's consent id
