@@ -83,7 +83,9 @@ export async function signInWithPassword(
   await page.waitForURL((url) => url.pathname === redirect)
   await page.locator('html[data-authenticated="true"]').waitFor()
   if (redirect === '/account') {
-    await page.locator('header select:enabled').waitFor({ state: 'attached' })
+    await page
+      .locator('header [data-slot="select-trigger"]:enabled')
+      .waitFor({ state: 'attached' })
   }
 }
 
@@ -93,7 +95,9 @@ export async function verifyWithPasskey(page: Page, redirect: string): Promise<v
   await page.getByRole('button', { name: 'Verify with a passkey', exact: true }).click()
   await page.waitForURL((url) => url.pathname === redirect)
   await page.locator('html[data-authenticated="true"]').waitFor()
-  await page.locator('header select:enabled').waitFor({ state: 'attached' })
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
 }
 
 export async function signInAsOwner(

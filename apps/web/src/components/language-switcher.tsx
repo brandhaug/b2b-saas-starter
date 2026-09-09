@@ -11,11 +11,20 @@ import {
   AlertDialogCancel,
   AlertDialogFooter
 } from '@/components/ui/alert-dialog'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { useClientValue } from '@/lib/client-only-value'
 import { presentationSettings } from '@/lib/i18n'
 import { hasEditedForms } from '@/lib/unsaved-form'
 import { callServerFn } from '@/lib/server-call'
 import { setLocalePreferencesServerFn } from '@/lib/server/account-preferences'
+import { LocaleFlag } from '@/components/locale-flag'
 
 export function LanguageSwitcher() {
   const hydrated = useClientValue(() => true, false)
@@ -42,13 +51,14 @@ export function LanguageSwitcher() {
 
   return (
     <div data-locale-control className="grid gap-1">
-      <select
-        aria-label={m.shell_language()}
-        className="h-8 max-w-40 rounded-none border border-input bg-background px-2 text-base text-foreground max-md:h-11 sm:text-xs"
+      <Select
         value={getLocale()}
         disabled={!hydrated || status === 'saving'}
-        onChange={(event) => {
-          const locale = event.target.value
+        onValueChange={(value) => {
+          if (value === null) {
+            return
+          }
+          const locale = value
           if (!isLocale(locale) || locale === getLocale()) {
             return
           }
@@ -59,13 +69,28 @@ export function LanguageSwitcher() {
           }
         }}
       >
-        <option value="en" lang="en">
-          English
-        </option>
-        <option value="nb" lang="nb">
-          Norsk bokmål
-        </option>
-      </select>
+        <SelectTrigger
+          aria-label={m.shell_language()}
+          className="min-w-32 max-w-40 pr-3 text-base sm:text-xs"
+        >
+          <SelectValue>
+            <LocaleFlag locale={getLocale()} />
+            {getLocale() === 'nb' ? 'Norsk' : 'English'}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="en">
+              <LocaleFlag locale="en" />
+              English
+            </SelectItem>
+            <SelectItem value="nb">
+              <LocaleFlag locale="nb" />
+              Norsk
+            </SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
       {error ? (
         <p role="alert" className="text-xs text-destructive">
           {error}

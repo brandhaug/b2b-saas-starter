@@ -1,12 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ClosingSection } from '@/components/landing/closing-section'
 import { DemoStrip } from '@/components/landing/demo-strip'
+import { FaqSection } from '@/components/landing/faq-section'
 import { HeroSection } from '@/components/landing/hero-section'
 import { KnowledgeSection } from '@/components/landing/knowledge-section'
 import { ProvidersSection } from '@/components/landing/providers-section'
 import { RequestTraceSection } from '@/components/landing/request-trace-section'
 import { PublicLayout } from '@/components/public-layout'
-import { getAllPostMeta } from '@/lib/blog'
 import { getAllDocMeta } from '@/lib/docs'
 import { loadDemoShowcaseServerFn } from '@/lib/server/demo-showcase'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -14,21 +14,19 @@ import newsreaderLatinWoff2 from '@fontsource-variable/newsreader/files/newsread
 
 export const Route = createFileRoute('/')({
   // The knowledge section lists recent content: metadata resolves here, so
-  // the compiled MDX never enters the landing page's chunk (lib/blog.ts and
-  // lib/docs.ts use lazy globs). The showcase numbers come from the same
+  // the compiled MDX never enters the landing page's chunk (lib/docs.ts uses
+  // a lazy glob). The showcase numbers come from the same
   // actorless read the REST overview endpoint serves — through a server fn,
   // and with route code splitting on (vite.config.ts), the capabilities
   // graph the fn's handler reaches never enters this page's preload: `/`
   // ships the landing's own modules only (see lib/server/demo-showcase.ts).
   loader: async () => {
     // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the three content/data reads parallel
-    const [allPosts, allDocs, demo] = await Promise.all([
-      getAllPostMeta(),
+    const [allDocs, demo] = await Promise.all([
       getAllDocMeta(),
       loadDemoShowcaseServerFn()
     ])
     return {
-      recentPosts: allPosts.slice(0, 3),
       recentDocs: allDocs.slice(0, 4),
       demo
     }
@@ -62,7 +60,7 @@ export const Route = createFileRoute('/')({
 })
 
 function HomePage() {
-  const { recentDocs, recentPosts, demo } = Route.useLoaderData()
+  const { recentDocs, demo } = Route.useLoaderData()
   return (
     <PublicLayout>
       <main id="main-content">
@@ -72,7 +70,8 @@ function HomePage() {
         {demo === null ? null : <DemoStrip demo={demo} />}
         <RequestTraceSection overview={demo === null ? null : demo.overview} />
         <ProvidersSection />
-        <KnowledgeSection recentDocs={recentDocs} recentPosts={recentPosts} />
+        <KnowledgeSection recentDocs={recentDocs} />
+        <FaqSection />
         <ClosingSection showDemo={demo !== null} />
       </main>
     </PublicLayout>

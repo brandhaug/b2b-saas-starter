@@ -13,14 +13,15 @@ test.beforeEach(async ({ context }, testInfo) => {
 test('switches public language, keeps it through navigation and refresh, and exposes alternates', async ({
   page
 }) => {
-  await page.goto('/en/faq')
+  await page.goto('/en/#faq')
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-  await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('nb')
-  await expect(page).toHaveURL(/\/nb\/faq$/u)
+  await page.getByRole('combobox', { name: 'Language', exact: true }).click()
+  await page.getByRole('option', { name: 'Norsk' }).click()
+  await expect(page).toHaveURL(/\/nb\/?(?:#faq)?$/u)
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(page.locator('link[rel="alternate"][hreflang="en"]')).toHaveAttribute(
     'href',
-    /\/en\/faq$/u
+    /\/en\/?(?:#faq)?$/u
   )
   await page
     .getByRole('link', { name: /dokumentasjon/iu })
@@ -29,22 +30,24 @@ test('switches public language, keeps it through navigation and refresh, and exp
   await expect(page).toHaveURL(/\/nb\/docs\/?$/u)
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
-  await expect(page.getByRole('combobox', { name: 'Språk', exact: true })).toHaveValue(
-    'nb'
-  )
+  await expect(
+    page.getByRole('combobox', { name: 'Språk', exact: true })
+  ).toContainText('Norsk')
 })
 
 test('warns before a language switch discards form edits', async ({ page }) => {
   await page.goto('/sign-in')
   await page.locator('form[data-hydrated="true"]').waitFor()
   await page.getByRole('textbox', { name: /email/iu }).fill('draft@example.com')
-  await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('nb')
+  await page.getByRole('combobox', { name: 'Language', exact: true }).click()
+  await page.getByRole('option', { name: 'Norsk' }).click()
   await expect(page.getByRole('alertdialog')).toBeVisible()
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(page.getByRole('textbox', { name: /email/iu })).toHaveValue(
     'draft@example.com'
   )
-  await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('nb')
+  await page.getByRole('combobox', { name: 'Language', exact: true }).click()
+  await page.getByRole('option', { name: 'Norsk' }).click()
   await page.getByRole('button', { name: 'Switch language', exact: true }).click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(page).toHaveURL(/\/sign-in$/u)
@@ -60,8 +63,8 @@ test('detects browser language without a cookie and keeps private routes unprefi
     baseURL: baseURL ?? 'http://localhost:3071'
   })
   const page = await context.newPage()
-  await page.goto('/faq')
-  await expect(page).toHaveURL(/\/nb\/faq$/u)
+  await page.goto('/')
+  await expect(page).toHaveURL(/\/nb\/?$/u)
   await page.goto('/sign-in')
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(page).toHaveURL(/\/sign-in$/u)
@@ -91,7 +94,8 @@ test('saved account language and time zone override browser preferences in a new
   try {
     await page.goto('/account')
     await page.locator('html[data-authenticated="true"]').waitFor()
-    await page.locator('select[name="locale"]').selectOption('nb')
+    await page.locator('form').getByRole('combobox', { name: 'Language' }).click()
+    await page.getByRole('option', { name: 'Norsk' }).click()
     await page.locator('input[name="timeZone"]').fill('Europe/Oslo')
     await page.getByRole('button', { name: 'Save preferences', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
@@ -119,7 +123,9 @@ test('saved account language and time zone override browser preferences in a new
         'data-time-zone',
         'Europe/Oslo'
       )
-      await expect(secondPage.locator('select[name="locale"]')).toHaveValue('nb')
+      await expect(
+        secondPage.locator('form').getByRole('combobox', { name: 'Språk' })
+      ).toContainText('Norsk')
       await expect(secondPage.locator('input[name="timeZone"]')).toHaveValue(
         'Europe/Oslo'
       )
@@ -134,7 +140,9 @@ test('saved account language and time zone override browser preferences in a new
     // The app's deletion capability owns cleanup; the raw auth endpoint is
     // intentionally unavailable. Either language may be active after a failure.
     await page.goto('/account')
-    await page.locator('header select:enabled').waitFor({ state: 'attached' })
+    await page
+      .locator('header [data-slot="select-trigger"]:enabled')
+      .waitFor({ state: 'attached' })
     await page.locator('#delete-account-password').fill(isolatedAccountPassword)
     await page.getByRole('button', { name: /^(Delete account|Slett konto)$/ }).click()
     await page
@@ -152,7 +160,9 @@ test('saved account language and time zone override browser preferences in a new
       .getByRole('button', { name: /^(Confirm password|Bekreft passord)$/ })
       .click()
     await page.waitForURL(/\/account$/)
-    await page.locator('header select:enabled').waitFor({ state: 'attached' })
+    await page
+      .locator('header [data-slot="select-trigger"]:enabled')
+      .waitFor({ state: 'attached' })
     await expect(page.locator('#delete-account-password')).toBeVisible()
     await page.locator('#delete-account-password').fill(isolatedAccountPassword)
     await page.getByRole('button', { name: /^(Delete account|Slett konto)$/ }).click()
@@ -168,12 +178,15 @@ test('saved account language and time zone override browser preferences in a new
 
 test('the language picker works in the Norwegian mobile menu', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/nb/faq')
-  await page.locator('header select:enabled').waitFor({ state: 'attached' })
+  await page.goto('/nb/')
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Åpne meny', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
-  await page.getByRole('combobox', { name: 'Språk', exact: true }).selectOption('en')
-  await expect(page).toHaveURL(/\/en\/faq$/u)
+  await page.getByRole('combobox', { name: 'Språk', exact: true }).click()
+  await page.getByRole('option', { name: 'English' }).click()
+  await expect(page).toHaveURL(/\/en\/?$/u)
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth)

@@ -6,16 +6,14 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 /** `to` stays a literal union so TanStack Router still type-checks the links.
  *  No Pricing entry: the starter is MIT and does not sell plans — the plan
  *  vocabulary lives in the capability catalog and the billing docs. */
-type PublicLink = {
-  readonly to: '/docs' | '/blog' | '/faq' | '/help'
+export type PublicLink = {
+  readonly to: '/docs' | '/help'
   readonly label: string
 }
 
 export function publicLinks(): ReadonlyArray<PublicLink> {
   return [
     { to: '/docs', label: m.docs() },
-    { to: '/blog', label: m.blog() },
-    { to: '/faq', label: m.faq() },
     { to: '/help', label: m.public_meta_support() }
   ]
 }

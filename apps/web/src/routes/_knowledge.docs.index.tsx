@@ -45,7 +45,7 @@ function DocsIndex() {
             >
               <div className="flex items-center gap-2">
                 <BookOpenIcon className="size-4 text-muted-foreground" />
-                <h2 className="text-sm font-semibold">{docCategoryName(slug)}</h2>
+                <h2 className="text-base font-semibold">{docCategoryName(slug)}</h2>
               </div>
               <p className="text-xs text-muted-foreground">
                 {articles.length}{' '}

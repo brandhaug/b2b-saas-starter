@@ -7,7 +7,9 @@ import { isolatedClientIp } from './test-isolation'
 // case uses the worker-scoped qualified session fixture.
 async function signIn(page: Page, email: string, redirect: string): Promise<void> {
   await signInWithPassword(page, email, redirect)
-  await page.locator('header select:enabled').waitFor({ state: 'attached' })
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
 }
 
 test.beforeEach(async ({ context }, testInfo) => {

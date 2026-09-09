@@ -25,7 +25,9 @@ test('registers, renames, signs in with, and removes a passkey', async ({
     authenticatorId: bootstrap.authenticatorId
   })
   await addVirtualAuthenticator(bootstrap.cdp)
-  await page.locator('header select:enabled').waitFor({ state: 'attached' })
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await expect(page.getByRole('heading', { name: 'Passkeys', level: 2 })).toBeVisible()
   await expect(page.getByText(/E2E shared authentication/).first()).toBeVisible()
   await page.getByLabel('Name a new passkey').fill('E2E key')
@@ -54,7 +56,9 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   })
 
   await page.goto('/account')
-  await page.locator('header select:enabled').waitFor({ state: 'attached' })
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Remove Renamed key passkey' }).click()
   await page.getByRole('button', { name: 'Remove passkey', exact: true }).click()
   await expect(page.getByText('Renamed key', { exact: true })).toHaveCount(0)

@@ -13,7 +13,9 @@ async function signIn(page: Page, email: string, redirect: string): Promise<void
   } else {
     await signInWithPassword(page, email, redirect)
   }
-  await page.locator('header select:enabled').waitFor({ state: 'attached' })
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
 }
 
 /**
@@ -66,7 +68,9 @@ test('revoking the other session signs that device out', async ({ browser }) => 
   await here.reload()
 
   await expect(here.getByRole('heading', { name: 'Active sessions' })).toBeVisible()
-  await here.locator('header select:enabled').waitFor({ state: 'attached' })
+  await here
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await here.getByText('· This device').waitFor()
 
   // The other device is the newest session with its distinctive label, and
@@ -92,7 +96,9 @@ test('revoking the other session signs that device out', async ({ browser }) => 
 
   // The acting context keeps its session.
   await here.reload()
-  await here.locator('header select:enabled').waitFor({ state: 'attached' })
+  await here
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await expect(here.getByText('· This device')).toBeVisible()
 
   await thisDevice.close()

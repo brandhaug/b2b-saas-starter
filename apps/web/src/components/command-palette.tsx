@@ -98,8 +98,14 @@ export function SearchButton() {
       >
         <SearchIcon className="size-4" />
         <span className="flex-1 text-left">{m.common_search_placeholder()}</span>
-        <kbd className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-2xs">
-          {isMac ? '⌘K' : 'Ctrl K'}
+        <kbd className="flex items-center gap-0.5 rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs">
+          {isMac ? (
+            <>
+              <span className="text-sm leading-none">⌘</span>K
+            </>
+          ) : (
+            'Ctrl K'
+          )}
         </kbd>
       </Button>
     </>

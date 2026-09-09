@@ -30,7 +30,7 @@ for (const { locale, signInLabel } of [
   test(`the ${locale} public header keeps sign-in reachable at 320px`, async ({
     page
   }) => {
-    await page.goto(`/${locale}/faq`)
+    await page.goto(`/${locale}/`)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await expectPageFits(page)
     await expect(
@@ -42,7 +42,9 @@ for (const { locale, signInLabel } of [
 test('the short mobile navigation can scroll to Account', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 400 })
   await page.goto('/demo')
-  await page.locator('header select:enabled').waitFor({ state: 'attached' })
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await expectPageFits(page)
   await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
   const dialog = page.getByRole('dialog')
@@ -59,7 +61,9 @@ test.describe('owner controls on a narrow screen', () => {
   test.beforeEach(async ({ ownerPage }) => {
     test.skip(!hasLocalD1State(), 'requires migrated and seeded local D1')
     await ownerPage.goto('/workspaces/starter-lab/members')
-    await ownerPage.locator('header select:enabled').waitFor({ state: 'attached' })
+    await ownerPage
+      .locator('header [data-slot="select-trigger"]:enabled')
+      .waitFor({ state: 'attached' })
   })
 
   test('the roster and armed removal fit without horizontal panning', async ({
@@ -86,7 +90,9 @@ test.describe('owner controls on a narrow screen', () => {
     page
   }) => {
     await page.goto('/workspaces/starter-lab/settings')
-    await page.locator('header select:enabled').waitFor({ state: 'attached' })
+    await page
+      .locator('header [data-slot="select-trigger"]:enabled')
+      .waitFor({ state: 'attached' })
     await page.getByRole('button', { name: 'Delete workspace', exact: true }).click()
     const dialog = page.getByRole('alertdialog')
     await expect(dialog).toBeVisible()

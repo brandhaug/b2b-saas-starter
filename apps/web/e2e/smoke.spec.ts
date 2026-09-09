@@ -68,7 +68,7 @@ test('knowledge search loads metadata without downloading article bodies', async
 }) => {
   // The E2E server is Vite dev, where compiled article requests retain .mdx.
   const articleRequests: Array<string> = []
-  const articles = /\/content\/(?:docs|blog)\/.*\.mdx(?:\?|$)/
+  const articles = /\/content\/docs\/.*\.mdx(?:\?|$)/
   await page.route(articles, (route) => {
     articleRequests.push(route.request().url())
     return route.abort()

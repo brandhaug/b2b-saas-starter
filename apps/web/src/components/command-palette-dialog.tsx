@@ -1,7 +1,6 @@
 import { use, type ReactNode } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { BookOpenIcon } from 'lucide-react'
-import { getAllPostMeta } from '@/lib/blog'
 import { getAllDocMeta } from '@/lib/docs'
 import { publicLinks } from '@/lib/content'
 import { viewerCan } from '@/lib/permissions'
@@ -18,19 +17,18 @@ import {
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The knowledge index the palette searches: both meta loaders are cached
-// promises (lib/docs.ts, lib/blog.ts), so this starts once when the lazy
+// promise (lib/docs.ts), so this starts once when the lazy
 // dialog chunk loads and `use` suspends on the same instance every open.
-// oxlint-disable effect/noNewPromise -- this module is the promise boundary between the palette (react) and the Effect-native content; same exemption as lib/docs.ts
-const knowledgeMeta = Promise.all([getAllDocMeta(), getAllPostMeta()])
+const knowledgeMeta = getAllDocMeta()
 
 /**
- * Docs and blog titles/descriptions as one searchable group — the promise is
+ * Doc titles and descriptions as one searchable group — the promise is
  * the cached meta index, so opening the palette neither re-reads nor ships
  * article bodies.
  */
 function KnowledgeEntries({ close }: { readonly close: () => void }) {
   const navigate = useNavigate()
-  const [docs, posts] = use(knowledgeMeta)
+  const docs = use(knowledgeMeta)
   return (
     <CommandGroup heading={m.knowledge()}>
       {docs.map((doc) => (
@@ -47,19 +45,6 @@ function KnowledgeEntries({ close }: { readonly close: () => void }) {
         >
           <BookOpenIcon aria-hidden className="size-4" />
           {doc.frontmatter.title}
-        </CommandItem>
-      ))}
-      {posts.map((post) => (
-        <CommandItem
-          key={`blog/${post.slug}`}
-          keywords={[post.frontmatter.description]}
-          onSelect={() => {
-            close()
-            void navigate({ to: '/blog/$slug', params: { slug: post.slug } })
-          }}
-        >
-          <BookOpenIcon aria-hidden className="size-4" />
-          {post.frontmatter.title}
         </CommandItem>
       ))}
     </CommandGroup>

@@ -6,6 +6,14 @@ import { Panel } from '@/components/page/panel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { useClientValue } from '@/lib/client-only-value'
 import { presentationSettings } from '@/lib/i18n'
 import { hasEditedForms, trackFormEdits } from '@/lib/unsaved-form'
@@ -20,6 +28,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { callServerFn } from '@/lib/server-call'
 import { setLocalePreferencesServerFn } from '@/lib/server/account-preferences'
+import { LocaleFlag } from '@/components/locale-flag'
 
 /** Time-zone detection happens after hydration and never overwrites a preference. */
 export function LocaleBootstrap() {
@@ -92,26 +101,41 @@ export function LocalePreferences() {
         }}
       >
         <div className="grid gap-2">
-          <Label htmlFor={`${id}-language`}>{m.shell_language()}</Label>
-          <select
-            id={`${id}-language`}
-            name="locale"
-            disabled={!hydrated || status === 'saving'}
+          <Label id={`${id}-language-label`} htmlFor={`${id}-language`}>
+            {m.shell_language()}
+          </Label>
+          <Select
             value={selectedLocale}
-            className="h-9 border border-input bg-background px-3 text-base max-md:h-11 sm:text-sm"
-            onChange={(event) => {
-              if (isLocale(event.target.value)) {
-                setSelectedLocale(event.target.value)
+            disabled={!hydrated || status === 'saving'}
+            onValueChange={(value) => {
+              if (value !== null && isLocale(value)) {
+                setSelectedLocale(value)
               }
             }}
           >
-            <option value="en" lang="en">
-              English
-            </option>
-            <option value="nb" lang="nb">
-              Norsk bokmål
-            </option>
-          </select>
+            <SelectTrigger
+              id={`${id}-language`}
+              aria-labelledby={`${id}-language-label`}
+              className="w-full pr-3 text-base sm:text-sm"
+            >
+              <SelectValue>
+                <LocaleFlag locale={selectedLocale} />
+                {selectedLocale === 'nb' ? 'Norsk' : 'English'}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="en">
+                  <LocaleFlag locale="en" />
+                  English
+                </SelectItem>
+                <SelectItem value="nb">
+                  <LocaleFlag locale="nb" />
+                  Norsk
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
         <div className="grid gap-2">
           <Label htmlFor={`${id}-timezone`}>{m.shell_time_zone()}</Label>
