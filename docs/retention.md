@@ -84,6 +84,11 @@ audited.
 
 ## Account and workspace deletion
 
+Operators handling an individual-rights request must follow the [personal-data
+request runbook](personal-data-requests.md). Its request register is separate
+from application records and must follow the deployment's restricted operator
+access and retention policy.
+
 Account deletion removes the user's personal notifications and email-delivery
 records, and scrubs identifying details from retained audit metadata. Shared
 workspace business records remain for other members. The account lifecycle's
