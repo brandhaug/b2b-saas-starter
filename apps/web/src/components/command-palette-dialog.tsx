@@ -2,7 +2,7 @@ import { use, type ReactNode } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { BookOpenIcon } from 'lucide-react'
 import { getAllDocMeta } from '@/lib/docs'
-import { publicLinkProps, publicLinks } from '@/lib/content'
+import { publicLinks } from '@/lib/content'
 import { viewerCan } from '@/lib/permissions'
 import { workspaceNav, youNav } from '@/lib/workspace-nav'
 import { CommandPaletteContext } from '@/lib/command-palette-context'
@@ -155,7 +155,7 @@ export default function CommandPaletteDialog() {
               key={link.to}
               onSelect={() => {
                 close()
-                void navigate(publicLinkProps(link))
+                void navigate({ to: link.to })
               }}
             >
               {link.label}
