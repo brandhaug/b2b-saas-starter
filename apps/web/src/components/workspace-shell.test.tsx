@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { authClientDouble } from '@/test/fake-auth-client'
 import { WorkspaceShell, type StopImpersonating } from './workspace-shell'
+import { PreviewProvider } from '@/components/preview-provider'
 
 // The identity line reads the live Better Auth client, whose session hook
 // fetches a relative URL no jsdom test can answer — the shared double's
@@ -79,6 +80,34 @@ describe('WorkspaceShell', () => {
     signOut.mockClear()
     stopImpersonating.mockReset()
     stopImpersonating.mockResolvedValue(undefined)
+  })
+
+  it('keeps preview navigation public and leaves the signed-in workspace memory alone', async () => {
+    const remembered = { slug: 'private-workspace', name: 'Private workspace' }
+    const { router } = await renderWithRouter(
+      <PreviewProvider>
+        <WorkspaceShell
+          workspaceSlug="starter-lab"
+          viewer={{ role: 'owner' }}
+          unreadCount={2}
+        >
+          <p>Preview content</p>
+        </WorkspaceShell>
+      </PreviewProvider>,
+      {
+        path: '/demo',
+        destinations: ['/demo/members', '/sign-in'],
+        routerContext: { lastWorkspace: remembered },
+        routeContext: sessionContext('usr_admin')
+      }
+    )
+    expect(screen.queryByRole('button', { name: 'Open user menu' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop impersonating' })).toBeNull()
+    expect(router.options.context.lastWorkspace).toEqual(remembered)
+    const members = screen.getByRole('link', { name: /^Members$/ })
+    expect(members.getAttribute('href')).toBe('/demo/members')
+    fireEvent.click(members)
+    await waitFor(() => expect(router.state.location.pathname).toBe('/demo/members'))
   })
 
   it('shows no impersonation banner for an ordinary session or a public page', async () => {

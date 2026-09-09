@@ -1,15 +1,7 @@
 import { SupportDetails } from '@/components/support-details'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
-import {
-  BellIcon,
-  BoxesIcon,
-  ChevronsUpDownIcon,
-  LogOutIcon,
-  MenuIcon,
-  ShieldIcon,
-  UserRoundIcon
-} from 'lucide-react'
+import { BellIcon, LogOutIcon, MenuIcon, ShieldIcon, UserRoundIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,7 +28,7 @@ import { SearchButton, CommandPaletteProvider } from '@/components/command-palet
 import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { useImpersonation, type StopImpersonating } from '@/lib/impersonation'
-import { viewerCan, type Viewer } from '@/lib/permissions'
+import { type Viewer } from '@/lib/permissions'
 import {
   findWorkspace,
   lastVisitedWorkspace,
@@ -44,20 +36,26 @@ import {
   useWorkspaceDirectory,
   type SidebarWorkspace
 } from '@/lib/workspace-directory'
-import { WorkspaceSwitcher } from '@/components/workspace-switcher'
-import {
-  shellNav,
-  isWorkspaceNavTarget,
-  type WorkspaceNavGroup,
-  type WorkspaceNavTarget,
-  type YouNavTarget
-} from '@/lib/workspace-nav'
+import { WorkspaceNav } from '@/components/workspace-nav'
+import { PreviewShell } from '@/components/preview-shell'
+import { usePreview } from '@/lib/preview-context'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { LanguageSwitcher } from '@/components/language-switcher'
 
 export { type StopImpersonating }
 
-export function WorkspaceShell({
+export function WorkspaceShell(
+  props: ComponentProps<typeof AuthenticatedWorkspaceShell>
+) {
+  const preview = usePreview()
+  return preview ? (
+    <PreviewShell unreadCount={props.unreadCount}>{props.children}</PreviewShell>
+  ) : (
+    <AuthenticatedWorkspaceShell {...props} />
+  )
+}
+
+function AuthenticatedWorkspaceShell({
   children,
   unreadCount,
   workspaceSlug,
@@ -359,191 +357,5 @@ function UserMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-}
-
-/**
- * Active and inactive treatments for nav links, kept as constants so the
- * active state reads as one statement: the page link is foreground text on
- * the sidebar's own accent plus `aria-current="page"` (set through
- * `activeProps`). Sidebar tokens, not body tokens — the sidebar separates
- * from the body independently (DESIGN.md).
- */
-const navLinkClasses =
-  'flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground max-md:min-h-11'
-
-function WorkspaceNav({
-  workspace,
-  viewer,
-  systemRole,
-  onNavigate
-}: {
-  /** The workspace the nav anchors to, or null in the degenerate state. */
-  readonly workspace: SidebarWorkspace | null
-  readonly viewer: Viewer
-  readonly systemRole?: string | null | undefined
-  readonly onNavigate?: (() => void) | undefined
-}) {
-  // One pass over the nav table: build the visible rows in order, skipping
-  // rows the viewer's role cannot read, rows that need a workspace when none
-  // is in play, and the admin row for non-admins — emitting a section label
-  // each time the group changes. Account and System admin are rows in the
-  // same table, so they render under their own "You" label and can never
-  // inherit the group printed before them.
-  const navRows: Array<ReactNode> = []
-  let lastGroup: WorkspaceNavGroup | undefined
-  function sectionLabel(group: WorkspaceNavGroup | undefined) {
-    if (group === lastGroup) {
-      return
-    }
-    lastGroup = group
-    if (group !== undefined) {
-      navRows.push(
-        <p
-          key={`group-${group}`}
-          className="px-3 pt-4 pb-1 text-2xs font-medium text-sidebar-foreground/60"
-        >
-          {group}
-        </p>
-      )
-    }
-  }
-  for (const row of shellNav()) {
-    if (row.adminOnly === true && systemRole !== 'admin') {
-      continue
-    }
-    if (row.permission !== undefined && !viewerCan(viewer, row.permission)) {
-      continue
-    }
-    if (isWorkspaceNavTarget(row.to)) {
-      // No workspace in play: the workspace rows are absent, their group
-      // labels with them — the user-level rows below still render.
-      if (workspace === null) {
-        continue
-      }
-      sectionLabel(row.group)
-      navRows.push(
-        <NavLink
-          key={row.to}
-          to={row.to}
-          workspaceSlug={workspace.slug}
-          label={row.label}
-          icon={row.icon}
-          exact={row.exact ?? false}
-          onNavigate={onNavigate}
-        />
-      )
-    } else {
-      sectionLabel(row.group)
-      navRows.push(
-        <YouNavLink
-          key={row.to}
-          to={row.to}
-          label={row.label}
-          icon={row.icon}
-          exact={row.exact ?? false}
-          onNavigate={onNavigate}
-        />
-      )
-    }
-  }
-
-  return (
-    <>
-      <Link
-        to="/"
-        onClick={onNavigate}
-        className="flex items-center gap-2 font-semibold"
-      >
-        <span className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground">
-          <BoxesIcon className="size-4" />
-        </span>
-        B2B SaaS Starter
-      </Link>
-      {/* The switcher sits above the nav on every surface; the mobile sheet
-          renders the same component, so both close on pick. Without a
-          workspace in play the slot becomes the picker's doorway — the column
-          keeps its shape instead of collapsing to a logo. */}
-      <div className="mt-6">
-        {workspace === null ? (
-          <Link
-            to="/workspaces"
-            onClick={onNavigate}
-            className="flex w-full items-center justify-between gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/50 px-3 py-2 text-sm font-medium text-sidebar-foreground outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-          >
-            {m.workspace_choose()}
-            <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
-          </Link>
-        ) : (
-          <WorkspaceSwitcher
-            workspaceSlug={workspace.slug}
-            fallbackName={workspace.name}
-            onNavigate={onNavigate}
-          />
-        )}
-      </div>
-      <nav aria-label={m.main_navigation()} className="mt-6 grid gap-1">
-        {navRows}
-      </nav>
-    </>
-  )
-}
-
-function NavLink({
-  to,
-  workspaceSlug,
-  label,
-  icon,
-  exact = false,
-  onNavigate
-}: {
-  readonly to: WorkspaceNavTarget
-  readonly workspaceSlug: string
-  readonly label: string
-  readonly icon: ReactNode
-  readonly exact?: boolean
-  readonly onNavigate?: (() => void) | undefined
-}) {
-  return (
-    <Link
-      to={to}
-      params={{ workspaceSlug }}
-      onClick={onNavigate}
-      className={navLinkClasses}
-      activeOptions={{ exact }}
-      activeProps={{ 'aria-current': 'page' }}
-    >
-      {icon}
-      {label}
-    </Link>
-  )
-}
-
-/** The user-level twin of {@link NavLink}: same treatments, no slug to thread. */
-function YouNavLink({
-  to,
-  label,
-  icon,
-  exact = false,
-  onNavigate
-}: {
-  readonly to: YouNavTarget
-  readonly label: string
-  readonly icon: ReactNode
-  readonly exact?: boolean
-  readonly onNavigate?: (() => void) | undefined
-}) {
-  return (
-    <Link
-      to={to}
-      reloadDocument={to === '/help'}
-      onClick={onNavigate}
-      className={navLinkClasses}
-      activeOptions={{ exact }}
-      activeProps={{ 'aria-current': 'page' }}
-    >
-      {icon}
-      {label}
-    </Link>
   )
 }

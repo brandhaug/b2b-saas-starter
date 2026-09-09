@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { WorkspaceLink } from '@/components/workspace-link'
 import { type ReactNode } from 'react'
 
 /**
@@ -15,8 +15,8 @@ export function WorkspaceCrumb({
   readonly children?: ReactNode
 }) {
   return (
-    <Link to="/workspaces/$workspaceSlug" params={{ workspaceSlug }}>
+    <WorkspaceLink to="/workspaces/$workspaceSlug" workspaceSlug={workspaceSlug}>
       {children ?? workspaceSlug}
-    </Link>
+    </WorkspaceLink>
   )
 }

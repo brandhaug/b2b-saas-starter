@@ -13,7 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { createWebhookEndpointServerFn } from '@/lib/server/webhooks'
-import { callServerFn } from '@/lib/server-call'
+import { useServerCall } from '@/hooks/use-server-call'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 type WebhookValues = {
@@ -56,6 +56,7 @@ export function WebhookForm({
   readonly onCreated?: (created: CreatedWebhookEndpoint) => void
   readonly createEndpoint?: CreateWebhookEndpoint
 }) {
+  const callServerFn = useServerCall()
   const [created, setCreated] = useState<CreatedWebhookEndpoint | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const form = useForm({

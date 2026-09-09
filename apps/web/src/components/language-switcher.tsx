@@ -25,8 +25,10 @@ import { hasEditedForms } from '@/lib/unsaved-form'
 import { callServerFn } from '@/lib/server-call'
 import { setLocalePreferencesServerFn } from '@/lib/server/account-preferences'
 import { LocaleFlag } from '@/components/locale-flag'
+import { usePreview } from '@/lib/preview-context'
 
 export function LanguageSwitcher() {
+  const preview = usePreview()
   const hydrated = useClientValue(() => true, false)
   const [pending, setPending] = useState<Locale | null>(null)
   const [status, setStatus] = useState<'idle' | 'saving'>('idle')
@@ -35,7 +37,7 @@ export function LanguageSwitcher() {
   async function switchLanguage(locale: Locale) {
     setStatus('saving')
     setError(null)
-    if (presentationSettings().authenticated) {
+    if (!preview && presentationSettings().authenticated) {
       const result = await callServerFn(
         () => setLocalePreferencesServerFn({ data: { locale } }),
         m.shell_save_error()

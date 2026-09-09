@@ -29,6 +29,7 @@ import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './rout
 import { Route as KnowledgeChangelogRouteImport } from './routes/_knowledge.changelog'
 import { Route as AccountNotificationsRouteImport } from './routes/account_.notifications'
 import { Route as ApiSupportConfigRouteImport } from './routes/api.support-config'
+import { Route as DemoSectionRouteImport } from './routes/demo_.$section'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations.accept'
 import { Route as MagicLinkVerifyRouteImport } from './routes/magic-link.verify'
@@ -148,6 +149,11 @@ const AccountNotificationsRoute = AccountNotificationsRouteImport.update({
 const ApiSupportConfigRoute = ApiSupportConfigRouteImport.update({
   id: '/api/support-config',
   path: '/api/support-config',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoSectionRoute = DemoSectionRouteImport.update({
+  id: '/demo_/$section',
+  path: '/demo/$section',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HelpIndexRoute = HelpIndexRouteImport.update({
@@ -282,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof KnowledgeChangelogRoute
   '/account/notifications': typeof AccountNotificationsRoute
   '/api/support-config': typeof ApiSupportConfigRoute
+  '/demo/$section': typeof DemoSectionRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/magic-link/verify': typeof MagicLinkVerifyRoute
   '/oauth/consent': typeof OauthConsentRoute
@@ -322,6 +329,7 @@ export interface FileRoutesByTo {
   '/changelog': typeof KnowledgeChangelogRoute
   '/account/notifications': typeof AccountNotificationsRoute
   '/api/support-config': typeof ApiSupportConfigRoute
+  '/demo/$section': typeof DemoSectionRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/magic-link/verify': typeof MagicLinkVerifyRoute
   '/oauth/consent': typeof OauthConsentRoute
@@ -364,6 +372,7 @@ export interface FileRoutesById {
   '/_knowledge/changelog': typeof KnowledgeChangelogRoute
   '/account_/notifications': typeof AccountNotificationsRoute
   '/api/support-config': typeof ApiSupportConfigRoute
+  '/demo_/$section': typeof DemoSectionRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/magic-link/verify': typeof MagicLinkVerifyRoute
   '/oauth/consent': typeof OauthConsentRoute
@@ -407,6 +416,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/account/notifications'
     | '/api/support-config'
+    | '/demo/$section'
     | '/invitations/accept'
     | '/magic-link/verify'
     | '/oauth/consent'
@@ -447,6 +457,7 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/account/notifications'
     | '/api/support-config'
+    | '/demo/$section'
     | '/invitations/accept'
     | '/magic-link/verify'
     | '/oauth/consent'
@@ -488,6 +499,7 @@ export interface FileRouteTypes {
     | '/_knowledge/changelog'
     | '/account_/notifications'
     | '/api/support-config'
+    | '/demo_/$section'
     | '/invitations/accept'
     | '/magic-link/verify'
     | '/oauth/consent'
@@ -530,6 +542,7 @@ export interface RootRouteChildren {
   DotwellKnownOauthAuthorizationServerRoute: typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   AccountNotificationsRoute: typeof AccountNotificationsRoute
   ApiSupportConfigRoute: typeof ApiSupportConfigRoute
+  DemoSectionRoute: typeof DemoSectionRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   MagicLinkVerifyRoute: typeof MagicLinkVerifyRoute
   OauthConsentRoute: typeof OauthConsentRoute
@@ -678,6 +691,13 @@ declare module '@tanstack/react-router' {
       path: '/api/support-config'
       fullPath: '/api/support-config'
       preLoaderRoute: typeof ApiSupportConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo_/$section': {
+      id: '/demo_/$section'
+      path: '/demo/$section'
+      fullPath: '/demo/$section'
+      preLoaderRoute: typeof DemoSectionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/help/': {
@@ -922,6 +942,7 @@ const rootRouteChildren: RootRouteChildren = {
     DotwellKnownOauthAuthorizationServerRouteWithChildren,
   AccountNotificationsRoute: AccountNotificationsRoute,
   ApiSupportConfigRoute: ApiSupportConfigRoute,
+  DemoSectionRoute: DemoSectionRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
   MagicLinkVerifyRoute: MagicLinkVerifyRoute,
   OauthConsentRoute: OauthConsentRoute,

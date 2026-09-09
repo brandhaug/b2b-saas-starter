@@ -10,6 +10,11 @@ tags: [seed, reference-app]
 identity used by the application and tests. It includes owners, admins, and
 members, plus API tokens, webhook endpoints, audit history, and notifications.
 
+Visit [/demo](/demo) to browse the Reference Application without signing in.
+The preview shows synthetic data in the application pages. You can open forms
+and dialogs, but actions explain that they are unavailable in the preview.
+Sign in to exercise real actions against your local database.
+
 `pnpm run db:seed` runs `scripts/seed.ts` to write the fixture into local D1 and
 add credential passwords. Re-running resets fixture records; do not use it on a
 database whose demo records you need to preserve.

@@ -26,6 +26,11 @@ All three Workers ──> packages/capabilities ────┤
 
 Auth and capabilities are siblings; neither imports the other. Apps provide structural bindings to plugin-backed capabilities. Route handlers and components gate access and adapt transport data; business behavior belongs in capabilities.
 
+The public `/demo` preview renders shared application pages with synthetic data.
+Its forms and dialogs are inspectable, but actions return a preview explanation
+without calling authenticated operations. It does not read live privileged
+records or persist simulated changes. See the [showcase decision](docs/adr/0016-homepage-as-architecture-showcase.md).
+
 ### Billing lifecycle and entitlements
 
 Stripe owns the verified subscription and price; application membership determines Seat Quantity. D1 retains subscription, payment, cancellation, and synchronization evidence. Access uses the Effective Plan evaluated at request time, so stale stored state cannot extend paid access during an outage.

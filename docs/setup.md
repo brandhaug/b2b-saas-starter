@@ -15,6 +15,13 @@ pnpm run dev
 
 Open <http://localhost:3071>. The `.env` defaults support provider-light local development. Optional providers stay inactive until configured. The [optional providers guide](../apps/web/content/docs/getting-started/optional-providers.mdx) covers each provider: exact variables, where the values come from, and how to verify activation.
 
+Open `/demo` to browse the Reference Application without signing in. The preview
+uses synthetic data and the same page components as the authenticated app.
+Forms and dialogs let visitors inspect the flows; submitting explains that the
+preview does not perform the action. Use `/sign-in` and the seeded accounts below
+to exercise real actions. The preview uses guest language preferences even when
+you have an active account session.
+
 For customer support, configure the optional [support destinations](deploying.md)
 for `/help`. With no contact configured, the page says contact information is
 unavailable and still lets users copy support details.
