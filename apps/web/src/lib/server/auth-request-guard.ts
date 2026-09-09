@@ -116,7 +116,7 @@ export function classifyAuthRequest(exchange: AuthExchange): AuthRequestClassifi
       method: exchange.method,
       urgent: URGENT_ADMIN_ACTIONS.has(path)
     }
-  } else if (path.startsWith('/passkey/')) {
+  } else if (path === '/passkey/generate-register-options') {
     strongAuthentication = { kind: 'passkey' }
   } else if (ADDITIONAL_FACTOR_CHANGES.has(path)) {
     strongAuthentication = { kind: 'additional-factor' }
