@@ -10,7 +10,11 @@ import {
   publishSeatSyncWith,
   SeatSyncPublisher
 } from '@b2b-saas-starter/billing/seat-sync'
-import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
+import {
+  AuditEventLog,
+  recordCompletedMutationAudit,
+  recordCompletedAudit
+} from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   requirePending,
@@ -164,12 +168,16 @@ export function LiveWorkspaceInvitations(
             })
           )
           const created = yield* readPending(ctx.workspace.id, input.email)
-          yield* recordInWorkspace(audit, {
-            eventType: 'workspace_invitation.sent',
-            targetType: 'workspace_invitation',
-            targetId: created.id,
-            metadata: { email: input.email, role: input.role }
-          })
+          yield* recordCompletedMutationAudit(
+            audit,
+            {
+              eventType: 'workspace_invitation.sent',
+              targetType: 'workspace_invitation',
+              targetId: created.id,
+              metadata: { email: input.email, role: input.role }
+            },
+            'workspace_invitations.create'
+          )
           return created
         }),
         cancel: Effect.fn('WorkspaceInvitations.cancel')(function* (
@@ -183,12 +191,16 @@ export function LiveWorkspaceInvitations(
           yield* callBinding(binding, (bound) =>
             bound.cancel({ invitationId: input.invitationId })
           )
-          yield* recordInWorkspace(audit, {
-            eventType: 'workspace_invitation.canceled',
-            targetType: 'workspace_invitation',
-            targetId: input.invitationId,
-            metadata: { email: pending.email }
-          })
+          yield* recordCompletedMutationAudit(
+            audit,
+            {
+              eventType: 'workspace_invitation.canceled',
+              targetType: 'workspace_invitation',
+              targetId: input.invitationId,
+              metadata: { email: pending.email }
+            },
+            'workspace_invitations.cancel'
+          )
         }),
         accept: Effect.fn('WorkspaceInvitations.accept')(function* (
           input: AcceptInvitationInput
@@ -213,15 +225,19 @@ export function LiveWorkspaceInvitations(
           yield* callBinding(binding, (bound) =>
             bound.accept({ invitationId: input.invitationId })
           )
-          yield* audit.record({
-            workspaceId: row.workspace.id,
-            actorUserId: input.userId,
-            actorType: 'user',
-            eventType: 'workspace_invitation.accepted',
-            targetType: 'workspace_invitation',
-            targetId: input.invitationId,
-            metadata: { email: pending.email, role: pending.role }
-          })
+          yield* recordCompletedAudit(
+            audit,
+            {
+              workspaceId: row.workspace.id,
+              actorUserId: input.userId,
+              actorType: 'user',
+              eventType: 'workspace_invitation.accepted',
+              targetType: 'workspace_invitation',
+              targetId: input.invitationId,
+              metadata: { email: pending.email, role: pending.role }
+            },
+            'workspace_invitations.accept'
+          )
           // Acceptance adds a member, so it triggers the same seat sync a
           // direct add does — keyed off the invitation's own workspace,
           // because the accepter still has no `WorkspaceContext` to read.

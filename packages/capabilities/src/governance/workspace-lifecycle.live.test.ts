@@ -1,5 +1,5 @@
 import { auditEvents, workspaces } from '@b2b-saas-starter/db/schema'
-import { Database } from '@b2b-saas-starter/db/service'
+import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
@@ -96,6 +96,54 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             )
             expect(remaining).toHaveLength(0)
           })
+      )
+
+      it.effect('returns a completed plugin action when its audit write fails', () =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          const d1 = yield* RawD1
+          const { binding } = fakeLifecycleBinding(db)
+          yield* Effect.acquireUseRelease(
+            Effect.promise(() =>
+              d1
+                .prepare(
+                  "CREATE TRIGGER reject_workspace_audit BEFORE INSERT ON audit_events WHEN NEW.event_type = 'workspace.created' BEGIN SELECT RAISE(ABORT, 'forced audit failure'); END"
+                )
+                .run()
+            ),
+            () =>
+              inWorkspace(
+                'live-lab',
+                Effect.gen(function* () {
+                  const lifecycle = yield* WorkspaceLifecycle
+                  const created = yield* lifecycle.create({
+                    name: 'Audit Gap Lab',
+                    slug: 'audit-gap-lab',
+                    userId: 'usr_owner'
+                  })
+                  expect(created.slug).toBe('audit-gap-lab')
+                  expect(
+                    yield* db
+                      .select()
+                      .from(workspaces)
+                      .where(eq(workspaces.id, created.id))
+                  ).toHaveLength(1)
+                  expect(
+                    yield* db
+                      .select()
+                      .from(auditEvents)
+                      .where(eq(auditEvents.targetId, created.id))
+                  ).toHaveLength(0)
+                }),
+                { userId: 'usr_owner' },
+                { lifecycleBinding: binding }
+              ),
+            () =>
+              Effect.promise(() =>
+                d1.prepare('DROP TRIGGER reject_workspace_audit').run()
+              )
+          )
+        })
       )
 
       it.effect('fails as unavailable when no binding is configured', () =>

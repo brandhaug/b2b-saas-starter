@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm'
 import { UserAdminRejected } from '../errors.ts'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
-import { AuditEventLog } from './audit-event-log.ts'
+import { AuditEventLog, recordCompletedAudit } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   IMPERSONATION_SESSION_SECONDS,
@@ -85,13 +85,17 @@ export function LivePlatformUserAdmin(
             yield* callBinding(binding, (bound) =>
               bound.banUser({ userId: input.userId })
             )
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              actorType: 'user',
-              eventType: 'system_admin.user_banned',
-              targetType: 'user',
-              targetId: input.userId
-            })
+            yield* recordCompletedAudit(
+              audit,
+              {
+                actorUserId: input.actorUserId,
+                actorType: 'user',
+                eventType: 'system_admin.user_banned',
+                targetType: 'user',
+                targetId: input.userId
+              },
+              'platform_user_admin.ban'
+            )
           }),
         unbanUser: (input) =>
           Effect.gen(function* () {
@@ -99,13 +103,17 @@ export function LivePlatformUserAdmin(
             yield* callBinding(binding, (bound) =>
               bound.unbanUser({ userId: input.userId })
             )
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              actorType: 'user',
-              eventType: 'system_admin.user_unbanned',
-              targetType: 'user',
-              targetId: input.userId
-            })
+            yield* recordCompletedAudit(
+              audit,
+              {
+                actorUserId: input.actorUserId,
+                actorType: 'user',
+                eventType: 'system_admin.user_unbanned',
+                targetType: 'user',
+                targetId: input.userId
+              },
+              'platform_user_admin.unban'
+            )
           }),
         changeWorkspaceRole: (input) =>
           Effect.gen(function* () {
@@ -128,15 +136,19 @@ export function LivePlatformUserAdmin(
                 new UserAdminRejected({ reason: 'not_a_member_after_write' })
               )
             }
-            yield* audit.record({
-              workspaceId: input.workspaceId,
-              actorUserId: input.actorUserId,
-              actorType: 'user',
-              eventType: 'system_admin.user_role_changed',
-              targetType: 'workspace_member',
-              targetId: input.userId,
-              metadata: { role: input.role }
-            })
+            yield* recordCompletedAudit(
+              audit,
+              {
+                workspaceId: input.workspaceId,
+                actorUserId: input.actorUserId,
+                actorType: 'user',
+                eventType: 'system_admin.user_role_changed',
+                targetType: 'workspace_member',
+                targetId: input.userId,
+                metadata: { role: input.role }
+              },
+              'platform_user_admin.change_workspace_role'
+            )
             return member
           }),
         startImpersonation: (input) =>
@@ -147,14 +159,18 @@ export function LivePlatformUserAdmin(
             yield* callBinding(binding, (bound) =>
               bound.impersonateUser({ userId: input.userId })
             )
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              actorType: 'user',
-              eventType: 'system_admin.impersonation_started',
-              targetType: 'user',
-              targetId: input.userId,
-              metadata: { expiresInSeconds: IMPERSONATION_SESSION_SECONDS }
-            })
+            yield* recordCompletedAudit(
+              audit,
+              {
+                actorUserId: input.actorUserId,
+                actorType: 'user',
+                eventType: 'system_admin.impersonation_started',
+                targetType: 'user',
+                targetId: input.userId,
+                metadata: { expiresInSeconds: IMPERSONATION_SESSION_SECONDS }
+              },
+              'platform_user_admin.start_impersonation'
+            )
             yield* notifications.notifyUser({
               userId: input.userId,
               ...impersonationNotice(admin.name)
@@ -167,13 +183,17 @@ export function LivePlatformUserAdmin(
         stopImpersonation: (input) =>
           Effect.gen(function* () {
             yield* callBinding(binding, (bound) => bound.stopImpersonating())
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              actorType: 'user',
-              eventType: 'system_admin.impersonation_stopped',
-              targetType: 'user',
-              targetId: input.userId
-            })
+            yield* recordCompletedAudit(
+              audit,
+              {
+                actorUserId: input.actorUserId,
+                actorType: 'user',
+                eventType: 'system_admin.impersonation_stopped',
+                targetType: 'user',
+                targetId: input.userId
+              },
+              'platform_user_admin.stop_impersonation'
+            )
           })
       }
     })

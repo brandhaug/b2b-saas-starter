@@ -126,6 +126,15 @@ sanitizer then revokes every API token, removes account credentials and passkeys
 and bans restored users pending verification. Keep maintenance enabled until an
 operator has reset or verified the affected access and closed the Sentry alert.
 
+An application audit write that follows a completed plugin or provider action
+uses the same bounded gap procedure. It emits `audit_write_gap` with the
+operation, capability, and sanitized subject or Workspace references while the
+caller receives the completed action result. Inspect the provider or plugin
+state and the request or trace record, then append a corrected audit event only
+when those sources establish the action. If they do not, record the uncertainty
+and apply the security restriction or credential reset required for the action;
+do not claim that the audit table can reconstruct it.
+
 ## Choose the recovery action
 
 | Finding                                                   | Operator action                                                                      | Required evidence before reopening                                                           |
@@ -210,17 +219,18 @@ service, environment and failure kind, preserving request/job/provider IDs as
 evidence rather than incident keys. A missing check-in or deactivated monitor
 is not a healthy result.
 
-| Condition                 | Initial policy                                                        | Evidence and first action                                                                                            |
-| ------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Web/API readiness         | Failure continuously for 5 minutes                                    | URL, dependency result, release, first/last failure; inspect bindings/D1, then evaluate code rollback                |
-| Worker server errors      | More than 5% in 5 minutes, at least 20 requests                       | Numerator, denominator, service, release, trace IDs; identify failing route and dependency                           |
-| Billing synchronization   | Unresolved for 15 minutes                                             | Workspace, provider event and reconciliation outcome; inspect current Stripe state and use audited recovery          |
-| Queue backlog             | Oldest pending work exceeds the deployment's agreed processing budget | Queue name, age, count, retry/DLQ counts; inspect consumer and provider health before resuming                       |
-| Exhausted background work | Any terminal exhausted job                                            | Job/delivery ID, queue, attempts, sanitized cause; repair cause, then review explicit retry                          |
-| Scheduled work            | Failed, missed or timed-out completion                                | Monitor slug, scheduled time, check-in ID; inspect invocation and overlapping executions                             |
-| Nightly backup            | Failed run or no successful backup in 26 hours                        | Object key, completion time, encrypted object verification, export duration; repair credentials/store and run backup |
-| Systemic email failures   | Repeated transport or event-consumer failures                         | Purpose, sanitized outcome, provider/message IDs; inspect sender/provider and event subscription                     |
-| Recovery evidence gap     | Any failed independent security-record write                          | Mutation category, safe identity reference, time; preserve live revocation and resolve recovery evidence             |
+| Condition                  | Initial policy                                                        | Evidence and first action                                                                                                 |
+| -------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Web/API readiness          | Failure continuously for 5 minutes                                    | URL, dependency result, release, first/last failure; inspect bindings/D1, then evaluate code rollback                     |
+| Worker server errors       | More than 5% in 5 minutes, at least 20 requests                       | Numerator, denominator, service, release, trace IDs; identify failing route and dependency                                |
+| Billing synchronization    | Unresolved for 15 minutes                                             | Workspace, provider event and reconciliation outcome; inspect current Stripe state and use audited recovery               |
+| Queue backlog              | Oldest pending work exceeds the deployment's agreed processing budget | Queue name, age, count, retry/DLQ counts; inspect consumer and provider health before resuming                            |
+| Exhausted background work  | Any terminal exhausted job                                            | Job/delivery ID, queue, attempts, sanitized cause; repair cause, then review explicit retry                               |
+| Scheduled work             | Failed, missed or timed-out completion                                | Monitor slug, scheduled time, check-in ID; inspect invocation and overlapping executions                                  |
+| Nightly backup             | Failed run or no successful backup in 26 hours                        | Object key, completion time, encrypted object verification, export duration; repair credentials/store and run backup      |
+| Systemic email failures    | Repeated transport or event-consumer failures                         | Purpose, sanitized outcome, provider/message IDs; inspect sender/provider and event subscription                          |
+| Recovery evidence gap      | Any failed independent security-record write                          | Mutation category, safe identity reference, time; preserve live revocation and resolve recovery evidence                  |
+| Completed action audit gap | Any `audit_write_gap` signal after a plugin or provider mutation      | Operation, capability, safe identity reference and trace; inspect authoritative external state, repair or restrict access |
 
 Individual recipient bounces remain delivery diagnostics. They should not page
 operators as systemic email outages. Never attach raw email bodies, tokens,

@@ -15,6 +15,7 @@ import {
 import { newCapabilityId } from '../internal/ids.ts'
 import { type AuditEventType, type AuditTargetType } from './audit-event-taxonomy.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
+import { captureMonitoringSignal } from '@b2b-saas-starter/logger/providers'
 
 export const AuditEvent = Schema.Struct({
   id: Schema.String,
@@ -187,6 +188,73 @@ export function recordInWorkspace(
       actorUserId: ctx.actor?.userId ?? null,
       actorType: ctx.actorType
     })
+  })
+}
+
+/**
+ * Record evidence after a mutation whose authoritative write already finished.
+ * Plugin and provider writes cannot join the D1 audit batch, so an audit outage
+ * must remain visible without making a completed action look unsuccessful.
+ */
+export function recordCompletedAudit(
+  audit: AuditEventLogInterface,
+  input: RecordAuditEventInput,
+  operation: string
+): Effect.Effect<void, never> {
+  return audit.record(input).pipe(
+    Effect.catch((error) =>
+      Effect.gen(function* () {
+        yield* Effect.logError('audit write failed after completed mutation').pipe(
+          Effect.annotateLogs({
+            auditOperation: operation,
+            auditCapability: error.capability,
+            auditFailureReason: error.reason,
+            eventType: input.eventType,
+            targetId: input.targetId ?? undefined,
+            subjectId: input.actorUserId ?? undefined,
+            workspaceId: input.workspaceId ?? undefined
+          })
+        )
+        yield* Effect.tryPromise({
+          try: () =>
+            captureMonitoringSignal('audit_write_gap', {
+              operation,
+              capability: error.capability,
+              reason: error.reason,
+              eventType: input.eventType,
+              targetId: input.targetId ?? undefined,
+              subjectId: input.actorUserId ?? undefined,
+              workspaceId: input.workspaceId ?? undefined
+            }),
+          catch: () => 'audit_gap_monitoring_unavailable'
+        }).pipe(Effect.ignore)
+      })
+    )
+  )
+}
+
+/**
+ * Record evidence after a mutation whose authoritative write already finished.
+ * Plugin and provider writes cannot join the D1 audit batch, so an audit outage
+ * must remain visible without making a completed action look unsuccessful.
+ */
+export function recordCompletedMutationAudit(
+  audit: AuditEventLogInterface,
+  event: Omit<RecordAuditEventInput, 'workspaceId' | 'actorUserId' | 'actorType'>,
+  operation: string
+): Effect.Effect<void, never, WorkspaceContext> {
+  return Effect.gen(function* () {
+    const ctx = yield* WorkspaceContext
+    yield* recordCompletedAudit(
+      audit,
+      {
+        ...event,
+        workspaceId: ctx.workspace.id,
+        actorUserId: ctx.actor?.userId ?? null,
+        actorType: ctx.actorType
+      },
+      operation
+    )
   })
 }
 

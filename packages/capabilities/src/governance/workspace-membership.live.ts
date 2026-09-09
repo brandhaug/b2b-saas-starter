@@ -16,7 +16,7 @@ import {
   publishSeatSyncWith,
   SeatSyncPublisher
 } from '@b2b-saas-starter/billing/seat-sync'
-import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
+import { AuditEventLog, recordCompletedMutationAudit } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   recordSecurityEvidence,
@@ -183,12 +183,16 @@ export function LiveWorkspaceMembership(
             })
           )
           const member = yield* readMember(ctx.workspace.id, input.userId)
-          yield* recordInWorkspace(audit, {
-            eventType: 'workspace_member.added',
-            targetType: 'workspace_member',
-            targetId: input.userId,
-            metadata: { role: input.role }
-          })
+          yield* recordCompletedMutationAudit(
+            audit,
+            {
+              eventType: 'workspace_member.added',
+              targetType: 'workspace_member',
+              targetId: input.userId,
+              metadata: { role: input.role }
+            },
+            'workspace_membership.add'
+          )
           // Seat sync rides a queue the background worker consumes, so this
           // mutation never awaits Stripe — best-effort, after the audit.
           yield* publishSeatSyncWith(seatSync, {
@@ -222,11 +226,15 @@ export function LiveWorkspaceMembership(
             },
             securityEvidence
           )
-          yield* recordInWorkspace(audit, {
-            eventType: 'workspace_member.removed',
-            targetType: 'workspace_member',
-            targetId: input.userId
-          })
+          yield* recordCompletedMutationAudit(
+            audit,
+            {
+              eventType: 'workspace_member.removed',
+              targetType: 'workspace_member',
+              targetId: input.userId
+            },
+            'workspace_membership.remove'
+          )
           yield* publishSeatSyncWith(seatSync, {
             workspaceId: ctx.workspace.id,
             reason: 'member_removed'
@@ -269,12 +277,16 @@ export function LiveWorkspaceMembership(
             },
             securityEvidence
           )
-          yield* recordInWorkspace(audit, {
-            eventType: 'workspace_member.removed',
-            targetType: 'workspace_member',
-            targetId: actor.userId,
-            metadata: { reason: 'left' }
-          })
+          yield* recordCompletedMutationAudit(
+            audit,
+            {
+              eventType: 'workspace_member.removed',
+              targetType: 'workspace_member',
+              targetId: actor.userId,
+              metadata: { reason: 'left' }
+            },
+            'workspace_membership.leave'
+          )
           yield* publishSeatSyncWith(seatSync, {
             workspaceId: ctx.workspace.id,
             reason: 'member_removed'
@@ -313,12 +325,16 @@ export function LiveWorkspaceMembership(
             securityEvidence
           )
           const member = yield* readMember(ctx.workspace.id, input.userId)
-          yield* recordInWorkspace(audit, {
-            eventType: 'workspace_member.role_changed',
-            targetType: 'workspace_member',
-            targetId: input.userId,
-            metadata: { role: input.role }
-          })
+          yield* recordCompletedMutationAudit(
+            audit,
+            {
+              eventType: 'workspace_member.role_changed',
+              targetType: 'workspace_member',
+              targetId: input.userId,
+              metadata: { role: input.role }
+            },
+            'workspace_membership.change_role'
+          )
           return member
         })
       }
