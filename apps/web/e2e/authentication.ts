@@ -1,10 +1,26 @@
 /* oxlint-disable effect/noNodeBuiltinImport -- Playwright runs this credential fixture in Node, outside application runtimes. */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { expect, test, type CDPSession, type Page } from '@playwright/test'
+import {
+  expect,
+  test as base,
+  type BrowserContext,
+  type CDPSession,
+  type Page
+} from '@playwright/test'
+import { hasLocalD1State } from '../src/lib/local-d1-state'
+import { isolatedClientIp } from './test-isolation'
+
+type WorkerFixtures = {
+  ownerStorageState: Awaited<ReturnType<BrowserContext['storageState']>>
+}
+
+type TestFixtures = {
+  ownerPage: Page
+}
 
 export function credentialPath(worker: number): string {
-  return join(import.meta.dirname, `../test-results/demo-passkey-${worker}.json`)
+  return join(import.meta.dirname, `../.auth/demo-passkey-${worker}.json`)
 }
 export function fixturePasskeyName(worker: number): string {
   return `E2E shared authentication ${worker}`
@@ -28,10 +44,13 @@ export async function addVirtualAuthenticator(cdp: CDPSession): Promise<string> 
   return authenticatorId
 }
 
-export async function installDemoPasskey(page: Page) {
+export async function installDemoPasskey(
+  page: Page,
+  worker = base.info().parallelIndex
+) {
   const cdp = await page.context().newCDPSession(page)
   const authenticatorId = await addVirtualAuthenticator(cdp)
-  const path = credentialPath(test.info().parallelIndex)
+  const path = credentialPath(worker)
   const credential = JSON.parse(readFileSync(path, 'utf8'))
   await cdp.send('WebAuthn.addCredential', { authenticatorId, credential })
   // Each worker uses its own key. Keep its counter even when a later page
@@ -77,11 +96,15 @@ export async function verifyWithPasskey(page: Page, redirect: string): Promise<v
   await page.locator('header select:enabled').waitFor({ state: 'attached' })
 }
 
-export async function signInAsOwner(page: Page, redirect: string) {
+export async function signInAsOwner(
+  page: Page,
+  redirect: string,
+  worker = base.info().parallelIndex
+) {
   // Install after password sign-in so conditional passkey autofill cannot
   // race the password form. Verification creates its own qualified session.
   await signInWithPassword(page, 'demo@starter.local', '/account')
-  const authenticator = await installDemoPasskey(page)
+  const authenticator = await installDemoPasskey(page, worker)
   await verifyWithPasskey(page, redirect)
   return authenticator
 }
@@ -93,3 +116,46 @@ export async function confirmPasswordForEnrollment(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Confirm password', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('Password confirmed.')
 }
+
+/**
+ * Ordinary owner-facing UI tests share one qualified session per worker. The
+ * browser context is still new for every test, so cookies and client state do
+ * not leak between tests; only the expensive password + passkey ceremony is
+ * reused. The worker's passkey credential remains in authentication.ts' file
+ * and continues to receive assertion-counter updates.
+ */
+export const test = base.extend<TestFixtures, WorkerFixtures>({
+  ownerStorageState: [
+    async ({ browser }, provide, testInfo) => {
+      if (!hasLocalD1State()) {
+        await provide({ cookies: [], origins: [] })
+        return
+      }
+      const context = await browser.newContext({
+        baseURL: testInfo.project.use.baseURL
+      })
+      await context.setExtraHTTPHeaders({
+        'cf-connecting-ip': isolatedClientIp(`owner-auth:${testInfo.workerIndex}`)
+      })
+      const page = await context.newPage()
+      const authenticator = await signInAsOwner(
+        page,
+        '/account',
+        testInfo.parallelIndex
+      )
+      const state = await context.storageState()
+      await authenticator.cdp.send('WebAuthn.removeVirtualAuthenticator', {
+        authenticatorId: authenticator.authenticatorId
+      })
+      await context.close()
+      await provide(state)
+    },
+    { scope: 'worker' }
+  ],
+  ownerPage: async ({ context, page, ownerStorageState }, provide) => {
+    await context.addCookies(ownerStorageState.cookies)
+    await provide(page)
+  }
+})
+
+export { expect } from '@playwright/test'

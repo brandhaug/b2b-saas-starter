@@ -1,17 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { expect, signInWithPassword, test } from './authentication'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
 import { isolatedClientIp } from './test-isolation'
-import { signInAsOwner, signInWithPassword } from './authentication'
 
-// Sign-in is the only way into the authenticated area — the /workspaces subtree
-// gate redirects anonymous visitors — so every test here starts with a real
-// credential round trip against the seeded local D1.
+// The member case intentionally keeps a real credential round trip; the owner
+// case uses the worker-scoped qualified session fixture.
 async function signIn(page: Page, email: string, redirect: string): Promise<void> {
-  if (email === 'demo@starter.local') {
-    await signInAsOwner(page, redirect)
-  } else {
-    await signInWithPassword(page, email, redirect)
-  }
+  await signInWithPassword(page, email, redirect)
   await page.locator('header select:enabled').waitFor({ state: 'attached' })
 }
 
@@ -25,9 +20,13 @@ test.beforeEach(async ({ context }, testInfo) => {
   })
 })
 
-test('an owner opening workspace settings gets the settings page', async ({ page }) => {
-  await signIn(page, 'demo@starter.local', '/workspaces/starter-lab/settings')
-  await expect(page.getByRole('heading', { name: 'Workspace settings' })).toBeVisible()
+test('an owner opening workspace settings gets the settings page', async ({
+  ownerPage
+}) => {
+  await ownerPage.goto('/workspaces/starter-lab/settings')
+  await expect(
+    ownerPage.getByRole('heading', { name: 'Workspace settings' })
+  ).toBeVisible()
 })
 
 test('a member sees no api token form and no webhook delivery card', async ({

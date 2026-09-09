@@ -33,8 +33,17 @@ pnpm run validate
 
 Validation runs `check`, build, generated Wrangler drift detection, and E2E. It
 migrates and seeds the local demo database and needs process/port access for
-Workers D1. E2E starts a fresh server on port 3097; set `E2E_PORT` to an unused
-port when validating several worktrees concurrently.
+Workers D1. E2E builds the web app into `apps/web/dist-e2e` and starts a fresh
+preview server on port 3097 against the seeded local database. Set `E2E_PORT`
+to an unused port when validating several worktrees concurrently.
+
+For browser debugging against the dev server, use
+`E2E_SERVER=dev pnpm run test:e2e`. The default compiled preview avoids Vite
+transforms during tests. CI runs two file-level shards, each with its own local
+D1 and two browser workers. Each shard uploads a JSON timing report at
+`playwright-report/results.json` alongside failure traces. Login, passkey, and
+session-revocation tests authenticate afresh; ordinary owner UI tests reuse a
+qualified session per worker in fresh browser contexts.
 
 ## Database
 

@@ -1,30 +1,21 @@
 import { Deferred, Effect } from 'effect'
-import { expect, test, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { expect, signInWithPassword, test } from './authentication'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
 import { isolatedClientIp } from './test-isolation'
-import { signInAsOwner, signInWithPassword } from './authentication'
 
 function auditRequest(url: URL) {
   return (
     url.pathname.startsWith('/_serverFn/') &&
-    Buffer.from(url.pathname.slice('/_serverFn/'.length), 'base64url')
-      .toString()
-      .includes('workspace-audit.ts')
+    url.searchParams.get('payload')?.includes('aud_token') === true
   )
 }
 
 const auditPath = '/workspaces/starter-lab/audit'
 
-async function signIn(page: Page, email = 'demo@starter.local') {
-  if (email === 'engineer@example.com') {
-    await signInWithPassword(page, email, auditPath)
-    await expect(
-      page.getByRole('heading', { name: 'Audit access denied' })
-    ).toBeVisible()
-  } else {
-    await signInAsOwner(page, auditPath)
-    await page.locator('header select:enabled').waitFor({ state: 'attached' })
-  }
+async function signIn(page: Page, email: string) {
+  await signInWithPassword(page, email, auditPath)
+  await expect(page.getByRole('heading', { name: 'Audit access denied' })).toBeVisible()
 }
 
 test.beforeEach(async ({ context }, testInfo) => {
@@ -35,9 +26,11 @@ test.beforeEach(async ({ context }, testInfo) => {
 })
 
 test('event links preserve filters, keyboard focus, and back/forward history', async ({
-  page
+  ownerPage
 }) => {
-  await signIn(page)
+  const page = ownerPage
+  await page.goto(auditPath)
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page.getByRole('combobox', { name: 'Filter by actor' }).click()
   await page.getByRole('option', { name: 'Ops Lead', exact: true }).click()
   await expect(page).toHaveURL(`${auditPath}?actor=usr_ops`)
@@ -68,9 +61,9 @@ test('event links preserve filters, keyboard focus, and back/forward history', a
 })
 
 test('a direct link resolves outside the visible list and closes in place on mobile', async ({
-  page
+  ownerPage
 }, testInfo) => {
-  await signIn(page)
+  const page = ownerPage
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(`${auditPath}?eventType=no.such.event&cursor=invalid&event=aud_token`)
   const dialog = page.getByRole('dialog', { name: 'Audit event' })
@@ -93,9 +86,9 @@ test('a direct link resolves outside the visible list and closes in place on mob
 })
 
 test('missing and foreign-workspace events have the same unavailable result', async ({
-  page
+  ownerPage
 }) => {
-  await signIn(page)
+  const page = ownerPage
   // oxlint-disable no-await-in-loop -- each navigation replaces the same browser page
   for (const event of ['missing', 'aud_admin']) {
     await page.goto(`${auditPath}?event=${event}`)
@@ -115,9 +108,11 @@ test('a member cannot inspect an event by direct link', async ({ page }) => {
 })
 
 test('a failed detail request shows a retryable error instead of a missing event', async ({
-  page
+  ownerPage
 }) => {
-  await signIn(page)
+  const page = ownerPage
+  await page.goto(auditPath)
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await expect(
     page.getByRole('link', { name: /^Inspect API token created/ })
   ).toBeVisible()

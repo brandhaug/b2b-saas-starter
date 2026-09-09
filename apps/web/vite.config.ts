@@ -58,12 +58,19 @@ function remarkMermaid() {
 
 // Which `cloudflare:workers` shim to alias, or null to leave the specifier
 // alone (the deployed worker resolves it natively). `vite dev` gets the dev
-// shim, which attaches the persisted local D1 when packages/db has migrated
-// state; test and opt-in builds keep the inert shim so bundles never pull in
-// wrangler.
+// shim, and the dedicated e2e build gets its Node preview shim; both attach
+// persisted local D1 when packages/db has migrated state. Tests and ordinary
+// opt-in builds keep the inert shim so bundles never pull in wrangler.
 function resolveWorkersShim(command: 'build' | 'serve', mode: string): string | null {
-  if (mode !== 'test' && process.env.B2B_STARTER_USE_WORKERS_SHIM !== '1') {
+  if (
+    mode !== 'test' &&
+    mode !== 'e2e' &&
+    process.env.B2B_STARTER_USE_WORKERS_SHIM !== '1'
+  ) {
     return null
+  }
+  if (mode === 'e2e') {
+    return './scripts/cloudflare-workers-shim-e2e.ts'
   }
   return command === 'serve' && mode !== 'test'
     ? './src/lib/cloudflare-workers-shim-dev.ts'
@@ -179,7 +186,10 @@ export default defineConfig(({ command, mode }) => {
     // posthog-js, @sentry/react) emitted as never-executed lazy chunks.
     // ADR 0063 strips those at the source and is the rule for any new
     // browser-only dynamic import.
-    build: { minify: true },
+    build: {
+      minify: true,
+      outDir: mode === 'e2e' ? 'dist-e2e' : 'dist'
+    },
     // `forwardConsole` auto-enables when an AI coding agent is detected, and
     // mirrored `[Server]` errors (e.g. the pre-migration MissingD1Binding 500
     // storm) then flood the terminal — a dev process died at 1.67M log lines
