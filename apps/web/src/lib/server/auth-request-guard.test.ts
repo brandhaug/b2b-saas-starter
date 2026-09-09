@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   },
   strong: vi.fn(),
   suspension: vi.fn(),
+  impersonationAction: vi.fn(),
   impersonation: vi.fn(),
   ssoRequired: vi.fn(),
   disabledSso: vi.fn()
@@ -28,7 +29,7 @@ vi.mock('./auth-organization-suspension', () => ({
   suspendedOrganizationResponse: state.suspension
 }))
 vi.mock('./impersonation-guard', () => ({
-  impersonationForbiddenAction: () => null,
+  impersonationForbiddenAction: state.impersonationAction,
   impersonationGuardResponse: state.impersonation
 }))
 vi.mock('./sso-sign-in-gate', () => ({
@@ -65,6 +66,7 @@ beforeEach(() => {
   state.runtime.runPromise.mockResolvedValue(state.session)
   state.strong.mockResolvedValue(null)
   state.suspension.mockResolvedValue(null)
+  state.impersonationAction.mockReturnValue(null)
   state.impersonation.mockReturnValue(Effect.succeed(null))
   state.ssoRequired.mockReturnValue(Effect.succeed(null))
   state.disabledSso.mockReturnValue(Effect.succeed(null))
@@ -182,6 +184,53 @@ describe('auth request guard interface', () => {
 
     expect(result).toMatchObject({ outcome: 'refused', response: refusal })
     expect(order).toEqual(['strong-authentication', 'suspension'])
+    expect(plugin).not.toHaveBeenCalled()
+  })
+
+  it('stops an impersonated credential change before Better Auth', async () => {
+    const refusal = new Response(
+      JSON.stringify({ code: 'forbidden_while_impersonating' }),
+      { status: 403 }
+    )
+    state.impersonationAction.mockReturnValue('change_password')
+    state.impersonation.mockImplementation((session) =>
+      Effect.succeed(session?.impersonatedBy === 'usr_admin' ? refusal : null)
+    )
+    state.runtime.runPromise.mockResolvedValue({
+      ...state.session,
+      session: { ...state.session.session, impersonatedBy: 'usr_admin' }
+    })
+    const plugin = vi.fn(() => Effect.succeed(new Response('plugin')))
+
+    const result = await run(request('POST', '/api/auth/change-password'), plugin)
+
+    expect(result).toMatchObject({ outcome: 'refused', response: refusal })
+    expect(plugin).not.toHaveBeenCalled()
+  })
+
+  it('stops required-SSO credential sign-in before Better Auth', async () => {
+    const refusal = new Response(JSON.stringify({ code: 'sso_required' }), {
+      status: 403
+    })
+    state.ssoRequired.mockReturnValue(Effect.succeed(refusal))
+    const plugin = vi.fn(() => Effect.succeed(new Response('plugin')))
+
+    const result = await run(request('POST', '/api/auth/sign-in/email'), plugin)
+
+    expect(result).toMatchObject({ outcome: 'refused', response: refusal })
+    expect(plugin).not.toHaveBeenCalled()
+  })
+
+  it('stops disabled-SSO sign-in before Better Auth', async () => {
+    const refusal = new Response(JSON.stringify({ code: 'sso_connection_disabled' }), {
+      status: 403
+    })
+    state.disabledSso.mockReturnValue(Effect.succeed(refusal))
+    const plugin = vi.fn(() => Effect.succeed(new Response('plugin')))
+
+    const result = await run(request('POST', '/api/auth/sign-in/sso'), plugin)
+
+    expect(result).toMatchObject({ outcome: 'refused', response: refusal })
     expect(plugin).not.toHaveBeenCalled()
   })
 

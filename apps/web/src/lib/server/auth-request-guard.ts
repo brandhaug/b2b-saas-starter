@@ -71,10 +71,8 @@ function isSsoProductAction(path: string): boolean {
 }
 
 export type AuthRequestClassification = {
-  readonly path: string
   readonly auditContext: boolean
   readonly organizationProduct: boolean
-  readonly ssoProduct: boolean
   readonly impersonationAction: ImpersonationForbiddenAction | null
   readonly strongAuthentication: StrongAuthenticationAction
 }
@@ -122,11 +120,9 @@ export function classifyAuthRequest(exchange: AuthExchange): AuthRequestClassifi
     strongAuthentication = { kind: 'additional-factor' }
   }
   return {
-    path,
     auditContext:
       needsPreHandlerActor(exchange) || exchange.pathname.endsWith('/unlink-account'),
     organizationProduct,
-    ssoProduct,
     impersonationAction,
     strongAuthentication
   }
