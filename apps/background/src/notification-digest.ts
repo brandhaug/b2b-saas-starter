@@ -4,20 +4,12 @@ import {
 } from '@b2b-saas-starter/capabilities/runtime'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
-  NotificationFeed,
   type DigestCandidate,
   type NotificationRecipient
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import {
-  notificationKindLabel,
-  type NotificationChannel,
-  type NotificationKind
-} from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
-import {
-  isAllowedDuringWorkspaceSuspension,
-  renderNotificationCopy
-} from '@b2b-saas-starter/capabilities/notifications/notification-events'
-import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
+import { NotificationEmailEligibility } from '@b2b-saas-starter/capabilities/notifications/notification-email-eligibility'
+import { notificationKindLabel } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
+import { renderNotificationCopy } from '@b2b-saas-starter/capabilities/notifications/notification-events'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import { formatDateTime } from '@b2b-saas-starter/i18n/format'
@@ -26,8 +18,7 @@ import {
   selectEmailDispatcherLayer
 } from '@b2b-saas-starter/email'
 import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
-import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
-import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import { type EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import {
   NotificationDigestEmail,
   type DigestItem
@@ -45,12 +36,6 @@ export type RecipientDigest = {
   readonly recipient: NotificationRecipient
   readonly items: ReadonlyArray<DigestItem>
 }
-
-/** Resolves a recipient's channel for a kind — the digest's one policy input. */
-export type ChannelResolver = (
-  userId: string,
-  kind: NotificationKind
-) => NotificationChannel
 
 /**
  * Formats a Notification's ISO timestamp for the digest email: the template
@@ -71,15 +56,13 @@ export function formatDigestTimestamp(
 }
 
 /**
- * Groups the window's candidate pairs into one digest per recipient, keeping
- * only the kinds that recipient takes as `digest`. Pure: the clock has already
- * cut the window, and the preferences are handed in as a function, so the
- * grouping is testable with fixed rows. Items are newest first; digests are
- * ordered by recipient email so a run is deterministic.
+ * Groups the already-selected candidate pairs into one digest per recipient.
+ * Eligibility and current preference reads belong to the capability service.
+ * Items are newest first; digests are ordered by recipient email so a run is
+ * deterministic.
  */
 export function buildDigests(
-  candidates: ReadonlyArray<DigestCandidate>,
-  channelFor: ChannelResolver
+  candidates: ReadonlyArray<DigestCandidate>
 ): ReadonlyArray<RecipientDigest> {
   const byRecipient = new Map<
     string,
@@ -90,9 +73,6 @@ export function buildDigests(
   )) {
     const kind = candidate.notification.kind
     const { recipient } = candidate
-    if (channelFor(recipient.userId, kind) !== 'digest') {
-      continue
-    }
     const locale = recipient.locale ?? DEFAULT_LOCALE
     const copy = renderNotificationCopy(
       candidate.notification,
@@ -145,12 +125,7 @@ export function runNotificationDigest(
 ): Effect.Effect<
   DigestRunSummary,
   CapabilityUnavailable,
-  | NotificationFeed
-  | NotificationPreferences
-  | EmailDispatcher
-  | EmailDelivery
-  | WorkspaceSuspensionService
-  | Scope.Scope
+  NotificationEmailEligibility | EmailDispatcher | EmailDelivery | Scope.Scope
 > {
   return Effect.gen(function* () {
     const now = yield* DateTime.now
@@ -158,97 +133,15 @@ export function runNotificationDigest(
     const since = DateTime.formatIso(
       DateTime.subtractDuration(DateTime.makeUnsafe(until), DIGEST_WINDOW)
     )
-    const feed = yield* NotificationFeed
-    const preferences = yield* NotificationPreferences
-    const emailDelivery = yield* EmailDelivery
-
-    const candidates = yield* feed.listDigestCandidates({ since, until })
-    const suspension = yield* WorkspaceSuspensionService
-    const eligibleCandidates: Array<(typeof candidates)[number]> = []
-    const suspendedCandidates: Array<(typeof candidates)[number]> = []
-    let suspended = 0
-    for (const candidate of candidates) {
-      if (isAllowedDuringWorkspaceSuspension(candidate.notification)) {
-        eligibleCandidates.push(candidate)
-        continue
-      }
-      const consumed = yield* emailDelivery.get(
-        `digest-suppressed:${until}:${candidate.notification.id}:${candidate.recipient.userId}`
-      )
-      if (consumed?.reason === 'workspace_suspended') {
-        suspended += 1
-        continue
-      }
-      if (candidate.workspace === null) {
-        eligibleCandidates.push(candidate)
-        continue
-      }
-      const workspaceId = candidate.workspace.id
-      const allowed = yield* Effect.result(
-        suspension.requireAllowed(workspaceId, 'product')
-      )
-      if (Result.isSuccess(allowed)) {
-        eligibleCandidates.push(candidate)
-      } else if (allowed.failure._tag === 'WorkspaceSuspended') {
-        suspended += 1
-        suspendedCandidates.push(candidate)
-      } else {
-        return yield* Effect.fail(allowed.failure)
-      }
-    }
-    if (suspended > 0) {
+    const eligibility = yield* NotificationEmailEligibility
+    const selection = yield* eligibility.digest({ since, until })
+    if (selection.suspendedCount > 0) {
       yield* Effect.annotateLogsScoped({
-        notificationDigestSkipped: suspended,
+        notificationDigestSkipped: selection.suspendedCount,
         skipReason: 'workspace_suspended'
       })
     }
-
-    // One preference read per recipient, not per (recipient, kind) pair.
-    const recipientIds = [
-      ...new Set(candidates.map((candidate) => candidate.recipient.userId))
-    ]
-    const channels = new Map<
-      string,
-      ReadonlyMap<NotificationKind, NotificationChannel>
-    >()
-    for (const userId of recipientIds) {
-      const resolved = yield* preferences.list(userId)
-      channels.set(
-        userId,
-        new Map(resolved.map((entry) => [entry.kind, entry.channel]))
-      )
-    }
-    // Consume suspended digest items durably. Otherwise an unread row would
-    // reappear after reactivation and be sent retroactively.
-    for (const candidate of suspendedCandidates) {
-      if (candidate.workspace === null) {
-        continue
-      }
-      const workspaceId = candidate.workspace.id
-      const recipientUserId = candidate.recipient.userId
-      const kind = candidate.notification.kind
-      if (channels.get(recipientUserId)?.get(kind) !== 'digest') {
-        continue
-      }
-      const id = `digest-suppressed:${until}:${candidate.notification.id}:${recipientUserId}`
-      const claimed = yield* emailDelivery.claim({
-        id,
-        purpose: 'digest',
-        recipient: candidate.recipient.email,
-        userId: candidate.recipient.userId,
-        workspaceId,
-        referenceId: candidate.notification.id,
-        queuedAt: until
-      })
-      if (claimed !== null) {
-        yield* emailDelivery.abandon(id, 'workspace_suspended')
-      }
-    }
-    const digests = buildDigests(eligibleCandidates, (userId, kind) => {
-      // `list` returns every kind, so a miss can only mean the store dropped
-      // the recipient between the two reads; treat it as "not in the digest".
-      return channels.get(userId)?.get(kind) ?? 'off'
-    })
+    const digests = buildDigests(selection.candidates)
 
     let sent = 0
     let failed = 0
@@ -295,7 +188,7 @@ export function runNotificationDigest(
     const summary: DigestRunSummary = {
       since,
       until,
-      candidates: eligibleCandidates.length,
+      candidates: selection.candidateCount,
       digests: digests.length,
       sent,
       failed
