@@ -48,7 +48,8 @@ export const RetentionRecordClass = Schema.Literals([
   'email_unresolved',
   'oauth_assertions',
   'billing_checkouts',
-  'billing_notices'
+  'billing_notices',
+  'personal_data_exports'
 ])
 export type RetentionRecordClass = typeof RetentionRecordClass.Type
 
@@ -69,7 +70,8 @@ export const RetentionCounts = Schema.Struct({
   email_unresolved: Schema.Number,
   oauth_assertions: Schema.Number,
   billing_checkouts: Schema.Number,
-  billing_notices: Schema.Number
+  billing_notices: Schema.Number,
+  personal_data_exports: Schema.Number
 })
 export type RetentionCounts = typeof RetentionCounts.Type
 
@@ -138,6 +140,7 @@ export function emptyCounts(): RetentionCounts {
     email_unresolved: 0,
     oauth_assertions: 0,
     billing_checkouts: 0,
-    billing_notices: 0
+    billing_notices: 0,
+    personal_data_exports: 0
   }
 }

@@ -82,11 +82,9 @@ import {
 } from './governance/workspace-export.live.ts'
 import { SeedWorkspaceExports } from './governance/workspace-export.seed.ts'
 import { type WorkspaceExports } from './governance/workspace-export.ts'
-import {
-  LivePersonalDataExports,
-  SeedPersonalDataExports,
-  type PersonalDataExports
-} from './governance/personal-data-export.ts'
+import { type PersonalDataExports } from './governance/personal-data-export.ts'
+import { LivePersonalDataExports } from './governance/personal-data-export.live.ts'
+import { SeedPersonalDataExports } from './governance/personal-data-export.seed.ts'
 import { type WorkspaceSuspensionService } from './governance/workspace-suspension.ts'
 import { LiveWorkspaceSuspension } from './governance/workspace-suspension.live.ts'
 import { SeedWorkspaceSuspension } from './governance/workspace-suspension.seed.ts'
@@ -126,6 +124,7 @@ import {
 import {
   seedApiTokens,
   seedAccountPreferences,
+  seedAccountProfiles,
   seedAuditEvents,
   seedDeliveries,
   seedDeliveryAttempts,
@@ -305,7 +304,9 @@ const SeedExports = SeedWorkspaceExports({
   fixture: seedWorkspaceExportFixture
 }).pipe(Layer.provide(SeedCore))
 const SeedPersonalExports = SeedPersonalDataExports(
-  seedSystemUsers.map((account) => account.id)
+  seedAccountProfiles,
+  seedNotifications,
+  seedWorkspaceRecord.id
 ).pipe(Layer.provide(SeedCore))
 
 // oxlint-disable effect/noAs,anti-slop/require-safety-comment-for-type-assertion
@@ -459,9 +460,11 @@ export function makeLiveCapabilitiesLayer(
     LiveStrongAuthentication,
     LiveWorkspaceExports(options.workspaceExports).pipe(Layer.provide(suspension)),
     LivePersonalDataExports.pipe(
+      Layer.provide(LiveEmailDelivery),
       Layer.provide(preferences),
       Layer.provide(accountPreferences),
-      Layer.provide(membership)
+      Layer.provide(membership),
+      Layer.provide(LiveAuditEventLog)
     ),
     suspension,
     seatSyncPublisher

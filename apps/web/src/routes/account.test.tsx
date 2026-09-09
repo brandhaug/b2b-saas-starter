@@ -148,6 +148,8 @@ describe('/account', () => {
     await screen.findByText(
       'The account cannot be deleted while impersonating this user.'
     )
+    screen.getByText('Personal data cannot be exported while impersonating this user.')
+    expect(screen.queryByRole('button', { name: 'Prepare personal data' })).toBeNull()
     expect(screen.queryByLabelText('Password')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Delete account' })).toBeNull()
   })

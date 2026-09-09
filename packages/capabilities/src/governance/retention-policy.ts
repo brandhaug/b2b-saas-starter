@@ -6,7 +6,7 @@ import {
   type RetentionResult
 } from './retention.ts'
 
-export const RETENTION_POLICY_VERSION = '2026-09-07.v1'
+export const RETENTION_POLICY_VERSION = '2026-09-09.v2'
 
 // oxlint-disable-next-line effect/noAs -- literal defaults stay narrow for policy comparisons
 export const RETENTION_DEFAULTS = {
@@ -138,7 +138,7 @@ export function validateRetentionPolicy(
     }
     if (
       !Number.isInteger(policy.workBudget) ||
-      policy.workBudget < 17 ||
+      policy.workBudget < 18 ||
       policy.workBudget > 1000
     ) {
       return yield* Effect.fail(

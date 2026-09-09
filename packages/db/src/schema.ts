@@ -694,6 +694,30 @@ export const workspaceExports = sqliteTable(
   ]
 )
 
+/** Short lived, session-bound personal archives. The JSON is intentionally
+ * stored in D1 so the download remains private and can be removed by the
+ * existing retention worker. */
+export const personalDataExports = sqliteTable(
+  'personal_data_exports',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => session.id, { onDelete: 'cascade' }),
+    archive: text('archive').notNull(),
+    createdAt: isoCreatedAt(),
+    expiresAt: text('expires_at').notNull()
+  },
+  (table) => [
+    index('personal_data_exports_expiry_idx').on(table.expiresAt, table.id),
+    index('personal_data_exports_user_id_idx').on(table.userId),
+    index('personal_data_exports_session_id_idx').on(table.sessionId)
+  ]
+)
+
 /*
  * Better Auth `jwt` plugin and `@better-auth/mcp` (the OAuth 2.1 provider it is
  * built on) — ADR 0055. Plugin-owned shape: camelCase columns, epoch-integer

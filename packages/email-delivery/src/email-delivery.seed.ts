@@ -21,6 +21,10 @@ export function SeedEmailDelivery(
         if (filter.createdBefore !== undefined) {
           direction = 1
         }
+        let limit: number | undefined = filter.limit ?? 100
+        if (filter.limit === null) {
+          limit = undefined
+        }
         return Effect.sync(() =>
           [...rows.values()]
             .filter(
@@ -44,7 +48,7 @@ export function SeedEmailDelivery(
                 direction *
                 (a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
             )
-            .slice(0, filter.limit ?? 100)
+            .slice(0, limit)
         )
       }),
       put: Effect.fn('SeedEmailDelivery.put')((row, revision) =>

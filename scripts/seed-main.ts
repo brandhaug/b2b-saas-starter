@@ -24,6 +24,7 @@ import {
   demoUserIdentity,
   seedAuditEvents,
   seedAccountPreferences,
+  seedAccountCreatedAt,
   seedDeliveryAttempts,
   seedApiTokenValue,
   seedMcpClientConnections,
@@ -205,8 +206,8 @@ function userRows(fixture: Fixture): ReadonlyArray<string> {
         emailVerified: true,
         locale: preferences?.locale ?? null,
         timeZone: preferences?.timeZone ?? null,
-        createdAt: 1_778_918_400,
-        updatedAt: 1_778_918_400
+        createdAt: seedAccountCreatedAt,
+        updatedAt: seedAccountCreatedAt
       })
     })()
   )

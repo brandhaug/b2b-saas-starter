@@ -148,6 +148,7 @@
   "shell_impersonated_two_factor": "Tofaktorinnstillinger kan ikke endres mens du opptrer som denne brukeren.",
   "shell_impersonated_passkeys": "Passnøkler kan ikke endres mens du opptrer som denne brukeren.",
   "shell_impersonated_deletion": "Kontoen kan ikke slettes mens du opptrer som denne brukeren.",
+  "shell_impersonated_personal_data": "Personopplysninger kan ikke eksporteres mens du opptrer som denne brukeren.",
   "shell_diagram_browser": "nettleser",
   "shell_diagram_mcp_client": "MCP-klient",
   "shell_diagram_queue_jobs": "køjobber",

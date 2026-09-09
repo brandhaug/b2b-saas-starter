@@ -28,7 +28,8 @@ export type DeliveryStore = {
     readonly purpose?: ClaimEmail['purpose']
     readonly statuses?: ReadonlyArray<EmailDeliveryRecord['status']>
     readonly createdBefore?: string
-    readonly limit?: number
+    /** null reads the complete personal archive; omitted keeps the history limit. */
+    readonly limit?: number | null
   }) => Effect.Effect<ReadonlyArray<StoredDelivery>, CapabilityUnavailable>
   readonly put: (
     row: StoredDelivery,
@@ -367,6 +368,11 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
   ) {
     return (yield* store.list({ userId })).map(evidence)
   })
+  const exportForUser = Effect.fn('EmailDelivery.exportForUser')(function* (
+    userId: string
+  ) {
+    return (yield* store.list({ userId, limit: null })).map(evidence)
+  })
   const listInvitations = Effect.fn('EmailDelivery.listInvitations')(function* (
     workspaceId: string
   ) {
@@ -467,6 +473,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     applyProviderEvent,
     get,
     listForUser,
+    exportForUser,
     listInvitations,
     latestInvitation,
     listSystem,

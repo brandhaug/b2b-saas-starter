@@ -51,13 +51,15 @@ export const LiveEmailDelivery = Layer.effect(
         if (filter.createdBefore !== undefined) {
           order = [asc(emailDeliveries.createdAt), asc(emailDeliveries.id)]
         }
-        return yield* db
+        const query = db
           .select()
           .from(emailDeliveries)
           .where(and(...conditions))
           .orderBy(...order)
-          .limit(filter.limit ?? 100)
-          .pipe(unavailable)
+        if (filter.limit === null) {
+          return yield* query.pipe(unavailable)
+        }
+        return yield* query.limit(filter.limit ?? 100).pipe(unavailable)
       }),
       put: Effect.fn('LiveEmailDelivery.put')(function* (row, revision) {
         if (revision === null) {
