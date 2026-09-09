@@ -7,6 +7,8 @@ import { promisify } from 'node:util'
 import { SecurityEvidenceRecord } from '@b2b-saas-starter/capabilities/governance/security-recovery-evidence'
 import { Schema } from 'effect'
 
+const CONFIG = join(import.meta.dirname, '..', 'apps', 'api', 'wrangler.jsonc')
+
 const execFilePromise = promisify(execFile)
 
 const SecurityEvidenceGap = Schema.Struct({
@@ -141,6 +143,7 @@ type ApplyOptions = {
   readonly freezeTime: string
   readonly database: string
   readonly local: boolean
+  readonly persistTo?: string | undefined
   readonly confirmTarget?: string | undefined
 }
 
@@ -157,24 +160,39 @@ function parseApplyOptions(): ApplyOptions {
   const database = readOption('--database')
   const local = process.argv.includes('--local')
   const confirmTarget = readOption('--confirm-target')
+  const persistTo = readOption('--persist-to')
   if (
     !evidence ||
     !restorePoint ||
     !freezeTime ||
     !database ||
-    (local && confirmTarget)
+    (local && confirmTarget) ||
+    (local && !persistTo) ||
+    (!local && persistTo)
   ) {
     throw new Error(
-      'usage: recovery-security.ts apply --evidence=<bundle.json> --restore-point=<ISO> --freeze-time=<ISO> --database=<name> (--local | --confirm-target=<account-id>/<name>)'
+      'usage: recovery-security.ts apply --evidence=<bundle.json> --restore-point=<ISO> --freeze-time=<ISO> --database=<name> (--local --persist-to=<path> | --confirm-target=<account-id>/<name>)'
     )
   }
   if (!local) {
-    const expected = `${process.env.CLOUDFLARE_ACCOUNT_ID ?? ''}/${database}`
+    const account = process.env.CLOUDFLARE_ACCOUNT_ID
+    if (account === undefined || account.trim().length === 0) {
+      throw new Error('CLOUDFLARE_ACCOUNT_ID is required for remote sanitation')
+    }
+    const expected = `${account}/${database}`
     if (confirmTarget !== expected) {
       throw new Error(`remote sanitation requires --confirm-target=${expected}`)
     }
   }
-  return { evidence, restorePoint, freezeTime, database, local, confirmTarget }
+  return {
+    evidence,
+    restorePoint,
+    freezeTime,
+    database,
+    local,
+    confirmTarget,
+    persistTo
+  }
 }
 
 async function apply(options: ApplyOptions): Promise<void> {
@@ -189,14 +207,18 @@ async function apply(options: ApplyOptions): Promise<void> {
       buildRecoverySecuritySql(decoded, options.restorePoint, options.freezeTime),
       { mode: 0o600 }
     )
+    const target = options.local ? 'DB' : options.database
     const targetFlag = options.local ? '--local' : '--remote'
+    const persistence = options.local ? [`--persist-to=${options.persistTo}`] : []
     await execFilePromise('pnpm', [
       'exec',
       'wrangler',
       'd1',
       'execute',
-      options.database,
+      target,
       targetFlag,
+      `--config=${CONFIG}`,
+      ...persistence,
       `--file=${sqlPath}`
     ])
   } finally {

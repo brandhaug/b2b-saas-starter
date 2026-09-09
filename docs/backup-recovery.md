@@ -15,8 +15,12 @@ checks its SHA-256 digest. Change the first schedule to the deployment's measure
 low-traffic window.
 
 Create a GitHub `backup` environment with no required reviewers. Required
-reviewers would leave unattended scheduled backups waiting for approval. Set
-`BACKUP_ENABLED=true` in that environment only after the following values work:
+reviewers would leave unattended scheduled backups waiting for approval. Store
+the following secrets and variables in that environment. After verifying them,
+set the **repository variable** `BACKUP_ENABLED=true` to enable both jobs.
+GitHub evaluates their job-level conditions before environment variables become
+available, so an environment-only flag leaves the jobs skipped. See
+[GitHub's variable availability rules](https://docs.github.com/en/actions/reference/workflows-and-actions/variables#configuration-variable-precedence).
 
 | Setting                                                             | Purpose                                                 |
 | ------------------------------------------------------------------- | ------------------------------------------------------- |
@@ -158,10 +162,25 @@ node scripts/recovery-security.ts apply \
   --restore-point=2026-09-07T12:00:00Z \
   --freeze-time=2026-09-07T12:15:00Z \
   --database=b2b-saas-starter-recovery-drill \
+  --persist-to=/private/tmp/b2b-saas-starter-recovery-drill \
   --local
 ```
 
-For a remote run, replace `--local` with
+For a local drill, import the backup into the same `--persist-to` directory
+with Wrangler before applying this command. For example, after decrypting the
+export to `recovery.sql`, run:
+
+```sh
+pnpm exec wrangler d1 execute DB --local \
+  --config=apps/api/wrangler.jsonc \
+  --persist-to=/private/tmp/b2b-saas-starter-recovery-drill \
+  --file=recovery.sql
+```
+
+The sanitizer uses the API worker's `DB` binding and requires the operator to
+identify the restored persisted store.
+
+For a remote run, omit `--persist-to` and `--local`, and use
 `--confirm-target="$CLOUDFLARE_ACCOUNT_ID/<database-name>"`. Evidence must cover
 the restore point through the maintenance freeze. The command invalidates
 restored sessions and OAuth grants and reapplies deletion/revocation evidence.
