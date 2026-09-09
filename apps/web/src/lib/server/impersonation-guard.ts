@@ -52,10 +52,9 @@ export function impersonationForbiddenAction(
  * Auth answers its own 401.
  */
 export function impersonationGuardResponse(
-  exchange: AuthExchange,
-  session: ImpersonationAwareSession | undefined
+  session: ImpersonationAwareSession | undefined,
+  action: ImpersonationForbiddenAction | null
 ): Effect.Effect<Response | null> {
-  const action = impersonationForbiddenAction(exchange)
   if (action === null || session === undefined) {
     return Effect.succeed(null)
   }

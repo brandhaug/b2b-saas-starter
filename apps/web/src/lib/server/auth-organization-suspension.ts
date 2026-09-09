@@ -101,11 +101,10 @@ function jsonError(status: number, code: string) {
 /** Enforces suspension before Better Auth can observe or mutate workspace state. */
 export async function enforceOrganizationSuspension(
   request: Request,
-  exchange: AuthExchange,
   session: SessionIdentity | undefined,
   dependencies: OrganizationSuspensionDependencies
 ): Promise<Response | null> {
-  if (!isOrganizationProductAction(exchange) || session === undefined) {
+  if (session === undefined) {
     return null
   }
 
@@ -156,10 +155,9 @@ export async function enforceOrganizationSuspension(
 
 export async function suspendedOrganizationResponse(
   request: Request,
-  exchange: AuthExchange,
   session: SessionIdentity | undefined
 ): Promise<Response | null> {
-  return enforceOrganizationSuspension(request, exchange, session, {
+  return enforceOrganizationSuspension(request, session, {
     listWorkspaces: (userId) =>
       runCapabilities(
         Effect.map(

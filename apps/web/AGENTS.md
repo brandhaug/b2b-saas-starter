@@ -5,7 +5,7 @@ TanStack Start Worker for the public site, auth, workspaces, `/admin` and `/acco
 ## Contracts
 
 - `src/start.ts` runs the config gate before observability scopes SSR and server-fn calls; nested work joins that scope.
-- The Better Auth catchall shares one `AuthExchange` URL parse and session read across rate limit, Turnstile, SSO, impersonation and audit.
+- The Better Auth HTTP handler shares one `AuthExchange` URL parse and session read. `auth-request-guard.ts` owns classification, pre-handler context and guard order; refusals skip the plugin and all post-handler processing. Rate limiting and Turnstile run first; two-factor enforcement, audit, notifications and evidence run only after a handled plugin response.
 - Gates live in `server/auth.ts`: `requireSession` runs once, in the `routes/workspaces.tsx` `beforeLoad`, children read `context.session`, and every server fn calls `requireRequestSession()`.
 - `lib/capabilities.ts` maps capability errors to `notFound()` or `capability-error.ts` discriminants. Loaders catch nothing.
 
