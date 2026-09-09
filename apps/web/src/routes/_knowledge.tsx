@@ -1,10 +1,5 @@
 import { createFileRoute, Link, Outlet, useLocation } from '@tanstack/react-router'
-import {
-  SectionSwitcher,
-  type KnowledgeSection
-} from '@/components/knowledge-section-switcher'
 import { PublicLayout } from '@/components/public-layout'
-import { getAllPostMeta, type PostMeta } from '@/lib/blog'
 import {
   DOC_CATEGORY_ORDER,
   docCategoryName,
@@ -16,85 +11,29 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 export const Route = createFileRoute('/_knowledge')({
   // Article metadata only — the compiled MDX itself loads per article (see
   // lib/docs.ts), so the layout's chunk carries titles, not article bodies.
-  // Doc and post metadata resolve together: the section-aware sidebar lists
-  // whichever one the current page belongs to.
-  // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the two reads parallel
-  loader: () => Promise.all([getAllDocMeta(), getAllPostMeta()]),
+  loader: () => getAllDocMeta(),
   component: KnowledgeLayout
 })
 
-/** The section a path belongs to; docs is the default. */
-function sectionFor(pathname: string): KnowledgeSection {
-  if (pathname.startsWith('/blog')) {
-    return 'blog'
-  }
-  if (pathname.startsWith('/faq')) {
-    return 'faq'
-  }
-  return 'docs'
-}
-
 /** The one active/inactive treatment for knowledge nav links. */
-function knowledgeLinkClasses(isActive: boolean): string {
+function knowledgeLinkClasses(isActive: boolean, compact = false): string {
+  const textSize = compact ? 'text-xs' : 'text-sm'
   return isActive
-    ? 'block rounded-md bg-muted px-2 py-2 text-sm font-medium text-foreground'
-    : 'block rounded-md px-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground'
+    ? `block rounded-md bg-muted px-2 py-2 ${textSize} font-medium text-foreground`
+    : `block rounded-md px-2 py-2 ${textSize} text-muted-foreground transition-colors hover:text-foreground`
 }
 
 type SectionLinksProps = {
-  readonly section: KnowledgeSection
   readonly docs: ReadonlyArray<DocMeta>
-  readonly posts: ReadonlyArray<PostMeta>
   readonly currentPath: string
 }
 
 /**
- * The current section's own list — never all sections at once. On /blog the
- * sidebar lists posts, on /faq the FAQ page; only /docs carries the doc
- * index. Group labels stay `<p>`s, not headings: the page's first heading is
+ * The docs sidebar list. Group labels stay `<p>`s, not headings: the page's first heading is
  * the article <h1> in <main>, and an <h2>/<h3> here would skip levels in the
  * document outline.
  */
-function SectionLinks({ section, docs, posts, currentPath }: SectionLinksProps) {
-  if (section === 'blog') {
-    return (
-      <ul className="flex flex-col gap-0.5">
-        {posts.map((post) => {
-          const postPath = `/blog/${post.slug}`
-          return (
-            <li key={post.slug}>
-              <Link
-                to="/blog/$slug"
-                params={{ slug: post.slug }}
-                aria-current={currentPath === postPath ? 'page' : undefined}
-                className={knowledgeLinkClasses(currentPath === postPath)}
-              >
-                {post.frontmatter.title}
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
-    )
-  }
-
-  if (section === 'faq') {
-    const isCurrent = currentPath === '/faq'
-    return (
-      <ul className="flex flex-col gap-0.5">
-        <li>
-          <Link
-            to="/faq"
-            aria-current={isCurrent ? 'page' : undefined}
-            className={knowledgeLinkClasses(isCurrent)}
-          >
-            {m.public_faq_title()}
-          </Link>
-        </li>
-      </ul>
-    )
-  }
-
+function SectionLinks({ docs, currentPath }: SectionLinksProps) {
   return (
     <ul className="flex flex-col gap-0.5">
       {DOC_CATEGORY_ORDER.map((slug) => {
@@ -104,7 +43,7 @@ function SectionLinks({ section, docs, posts, currentPath }: SectionLinksProps) 
         }
         return (
           <li key={slug} className="mt-2 first:mt-0">
-            <p className="px-2 pb-0.5 text-2xs text-muted-foreground">
+            <p className="px-2 pb-1 text-sm font-semibold text-foreground">
               {docCategoryName(slug)}
             </p>
             <ul className="flex flex-col gap-0.5">
@@ -116,7 +55,10 @@ function SectionLinks({ section, docs, posts, currentPath }: SectionLinksProps) 
                       to="/docs/$category/$slug"
                       params={{ category: slug, slug: article.slug }}
                       aria-current={currentPath === articlePath ? 'page' : undefined}
-                      className={knowledgeLinkClasses(currentPath === articlePath)}
+                      className={knowledgeLinkClasses(
+                        currentPath === articlePath,
+                        true
+                      )}
                     >
                       {article.frontmatter.title}
                     </Link>
@@ -132,16 +74,12 @@ function SectionLinks({ section, docs, posts, currentPath }: SectionLinksProps) 
 }
 
 /**
- * The one knowledge shell: docs, blog, and FAQ render inside this pathless
- * layout — a section-aware left nav, one article column, and each article
- * page's own table of contents with its below-lg disclosure. URLs are
- * unchanged: the layout is pathless, so `/docs`, `/blog`, and `/faq` keep
- * their addresses.
+ * The docs shell: a left nav, one article column, and each article page's
+ * own table of contents with its below-lg disclosure.
  */
 function KnowledgeLayout() {
-  const [docs, posts] = Route.useLoaderData()
+  const docs = Route.useLoaderData()
   const pathname = useLocation().pathname
-  const section = sectionFor(pathname)
 
   return (
     <PublicLayout>
@@ -158,14 +96,8 @@ function KnowledgeLayout() {
             {m.public_knowledge_sections()}
           </summary>
           <div className="flex flex-col gap-4 px-3 pt-1 pb-3">
-            <SectionSwitcher current={section} />
             <nav aria-label={m.public_knowledge_nav()}>
-              <SectionLinks
-                section={section}
-                docs={docs}
-                posts={posts}
-                currentPath={pathname}
-              />
+              <SectionLinks docs={docs} currentPath={pathname} />
             </nav>
           </div>
         </details>
@@ -176,17 +108,11 @@ function KnowledgeLayout() {
               subtracts the header the sidebar is pinned below: `top-18` plus
               `max-h-dvh` left the last 72px unreachable past the fold. */}
           <div className="sticky top-18 flex max-h-below-header flex-col gap-4">
-            <SectionSwitcher current={section} />
             <nav
               aria-label={m.public_knowledge_nav()}
               className="flex-1 overflow-y-auto pr-1 pb-4"
             >
-              <SectionLinks
-                section={section}
-                docs={docs}
-                posts={posts}
-                currentPath={pathname}
-              />
+              <SectionLinks docs={docs} currentPath={pathname} />
             </nav>
           </div>
         </aside>

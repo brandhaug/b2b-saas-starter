@@ -30,7 +30,9 @@ test('event links preserve filters, keyboard focus, and back/forward history', a
 }) => {
   const page = ownerPage
   await page.goto(auditPath)
-  await page.locator('header select:enabled').waitFor({ state: 'attached' })
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await page.getByRole('combobox', { name: 'Filter by actor' }).click()
   await page.getByRole('option', { name: 'Ops Lead', exact: true }).click()
   await expect(page).toHaveURL(`${auditPath}?actor=usr_ops`)
@@ -112,7 +114,9 @@ test('a failed detail request shows a retryable error instead of a missing event
 }) => {
   const page = ownerPage
   await page.goto(auditPath)
-  await page.locator('header select:enabled').waitFor({ state: 'attached' })
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await expect(
     page.getByRole('link', { name: /^Inspect API token created/ })
   ).toBeVisible()

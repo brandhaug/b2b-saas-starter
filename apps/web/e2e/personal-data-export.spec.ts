@@ -13,7 +13,9 @@ test('prepares and downloads the signed-in account personal data', async ({
     'cf-connecting-ip': isolatedClientIp(testInfo.testId)
   })
   await ownerPage.goto('/account')
-  await ownerPage.locator('header select:enabled').waitFor({ state: 'attached' })
+  await ownerPage
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await ownerPage
     .getByRole('button', { name: 'Prepare personal data', exact: true })
     .click()

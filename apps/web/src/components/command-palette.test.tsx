@@ -5,7 +5,6 @@ import { renderWithRouter } from '@/test/router-harness'
 
 // This test exercises navigation entries, independent of the content catalog.
 vi.mock('@/lib/docs', () => ({ getAllDocMeta: async () => [] }))
-vi.mock('@/lib/blog', () => ({ getAllPostMeta: async () => [] }))
 
 // jsdom has no layout observer; cmdk uses it only to size its list.
 beforeEach(() => {

@@ -9,7 +9,7 @@ export function localeLinks(pathname: string) {
   }
   const norwegian = localizeUrl(source, { locale: 'nb' })
   // Existing technical articles are English, even inside the Norwegian shell.
-  const englishArticle = /^\/(?:docs\/[^/]+\/[^/]+|blog\/[^/]+)\/?$/u.test(pathname)
+  const englishArticle = /^\/docs\/[^/]+\/[^/]+\/?$/u.test(pathname)
   if (englishArticle) {
     return [{ rel: 'canonical', href: english.href }]
   }

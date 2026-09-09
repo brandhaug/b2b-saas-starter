@@ -261,6 +261,60 @@
   @apply bg-muted/50;
 }
 
+/* The landing page snippets are runtime strings rather than MDX, so they
+   cannot pass through rehype-pretty-code. Keep their token vocabulary aligned
+   with Catppuccin Mocha without shipping a second highlighter bundle. */
+[data-code-theme] {
+  --code-comment: oklch(0.647 0.036 272); /* mocha overlay1 */
+  --code-keyword: oklch(0.7871 0.1187 304.769); /* mocha mauve */
+  --code-string: oklch(0.8577 0.1092 142.715); /* mocha green */
+  --code-number: oklch(0.8237 0.1015 52.6294); /* mocha peach */
+  --code-function: oklch(0.7664 0.1113 259.885); /* mocha blue */
+  --code-constant: oklch(0.9193 0.0704 86.5281); /* mocha yellow */
+  --code-punctuation: oklch(0.751 0.0396 273.932); /* mocha subtext0 */
+}
+
+[data-code-theme]
+  :is(
+    .code-token-comment,
+    .code-token-keyword,
+    .code-token-string,
+    .code-token-number,
+    .code-token-function,
+    .code-token-constant,
+    .code-token-punctuation
+  ) {
+  color: var(--code-token-color);
+}
+
+[data-code-theme] .code-token-comment {
+  --code-token-color: var(--code-comment);
+}
+
+[data-code-theme] .code-token-keyword {
+  --code-token-color: var(--code-keyword);
+}
+
+[data-code-theme] .code-token-string {
+  --code-token-color: var(--code-string);
+}
+
+[data-code-theme] .code-token-number {
+  --code-token-color: var(--code-number);
+}
+
+[data-code-theme] .code-token-function {
+  --code-token-color: var(--code-function);
+}
+
+[data-code-theme] .code-token-constant {
+  --code-token-color: var(--code-constant);
+}
+
+[data-code-theme] .code-token-punctuation {
+  --code-token-color: var(--code-punctuation);
+}
+
 /* Heading anchors for TOC scroll: below the fixed 64px header plus clearance. */
 .prose :is(h2, h3)[id] {
   scroll-margin-top: 5.5rem;
@@ -337,7 +391,7 @@
   text-wrap: pretty;
 }
 
-/* Wide tables in docs/blog MDX scroll inside their own box instead of
+/* Wide tables in docs MDX scroll inside their own box instead of
    stretching the article column on mobile and tablet. */
 .marketing .prose :where(table):not(:where([class~='not-prose'] *)) {
   display: block;

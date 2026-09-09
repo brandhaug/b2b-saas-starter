@@ -1,17 +1,13 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
-import { type PostMeta } from '@/lib/blog'
 import { type DocMeta } from '@/lib/docs'
-import { formatTimestamp } from '@/lib/format-date'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 function KnowledgeSection({
-  recentDocs,
-  recentPosts
+  recentDocs
 }: {
   /** The home route's loader resolves these (lazy globs — see lib/docs.ts). */
   readonly recentDocs: ReadonlyArray<DocMeta>
-  readonly recentPosts: ReadonlyArray<PostMeta>
 }) {
   return (
     <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6">
@@ -21,7 +17,7 @@ function KnowledgeSection({
       <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
         {m.public_knowledge_description()}
       </p>
-      <div className="mt-12 grid gap-x-20 gap-y-14 lg:grid-cols-2">
+      <div className="mt-12 max-w-2xl">
         <div>
           <p className="border-b border-border pb-3 font-mono text-xs text-muted-foreground">
             {m.public_knowledge_docs()}
@@ -32,7 +28,7 @@ function KnowledgeSection({
                 <Link
                   to="/docs/$category/$slug"
                   params={{ category: doc.category, slug: doc.slug }}
-                  className="group flex items-baseline justify-between gap-6 border-b border-border py-4 transition-colors hover:bg-accent/40"
+                  className="group -mx-3 flex items-baseline justify-between gap-6 border-b border-border px-3 py-4 transition-colors hover:bg-accent/40"
                 >
                   <span>
                     <span className="block text-sm font-medium group-hover:text-primary">
@@ -43,38 +39,6 @@ function KnowledgeSection({
                     </span>
                   </span>
                   <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <p className="border-b border-border pb-3 font-mono text-xs text-muted-foreground">
-            {m.public_knowledge_blog()}
-          </p>
-          <ul>
-            {recentPosts.map((post) => (
-              <li key={post.slug}>
-                <Link
-                  to="/blog/$slug"
-                  params={{ slug: post.slug }}
-                  className="group block border-b border-border py-4 transition-colors hover:bg-accent/40"
-                >
-                  <span className="flex items-baseline justify-between gap-6">
-                    <span className="text-sm font-medium group-hover:text-primary">
-                      {post.frontmatter.title}
-                    </span>
-                    <time className="shrink-0 font-mono text-xs text-muted-foreground">
-                      {formatTimestamp(post.frontmatter.date, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </time>
-                  </span>
-                  <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">
-                    {post.frontmatter.description}
-                  </span>
                 </Link>
               </li>
             ))}

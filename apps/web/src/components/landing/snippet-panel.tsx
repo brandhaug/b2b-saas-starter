@@ -1,5 +1,87 @@
 import { useOverflowFade } from '@/hooks/use-overflow-fade'
+import { type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+
+type CodeTokenKind =
+  | 'comment'
+  | 'keyword'
+  | 'string'
+  | 'number'
+  | 'function'
+  | 'constant'
+  | 'punctuation'
+  | 'plain'
+
+const TOKEN_PATTERN =
+  /(\/\/[^\n]*|#[^\n]*|`[^`]*`|'[^'\n]*'|"[^"\n]*"|\b\d+(?:\.\d+)?\b|\b[A-Z][A-Z0-9_]+\b|\b(?:export|const|let|return|yield|function|async|await|new|type|readonly)\b|\b[a-zA-Z_$][\w$]*(?=\s*\()|[{}()[\].,:;<>])/g
+
+const TOKEN_CLASSES = {
+  comment: 'code-token-comment',
+  keyword: 'code-token-keyword',
+  string: 'code-token-string',
+  number: 'code-token-number',
+  function: 'code-token-function',
+  constant: 'code-token-constant',
+  punctuation: 'code-token-punctuation',
+  plain: 'code-token-plain'
+} satisfies Record<CodeTokenKind, string>
+
+function tokenKind(token: string): CodeTokenKind {
+  if (token.startsWith('//') || token.startsWith('#')) {
+    return 'comment'
+  }
+  if (token.startsWith('`') || token.startsWith("'") || token.startsWith('"')) {
+    return 'string'
+  }
+  if (/^\d/.test(token)) {
+    return 'number'
+  }
+  if (/^[A-Z][A-Z0-9_]+$/.test(token)) {
+    return 'constant'
+  }
+  if (
+    /^(?:export|const|let|return|yield|function|async|await|new|type|readonly)$/.test(
+      token
+    )
+  ) {
+    return 'keyword'
+  }
+  if (/^[a-zA-Z_$][\w$]*$/.test(token)) {
+    return 'function'
+  }
+  if (/^[{}()[\].,:;<>]$/.test(token)) {
+    return 'punctuation'
+  }
+  return 'plain'
+}
+
+function HighlightedCode({ code }: { readonly code: string }) {
+  return <>{highlightLine(code)}</>
+}
+
+function highlightLine(line: string): Array<ReactNode> {
+  const parts: Array<ReactNode> = []
+  let cursor = 0
+
+  for (const match of line.matchAll(TOKEN_PATTERN)) {
+    const token = match[0]
+    const start = match.index
+    if (start > cursor) {
+      parts.push(line.slice(cursor, start))
+    }
+    parts.push(
+      <span key={`${start}-${token}`} className={TOKEN_CLASSES[tokenKind(token)]}>
+        {token}
+      </span>
+    )
+    cursor = start + token.length
+  }
+
+  if (cursor < line.length) {
+    parts.push(line.slice(cursor))
+  }
+  return parts
+}
 
 function SnippetPanel({
   label,
@@ -41,7 +123,9 @@ function SnippetPanel({
             '[mask-image:linear-gradient(to_right,black_calc(100%_-_2.5rem),transparent_100%)]'
         )}
       >
-        <code>{code}</code>
+        <code data-code-theme>
+          <HighlightedCode code={code} />
+        </code>
       </pre>
     </figure>
   )

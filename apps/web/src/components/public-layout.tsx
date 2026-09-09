@@ -17,7 +17,7 @@ import {
   SheetTitle,
   SheetTrigger
 } from '@/components/ui/sheet'
-import { publicLinks } from '@/lib/content'
+import { publicLinkProps, publicLinks } from '@/lib/content'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { LanguageSwitcher } from '@/components/language-switcher'
 
@@ -73,7 +73,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
                 {publicLinks().map((link) => (
                   <Link
                     key={link.to}
-                    to={link.to}
+                    {...publicLinkProps(link)}
                     reloadDocument={link.to === '/help'}
                     onClick={() => setMobileNavOpen(false)}
                     className="min-h-9 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-md:min-h-11"
@@ -112,7 +112,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             {publicLinks().map((link) => (
               <Link
                 key={link.to}
-                to={link.to}
+                {...publicLinkProps(link)}
                 reloadDocument={link.to === '/help'}
                 className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >

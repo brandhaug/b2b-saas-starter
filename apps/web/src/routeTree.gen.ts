@@ -27,7 +27,6 @@ import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as WorkspacesRouteImport } from './routes/workspaces'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known.oauth-authorization-server'
 import { Route as KnowledgeChangelogRouteImport } from './routes/_knowledge.changelog'
-import { Route as KnowledgeFaqRouteImport } from './routes/_knowledge.faq'
 import { Route as AccountNotificationsRouteImport } from './routes/account_.notifications'
 import { Route as ApiSupportConfigRouteImport } from './routes/api.support-config'
 import { Route as HelpIndexRouteImport } from './routes/help.index'
@@ -38,8 +37,6 @@ import { Route as SignInEmailCodeRouteImport } from './routes/sign-in_.email-cod
 import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
 import { Route as WorkspacesWorkspaceSlugRouteImport } from './routes/workspaces.$workspaceSlug'
 import { Route as DotwellKnownOauthAuthorizationServerSplatRouteImport } from './routes/[.]well-known.oauth-authorization-server.$'
-import { Route as KnowledgeBlogIndexRouteImport } from './routes/_knowledge.blog.index'
-import { Route as KnowledgeBlogSlugRouteImport } from './routes/_knowledge.blog.$slug'
 import { Route as KnowledgeDocsIndexRouteImport } from './routes/_knowledge.docs.index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as WorkspacesWorkspaceSlugIndexRouteImport } from './routes/workspaces.$workspaceSlug.index'
@@ -143,11 +140,6 @@ const KnowledgeChangelogRoute = KnowledgeChangelogRouteImport.update({
   path: '/changelog',
   getParentRoute: () => KnowledgeRoute,
 } as any)
-const KnowledgeFaqRoute = KnowledgeFaqRouteImport.update({
-  id: '/faq',
-  path: '/faq',
-  getParentRoute: () => KnowledgeRoute,
-} as any)
 const AccountNotificationsRoute = AccountNotificationsRouteImport.update({
   id: '/account_/notifications',
   path: '/account/notifications',
@@ -199,16 +191,6 @@ const DotwellKnownOauthAuthorizationServerSplatRoute =
     path: '/$',
     getParentRoute: () => DotwellKnownOauthAuthorizationServerRoute,
   } as any)
-const KnowledgeBlogIndexRoute = KnowledgeBlogIndexRouteImport.update({
-  id: '/blog/',
-  path: '/blog/',
-  getParentRoute: () => KnowledgeRoute,
-} as any)
-const KnowledgeBlogSlugRoute = KnowledgeBlogSlugRouteImport.update({
-  id: '/blog/$slug',
-  path: '/blog/$slug',
-  getParentRoute: () => KnowledgeRoute,
-} as any)
 const KnowledgeDocsIndexRoute = KnowledgeDocsIndexRouteImport.update({
   id: '/docs/',
   path: '/docs/',
@@ -298,7 +280,6 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/changelog': typeof KnowledgeChangelogRoute
-  '/faq': typeof KnowledgeFaqRoute
   '/account/notifications': typeof AccountNotificationsRoute
   '/api/support-config': typeof ApiSupportConfigRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
@@ -309,7 +290,6 @@ export interface FileRoutesByFullPath {
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
-  '/blog/$slug': typeof KnowledgeBlogSlugRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
@@ -319,7 +299,6 @@ export interface FileRoutesByFullPath {
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/suspended': typeof WorkspacesWorkspaceSlugSuspendedRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
-  '/blog/': typeof KnowledgeBlogIndexRoute
   '/docs/': typeof KnowledgeDocsIndexRoute
   '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
   '/docs/$category/$slug': typeof KnowledgeDocsCategorySlugRoute
@@ -341,7 +320,6 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/changelog': typeof KnowledgeChangelogRoute
-  '/faq': typeof KnowledgeFaqRoute
   '/account/notifications': typeof AccountNotificationsRoute
   '/api/support-config': typeof ApiSupportConfigRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
@@ -351,7 +329,6 @@ export interface FileRoutesByTo {
   '/help': typeof HelpIndexRoute
   '/workspaces': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
-  '/blog/$slug': typeof KnowledgeBlogSlugRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
@@ -361,7 +338,6 @@ export interface FileRoutesByTo {
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/suspended': typeof WorkspacesWorkspaceSlugSuspendedRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
-  '/blog': typeof KnowledgeBlogIndexRoute
   '/docs': typeof KnowledgeDocsIndexRoute
   '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugIndexRoute
   '/docs/$category/$slug': typeof KnowledgeDocsCategorySlugRoute
@@ -386,7 +362,6 @@ export interface FileRoutesById {
   '/workspaces': typeof WorkspacesRouteWithChildren
   '/.well-known/oauth-authorization-server': typeof DotwellKnownOauthAuthorizationServerRouteWithChildren
   '/_knowledge/changelog': typeof KnowledgeChangelogRoute
-  '/_knowledge/faq': typeof KnowledgeFaqRoute
   '/account_/notifications': typeof AccountNotificationsRoute
   '/api/support-config': typeof ApiSupportConfigRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
@@ -397,7 +372,6 @@ export interface FileRoutesById {
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
-  '/_knowledge/blog/$slug': typeof KnowledgeBlogSlugRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
@@ -407,7 +381,6 @@ export interface FileRoutesById {
   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
   '/workspaces/$workspaceSlug/suspended': typeof WorkspacesWorkspaceSlugSuspendedRoute
   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
-  '/_knowledge/blog/': typeof KnowledgeBlogIndexRoute
   '/_knowledge/docs/': typeof KnowledgeDocsIndexRoute
   '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
   '/_knowledge/docs/$category/$slug': typeof KnowledgeDocsCategorySlugRoute
@@ -432,7 +405,6 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/.well-known/oauth-authorization-server'
     | '/changelog'
-    | '/faq'
     | '/account/notifications'
     | '/api/support-config'
     | '/invitations/accept'
@@ -443,7 +415,6 @@ export interface FileRouteTypes {
     | '/help/'
     | '/workspaces/'
     | '/.well-known/oauth-authorization-server/$'
-    | '/blog/$slug'
     | '/api/auth/$'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/assistant'
@@ -453,7 +424,6 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/suspended'
     | '/workspaces/$workspaceSlug/webhooks'
-    | '/blog/'
     | '/docs/'
     | '/workspaces/$workspaceSlug/'
     | '/docs/$category/$slug'
@@ -475,7 +445,6 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/.well-known/oauth-authorization-server'
     | '/changelog'
-    | '/faq'
     | '/account/notifications'
     | '/api/support-config'
     | '/invitations/accept'
@@ -485,7 +454,6 @@ export interface FileRouteTypes {
     | '/help'
     | '/workspaces'
     | '/.well-known/oauth-authorization-server/$'
-    | '/blog/$slug'
     | '/api/auth/$'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/assistant'
@@ -495,7 +463,6 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/suspended'
     | '/workspaces/$workspaceSlug/webhooks'
-    | '/blog'
     | '/docs'
     | '/workspaces/$workspaceSlug'
     | '/docs/$category/$slug'
@@ -519,7 +486,6 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/.well-known/oauth-authorization-server'
     | '/_knowledge/changelog'
-    | '/_knowledge/faq'
     | '/account_/notifications'
     | '/api/support-config'
     | '/invitations/accept'
@@ -530,7 +496,6 @@ export interface FileRouteTypes {
     | '/help/'
     | '/workspaces/'
     | '/.well-known/oauth-authorization-server/$'
-    | '/_knowledge/blog/$slug'
     | '/api/auth/$'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/assistant'
@@ -540,7 +505,6 @@ export interface FileRouteTypes {
     | '/workspaces/$workspaceSlug/settings'
     | '/workspaces/$workspaceSlug/suspended'
     | '/workspaces/$workspaceSlug/webhooks'
-    | '/_knowledge/blog/'
     | '/_knowledge/docs/'
     | '/workspaces/$workspaceSlug/'
     | '/_knowledge/docs/$category/$slug'
@@ -702,13 +666,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KnowledgeChangelogRouteImport
       parentRoute: typeof KnowledgeRoute
     }
-    '/_knowledge/faq': {
-      id: '/_knowledge/faq'
-      path: '/faq'
-      fullPath: '/faq'
-      preLoaderRoute: typeof KnowledgeFaqRouteImport
-      parentRoute: typeof KnowledgeRoute
-    }
     '/account_/notifications': {
       id: '/account_/notifications'
       path: '/account/notifications'
@@ -778,20 +735,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/.well-known/oauth-authorization-server/$'
       preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerSplatRouteImport
       parentRoute: typeof DotwellKnownOauthAuthorizationServerRoute
-    }
-    '/_knowledge/blog/': {
-      id: '/_knowledge/blog/'
-      path: '/blog'
-      fullPath: '/blog/'
-      preLoaderRoute: typeof KnowledgeBlogIndexRouteImport
-      parentRoute: typeof KnowledgeRoute
-    }
-    '/_knowledge/blog/$slug': {
-      id: '/_knowledge/blog/$slug'
-      path: '/blog/$slug'
-      fullPath: '/blog/$slug'
-      preLoaderRoute: typeof KnowledgeBlogSlugRouteImport
-      parentRoute: typeof KnowledgeRoute
     }
     '/_knowledge/docs/': {
       id: '/_knowledge/docs/'
@@ -882,18 +825,12 @@ declare module '@tanstack/react-router' {
 
 interface KnowledgeRouteChildren {
   KnowledgeChangelogRoute: typeof KnowledgeChangelogRoute
-  KnowledgeFaqRoute: typeof KnowledgeFaqRoute
-  KnowledgeBlogSlugRoute: typeof KnowledgeBlogSlugRoute
-  KnowledgeBlogIndexRoute: typeof KnowledgeBlogIndexRoute
   KnowledgeDocsIndexRoute: typeof KnowledgeDocsIndexRoute
   KnowledgeDocsCategorySlugRoute: typeof KnowledgeDocsCategorySlugRoute
 }
 
 const KnowledgeRouteChildren: KnowledgeRouteChildren = {
   KnowledgeChangelogRoute: KnowledgeChangelogRoute,
-  KnowledgeFaqRoute: KnowledgeFaqRoute,
-  KnowledgeBlogSlugRoute: KnowledgeBlogSlugRoute,
-  KnowledgeBlogIndexRoute: KnowledgeBlogIndexRoute,
   KnowledgeDocsIndexRoute: KnowledgeDocsIndexRoute,
   KnowledgeDocsCategorySlugRoute: KnowledgeDocsCategorySlugRoute,
 }
