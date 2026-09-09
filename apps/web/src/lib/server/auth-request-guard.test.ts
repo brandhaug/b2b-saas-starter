@@ -137,7 +137,7 @@ describe('auth request guard interface', () => {
     )
     const publicPasskeyPaths = [
       ['POST', '/api/auth/passkey/verify-authentication'],
-      ['POST', '/api/auth/passkey/generate-authenticate-options'],
+      ['GET', '/api/auth/passkey/generate-authenticate-options'],
       ['GET', '/api/auth/passkey/list-user-passkeys'],
       ['POST', '/api/auth/passkey/update-passkey']
     ] satisfies ReadonlyArray<readonly ['GET' | 'POST', string]>
