@@ -30,9 +30,9 @@ test('switches public language, keeps it through navigation and refresh, and exp
   await expect(page).toHaveURL(/\/nb\/docs\/?$/u)
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
-  await expect(page.getByRole('combobox', { name: 'Språk', exact: true })).toHaveValue(
-    'nb'
-  )
+  await expect(
+    page.getByRole('combobox', { name: 'Språk', exact: true })
+  ).toContainText('Norsk bokmål')
 })
 
 test('warns before a language switch discards form edits', async ({ page }) => {
