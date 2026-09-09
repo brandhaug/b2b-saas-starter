@@ -11,14 +11,11 @@ import { LinkedAccountsPanel } from '@/components/linked-accounts-panel'
 import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import { WorkspaceShell } from '@/components/workspace-shell'
+import { PersonalDataExportPanel } from '@/components/personal-data-export-panel'
 import { type McpClientConnection } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { type RouteSession } from '@/lib/server/auth'
-import {
-  exportPersonalDataServerFn,
-  type AccountDeletionPlan
-} from '@/lib/server/account'
+import { type AccountDeletionPlan } from '@/lib/server/account'
 import { type NotificationPreferenceRow } from '@/lib/server/notification-preferences'
 import { revokeMcpClientServerFn } from '@/lib/server/mcp-clients'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -105,28 +102,15 @@ export function AccountPage({
 
       <LocalePreferences />
       <Panel
-        title="Personal data"
-        description="Download the personal account data held across this service. Workspace archives are separate."
+        title={m.panel_personal_data()}
+        description={m.panel_personal_data_description()}
       >
-        <Button
-          type="button"
-          className="rounded-md border px-3 py-2 text-sm"
-          onClick={() => {
-            void (async () => {
-              const result = await exportPersonalDataServerFn()
-              const url = URL.createObjectURL(
-                new Blob([result.json], { type: 'application/json' })
-              )
-              const link = document.createElement('a')
-              link.href = url
-              link.download = result.fileName
-              link.click()
-              URL.revokeObjectURL(url)
-            })()
-          }}
+        <WhileNotImpersonating
+          impersonatedBy={session.impersonatedBy}
+          message={m.shell_impersonated_personal_data()}
         >
-          Download personal data
-        </Button>
+          <PersonalDataExportPanel />
+        </WhileNotImpersonating>
       </Panel>
       <SessionsPanel currentSessionToken={currentSessionToken} />
 

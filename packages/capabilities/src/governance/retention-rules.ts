@@ -104,6 +104,14 @@ export function retentionRules(
       eligible: "status IN ('ready', 'failed')"
     },
     {
+      key: 'personal_data_exports',
+      table: 'personal_data_exports',
+      index: 'personal_data_exports_expiry_idx',
+      clock: 'expires_at',
+      ...history(0),
+      eligible: '1'
+    },
+    {
       key: 'export_secrets',
       table: 'workspace_exports',
       index: 'workspace_exports_secret_expiry_idx',

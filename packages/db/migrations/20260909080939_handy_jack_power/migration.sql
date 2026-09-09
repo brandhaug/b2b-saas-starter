@@ -1,0 +1,1 @@
+CREATE INDEX `personal_data_exports_session_id_idx` ON `personal_data_exports` (`session_id`);

@@ -9,11 +9,8 @@ import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { type NotificationPreferenceRow } from './notification-preferences'
 import { notificationPreferencesPayload } from './notification-preferences.effects'
-import {
-  PersonalDataExports,
-  renderPersonalDataExport
-} from '@b2b-saas-starter/capabilities/governance/personal-data-export'
-import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { PersonalDataExports } from '@b2b-saas-starter/capabilities/governance/personal-data-export'
+import { type DownloadPersonalDataInput } from './account'
 import { requireRecentAuthentication } from './strong-authentication.effects'
 
 /**
@@ -71,29 +68,26 @@ export async function loadAccountPageHandler(): Promise<
 }
 
 export async function exportPersonalDataHandler(): Promise<{
-  readonly fileName: string
-  readonly json: string
+  readonly id: string
+  readonly expiresAt: string
 }> {
   const session = await requireRequestSession()
   await requireRecentAuthentication(session)
-  const data = await runCapabilities(
-    Effect.gen(function* () {
-      const exports = yield* PersonalDataExports
-      const result = yield* exports.collect(session.user.id)
-      const audit = yield* AuditEventLog
-      yield* audit.record({
-        actorUserId: session.user.id,
-        actorType: 'user',
-        eventType: 'auth.personal_data_exported',
-        targetType: 'user',
-        targetId: session.user.id,
-        metadata: {}
-      })
-      return result
-    })
+  return runCapabilities(
+    Effect.flatMap(PersonalDataExports, (exports) =>
+      exports.request(session.user.id, session.session.id)
+    )
   )
-  return {
-    fileName: `personal-data-${session.user.id}.json`,
-    json: renderPersonalDataExport(data)
-  }
+}
+
+export async function downloadPersonalDataHandler(
+  input: DownloadPersonalDataInput
+): Promise<{ readonly fileName: string; readonly json: string }> {
+  const session = await requireRequestSession()
+  await requireRecentAuthentication(session)
+  return runCapabilities(
+    Effect.flatMap(PersonalDataExports, (exports) =>
+      exports.download(session.user.id, session.session.id, input.exportId)
+    )
+  )
 }

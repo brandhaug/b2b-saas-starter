@@ -1,3 +1,4 @@
+import { type PersonalDataExport } from './governance/personal-data-export-archive.ts'
 import { DateTime, Duration } from 'effect'
 import {
   type ApiToken,
@@ -125,6 +126,24 @@ export const seedAccountPreferences: ReadonlyArray<SeedAccountPreference> =
       timeZone: null
     }
   })
+
+/** Shared account timestamps for the in-memory fixture and local D1 seed. */
+export const seedAccountCreatedAt = 1_778_918_400
+
+export const seedAccountProfiles: ReadonlyArray<PersonalDataExport['user']> =
+  seedSystemUsers.map((account) => ({
+    id: account.id,
+    name: account.name,
+    email: account.email,
+    image: null,
+    username: null,
+    displayUsername: null,
+    emailVerified: true,
+    locale: null,
+    timeZone: null,
+    createdAt: DateTime.formatIso(DateTime.makeUnsafe(seedAccountCreatedAt * 1000)),
+    updatedAt: DateTime.formatIso(DateTime.makeUnsafe(seedAccountCreatedAt * 1000))
+  }))
 
 /** The (workspace, user) pairs the seed `changeWorkspaceRole` treats as real. */
 export const seedUserAdminMemberships: ReadonlyArray<SeedMembership> = seedMembers.map(
