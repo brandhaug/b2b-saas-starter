@@ -115,11 +115,38 @@ export type FailWorkspaceExportInput = {
   readonly reason: string
 }
 
+export type WorkspaceExportRecipient =
+  | { readonly type: 'api_token' }
+  | { readonly type: 'session'; readonly userId: string; readonly sessionId: string }
+
+/** Human links retain their issuing session and Workspace through redemption. */
+export type WorkspaceExportHumanRecipient = {
+  readonly userId: string
+  readonly sessionId: string
+  readonly workspaceSlug: string
+}
+
+export function workspaceExportHumanRecipient(
+  recipient: WorkspaceExportRecipient,
+  workspaceSlug: string
+): WorkspaceExportHumanRecipient | undefined {
+  if (recipient.type === 'session') {
+    return { userId: recipient.userId, sessionId: recipient.sessionId, workspaceSlug }
+  }
+  return undefined
+}
+
+export type IssueWorkspaceExportDownloadInput = {
+  readonly exportId: string
+  readonly recipient: WorkspaceExportRecipient
+}
+
 export type OpenWorkspaceExportDownloadInput = {
   readonly exportId: string
   /** Unix seconds the link stops working, as carried in the URL. */
   readonly expires: number
   readonly signature: string
+  readonly human?: WorkspaceExportHumanRecipient | undefined
 }
 
 export type WorkspaceExportsInterface = {
@@ -149,9 +176,9 @@ export type WorkspaceExportsInterface = {
    * `Option.none()` for anything else — an unknown id, another workspace's
    * export, a pending or failed one, an expired artifact.
    */
-  readonly issueDownloadLink: (input: {
-    readonly exportId: string
-  }) => Effect.Effect<
+  readonly issueDownloadLink: (
+    input: IssueWorkspaceExportDownloadInput
+  ) => Effect.Effect<
     Option.Option<WorkspaceExportDownloadLink>,
     CapabilityUnavailable | WorkspaceSuspended,
     WorkspaceContext
@@ -219,18 +246,39 @@ export function workspaceExportExpiresAt(completedAt: DateTime.Utc): string {
 export function signWorkspaceExportDownload(
   downloadSecret: string,
   exportId: string,
-  expires: number
+  expires: number,
+  human?: WorkspaceExportHumanRecipient
 ): Effect.Effect<string> {
-  return Effect.promise(() => hmacSha256Hex(downloadSecret, `${exportId}.${expires}`))
+  let message = `${exportId}.${expires}`
+  if (human) {
+    message = new URLSearchParams({
+      export: exportId,
+      expires: String(expires),
+      user: human.userId,
+      session: human.sessionId,
+      workspace: human.workspaceSlug
+    }).toString()
+  }
+  return Effect.promise(() => hmacSha256Hex(downloadSecret, message))
 }
 
 /** The link's path on the API worker, for a signature already computed. */
 function workspaceExportDownloadPath(
   exportId: string,
   expires: number,
-  signature: string
+  signature: string,
+  human?: WorkspaceExportHumanRecipient
 ): string {
-  return `/exports/${encodeURIComponent(exportId)}/download?expires=${expires}&signature=${signature}`
+  const path = `/exports/${encodeURIComponent(exportId)}/download?expires=${expires}&signature=${signature}`
+  if (!human) {
+    return path
+  }
+  const recipient = new URLSearchParams({
+    user: human.userId,
+    session: human.sessionId,
+    workspace: human.workspaceSlug
+  })
+  return `${path}&${recipient}`
 }
 
 /**
@@ -259,6 +307,7 @@ export function verifyWorkspaceExportDownload(input: {
   readonly expires: number
   readonly signature: string
   readonly now: DateTime.Utc
+  readonly human?: WorkspaceExportHumanRecipient | undefined
 }): Effect.Effect<boolean> {
   return Effect.gen(function* () {
     if (!Number.isSafeInteger(input.expires)) {
@@ -271,7 +320,8 @@ export function verifyWorkspaceExportDownload(input: {
     const expected = yield* signWorkspaceExportDownload(
       input.downloadSecret,
       input.exportId,
-      input.expires
+      input.expires,
+      input.human
     )
     return equalHex(expected, input.signature)
   })
@@ -304,6 +354,7 @@ export function issueWorkspaceExportDownloadLink(input: {
   readonly downloadSecret: string
   readonly record: Pick<WorkspaceExport, 'id' | 'status' | 'expiresAt'>
   readonly now: DateTime.Utc
+  readonly human?: WorkspaceExportHumanRecipient | undefined
 }): Effect.Effect<Option.Option<WorkspaceExportDownloadLink>> {
   return Effect.gen(function* () {
     const artifactExpiresAt = input.record.expiresAt
@@ -324,10 +375,16 @@ export function issueWorkspaceExportDownloadLink(input: {
     const signature = yield* signWorkspaceExportDownload(
       input.downloadSecret,
       input.record.id,
-      expires
+      expires,
+      input.human
     )
     return Option.some({
-      path: workspaceExportDownloadPath(input.record.id, expires, signature),
+      path: workspaceExportDownloadPath(
+        input.record.id,
+        expires,
+        signature,
+        input.human
+      ),
       expiresAt: DateTime.formatIso(DateTime.makeUnsafe(expires * 1000))
     })
   })

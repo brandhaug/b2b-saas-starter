@@ -1,3 +1,4 @@
+import { authFailure } from '@/lib/auth-result'
 import { statusLabel } from '@/lib/value-labels'
 import { type WorkspaceExport } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { toast } from 'sonner'
@@ -20,6 +21,7 @@ import { workspaceExportStatusVariant } from '@/lib/badge-variants'
 import { formatTimestamp, formatTimestampOr } from '@/lib/format-date'
 import {
   requestWorkspaceExportServerFn,
+  downloadWorkspaceExportServerFn,
   type WorkspaceExportsSegment
 } from '@/lib/server/workspace-exports'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -68,6 +70,20 @@ export function WorkspaceExportPanel({
       toast.success(m.export_requested())
     }
   })
+
+  const download = useServerAction(
+    async (exportId: string) => {
+      const url = await downloadWorkspaceExportServerFn({
+        data: { workspaceSlug, exportId }
+      })
+      if (url === null) {
+        return authFailure(m.export_download_failed())
+      }
+      window.location.assign(url)
+      return true
+    },
+    { failureMessage: m.export_download_failed(), invalidate: false }
+  )
 
   return (
     <div className="grid gap-4">
@@ -118,29 +134,23 @@ export function WorkspaceExportPanel({
                     : null}
                 </ItemDescription>
               </ItemContent>
-              {row.downloadUrl === null ? null : (
+              {row.status === 'ready' ? (
                 <ItemActions>
-                  {/* The link is signed and time-limited; the browser follows it
-                      straight to the API worker, which streams the archive. */}
                   <Button
                     variant="outline"
-                    render={
-                      <a
-                        href={row.downloadUrl}
-                        download
-                        aria-label={m.action_download_archive()}
-                      />
-                    }
+                    onClick={() => download.run(row.id)}
+                    disabled={download.pending}
                   >
+                    {download.pendingInput === row.id ? <Spinner /> : null}
                     {m.action_download_archive()}
                   </Button>
                 </ItemActions>
-              )}
+              ) : null}
             </Item>
           ))}
         </ItemGroup>
       )}
-      <ActionFeedback error={request.error} />
+      <ActionFeedback error={request.error ?? download.error} />
     </div>
   )
 }

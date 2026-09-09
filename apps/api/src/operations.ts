@@ -29,7 +29,10 @@ import {
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { type InvalidWebhookUrl } from '@b2b-saas-starter/capabilities/developer-platform/webhook-url'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import {
+  WorkspaceExports,
+  type WorkspaceExportRecipient
+} from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { type WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import {
@@ -318,6 +321,7 @@ type WorkspaceMutationOperation = {
     | WorkspaceContext
     | OperationOrigin
     | OperationPrincipal
+    | OperationExportRecipient
     | Scope.Scope
   >
   readonly mcpTool: true
@@ -339,6 +343,11 @@ export class OperationPrincipal extends Context.Service<
   OperationPrincipal,
   Principal
 >()('@b2b-saas-starter/api/OperationPrincipal') {}
+
+export class OperationExportRecipient extends Context.Service<
+  OperationExportRecipient,
+  WorkspaceExportRecipient
+>()('@b2b-saas-starter/api/OperationExportRecipient') {}
 
 /** Response literals checked against the contract without assertions. */
 const TOKEN_REVOKED = { status: 'revoked' } satisfies { readonly status: 'revoked' }
@@ -546,7 +555,8 @@ export const MUTATION_OPERATIONS = {
       Effect.gen(function* () {
         const exports = yield* WorkspaceExports
         const link = yield* exports.issueDownloadLink({
-          exportId: options.params.exportId
+          exportId: options.params.exportId,
+          recipient: yield* OperationExportRecipient
         })
         if (Option.isNone(link)) {
           return yield* new WorkspaceExportNotDownloadable({

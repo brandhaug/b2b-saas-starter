@@ -1,6 +1,7 @@
 import {
   authorize,
   needsStrongAuthentication,
+  needsRecentAuthentication,
   memberPrincipal,
   type PermissionRequest
 } from '@b2b-saas-starter/authz/client'
@@ -42,6 +43,14 @@ export function requireWorkspacePermission(
       permission
     )
     yield* requireWorkspaceAccess(operation)
+    if (needsRecentAuthentication(permission) && operation !== 'credential_recovery') {
+      const session = yield* Effect.promise(requireRequestSession)
+      const authentication = yield* StrongAuthentication
+      yield* authentication.requireRecent({
+        userId: session.user.id,
+        sessionId: session.session.id
+      })
+    }
   })
 }
 

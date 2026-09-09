@@ -13,6 +13,7 @@
  */
 export {
   authorize,
+  needsRecentAuthentication,
   memberPrincipal,
   tokenPrincipal,
   type PermissionRequest,

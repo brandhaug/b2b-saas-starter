@@ -2,9 +2,15 @@ import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/n
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import {
+  WorkspaceExports,
+  type WorkspaceExportRecipient
+} from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
-import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
+import {
+  StrongAuthentication,
+  StrongAuthenticationRequired
+} from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { mcpMutationOperations } from './mcp-mutations.ts'
 import { clientKey } from '@b2b-saas-starter/rate-limit'
@@ -17,6 +23,7 @@ import {
   READ_OPERATIONS,
   readOperations,
   OperationOrigin,
+  OperationExportRecipient,
   OperationPrincipal,
   type CapabilityMutationError,
   type CapabilityMutationServices,
@@ -577,7 +584,19 @@ function registerMutationTools(env: ApiEnv) {
                 operation.permission,
                 MCP_WRITE_SCOPE
               )
+              let recipient: WorkspaceExportRecipient = { type: 'api_token' }
+              if (caller.kind === 'oauth') {
+                if (caller.token.sessionId === undefined) {
+                  return yield* new StrongAuthenticationRequired()
+                }
+                recipient = {
+                  type: 'session',
+                  userId: caller.token.userId,
+                  sessionId: caller.token.sessionId
+                }
+              }
               return yield* invoke.pipe(
+                Effect.provideService(OperationExportRecipient, recipient),
                 Effect.provideService(OperationPrincipal, principal),
                 Effect.provideService(OperationOrigin, invocation.origin)
               )

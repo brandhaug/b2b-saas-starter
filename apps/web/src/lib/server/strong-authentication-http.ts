@@ -12,6 +12,30 @@ const ADDITIONAL_FACTOR_CHANGES = new Set([
   '/set-password',
   '/unlink-account'
 ])
+// Sensitive account changes require evidence from the current session. The
+// endpoint must be retried after the verification page; a password supplied
+// alongside the mutation is not proof that the pre-handler can trust.
+const RECENT_AUTHENTICATION_ACTIONS = new Set([
+  '/change-password',
+  '/change-email',
+  '/set-password',
+  '/unlink-account',
+  '/link-social',
+  '/two-factor/enable',
+  '/two-factor/disable',
+  '/two-factor/generate-backup-codes',
+  '/passkey/generate-register-options',
+  '/passkey/verify-registration',
+  '/passkey/delete-passkey'
+])
+const RECOVERY_FACTOR_ACTIONS = new Set([
+  '/two-factor/enable',
+  '/two-factor/disable',
+  '/two-factor/generate-backup-codes',
+  '/passkey/generate-register-options',
+  '/passkey/verify-registration',
+  '/passkey/delete-passkey'
+])
 const URGENT_ADMIN_ACTIONS = new Set([
   '/admin/revoke-user-session',
   '/admin/revoke-user-sessions',
@@ -42,9 +66,16 @@ export function needsStrongAuthenticationContext(exchange: AuthExchange): boolea
   const path = authPath(exchange)
   const action = impersonationForbiddenAction(exchange)
   return (
+    needsRecentAuthenticationContext(exchange) ||
     path.startsWith('/admin/') ||
     (action !== null && action !== 'delete_account') ||
     ADDITIONAL_FACTOR_CHANGES.has(path)
+  )
+}
+
+export function needsRecentAuthenticationContext(exchange: AuthExchange): boolean {
+  return (
+    exchange.method === 'POST' && RECENT_AUTHENTICATION_ACTIONS.has(authPath(exchange))
   )
 }
 
@@ -64,12 +95,15 @@ export async function strongAuthenticationHttpResponse(
   if (
     isOrganizationProductAction(exchange) ||
     isSsoProductAction(path) ||
+    path === '/oauth2/continue' ||
+    path === '/oauth2/consent' ||
     path === '/delete-user' ||
     path === '/delete-user/callback'
   ) {
     return deny('capability_route_required')
   }
-  if (!session || !needsStrongAuthenticationContext(exchange)) {
+  const recent = needsRecentAuthenticationContext(exchange)
+  if (!session || (!recent && !needsStrongAuthenticationContext(exchange))) {
     return null
   }
   if (URGENT_ADMIN_ACTIONS.has(path)) {
@@ -80,8 +114,27 @@ export async function strongAuthenticationHttpResponse(
       authentication.status({ userId: session.user.id, sessionId: session.session.id })
     )
   )
+  if (recent) {
+    if (session.session.impersonatedBy) {
+      return deny()
+    }
+    // Recovery is a short-lived, restricted session whose only useful
+    // purpose is repairing the factors that will end recovery. It does not
+    // satisfy unrelated recent-authentication requirements.
+    if (status.recovering && RECOVERY_FACTOR_ACTIONS.has(path)) {
+      return null
+    }
+    if (status.recent) {
+      return null
+    }
+    return deny()
+  }
   if (path.startsWith('/admin/')) {
-    return status.qualified ? null : deny()
+    return (
+      exchange.method === 'POST' ? status.recent && status.qualified : status.qualified
+    )
+      ? null
+      : deny()
   }
   if (session.session.impersonatedBy) {
     return deny()

@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
 import { callServerFn } from '@/lib/server-call'
+import { UiError, isStrongAuthenticationError } from '@/lib/ui-error'
 
 /**
  * What one server-fn call reports back: the value on success, a displayable
@@ -47,11 +48,29 @@ export function useServerAction<I = void, A = void>(
   }
 ): ServerAction<I, A> {
   const router = useRouter()
+  function checkedCall(input: I) {
+    // oxlint-disable-next-line effect/noNewPromise -- client-side promise boundary also captures synchronous server-call failures without bundling Effect
+    return Promise.resolve()
+      .then(() => call(input))
+      .catch(
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejected server calls cross the UI error boundary
+        async (error: unknown) => {
+          if (error instanceof UiError && isStrongAuthenticationError(error)) {
+            await router.navigate({
+              to: '/verify-authentication',
+              search: { redirect: router.state.location.href, recent: 'true' }
+            })
+          }
+          // oxlint-disable-next-line effect/noThrowStatement -- preserve the original rejection for callServerFn's error adapter
+          throw error
+        }
+      )
+  }
   const mutation = useMutation({
     mutationFn: (input: I) =>
       describeFailure === undefined
-        ? callServerFn(() => call(input), failureMessage)
-        : callServerFn(() => call(input), failureMessage, describeFailure),
+        ? callServerFn(() => checkedCall(input), failureMessage)
+        : callServerFn(() => checkedCall(input), failureMessage, describeFailure),
     onSuccess: async (outcome: ServerActionOutcome<A>, input: I) => {
       if (!outcome.ok) {
         return

@@ -1,6 +1,6 @@
 import { session, twoFactor, passkey } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
-import { DateTime, Effect } from 'effect'
+import { DateTime, Effect, Result } from 'effect'
 import { eq } from 'drizzle-orm'
 import { expect, layer } from '@effect/vitest'
 
@@ -45,6 +45,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const assurance = yield* StrongAuthentication
           expect(yield* assurance.status({ userId: 'usr_owner', sessionId })).toEqual({
             qualified: true,
+            recent: true,
             recovering: false,
             hasFactors: true,
             passwordVerified: false
@@ -60,6 +61,128 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db.delete(session).where(eq(session.id, sessionId))
         })
       )
+    )
+
+    it.effect(
+      'recent proof expires independently of privileged entry and cannot survive revocation',
+      () =>
+        inWorkspace(
+          'live-lab',
+          Effect.gen(function* () {
+            const db = yield* Database
+            const authentication = yield* StrongAuthentication
+            const now = DateTime.toDate(yield* DateTime.now)
+            const sessionId = 'session_recent_proof'
+            const totpId = 'totp_recent_proof'
+            const input = { userId: 'usr_owner', sessionId }
+            yield* db.insert(session).values({
+              id: sessionId,
+              token: 'token_recent_proof',
+              userId: input.userId,
+              // oxlint-disable-next-line effect/noGlobals -- fixture date uses the test clock
+              expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
+              passwordVerifiedAt: now
+            })
+            yield* authentication.requireRecent(input)
+            expect((yield* authentication.status(input)).qualified).toBe(false)
+            yield* db.insert(twoFactor).values({
+              id: totpId,
+              userId: input.userId,
+              secret: 'secret',
+              backupCodes: '[]',
+              verified: true
+            })
+            expect(
+              Result.isFailure(
+                yield* Effect.result(authentication.requireRecent(input))
+              )
+            ).toBe(true)
+            yield* db
+              .update(session)
+              .set({
+                strongAuthAt: now,
+                strongAuthMethod: 'totp',
+                strongAuthCredentialId: totpId
+              })
+              .where(eq(session.id, sessionId))
+            yield* authentication.requireRecent(input)
+            expect(
+              Result.isFailure(
+                yield* Effect.result(
+                  authentication.requireRecent({ ...input, userId: 'usr_outsider' })
+                )
+              )
+            ).toBe(true)
+            expect(
+              Result.isFailure(
+                yield* Effect.result(
+                  authentication.requireRecent({
+                    ...input,
+                    sessionId: 'another-session'
+                  })
+                )
+              )
+            ).toBe(true)
+            yield* db
+              .update(session)
+              .set({
+                // oxlint-disable-next-line effect/noGlobals -- fixture date uses the test clock
+                strongAuthAt: new Date(now.getTime() - 6 * 60 * 1000)
+              })
+              .where(eq(session.id, sessionId))
+            yield* authentication.require(input)
+            expect(
+              Result.isFailure(
+                yield* Effect.result(authentication.requireRecent(input))
+              )
+            ).toBe(true)
+            // Extending the session lifetime cannot renew the original ceremony.
+            yield* db
+              .update(session)
+              .set({
+                // oxlint-disable-next-line effect/noGlobals -- fixture date uses the test clock
+                expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000)
+              })
+              .where(eq(session.id, sessionId))
+            expect(
+              Result.isFailure(
+                yield* Effect.result(authentication.requireRecent(input))
+              )
+            ).toBe(true)
+            yield* db
+              .update(session)
+              .set({ strongAuthAt: now })
+              .where(eq(session.id, sessionId))
+            yield* authentication.requireRecent(input)
+            yield* db.delete(twoFactor).where(eq(twoFactor.id, totpId))
+            expect(
+              Result.isFailure(
+                yield* Effect.result(authentication.requireRecent(input))
+              )
+            ).toBe(true)
+            yield* db
+              .update(session)
+              .set({
+                strongAuthAt: null,
+                strongAuthMethod: null,
+                strongAuthCredentialId: null,
+                // oxlint-disable-next-line effect/noGlobals -- fixture date uses the test clock
+                recoveryUntil: new Date(now.getTime() + 60 * 60 * 1000)
+              })
+              .where(eq(session.id, sessionId))
+            expect(
+              Result.isFailure(
+                yield* Effect.result(authentication.requireRecent(input))
+              )
+            ).toBe(true)
+            yield* db.delete(session).where(eq(session.id, sessionId))
+            expect(
+              Result.isFailure(
+                yield* Effect.result(authentication.requireRecent(input))
+              )
+            ).toBe(true)
+          })
+        )
     )
 
     it.effect(
@@ -97,11 +220,24 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* db
               .update(session)
               // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
+              .set({ strongAuthAt: new Date(now.getTime() - 12 * 60 * 60 * 1000 - 1) })
+              .where(eq(session.id, sessionId))
+            expect(
+              (yield* assurance.status({ userId: 'usr_owner', sessionId })).qualified
+            ).toBe(false)
+            yield* db
+              .update(session)
+              .set({ strongAuthAt: now })
+              .where(eq(session.id, sessionId))
+            yield* db
+              .update(session)
+              // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
               .set({ recoveryUntil: new Date(now.getTime() + 60 * 60 * 1000) })
               .where(eq(session.id, sessionId))
             expect(yield* assurance.status({ userId: 'usr_owner', sessionId })).toEqual(
               {
                 qualified: false,
+                recent: false,
                 recovering: true,
                 hasFactors: true,
                 passwordVerified: true
@@ -114,6 +250,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(yield* assurance.status({ userId: 'usr_owner', sessionId })).toEqual(
               {
                 qualified: false,
+                recent: false,
                 recovering: false,
                 hasFactors: true,
                 passwordVerified: false
@@ -127,6 +264,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(yield* assurance.status({ userId: 'usr_owner', sessionId })).toEqual(
               {
                 qualified: false,
+                recent: false,
                 recovering: false,
                 hasFactors: false,
                 passwordVerified: false

@@ -43,9 +43,7 @@ const settingsSummary: WorkspaceSettingsPayload = {
         completedAt: '2026-05-16T07:30:05.000Z',
         expiresAt: '2026-05-23T07:30:05.000Z',
         sizeBytes: 4096,
-        failureReason: null,
-        downloadUrl:
-          'http://localhost:8787/exports/exp_1/download?expires=1&signature=abc'
+        failureReason: null
       }
     ]
   }
@@ -161,13 +159,13 @@ describe('WorkspaceSettingsPage lifecycle ports', () => {
 })
 
 describe('WorkspaceSettingsPage data export', () => {
-  it('offers the export button and the signed download link to an owner', async () => {
+  it('offers explicit export and download actions to an owner', async () => {
     await renderPage()
     screen.getByRole('heading', { name: 'Data export' })
     screen.getByRole('button', { name: 'Request export' })
     expect(
-      screen.getByRole('link', { name: 'Download archive' }).getAttribute('href')
-    ).toBe('http://localhost:8787/exports/exp_1/download?expires=1&signature=abc')
+      screen.getByRole('button', { name: 'Download archive' }).getAttribute('href')
+    ).toBeNull()
   })
 
   it('hides the whole export card from a non-owner', async () => {

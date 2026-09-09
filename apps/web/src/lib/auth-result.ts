@@ -1,3 +1,4 @@
+import { UiError } from './ui-error'
 import { LocalizedError } from './localized-error'
 import { type AuthErrorPayload, copyForAuthCode } from './auth-error-copy'
 
@@ -38,6 +39,14 @@ export async function unwrapAuthResult<D>(
 ): Promise<D | null> {
   const result = await run()
   if (result.error) {
+    if (result.error.code === 'strong_authentication_required') {
+      // oxlint-disable-next-line effect/noThrowStatement -- the action hook returns the user to session verification
+      throw new UiError(
+        'strong_authentication_required',
+        {},
+        'strong_authentication_required'
+      )
+    }
     // Known codes get the table's sentence; everything else gets the
     // caller's fallback. Never `error.message`: a raw message is whatever
     // the far end put on the wire — a class name from a proxy 500, a stack

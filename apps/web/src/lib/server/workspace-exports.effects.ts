@@ -14,6 +14,7 @@ import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import {
   type RequestExportInput,
+  type DownloadExportInput,
   type WorkspaceExportsSegment
 } from './workspace-exports'
 
@@ -42,34 +43,41 @@ function apiPublicUrl(): string {
   return LOCAL_API_URL
 }
 
-/**
- * The export segment of the settings payload. Links are minted here, at load
- * time, after `whenPermitted` has already decided the actor may download —
- * one signed URL per ready export, valid for the capability's link TTL.
- */
+/** Settings lists export metadata; a deliberate download action mints the link. */
 export const workspaceExportsSegment: Effect.Effect<
   WorkspaceExportsSegment,
   CapabilityUnavailable | WorkspaceSuspended,
   WorkspaceExports | WorkspaceContext
 > = Effect.gen(function* () {
   const exports = yield* WorkspaceExports
-  const availability = yield* exports.availability
-  const records = yield* exports.list
-  const base = apiPublicUrl()
-  const views = yield* Effect.forEach(
-    records,
-    (record) =>
-      Effect.map(exports.issueDownloadLink({ exportId: record.id }), (link) => ({
-        ...record,
-        downloadUrl: Option.match(link, {
-          onNone: () => null,
-          onSome: (issued) => new URL(issued.path, base).toString()
-        })
-      })),
-    { concurrency: 'unbounded' }
-  )
-  return { availability, exports: views }
+  return { availability: yield* exports.availability, exports: yield* exports.list }
 })
+
+export async function downloadWorkspaceExportHandler(
+  input: DownloadExportInput
+): Promise<string | null> {
+  const session = await requireRequestSession()
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    Effect.gen(function* () {
+      yield* requireWorkspacePermission({ workspaceExport: ['download'] })
+      const exports = yield* WorkspaceExports
+      const link = yield* exports.issueDownloadLink({
+        exportId: input.exportId,
+        recipient: {
+          type: 'session',
+          userId: session.user.id,
+          sessionId: session.session.id
+        }
+      })
+      return Option.match(link, {
+        onNone: () => null,
+        onSome: (issued) => new URL(issued.path, apiPublicUrl()).toString()
+      })
+    }),
+    { userId: session.user.id }
+  )
+}
 
 export async function requestWorkspaceExportHandler(
   input: RequestExportInput

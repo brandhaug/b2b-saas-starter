@@ -765,7 +765,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const denied = yield* inWorkspace(
             a.slug,
             Effect.flatMap(WorkspaceExports, (exports) =>
-              exports.issueDownloadLink({ exportId: job.id })
+              exports.issueDownloadLink({
+                recipient: { type: 'api_token' },
+                exportId: job.id
+              })
             ),
             { userId: a.userId },
             ports.bindings
@@ -841,7 +844,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const link = yield* inWorkspace(
               slug,
               Effect.flatMap(WorkspaceExports, (exports) =>
-                exports.issueDownloadLink({ exportId: message.exportId })
+                exports.issueDownloadLink({
+                  recipient: { type: 'api_token' },
+                  exportId: message.exportId
+                })
               ),
               undefined,
               ports.bindings

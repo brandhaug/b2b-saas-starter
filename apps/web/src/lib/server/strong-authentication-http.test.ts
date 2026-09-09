@@ -22,6 +22,7 @@ const deletion = vi.hoisted(() => ({
 }))
 const evidence = vi.hoisted(() => ({
   qualified: false,
+  recent: false,
   recovering: false,
   hasFactors: false,
   passwordVerified: false
@@ -35,6 +36,10 @@ vi.mock('../capabilities', () => ({
       effect.pipe(
         Effect.provideService(StrongAuthentication, {
           status: () => Effect.succeed(evidence),
+          requireRecent: () =>
+            evidence.recent && !deletion.impersonated
+              ? Effect.void
+              : Effect.fail(new StrongAuthenticationRequired()),
           require: () => {
             if (evidence.qualified) {
               return Effect.void
@@ -99,6 +104,7 @@ function planForDeletion(): AccountDeletionPlan {
 beforeEach(() => {
   Object.assign(evidence, {
     qualified: false,
+    recent: false,
     recovering: false,
     hasFactors: false,
     passwordVerified: false
@@ -126,6 +132,7 @@ describe('privileged authentication HTTP boundary', () => {
     expect(read?.status).toBe(403)
     expect(mutation?.status).toBe(403)
     evidence.qualified = true
+    evidence.recent = true
     expect(await request('/admin/set-role')).toBeNull()
   })
 
@@ -133,8 +140,10 @@ describe('privileged authentication HTTP boundary', () => {
     const weak = await request('/passkey/verify-registration')
     expect(weak?.status).toBe(403)
     evidence.passwordVerified = true
+    evidence.recent = true
     expect(await request('/passkey/verify-registration')).toBeNull()
     evidence.hasFactors = true
+    evidence.recent = false
     const registration = await request('/passkey/verify-registration')
     const removal = await request('/two-factor/disable')
     expect(registration?.status).toBe(403)
@@ -153,6 +162,7 @@ describe('privileged authentication HTTP boundary', () => {
 
   it('impersonation never grants factor management, even with stale proof', async () => {
     evidence.qualified = true
+    evidence.recent = true
     const response = await request(
       '/passkey/verify-registration',
       'POST',
@@ -163,10 +173,76 @@ describe('privileged authentication HTTP boundary', () => {
 
   it('raw organization endpoints cannot bypass capability authorization', async () => {
     evidence.qualified = true
+    evidence.recent = true
     const mutation = await request('/organization/update-member-role')
     const read = await request('/organization/get-full-organization', 'GET')
     expect(mutation?.status).toBe(403)
     expect(read?.status).toBe(403)
+  })
+
+  it('requires fresh password evidence for sensitive changes without enrolled factors', async () => {
+    for (const path of [
+      '/change-password',
+      '/change-email',
+      '/set-password',
+      '/unlink-account',
+      '/link-social',
+      '/two-factor/enable',
+      '/passkey/generate-register-options'
+    ]) {
+      const response = await request(path)
+      expect(response?.status).toBe(403)
+    }
+    evidence.passwordVerified = true
+    evidence.recent = true
+    for (const path of [
+      '/change-password',
+      '/change-email',
+      '/set-password',
+      '/unlink-account',
+      '/link-social',
+      '/two-factor/enable',
+      '/passkey/generate-register-options'
+    ]) {
+      expect(await request(path)).toBeNull()
+    }
+  })
+
+  it('keeps factor management behind the enrolled factor and rejects impersonation', async () => {
+    evidence.passwordVerified = true
+    evidence.recent = true
+    evidence.hasFactors = true
+    evidence.recent = false
+    expect(await request('/change-password')).toEqual(
+      expect.objectContaining({ status: 403 })
+    )
+    expect(await request('/passkey/delete-passkey')).toEqual(
+      expect.objectContaining({ status: 403 })
+    )
+    evidence.qualified = true
+    evidence.recent = true
+    expect(await request('/change-password')).toBeNull()
+    expect(
+      await request(
+        '/change-password',
+        'POST',
+        fixtureSession({ userId: 'usr_member', impersonatedBy: 'usr_admin' })
+      )
+    ).toEqual(expect.objectContaining({ status: 403 }))
+  })
+
+  it('allows only factor repair during bounded recovery', async () => {
+    evidence.recovering = true
+    evidence.hasFactors = true
+    evidence.recent = false
+    expect(await request('/two-factor/disable')).toBeNull()
+    expect(await request('/passkey/verify-registration')).toBeNull()
+    expect(await request('/change-password')).toEqual(
+      expect.objectContaining({ status: 403 })
+    )
+    expect(await request('/unlink-account')).toEqual(
+      expect.objectContaining({ status: 403 })
+    )
   })
 })
 
@@ -180,12 +256,25 @@ describe('account deletion capability boundary', () => {
     ).rejects.toMatchObject({ _tag: 'StrongAuthenticationRequired' })
     expect(deletion.executed).toBe(false)
     evidence.qualified = true
+    evidence.recent = true
     const result = await deleteAccountHandler({ password: 'valid-password' })
     expect(result.canDelete).toBe(true)
     expect(deletion.executed).toBe(true)
   })
 
+  it('expired recent proof denies deletion without side effects even while privileged entry is qualified', async () => {
+    evidence.qualified = true
+    evidence.hasFactors = true
+    evidence.recent = false
+    await expect(
+      deleteAccountHandler({ password: 'valid-password' })
+    ).rejects.toMatchObject({ _tag: 'StrongAuthenticationRequired' })
+    expect(deletion.executed).toBe(false)
+  })
+
   it('retains password-only deletion for an ordinary member', async () => {
+    evidence.passwordVerified = true
+    evidence.recent = true
     const result = await deleteAccountHandler({ password: 'valid-password' })
     expect(result.canDelete).toBe(true)
     expect(deletion.executed).toBe(true)
@@ -200,6 +289,7 @@ describe('account deletion capability boundary', () => {
     deletion.owner = false
     deletion.impersonated = true
     evidence.qualified = true
+    evidence.recent = true
     await expect(
       deleteAccountHandler({ password: 'valid-password' })
     ).rejects.toMatchObject({ _tag: 'StrongAuthenticationRequired' })
@@ -209,6 +299,8 @@ describe('account deletion capability boundary', () => {
 
 describe('raw product endpoint exclusions', () => {
   it.each([
+    '/oauth2/continue',
+    '/oauth2/consent',
     '/delete-user',
     '/delete-user/callback',
     '/sso/register',
@@ -220,6 +312,7 @@ describe('raw product endpoint exclusions', () => {
     '/sso/verify-domain'
   ])('requires the capability route for %s even with strong proof', async (path) => {
     evidence.qualified = true
+    evidence.recent = true
     const response = await request(path)
     expect(response?.status).toBe(403)
     expect(await response?.json()).toEqual({ code: 'capability_route_required' })

@@ -29,6 +29,7 @@ import {
 let db: DrizzleDatabase
 let provisioned: ProvisionedAuthD1
 let authLayer: Layer.Layer<AuthService>
+let recentProof = true
 
 // The linking audit port, captured instead of performed: these tests assert
 // Better Auth hands the account row over; the governance write is the app
@@ -142,7 +143,8 @@ beforeAll(
               clientSecret: 'mock-client-secret'
             }
           },
-          accountHooks: capturingAccountHooks
+          accountHooks: capturingAccountHooks,
+          hasRecentAuthentication: () => Promise.resolve(recentProof)
         })
       })
     ),
@@ -152,6 +154,7 @@ beforeAll(
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- restores the global fetch each test stubbed
 afterEach(() => {
   vi.unstubAllGlobals()
+  recentProof = true
 })
 
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- disposes the workerd process
@@ -177,6 +180,16 @@ function seedVerifiedLocalUser(email: string) {
   })
 }
 
+function localSessionCookie(email: string) {
+  return Effect.gen(function* () {
+    const auth = yield* Auth.Tag
+    const signedIn = yield* auth.full.signInEmail({
+      body: { email, password: 'correct-horse-battery-staple' }
+    })
+    return cookieHeader(cookiePairs(signedIn.headers))
+  })
+}
+
 /**
  * The full provider round trip: initiation returns GitHub's authorize URL
  * and sets the signed state cookie; the test replays the provider's redirect
@@ -184,7 +197,7 @@ function seedVerifiedLocalUser(email: string) {
  * would. The mocked endpoints answer the token exchange and profile reads;
  * Better Auth does everything else for real.
  */
-function completeGithubRoundTrip() {
+function completeGithubRoundTrip(sessionCookie = '', beforeCallback?: () => void) {
   return Effect.gen(function* () {
     const auth = yield* Auth.Tag
     stubGitHubFetch()
@@ -193,7 +206,8 @@ function completeGithubRoundTrip() {
       body: {
         provider: 'github',
         callbackURL: 'http://localhost:3071/workspaces'
-      }
+      },
+      headers: new Headers({ cookie: sessionCookie })
     })
     const authorizeUrlText = initiation.response.url
     expect(authorizeUrlText).toContain('https://github.com/login/oauth/authorize')
@@ -211,11 +225,12 @@ function completeGithubRoundTrip() {
     )
     expect(stateCookie).toBeDefined()
 
+    beforeCallback?.()
     return yield* Effect.promise(() =>
       auth.instance.handler(
         new Request(
           `http://localhost:3071/api/auth/callback/github?code=mock-code&state=${state}`,
-          { headers: { cookie: stateCookie ?? '' } }
+          { headers: { cookie: `${sessionCookie}; ${stateCookie ?? ''}` } }
         )
       )
     )
@@ -232,7 +247,8 @@ describe('social sign-in', () => {
           const userId = yield* seedVerifiedLocalUser('linked@social.test')
           const before = accountChanges.length
 
-          const callback = yield* completeGithubRoundTrip()
+          const sessionCookie = yield* localSessionCookie('linked@social.test')
+          const callback = yield* completeGithubRoundTrip(sessionCookie)
 
           // The round trip ends in a redirect to the callback URL with a fresh
           // session cookie — the sign-in completed.
@@ -273,6 +289,69 @@ describe('social sign-in', () => {
         })
       )
   )
+
+  it.live(
+    'existing linked provider sign-in does not require an app session or recent linking proof',
+    () =>
+      run(
+        Effect.gen(function* () {
+          useGithubIdentity('returning@social.test', 881_122)
+          yield* completeGithubRoundTrip()
+          recentProof = false
+          const callback = yield* completeGithubRoundTrip()
+          expect(callback.status).toBe(302)
+          expect(callback.headers.get('location')).toBe(
+            'http://localhost:3071/workspaces'
+          )
+          const rows = yield* Effect.promise(() =>
+            db.select().from(account).where(eq(account.accountId, '881122'))
+          )
+          expect(rows).toHaveLength(1)
+        })
+      )
+  )
+
+  // oxlint-disable vitest/no-standalone-expect -- the lint rule does not recognize Effect Vitest's live.each test blocks
+  it.live.each(['signed-out', 'stale', 'other-user'])(
+    'refuses %s implicit linking without creating an account or audit event',
+    (refusal) =>
+      run(
+        Effect.gen(function* () {
+          const email = `${refusal}@social.test`
+          useGithubIdentity(email, 771_100 + refusal.length)
+          const userId = yield* seedVerifiedLocalUser(email)
+          let cookie = ''
+          if (refusal === 'stale') {
+            cookie = yield* localSessionCookie(email)
+          }
+          if (refusal === 'other-user') {
+            yield* seedVerifiedLocalUser('other-owner@social.test')
+            cookie = yield* localSessionCookie('other-owner@social.test')
+          }
+          const before = accountChanges.length
+          const callback = yield* completeGithubRoundTrip(cookie, () => {
+            // The proof expires while the provider ceremony is in progress.
+            if (refusal === 'stale') {
+              recentProof = false
+            }
+          })
+          expect(callback.status).toBe(302)
+          expect(
+            new URL(callback.headers.get('location') ?? '').searchParams.get('error')
+          ).toBe('social_link_authentication_required')
+          const rows = yield* Effect.promise(() =>
+            db
+              .select()
+              .from(account)
+              .where(and(eq(account.providerId, 'github'), eq(account.userId, userId)))
+          )
+          expect(rows).toHaveLength(0)
+          expect(accountChanges.slice(before)).toHaveLength(0)
+        })
+      )
+  )
+
+  // oxlint-enable vitest/no-standalone-expect
 
   it.live(
     'signs up a first-time social visitor as one user with the provider account',
@@ -346,7 +425,7 @@ describe('social sign-in', () => {
       Effect.gen(function* () {
         useGithubIdentity('unlink@social.test', 333_444)
         const userId = yield* seedVerifiedLocalUser('unlink@social.test')
-        yield* completeGithubRoundTrip()
+        yield* completeGithubRoundTrip(yield* localSessionCookie('unlink@social.test'))
         const auth = yield* Auth.Tag
 
         // A credential session for the unlink call: sign in with the local

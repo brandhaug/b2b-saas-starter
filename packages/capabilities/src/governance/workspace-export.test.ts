@@ -84,6 +84,7 @@ describe('SeedWorkspaceExports', () => {
       expect(fixture?.status).toBe('ready')
       expect(fixture?.sizeBytes).toBeGreaterThan(0)
       const link = yield* exports.issueDownloadLink({
+        recipient: { type: 'api_token' },
         exportId: seedWorkspaceExportFixture.id
       })
       expect(Option.isSome(link)).toBe(true)
@@ -106,7 +107,10 @@ describe('SeedWorkspaceExports', () => {
       yield* TestClock.setTime(
         DateTime.toEpochMillis(DateTime.subtractDuration(cutoff, '1 millis'))
       )
-      const link = yield* exports.issueDownloadLink({ exportId: fixture.id })
+      const link = yield* exports.issueDownloadLink({
+        recipient: { type: 'api_token' },
+        exportId: fixture.id
+      })
       if (Option.isNone(link)) {
         expect.fail('expected a link before the artifact cutoff')
         return
@@ -117,7 +121,12 @@ describe('SeedWorkspaceExports', () => {
       // cutoff that matters even before asynchronous physical cleanup runs.
       yield* TestClock.setTime(DateTime.toEpochMillis(cutoff))
       expect(
-        Option.isNone(yield* exports.issueDownloadLink({ exportId: fixture.id }))
+        Option.isNone(
+          yield* exports.issueDownloadLink({
+            recipient: { type: 'api_token' },
+            exportId: fixture.id
+          })
+        )
       ).toBe(true)
       expect(
         Option.isNone(yield* exports.openDownload({ exportId: fixture.id, ...params }))
@@ -172,7 +181,10 @@ describe('SeedWorkspaceExports', () => {
       const exports = yield* WorkspaceExports
       const audit = yield* AuditEventLog
       const created = yield* exports.request
-      const link = yield* exports.issueDownloadLink({ exportId: created.id })
+      const link = yield* exports.issueDownloadLink({
+        recipient: { type: 'api_token' },
+        exportId: created.id
+      })
       expect(Option.isSome(link)).toBe(true)
       if (Option.isNone(link)) {
         return
@@ -193,7 +205,7 @@ describe('SeedWorkspaceExports', () => {
       )
       expect(events.some((event) => event.targetId === created.id)).toBe(true)
       expect(events.find((event) => event.targetId === created.id)?.actorType).toBe(
-        'user'
+        'api_token'
       )
     }).pipe(Effect.provide(ownerLayer))
   )
@@ -202,7 +214,10 @@ describe('SeedWorkspaceExports', () => {
     Effect.gen(function* () {
       const exports = yield* WorkspaceExports
       const created = yield* exports.request
-      const link = yield* exports.issueDownloadLink({ exportId: created.id })
+      const link = yield* exports.issueDownloadLink({
+        recipient: { type: 'api_token' },
+        exportId: created.id
+      })
       if (Option.isNone(link)) {
         expect.fail('expected a link')
       }
@@ -237,6 +252,7 @@ describe('SeedWorkspaceExports', () => {
     Effect.gen(function* () {
       const exports = yield* WorkspaceExports
       const link = yield* exports.issueDownloadLink({
+        recipient: { type: 'api_token' },
         exportId: seedWorkspaceExportFixture.id
       })
       expect(Option.isNone(link)).toBe(true)

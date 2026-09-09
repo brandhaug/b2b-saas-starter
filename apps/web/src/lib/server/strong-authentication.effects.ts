@@ -24,6 +24,17 @@ export function requireStrongAuthentication(session: Session) {
   )
 }
 
+export function requireRecentAuthentication(session: Session) {
+  return runCapabilities(
+    Effect.flatMap(StrongAuthentication, (authentication) =>
+      authentication.requireRecent({
+        userId: session.user.id,
+        sessionId: session.session.id
+      })
+    )
+  )
+}
+
 export async function verifyCurrentPassword(password: string): Promise<boolean> {
   const session = await requireRequestSession()
   if (session.session.impersonatedBy) {

@@ -26,9 +26,11 @@ import {
   isWorkspaceExportDownloadable,
   verifyWorkspaceExportDownload,
   workspaceExportExpiresAt,
+  workspaceExportHumanRecipient,
   WorkspaceExports,
   type CompleteWorkspaceExportInput,
   type FailWorkspaceExportInput,
+  type IssueWorkspaceExportDownloadInput,
   type OpenWorkspaceExportDownloadInput,
   type WorkspaceExport,
   type WorkspaceExportAvailability
@@ -261,25 +263,26 @@ export function SeedWorkspaceExports(options: {
           yield* completeRow(row, archive, requestedAt, audit, feed)
           return row.record
         })(),
-        issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(
-          function* (input: { readonly exportId: string }) {
-            const ctx = yield* WorkspaceContext
-            const row = rows.find(
-              (candidate) =>
-                candidate.record.id === input.exportId &&
-                candidate.workspaceId === ctx.workspace.id
-            )
-            if (!row) {
-              return Option.none()
-            }
-            yield* requireProduct(ctx.workspace.id)
-            return yield* issueWorkspaceExportDownloadLink({
-              downloadSecret: row.downloadSecret,
-              record: row.record,
-              now: yield* DateTime.now
-            })
+        issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(function* (
+          input: IssueWorkspaceExportDownloadInput
+        ) {
+          const ctx = yield* WorkspaceContext
+          const row = rows.find(
+            (candidate) =>
+              candidate.record.id === input.exportId &&
+              candidate.workspaceId === ctx.workspace.id
+          )
+          if (!row) {
+            return Option.none()
           }
-        ),
+          yield* requireProduct(ctx.workspace.id)
+          return yield* issueWorkspaceExportDownloadLink({
+            downloadSecret: row.downloadSecret,
+            record: row.record,
+            now: yield* DateTime.now,
+            human: workspaceExportHumanRecipient(input.recipient, ctx.workspace.slug)
+          })
+        }),
         complete: Effect.fn('WorkspaceExports.complete')(function* (
           input: CompleteWorkspaceExportInput
         ) {
@@ -327,15 +330,20 @@ export function SeedWorkspaceExports(options: {
             exportId: input.exportId,
             expires: input.expires,
             signature: input.signature,
+            human: input.human,
             now
           })
           if (!valid) {
             return Option.none()
           }
+          let actorType: 'user' | 'api_token' = 'api_token'
+          if (input.human) {
+            actorType = 'user'
+          }
           yield* audit.record({
             workspaceId: row.workspaceId,
-            actorUserId: null,
-            actorType: 'user',
+            actorUserId: input.human?.userId ?? null,
+            actorType,
             eventType: 'workspace.export_downloaded',
             targetType: 'workspace_export',
             targetId: row.record.id,

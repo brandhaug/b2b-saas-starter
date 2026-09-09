@@ -143,6 +143,25 @@ test('saved account language and time zone override browser preferences in a new
         name: /^(Yes, delete my account|Ja, slett kontoen min)$/
       })
       .click()
+    // Signup alone does not record recent authentication. The refused deletion
+    // must return here for a deliberate retry after verifying the password.
+    await page.waitForURL(/\/verify-authentication/)
+    await page.locator('form[data-hydrated="true"]').waitFor()
+    await page.getByLabel(/^(Password|Passord)$/).fill(isolatedAccountPassword)
+    await page
+      .getByRole('button', { name: /^(Confirm password|Bekreft passord)$/ })
+      .click()
+    await page.waitForURL(/\/account$/)
+    await page.locator('header select:enabled').waitFor({ state: 'attached' })
+    await expect(page.locator('#delete-account-password')).toBeVisible()
+    await page.locator('#delete-account-password').fill(isolatedAccountPassword)
+    await page.getByRole('button', { name: /^(Delete account|Slett konto)$/ }).click()
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', {
+        name: /^(Yes, delete my account|Ja, slett kontoen min)$/
+      })
+      .click()
     await page.waitForURL(/\/sign-in/)
   }
 })

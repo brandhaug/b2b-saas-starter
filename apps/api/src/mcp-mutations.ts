@@ -13,6 +13,7 @@ import {
   type CapabilityMutationError,
   type CapabilityMutationServices,
   type OperationOrigin,
+  type OperationExportRecipient,
   type OperationPrincipal
 } from './operations.ts'
 
@@ -22,6 +23,7 @@ export type MutationInvocation = Effect.Effect<
   | CapabilityMutationServices
   | WorkspaceContext
   | OperationOrigin
+  | OperationExportRecipient
   | OperationPrincipal
   | Scope.Scope
 >

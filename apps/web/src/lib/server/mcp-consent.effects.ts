@@ -1,3 +1,4 @@
+import { requireRecentAuthentication } from './strong-authentication.effects'
 import { MCP_CONSENT_PAGE, MCP_WORKSPACE_SELECTED_HEADER } from '@b2b-saas-starter/auth'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
@@ -114,6 +115,7 @@ export async function grantOAuthConsentHandler(
   input: GrantOAuthConsentInput
 ): Promise<OAuthRedirect> {
   const session = await requireRequestSession()
+  await requireRecentAuthentication(session)
   await runCapabilities(
     Effect.gen(function* () {
       const workspaces = yield* listWorkspacesForUser(session.user.id)

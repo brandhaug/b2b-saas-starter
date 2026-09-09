@@ -37,7 +37,10 @@ import {
   type WorkspaceSuspensionInput
 } from './admin'
 import { requireRequestSession, UnauthorizedError } from './auth'
-import { requireStrongAuthentication } from './strong-authentication.effects'
+import {
+  requireStrongAuthentication,
+  requireRecentAuthentication
+} from './strong-authentication.effects'
 import { webUserAdminBinding } from './user-admin-binding'
 
 /**
@@ -97,6 +100,7 @@ export async function listAdminWorkspacesHandler(): Promise<
 
 export async function transitionAdminWorkspaceHandler(input: WorkspaceSuspensionInput) {
   const session = await requireAdminSession()
+  await requireRecentAuthentication(session)
   return runCapabilities(
     Effect.gen(function* () {
       const suspension = yield* WorkspaceSuspensionService
@@ -199,6 +203,7 @@ export async function replayFailedDeliveryHandler(
 
 export async function banSystemUserHandler(input: SystemUserInput): Promise<void> {
   const session = await requireAdminSession()
+  await requireRecentAuthentication(session)
   return runCapabilities(
     Effect.gen(function* () {
       const admin = yield* PlatformUserAdmin
@@ -213,6 +218,7 @@ export async function banSystemUserHandler(input: SystemUserInput): Promise<void
 
 export async function unbanSystemUserHandler(input: SystemUserInput): Promise<void> {
   const session = await requireAdminSession()
+  await requireRecentAuthentication(session)
   return runCapabilities(
     Effect.gen(function* () {
       const admin = yield* PlatformUserAdmin
@@ -246,6 +252,7 @@ export async function changeUserWorkspaceRoleHandler(
   input: ChangeWorkspaceRoleInput
 ): Promise<Member> {
   const session = await requireAdminSession()
+  await requireRecentAuthentication(session)
   return runCapabilities(
     Effect.gen(function* () {
       const admin = yield* PlatformUserAdmin
@@ -271,6 +278,7 @@ export async function impersonateUserHandler(
   input: SystemUserInput
 ): Promise<ImpersonationStarted> {
   const session = await requireAdminSession()
+  await requireRecentAuthentication(session)
   if (session.session.impersonatedBy) {
     // oxlint-disable-next-line effect/noThrowStatement -- TanStack Start serializes a thrown server-fn error back to the caller; the returned Promise has no error channel
     throw new ImpersonationStateError('Stop the current impersonation first.')

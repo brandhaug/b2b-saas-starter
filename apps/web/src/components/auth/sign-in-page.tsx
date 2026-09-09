@@ -251,8 +251,13 @@ export function SignInPage({
   // The refusal-hop notice is derived, not state: it describes how the visit
   // arrived, and a submit's own notice (fresher, from something the visitor
   // just did) supersedes it.
-  const twoFactorNotice =
-    searchError === TWO_FACTOR_REQUIRED_ERROR_CODE ? twoFactorRequiredMessage() : null
+  const socialLinkRequired = searchError === 'social_link_authentication_required'
+  let authenticationNotice: string | null = null
+  if (socialLinkRequired) {
+    authenticationNotice = m.security_social_link_authentication_required()
+  } else if (searchError === TWO_FACTOR_REQUIRED_ERROR_CODE) {
+    authenticationNotice = twoFactorRequiredMessage()
+  }
 
   const passwordForm = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
@@ -326,7 +331,7 @@ export function SignInPage({
           />
         }
         error={submitError}
-        notice={ssoNotice ?? twoFactorNotice}
+        notice={ssoNotice ?? authenticationNotice}
         footer={signInFooter({
           mode,
           redirect,
@@ -384,7 +389,7 @@ export function SignInPage({
         />
       }
       error={submitError}
-      notice={ssoNotice ?? twoFactorNotice}
+      notice={ssoNotice ?? authenticationNotice}
       footer={signInFooter({
         mode,
         redirect,
@@ -393,6 +398,18 @@ export function SignInPage({
     >
       <LastSignInMethodHint />
       <SocialSignInButtons providers={socialProviders} redirectTo={redirect} />
+      {socialLinkRequired ? (
+        <Link
+          to="/verify-authentication"
+          search={{
+            recent: 'true',
+            redirect: `/sign-in?redirect=${encodeURIComponent(safeRedirect(redirect))}`
+          }}
+          className="text-sm underline underline-offset-4"
+        >
+          {m.security_verify_continue()}
+        </Link>
+      ) : null}
 
       <passwordForm.Field name="email" validators={{ onChange: emailValidator }}>
         {(field) => (

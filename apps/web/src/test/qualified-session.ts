@@ -12,11 +12,13 @@ vi.mock(
       status: () =>
         Effect.succeed({
           qualified: true,
+          recent: true,
           recovering: false,
           hasFactors: true,
           passwordVerified: true
         }),
-      require: () => Effect.void
+      require: () => Effect.void,
+      requireRecent: () => Effect.void
     })
     return { ...actual, SeedStrongAuthentication: () => qualified }
   }

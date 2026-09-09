@@ -21,6 +21,7 @@ import {
   type MutationRequestOptions,
   MUTATION_OPERATIONS,
   OperationOrigin,
+  OperationExportRecipient,
   OperationPrincipal,
   READ_OPERATIONS
 } from './operations.ts'
@@ -62,6 +63,7 @@ function workspaceOperation<A, E, R>(
       yield* enforcePermission(permission, slug)
       const principal = yield* ApiPrincipal
       return yield* provideWorkspace(env, slug, body, undefined, 'api_token').pipe(
+        Effect.provideService(OperationExportRecipient, { type: 'api_token' }),
         Effect.provideService(OperationPrincipal, tokenPrincipal(principal.scopes)),
         Effect.provideService(OperationOrigin, new URL(webRequest(request).url).origin)
       )

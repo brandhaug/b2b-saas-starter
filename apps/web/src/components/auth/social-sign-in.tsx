@@ -78,6 +78,7 @@ export function SocialSignInButtons({
                 // when the endpoint answers `{ url, redirect: true }`.
                 void authClient.signIn.social({
                   provider,
+                  errorCallbackURL: `${window.location.origin}/sign-in?redirect=${encodeURIComponent(safeRedirect(redirectTo))}`,
                   callbackURL: `${window.location.origin}${safeRedirect(redirectTo)}`
                 })
               }}
