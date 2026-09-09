@@ -117,7 +117,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             }
             expect(yield* delivery.listForUser('usr_audited')).toHaveLength(100)
           })
-        )
+        ),
+      // Creating 102 live delivery records serially can exceed Vitest's
+      // default test budget on a contended CI runner.
+      { timeout: 60_000 }
     )
 
     it.effect(

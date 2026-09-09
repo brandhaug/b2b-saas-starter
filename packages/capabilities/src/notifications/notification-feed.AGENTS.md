@@ -2,6 +2,12 @@
 
 The one place a Notification row is created (ADR 0061). Producers call `create` / `record` / `notifyUser`; the instant-email queue and the daily digest read from here.
 
+`notification-email-eligibility.ts` is the shared read-time policy for those
+two email callers. It owns current feed visibility, Notification Preferences,
+Workspace suspension exceptions, and durable suppression sequencing; it does
+not render or transport email, and EmailDelivery remains the claims/evidence
+authority.
+
 ## Contracts
 
 - `create` is keyed by `workspaceId`, since background producers hold an id. It persists the row, then enqueues one `NotificationEmailQueueMessage` per recipient whose channel resolves to `instant`; `userId: null` broadcasts.

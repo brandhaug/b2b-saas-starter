@@ -4,13 +4,8 @@ import {
 } from '@b2b-saas-starter/capabilities/runtime'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { NotificationEmailQueueMessage } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import {
-  isAllowedDuringWorkspaceSuspension,
-  renderNotificationCopy
-} from '@b2b-saas-starter/capabilities/notifications/notification-events'
-import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
-import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import { NotificationEmailEligibility } from '@b2b-saas-starter/capabilities/notifications/notification-email-eligibility'
+import { renderNotificationCopy } from '@b2b-saas-starter/capabilities/notifications/notification-events'
 import { notificationKindLabel } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
@@ -21,7 +16,7 @@ import {
 import { notificationEmailFor } from '@b2b-saas-starter/email/notification-emails'
 import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
 import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
-import { Effect, Layer, Result, type Scope } from 'effect'
+import { Effect, Layer, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
 import {
@@ -52,12 +47,7 @@ export function processNotificationEmailMessage(
 ): Effect.Effect<
   DeliveryOutcome,
   CapabilityUnavailable,
-  | NotificationFeed
-  | NotificationPreferences
-  | EmailDispatcher
-  | EmailDelivery
-  | WorkspaceSuspensionService
-  | Scope.Scope
+  NotificationEmailEligibility | EmailDispatcher | EmailDelivery | Scope.Scope
 > {
   return Effect.gen(function* () {
     if (delivery.kind === 'malformed') {
@@ -71,62 +61,20 @@ export function processNotificationEmailMessage(
     const messageId = `notification:${notificationId}:${recipientUserId}`
     const history = yield* EmailDelivery
     yield* Effect.annotateLogsScoped({ notificationId, recipientUserId })
-    const feed = yield* NotificationFeed
-    const context = yield* feed.loadForEmail(notificationId, recipientUserId)
-    if (context === null) {
-      yield* history.abandon(messageId)
+    const eligibility = yield* NotificationEmailEligibility
+    const decision = yield* eligibility.instant({ notificationId, recipientUserId })
+    if (decision._tag === 'skip') {
       yield* Effect.annotateLogsScoped({
         outcome: 'skipped',
-        skipReason: 'not_deliverable'
+        skipReason: decision.reason
       })
       return ack
     }
-    // Account security notices have no workspace and remain deliverable. A
-    // workspace notification queued before suspension settles permanently so
-    // reactivation cannot replay stale product mail.
-    const suspension = yield* WorkspaceSuspensionService
-    const allowedDuringSuspension = isAllowedDuringWorkspaceSuspension(
-      context.notification
-    )
-    if (!allowedDuringSuspension && context.workspace !== null) {
-      const allowed = yield* Effect.result(
-        suspension.requireAllowed(context.workspace.id, 'product')
-      )
-      if (Result.isFailure(allowed)) {
-        if (allowed.failure._tag === 'WorkspaceSuspended') {
-          // Create the delivery evidence before settling it: this message was
-          // queued, but no provider attempt should be made while suspended.
-          yield* history.claim({
-            id: messageId,
-            purpose: 'notification',
-            recipient: context.recipient.email,
-            userId: recipientUserId,
-            workspaceId: context.workspace.id,
-            referenceId: notificationId,
-            queuedAt: context.notification.createdAt
-          })
-          yield* history.abandon(messageId, 'workspace_suspended')
-          yield* Effect.annotateLogsScoped({
-            outcome: 'skipped',
-            skipReason: 'workspace_suspended'
-          })
-          return ack
-        }
-        return yield* Effect.fail(allowed.failure)
-      }
-    }
+    const { context } = decision
+    // Eligibility re-reads the current recipient, workspace and channel before
+    // this caller renders and submits the email.
     const kind = context.notification.kind
     yield* Effect.annotateLogsScoped({ kind })
-    const preferences = yield* NotificationPreferences
-    const channel = yield* preferences.resolve(recipientUserId, kind)
-    if (channel !== 'instant') {
-      yield* history.abandon(messageId)
-      yield* Effect.annotateLogsScoped({
-        outcome: 'skipped',
-        skipReason: `channel_${channel}`
-      })
-      return ack
-    }
     const locale: Locale = context.recipient.locale ?? DEFAULT_LOCALE
     const kindLabel = notificationKindLabel(kind, locale)
     const copy = renderNotificationCopy(

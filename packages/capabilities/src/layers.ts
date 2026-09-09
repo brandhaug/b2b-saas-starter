@@ -116,6 +116,10 @@ import { LiveNotificationFeed } from './notifications/notification-feed.live.ts'
 import { SeedNotificationFeed } from './notifications/notification-feed.seed.ts'
 import { type NotificationFeed } from './notifications/notification-feed.ts'
 import {
+  type NotificationEmailEligibility,
+  layerWithoutDependencies as NotificationEmailEligibilityLayer
+} from './notifications/notification-email-eligibility.ts'
+import {
   LiveNotificationPreferences,
   type NotificationPreferences,
   SeedNotificationPreferences
@@ -152,6 +156,7 @@ export type CapabilityServices =
   | ResourceEntitlements
   | McpClientConnections
   | NotificationFeed
+  | NotificationEmailEligibility
   | NotificationPreferences
   | PlatformUserAdmin
   | SeatSyncPublisher
@@ -309,11 +314,17 @@ const SeedPersonalExports = SeedPersonalDataExports(
   seedWorkspaceRecord.id
 ).pipe(Layer.provide(SeedCore))
 
+const SeedEmailEligibility = NotificationEmailEligibilityLayer.pipe(
+  Layer.provide(SeedCore)
+)
+
 // oxlint-disable effect/noAs,anti-slop/require-safety-comment-for-type-assertion
 // SAFETY: SeedExports is built by providing SeedCore, so the merged layer supplies every capability service and has no runtime requirements.
-export const SeedLayer = Layer.merge(
+export const SeedLayer = Layer.mergeAll(
   SeedCore,
-  Layer.merge(SeedExports, SeedPersonalExports)
+  SeedExports,
+  SeedPersonalExports,
+  SeedEmailEligibility
 ) /* SAFETY: SeedExports is built by providing SeedCore, so all runtime requirements are supplied. */ as CapabilitiesLayer
 
 /**
@@ -432,6 +443,12 @@ export function makeLiveCapabilitiesLayer(
     Layer.provide(LiveAuditEventLog),
     Layer.provide(feed)
   )
+  const emailEligibility = NotificationEmailEligibilityLayer.pipe(
+    Layer.provide(feed),
+    Layer.provide(preferences),
+    Layer.provide(suspension),
+    Layer.provide(LiveEmailDelivery)
+  )
   return Layer.mergeAll(
     LiveRetention,
     LiveEmailDelivery,
@@ -447,6 +464,7 @@ export function makeLiveCapabilitiesLayer(
     preferences,
     accountPreferences,
     feed,
+    emailEligibility,
     LiveSsoConnections(options.ssoBinding),
     LiveWebhookEndpoints.pipe(Layer.provide(entitlements), Layer.provide(billing)),
     publisher,
