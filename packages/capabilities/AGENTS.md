@@ -17,6 +17,7 @@ Read the capability's adjacent `<capability>.AGENTS.md` before changing its cont
 
 Operator monitoring reads are documented in [operational-health](src/governance/operational-health.AGENTS.md).
 Retention policy, approval and cleanup changes use [retention](src/governance/retention.AGENTS.md).
+Personal account archives use [personal-data-export](src/governance/personal-data-export.AGENTS.md).
 
 ## Shared contracts
 

@@ -91,6 +91,8 @@ export type EmailDeliveryInterface = {
     event: EmailProviderEvent
   ) => Result<'updated' | 'ignored' | 'unmatched'>
   readonly get: (id: string) => Result<EmailDeliveryRecord | null>
+  /** Complete sanitized personal evidence, without the history page limit. */
+  readonly exportForUser: (userId: string) => Result<ReadonlyArray<EmailDeliveryRecord>>
   readonly listForUser: (userId: string) => Result<ReadonlyArray<EmailDeliveryRecord>>
   readonly listInvitations: (
     workspaceId: string

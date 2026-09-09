@@ -92,6 +92,69 @@ function run(mode: 'preview' | 'execute', overrides: Partial<RetentionPolicy> = 
 // Every case starts workerd and applies the real migrations before scanning D1.
 describe('retention on D1', { timeout: 30_000 }, () => {
   it.effect(
+    'previews and removes only expired personal artifacts with indexed session cleanup',
+    () =>
+      withDatabase((d1) =>
+        Effect.gen(function* () {
+          yield* insert(d1, 'user', {
+            id: 'export-owner',
+            name: 'Export Owner',
+            email: 'export-owner@example.test',
+            createdAt: epochNow,
+            updatedAt: epochNow
+          })
+          yield* insert(d1, 'session', {
+            id: 'export-session',
+            userId: 'export-owner',
+            token: 'test-session',
+            expiresAt: epochNow + 172_800,
+            createdAt: epochNow,
+            updatedAt: epochNow
+          })
+          const artifact = {
+            user_id: 'export-owner',
+            session_id: 'export-session',
+            archive: '{"private":"personal content"}',
+            created_at: isoOld
+          }
+          yield* insert(d1, 'personal_data_exports', {
+            ...artifact,
+            id: 'expired-personal',
+            expires_at: isoNow
+          })
+          yield* insert(d1, 'personal_data_exports', {
+            ...artifact,
+            id: 'active-personal',
+            expires_at: '2026-09-07T12:00:00.001Z'
+          })
+          const preview = yield* run('preview')
+          expect(preview.status).toBe('success')
+          expect(preview.candidates.personal_data_exports).toBe(1)
+          expect(yield* ids(d1, 'personal_data_exports')).toEqual([
+            'active-personal',
+            'expired-personal'
+          ])
+          const result = yield* run('execute')
+          expect(result.status).toBe('success')
+          expect(result.deleted.personal_data_exports).toBe(1)
+          expect(yield* ids(d1, 'personal_data_exports')).toEqual(['active-personal'])
+          expect(yield* encodePreview(result)).not.toContain('personal content')
+          const plan = yield* Effect.promise(() =>
+            d1
+              .prepare(
+                'EXPLAIN QUERY PLAN SELECT id FROM personal_data_exports WHERE session_id = ?'
+              )
+              .bind('export-session')
+              .all<{ detail: string }>()
+          )
+          expect(
+            plan.results.some((row) => /SEARCH.*USING.*INDEX/.test(row.detail))
+          ).toBe(true)
+        })
+      )
+  )
+
+  it.effect(
     'audit expiry and completed billing metadata preserve unrelated and unfinished records',
     () =>
       withDatabase((d1) =>
@@ -328,19 +391,19 @@ describe('retention on D1', { timeout: 30_000 }, () => {
             message: 'Message',
             created_at: isoOld
           })
-          const first = yield* run('execute', { batchSize: 1, workBudget: 17 })
+          const first = yield* run('execute', { batchSize: 1, workBudget: 18 })
           expect(
             first.records.reduce((total, row) => total + row.scanned, 0)
-          ).toBeLessThanOrEqual(17)
+          ).toBeLessThanOrEqual(18)
           expect(first.deleted.webhooks).toBe(0)
           expect(first.deleted.notifications).toBe(1)
           expect(first.recovery.webhooks).toBe(1)
-          const resumed = yield* run('execute', { batchSize: 1, workBudget: 17 })
+          const resumed = yield* run('execute', { batchSize: 1, workBudget: 18 })
           expect(resumed.deleted.webhooks).toBe(1)
           expect(yield* ids(d1, 'webhook_deliveries')).toEqual(['a-pending'])
           expect(yield* ids(d1, 'webhook_delivery_attempts')).toEqual([])
           expect(
-            (yield* run('execute', { batchSize: 1, workBudget: 17 })).deleted.webhooks
+            (yield* run('execute', { batchSize: 1, workBudget: 18 })).deleted.webhooks
           ).toBe(0)
         })
       )

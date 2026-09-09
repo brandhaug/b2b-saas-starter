@@ -58,13 +58,16 @@ decision date, reason, revised due date, and the date the notice was sent.
 
 For a verified account holder, use the account page's personal-data export.
 The server takes the identity from the current session, requires recent
-authentication, records `auth.personal_data_exported`, and returns the JSON
-only to that request. It does not create an R2 artifact or retain the archive
-as a shared application record.
+authentication, and prepares a private JSON archive in D1. Download requires
+the same current session and recent authentication again. Both actions record
+`auth.personal_data_exported`. Downloads expire after 24 hours; approved
+retention cleanup removes expired artifacts. Account or session deletion
+cascades to the archive. See the [personal-data export documentation](../apps/web/content/docs/governance/personal-data-export.mdx).
 
 The archive contains the profile, account and notification preferences,
-memberships, user-targeted notifications, session metadata, linked-provider
-metadata, and passkey metadata. It excludes passwords, bearer-token material,
+memberships, user-targeted notifications, personal email-delivery evidence,
+session metadata, linked-provider and OAuth client/consent metadata, and
+passkey metadata. It excludes passwords, bearer-token material,
 OAuth credentials, two-factor secrets, backup codes, and other users' data.
 Workspace business records are shared records. Use the [Workspace Export
 documentation](../apps/web/content/docs/governance/data-export.mdx) only when
@@ -215,12 +218,14 @@ The operator records receipt and asks the legal contact to confirm that the
 deployment is the controller for the account records. The requester signs in
 to `/account`, completes the recent-authentication check, and uses the personal
 export control. The returned JSON contains the requester's profile,
-preferences, membership, addressed notifications, session metadata,
-linked-account metadata, and passkey metadata. It contains no password, token,
+preferences, membership, addressed notifications, personal email-delivery
+evidence, session metadata, linked-account and OAuth client/consent metadata,
+and passkey metadata. It contains no password, token,
 OAuth secret, or other member's notification. The operator confirms delivery
 through the approved restricted channel and records the export audit event as
-the completion reference. The generated JSON is not retained by the
-application.
+the completion reference. The application retains the private JSON until
+approved cleanup after its 24-hour expiry, or until account/session deletion
+cascades to it.
 
 The requester reviews the deletion plan and confirms deletion with their
 password. Because another owner remains, the account leaves the Workspace and

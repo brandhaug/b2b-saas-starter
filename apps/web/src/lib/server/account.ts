@@ -28,11 +28,25 @@ export const loadAccountPageServerFn = createServerFn({
 })
 
 export const exportPersonalDataServerFn = createServerFn({ method: 'POST' }).handler(
-  async (): Promise<{ readonly fileName: string; readonly json: string }> => {
+  async (): Promise<{ readonly id: string; readonly expiresAt: string }> => {
     const { exportPersonalDataHandler } = await import('./account.effects')
     return exportPersonalDataHandler()
   }
 )
+
+const DownloadPersonalDataInput = Schema.Struct({
+  exportId: Schema.NonEmptyString
+})
+export type DownloadPersonalDataInput = typeof DownloadPersonalDataInput.Type
+
+export const downloadPersonalDataServerFn = createServerFn({ method: 'POST' })
+  .validator(Schema.decodeUnknownSync(DownloadPersonalDataInput))
+  .handler(
+    async ({ data }): Promise<{ readonly fileName: string; readonly json: string }> => {
+      const { downloadPersonalDataHandler } = await import('./account.effects')
+      return downloadPersonalDataHandler(data)
+    }
+  )
 
 const DeleteAccountInput = Schema.Struct({
   password: Schema.NonEmptyString
