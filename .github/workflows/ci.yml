@@ -85,7 +85,9 @@ jobs:
         # orchestration script so each package executes in exactly one group.
         run: |
           if [[ "${{ matrix.name }}" == packages ]]; then
-            vp run --filter "$TEST_FILTER" --filter '!capabilities' --filter '!b2b-saas-starter' --fail-if-no-match test
+            # Each Vitest task has its own workers and D1 proxies. Bound the
+            # package-level concurrency now that capabilities no longer gates them.
+            vp run --filter "$TEST_FILTER" --filter '!capabilities' --filter '!b2b-saas-starter' --concurrency-limit 2 --fail-if-no-match test
           else
             vp run --filter "$TEST_FILTER" --filter '!b2b-saas-starter' --fail-if-no-match test
           fi
