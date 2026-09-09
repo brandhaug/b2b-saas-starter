@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     "./server": "./src/server.ts",
+    "./transport": "./src/transport.ts",
     "./social": "./src/social.ts"
   },
   "scripts": {

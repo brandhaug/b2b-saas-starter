@@ -21,6 +21,7 @@ import { join } from 'node:path'
 import { parseArgs, promisify } from 'node:util'
 
 import { Predicate, Schema } from 'effect'
+import { isSecureDsn, isSecureEndpoint } from '../packages/env/src/transport.ts'
 
 const exec = promisify(execFile)
 const ROOT = join(import.meta.dirname, '..')
@@ -208,7 +209,15 @@ async function retry(
 
 function s3Args(): ReadonlyArray<string> {
   const endpoint = process.env.BACKUP_S3_ENDPOINT
-  return endpoint === undefined ? [] : ['--endpoint-url', endpoint]
+  if (endpoint === undefined) {
+    return []
+  }
+  if (!isSecureEndpoint(endpoint)) {
+    throw new Error(
+      'BACKUP_S3_ENDPOINT must be an absolute HTTPS URL without credentials'
+    )
+  }
+  return ['--endpoint-url', endpoint]
 }
 
 async function aws(args: ReadonlyArray<string>): Promise<string> {
@@ -702,6 +711,9 @@ function sentryConfiguration(
   }
   if (dsn === undefined || slug === undefined || slug.trim().length === 0) {
     throw new Error(`SENTRY_DSN and ${slugVariable} must be configured together`)
+  }
+  if (!isSecureDsn(dsn)) {
+    throw new Error('SENTRY_DSN must be an HTTPS URL without a password')
   }
   return { dsn, slug }
 }

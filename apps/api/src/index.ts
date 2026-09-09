@@ -5,6 +5,10 @@ import {
 } from '@b2b-saas-starter/logger/providers'
 import * as Sentry from '@sentry/cloudflare'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
+import {
+  enforceSecureEndpoints,
+  minimumTlsResponse
+} from '@b2b-saas-starter/env/transport'
 import { Effect } from 'effect'
 
 import { type ApiEnv } from './env.ts'
@@ -19,6 +23,13 @@ const worker = {
   // Not `async`: the Workers runtime awaits the returned promise, and the
   // handler has nothing to await before returning it.
   fetch(request: Request, env: ApiEnv): Promise<Response> {
+    // Sentry deliberately skips its options callback for HEAD and OPTIONS.
+    // Keep the gate at the actual Worker seam too, before any provider wiring.
+    enforceSecureEndpoints(env)
+    const tlsResponse = minimumTlsResponse(request, env.ENVIRONMENT)
+    if (tlsResponse !== undefined) {
+      return Effect.runPromise(Effect.succeed(tlsResponse))
+    }
     // Point the wide-event sinks (Sentry/PostHog) at this invocation's env;
     // unset vars keep both providers fully inert. See
     // packages/logger/src/providers.ts.
@@ -39,4 +50,7 @@ const worker = {
   }
 }
 
-export default Sentry.withSentry((env: ApiEnv) => makeSentryOptions('api', env), worker)
+export default Sentry.withSentry((env: ApiEnv) => {
+  enforceSecureEndpoints(env)
+  return makeSentryOptions('api', env)
+}, worker)

@@ -15,6 +15,7 @@ import {
 } from '@b2b-saas-starter/capabilities/testing/live-harness'
 import { fixtureSession } from '@/test/fixture-session'
 import type * as AuthModule from './auth'
+import type * as DashboardModule from './workspace-dashboard.effects'
 
 // Only session lookup and Worker bindings are substituted. The handlers resolve
 // membership and permissions through the production Live capabilities on local D1.
@@ -23,6 +24,7 @@ vi.mock('./auth', async (importOriginal) => ({
   ...(await importOriginal<typeof AuthModule>()),
   requireRequestSession: async () => fixtureSession(actor)
 }))
+let dashboard: typeof DashboardModule.loadWorkspaceDashboardHandler
 const database = ManagedRuntime.make(TestDatabase)
 function execute(sql: string, ...values: ReadonlyArray<string>) {
   return database.runPromise(
@@ -66,6 +68,12 @@ beforeAll(async () => {
   await execute(`INSERT INTO notifications (id,workspace_id,title,message,created_at) VALUES
     ('not_isolation_a','wrk_dev_contract','Own announcement','Own message','2026-01-01T00:00:00Z'),
     ('not_isolation_b','wrk_other','Private announcement','Foreign message','2026-01-01T00:00:00Z')`)
+  // Import only after the Cloudflare binding mock and live fixture are ready.
+  // The module graph is large enough to exceed the first test's five-second
+  // budget under full-suite contention, so load it in this 120-second hook.
+  const { loadWorkspaceDashboardHandler } =
+    await import('./workspace-dashboard.effects')
+  dashboard = loadWorkspaceDashboardHandler
 }, 120_000)
 beforeEach(async () => {
   actor.userId = 'usr_owner'
@@ -79,8 +87,6 @@ afterAll(async () => {
 
 describe('browser server handler Workspace isolation', () => {
   it('promotion requires verified authentication in an existing session', async () => {
-    const { loadWorkspaceDashboardHandler: dashboard } =
-      await import('./workspace-dashboard.effects')
     await execute("UPDATE session SET strongAuthAt=NULL WHERE id='ses_usr_owner'")
     await expect(
       dashboard({ workspaceSlug: 'dev-contract-lab' })
@@ -109,8 +115,6 @@ describe('browser server handler Workspace isolation', () => {
   })
 
   it('distinct users and a multi-Workspace user receive only their authorized page segments and counts', async () => {
-    const { loadWorkspaceDashboardHandler: dashboard } =
-      await import('./workspace-dashboard.effects')
     const { loadWorkspaceWebhooksHandler: webhooks } =
       await import('./webhooks.effects')
     const own = await dashboard({ workspaceSlug: 'dev-contract-lab' })
@@ -223,8 +227,6 @@ describe('browser server handler Workspace isolation', () => {
   }, 120_000)
 
   it('the same session observes role demotion and membership removal before reads and writes', async () => {
-    const { loadWorkspaceDashboardHandler: dashboard } =
-      await import('./workspace-dashboard.effects')
     const webhooks = await import('./webhooks.effects')
     actor.userId = 'usr_joiner'
     const created = await webhooks.createWebhookEndpointHandler({

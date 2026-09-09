@@ -194,6 +194,11 @@ otherwise deploys like production, so it needs `BETTER_AUTH_URL`.
 
 ## Ongoing deploys and rotation
 
+Before customer use, complete [encryption verification](encryption.md) for the
+deployed domains, bypass hostnames, provider connections, storage and key custody.
+Repeat it after changes to those paths. HTTPS configuration alone does not prove
+a TLS minimum or storage encryption.
+
 Merging to `master` deploys after CI and E2E pass. The workflow also supports
 manual dispatch. Adopters with customer data should protect the `production`
 environment with required operator approval and disable automatic deployment

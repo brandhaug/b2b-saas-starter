@@ -5,6 +5,7 @@ import {
 } from '@better-auth/sso'
 import { Effect, Option, Result, Schema } from 'effect'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { isSecureEndpoint } from '@b2b-saas-starter/env/transport'
 
 import { type OidcEndpoints } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 
@@ -56,6 +57,12 @@ export function resolveOidcIssuer(
   issuer: string
 ): Effect.Effect<OidcEndpoints, SsoValidationError> {
   return Effect.gen(function* () {
+    if (!isSecureEndpoint(issuer)) {
+      return yield* Effect.fail({
+        code: 'discovery_invalid',
+        message: m.server_discovery_invalid()
+      } satisfies SsoValidationError)
+    }
     const document = yield* Effect.tryPromise({
       try: () => fetchDiscoveryDocument(discoveryUrl(issuer)),
       catch: () =>
@@ -83,6 +90,22 @@ export function resolveOidcIssuer(
       return yield* Effect.fail({
         code: 'discovery_invalid',
         message: m.server_discovery_endpoints_missing()
+      } satisfies SsoValidationError)
+    }
+    const discoveredUrls = [
+      endpoints.value.authorization_endpoint,
+      endpoints.value.token_endpoint,
+      endpoints.value.jwks_uri,
+      endpoints.value.userinfo_endpoint
+    ]
+    if (
+      discoveredUrls.some(
+        (endpoint) => endpoint !== undefined && !isSecureEndpoint(endpoint)
+      )
+    ) {
+      return yield* Effect.fail({
+        code: 'discovery_invalid',
+        message: m.server_discovery_invalid()
       } satisfies SsoValidationError)
     }
     const resolved: OidcEndpoints = {
@@ -132,6 +155,12 @@ export function validateSamlMetadata(
       return yield* Effect.fail({
         code: 'saml_metadata_missing_entry_point',
         message: m.server_metadata_binding_missing()
+      } satisfies SsoValidationError)
+    }
+    if (!isSecureEndpoint(entryPoint)) {
+      return yield* Effect.fail({
+        code: 'saml_metadata_invalid',
+        message: m.server_metadata_invalid()
       } satisfies SsoValidationError)
     }
     return { entityId, entryPoint }

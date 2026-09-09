@@ -1,5 +1,6 @@
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { isSecureEndpoint } from '@b2b-saas-starter/env/transport'
 import {
   SsoConnections,
   type SsoConnection,
@@ -106,11 +107,17 @@ function loadSamlMetadata(
     return Effect.succeed(input.metadataXml)
   }
   const url = input.metadataUrl ?? ''
+  if (!isSecureEndpoint(url)) {
+    return Effect.fail({
+      code: 'saml_metadata_invalid',
+      message: m.server_metadata_fetch_failed()
+    } satisfies SsoValidationError)
+  }
   // `causeMessage` is the repo's one unknown-throw reader, applied inline at
   // each catch boundary — no second representation is introduced here. The
   // two inline literals are the same error shape; `satisfies` pins both.
   return Effect.tryPromise({
-    try: () => fetch(url, { redirect: 'follow' }),
+    try: () => fetch(url, { redirect: 'manual' }),
     catch: (thrown) =>
       ({
         code: 'saml_metadata_invalid',

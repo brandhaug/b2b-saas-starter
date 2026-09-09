@@ -5,17 +5,29 @@ import {
 import StartServerEntry from '@tanstack/react-start/server-entry'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import * as Sentry from '@sentry/cloudflare'
+import {
+  enforceSecureEndpoints,
+  minimumTlsResponse
+} from '@b2b-saas-starter/env/transport'
 
 // The TanStack Start entry's `fetch` carries Start's own handler signature;
 // the adapter below re-shapes it into a plain Workers `ExportedHandler` so
 // `Sentry.withSentry` can wrap it at the platform boundary.
 const worker = {
   fetch(request: Request): Promise<Response> | Response {
+    // Sentry deliberately skips its options callback for HEAD and OPTIONS.
+    // Keep the gate at the actual Worker seam too, before application code.
+    enforceSecureEndpoints(cloudflareEnv)
+    const tlsResponse = minimumTlsResponse(request, cloudflareEnv.ENVIRONMENT)
+    if (tlsResponse !== undefined) {
+      return tlsResponse
+    }
     return StartServerEntry.fetch(request)
   }
 }
 
 export default Sentry.withSentry(() => {
+  enforceSecureEndpoints(cloudflareEnv)
   // Point the wide-event sinks (Sentry errors, PostHog events) at this
   // invocation's env; unset vars keep both providers fully inert. Runs per
   // request so a binding added between requests takes effect without an

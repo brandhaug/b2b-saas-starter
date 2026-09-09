@@ -210,6 +210,9 @@ const smartPlacement: Cloudflare.WorkerPlacement = { mode: 'smart' }
 // worker once already (it defaulted to Alchemy's fallback while wrangler dev
 // pinned one).
 const workerDefaults = {
+  // Keep the stable workers.dev address as the default public host when a
+  // deployment has no custom domain, without publishing per-version previews.
+  workersDev: { enabled: true, previewsEnabled: false },
   compatibility: {
     date: workerCompatibility.date,
     flags: [...workerCompatibility.flags]

@@ -120,6 +120,49 @@ describe('workspace SSO handlers — create-time IdP validation', () => {
       })
     ).rejects.toMatchObject({ code: 'discovery_unreachable' })
   })
+
+  it('refuses an insecure metadata URL before making a request', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    try {
+      await expect(
+        createSsoConnectionHandler({
+          workspaceSlug: 'starter-lab',
+          protocol: 'saml',
+          domain: 'northwind.test',
+          metadataUrl: 'http://127.0.0.1/metadata',
+          defaultWorkspaceRole: 'member'
+        })
+      ).rejects.toMatchObject({ code: 'saml_metadata_invalid' })
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('treats a metadata redirect as a failed fetch', async () => {
+    const fetchSpy = vi.fn(() =>
+      Promise.resolve(Response.redirect('https://target.example/metadata', 307))
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+    try {
+      await expect(
+        createSsoConnectionHandler({
+          workspaceSlug: 'starter-lab',
+          protocol: 'saml',
+          domain: 'northwind.test',
+          metadataUrl: 'https://idp.example/metadata',
+          defaultWorkspaceRole: 'member'
+        })
+      ).rejects.toMatchObject({ code: 'saml_metadata_invalid' })
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      expect(fetchSpy).toHaveBeenCalledWith('https://idp.example/metadata', {
+        redirect: 'manual'
+      })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })
 
 describe('workspace SSO handlers — the test step', () => {

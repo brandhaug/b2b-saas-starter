@@ -57,7 +57,15 @@ function postJson(
   signal: AbortSignal
 ) {
   // oxlint-disable-next-line effect/noGlobals -- raw fetch is the platform transport here
-  return fetch(url, { method: 'POST', headers, body, signal })
+  return fetch(url, {
+    method: 'POST',
+    headers,
+    body,
+    signal,
+    // Cloudflare Workers supports manual redirects; treating the 3xx response
+    // as an ordinary provider failure prevents following it or leaking auth.
+    redirect: 'manual'
+  })
 }
 
 /** One `AiError` for this adapter's `generateText` hook, with the module stamped. */
