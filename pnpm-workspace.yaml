@@ -108,13 +108,14 @@ overrides:
   fast-uri: 3.1.6
   hono: 4.12.34
   ip-address: 10.5.0
-  js-yaml: 4.3.1
+  js-yaml: 4.3.2
   lodash: 4.18.1
   nanoid: 3.3.18
   postcss: 8.5.24
-  sharp: 0.35.3
+  sharp: 0.35.4
   shell-quote: 1.9.0
   socket.io-parser: 4.2.7
+  next: 16.3.3
   # GHSA-82x6-q7mm-w9cf / GHSA-v5mp-jgw5-2x6j (prototype pollution in toml
   # <4). Pulled in transitively via remark-mdx-frontmatter's TOML frontmatter
   # support; no checked-in content uses `+++` frontmatter, so the override
