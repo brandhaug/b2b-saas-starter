@@ -59,6 +59,91 @@ moves. Recovering SQL alone does not rebuild the service.
 For backup configuration and executable restore commands, see
 [D1 backup and recovery](backup-recovery.md).
 
+### Operator runbooks
+
+These runbooks describe the minimum operator actions and records. Keep contacts,
+contracts, escalation routes, and review schedules as deployment inputs in the
+private operations record. They are not a governance application or a library of
+evidence templates.
+
+#### Incident response
+
+The on-call operator starts this procedure when an alert, report, or suspected
+security event could affect availability, confidentiality, integrity, or
+credential safety. Start promptly, even when facts are incomplete.
+
+1. Declare the incident, assign an incident lead, preserve relevant logs and
+   provider records, and restrict discussion to the incident's access group.
+2. Establish what happened, when it may have started, which deployment,
+   Workspace or provider is involved, and whether containment is needed. Use
+   [monitoring](monitoring.md), [recovery](backup-recovery.md), and the
+   [retention policy](retention.md) to preserve the right evidence.
+3. Contain the affected path. Pause risky jobs or deployments, revoke or reset
+   exposed credentials, and keep access closed when its validity is uncertain.
+4. Assess impact and notification duties with qualified legal advice. Identify
+   the applicable role, jurisdictions, affected people or organizations,
+   processor/controller relationships, and any required regulator or individual
+   communications. Do not choose a blanket deadline or recipient list before
+   that assessment. The [EDPB personal-data breach guidance](https://www.edpb.europa.eu/topics/security-data-breaches/personal-data-breaches_en)
+   and its [SME guide](https://www.edpb.europa.eu/sme/assess-the-risks/data-breaches_en)
+   are discovery links, not legal advice.
+5. Recover or remediate using the applicable procedure. Reconcile external
+   provider state, verify fresh access and denied old credentials, and reopen
+   traffic only after the incident lead records the decision.
+6. Record follow-up actions, owners, and due dates chosen by the operator.
+
+The minimum restricted record is the incident ID, UTC discovery and decision
+times, attributable actors, affected scope, evidence references, containment and
+recovery actions, legal-advice reference, notification decision, and closure
+approval. Do not copy secrets, customer payloads, or raw provider responses.
+
+Worked record, hypothetical, 2026-09-09 UTC:
+
+- `INC-2026-0909-01` was discovered at 09:10 by on-call operator A-17 from
+  request-log reference `[evidence: request-log-2026-0909]`.
+- At 09:18, security operator B-04 revoked the token and paused the integration.
+  At 09:24, the API boundary denied a test request; review telemetry reference
+  `[evidence: access-review-2026-0909]` found no later accepted use, while the
+  record retained uncertainty about earlier activity.
+- At 09:40, privacy adviser C-09 assessed the available facts and legal duties.
+  At 09:48, incident lead A-17 recorded the notification decision as pending,
+  because the available evidence did not resolve whether earlier activity
+  affected personal data; C-09's advice reference is
+  `[evidence: legal-advice-2026-0909]`.
+- At 10:05, A-17 recorded that closure was not approved. C-09 and A-17 will
+  reassess notification duties at 14:00 UTC on 2026-09-09 or sooner if new facts
+  appear. B-04 owns a review of the integration's credential owner, due
+  2026-09-12.
+
+#### Access review
+
+The security or platform operator performs this review before customer use, after
+a privileged-role change or incident, and on the deployment's chosen recurring
+schedule. The operator records that schedule and the systems in scope privately.
+
+1. Export or inspect current privileged access for Cloudflare, GitHub Actions,
+   Sentry, backup and evidence stores, identity providers, billing, and other
+   enabled vendors. Include application System Admins, Workspace owners, admins,
+   and members, API tokens, MCP grants, break-glass accounts, service tokens,
+   and recovery contacts.
+2. For human accounts, confirm an attributable owner, current need, least
+   privilege, strong authentication, and an independent recovery path. For API
+   tokens and MCP grants, confirm an attributable owner, permitted scope,
+   expiry or rotation, revocation state, and last-use evidence. Do not treat
+   human MFA as evidence for a token or grant.
+3. Remove stale users, unused tokens, excess roles, and unneeded vendor access.
+   Rotate credentials when ownership or exposure is uncertain. Test the intended
+   human and machine access after the change.
+4. Reconcile the result with [strong authentication](strong-authentication.md),
+   [recovery custody](#operator-configuration), and the enabled rows in the
+   [provider register](security-checklist.md#provider-and-region-register).
+
+Keep a dated, attributable, access-controlled record containing the reviewer,
+review time, systems and accounts covered, removals or exceptions, verification
+result, and next review date. Store the record with the deployment's restricted
+operations evidence. This record shows that a review happened; it does not prove
+that access was continuously effective between reviews.
+
 ### Independent security evidence store
 
 Production web and API Workers can use `SECURITY_EVIDENCE_URL` and the
