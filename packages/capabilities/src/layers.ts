@@ -82,6 +82,11 @@ import {
 } from './governance/workspace-export.live.ts'
 import { SeedWorkspaceExports } from './governance/workspace-export.seed.ts'
 import { type WorkspaceExports } from './governance/workspace-export.ts'
+import {
+  LivePersonalDataExports,
+  SeedPersonalDataExports,
+  type PersonalDataExports
+} from './governance/personal-data-export.ts'
 import { type WorkspaceSuspensionService } from './governance/workspace-suspension.ts'
 import { LiveWorkspaceSuspension } from './governance/workspace-suspension.live.ts'
 import { SeedWorkspaceSuspension } from './governance/workspace-suspension.seed.ts'
@@ -155,6 +160,7 @@ export type CapabilityServices =
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceExports
+  | PersonalDataExports
   | Retention
   | WorkspaceInvitations
   | WorkspaceLifecycle
@@ -298,12 +304,15 @@ const SeedExports = SeedWorkspaceExports({
   workspace: seedWorkspaceRecord,
   fixture: seedWorkspaceExportFixture
 }).pipe(Layer.provide(SeedCore))
+const SeedPersonalExports = SeedPersonalDataExports(
+  seedSystemUsers.map((account) => account.id)
+).pipe(Layer.provide(SeedCore))
 
 // oxlint-disable effect/noAs,anti-slop/require-safety-comment-for-type-assertion
 // SAFETY: SeedExports is built by providing SeedCore, so the merged layer supplies every capability service and has no runtime requirements.
 export const SeedLayer = Layer.merge(
   SeedCore,
-  SeedExports
+  Layer.merge(SeedExports, SeedPersonalExports)
 ) /* SAFETY: SeedExports is built by providing SeedCore, so all runtime requirements are supplied. */ as CapabilitiesLayer
 
 /**
@@ -404,6 +413,10 @@ export function makeLiveCapabilitiesLayer(
   const accountPreferences = LiveAccountPreferences.pipe(
     Layer.provide(LiveAuditEventLog)
   )
+  const membership = LiveWorkspaceMembership(
+    options.memberBinding,
+    options.securityEvidence
+  )
   // And for the feed: a mergeAll member the shell reads AND the layer
   // `PlatformUserAdmin` is provided so its impersonation `notifyUser` lands in
   // the same instance every other consumer reads.
@@ -437,7 +450,7 @@ export function makeLiveCapabilitiesLayer(
     LiveWebhookEndpoints.pipe(Layer.provide(entitlements), Layer.provide(billing)),
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
-    LiveWorkspaceMembership(options.memberBinding, options.securityEvidence),
+    membership,
     LiveWorkspaceLifecycle(options.lifecycleBinding, options.securityEvidence).pipe(
       Layer.provide(suspension)
     ),
@@ -445,6 +458,11 @@ export function makeLiveCapabilitiesLayer(
     LiveWorkspaceOnboarding,
     LiveStrongAuthentication,
     LiveWorkspaceExports(options.workspaceExports).pipe(Layer.provide(suspension)),
+    LivePersonalDataExports.pipe(
+      Layer.provide(preferences),
+      Layer.provide(accountPreferences),
+      Layer.provide(membership)
+    ),
     suspension,
     seatSyncPublisher
   ).pipe(
