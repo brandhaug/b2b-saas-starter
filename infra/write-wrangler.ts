@@ -87,6 +87,8 @@ type WorkerDefaults = {
   readonly $schema: string
   readonly name: string
   readonly main: string
+  readonly workers_dev: true
+  readonly preview_urls: false
   readonly compatibility_date: string
   readonly compatibility_flags: ReadonlyArray<string>
   readonly observability: { readonly enabled: true; readonly head_sampling_rate: 1 }
@@ -155,6 +157,8 @@ function workerDefaults(name: string, entry: string): WorkerDefaults {
     $schema: 'node_modules/wrangler/config-schema.json',
     name: `b2b-saas-starter-${name}`,
     main: entry,
+    workers_dev: true,
+    preview_urls: false,
     compatibility_date: workerCompatibility.date,
     compatibility_flags: workerCompatibility.flags,
     observability: { enabled: true, head_sampling_rate: 1 },

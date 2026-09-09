@@ -21,6 +21,10 @@ import {
   workspaceExportQueueName
 } from '../../../infra/bindings.ts'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
+import {
+  enforceSecureEndpoints,
+  minimumTlsResponse
+} from '@b2b-saas-starter/env/transport'
 import { buildWorkspaceExport } from './export-consumer.ts'
 import { sendDailyDigest } from './notification-digest.ts'
 import { reconcileBillingEffect } from './billing-reconciliation.ts'
@@ -34,11 +38,23 @@ import { deliverWebhook, recordDeadLetter } from './webhook-consumer.ts'
 import { cleanRetention } from './retention.ts'
 import { consumeBatch, runInvocation, type Env } from './queue-consumer.ts'
 
-export default Sentry.withSentry((env: Env) => makeSentryOptions('background', env), {
+function makeBackgroundSentryOptions(env: Env) {
+  enforceSecureEndpoints(env)
+  return makeSentryOptions('background', env)
+}
+
+export default Sentry.withSentry(makeBackgroundSentryOptions, {
   // Pure platform adapter: routing, signature checks, and Stripe processing
   // live in `stripe-endpoint.ts`, the same way queue logic stays out of here.
   // oxlint-disable-next-line effect/noAsyncFunction -- the Workers fetch handler contract is a plain async function; this is the platform adapter boundary
   async fetch(request: Request, env: Env): Promise<Response> {
+    // Sentry deliberately skips its options callback for HEAD and OPTIONS.
+    // Keep the gate at the actual Worker seam too, before provider wiring.
+    enforceSecureEndpoints(env)
+    const tlsResponse = minimumTlsResponse(request, env.ENVIRONMENT)
+    if (tlsResponse !== undefined) {
+      return tlsResponse
+    }
     wireWideEventProviders(env)
     if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
       return Response.json({ error: 'maintenance_mode' }, { status: 503 })
@@ -52,6 +68,7 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
   // just failed — that one failure folds into a bounded retry so the
   // `dead_lettered` evidence is not lost to a store blip.
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
+    enforceSecureEndpoints(env)
     wireWideEventProviders(env)
     if (
       batch.queue === emailEventsQueueName ||
@@ -86,6 +103,7 @@ export default Sentry.withSentry((env: Env) => makeSentryOptions('background', e
   // every minute (at most 25 workspaces per pass). Each failure rejects so the failed invocation is
   // visible to the worker's existing observability.
   scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    enforceSecureEndpoints(env)
     wireWideEventProviders(env)
     if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
       return Effect.runPromise(Effect.void)

@@ -1,4 +1,8 @@
+/// <reference types="node" />
+
 import { failureMessage } from '@b2b-saas-starter/failure'
+// oxlint-disable-next-line effect/noNodeBuiltinImport -- loopback server verifies native fetch redirect behavior
+import { createServer } from 'node:http'
 import { afterEach, describe, expect, it, vi } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 import { LanguageModel, Prompt } from 'effect/unstable/ai'
@@ -159,4 +163,57 @@ describe('openai-compatible model', () => {
       expect(error.reason).toContain('does not match the chat shape')
     })
   })
+
+  it.effect('does not follow a redirect to another endpoint', () =>
+    Effect.gen(function* () {
+      let targetReceivedRequest = 0
+      const server = createServer((request, response) => {
+        if (request.url === '/v1/chat/completions') {
+          response.writeHead(307, { location: '/redirect-target' }).end()
+          return
+        }
+        if (request.url === '/redirect-target') {
+          targetReceivedRequest += 1
+          response.writeHead(200, { 'content-type': 'application/json' }).end(
+            // oxlint-disable-next-line effect/noGlobals -- wire fixture body
+            JSON.stringify({ choices: [{ message: { content: 'leaked' } }] })
+          )
+        }
+      })
+      const listeningServer = yield* Effect.acquireRelease(
+        Effect.tryPromise({
+          try: () =>
+            new Promise<typeof server>((resolve, reject) => {
+              server.once('error', reject)
+              server.listen(0, '127.0.0.1', () => resolve(server))
+            }),
+          catch: () => new Error('test server failed to listen')
+        }),
+        (activeServer) =>
+          Effect.promise(
+            () =>
+              new Promise<void>((resolve) => {
+                activeServer.close(() => resolve())
+              })
+          )
+      )
+      const address = listeningServer.address()
+      // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Node's address API returns a string for named pipes
+      if (address === null || typeof address === 'string') {
+        return yield* Effect.fail(new Error('test server did not expose a port'))
+      }
+      yield* Effect.promise(() =>
+        askFails(
+          assistantOn(
+            makeOpenAIModel({
+              apiKey: 'test-key',
+              baseUrl: `http://127.0.0.1:${address.port}/v1`
+            })
+          ),
+          (error) => expect(error._tag).toBe('AssistantUnavailable')
+        )
+      )
+      expect(targetReceivedRequest).toBe(0)
+    })
+  )
 })

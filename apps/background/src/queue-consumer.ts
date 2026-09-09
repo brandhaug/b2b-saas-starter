@@ -134,7 +134,14 @@ export type DeliveryOutcome = 'ack' | 'retry' | { readonly retryAfterSeconds: nu
 // behalf of a single invocation, so both are safe to memoize for the isolate's
 // life — and cheaper than rebuilding them per queue batch or cron tick.
 const staticRuntime = ManagedRuntime.make(
-  Layer.mergeAll(FetchHttpClient.layer, WideEventLoggerLive)
+  Layer.mergeAll(
+    FetchHttpClient.layer,
+    // Workerd supports `manual`, not Fetch's `error` redirect mode. Manual
+    // returns the 3xx response without following it; the webhook consumer
+    // records every non-2xx response as a failed delivery.
+    Layer.succeed(FetchHttpClient.RequestInit, { redirect: 'manual' }),
+    WideEventLoggerLive
+  )
 )
 
 /**

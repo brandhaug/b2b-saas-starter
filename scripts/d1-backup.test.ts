@@ -158,6 +158,22 @@ describe('D1 backup encryption and retention', () => {
 })
 
 describe('destructive command guards', () => {
+  it('does not invoke the object store CLI with an insecure endpoint', async () => {
+    const root = await temporaryDirectory('backup-endpoint-')
+    const fixture = await fakeAws(root)
+    await writeFile(fixture.list, JSON.stringify({ Contents: [] }))
+
+    await expect(
+      run(process.execPath, [SCRIPT, 'freshness'], {
+        env: {
+          ...awsEnvironment(fixture),
+          BACKUP_S3_ENDPOINT: 'http://storage.example.test'
+        }
+      })
+    ).rejects.toMatchObject({ code: 1 })
+    await expect(readFile(fixture.log)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('does not invoke Alchemy without the exact account and stage', async () => {
     const root = await temporaryDirectory('destroy-guard-')
     const called = join(root, 'called')
@@ -275,6 +291,38 @@ fi
 })
 
 describe('Sentry cron check-ins', () => {
+  it.each([
+    'http://public@example.test/42',
+    'https://public:secret@example.test/42',
+    'not a URL'
+  ])(
+    'rejects insecure Sentry configuration before running the operation',
+    async (dsn) => {
+      const previousDsn = process.env.SENTRY_DSN
+      const previousSlug = process.env.TEST_MONITOR_SLUG
+      const operation = vi.fn(async () => undefined)
+      process.env.SENTRY_DSN = dsn
+      process.env.TEST_MONITOR_SLUG = 'backup-test'
+      try {
+        await expect(
+          runWithSentryCronMonitor('TEST_MONITOR_SLUG', operation)
+        ).rejects.toThrow(/SENTRY_DSN must be an HTTPS URL without a password/)
+      } finally {
+        if (previousDsn === undefined) {
+          delete process.env.SENTRY_DSN
+        } else {
+          process.env.SENTRY_DSN = previousDsn
+        }
+        if (previousSlug === undefined) {
+          delete process.env.TEST_MONITOR_SLUG
+        } else {
+          process.env.TEST_MONITOR_SLUG = previousSlug
+        }
+      }
+      expect(operation).not.toHaveBeenCalled()
+    }
+  )
+
   it('emits linked failure and recovery check-ins under the configured slug', async () => {
     const bodies = new Array<string>()
     const previousDsn = process.env.SENTRY_DSN

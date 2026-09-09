@@ -1,5 +1,5 @@
 import { Effect } from 'effect'
-import { describe, expect, it } from '@effect/vitest'
+import { afterEach, describe, expect, it, vi } from '@effect/vitest'
 
 import { resolveOidcIssuer, validateSamlMetadata } from './sso-discovery'
 
@@ -24,6 +24,16 @@ const METADATA = `<?xml version="1.0"?>
       Location="https://idp.acme.com/saml/sso/post"/>
   </IDPSSODescriptor>
 </EntityDescriptor>`
+
+function metadataWithEntryPoint(
+  entryPoint: string,
+  entityId = 'https://idp.acme.com/saml'
+) {
+  return METADATA.replace('https://idp.acme.com/saml/sso', entryPoint).replace(
+    'https://idp.acme.com/saml"',
+    `${entityId}"`
+  )
+}
 
 describe('validateSamlMetadata', () => {
   it.effect(
@@ -54,9 +64,33 @@ describe('validateSamlMetadata', () => {
       expect(failure).toMatchObject({ code: 'saml_metadata_missing_entry_point' })
     })
   )
+  it.effect('refuses an insecure or credential-bearing redirect binding', () =>
+    Effect.gen(function* () {
+      for (const entryPoint of [
+        'http://idp.acme.com/saml/sso',
+        'https://user:password@idp.acme.com/saml/sso'
+      ]) {
+        const failure = yield* Effect.flip(
+          validateSamlMetadata(metadataWithEntryPoint(entryPoint))
+        )
+        expect(failure).toMatchObject({ code: 'saml_metadata_invalid' })
+      }
+    })
+  )
+
+  it.effect('allows non-URL SAML entity identifiers', () =>
+    Effect.gen(function* () {
+      const result = yield* validateSamlMetadata(
+        metadataWithEntryPoint('https://idp.acme.com/saml/sso', 'urn:acme:idp')
+      )
+      expect(result.entityId).toBe('urn:acme:idp')
+    })
+  )
 })
 
 describe('resolveOidcIssuer', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
   it.effect('fails discovery_unreachable for an issuer nothing answers', () =>
     Effect.gen(function* () {
       // No network in tests: `.invalid` never resolves, which is the same
@@ -65,6 +99,70 @@ describe('resolveOidcIssuer', () => {
         resolveOidcIssuer('https://login.unreachable.invalid')
       )
       expect(failure).toMatchObject({ code: 'discovery_unreachable' })
+    })
+  )
+
+  it.effect('refuses an insecure issuer before making a request', () =>
+    Effect.gen(function* () {
+      const fetchSpy = vi.fn()
+      vi.stubGlobal('fetch', fetchSpy)
+      const failure = yield* Effect.flip(resolveOidcIssuer('http://idp.acme.com'))
+      expect(failure).toMatchObject({ code: 'discovery_invalid' })
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
+  )
+
+  it.effect(
+    'refuses discovered endpoints that are not HTTPS credential-free URLs',
+    () =>
+      Effect.gen(function* () {
+        const issuer = 'https://1.1.1.1'
+        const valid = {
+          issuer,
+          authorization_endpoint: 'https://idp.acme.com/authorize',
+          token_endpoint: 'https://idp.acme.com/token',
+          jwks_uri: 'https://idp.acme.com/jwks'
+        }
+        const invalidFields = [
+          ['authorization_endpoint', 'http://idp.acme.com/authorize'],
+          ['jwks_uri', 'https://user:password@idp.acme.com/jwks']
+        ] satisfies ReadonlyArray<readonly [keyof typeof valid, string]>
+        for (const [field, value] of invalidFields) {
+          vi.stubGlobal(
+            'fetch',
+            vi.fn(() =>
+              Promise.resolve(
+                new Response(JSON.stringify({ ...valid, [field]: value }))
+              )
+            )
+          )
+          const failure = yield* Effect.flip(resolveOidcIssuer(issuer))
+          expect(failure).toMatchObject({ code: 'discovery_invalid' })
+          vi.unstubAllGlobals()
+        }
+      })
+  )
+
+  it.effect('accepts a discovery document with secure endpoints', () =>
+    Effect.gen(function* () {
+      const issuer = 'https://1.1.1.1'
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                issuer,
+                authorization_endpoint: 'https://idp.acme.com/authorize',
+                token_endpoint: 'https://idp.acme.com/token',
+                jwks_uri: 'https://idp.acme.com/jwks'
+              })
+            )
+          )
+        )
+      )
+      const endpoints = yield* resolveOidcIssuer(issuer)
+      expect(endpoints.authorizationEndpoint).toBe('https://idp.acme.com/authorize')
     })
   )
 })

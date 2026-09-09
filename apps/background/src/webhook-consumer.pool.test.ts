@@ -44,6 +44,7 @@ type OutboundDelivery = {
   readonly url: string
   readonly body: string
   readonly headers: Record<string, string>
+  readonly redirect: RequestRedirect
 }
 
 const outbound: Array<OutboundDelivery> = []
@@ -66,7 +67,8 @@ function stubbedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Res
     const delivery = {
       url: request.url,
       body,
-      headers: Object.fromEntries(request.headers)
+      headers: Object.fromEntries(request.headers),
+      redirect: request.redirect
     }
     outbound.push(delivery)
     // An `answer` that throws rejects this promise — a network failure.
@@ -340,6 +342,42 @@ describe('webhook consumer (workers pool)', () => {
         // No HTTP response happened, so none is persisted.
         expect(delivery?.response_status).toBeNull()
         yield* assertBackoffAligned(delivery, 1)
+      })
+    ))
+
+  it('records a redirect response without delivering to its target', () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    Effect.runPromise(
+      Effect.gen(function* () {
+        yield* seedDelivery('qmsg_redirect')
+        stubReceiver(
+          () =>
+            new Response('moved', {
+              status: 307,
+              headers: { location: 'https://redirect-target.example.test/hook' }
+            })
+        )
+        const result = yield* Effect.promise(() =>
+          consume(webhookQueueName, [webhookMessage('qmsg_redirect')])
+        )
+        expect(result.explicitAcks).toStrictEqual([])
+        expect(result.retryMessages).toStrictEqual([{ msgId: 'qmsg_redirect' }])
+        expect(outbound).toHaveLength(1)
+        expect(outbound[0]).toMatchObject({
+          url: ENDPOINT_URL,
+          redirect: 'manual'
+        })
+        expect(
+          outbound.some(
+            (delivery) => delivery.url === 'https://redirect-target.example.test/hook'
+          )
+        ).toBe(false)
+        const delivery = yield* Effect.promise(() =>
+          row('select * from webhook_deliveries where id = ?', 'whd_qmsg_redirect')
+        )
+        expect(delivery?.status).toBe('failed')
+        expect(delivery?.response_status).toBe(307)
+        expect(delivery?.response_body).toBe('moved')
       })
     ))
 

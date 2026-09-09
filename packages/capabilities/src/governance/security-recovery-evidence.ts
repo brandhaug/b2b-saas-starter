@@ -63,6 +63,7 @@ export function makeHttpSecurityEvidenceSink(options: {
     append: (record) =>
       fetch(options.url, {
         method: 'POST',
+        redirect: 'manual',
         headers: { authorization, 'content-type': 'application/json' },
         body: JSON.stringify(record),
         signal: AbortSignal.timeout(3000)
