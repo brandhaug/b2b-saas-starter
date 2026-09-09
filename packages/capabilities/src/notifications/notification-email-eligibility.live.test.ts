@@ -16,7 +16,7 @@ let caseCounter = 0
 
 function freshId(label: string): string {
   caseCounter += 1
-  return `not_eligibility_${label}_${DateTime.nowUnsafe().epochMillis}_${caseCounter}`
+  return `not_eligibility_${label}_${DateTime.toEpochMillis(DateTime.nowUnsafe())}_${caseCounter}`
 }
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
