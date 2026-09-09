@@ -3,6 +3,8 @@ import {
   type WorkspaceProgressStepId
 } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { Link } from '@tanstack/react-router'
+import { WorkspaceLink } from '@/components/workspace-link'
+import { usePreview } from '@/lib/preview-context'
 import { CircleCheckIcon, CircleIcon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
@@ -67,18 +69,19 @@ function StepLink({
   readonly workspaceSlug: string
   readonly children: string
 }) {
+  const preview = usePreview()
   const className = 'underline-offset-4 hover:underline'
   if (to === '/account') {
     return (
-      <Link to={to} className={className}>
-        {children}
+      <Link to={preview ? '/sign-in' : to} className={className}>
+        {preview ? m.demo_try_sign_in() : children}
       </Link>
     )
   }
   return (
-    <Link to={to} params={{ workspaceSlug }} className={className}>
+    <WorkspaceLink to={to} workspaceSlug={workspaceSlug} className={className}>
       {children}
-    </Link>
+    </WorkspaceLink>
   )
 }
 

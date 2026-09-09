@@ -31,6 +31,28 @@ async function renderPresentation() {
 }
 
 describe('locale request integration', () => {
+  it.each(['/demo', '/demo/billing'])(
+    'uses guest presentation for %s even with a signed-in cookie and unavailable database',
+    async (path) => {
+      state.signedIn = true
+      state.databaseUnavailable = true
+      const response = await localizeRequest(
+        new Request(`https://starter.test${path}`, {
+          headers: {
+            cookie: 'better-auth.session_token=unavailable-session; starter_locale=nb'
+          }
+        }),
+        renderPresentation
+      )
+      expect(await response.json()).toMatchObject({
+        locale: 'nb',
+        timeZone: 'UTC',
+        authenticated: false,
+        needsTimeZone: false
+      })
+    }
+  )
+
   it.each(['/help', '/help/', '/nb/help', '/api/support-config'])(
     'public support %s stays reachable with a session cookie and unavailable D1',
     async (path) => {

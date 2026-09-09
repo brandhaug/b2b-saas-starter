@@ -25,6 +25,7 @@ import {
 } from '@/lib/server/webhooks'
 import { useServerAction } from '@/hooks/use-server-action'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { type ListDeliveryAttempts } from '@/components/webhook-delivery-timeline'
 
 /**
  * Mutating a delivery, as a port. Defaulted to the production server
@@ -60,7 +61,8 @@ export function WebhookDeliveriesDrawer({
   onOpenChange,
   viewer,
   replayDelivery = replayWebhookDeliveryServerFn,
-  sendTestEvent = sendTestEventServerFn
+  sendTestEvent = sendTestEventServerFn,
+  listDeliveryAttempts
 }: {
   readonly workspaceSlug: string
   readonly endpoint: WebhookEndpoint & {
@@ -71,6 +73,7 @@ export function WebhookDeliveriesDrawer({
   readonly viewer: Viewer
   readonly replayDelivery?: ReplayDelivery
   readonly sendTestEvent?: SendTestEvent
+  readonly listDeliveryAttempts?: ListDeliveryAttempts
 }) {
   const canReplay = viewerCan(viewer, { webhook: ['replay'] })
   const canTest = viewerCan(viewer, { webhook: ['test'] })
@@ -159,6 +162,9 @@ export function WebhookDeliveriesDrawer({
                       <WebhookDeliveryTimeline
                         workspaceSlug={workspaceSlug}
                         delivery={delivery}
+                        {...(listDeliveryAttempts === undefined
+                          ? {}
+                          : { listAttempts: listDeliveryAttempts })}
                       />
                       {replayable ? (
                         <div>

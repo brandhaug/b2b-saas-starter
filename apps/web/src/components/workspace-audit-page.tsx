@@ -28,7 +28,11 @@ import {
   type DataTableColumnDef
 } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import { auditActorTypeLabel, auditEventFilterOptions } from '@/lib/audit-labels'
+import {
+  auditActorTypeLabel,
+  auditEventFilterOptions,
+  auditEventLabel
+} from '@/lib/audit-labels'
 import { auditActorTypeVariant } from '@/lib/badge-variants'
 import {
   auditSearchFromFilters,
@@ -57,7 +61,9 @@ const SELECT_CLASSES = 'max-w-52'
 
 // Column definitions are static — module scope keeps the cell renderers out of
 // the render body. The server owns collection order: newest first.
-function auditColumns(): Array<DataTableColumnDef<AuditEvent>> {
+function auditColumns(
+  onOpenEvent?: (event: AuditEvent) => void
+): Array<DataTableColumnDef<AuditEvent>> {
   return [
     {
       accessorKey: 'createdAt',
@@ -74,7 +80,19 @@ function auditColumns(): Array<DataTableColumnDef<AuditEvent>> {
       accessorKey: 'eventType',
       header: m.event_label(),
       enableSorting: false,
-      cell: ({ row }) => <AuditEventLink event={row.original} />
+      cell: ({ row }) =>
+        onOpenEvent === undefined ? (
+          <AuditEventLink event={row.original} />
+        ) : (
+          <Button
+            id={`audit-event-${row.original.id}`}
+            variant="link"
+            className="h-auto p-0"
+            onClick={() => onOpenEvent(row.original)}
+          >
+            {auditEventLabel(row.original.eventType)}
+          </Button>
+        )
     },
     {
       accessorKey: 'targetType',
@@ -114,10 +132,13 @@ export function WorkspaceAuditPage({
   applySearch,
   systemRole,
   selectedEventId,
-  closeEvent
+  closeEvent,
+  onOpenEvent
 }: {
   readonly selectedEventId: string | null
   readonly closeEvent: () => void
+  /** Preview mode opens event details in local view state rather than the URL. */
+  readonly onOpenEvent?: (event: AuditEvent) => void
   readonly workspaceSlug: string
   readonly data: WorkspaceAuditPayload
   readonly applySearch: ApplyWorkspaceAuditSearch
@@ -278,7 +299,7 @@ export function WorkspaceAuditPage({
                 admin users table, so column treatment and the mono `When` cell
                 cannot drift between them. */}
             <DataTable
-              columns={auditColumns()}
+              columns={auditColumns(onOpenEvent)}
               data={events}
               tableLabel={m.audit_table_label()}
             >

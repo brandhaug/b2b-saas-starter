@@ -19,7 +19,7 @@
     "/oauth",
     "/account",
     "/admin",
-    "/workspaces",
-    "/demo"
-  ]
+    "/workspaces"
+  ],
+  "guestPresentationPaths": ["/demo"]
 }

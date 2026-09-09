@@ -14,6 +14,8 @@ import {
   CommandItem,
   CommandList
 } from '@/components/ui/command'
+import { usePreview } from '@/lib/preview-context'
+import { previewWorkspaceLocation } from '@/lib/preview-navigation'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The knowledge index the palette searches: both meta loaders are cached
@@ -71,6 +73,7 @@ export default function CommandPaletteDialog() {
   // command falls back to the workspace list — never a hardcoded workspace.
   const params = useParams({ strict: false })
   const workspaceSlug = params.workspaceSlug
+  const preview = usePreview()
   const palette = use(CommandPaletteContext)
   if (palette === null) {
     return null
@@ -86,7 +89,7 @@ export default function CommandPaletteDialog() {
   }
 
   const rows: Array<ReactNode> = []
-  if (workspaceSlug !== undefined && viewer !== null) {
+  if ((preview || workspaceSlug !== undefined) && viewer !== null) {
     for (const row of workspaceNav()) {
       if (row.permission !== undefined && !viewerCan(viewer, row.permission)) {
         continue
@@ -100,7 +103,11 @@ export default function CommandPaletteDialog() {
           {...(row.group === undefined ? {} : { keywords: [row.group] })}
           onSelect={() => {
             close()
-            void navigate({ to, params: { workspaceSlug } })
+            if (preview) {
+              void navigate(previewWorkspaceLocation(to))
+            } else if (workspaceSlug !== undefined) {
+              void navigate({ to, params: { workspaceSlug } })
+            }
           }}
         >
           {row.label}
@@ -123,7 +130,7 @@ export default function CommandPaletteDialog() {
   // The user-level rows from the same `YOU_NAV` table the sidebar renders:
   // label, target, and the admin-only gate cannot drift between the two.
   for (const row of youNav()) {
-    if (row.adminOnly === true && systemRole !== 'admin') {
+    if (row.adminOnly === true && (preview || systemRole !== 'admin')) {
       continue
     }
     rows.push(
@@ -132,11 +139,11 @@ export default function CommandPaletteDialog() {
         {...(row.group === undefined ? {} : { keywords: [row.group] })}
         onSelect={() => {
           close()
-          void navigate({ to: row.to })
+          void navigate({ to: preview && row.to === '/account' ? '/sign-in' : row.to })
         }}
       >
         {row.icon}
-        {row.label}
+        {preview && row.to === '/account' ? m.demo_try_sign_in() : row.label}
       </CommandItem>
     )
   }
