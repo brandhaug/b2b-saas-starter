@@ -24,11 +24,11 @@ const exception = {
   statement: 'Synthetic risk acceptance, never used by the real scan.'
 }
 
-// AC-12.3: exercise Trivy's real filter and exit status without a database,
+// Exercise Trivy's real filter and exit status without a database,
 // registry, or installed vulnerable package. The audit job requires this test;
 // the general script suite can run without installing a security scanner.
 await test(
-  'AC-12: native Trivy failure, scope and expiry',
+  'native Trivy failure, scope and expiry',
   {
     skip: process.env.TRIVY_BINARY
       ? false

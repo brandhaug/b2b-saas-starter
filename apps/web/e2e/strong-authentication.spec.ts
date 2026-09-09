@@ -15,7 +15,7 @@ test.beforeEach(async ({ context }, testInfo) => {
   })
 })
 
-test('AC-4.1/AC-4.3/AC-4.5 password-only owners must verify this session with a passkey', async ({
+test('password-only owners must verify this session with a passkey', async ({
   page
 }, testInfo) => {
   const browserErrors: Array<Error> = []

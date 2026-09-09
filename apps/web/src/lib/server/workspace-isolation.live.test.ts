@@ -78,7 +78,7 @@ afterAll(async () => {
 })
 
 describe('browser server handler Workspace isolation', () => {
-  it('AC-4.1/AC-4.2/AC-4.3: promotion requires verified authentication in an existing session', async () => {
+  it('promotion requires verified authentication in an existing session', async () => {
     const { loadWorkspaceDashboardHandler: dashboard } =
       await import('./workspace-dashboard.effects')
     await execute("UPDATE session SET strongAuthAt=NULL WHERE id='ses_usr_owner'")
@@ -108,7 +108,7 @@ describe('browser server handler Workspace isolation', () => {
     })
   })
 
-  it('AC-2.1/AC-2.3: distinct users and a multi-Workspace user receive only their authorized page segments and counts', async () => {
+  it('distinct users and a multi-Workspace user receive only their authorized page segments and counts', async () => {
     const { loadWorkspaceDashboardHandler: dashboard } =
       await import('./workspace-dashboard.effects')
     const { loadWorkspaceWebhooksHandler: webhooks } =
@@ -155,7 +155,7 @@ describe('browser server handler Workspace isolation', () => {
     })
   }, 120_000)
 
-  it('AC-2.2/AC-2.3: foreign record IDs and slugs cannot mutate records, read secondary data, or add audit events', async () => {
+  it('foreign record IDs and slugs cannot mutate records, read secondary data, or add audit events', async () => {
     const webhooks = await import('./webhooks.effects')
     const { loadWorkspaceAuditEventsHandler: audit } =
       await import('./workspace-audit.effects')
@@ -222,7 +222,7 @@ describe('browser server handler Workspace isolation', () => {
     ).toMatchObject({ id: foreignId, enabled: false })
   }, 120_000)
 
-  it('AC-2.2/AC-2.3: the same session observes role demotion and membership removal before reads and writes', async () => {
+  it('the same session observes role demotion and membership removal before reads and writes', async () => {
     const { loadWorkspaceDashboardHandler: dashboard } =
       await import('./workspace-dashboard.effects')
     const webhooks = await import('./webhooks.effects')

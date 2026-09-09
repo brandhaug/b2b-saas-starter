@@ -66,7 +66,7 @@ vi.mock('./auth-emails', () => ({
     })
 }))
 
-describe('durable invitation resend (#285)', () => {
+describe('durable invitation resend', () => {
   beforeEach(async () => {
     runtime = makeRuntime()
     started = await runtime.runPromise(Deferred.make<boolean>())

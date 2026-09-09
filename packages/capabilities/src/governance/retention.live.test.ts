@@ -92,7 +92,7 @@ function run(mode: 'preview' | 'execute', overrides: Partial<RetentionPolicy> = 
 // Every case starts workerd and applies the real migrations before scanning D1.
 describe('retention on D1', { timeout: 30_000 }, () => {
   it.effect(
-    'AC2: audit expiry and completed billing metadata preserve unrelated and unfinished records',
+    'audit expiry and completed billing metadata preserve unrelated and unfinished records',
     () =>
       withDatabase((d1) =>
         Effect.gen(function* () {
@@ -161,7 +161,7 @@ describe('retention on D1', { timeout: 30_000 }, () => {
   )
 
   it.effect(
-    'AC2/AC4: previews both read states without payloads; creation-expired notifications disappear at the cutoff',
+    'previews both read states without payloads; creation-expired notifications disappear at the cutoff',
     () =>
       withDatabase((d1) =>
         Effect.gen(function* () {
@@ -210,7 +210,7 @@ describe('retention on D1', { timeout: 30_000 }, () => {
   )
 
   it.effect(
-    'AC2: invitation terminal clocks and epoch credential expiry protect recently closed or active records',
+    'invitation terminal clocks and epoch credential expiry protect recently closed or active records',
     () =>
       withDatabase((d1) =>
         Effect.gen(function* () {
@@ -285,7 +285,7 @@ describe('retention on D1', { timeout: 30_000 }, () => {
   )
 
   it.effect(
-    'AC3: a protected old delivery cannot block later terminal history or another record class',
+    'a protected old delivery cannot block later terminal history or another record class',
     () =>
       withDatabase((d1) =>
         Effect.gen(function* () {
@@ -347,7 +347,7 @@ describe('retention on D1', { timeout: 30_000 }, () => {
   )
 
   it.effect(
-    'AC3/AC5: failed atomic cleanup retains its rows and last success, then resumes safely',
+    'failed atomic cleanup retains its rows and last success, then resumes safely',
     () =>
       withDatabase((d1) =>
         Effect.gen(function* () {
@@ -383,7 +383,7 @@ describe('retention on D1', { timeout: 30_000 }, () => {
   )
 
   it.effect(
-    'AC2: billing failures await resolution while email failures obey the 90-day cap',
+    'billing failures await resolution while email failures obey the 90-day cap',
     () =>
       withDatabase((d1) =>
         Effect.gen(function* () {
@@ -453,7 +453,7 @@ describe('retention on D1', { timeout: 30_000 }, () => {
   )
 
   it.effect(
-    'AC2: expired secrets clear without deleting active endpoints or unresolved exports',
+    'expired secrets clear without deleting active endpoints or unresolved exports',
     () =>
       withDatabase((d1) =>
         Effect.gen(function* () {
@@ -534,85 +534,83 @@ describe('retention on D1', { timeout: 30_000 }, () => {
       )
   )
 
-  it.effect(
-    'AC2: token replacement and OAuth replay evidence survive generic expiry',
-    () =>
-      withDatabase((d1) =>
-        Effect.gen(function* () {
-          yield* insert(d1, 'user', {
-            id: 'retention-user',
-            email: 'retention@example.test',
-            name: 'Test User'
-          })
-          const token = {
-            workspace_id: 'retention-one',
-            name: 'Token',
-            token_prefix: 'prefix',
-            created_at: isoOld,
-            scopes: '[]'
-          }
-          yield* insert(d1, 'api_tokens', {
-            ...token,
-            id: 'active-ancestor',
-            token_hash: 'active-ancestor',
-            replaced_by_token_id: 'expired-descendant'
-          })
-          yield* insert(d1, 'api_tokens', {
-            ...token,
-            id: 'expired-descendant',
-            token_hash: 'expired-descendant',
-            expires_at: isoOld
-          })
-          yield* insert(d1, 'api_tokens', {
-            ...token,
-            id: 'old-unrelated',
-            token_hash: 'old-unrelated',
-            revoked_at: isoOld
-          })
-          yield* insert(d1, 'session', {
-            id: 'family-session',
-            token: 'family-session',
-            userId: 'retention-user',
-            expiresAt: 1
-          })
-          yield* insert(d1, 'oauth_client', {
-            id: 'oauth-client',
-            clientId: 'oauth-client',
-            redirectUris: '[]'
-          })
-          yield* insert(d1, 'oauth_refresh_token', {
-            id: 'rotation-evidence',
-            token: 'refresh-token',
-            clientId: 'oauth-client',
-            sessionId: 'family-session',
-            userId: 'retention-user',
-            expiresAt: 1,
-            rotatedAt: 1,
-            scopes: '[]',
-            rotationReplayResponse: 'required replay evidence'
-          })
-          yield* insert(d1, 'oauth_access_token', {
-            id: 'expired-access',
-            token: 'access-token',
-            clientId: 'oauth-client',
-            refreshId: 'rotation-evidence',
-            expiresAt: 1,
-            scopes: '[]'
-          })
-          yield* insert(d1, 'oauth_client_assertion', {
-            id: 'expired-jti',
-            expiresAt: 1
-          })
-          expect((yield* run('execute')).status).toBe('success')
-          expect(yield* ids(d1, 'api_tokens')).toEqual([
-            'active-ancestor',
-            'expired-descendant'
-          ])
-          expect(yield* ids(d1, 'session')).toEqual(['family-session'])
-          expect(yield* ids(d1, 'oauth_refresh_token')).toEqual(['rotation-evidence'])
-          expect(yield* ids(d1, 'oauth_access_token')).toEqual([])
-          expect(yield* ids(d1, 'oauth_client_assertion')).toEqual([])
+  it.effect('token replacement and OAuth replay evidence survive generic expiry', () =>
+    withDatabase((d1) =>
+      Effect.gen(function* () {
+        yield* insert(d1, 'user', {
+          id: 'retention-user',
+          email: 'retention@example.test',
+          name: 'Test User'
         })
-      )
+        const token = {
+          workspace_id: 'retention-one',
+          name: 'Token',
+          token_prefix: 'prefix',
+          created_at: isoOld,
+          scopes: '[]'
+        }
+        yield* insert(d1, 'api_tokens', {
+          ...token,
+          id: 'active-ancestor',
+          token_hash: 'active-ancestor',
+          replaced_by_token_id: 'expired-descendant'
+        })
+        yield* insert(d1, 'api_tokens', {
+          ...token,
+          id: 'expired-descendant',
+          token_hash: 'expired-descendant',
+          expires_at: isoOld
+        })
+        yield* insert(d1, 'api_tokens', {
+          ...token,
+          id: 'old-unrelated',
+          token_hash: 'old-unrelated',
+          revoked_at: isoOld
+        })
+        yield* insert(d1, 'session', {
+          id: 'family-session',
+          token: 'family-session',
+          userId: 'retention-user',
+          expiresAt: 1
+        })
+        yield* insert(d1, 'oauth_client', {
+          id: 'oauth-client',
+          clientId: 'oauth-client',
+          redirectUris: '[]'
+        })
+        yield* insert(d1, 'oauth_refresh_token', {
+          id: 'rotation-evidence',
+          token: 'refresh-token',
+          clientId: 'oauth-client',
+          sessionId: 'family-session',
+          userId: 'retention-user',
+          expiresAt: 1,
+          rotatedAt: 1,
+          scopes: '[]',
+          rotationReplayResponse: 'required replay evidence'
+        })
+        yield* insert(d1, 'oauth_access_token', {
+          id: 'expired-access',
+          token: 'access-token',
+          clientId: 'oauth-client',
+          refreshId: 'rotation-evidence',
+          expiresAt: 1,
+          scopes: '[]'
+        })
+        yield* insert(d1, 'oauth_client_assertion', {
+          id: 'expired-jti',
+          expiresAt: 1
+        })
+        expect((yield* run('execute')).status).toBe('success')
+        expect(yield* ids(d1, 'api_tokens')).toEqual([
+          'active-ancestor',
+          'expired-descendant'
+        ])
+        expect(yield* ids(d1, 'session')).toEqual(['family-session'])
+        expect(yield* ids(d1, 'oauth_refresh_token')).toEqual(['rotation-evidence'])
+        expect(yield* ids(d1, 'oauth_access_token')).toEqual([])
+        expect(yield* ids(d1, 'oauth_client_assertion')).toEqual([])
+      })
+    )
   )
 })

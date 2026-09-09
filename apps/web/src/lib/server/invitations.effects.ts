@@ -49,7 +49,7 @@ import {
  *
  * All three mutations pass `webInvitationBinding`, because every invitation
  * endpoint the organization plugin exposes needs the request's session and only
- * this app has one (issue #64 settled that the API worker cannot).
+ * this app has one; the API worker cannot supply a session.
  */
 
 export async function sendInvitationHandler(

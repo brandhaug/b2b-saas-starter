@@ -14,7 +14,7 @@ Better Auth hooks record evidence on the exact session created or verified by a 
 
 Web loaders, server mutations, direct auth management routes and privileged human MCP requests enforce the policy. MCP tokens carry their issuing session ID through refresh, and privileged requests check its current proof. Workspace API Tokens retain their separate machine-principal policy. Urgent session and API Token revocation remains available without completing privileged authentication.
 
-The twelve-hour proof limit governs privileged entry. A shared recent-authentication requirement for sensitive actions remains tracked separately in [#335](https://github.com/brandhaug/b2b-saas-starter/issues/335). Federated assurance equivalence remains deferred in [#334](https://github.com/brandhaug/b2b-saas-starter/issues/334).
+The twelve-hour proof limit governs privileged entry. A shared recent-authentication requirement for sensitive actions remains planned. Federated assurance equivalence remains deferred.
 
 ## Recovery
 

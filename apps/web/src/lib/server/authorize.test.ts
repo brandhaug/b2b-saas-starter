@@ -59,7 +59,7 @@ function decide(
 
 describe('requireWorkspacePermission', () => {
   it.effect(
-    'AC2/AC5: an existing session loses product access while permitted recovery remains available',
+    'an existing session loses product access while permitted recovery remains available',
     () =>
       Effect.gen(function* () {
         yield* requireWorkspacePermission({ apiToken: ['create'] })
@@ -105,7 +105,7 @@ describe('requireWorkspacePermission', () => {
   )
 
   it.effect(
-    'AC5: suspension recovery does not grant members billing or credential rights, or admins owner-only SSO repair',
+    'suspension recovery does not grant members billing or credential rights, or admins owner-only SSO repair',
     () =>
       Effect.gen(function* () {
         const suspension = yield* WorkspaceSuspensionService

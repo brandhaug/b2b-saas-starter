@@ -144,7 +144,7 @@ describe('contract-served routes', () => {
       expect(doc.paths['/workspaces/{slug}/webhooks']).toBeDefined()
       expect(doc.paths['/health']).toBeDefined()
       // The published contract must not advertise a surface the worker cannot
-      // serve. See the 404 test below and issue #64.
+      // serve. See the 404 test below.
       expect(doc.paths['/workspaces/{slug}/invitations']).toBeUndefined()
     })
   )
@@ -547,7 +547,7 @@ describe('contract-served routes', () => {
       })
   )
 
-  // Issue #64: the worker has no session to offer Better Auth's organization
+  // The worker has no session to offer Better Auth's organization
   // plugin, so it cannot persist an invitation. The endpoint used to email a
   // link carrying no invitation id, which no recipient could ever accept, so
   // the route is gone rather than left emailing a dead link.

@@ -7,7 +7,7 @@ export default defineConfig({
   testDir: './e2e',
   // 90s, not 30s: specs run in parallel workers, and the first ones to open
   // /sign-in pay Vite's full cold-transform bill — much heavier since React
-  // Compiler joined the dev pipeline (#135). On a cold CI runner that bill
+  // Compiler joined the dev pipeline. On a cold CI runner that bill
   // alone ate the old 30s budget before hydration could finish.
   timeout: 90_000,
   // Hydration is setup: its Locator.waitFor calls use the test budget above.

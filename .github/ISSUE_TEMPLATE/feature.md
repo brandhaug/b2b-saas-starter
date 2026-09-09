@@ -12,10 +12,10 @@ assignees: ''
 
 ## Acceptance criteria
 
-<!-- Keep IDs stable as the issue evolves. `$implement` and `$code-review` use these IDs to trace work back to the agreed spec. -->
+<!-- Assign criterion IDs in the GitHub issue and keep them stable as it evolves. Map them to implementation evidence in the PR using .agents/skills/implement/SKILL.md. -->
 
-- [ ] AC-1:
-- [ ] AC-2:
+- [ ] `<criterion ID>`:
+- [ ] `<criterion ID>`:
 
 <!-- Optional: state the boundary of this change. Delete this section when it has no useful content. -->
 

@@ -42,7 +42,7 @@ import { formatDateTime } from '@/lib/format-date'
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 
 /**
- * The per-workspace audit trail (issue #118, prototype verdict A): toolbar over
+ * The per-workspace audit trail: toolbar over
  * a dense table. All state — filters and keyset cursor — lives in the URL as
  * search params, so every change re-runs the loader server-side against
  * `AuditEventLog.list`; there is no client-side row model to keep in sync.

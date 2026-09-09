@@ -59,7 +59,7 @@ beforeEach(() => {
 })
 
 describe('direct admin reads', () => {
-  it('AC-4.3: a system-admin role without strong session proof cannot read users or global audit', async () => {
+  it('a system-admin role without strong session proof cannot read users or global audit', async () => {
     await expect(listSystemUsersHandler()).rejects.toMatchObject({
       code: 'strong_authentication_required'
     })
@@ -68,7 +68,7 @@ describe('direct admin reads', () => {
     })
   })
 
-  it('AC-4.3: strong authentication does not grant system-admin authority', async () => {
+  it('strong authentication does not grant system-admin authority', async () => {
     actor.qualified = true
     actor.role = 'user'
     await expect(listSystemUsersHandler()).rejects.toMatchObject({
@@ -79,7 +79,7 @@ describe('direct admin reads', () => {
     })
   })
 
-  it('AC-4.3: qualified system admins can read the actual platform users and global audit', async () => {
+  it('qualified system admins can read the actual platform users and global audit', async () => {
     actor.qualified = true
     const users = await listSystemUsersHandler()
     expect(users).toContainEqual(
@@ -94,7 +94,7 @@ describe('direct admin reads', () => {
     )
   })
 
-  it('AC-4.3: missing sessions cannot invoke either read directly', async () => {
+  it('missing sessions cannot invoke either read directly', async () => {
     actor.signedIn = false
     await expect(listSystemUsersHandler()).rejects.toMatchObject({
       name: 'UnauthorizedError'

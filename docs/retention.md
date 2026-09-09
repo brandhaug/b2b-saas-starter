@@ -1,8 +1,8 @@
 # Record retention
 
-[Issue #290](https://github.com/brandhaug/b2b-saas-starter/issues/290) defines the
-starter's deployment-wide retention policy. Operators own these settings. There
-is no per-workspace retention UI. These are product defaults, with no claim of
+The starter's deployment-wide retention policy is defined here. Operators own
+these settings. There is no per-workspace retention UI. These are product
+defaults, with no claim of
 legal compliance. Monitoring-provider logs follow that provider's separately
 configured policy.
 
@@ -144,8 +144,8 @@ Approval writes configuration; it does not delete records or deploy a Worker.
 Apply the approval file's `environment` object through the deployment's normal
 configuration flow. Keep recovery evidence outside the production Cloudflare
 account. The command records the operator's evidence reference; it cannot verify
-the drill on the operator's behalf. The incomplete synthetic drill committed
-with #286 is not sufficient evidence.
+the drill on the operator's behalf. The [incomplete synthetic drill](operations/2026-09-07-isolated-drill.md)
+is not sufficient evidence.
 
 To change policy, set the proposed `RETENTION_*_DAYS`, `RETENTION_BATCH_SIZE`, or
 `RETENTION_WORK_BUDGET` values for the preview command, then approve its new

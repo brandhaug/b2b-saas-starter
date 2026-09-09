@@ -32,7 +32,7 @@ async function renderPresentation() {
 
 describe('locale request integration', () => {
   it.each(['/help', '/help/', '/nb/help', '/api/support-config'])(
-    'AC6: public support %s stays reachable with a session cookie and unavailable D1',
+    'public support %s stays reachable with a session cookie and unavailable D1',
     async (path) => {
       state.signedIn = true
       state.databaseUnavailable = true

@@ -120,7 +120,7 @@ function request(path: string, method: 'POST' | 'GET' = 'POST', session = curren
 }
 
 describe('privileged authentication HTTP boundary', () => {
-  it('AC-4.1/AC-4.3: blocks direct admin reads and mutations from an ordinary session', async () => {
+  it('blocks direct admin reads and mutations from an ordinary session', async () => {
     const read = await request('/admin/list-users', 'GET')
     const mutation = await request('/admin/set-role')
     expect(read?.status).toBe(403)
@@ -129,7 +129,7 @@ describe('privileged authentication HTTP boundary', () => {
     expect(await request('/admin/set-role')).toBeNull()
   })
 
-  it('AC-4.2: enrollment cannot turn a stolen cookie into a passkey credential', async () => {
+  it('enrollment cannot turn a stolen cookie into a passkey credential', async () => {
     const weak = await request('/passkey/verify-registration')
     expect(weak?.status).toBe(403)
     evidence.passwordVerified = true
@@ -141,7 +141,7 @@ describe('privileged authentication HTTP boundary', () => {
     expect(removal?.status).toBe(403)
   })
 
-  it('AC-4.4: bounded recovery can repair factors but cannot use admin operations', async () => {
+  it('bounded recovery can repair factors but cannot use admin operations', async () => {
     evidence.hasFactors = true
     evidence.recovering = true
     expect(await request('/two-factor/disable')).toBeNull()
@@ -151,7 +151,7 @@ describe('privileged authentication HTTP boundary', () => {
     expect(await request('/admin/revoke-user-sessions')).toBeNull()
   })
 
-  it('AC-4.3: impersonation never grants factor management, even with stale proof', async () => {
+  it('impersonation never grants factor management, even with stale proof', async () => {
     evidence.qualified = true
     const response = await request(
       '/passkey/verify-registration',
@@ -161,7 +161,7 @@ describe('privileged authentication HTTP boundary', () => {
     expect(response?.status).toBe(403)
   })
 
-  it('AC-4.3: raw organization endpoints cannot bypass capability authorization', async () => {
+  it('raw organization endpoints cannot bypass capability authorization', async () => {
     evidence.qualified = true
     const mutation = await request('/organization/update-member-role')
     const read = await request('/organization/get-full-organization', 'GET')

@@ -38,11 +38,11 @@ describe('support destination validation', () => {
 })
 
 describe('public support configuration', () => {
-  it('AC6: stays empty without providers, a session or a database', () => {
+  it('stays empty without providers, a session or a database', () => {
     expect(readSupportConfig()).toEqual({})
   })
 
-  it('AC4: hides invalid destinations and retains valid alternatives and release identity', () => {
+  it('hides invalid destinations and retains valid alternatives and release identity', () => {
     bindings.SUPPORT_EMAIL = 'help@example.test'
     bindings.SUPPORT_HELPDESK_URL = 'javascript:alert(1)'
     bindings.SUPPORT_HELP_CENTER_URL = 'https://docs.example.test'

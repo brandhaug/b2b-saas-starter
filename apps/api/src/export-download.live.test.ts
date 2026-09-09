@@ -58,7 +58,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
     // The HTTP handler owns a live runtime. Mint and validate its links using
     // the same wall clock; expired signatures below use a fixed past instant.
     it.effect(
-      'AC-3.2/AC-3.3: links bind one artifact and recheck expiry, suspension and issuing credentials',
+      'links bind one artifact and recheck expiry, suspension and issuing credentials',
       () =>
         Effect.gen(function* () {
           const DB = yield* TestD1

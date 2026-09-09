@@ -15,7 +15,7 @@ import { isolatedClientIp } from './test-isolation'
 import { removeBrowserTestPasskeys } from './authentication-cleanup'
 
 setup(
-  'AC-4.2 enrolls real passkeys for privileged browser tests',
+  'enrolls real passkeys for privileged browser tests',
   async ({ page, context }, testInfo) => {
     setup.skip(!hasLocalD1State(), 'requires migrated and seeded local D1')
     removeBrowserTestPasskeys()

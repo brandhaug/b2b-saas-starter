@@ -59,7 +59,7 @@ it('starts analytics while error reporting downloads and cancels initialization 
   expect(providers.sentryInit).not.toHaveBeenCalled()
 })
 
-it('AC-9.1/2/3 emits minimal page analytics and scrubs browser error reports', async () => {
+it('emits minimal page analytics and scrubs browser error reports', async () => {
   const { unmount } = render(
     <ClientTelemetry
       config={{

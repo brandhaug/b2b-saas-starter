@@ -9,8 +9,13 @@ Default endpoint: a reviewed PR ready to merge, without merging. Honor a narrowe
 user request.
 
 1. Read the issue and comments using [tracker guidance](../../../docs/agents/issue-tracker.md).
-   Preserve AC IDs through tests and the PR. Use `grilling` for unresolved product
-   decisions and `to-tickets` for independently verifiable slices.
+   Keep issue numbers and acceptance-criteria (AC) IDs only in GitHub issue/PR
+   traceability. Use descriptive behavioral names in repository code, docs,
+   comments, test titles, filenames, and other tracked implementation content;
+   never embed issue numbers or AC IDs there. Preserve legitimate external
+   dependency references and unrelated numeric values. Map criteria to test
+   evidence in the PR. Use `grilling` for unresolved product decisions and
+   `to-tickets` for independently verifiable slices.
 2. Use the host's available delegation tools and configured model IDs. Keep the
    session's provider unless the user requests a switch. For bounded implementation,
    review, and browser work, prefer GLM 5.3 → GLM 5.3 Flash, Claude Opus → Sonnet,

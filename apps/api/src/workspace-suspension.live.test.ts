@@ -53,7 +53,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'workspace suspension API boundaries',
   (it) => {
     it.effect(
-      'AC2/AC5/AC6: OAuth members get a typed denial and outsiders cannot discover suspension',
+      'OAuth members get a typed denial and outsiders cannot discover suspension',
       () =>
         Effect.gen(function* () {
           const DB = yield* TestD1
@@ -153,7 +153,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         })
     )
     it.effect(
-      'AC1/AC2/AC6: existing REST tokens and MCP sessions observe suspension and reactivation',
+      'existing REST tokens and MCP sessions observe suspension and reactivation',
       () =>
         Effect.gen(function* () {
           const DB = yield* TestD1

@@ -119,8 +119,7 @@ describe('sendInvitationHandler', () => {
       role: 'member'
     })
     expect(sent.status).toBe('logged')
-    // The id in the link is the invitation's own — the whole reason issue
-    // #64 removed the worker's `?workspace=<slug>` link.
+    // The link carries the invitation's own id so the recipient can accept it.
     expect(sent.inviteUrl).toBe(
       `https://app.test/invitations/accept?invitation=${sent.invitation.id}`
     )
@@ -180,7 +179,7 @@ describe('sendInvitationHandler', () => {
   })
 })
 
-describe('resendInvitationHandler (#285)', () => {
+describe('resendInvitationHandler', () => {
   beforeEach(() => {
     actingAs('usr_demo')
     env.rateAllowed = true

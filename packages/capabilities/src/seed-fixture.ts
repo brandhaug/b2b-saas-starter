@@ -414,7 +414,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     actor: 'Ops Lead',
     actorUserId: 'usr_ops',
     // Workspace-scoped events carry their workspace so the per-workspace
-    // audit page (issue #118) has something to show in Seed/dev.
+    // audit page has something to show in Seed/dev.
     workspaceId: 'wrk_starter',
     createdAt: '2026-05-14T08:20:00.000Z'
   },
