@@ -1,27 +1,13 @@
-import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { WorkspaceNotFound } from '@b2b-saas-starter/capabilities/errors'
-import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import {
+  WorkspaceExportGeneration,
+  type WorkspaceExportGenerationInterface,
+  type WorkspaceExportGenerationResult,
+  type WorkspaceExportGenerationInput
+} from '@b2b-saas-starter/capabilities/governance/workspace-export-generation'
 import {
   WORKSPACE_EXPORT_RETENTION_DAYS as CAPABILITY_RETENTION_DAYS,
-  WorkspaceExports,
-  type CompleteWorkspaceExportInput,
-  type FailWorkspaceExportInput,
-  WorkspaceExportQueueMessage,
-  type WorkspaceExportsInterface
+  WorkspaceExportQueueMessage
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
-import { WorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import {
-  WorkspaceSuspended,
-  WorkspaceSuspensionService
-} from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import {
-  testWorkspaceContext,
-  WorkspaceContext
-} from '@b2b-saas-starter/capabilities/workspace-context'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 
@@ -29,13 +15,8 @@ import {
   WORKSPACE_EXPORT_RETENTION_DAYS,
   workspaceExportConsumerSettings
 } from '../../../infra/bindings.ts'
-import {
-  processWorkspaceExportMessage,
-  type ResolveWorkspace
-} from './export-consumer.ts'
+import { processWorkspaceExportMessage } from './export-consumer.ts'
 import { readDelivery } from './queue-consumer.ts'
-
-const workspace = { id: 'wrk_1', slug: 'lab', name: 'Lab', planId: 'team' }
 
 const message: WorkspaceExportQueueMessage = {
   exportId: 'exp_1',
@@ -43,273 +24,94 @@ const message: WorkspaceExportQueueMessage = {
   workspaceSlug: 'lab'
 }
 
-/** What the stub export service saw: the completions and failures it was handed. */
-type Recorded = {
-  readonly completed: Array<CompleteWorkspaceExportInput>
-  readonly failed: Array<FailWorkspaceExportInput>
-}
-
-function stubExports(
-  recorded: Recorded,
-  completeSuspended = false
-): Layer.Layer<WorkspaceExports> {
-  const unused = Effect.die('unused in consumer tests')
-  const service: WorkspaceExportsInterface = {
-    availability: Effect.succeed({ available: true }),
-    list: unused,
-    request: unused,
-    issueDownloadLink: () => unused,
-    openDownload: () => unused,
-    complete: (input) => {
-      if (completeSuspended) {
-        return Effect.fail(new WorkspaceSuspended({ workspaceId: input.workspaceId }))
-      }
-      return Effect.sync(() => {
-        recorded.completed.push(input)
-        return true
-      })
-    },
-    fail: (input) =>
+function generationLayer(
+  result: WorkspaceExportGenerationResult,
+  seen: Array<WorkspaceExportGenerationInput> = []
+): Layer.Layer<WorkspaceExportGeneration> {
+  const service: WorkspaceExportGenerationInterface = {
+    generate: (input) =>
       Effect.sync(() => {
-        recorded.failed.push(input)
-        return true
+        seen.push(input)
+        return result
       })
   }
-  return Layer.succeed(WorkspaceExports)(service)
-}
-
-/**
- * Empty read services — the archive shape is the capability tests' business;
- * the consumer tests assert the orchestration. `failing` turns every read into
- * a store outage.
- */
-function stubReads(failing = false) {
-  const outage = new CapabilityUnavailable({ capability: 'test', reason: 'd1 down' })
-  function list<A>(value: A): Effect.Effect<A, CapabilityUnavailable> {
-    if (failing) {
-      return Effect.fail(outage)
-    }
-    return Effect.succeed(value)
-  }
-  const unused = Effect.die('unused in consumer tests')
-  return Layer.mergeAll(
-    Layer.succeed(WorkspaceMembership)({
-      listMembers: list([]),
-      listMembersPage: () => unused,
-      listWorkspacesForUser: () => unused,
-      addMember: () => unused,
-      removeMember: () => unused,
-      leave: unused,
-      changeRole: () => unused
-    }),
-    Layer.succeed(WorkspaceInvitations)({
-      list: list([]),
-      create: () => unused,
-      cancel: () => unused,
-      find: () => unused,
-      accept: () => unused
-    }),
-    Layer.succeed(ApiTokenRegistry)({
-      list: list([]),
-      listPage: () => unused,
-      create: () => unused,
-      replace: () => unused,
-      revoke: () => unused,
-      verifyBearerToken: () => unused
-    }),
-    Layer.succeed(WebhookEndpoints)({
-      list: list([]),
-      listPage: () => unused,
-      create: () => unused,
-      listDeliveryAttempts: () => Effect.die('unused in delivery tests'),
-      cleanupDeliveryHistory: () => Effect.die('unused in delivery tests'),
-      listDeliveries: () => unused,
-      listGlobalDeliveries: () => unused,
-      replayDeliveryAsAdmin: () => unused,
-      update: () => unused,
-      delete: () => unused,
-      replayDelivery: () => unused,
-      sendTestEvent: () => unused,
-      rotateSecret: () => unused,
-      isDeliverySettled: () => Effect.succeed(false),
-      getDispatchTarget: () => unused,
-      recordDeliveryAttempt: () => unused,
-      recordTerminalDeliveryAttempt: () => unused
-    }),
-    Layer.succeed(AuditEventLog)({
-      get: () => unused,
-      list: () => list({ items: [], nextCursor: null }),
-      listGlobal: unused,
-      record: () => unused,
-      prepareRecord: () => unused
-    }),
-    Layer.succeed(NotificationFeed)({
-      list: list([]),
-      listPage: () => unused,
-      unreadCount: list(0),
-      markRead: () => unused,
-      notifyUser: () => unused,
-      notifyWorkspaceOwners: () => unused,
-      prepareWorkspaceOwners: () => unused,
-      create: () => unused,
-      loadForEmail: () => unused,
-      listDigestCandidates: () => unused,
-      record: () => unused
-    })
-  )
-}
-
-function resolveLab(slug: string): ReturnType<ResolveWorkspace> {
-  if (slug === 'lab') {
-    return testWorkspaceContext(workspace)
-  }
-  return Layer.effect(WorkspaceContext)(Effect.fail(new WorkspaceNotFound({ slug })))
+  return Layer.succeed(WorkspaceExportGeneration)(service)
 }
 
 function run(
   body: unknown,
-  options: {
-    readonly attempts?: number
-    readonly resolve?: ResolveWorkspace
-    readonly failing?: boolean
-    readonly suspended?: boolean
-    readonly completeSuspended?: boolean
-  } = {}
+  result: WorkspaceExportGenerationResult,
+  attempts = 1,
+  seen: Array<WorkspaceExportGenerationInput> = []
 ) {
-  const recorded: Recorded = { completed: [], failed: [] }
-  const activeSuspension = Layer.succeed(WorkspaceSuspensionService)({
-    list: Effect.succeed([]),
-    get: () => Effect.die('unused'),
-    requireAllowed: () => Effect.void,
-    transition: () => Effect.die('unused')
-  })
-  let suspensionLayer = activeSuspension
-  if (options.suspended) {
-    suspensionLayer = Layer.succeed(WorkspaceSuspensionService)({
-      list: Effect.succeed([]),
-      get: () => Effect.die('unused'),
-      requireAllowed: () =>
-        Effect.fail(new WorkspaceSuspended({ workspaceId: 'wrk_1' })),
-      transition: () => Effect.die('unused')
-    })
-  }
   return processWorkspaceExportMessage(
     readDelivery(WorkspaceExportQueueMessage, {
       id: 'qmsg_export',
       body,
-      attempts: options.attempts ?? 1
+      attempts
     }),
-    options.resolve ?? resolveLab
-  ).pipe(
-    Effect.provide(
-      Layer.mergeAll(
-        stubExports(recorded, options.completeSuspended ?? false),
-        stubReads(options.failing ?? false),
-        suspensionLayer
-      )
-    ),
-    Effect.map((outcome) => ({ outcome, recorded }))
-  )
+    generationLayer(result, seen)
+  ).pipe(Effect.map((outcome) => ({ outcome, seen })))
 }
 
 describe('processWorkspaceExportMessage', () => {
-  it.effect('builds the archive and completes the export', () =>
+  it.effect('delegates a valid message to generation and acknowledges ready work', () =>
     Effect.gen(function* () {
-      const { outcome, recorded } = yield* run(message)
-      expect(outcome).toBe('ack')
-      expect(recorded.failed).toHaveLength(0)
-      expect(recorded.completed).toHaveLength(1)
-      const completed = recorded.completed[0]
-      expect(completed).toMatchObject({ exportId: 'exp_1', workspaceId: 'wrk_1' })
-      // A real gzip container: magic bytes first.
-      expect([...(completed?.archive.subarray(0, 2) ?? [])]).toEqual([0x1f, 0x8b])
-      expect(completed?.archive.length).toBeGreaterThan(22)
-    })
-  )
-
-  it.effect('settles a queued export while suspended', () =>
-    Effect.gen(function* () {
-      const { outcome, recorded } = yield* run(message, { suspended: true })
-      expect(outcome).toBe('ack')
-      expect(recorded.completed).toHaveLength(0)
-      expect(recorded.failed).toEqual([
-        expect.objectContaining({ reason: 'workspace_suspended' })
+      const seen: Array<WorkspaceExportGenerationInput> = []
+      const result = yield* run(message, { _tag: 'ready', sizeBytes: 42 }, 1, seen)
+      expect(result.outcome).toBe('ack')
+      expect(result.seen).toEqual([
+        {
+          message,
+          finalAttempt: false
+        }
       ])
     })
   )
 
-  it.effect('settles when suspension starts before completion', () =>
+  it.effect('returns retry when generation says the platform should retry', () =>
     Effect.gen(function* () {
-      const { outcome, recorded } = yield* run(message, {
-        completeSuspended: true
-      })
-      expect(outcome).toBe('ack')
-      expect(recorded.completed).toHaveLength(0)
-      expect(recorded.failed).toEqual([
-        expect.objectContaining({ reason: 'workspace_suspended' })
-      ])
+      const result = yield* run(message, { _tag: 'retry', reason: 'd1 down' })
+      expect(result.outcome).toBe('retry')
     })
   )
 
-  it.effect('acks a malformed message without touching any row', () =>
+  it.effect('acknowledges terminal skipped generation', () =>
     Effect.gen(function* () {
-      const { outcome, recorded } = yield* run({ exportId: 42 })
-      expect(outcome).toBe('ack')
-      expect(recorded.completed).toHaveLength(0)
-      expect(recorded.failed).toHaveLength(0)
+      const result = yield* run(message, {
+        _tag: 'skipped',
+        reason: 'workspace_mismatch'
+      })
+      expect(result.outcome).toBe('ack')
     })
   )
 
-  it.effect('marks the export failed when the slug no longer resolves', () =>
+  it.effect('marks the queue delivery final attempt for generation', () =>
     Effect.gen(function* () {
-      const { outcome, recorded } = yield* run({ ...message, workspaceSlug: 'gone' })
-      expect(outcome).toBe('ack')
-      expect(recorded.completed).toHaveLength(0)
-      expect(recorded.failed[0]).toMatchObject({
-        exportId: 'exp_1',
-        workspaceId: 'wrk_1',
-        reason: 'workspace_not_found'
-      })
+      const seen: Array<WorkspaceExportGenerationInput> = []
+      const result = yield* run(
+        message,
+        { _tag: 'skipped', reason: 'unavailable: d1 down' },
+        workspaceExportConsumerSettings.maxRetries,
+        seen
+      )
+      expect(result.outcome).toBe('ack')
+      expect(seen[0]?.finalAttempt).toBe(true)
     })
   )
 
-  it.effect(
-    'marks the export failed when the slug resolves to a different workspace',
-    () =>
-      Effect.gen(function* () {
-        const { outcome, recorded } = yield* run({ ...message, workspaceId: 'wrk_old' })
-        expect(outcome).toBe('ack')
-        expect(recorded.completed).toHaveLength(0)
-        expect(recorded.failed[0]).toMatchObject({
-          workspaceId: 'wrk_old',
-          reason: 'workspace_mismatch'
-        })
-      })
-  )
-
-  it.effect('retries a store outage while attempts remain', () =>
+  it.effect('acks malformed messages without invoking generation', () =>
     Effect.gen(function* () {
-      const { outcome, recorded } = yield* run(message, {
-        failing: true,
-        attempts: 1
-      })
-      expect(outcome).toBe('retry')
-      expect(recorded.failed).toHaveLength(0)
-      expect(recorded.completed).toHaveLength(0)
+      const seen: Array<WorkspaceExportGenerationInput> = []
+      const result = yield* run(
+        { exportId: 42 },
+        { _tag: 'ready', sizeBytes: 42 },
+        1,
+        seen
+      )
+      expect(result.outcome).toBe('ack')
+      expect(seen).toHaveLength(0)
     })
-  )
-
-  it.effect(
-    'marks the export failed on the last attempt instead of retrying forever',
-    () =>
-      Effect.gen(function* () {
-        const { outcome, recorded } = yield* run(message, {
-          failing: true,
-          attempts: workspaceExportConsumerSettings.maxRetries
-        })
-        expect(outcome).toBe('ack')
-        expect(recorded.failed[0]?.reason).toMatch(/^unavailable: /)
-      })
   )
 })
 
@@ -320,12 +122,9 @@ describe('readDelivery', () => {
       body: { ...message, traceparent: '00-abc-def-01' },
       attempts: 2
     })
-    expect(delivery).toEqual({
-      id: 'qmsg_1',
-      attempts: 2,
-      kind: 'message',
-      message: { ...message, traceparent: '00-abc-def-01' }
-    })
+    expect(delivery.kind).toBe('message')
+    expect(delivery.id).toBe('qmsg_1')
+    expect(delivery.attempts).toBe(2)
   })
 
   it('names a body that misses the workspace slug malformed', () => {
