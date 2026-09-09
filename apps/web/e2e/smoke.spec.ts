@@ -129,7 +129,7 @@ test('seeded demo user can request a magic link', async ({ page }) => {
   await page.goto('/sign-in')
   await page.locator('form[data-hydrated="true"]').waitFor()
   // The second Local Auth Path: switch the form to email-only and send.
-  await page.getByRole('button', { name: 'Email me a sign-in link' }).click()
+  await page.getByRole('button', { name: 'Email link', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'Sign in with an email link' })
   ).toBeVisible()

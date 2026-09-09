@@ -11,6 +11,7 @@ export function SectionTabs({
     readonly value: string
     readonly label: string
     readonly content: ReactNode
+    readonly keepMounted?: boolean
   }>
 }) {
   const firstSection = sections[0]
@@ -30,11 +31,11 @@ export function SectionTabs({
           </Tabs.Tab>
         ))}
       </Tabs.List>
-      {sections.map(({ value, content }) => (
+      {sections.map(({ value, content, keepMounted = true }) => (
         <Tabs.Panel
           key={value}
           value={value}
-          keepMounted
+          keepMounted={keepMounted}
           className="min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {content}

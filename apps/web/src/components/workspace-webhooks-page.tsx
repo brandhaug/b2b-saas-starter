@@ -71,6 +71,7 @@ export function WorkspaceWebhooksPage({
           },
           {
             value: 'delivery',
+            keepMounted: false,
             label: m.webhook_delivery(),
             content: (
               <Panel title={m.webhook_delivery()}>
