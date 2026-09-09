@@ -1,8 +1,10 @@
 import {
   NotificationFeed,
   type DigestCandidate,
-  type NotificationEmailContext
+  type NotificationEmailContext,
+  type SeedNotification
 } from './notification-feed.ts'
+import { SeedNotificationFeed } from './notification-feed.seed.ts'
 import {
   type NotificationPreferences,
   SeedNotificationPreferences
@@ -17,6 +19,9 @@ import {
   WorkspaceSuspensionService
 } from '../governance/workspace-suspension.ts'
 import { SeedAuditEventLog } from '../governance/audit-event-log.ts'
+import { SeedAccountPreferences } from '../governance/account-preferences.ts'
+import { seedMembers, seedWorkspaceRecord } from '../seed-fixture.ts'
+import { testWorkspaceContext } from '../workspace-context.ts'
 import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
 import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { describe, expect, it } from '@effect/vitest'
@@ -81,6 +86,44 @@ function eligibilityLayer(
   const dependencies = Layer.mergeAll(feed, preferences, suspension, delivery)
   return Layer.merge(
     dependencies,
+    NotificationEmailEligibilityLayer.pipe(Layer.provide(dependencies))
+  )
+}
+
+function seedEligibilityLayer(
+  seed: ReadonlyArray<SeedNotification>,
+  preferences: ReadonlyArray<{
+    readonly userId: string
+    readonly kind: SeedNotification['kind']
+    readonly channel: 'off' | 'instant' | 'digest'
+  }>
+) {
+  const audit = SeedAuditEventLog([])
+  const accountPreferences = SeedAccountPreferences([
+    { userId: 'usr_demo', locale: null, timeZone: null }
+  ]).pipe(Layer.provide(audit))
+  const notificationPreferences = SeedNotificationPreferences(preferences).pipe(
+    Layer.provide(audit)
+  )
+  const feed = SeedNotificationFeed(seed, {
+    workspace: seedWorkspaceRecord,
+    members: seedMembers
+  }).pipe(Layer.provide(Layer.merge(accountPreferences, notificationPreferences)))
+  const suspension = suspensionLayer(() => Effect.void)
+  const delivery = SeedEmailDelivery()
+  const dependencies = Layer.mergeAll(
+    feed,
+    notificationPreferences,
+    suspension,
+    delivery
+  )
+  return Layer.mergeAll(
+    audit,
+    accountPreferences,
+    notificationPreferences,
+    feed,
+    suspension,
+    delivery,
     NotificationEmailEligibilityLayer.pipe(Layer.provide(dependencies))
   )
 }
@@ -229,6 +272,87 @@ describe('NotificationEmailEligibility', () => {
           suspensionLayer(() =>
             Effect.fail(new WorkspaceSuspended({ workspaceId: workspace.id }))
           )
+        )
+      )
+    )
+  )
+
+  it.effect('re-reads the Seed feed after an instant notification becomes read', () =>
+    Effect.gen(function* () {
+      const eligibility = yield* NotificationEmailEligibility
+      const feed = yield* NotificationFeed
+      const input = { notificationId: 'seed_read', recipientUserId: 'usr_demo' }
+
+      expect(yield* eligibility.instant(input)).toMatchObject({ _tag: 'deliver' })
+      yield* feed.markRead(['seed_read'])
+      expect(yield* eligibility.instant(input)).toEqual({
+        _tag: 'skip',
+        reason: 'not_deliverable'
+      })
+    }).pipe(
+      Effect.provide(
+        Layer.merge(
+          seedEligibilityLayer(
+            [
+              {
+                id: 'seed_read',
+                userId: 'usr_demo',
+                kind: 'announcement',
+                title: 'Seed read check',
+                message: 'Unread initially.',
+                createdAt: '2026-09-02T10:00:00.000Z',
+                read: false
+              }
+            ],
+            [{ userId: 'usr_demo', kind: 'announcement', channel: 'instant' }]
+          ),
+          testWorkspaceContext(seedWorkspaceRecord, {
+            userId: 'usr_demo',
+            role: 'owner',
+            systemRole: 'admin'
+          })
+        )
+      )
+    )
+  )
+
+  it.effect('re-reads the Seed feed after a digest notification becomes read', () =>
+    Effect.gen(function* () {
+      const eligibility = yield* NotificationEmailEligibility
+      const feed = yield* NotificationFeed
+      const window = {
+        since: '2026-09-02T00:00:00.000Z',
+        until: '2026-09-03T00:00:00.000Z'
+      }
+
+      expect((yield* eligibility.digest(window)).candidates).toHaveLength(1)
+      yield* feed.markRead(['seed_digest_read'])
+      expect(yield* eligibility.digest(window)).toMatchObject({
+        candidateCount: 0,
+        candidates: []
+      })
+    }).pipe(
+      Effect.provide(
+        Layer.merge(
+          seedEligibilityLayer(
+            [
+              {
+                id: 'seed_digest_read',
+                userId: 'usr_demo',
+                kind: 'announcement',
+                title: 'Seed digest read check',
+                message: 'Unread initially.',
+                createdAt: '2026-09-02T10:00:00.000Z',
+                read: false
+              }
+            ],
+            []
+          ),
+          testWorkspaceContext(seedWorkspaceRecord, {
+            userId: 'usr_demo',
+            role: 'owner',
+            systemRole: 'admin'
+          })
         )
       )
     )
