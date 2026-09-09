@@ -29,18 +29,19 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # The action compares branches against the full history to close
           # stale PRs and rebuild conflicting ones.
           fetch-depth: 0
           token: ${{ secrets.CI_PAT }}
+          persist-credentials: false
 
       # The catalogs are pnpm-defined, so the action installs and audits
       # through pnpm (auto-detected from pnpm-workspace.yaml).
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
 
-      - uses: brandhaug/catalog-update-action@v1
+      - uses: brandhaug/catalog-update-action@a0e9ad94e9cb6c053cbbcc32e4db76e030732468 # v1
         with:
           config: '.catalog-updaterc.json'
           dry-run: 'false'

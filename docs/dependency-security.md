@@ -1,5 +1,8 @@
 # Dependency security check
 
+Workflow action pinning, committed-secret detection, and the credential incident
+path are documented in the [CI security controls](ci-security.md).
+
 ## Scope and failure policy
 
 The `audit` job in [Audit](../.github/workflows/audit.yml) uses pinned Trivy v0.74.0
