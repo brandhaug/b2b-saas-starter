@@ -17,7 +17,7 @@ const BILL_OF_MATERIALS: ReadonlyArray<string> = [
   'Alchemy v2'
 ]
 
-function HeroSection() {
+function HeroSection({ showDemo }: { readonly showDemo: boolean }) {
   return (
     <section className="border-b border-border">
       <div className="mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:pt-28 lg:pb-16">
@@ -49,10 +49,12 @@ function HeroSection() {
                   the header carries one on every scroll position, and a
                   second at the fold read as a duplicate control, not a
                   choice. */}
-              <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
-                {m.action_open_demo()}
-                <ArrowRightIcon className="size-4" />
-              </Button>
+              {showDemo ? (
+                <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
+                  {m.action_open_demo()}
+                  <ArrowRightIcon className="size-4" />
+                </Button>
+              ) : null}
               <a
                 href={GITHUB_URL}
                 target="_blank"

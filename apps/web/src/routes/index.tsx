@@ -66,14 +66,14 @@ function HomePage() {
   return (
     <PublicLayout>
       <main id="main-content">
-        <HeroSection />
+        <HeroSection showDemo={demo !== null} />
         {/* `null` means the showcase workspace is missing in this deployment:
             the page renders without the numbers instead of failing. */}
         {demo === null ? null : <DemoStrip demo={demo} />}
         <RequestTraceSection overview={demo === null ? null : demo.overview} />
         <ProvidersSection />
         <KnowledgeSection recentDocs={recentDocs} recentPosts={recentPosts} />
-        <ClosingSection />
+        <ClosingSection showDemo={demo !== null} />
       </main>
     </PublicLayout>
   )
