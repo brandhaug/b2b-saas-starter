@@ -128,16 +128,6 @@ describe('auth request guard interface', () => {
 
   it('keeps public passkey protocol and management paths reachable while guarding sensitive changes', async () => {
     const plugin = vi.fn(() => Effect.succeed(new Response('plugin')))
-    const publicPasskeyPaths = [
-      ['POST', '/api/auth/passkey/verify-authentication'],
-      ['GET', '/api/auth/passkey/list-user-passkeys'],
-      ['POST', '/api/auth/passkey/update-passkey']
-    ] satisfies ReadonlyArray<readonly ['GET' | 'POST', string]>
-    for (const [method, path] of publicPasskeyPaths) {
-      const result = await run(request(method, path), plugin)
-      expect(result.outcome).toBe('allowed')
-    }
-
     const refusal = new Response(
       JSON.stringify({ code: 'strong_authentication_required' }),
       { status: 403 }
@@ -145,6 +135,19 @@ describe('auth request guard interface', () => {
     state.strong.mockImplementation(async (_session, action) =>
       action.kind === 'recent' || action.kind === 'passkey' ? refusal : null
     )
+    const publicPasskeyPaths = [
+      ['POST', '/api/auth/passkey/verify-authentication'],
+      ['POST', '/api/auth/passkey/generate-authenticate-options'],
+      ['GET', '/api/auth/passkey/list-user-passkeys'],
+      ['POST', '/api/auth/passkey/update-passkey']
+    ] satisfies ReadonlyArray<readonly ['GET' | 'POST', string]>
+    for (const [method, path] of publicPasskeyPaths) {
+      plugin.mockClear()
+      const result = await run(request(method, path), plugin)
+      expect(result.outcome).toBe('allowed')
+      expect(plugin).toHaveBeenCalledOnce()
+    }
+
     const sensitivePasskeyPaths = [
       ['GET', '/api/auth/passkey/generate-register-options'],
       ['POST', '/api/auth/passkey/generate-register-options'],
