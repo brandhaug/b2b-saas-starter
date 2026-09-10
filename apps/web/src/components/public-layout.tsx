@@ -20,6 +20,7 @@ import {
 import { publicLinks } from '@/lib/content'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { PublicLayoutContext } from './public-layout-context'
 
 /**
  * Whether this document was rendered for a signed-in visitor, from the root
@@ -152,7 +153,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
           </Button>
         </div>
       </header>
-      {children}
+      <PublicLayoutContext value>{children}</PublicLayoutContext>
       <footer className="mt-auto border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between">
           <span>{m.site_footer_tagline()}</span>
