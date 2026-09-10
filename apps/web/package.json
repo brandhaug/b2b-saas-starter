@@ -50,6 +50,7 @@
     "effect": "catalog:",
     "effectful-better-auth": "catalog:",
     "lucide-react": "catalog:",
+    "posthog-js": "catalog:",
     "qrcode.react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
