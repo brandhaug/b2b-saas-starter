@@ -25,7 +25,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        id: setup
         with:
           cache-task: true
       - run: vp run typecheck
@@ -42,17 +41,6 @@ jobs:
         run: |
           pnpm run infra:wrangler
           git diff --exit-code -- apps/*/wrangler.jsonc
-      - name: Save Vite Task cache
-        if: success()
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: |
-            node_modules/.vite/task-cache
-            node_modules/.vite/vitest
-            apps/*/node_modules/.vite/vitest
-            packages/*/node_modules/.vite/vitest
-            infra/node_modules/.vite/vitest
-          key: ${{ steps.setup.outputs.vite-task-cache-primary-key }}
 
   # Web and capabilities tests can start immediately instead of waiting for
   # dependency tests. The complementary filters include every workspace,
@@ -75,7 +63,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        id: setup
         with:
           cache-task: true
       - run: pnpm -C packages/i18n generate
@@ -98,20 +85,6 @@ jobs:
       - name: Run script tests
         if: ${{ matrix.name == 'packages' }}
         run: pnpm run test:scripts
-      - name: Run operations tests
-        if: ${{ matrix.name == 'packages' }}
-        run: pnpm run test:operations
-      - name: Save Vite Task cache
-        if: success()
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: |
-            node_modules/.vite/task-cache
-            node_modules/.vite/vitest
-            apps/*/node_modules/.vite/vitest
-            packages/*/node_modules/.vite/vitest
-            infra/node_modules/.vite/vitest
-          key: ${{ steps.setup.outputs.vite-task-cache-primary-key }}
 
   build:
     runs-on: ubuntu-latest
@@ -120,21 +93,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-        id: setup
         with:
           cache-task: true
       - run: vp run build
-      - name: Save Vite Task cache
-        if: success()
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: |
-            node_modules/.vite/task-cache
-            node_modules/.vite/vitest
-            apps/*/node_modules/.vite/vitest
-            packages/*/node_modules/.vite/vitest
-            infra/node_modules/.vite/vitest
-          key: ${{ steps.setup.outputs.vite-task-cache-primary-key }}
 
   # Keep the existing required check name, and fail on skipped/cancelled jobs.
   ci:
@@ -165,7 +126,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - run: pnpm exec playwright install --with-deps --only-shell chromium
+      - run: pnpm -C apps/web exec playwright install --with-deps --only-shell chromium
       # The compiled preview attaches this local D1 for real authentication.
       - run: pnpm run db:migrate:local
       - run: pnpm run db:seed
@@ -244,23 +205,17 @@ jobs:
           SECURITY_EVIDENCE_TOKEN: ${{ secrets.SECURITY_EVIDENCE_TOKEN }}
       # The workers.dev URLs are not known until deploy time: the account's
       # subdomain comes from the Cloudflare API, and the worker names come from
-      # stageResourceNames in infra/bindings.ts (`prod` keeps the historical
-      # names, so no stage infix). Deriving them here keeps the workflow
-      # forkable instead of pinning one deployer's subdomain.
+      # stageResourceNames in infra/bindings.ts. Deriving them here keeps the
+      # workflow forkable instead of pinning one deployer's subdomain.
       - name: Resolve deployed URLs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          subdomain="$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" |
-            jq -er '.result.subdomain')"
-          echo "API_URL=https://b2b-saas-starter-api.$subdomain.workers.dev" >> "$GITHUB_ENV"
-          echo "WEB_URL=https://b2b-saas-starter-web.$subdomain.workers.dev" >> "$GITHUB_ENV"
+          ALCHEMY_STAGE: prod
+        run: node .github/scripts/preview-urls.ts
       # A green deploy only proves the upload succeeded; the deploy job fails
-      # unless the uploaded workers actually serve. Probes the health route on
-      # the API worker and the web app root. `--retry` rides out propagation
-      # lag right after the upload; `-f --retry-all-errors` makes any HTTP
-      # failure (not just transport errors) retry, then fail the job.
+      # unless the uploaded workers actually serve. The probe retries the API
+      # health route and the web app root to ride out propagation lag right
+      # after the upload, then fails the job.
       - name: Smoke test the deployment
         run: node .github/scripts/smoke-deployment.ts

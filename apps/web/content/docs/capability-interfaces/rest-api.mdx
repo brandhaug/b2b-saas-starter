@@ -22,7 +22,7 @@ HttpApiGroup.make('workspace').add(
 )
 ```
 
-The same contract supplies OpenAPI and the [typed SDK](/docs/capability-interfaces/sdk).
+The same contract supplies OpenAPI and the [typed client](/docs/capability-interfaces/sdk).
 
 ## Routing
 
@@ -45,7 +45,7 @@ GET /workspaces/acme/notifications?limit=2
 }
 ```
 
-`limit` defaults to 50 and is clamped into `[1, 200]`: out-of-range values narrow or widen to the range instead of failing. The `cursor` is a keyset position (the sort key of the last item plus its id, base64-encoded): a page returns rows strictly past that position in the endpoint's order, so inserting rows does not shift the positions of existing rows. This is not a snapshot; new rows before the cursor require a fresh traversal. Timestamped lists (`notifications`, `api-tokens`, `audit-events`) read newest-first on `(createdAt, id)`; `members` and `webhooks` carry no timestamp on the wire and read forward on `id`. A cursor that cannot be decoded addresses no position and yields an empty page. MCP list tools take the same two inputs. The typed SDK walks pages for you; see [Typed SDK](/docs/capability-interfaces/sdk).
+`limit` defaults to 50 and is clamped into `[1, 200]`: out-of-range values narrow or widen to the range instead of failing. The `cursor` is a keyset position (the sort key of the last item plus its id, base64-encoded): a page returns rows strictly past that position in the endpoint's order, so inserting rows does not shift the positions of existing rows. This is not a snapshot; new rows before the cursor require a fresh traversal. Timestamped lists (`notifications`, `api-tokens`, `audit-events`) read newest-first on `(createdAt, id)`; `members` and `webhooks` carry no timestamp on the wire and read forward on `id`. A cursor that cannot be decoded addresses no position and yields an empty page. MCP list tools take the same two inputs. The derived client exposes the same `limit` and `cursor` inputs; see [Typed client](/docs/capability-interfaces/sdk).
 
 ## Rate limiting
 

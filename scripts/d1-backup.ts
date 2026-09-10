@@ -18,10 +18,12 @@ import {
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { parseArgs, promisify } from 'node:util'
 
 import { Predicate, Schema } from 'effect'
 import { isSecureDsn, isSecureEndpoint } from '../packages/env/src/transport.ts'
+import { requiredEnv } from './lib/env.ts'
 
 const exec = promisify(execFile)
 const ROOT = join(import.meta.dirname, '..')
@@ -116,16 +118,8 @@ type CommandOptions = {
   readonly env?: NodeJS.ProcessEnv
 }
 
-function required(name: string): string {
-  const value = process.env[name]
-  if (value === undefined || value.trim().length === 0) {
-    throw new Error(`missing required environment variable ${name}`)
-  }
-  return value
-}
-
 function keyFromEnvironment(): Buffer {
-  const raw = required('BACKUP_ENCRYPTION_KEY')
+  const raw = requiredEnv('BACKUP_ENCRYPTION_KEY')
   const key = /^[0-9a-f]{64}$/i.test(raw)
     ? Buffer.from(raw, 'hex')
     : Buffer.from(raw, 'base64')
@@ -199,10 +193,7 @@ async function retry(
     if (attempts <= 1) {
       throw error
     }
-    const delay = Number(process.env.D1_BACKUP_RETRY_DELAY_MS ?? '1000')
-    await new Promise<void>((resolve) => {
-      setTimeout(() => resolve(), delay)
-    })
+    await sleep(Number(process.env.D1_BACKUP_RETRY_DELAY_MS ?? '1000'))
     return retry(command, args, attempts - 1)
   }
 }
@@ -228,19 +219,15 @@ function objectPrefix(database: string): string {
   return `${process.env.BACKUP_S3_PREFIX ?? 'd1'}/${database}/`
 }
 
-function escapeRegExp(value: string): string {
-  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
-}
-
 function backupKeyPattern(database: string): RegExp {
   return new RegExp(
-    `^${escapeRegExp(objectPrefix(database))}\\d{8}T\\d{6}Z\\.sql\\.enc$`
+    `^${RegExp.escape(objectPrefix(database))}\\d{8}T\\d{6}Z\\.sql\\.enc$`
   )
 }
 
 function completionKeyPattern(database: string): RegExp {
   return new RegExp(
-    `^${escapeRegExp(objectPrefix(database))}\\d{8}T\\d{6}Z\\.sql\\.enc${escapeRegExp(COMPLETION_SUFFIX)}$`
+    `^${RegExp.escape(objectPrefix(database))}\\d{8}T\\d{6}Z\\.sql\\.enc${RegExp.escape(COMPLETION_SUFFIX)}$`
   )
 }
 
@@ -255,7 +242,7 @@ async function listObjects(database: string): Promise<ReadonlyArray<S3Object>> {
     's3api',
     'list-objects-v2',
     '--bucket',
-    required('BACKUP_S3_BUCKET'),
+    requiredEnv('BACKUP_S3_BUCKET'),
     '--prefix',
     objectPrefix(database),
     ...s3Args(),
@@ -298,7 +285,7 @@ async function downloadObject(key: string, destination: string): Promise<void> {
   await aws([
     's3',
     'cp',
-    `s3://${required('BACKUP_S3_BUCKET')}/${key}`,
+    `s3://${requiredEnv('BACKUP_S3_BUCKET')}/${key}`,
     destination,
     ...s3Args(),
     '--only-show-errors'
@@ -388,7 +375,7 @@ async function remoteDatabaseId(database: string): Promise<string> {
 export async function backup(
   database = process.env.BACKUP_DATABASE ?? 'b2b-saas-starter'
 ): Promise<BackupEvidence> {
-  required('BACKUP_S3_BUCKET')
+  requiredEnv('BACKUP_S3_BUCKET')
   const key = keyFromEnvironment()
   const started = Date.now()
   const work = await mkdtemp(join(tmpdir(), 'd1-backup-'))
@@ -422,7 +409,7 @@ export async function backup(
       's3',
       'cp',
       encryptedPath,
-      `s3://${required('BACKUP_S3_BUCKET')}/${objectKey}`,
+      `s3://${requiredEnv('BACKUP_S3_BUCKET')}/${objectKey}`,
       ...s3Args(),
       '--only-show-errors'
     ])
@@ -430,7 +417,7 @@ export async function backup(
       's3api',
       'head-object',
       '--bucket',
-      required('BACKUP_S3_BUCKET'),
+      requiredEnv('BACKUP_S3_BUCKET'),
       '--key',
       objectKey,
       ...s3Args()
@@ -462,7 +449,7 @@ export async function backup(
       's3',
       'cp',
       completionPath,
-      `s3://${required('BACKUP_S3_BUCKET')}/${completionKey}`,
+      `s3://${requiredEnv('BACKUP_S3_BUCKET')}/${completionKey}`,
       ...s3Args(),
       '--only-show-errors'
     ])
@@ -470,7 +457,7 @@ export async function backup(
       's3api',
       'head-object',
       '--bucket',
-      required('BACKUP_S3_BUCKET'),
+      requiredEnv('BACKUP_S3_BUCKET'),
       '--key',
       completionKey,
       ...s3Args()
@@ -491,7 +478,7 @@ export async function backup(
 export async function prune(
   database = process.env.BACKUP_DATABASE ?? 'b2b-saas-starter'
 ): Promise<number> {
-  required('BACKUP_S3_BUCKET')
+  requiredEnv('BACKUP_S3_BUCKET')
   const work = await mkdtemp(join(tmpdir(), 'd1-prune-'))
   try {
     const expired = retentionPlan(await completedBackups(database, work))
@@ -502,7 +489,7 @@ export async function prune(
             's3api',
             'delete-object',
             '--bucket',
-            required('BACKUP_S3_BUCKET'),
+            requiredEnv('BACKUP_S3_BUCKET'),
             '--key',
             key,
             ...s3Args()
@@ -653,7 +640,7 @@ export async function restore(
       )
       return
     }
-    const expectedTarget = `${required('CLOUDFLARE_ACCOUNT_ID')}/${database}`
+    const expectedTarget = `${requiredEnv('CLOUDFLARE_ACCOUNT_ID')}/${database}`
     if (options.confirmTarget !== expectedTarget) {
       throw new Error(`remote restore requires --confirm-target=${expectedTarget}`)
     }
@@ -684,7 +671,7 @@ export async function pitrDrill(
   if (!Number.isFinite(Date.parse(timestamp))) {
     throw new TypeError('--timestamp must be an ISO-8601 timestamp')
   }
-  const expectedTarget = `${required('CLOUDFLARE_ACCOUNT_ID')}/${database}`
+  const expectedTarget = `${requiredEnv('CLOUDFLARE_ACCOUNT_ID')}/${database}`
   if (confirmTarget !== expectedTarget) {
     throw new Error(`PITR drill requires --confirm-target=${expectedTarget}`)
   }

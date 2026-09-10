@@ -1,35 +1,68 @@
-import { createClientOnlyFn } from '@tanstack/react-start'
 import { sentryPrivacyOptions } from '@b2b-saas-starter/logger/sanitization'
+import { useRouter } from '@tanstack/react-router'
+import { createClientOnlyFn } from '@tanstack/react-start'
 import { useEffect } from 'react'
 
 import { type ClientTelemetryConfig } from './server/telemetry-config'
 
 /**
- * The browser SDK modules, loaded only where they can run. Both are pure
- * client-side — the SSR pass never executes them, and `createClientOnlyFn`
- * swaps each loader for a stub in the server build so the dynamic imports
- * never enter the server graph; without this, the deploy build ships
- * `@sentry/react` and `posthog-js` to the Worker in chunks it can never
- * execute (ADR 0063).
+ * The Sentry browser SDK, loaded only where it can run. It is pure
+ * client-side — the SSR pass never executes it, and `createClientOnlyFn`
+ * swaps the loader for a stub in the server build so the dynamic import
+ * never enters the server graph; without this, the deploy build ships
+ * `@sentry/react` to the Worker in a chunk it can never execute (ADR 0063).
  */
 const loadSentry = createClientOnlyFn(async () => {
   const Sentry = await import('@sentry/react')
   return Sentry
 })
 
-const loadPosthog = createClientOnlyFn(async () => {
-  const posthogModule = await import('posthog-js')
-  return posthogModule.default
-})
+const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com'
+
+/**
+ * The two page events, posted straight to PostHog's ingestion endpoint. The
+ * vendor SDK exists to autocapture, identify and flag, all of which this app
+ * turns off, so a beacon carries the same payload without the bundle.
+ *
+ * `distinct_id` is a fresh UUID per event: correlation within one payload,
+ * never a user or device identity, and `$process_person_profile: false`
+ * keeps ingestion from building a person out of it.
+ */
+function capturePageEvent(
+  host: string,
+  apiKey: string,
+  event: '$pageview' | '$pageleave'
+): void {
+  const url = `${host.replace(/\/+$/u, '')}/i/v0/e/`
+  const body = JSON.stringify({
+    api_key: apiKey,
+    event,
+    distinct_id: crypto.randomUUID(),
+    properties: { $process_person_profile: false },
+    timestamp: new Date().toISOString()
+  })
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- browser capability probe: jsdom and pre-2017 browsers have no `sendBeacon`
+  if (typeof navigator.sendBeacon === 'function') {
+    navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }))
+    return
+  }
+  // `keepalive` so the unload-time `$pageleave` survives the navigation.
+  void fetch(url, {
+    method: 'POST',
+    keepalive: true,
+    headers: { 'content-type': 'application/json' },
+    body
+  }).catch(() => undefined)
+}
 
 /**
  * Client-side half of the optional observability providers: initializes the
- * official browser SDKs (`@sentry/react`, `posthog-js`) when — and only when —
- * the server passed a DSN/key through the root route's loader. Unset vars mean
- * neither loader ever resolves, so the browser never contacts either vendor on
- * a provider-light deployment.
+ * Sentry browser SDK and posts page analytics when — and only when — the
+ * server passed a DSN/key through the root route's loader. Unset vars mean
+ * nothing loads and nothing is sent, so the browser never contacts either
+ * vendor on a provider-light deployment.
  *
- * The component itself renders nothing; it exists so the init runs after
+ * The component itself renders nothing; it exists so the work runs after
  * hydration with the SSR-serialized loader data.
  */
 export function ClientTelemetry({
@@ -38,62 +71,61 @@ export function ClientTelemetry({
   readonly config: ClientTelemetryConfig
 }) {
   const { sentryDsn, posthogKey, posthogHost } = config
+  const router = useRouter()
+
   useEffect(() => {
+    if (!sentryDsn) {
+      return
+    }
     let cancelled = false
-    async function initializeSentry() {
-      if (sentryDsn) {
-        const Sentry = await loadSentry()
-        if (!cancelled && Sentry.getClient() === undefined) {
-          Sentry.init({
-            dsn: sentryDsn,
-            ...sentryPrivacyOptions,
-            // Session replay stays off until a starter use case asks for it.
-            integrations: []
-          })
-        }
+    async function initializeSentry(dsn: string) {
+      const Sentry = await loadSentry()
+      if (!cancelled && Sentry.getClient() === undefined) {
+        Sentry.init({
+          dsn,
+          ...sentryPrivacyOptions,
+          // Session replay stays off until a starter use case asks for it.
+          integrations: []
+        })
       }
     }
-    async function initializePosthog() {
-      if (posthogKey) {
-        const posthog = await loadPosthog()
-        // oxlint-disable-next-line eslint/no-underscore-dangle -- PostHog's own readiness flag
-        if (!cancelled && !posthog.__loaded) {
-          posthog.init(posthogKey, {
-            api_host: posthogHost ?? 'https://us.i.posthog.com',
-            autocapture: false,
-            capture_pageview: 'history_change',
-            capture_pageleave: true,
-            capture_exceptions: false,
-            disable_session_recording: true,
-            person_profiles: 'never',
-            persistence: 'memory',
-            advanced_disable_flags: true,
-            disable_external_dependency_loading: true,
-            before_send: (event) => {
-              if (event?.event !== '$pageview' && event?.event !== '$pageleave') {
-                return null
-              }
-              // Per-event correlation, never a user/device identity. The project
-              // token is required by ingestion; every data property is rebuilt.
-              return {
-                event: event.event,
-                uuid: event.uuid,
-                properties: {
-                  token: posthogKey,
-                  distinct_id: event.uuid,
-                  $process_person_profile: false
-                }
-              }
-            }
-          })
-        }
-      }
-    }
-    // oxlint-disable-next-line effect/noNewPromise -- independent browser SDK imports; Effect must stay out of the client bundle
-    void Promise.all([initializeSentry(), initializePosthog()])
+    void initializeSentry(sentryDsn)
     return () => {
       cancelled = true
     }
-  }, [sentryDsn, posthogKey, posthogHost])
+  }, [sentryDsn])
+
+  // oxlint-disable-next-line react-doctor/no-fetch-in-effect -- fire-and-forget analytics beacons, not a read the UI renders
+  useEffect(() => {
+    if (!posthogKey) {
+      return
+    }
+    const host = posthogHost ?? DEFAULT_POSTHOG_HOST
+    const apiKey: string = posthogKey
+    // One open view at a time: every `$pageview` is closed by exactly one
+    // `$pageleave`, whether the view ends in a client-side navigation, a
+    // closed tab, or an unmount.
+    let viewing = false
+    function leave() {
+      if (viewing) {
+        viewing = false
+        capturePageEvent(host, apiKey, '$pageleave')
+      }
+    }
+    function view() {
+      leave()
+      viewing = true
+      capturePageEvent(host, apiKey, '$pageview')
+    }
+    view()
+    const unsubscribe = router.subscribe('onResolved', view)
+    window.addEventListener('pagehide', leave)
+    return () => {
+      unsubscribe()
+      window.removeEventListener('pagehide', leave)
+      leave()
+    }
+  }, [router, posthogKey, posthogHost])
+
   return null
 }

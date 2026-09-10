@@ -190,7 +190,7 @@ export const LiveWorkspaceOnboarding: Layer.Layer<
             targetId: ctx.workspace.id,
             metadata: {}
           },
-          write: () =>
+          write: () => [
             db
               .update(workspaces)
               .set({ onboardingDismissedAt: DateTime.toDate(now) })
@@ -200,6 +200,7 @@ export const LiveWorkspaceOnboarding: Layer.Layer<
                   isNull(workspaces.onboardingDismissedAt)
                 )
               )
+          ]
         })
       })
     }

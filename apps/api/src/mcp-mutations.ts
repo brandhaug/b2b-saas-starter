@@ -33,7 +33,6 @@ function projection<S extends Schema.Constraint, Options>(
   operation: {
     readonly endpoint: (typeof MUTATION_OPERATIONS)[keyof typeof MUTATION_OPERATIONS]['endpoint']
     readonly permission: (typeof MUTATION_OPERATIONS)[keyof typeof MUTATION_OPERATIONS]['permission']
-    readonly mcpTool: true
     readonly run: (options: Options) => MutationInvocation
   },
   input: S,
@@ -52,7 +51,6 @@ function projection<S extends Schema.Constraint, Options>(
   return {
     endpoint: operation.endpoint,
     permission: operation.permission,
-    mcpTool: operation.mcpTool,
     input,
     decode: (payload: Schema.Json) =>
       Schema.decodeUnknownEffect(input)(payload).pipe(

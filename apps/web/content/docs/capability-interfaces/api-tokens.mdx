@@ -43,7 +43,7 @@ how long the old credential can overlap with its replacement. The maximum is
 your clients, and revoke the old credential early when all clients have switched.
 The form shows the exact retirement time. An earlier existing expiry always wins.
 
-The replacement keeps the original workspace, name, and expiry. REST and SDK
+The replacement keeps the original workspace, name, and expiry. REST
 callers can request an earlier future expiry, but cannot extend it. You cannot
 replace a revoked, expired, or already replaced token. Replacement works at the
 plan's token ceiling because it transfers the original token's slot.
@@ -63,26 +63,22 @@ requests get HTTP 401, and the token disappears from the list. It also records
 an `api_token.revoked` Audit Event. Revoking an old token does not revoke the
 replacement; revoke each credential that needs to be retired.
 
-## Using the SDK
+## Using a typed client
 
-The Typed SDK derives its request and response types from the REST contract.
-Store the replacement in your secret manager when you receive it.
+A client derived from the REST contract gets its request and response types from
+the contract itself. Store the replacement in your secret manager when you
+receive it.
 
 ```ts
-import { createStarterClient } from '@b2b-saas-starter/sdk'
-
-const client = createStarterClient({
-  baseUrl: 'https://api.example.com',
-  apiToken: adminToken
-})
-
-const replacement = await client.apiTokens.replace('acme', tokenId, {
-  scopes: ['read'],
-  overlapSeconds: 3600
-})
+const replacement =
+  yield *
+  client['api-token-registry'].replace({
+    params: { slug: 'acme', tokenId },
+    payload: { scopes: ['read'], overlapSeconds: 3600 }
+  })
 
 // Save replacement.token now. It cannot be retrieved later.
 ```
 
-See [Typed SDK](/docs/capability-interfaces/sdk) for the Effect-native client and
-error model.
+See [Typed client](/docs/capability-interfaces/sdk) for deriving the client and
+its error model.

@@ -23,10 +23,9 @@ import {
  * one query helper only — no service, no layer.
  */
 
-export const WORKSPACE_ROLES = workspaceRoles
 const SYSTEM_ROLES = systemRoles
 
-export const WorkspaceRole = Schema.Literals(WORKSPACE_ROLES)
+export const WorkspaceRole = Schema.Literals(workspaceRoles)
 export type WorkspaceRole = typeof WorkspaceRole.Type
 
 export const SystemRole = Schema.Literals(SYSTEM_ROLES)

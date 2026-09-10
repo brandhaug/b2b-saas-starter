@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { WebhookSuccessChart } from '@/components/charts/webhook-success-chart'
 import { SectionTabs } from '@/components/page/section-tabs'
 import { Panel } from '@/components/page/panel'
 import { PageHeader } from '@/components/page/page-header'
@@ -8,14 +8,6 @@ import { WorkspaceShell } from '@/components/workspace-shell'
 import { type WorkspaceWebhooksPayload } from '@/lib/server/webhooks'
 import { type ListDeliveryAttempts } from '@/components/webhook-delivery-timeline'
 import { m } from '@b2b-saas-starter/i18n/messages'
-
-// Keep recharts and d3 out of the page's initial bundle.
-async function loadWebhookSuccessChart() {
-  const chart = await import('@/components/charts/webhook-success-chart')
-  return { default: chart.WebhookSuccessChart }
-}
-
-const WebhookSuccessChart = lazy(loadWebhookSuccessChart)
 
 /**
  * The outbound-webhooks page. Lives beside the route file (not in it) so the
@@ -75,9 +67,7 @@ export function WorkspaceWebhooksPage({
             label: m.webhook_delivery(),
             content: (
               <Panel title={m.webhook_delivery()}>
-                <Suspense fallback={null}>
-                  <WebhookSuccessChart webhooks={endpoints} />
-                </Suspense>
+                <WebhookSuccessChart webhooks={endpoints} />
               </Panel>
             )
           }

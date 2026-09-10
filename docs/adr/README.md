@@ -52,7 +52,6 @@ Each record explains a current decision and the trade-off behind it. Update the 
 - [0055: R2 for workspace export artifacts](./0055-r2-for-workspace-export-artifacts.md)
 - [0056: Passkeys through Better Auth](./0056-passkeys-on-better-auth-passkey-plugin.md)
 - [0057: Keyset pagination for list endpoints](./0057-keyset-cursor-pagination-for-list-endpoints.md)
-- [0058: Typed SDK from the HTTP API contract](./0058-typed-sdk-derived-from-the-http-api-contract.md)
 - [0059: Account deletion through Better Auth hooks](./0059-account-deletion-on-the-store-delete-endpoint.md)
 - [0060: Durable seat-based billing](./0060-durable-seat-based-billing.md)
 - [0061: Queued notification email and daily digests](./0061-notification-email-queue-and-daily-digest-cron.md)

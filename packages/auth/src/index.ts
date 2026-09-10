@@ -100,12 +100,10 @@ function provisionedRoleOf(data: {
 }
 
 /**
- * The `user` option this package builds from the hook pair. The endpoint is
- * enabled only when the app supplied the hooks: without them, deleting a user
- * would strand sole-owner workspaces and trip the restricting FKs from
- * `audit_events` and `api_tokens` — a dangerous default this package refuses
- * to pick. Written as a helper so each branch returns a whole, honest shape
- * instead of a spread-with-undefined keys.
+ * The `user` option this package builds from the required hook pair. Deleting
+ * a user without them would strand sole-owner workspaces and trip the
+ * restricting FKs from `audit_events` and `api_tokens`, so the config makes
+ * the pair mandatory rather than leaving the endpoint half-wired.
  */
 function userDeleteOption(options: AuthConfigInterface) {
   const additionalFields = {
@@ -120,9 +118,6 @@ function userDeleteOption(options: AuthConfigInterface) {
       input: false
     }
   } satisfies Record<string, { type: 'string'; required: false; input: false }>
-  if (options.userDeleteHooks === undefined) {
-    return { additionalFields, deleteUser: { enabled: false } }
-  }
   return {
     additionalFields,
     deleteUser: {
@@ -140,7 +135,7 @@ function userDeleteOption(options: AuthConfigInterface) {
  * but only for that endpoint. Self-service deletion already invokes the pair
  * around its adapter call and must not run it a second time.
  */
-// oxlint-disable effect/noAsyncFunction, effect/noThrowStatement, effect/noNewError -- Better Auth invokes these database hooks as plain Promise callbacks; the missing-lifecycle branch is an explicit fail-closed defect before the raw adapter delete.
+// oxlint-disable effect/noAsyncFunction -- Better Auth invokes these database hooks as plain Promise callbacks
 function userDeleteDatabaseHooks(options: AuthConfigInterface) {
   return {
     user: {
@@ -154,12 +149,6 @@ function userDeleteDatabaseHooks(options: AuthConfigInterface) {
         ) => {
           if (context?.path !== '/admin/remove-user') {
             return
-          }
-          if (options.userDeleteHooks === undefined) {
-            // Better Auth's admin endpoint ignores a false return from the
-            // internal adapter and would report success, so throw before the
-            // raw user-row delete when the lifecycle seam is absent.
-            throw new Error('admin account deletion lifecycle is not configured')
           }
           await options.userDeleteHooks.beforeDelete(user, context.request)
         },
@@ -175,9 +164,6 @@ function userDeleteDatabaseHooks(options: AuthConfigInterface) {
           } | null
         ) => {
           if (context?.path !== '/admin/remove-user') {
-            return
-          }
-          if (options.userDeleteHooks === undefined) {
             return
           }
           if (isLocale(user.locale)) {
@@ -196,7 +182,7 @@ function userDeleteDatabaseHooks(options: AuthConfigInterface) {
     }
   }
 }
-// oxlint-enable effect/noAsyncFunction, effect/noThrowStatement, effect/noNewError
+// oxlint-enable effect/noAsyncFunction
 
 // oxlint-disable effect/noAsyncFunction -- Better Auth invokes this promise-based validation callback outside Effect
 /** Provider callbacks run after the ceremony; only an existing account link needs app proof. */
@@ -211,7 +197,6 @@ function socialLinkValidation(
     if (
       !current ||
       current.user.id !== data.user.id ||
-      options.hasRecentAuthentication === undefined ||
       !(await options.hasRecentAuthentication({
         userId: current.user.id,
         sessionId: current.session.id

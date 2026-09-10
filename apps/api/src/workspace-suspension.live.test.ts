@@ -1,4 +1,4 @@
-import { hashApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { hashSha256 } from '@b2b-saas-starter/capabilities/crypto'
 import {
   LIVE_SUITE_TIMEOUT,
   TestDatabase,
@@ -168,7 +168,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               `INSERT INTO api_tokens (id,workspace_id,name,token_prefix,token_hash,scopes,created_at) VALUES (?, ?, 'Suspension test', 'bsk_test', ?, '["admin"]', '2026-01-01T00:00:00Z')`,
               id,
               workspaceId,
-              yield* Effect.promise(() => hashApiToken(token))
+              yield* Effect.promise(() => hashSha256(token))
             )
           }
           const { handler } = buildWebHandler({ DB, ...rateBindings })

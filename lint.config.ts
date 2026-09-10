@@ -807,11 +807,7 @@ const { lint = {} } = defineConfig({
         }
       },
       {
-        files: [
-          'scripts/setup-agent-skills.test.ts',
-          'scripts/evaluate-agent-workflow.test.ts',
-          '.github/scripts/*.test.ts'
-        ],
+        files: ['scripts/setup-agent-skills.test.ts', '.github/scripts/*.test.ts'],
         rules: {
           // These CLIs and their tests run directly on Node 24, before app tooling.
           'vitest/no-import-node-test': 'off',
@@ -972,8 +968,7 @@ const { lint = {} } = defineConfig({
         files: [
           'apps/web/src/routes/_knowledge.docs.$category.$slug.tsx',
           'apps/web/src/routes/_knowledge.blog.$slug.tsx',
-          'apps/web/src/components/mdx-components.ts',
-          'apps/web/src/components/mdx-mermaid.tsx'
+          'apps/web/src/components/mdx-components.ts'
         ],
         rules: {
           // MDX pipeline: rendered markdown is trusted repo content, and the component map

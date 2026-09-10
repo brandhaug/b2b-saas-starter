@@ -1,11 +1,7 @@
 import { createFileRoute, Link, Outlet, useLocation } from '@tanstack/react-router'
 import { PublicLayout } from '@/components/public-layout'
-import {
-  DOC_CATEGORY_ORDER,
-  docCategoryName,
-  getAllDocMeta,
-  type DocMeta
-} from '@/lib/docs'
+import { DOC_CATEGORY_ORDER } from '@/lib/doc-categories'
+import { docCategoryName, getAllDocMeta, type DocMeta } from '@/lib/docs'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/_knowledge')({

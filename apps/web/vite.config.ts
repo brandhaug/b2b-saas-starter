@@ -15,47 +15,6 @@ import remarkGfm from 'remark-gfm'
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
 import { defineConfig, lazyPlugins, loadEnv, type PluginOption } from 'vite-plus'
 
-function remarkMermaid() {
-  return (tree: { children: Array<Record<string, unknown>> }) => {
-    // mdast nodes arrive untyped from the MDX pipeline, so the child list is
-    // narrowed at runtime instead of asserted.
-    function childrenOf(
-      node: Record<string, unknown>
-    ): Array<Record<string, unknown>> | undefined {
-      return Array.isArray(node.children) ? node.children : undefined
-    }
-    function visit(node: Record<string, unknown>) {
-      const children = childrenOf(node)
-      if (!children) {
-        return
-      }
-      for (let i = 0; i < children.length; i++) {
-        const child = children[i]
-        if (!child) {
-          continue
-        }
-        if (child.type === 'code' && child.lang === 'mermaid') {
-          children[i] = {
-            type: 'mdxJsxFlowElement',
-            name: 'MdxMermaid',
-            attributes: [
-              {
-                type: 'mdxJsxAttribute',
-                name: 'chart',
-                value: child.value
-              }
-            ],
-            children: []
-          }
-        } else {
-          visit(child)
-        }
-      }
-    }
-    visit(tree)
-  }
-}
-
 // Which `cloudflare:workers` shim to alias, or null to leave the specifier
 // alone (the deployed worker resolves it natively). `vite dev` gets the dev
 // shim, and the dedicated e2e build gets its Node preview shim; both attach
@@ -182,8 +141,8 @@ export default defineConfig(({ command, mode }) => {
     // build bundles node_modules (the injected Cloudflare plugin resolves
     // with `noExternal`, since workerd cannot resolve bare specifiers).
     // Unminified, the bundled server tree blew the free Workers size limit;
-    // minified, it still carried client-only vendor graphs (mermaid,
-    // posthog-js, @sentry/react) emitted as never-executed lazy chunks.
+    // minified, it still carried client-only vendor graphs (@sentry/react)
+    // emitted as never-executed lazy chunks.
     // ADR 0063 strips those at the source and is the rule for any new
     // browser-only dynamic import.
     build: {
@@ -221,12 +180,7 @@ export default defineConfig(({ command, mode }) => {
         {
           enforce: 'pre',
           ...mdx({
-            remarkPlugins: [
-              remarkFrontmatter,
-              remarkMdxFrontmatter,
-              remarkGfm,
-              remarkMermaid
-            ],
+            remarkPlugins: [remarkFrontmatter, remarkMdxFrontmatter, remarkGfm],
             rehypePlugins: [
               rehypeSlug,
               [

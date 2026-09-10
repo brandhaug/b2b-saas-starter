@@ -12,7 +12,7 @@ import { WorkspaceExportQueueMessage } from '@b2b-saas-starter/capabilities/gove
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect, Layer, type Scope } from 'effect'
 
-import { workspaceExportConsumerSettings } from '../../../infra/bindings.ts'
+import { workspaceExportConsumerSettings } from '@b2b-saas-starter/infra'
 import {
   consumerInvocation,
   type DeliveryOutcome,

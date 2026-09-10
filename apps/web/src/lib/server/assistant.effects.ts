@@ -21,7 +21,6 @@ import {
   type AskAssistantOutcome,
   type AssistantRefused
 } from './assistant'
-import { assistantUnconfiguredMessage } from '../assistant-copy'
 
 /**
  * The assistant effects and their server-only wiring, reached only through
@@ -61,7 +60,7 @@ export async function askAssistantHandler(
         return {
           ok: false,
           reason: 'unconfigured',
-          message: assistantUnconfiguredMessage()
+          message: m.server_assistant_unconfigured()
         } satisfies AssistantRefused
       }
       const service = yield* AssistantService

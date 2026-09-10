@@ -332,8 +332,7 @@ const resourceEntitlements = {
     eligibleIds: ['tok_docs', 'tok_mcp'],
     selectedIds: ['tok_docs', 'tok_mcp'],
     activeIds: ['tok_docs', 'tok_mcp'],
-    paused: false,
-    requiresSelection: false
+    paused: false
   },
   webhookEndpoints: {
     resource: 'webhook_endpoint',
@@ -342,8 +341,7 @@ const resourceEntitlements = {
     eligibleIds: ['wh_release', 'wh_billing'],
     selectedIds: ['wh_release'],
     activeIds: ['wh_release', 'wh_billing'],
-    paused: false,
-    requiresSelection: false
+    paused: false
   }
 } satisfies WorkspaceBillingPayload['resourceEntitlements']
 

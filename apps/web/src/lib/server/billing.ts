@@ -4,8 +4,10 @@ import {
   type ReconcileResult,
   type DisplayedPlan
 } from '@b2b-saas-starter/billing/billing'
-import { type ResourceSelectionInput } from '@b2b-saas-starter/billing/resource-entitlements'
-import { type ResourceEntitlementSummary } from '@b2b-saas-starter/billing/plan-catalog'
+import {
+  type ResourceSelection,
+  type ResourceEntitlement
+} from '@b2b-saas-starter/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
@@ -39,10 +41,10 @@ export type WorkspaceBillingPayload = {
   readonly stripeConfigured: boolean
   readonly synchronization: BillingSynchronizationStatus
   readonly lifecycle: BillingLifecycle
-  readonly resourceSelection: ResourceSelectionInput | null
+  readonly resourceSelection: ResourceSelection | null
   readonly resourceEntitlements: {
-    readonly apiTokens: ResourceEntitlementSummary
-    readonly webhookEndpoints: ResourceEntitlementSummary
+    readonly apiTokens: ResourceEntitlement
+    readonly webhookEndpoints: ResourceEntitlement
   }
   readonly apiTokens: ReadonlyArray<{ readonly id: string; readonly name: string }>
   readonly webhookEndpoints: ReadonlyArray<{
@@ -121,7 +123,7 @@ export const reconcileCheckoutReturnServerFn = createServerFn({ method: 'POST' }
 
 export const selectBillingResourcesServerFn = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(SelectResourcesInput))
-  .handler(async ({ data }): Promise<ResourceSelectionInput> => {
+  .handler(async ({ data }): Promise<ResourceSelection> => {
     const { selectBillingResourcesHandler } = await import('./billing.effects')
     return selectBillingResourcesHandler(data)
   })

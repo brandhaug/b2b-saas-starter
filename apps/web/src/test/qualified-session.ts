@@ -20,6 +20,6 @@ vi.mock(
       require: () => Effect.void,
       requireRecent: () => Effect.void
     })
-    return { ...actual, SeedStrongAuthentication: () => qualified }
+    return { ...actual, SeedStrongAuthentication: qualified }
   }
 )

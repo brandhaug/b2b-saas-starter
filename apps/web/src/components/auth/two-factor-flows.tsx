@@ -24,19 +24,6 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  * uncoded failures, never the rendered message itself.
  */
 
-function enrollFailedMessage() {
-  return m.two_factor_setup_failed()
-}
-function verifyFailedMessage() {
-  return m.auth_invalid_code()
-}
-function disableFailedMessage() {
-  return m.two_factor_disable_failed()
-}
-function regenerateFailedMessage() {
-  return m.backup_codes_regenerate_failed()
-}
-
 /** The one-time reveal handed over when enrollment starts. */
 export type Enrollment = {
   readonly totpURI: string
@@ -69,7 +56,7 @@ export function EnableFlow({
     async () => {
       const result = await authClient.twoFactor.enable({ password })
       if (result.error) {
-        return authFailure(authErrorCopy(result.error, enrollFailedMessage()))
+        return authFailure(authErrorCopy(result.error, m.two_factor_setup_failed()))
       }
       // oxlint-disable typescript/no-unnecessary-condition -- the plugin calls a totp-less body a success; the probe is the wire-shape honesty the type does not carry
       const totpURI =
@@ -87,7 +74,11 @@ export function EnableFlow({
       return { totpURI, backupCodes }
     },
     // Nothing here touches a loader, so nothing invalidates.
-    { failureMessage: enrollFailedMessage(), invalidate: false, onSuccess: onEnrolled }
+    {
+      failureMessage: m.two_factor_setup_failed(),
+      invalidate: false,
+      onSuccess: onEnrolled
+    }
   )
 
   return (
@@ -131,10 +122,10 @@ export function EnrollmentFlow({
     async () => {
       const result = await authClient.twoFactor.verifyTotp({ code })
       return result.error
-        ? authFailure(authErrorCopy(result.error, verifyFailedMessage()))
+        ? authFailure(authErrorCopy(result.error, m.auth_invalid_code()))
         : null
     },
-    { failureMessage: verifyFailedMessage(), invalidate: false, onSuccess: onVerified }
+    { failureMessage: m.auth_invalid_code(), invalidate: false, onSuccess: onVerified }
   )
   const secretFromUri = parseSecretFromUri(enrollment.totpURI)
 
@@ -203,11 +194,11 @@ export function DisableFlow({
     async () => {
       const result = await authClient.twoFactor.disable({ password })
       return result.error
-        ? authFailure(authErrorCopy(result.error, disableFailedMessage()))
+        ? authFailure(authErrorCopy(result.error, m.two_factor_disable_failed()))
         : null
     },
     {
-      failureMessage: disableFailedMessage(),
+      failureMessage: m.two_factor_disable_failed(),
       invalidate: false,
       onSuccess: () => {
         setPassword('')
@@ -249,7 +240,9 @@ export function RegenerateFlow({ onStart }: { readonly onStart: () => void }) {
     async () => {
       const result = await authClient.twoFactor.generateBackupCodes({ password })
       if (result.error) {
-        return authFailure(authErrorCopy(result.error, regenerateFailedMessage()))
+        return authFailure(
+          authErrorCopy(result.error, m.backup_codes_regenerate_failed())
+        )
       }
       // oxlint-disable typescript/no-unnecessary-condition -- regeneration can answer a body without the codes; the probe and the refusal below are that wire-shape honesty
       const backupCodes = result.data?.backupCodes ?? null
@@ -260,7 +253,7 @@ export function RegenerateFlow({ onStart }: { readonly onStart: () => void }) {
       return backupCodes
     },
     {
-      failureMessage: regenerateFailedMessage(),
+      failureMessage: m.backup_codes_regenerate_failed(),
       invalidate: false,
       onSuccess: (backupCodes: ReadonlyArray<string>) => {
         setPassword('')

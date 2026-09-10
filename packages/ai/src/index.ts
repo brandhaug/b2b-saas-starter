@@ -149,22 +149,17 @@ type ProviderChoice =
   | { readonly provider: 'openai-compatible'; readonly config: OpenAIConfig }
   | { readonly provider: 'mock' }
 
-/** The mutable draft of `OpenAIConfig`: same shape, mutable properties. */
-type OpenAIConfigDraft = { -readonly [K in keyof OpenAIConfig]: OpenAIConfig[K] }
-
 function selectProvider(env: ProviderEnv): ProviderChoice {
   if (env.WORKERS_AI_ENABLED === 'true' && env.AI) {
     return { provider: 'workers-ai', binding: env.AI }
   }
   if (hasValue(env.OPENAI_API_KEY)) {
-    // Assigned only when set so the layer's own defaults (api.openai.com,
+    // Set only when present so the layer's own defaults (api.openai.com,
     // gpt-4o-mini) still apply for absent vars.
-    const config: OpenAIConfigDraft = { apiKey: env.OPENAI_API_KEY }
-    if (hasValue(env.OPENAI_BASE_URL)) {
-      config.baseUrl = env.OPENAI_BASE_URL
-    }
-    if (hasValue(env.OPENAI_MODEL_ID)) {
-      config.modelId = env.OPENAI_MODEL_ID
+    const config: OpenAIConfig = {
+      apiKey: env.OPENAI_API_KEY,
+      ...(hasValue(env.OPENAI_BASE_URL) && { baseUrl: env.OPENAI_BASE_URL }),
+      ...(hasValue(env.OPENAI_MODEL_ID) && { modelId: env.OPENAI_MODEL_ID })
     }
     return { provider: 'openai-compatible', config }
   }

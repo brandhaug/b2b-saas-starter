@@ -16,11 +16,6 @@ export function SeedEmailDelivery(
         Effect.sync(() => rows.get(id) ?? null)
       ),
       list: Effect.fn('SeedEmailDelivery.list')((filter) => {
-        const statuses = new Set(filter.statuses)
-        let direction = -1
-        if (filter.createdBefore !== undefined) {
-          direction = 1
-        }
         let limit: number | undefined = filter.limit ?? 100
         if (filter.limit === null) {
           limit = undefined
@@ -38,15 +33,11 @@ export function SeedEmailDelivery(
                   row.recipient === filter.recipient) &&
                 (filter.referenceId === undefined ||
                   row.referenceId === filter.referenceId) &&
-                (filter.purpose === undefined || row.purpose === filter.purpose) &&
-                (filter.createdBefore === undefined ||
-                  row.createdAt <= filter.createdBefore) &&
-                (filter.statuses === undefined || statuses.has(row.status))
+                (filter.purpose === undefined || row.purpose === filter.purpose)
             )
             .toSorted(
               (a, b) =>
-                direction *
-                (a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+                -(a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
             )
             .slice(0, limit)
         )
@@ -62,17 +53,6 @@ export function SeedEmailDelivery(
           }
           rows.set(row.id, row)
           return true
-        })
-      ),
-      remove: Effect.fn('SeedEmailDelivery.remove')((expired) =>
-        Effect.sync(() => {
-          let count = 0
-          for (const row of expired) {
-            if (rows.get(row.id)?.revision === row.revision && rows.delete(row.id)) {
-              count++
-            }
-          }
-          return count
         })
       ),
       resolveUserId: Effect.fn('SeedEmailDelivery.resolveUserId')((email) =>

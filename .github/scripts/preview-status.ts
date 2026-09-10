@@ -1,39 +1,17 @@
-import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { execFile } from 'node:child_process'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
-import { promisify } from 'node:util'
+import { appendFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 
-type CommandResult = { readonly stdout: string; readonly stderr: string }
+import { requiredEnv } from '../../scripts/lib/env.ts'
+
+// The real runner is synchronous; the test double is not, so callers await it.
 type CommandRunner = (
   args: ReadonlyArray<string>,
   input?: string
-) => Promise<CommandResult>
-const execGh = promisify(execFile)
+) => string | Promise<string>
 
-function requiredEnv(name: string, env: NodeJS.ProcessEnv): string {
-  const value = env[name]
-  if (!value) {
-    throw new Error(`missing required environment variable ${name}`)
-  }
-  return value
-}
-
-function runGh(args: ReadonlyArray<string>, input?: string): Promise<CommandResult> {
-  if (input === undefined) {
-    return execGh('gh', args, { encoding: 'utf8' })
-  }
-  return (async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'preview-status-'))
-    const inputPath = join(directory, 'request.json')
-    await writeFile(inputPath, input)
-    try {
-      const resolvedArgs = args.map((arg) => (arg === '-' ? inputPath : arg))
-      return await execGh('gh', resolvedArgs, { encoding: 'utf8' })
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })()
+function runGh(args: ReadonlyArray<string>, input?: string): string {
+  // `gh api --input -` reads the request body from stdin.
+  return execFileSync('gh', [...args], { encoding: 'utf8', input })
 }
 
 function deploymentBase(env: NodeJS.ProcessEnv): string {
@@ -83,7 +61,7 @@ async function reportDeployed(
     ['api', '--method', 'POST', base, '--input', '-', '--jq', '.id'],
     payload
   )
-  const deploymentId = deployment.stdout.trim()
+  const deploymentId = deployment.trim()
   if (!deploymentId) {
     throw new Error('GitHub returned no deployment id')
   }
@@ -122,7 +100,7 @@ async function reportDestroyed(
     '--jq',
     '.[].id'
   ])
-  const deploymentIds = result.stdout
+  const deploymentIds = result
     .split(/\r?\n/)
     .map((value) => value.trim())
     .filter(Boolean)
@@ -160,7 +138,7 @@ export async function main(
   }
 }
 
-if (process.argv[1] === import.meta.filename) {
+if (import.meta.main) {
   main().catch(() => {
     console.error('preview status reporting failed')
     process.exitCode = 1

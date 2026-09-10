@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { BookOpenIcon } from 'lucide-react'
-import { DOC_CATEGORY_ORDER, docCategoryName, getAllDocMeta } from '@/lib/docs'
+import { DOC_CATEGORY_ORDER } from '@/lib/doc-categories'
+import { docCategoryName, getAllDocMeta } from '@/lib/docs'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/_knowledge/docs/')({

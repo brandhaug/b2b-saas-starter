@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
  * natural visible cooldown — the button re-enables about when the server
  * would allow the resend anyway.
  */
-export const RESEND_COOLDOWN_SECONDS = 60
+const RESEND_COOLDOWN_SECONDS = 60
 
 /**
  * The visible resend cooldown: `remaining` counts down to 0 once `start` has

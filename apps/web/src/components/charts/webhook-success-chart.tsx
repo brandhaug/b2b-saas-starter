@@ -1,18 +1,7 @@
+import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { formatNumber } from '@b2b-saas-starter/i18n/format'
-import { getLocale } from '@b2b-saas-starter/i18n/runtime'
-import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints' // oxlint-disable-next-line react-doctor/prefer-dynamic-import -- TanStack Start's autoCodeSplitting (default on) puts this module in the dashboard route's chunk, so recharts never loads outside this route. Lazy-loading inside the page would trade an SSR'd card flash for bytes on the app's main screen.
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from 'recharts'
-import { AXIS_TICK, COMPACT_CHART_MARGIN, TOOLTIP_STYLE } from '../chart-defaults'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 
 /** Below this many endpoints a sentence says more than a chart does. */
 const MIN_ENDPOINTS_FOR_CHART = 3
@@ -22,11 +11,6 @@ export function WebhookSuccessChart({
 }: {
   readonly webhooks: ReadonlyArray<WebhookEndpoint>
 }) {
-  const data = webhooks.map((endpoint) => ({
-    label: new URL(endpoint.url).host,
-    successRate: endpoint.successRate
-  }))
-
   if (webhooks.length === 0) {
     return <p className="text-sm text-muted-foreground">{m.shell_chart_empty()}</p>
   }
@@ -56,56 +40,47 @@ export function WebhookSuccessChart({
   }
 
   return (
-    <div className="h-40 w-full">
-      <ul className="sr-only">
-        {data.map((entry) => (
-          <li key={entry.label}>
-            {m.shell_chart_success_rate({
-              endpoint: entry.label,
-              percent: formatPercent(entry.successRate)
-            })}
-          </li>
-        ))}
-      </ul>
-      <ResponsiveContainer aria-hidden width="100%" height="100%">
-        <BarChart
-          data={data}
-          margin={COMPACT_CHART_MARGIN}
-          /* accessibilityLayer default adds a focusable SVG wrapper — a
-             keyboard trap inside the aria-hidden container above (axe:
-             aria-hidden-focus). The sr-only list carries the data. */
-          accessibilityLayer={false}
-        >
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis dataKey="label" tickLine={false} axisLine={false} tick={AXIS_TICK} />
-          <YAxis tickLine={false} axisLine={false} domain={[0, 100]} tick={AXIS_TICK} />
-          <Tooltip
-            cursor={{ fill: 'var(--muted)' }}
-            contentStyle={TOOLTIP_STYLE}
-            formatter={(value) => [
-              formatPercent(Number(value)),
-              m.shell_chart_success()
-            ]}
-          />
-
-          <Bar dataKey="successRate" radius={4} isAnimationActive={false}>
-            {data.map((entry) => (
-              <Cell
-                key={entry.label}
-                // Status hues, not the chart palette: the threshold is a
-                // judgement about health, and blue read as foreign chrome in
-                // a mauve-accent shell. Disabling the entry animation also
-                // means the first paint is the chart, not an empty grid.
-                fill={
-                  entry.successRate >= 95 ? 'var(--status-ok)' : 'var(--status-warn)'
-                }
+    <ul className="grid gap-2 text-sm">
+      {webhooks.map((endpoint) => {
+        const host = new URL(endpoint.url).host
+        const percent = formatPercent(endpoint.successRate)
+        return (
+          <li key={endpoint.id} className="grid gap-1">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="truncate font-mono text-xs">{host}</span>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {percent}
+              </span>
+            </div>
+            {/* The host and its percentage are already text above; the bar
+                is the same fact drawn, so it carries no second label. */}
+            <div
+              aria-hidden
+              className="h-2 w-full overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                className="h-full rounded-full"
+                style={{
+                  // Status hues, not a chart palette: the threshold is a
+                  // judgement about health, and blue read as foreign chrome
+                  // in a mauve-accent shell.
+                  background:
+                    endpoint.successRate >= 95
+                      ? 'var(--status-ok)'
+                      : 'var(--status-warn)',
+                  width: `${clampPercent(endpoint.successRate)}%`
+                }}
               />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
   )
+}
+
+function clampPercent(value: number): number {
+  return Math.min(100, Math.max(0, value))
 }
 
 function formatPercent(value: number): string {

@@ -5,7 +5,7 @@ import {
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
-import { WORKSPACE_ROLES } from '@/lib/permissions'
+import { workspaceRoles } from '@/lib/permissions'
 
 import { EMAIL_PATTERN } from '../email-pattern'
 
@@ -30,7 +30,7 @@ const SendInvitationInput = Schema.Struct({
     Schema.isMaxLength(320),
     Schema.isPattern(EMAIL_PATTERN)
   ),
-  role: Schema.Literals(WORKSPACE_ROLES)
+  role: Schema.Literals(workspaceRoles)
 })
 
 const CancelInvitationInput = Schema.Struct({

@@ -124,7 +124,7 @@ export function queueParentSpan<M extends { traceparent?: string | undefined }>(
   if (delivery.kind === 'message') {
     return parentSpanFromHeaders({ traceparent: delivery.message.traceparent })
   }
-  return parentSpanFromHeaders({})
+  return
 }
 
 /** What a consumer tells the batch loop to do with one message. */
@@ -231,7 +231,8 @@ export function consumeBatch(
     for (const message of batch.messages) {
       message.retry({ delaySeconds: 60 })
     }
-    return Effect.runPromise(Effect.void)
+    // oxlint-disable-next-line effect/noNewPromise -- the queue entry point returns a promise; there is no Effect left to run
+    return Promise.resolve()
   }
   return runInvocation(
     env,

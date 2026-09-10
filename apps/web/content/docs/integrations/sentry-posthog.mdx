@@ -31,6 +31,6 @@ Releases are derived from `SERVICE_VERSION` / `GIT_COMMIT_SHA`; source-map uploa
 | `POSTHOG_KEY`  | web browser analytics + server-side capture                     |
 | `POSTHOG_HOST` | Optional; `.env.example` defaults to `https://us.i.posthog.com` |
 
-Server-side follows PostHog's documented [Cloudflare Workers pattern](https://posthog.com/docs/libraries/cloudflare-workers): the official `posthog-node` client with `flushAt: 1` / `flushInterval: 0`, created per invocation and shut down before the invocation ends: the same invocation-scoped I/O rule ADR 0050 applies to OTLP export. One event per wide-event scope is captured, keyed by the trace id, with `service`, `status`, and `durationMs` properties.
+Server-side, `packages/logger` posts one event per wide-event scope to PostHog's capture endpoint with `fetch`, keyed by the trace id, with `service`, `status`, and `durationMs` properties. The POST happens inside the invocation that produced the scope: the same invocation-scoped I/O rule ADR 0050 applies to OTLP export.
 
-In the browser, `posthog-js` initializes from the same root-route loader data, with history-based page-view capture suited to the SPA router.
+In the browser, `ClientTelemetry` reads the same root-route loader data and beacons `$pageview` and `$pageleave` to the same endpoint, one per router location. Nothing else is captured and no vendor SDK ships: `navigator.sendBeacon` (with a `keepalive` `fetch` behind it) carries the two events the product needs.

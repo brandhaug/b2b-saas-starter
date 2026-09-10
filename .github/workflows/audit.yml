@@ -29,14 +29,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Install pinned Vite+ Node runtime
-        run: |
-          installer="$(mktemp)"
-          trap 'rm -f "$installer"' EXIT
-          curl -fsSL https://vite.plus -o "$installer"
-          echo 'd4a1ffa8245bdfcf39a786d545be6a43e231b771c32d7c02414bb96d4f5d9cdc  '"$installer" | shasum -a 256 -c -
-          VP_VERSION=0.3.0 VP_NODE_MANAGER=yes bash "$installer"
-          echo "$HOME/.local/share/vite-plus/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/setup
       - name: Detect committed secrets
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
         env:
@@ -46,7 +39,7 @@ jobs:
           GITLEAKS_ENABLE_SUMMARY: 'true'
           GITLEAKS_VERSION: 8.24.3
       - name: Verify secret detection with synthetic fixtures
-        run: node --test .github/scripts/secret-scan.test.ts
+        run: vp test run .github/scripts/secret-scan.test.ts
         env:
           GITLEAKS_BINARY: gitleaks
       - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.74.0
@@ -54,7 +47,7 @@ jobs:
           version: v0.74.0
           cache: false
       - name: Verify native Trivy exceptions
-        run: node --test .github/scripts/trivy.test.ts
+        run: vp test run .github/scripts/trivy.test.ts
         env:
           TRIVY_BINARY: trivy
       # Exceptions take effect only after review and merge into the trusted base.

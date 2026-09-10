@@ -34,7 +34,7 @@ after configuring the sender domain.
 Install Chromium once, then run the final validation command:
 
 ```bash
-pnpm exec playwright install chromium
+pnpm -C apps/web exec playwright install chromium
 pnpm run validate
 ```
 
@@ -53,8 +53,8 @@ session-revocation tests authenticate afresh; ordinary owner UI tests reuse a
 qualified session per worker in fresh browser contexts.
 
 CI runs web, capabilities, and the remaining workspace tests in separate jobs.
-Script and operations tests run with the remaining packages. Test jobs restore
-their own task cache and Vitest result metadata for the current lockfile.
+Script tests run with the remaining packages. Test jobs cache their own task
+results and Vitest result metadata for the current lockfile.
 Capabilities and email-delivery exclude generated coverage files and pnpm's
 generated install metadata from task inputs. They explicitly track the root
 lockfile and workspace configuration, and retain automatic source and dependency

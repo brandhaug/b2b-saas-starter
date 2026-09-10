@@ -47,7 +47,7 @@ Panels and dialogs have square corners. Controls use the softer `rounded-md` rad
 - Outline is the default action treatment; ghost suits row actions and dismissals. Confirm destructive changes.
 - Alerts use their semantic tint and an icon, not an ordinary card treatment.
 - [badge-variants.ts](apps/web/src/lib/badge-variants.ts) maps status and role to variants. Mauve means current/selected; unknown free-text status uses outline.
-- Docs code blocks use Shiki's Catppuccin Mocha theme on the card background. Mermaid colors follow the same tokens.
+- Docs code blocks use Shiki's Catppuccin Mocha theme on the card background.
 
 Avoid gradients, neon glows, glassmorphism, decorative notches, and illustration-heavy marketing. The interface should give commands, data, and decisions visual priority.
 

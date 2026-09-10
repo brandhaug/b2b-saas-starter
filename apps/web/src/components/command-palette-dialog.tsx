@@ -78,14 +78,10 @@ export default function CommandPaletteDialog() {
   if (palette === null) {
     return null
   }
-  const {
-    state,
-    actions,
-    meta: { viewer, systemRole }
-  } = palette
+  const { open, setOpen, viewer, systemRole } = palette
 
   function close() {
-    actions.setOpen(false)
+    setOpen(false)
   }
 
   const rows: Array<ReactNode> = []
@@ -149,7 +145,7 @@ export default function CommandPaletteDialog() {
   }
 
   return (
-    <CommandDialog open={state.open} onOpenChange={actions.setOpen}>
+    <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
         placeholder={m.command_search_placeholder()}
         aria-label={m.command_search_label()}

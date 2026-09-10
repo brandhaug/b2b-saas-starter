@@ -290,7 +290,7 @@ const SeedCore = Layer.mergeAll(
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships),
   SeedWorkspaceOnboarding({ twoFactorUserIds: seedTwoFactorUserIds }),
-  SeedStrongAuthentication()
+  SeedStrongAuthentication
 ).pipe(
   Layer.provide(SeedAuditLog),
   Layer.provide(SeedNotifications),

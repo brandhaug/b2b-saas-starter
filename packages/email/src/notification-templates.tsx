@@ -1,5 +1,5 @@
 import { Link, Section, Text } from 'react-email'
-import { type ReactNode } from 'react'
+import { type NotificationKind } from '@b2b-saas-starter/db/enums'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import { ActionLink, EmailLayout } from './templates.tsx'
@@ -26,73 +26,60 @@ export type NotificationEmailProps = {
   readonly locale?: Locale | undefined
 }
 
-type NotificationBodyProps = NotificationEmailProps & {
+type NotificationCopyMessage = (
+  inputs?: Record<string, never>,
+  options?: { readonly locale?: Locale }
+) => string
+
+type NotificationCopy = {
   /** One sentence naming the event class, before the Notification's own copy. */
-  readonly lead: ReactNode
-  readonly action: string
+  readonly lead: NotificationCopyMessage
+  readonly action: NotificationCopyMessage
 }
 
-type NotificationCopy = { readonly lead: string; readonly action: string }
-
-function notificationCopy(kind: string, locale: Locale): NotificationCopy {
-  const options = { locale }
-  switch (kind) {
-    case 'api_token.created': {
-      return {
-        lead: m.backend_email_notification_api_token_created_lead({}, options),
-        action: m.backend_email_notification_api_token_created_action({}, options)
-      }
-    }
-    case 'api_token.revoked': {
-      return {
-        lead: m.backend_email_notification_api_token_revoked_lead({}, options),
-        action: m.backend_email_notification_api_token_revoked_action({}, options)
-      }
-    }
-    case 'workspace_member.role_changed': {
-      return {
-        lead: m.backend_email_notification_role_changed_lead({}, options),
-        action: m.backend_email_notification_role_changed_action({}, options)
-      }
-    }
-    case 'two_factor.changed': {
-      return {
-        lead: m.backend_email_notification_two_factor_changed_lead({}, options),
-        action: m.backend_email_notification_two_factor_changed_action({}, options)
-      }
-    }
-    case 'webhook.delivery_failed': {
-      return {
-        lead: m.backend_email_notification_webhook_failed_lead({}, options),
-        action: m.backend_email_notification_webhook_failed_action({}, options)
-      }
-    }
-    case 'workspace_member.joined': {
-      return {
-        lead: m.backend_email_notification_member_joined_lead({}, options),
-        action: m.backend_email_notification_member_joined_action({}, options)
-      }
-    }
-    case 'billing.plan_changed': {
-      return {
-        lead: m.backend_email_notification_plan_changed_lead({}, options),
-        action: m.backend_email_notification_plan_changed_action({}, options)
-      }
-    }
-    case 'account.impersonated': {
-      return {
-        lead: m.backend_email_notification_impersonated_lead({}, options),
-        action: m.backend_email_notification_impersonated_action({}, options)
-      }
-    }
-    default: {
-      return {
-        lead: m.backend_email_notification_announcement_lead({}, options),
-        action: m.backend_email_notification_announcement_action({}, options)
-      }
-    }
+/**
+ * The copy each kind adds around the Notification's own title and message.
+ * `satisfies`-pinned to `NotificationKind`: a new stored kind is a type error
+ * until it has copy here. Never loosen it to an index signature.
+ */
+const NOTIFICATION_COPY = {
+  'api_token.created': {
+    lead: m.backend_email_notification_api_token_created_lead,
+    action: m.backend_email_notification_api_token_created_action
+  },
+  'api_token.revoked': {
+    lead: m.backend_email_notification_api_token_revoked_lead,
+    action: m.backend_email_notification_api_token_revoked_action
+  },
+  'workspace_member.role_changed': {
+    lead: m.backend_email_notification_role_changed_lead,
+    action: m.backend_email_notification_role_changed_action
+  },
+  'two_factor.changed': {
+    lead: m.backend_email_notification_two_factor_changed_lead,
+    action: m.backend_email_notification_two_factor_changed_action
+  },
+  'webhook.delivery_failed': {
+    lead: m.backend_email_notification_webhook_failed_lead,
+    action: m.backend_email_notification_webhook_failed_action
+  },
+  'workspace_member.joined': {
+    lead: m.backend_email_notification_member_joined_lead,
+    action: m.backend_email_notification_member_joined_action
+  },
+  'billing.plan_changed': {
+    lead: m.backend_email_notification_plan_changed_lead,
+    action: m.backend_email_notification_plan_changed_action
+  },
+  'account.impersonated': {
+    lead: m.backend_email_notification_impersonated_lead,
+    action: m.backend_email_notification_impersonated_action
+  },
+  announcement: {
+    lead: m.backend_email_notification_announcement_lead,
+    action: m.backend_email_notification_announcement_action
   }
-}
+} satisfies Readonly<Record<NotificationKind, NotificationCopy>>
 
 /**
  * The shared footer of every notification email: why it arrived and how to
@@ -135,167 +122,36 @@ function WorkspaceLine({
   )
 }
 
-function NotificationBody({
+/**
+ * The notification email, for every kind. The kind picks the lead sentence and
+ * the action label; everything else is the Notification's own copy.
+ */
+export function NotificationEmail({
+  kind,
   kindLabel,
-  lead,
-  action,
   title,
   message,
   workspaceName,
   openUrl,
   preferencesUrl,
   locale: requestedLocale
-}: NotificationBodyProps) {
+}: NotificationEmailProps & { readonly kind: NotificationKind }) {
   const locale = requestedLocale ?? DEFAULT_LOCALE
+  const copy = NOTIFICATION_COPY[kind]
   return (
     <EmailLayout preview={title} heading={kindLabel} locale={locale}>
-      <Text className="text-base text-foreground mt-4">{lead}</Text>
+      <Text className="text-base text-foreground mt-4">
+        {copy.lead({}, { locale })}
+      </Text>
       <Section className="bg-muted px-4 py-3 mt-4">
         <Text className="text-base font-medium text-foreground m-0">{title}</Text>
         <Text className="text-sm text-foreground mt-1 mb-0">{message}</Text>
         <WorkspaceLine workspaceName={workspaceName} locale={locale} />
       </Section>
-      <ActionLink href={openUrl} label={action} locale={locale} />
+      <ActionLink href={openUrl} label={copy.action({}, { locale })} locale={locale} />
       <NotificationFooter preferencesUrl={preferencesUrl} locale={locale} />
     </EmailLayout>
   )
-}
-
-function propsLocale(locale: Locale | undefined): Locale {
-  return locale ?? DEFAULT_LOCALE
-}
-
-export function ApiTokenCreatedEmail(props: NotificationEmailProps) {
-  const copy = notificationCopy('api_token.created', propsLocale(props.locale))
-  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
-}
-
-export function ApiTokenRevokedEmail(props: NotificationEmailProps) {
-  const copy = notificationCopy('api_token.revoked', propsLocale(props.locale))
-  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
-}
-
-export function MemberRoleChangedEmail(props: NotificationEmailProps) {
-  const copy = notificationCopy(
-    'workspace_member.role_changed',
-    propsLocale(props.locale)
-  )
-  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
-}
-
-export function TwoFactorChangedNotificationEmail(props: NotificationEmailProps) {
-  const copy = notificationCopy('two_factor.changed', propsLocale(props.locale))
-  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
-}
-
-export function WebhookDeliveryFailedEmail(props: NotificationEmailProps) {
-  const copy = notificationCopy('webhook.delivery_failed', propsLocale(props.locale))
-  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
-}
-
-export function MemberJoinedEmail(props: NotificationEmailProps) {
-  const copy = notificationCopy('workspace_member.joined', propsLocale(props.locale))
-  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
-}
-
-export function PlanChangedEmail(props: NotificationEmailProps) {
-  const copy = notificationCopy('billing.plan_changed', propsLocale(props.locale))
-  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
-}
-
-export function AccountImpersonatedEmail(props: NotificationEmailProps) {
-  const copy = notificationCopy('account.impersonated', propsLocale(props.locale))
-  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
-}
-
-export function AnnouncementEmail(props: NotificationEmailProps) {
-  const copy = notificationCopy('announcement', propsLocale(props.locale))
-  return <NotificationBody {...props} lead={copy.lead} action={copy.action} />
-}
-
-const previewBase = {
-  kindLabel: 'API token created',
-  title: 'API token created',
-  message: 'Ops Lead created "MCP local client" with read and write scopes.',
-  workspaceName: 'Starter Lab',
-  openUrl: 'http://localhost:3071/workspaces/starter-lab/api-tokens',
-  preferencesUrl: 'http://localhost:3071/account/notifications?kind=api_token.created'
-} satisfies NotificationEmailProps
-
-ApiTokenCreatedEmail.PreviewProps = previewBase
-ApiTokenRevokedEmail.PreviewProps = {
-  ...previewBase,
-  kindLabel: 'API token revoked',
-  title: 'API token revoked',
-  message:
-    'Ops Lead revoked "MCP local client". Integrations using this token will stop working.',
-  preferencesUrl: 'http://localhost:3071/account/notifications?kind=api_token.revoked'
-}
-MemberRoleChangedEmail.PreviewProps = {
-  ...previewBase,
-  kindLabel: 'Workspace role changed',
-  title: 'Workspace role changed',
-  message: 'Jordan Lee changed your role from member to administrator.',
-  openUrl: 'http://localhost:3071/workspaces/starter-lab/members',
-  preferencesUrl:
-    'http://localhost:3071/account/notifications?kind=workspace_member.role_changed'
-}
-TwoFactorChangedNotificationEmail.PreviewProps = {
-  ...previewBase,
-  kindLabel: 'Two-factor authentication changed',
-  title: 'Two-factor authentication changed',
-  message:
-    'Two-factor authentication was enabled for your account. If that was not you, reset your password now.',
-  workspaceName: null,
-  openUrl: 'http://localhost:3071/account',
-  preferencesUrl: 'http://localhost:3071/account/notifications?kind=two_factor.changed'
-}
-WebhookDeliveryFailedEmail.PreviewProps = {
-  ...previewBase,
-  kindLabel: 'Webhook delivery failed',
-  title: 'Webhook delivery failed',
-  message:
-    'https://example.com/webhooks/starter rejected billing.plan_changed and will not be retried.',
-  openUrl: 'http://localhost:3071/workspaces/starter-lab/webhooks',
-  preferencesUrl:
-    'http://localhost:3071/account/notifications?kind=webhook.delivery_failed'
-}
-MemberJoinedEmail.PreviewProps = {
-  ...previewBase,
-  kindLabel: 'Member joined',
-  title: 'Invitation accepted',
-  message: 'Taylor Morgan joined Starter Lab as a member.',
-  openUrl: 'http://localhost:3071/workspaces/starter-lab/members',
-  preferencesUrl:
-    'http://localhost:3071/account/notifications?kind=workspace_member.joined'
-}
-PlanChangedEmail.PreviewProps = {
-  ...previewBase,
-  kindLabel: 'Plan changed',
-  title: 'Plan changed to Team',
-  message: 'The workspace now serves the Team plan limits.',
-  openUrl: 'http://localhost:3071/workspaces/starter-lab/billing',
-  preferencesUrl:
-    'http://localhost:3071/account/notifications?kind=billing.plan_changed'
-}
-AccountImpersonatedEmail.PreviewProps = {
-  ...previewBase,
-  kindLabel: 'Account impersonated',
-  title: 'A System Admin accessed your account',
-  message:
-    'Martin Brandhaug started an impersonation session on your account. It ends when they stop it or after 60 minutes.',
-  workspaceName: null,
-  openUrl: 'http://localhost:3071/account',
-  preferencesUrl:
-    'http://localhost:3071/account/notifications?kind=account.impersonated'
-}
-AnnouncementEmail.PreviewProps = {
-  ...previewBase,
-  kindLabel: 'Announcements',
-  title: 'Workspace export ready',
-  message: 'Your export of Starter Lab is ready to download from workspace settings.',
-  openUrl: 'http://localhost:3071/workspaces/starter-lab',
-  preferencesUrl: 'http://localhost:3071/account/notifications?kind=announcement'
 }
 
 /** One line of the digest: what happened, where, and the app link for it. */

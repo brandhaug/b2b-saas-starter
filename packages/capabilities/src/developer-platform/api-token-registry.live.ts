@@ -27,9 +27,9 @@ import {
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
+import { hashSha256 } from '../crypto.ts'
 import {
   ApiTokenRegistry,
-  hashApiToken,
   shouldBumpLastUsedAt,
   type ApiToken
 } from './api-token-registry.ts'
@@ -168,7 +168,7 @@ export function LiveApiTokenRegistry(
             workspaceId: ctx.workspace.id,
             name: valid.name,
             tokenPrefix: token.slice(0, 17),
-            tokenHash: yield* Effect.promise(() => hashApiToken(token)),
+            tokenHash: yield* Effect.promise(() => hashSha256(token)),
             scopes: valid.scopes,
             expiresAt: valid.expiresAt ?? null,
             replacedByTokenId: null,
@@ -194,7 +194,7 @@ export function LiveApiTokenRegistry(
                 expiresAt: row.expiresAt
               }
             },
-            write: () => db.insert(apiTokens).values(row)
+            write: () => [db.insert(apiTokens).values(row)]
           })
           // Fan-out sits beside the audit write, below the interface: the
           // projection only — never the minted secret.
@@ -231,7 +231,7 @@ export function LiveApiTokenRegistry(
             workspaceId: ctx.workspace.id,
             name: source.name,
             tokenPrefix: token.slice(0, 17),
-            tokenHash: yield* Effect.promise(() => hashApiToken(token)),
+            tokenHash: yield* Effect.promise(() => hashSha256(token)),
             scopes: plan.scopes,
             expiresAt: plan.expiresAt,
             replacedByTokenId: null,
@@ -328,11 +328,12 @@ export function LiveApiTokenRegistry(
                 targetId: input.tokenId,
                 metadata: {}
               },
-              write: () =>
+              write: () => [
                 db
                   .update(apiTokens)
                   .set({ revokedAt: DateTime.formatIso(revokedAt) })
                   .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
+              ]
             })
             if (!applied) {
               return false
@@ -353,7 +354,7 @@ export function LiveApiTokenRegistry(
           }),
         verifyBearerToken: (token) =>
           Effect.gen(function* () {
-            const tokenHash = yield* Effect.promise(() => hashApiToken(token))
+            const tokenHash = yield* Effect.promise(() => hashSha256(token))
             const row = yield* unavailable(
               db
                 .select({ token: apiTokens, workspace: workspaces })

@@ -51,7 +51,6 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Resolve preview URLs
-        id: urls
         run: node .github/scripts/preview-urls.ts
       # Same squash-rename guard as the production deploy in ci.yml: a
       # long-lived PR's stage database records pre-squash migration names.
@@ -67,11 +66,7 @@ jobs:
       - name: Seed the Seed Workspace
         run: pnpm run db:seed:stage
       - name: Smoke test the preview
-        run: |
-          for url in "$API_URL/health" "$WEB_URL/"; do
-            echo "Probing $url"
-            curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$url" > /dev/null
-          done
+        run: node .github/scripts/smoke-deployment.ts
       - name: Report the deployment
         env:
           GH_TOKEN: ${{ github.token }}

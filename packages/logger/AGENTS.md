@@ -20,7 +20,7 @@ The one observability seam for all three workers: wide events, OTel traces, RED 
 ## Boundaries
 
 - Don't build `traceparent` by hand (`currentTraceparent` encodes it) or set it outbound; `HttpClient` injects it.
-- Don't hoist `makeOtlpLayer` or a PostHog client to module scope (invariant 3).
-- Don't call Sentry or PostHog ad hoc: `wireWideEventProviders` sends failed scopes to Sentry and every scope to PostHog, inert without their env vars.
+- Don't hoist `makeOtlpLayer` to module scope (invariant 3).
+- Don't call Sentry or PostHog ad hoc: `wireWideEventProviders` installs the one wide-event sink, which sends failed scopes to Sentry and every scope to PostHog's capture endpoint over `fetch`, inert without their env vars. There is no sink registry; a second sink would replace the first.
 - Don't import `./providers` from code reaching the browser bundle.
 - Don't mint a correlation id by hand; `currentTraceId` is the only source.

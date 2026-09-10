@@ -1,10 +1,10 @@
+import { notificationKinds } from '@b2b-saas-starter/db/enums'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
 import { AuditEventLog, SeedAuditEventLog } from '../governance/audit-event-log.ts'
 import { seedNotificationPreferences } from '../seed-fixture.ts'
 import {
-  NOTIFICATION_KINDS,
   defaultChannelFor,
   isSecurityNotificationKind,
   resolveChannel
@@ -17,7 +17,7 @@ import {
 
 describe('notification preference resolution', () => {
   it('defaults the security kinds to instant and everything else to digest', () => {
-    for (const kind of NOTIFICATION_KINDS) {
+    for (const kind of notificationKinds) {
       if (isSecurityNotificationKind(kind)) {
         expect(defaultChannelFor(kind)).toBe('instant')
       } else {
@@ -39,7 +39,7 @@ describe('notification preference resolution', () => {
 
   it('resolves one entry per kind and marks explicit rows as non-default', () => {
     const resolved = resolvePreferences(new Map([['announcement', 'off']]))
-    expect(resolved).toHaveLength(NOTIFICATION_KINDS.length)
+    expect(resolved).toHaveLength(notificationKinds.length)
     expect(resolved.find((entry) => entry.kind === 'announcement')).toEqual({
       kind: 'announcement',
       channel: 'off',

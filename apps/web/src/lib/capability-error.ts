@@ -1,17 +1,14 @@
 import { UiError } from './ui-error'
 
-// Diagnostic messages stay on the server. uiErrorAdapter carries codes and
-// allowlisted details so causeMessage can translate at the receiving locale.
+// Diagnostic copy stays out of these errors entirely: uiErrorAdapter
+// serializes code, allowlisted details and name, and `causeMessage`
+// translates at the receiving locale. The message slot carries the code so a
+// server log line still names the failure.
 export const CAPABILITY_UNAVAILABLE_ERROR_NAME = 'CapabilityUnavailableError'
 
 export class CapabilityUnavailableError extends UiError {
   constructor(capability: string, reason: string) {
-    super(
-      'unavailable',
-      {},
-      `This area is temporarily unavailable because the "${capability}" capability cannot reach its backing service (${reason}). ` +
-        'The rest of the app keeps working. Check the database configuration and try again.'
-    )
+    super('unavailable', {}, `unavailable: ${capability} (${reason})`)
     this.name = CAPABILITY_UNAVAILABLE_ERROR_NAME
   }
 }
@@ -23,109 +20,54 @@ export class ForbiddenError extends UiError {
     super(
       'forbidden',
       { reason: reason === 'no_principal' ? 'no_principal' : 'denied' },
-      reason === 'no_principal'
-        ? 'You are not signed in to this workspace. Sign in again and retry.'
-        : 'You do not have permission to do this in this workspace. Ask a workspace owner or admin.'
+      'forbidden'
     )
     this.name = FORBIDDEN_ERROR_NAME
   }
 }
 
-export const PLAN_LIMIT_ERROR_NAME = 'PlanLimitError'
-
 export class PlanLimitError extends UiError {
   constructor(planId: string, limit: number) {
-    super(
-      'plan_limit',
-      { planId, limit },
-      `Your workspace's ${planId} plan allows at most ${limit} of this resource. ` +
-        'Upgrade the plan on the Billing page to create more.'
-    )
-    this.name = PLAN_LIMIT_ERROR_NAME
+    super('plan_limit', { planId, limit }, 'plan_limit')
+    this.name = 'PlanLimitError'
   }
 }
 
-export const MEMBERSHIP_REFUSED_ERROR_NAME = 'MembershipRefusedError'
-
-function membershipRefusalCopy(reason: string): string {
-  switch (reason) {
-    case 'not_a_member': {
-      return 'That person is not a member of this workspace.'
-    }
-    case 'sole_owner': {
-      return 'The workspace must keep an owner: transfer ownership to another member first.'
-    }
-    case 'owner_requires_owner': {
-      return "Only a workspace owner can grant or change an owner's role."
-    }
-    default: {
-      return 'The workspace refused this membership change.'
-    }
-  }
-}
+/** The membership refusals the browser is allowed to distinguish. */
+const MEMBERSHIP_REFUSAL_REASONS = new Set([
+  'not_a_member',
+  'sole_owner',
+  'owner_requires_owner'
+])
 
 export class MembershipRefusedError extends UiError {
   constructor(reason: string) {
     super(
       'membership_refused',
-      {
-        reason: ['not_a_member', 'sole_owner', 'owner_requires_owner'].includes(reason)
-          ? reason
-          : 'refused'
-      },
-      membershipRefusalCopy(reason)
+      { reason: MEMBERSHIP_REFUSAL_REASONS.has(reason) ? reason : 'refused' },
+      'membership_refused'
     )
-    this.name = MEMBERSHIP_REFUSED_ERROR_NAME
+    this.name = 'MembershipRefusedError'
   }
 }
 
-export const USER_ADMIN_REFUSED_ERROR_NAME = 'UserAdminRefusedError'
-
-const SYSTEM_AXIS_COPY =
-  'The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner. The system role confers nothing inside a workspace.'
-
-function userAdminRefusalCopy(reason: string): string {
-  switch (reason) {
-    case 'unknown_user': {
-      return 'That account does not exist.'
-    }
-    case 'not_a_member':
-    case 'not_a_member_after_write': {
-      return 'That person is not a member of the named workspace.'
-    }
-    case 'cannot_impersonate_self': {
-      return 'A System Admin cannot impersonate themself.'
-    }
-    case 'cannot_impersonate_admin': {
-      return 'A System Admin cannot impersonate another admin.'
-    }
-    case 'not_impersonating': {
-      return 'This session is not impersonating anyone.'
-    }
-    default: {
-      return SYSTEM_AXIS_COPY
-    }
-  }
-}
+/** The user-admin refusals the browser is allowed to distinguish. */
+const USER_ADMIN_REFUSAL_REASONS = new Set([
+  'unknown_user',
+  'not_a_member',
+  'not_a_member_after_write',
+  'cannot_impersonate_self',
+  'cannot_impersonate_admin',
+  'not_impersonating'
+])
 
 export class UserAdminRefusedError extends UiError {
   constructor(reason: string) {
     super(
       'user_admin_refused',
-      {
-        reason: [
-          'unknown_user',
-          'not_a_member',
-          'not_a_member_after_write',
-          'cannot_impersonate_self',
-          'cannot_impersonate_admin',
-          'not_impersonating'
-        ].includes(reason)
-          ? reason
-          : 'refused'
-      },
-      userAdminRefusalCopy(reason)
+      { reason: USER_ADMIN_REFUSAL_REASONS.has(reason) ? reason : 'refused' },
+      'user_admin_refused'
     )
-    this.name = USER_ADMIN_REFUSED_ERROR_NAME
+    this.name = 'UserAdminRefusedError'
   }
 }

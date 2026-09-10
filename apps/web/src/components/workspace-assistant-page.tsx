@@ -13,7 +13,6 @@ import {
   type AskAssistantOutcome,
   type AssistantPagePayload
 } from '@/lib/server/assistant'
-import { assistantUnconfiguredMessage } from '@/lib/assistant-copy'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
@@ -210,7 +209,7 @@ export function WorkspaceAssistantPage({
         ) : (
           <Empty>
             <EmptyHeader>
-              <EmptyDescription>{assistantUnconfiguredMessage()}</EmptyDescription>
+              <EmptyDescription>{m.server_assistant_unconfigured()}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         )}

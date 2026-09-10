@@ -4,7 +4,7 @@ import { Effect } from 'effect'
 import { type ReactElement } from 'react'
 import { describe, expect, it } from '@effect/vitest'
 import {
-  NOTIFICATION_EMAIL_TEMPLATES,
+  NOTIFICATION_PREVIEW_PROPS,
   NotificationDigestEmail,
   notificationEmailFor
 } from './notification-emails.ts'
@@ -28,14 +28,6 @@ function rendered(element: ReactElement) {
 }
 
 describe('notification email templates', () => {
-  it('has one template per stored kind, and every one carries preview props', () => {
-    for (const kind of notificationKinds) {
-      const template = NOTIFICATION_EMAIL_TEMPLATES[kind]
-      expect(template).toBeTypeOf('function')
-      expect('PreviewProps' in template).toBe(true)
-    }
-  })
-
   it.effect(
     'gives every kind a representative destination and rendered fixture copy',
     () =>
@@ -53,8 +45,7 @@ describe('notification email templates', () => {
         } satisfies Record<NotificationKind, string>
 
         for (const kind of notificationKinds) {
-          const template = NOTIFICATION_EMAIL_TEMPLATES[kind]
-          const preview = template.PreviewProps
+          const preview = NOTIFICATION_PREVIEW_PROPS[kind]
           expect(new URL(preview.openUrl).pathname).toBe(expected[kind])
           expect(preview.preferencesUrl).toContain(`kind=${kind}`)
           if (kind !== 'api_token.created') {

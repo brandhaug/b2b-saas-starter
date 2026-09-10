@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // Node 24 ships ES2025 built-ins (`RegExp.escape`) these CLIs use; the
+    // shared base targets the oldest runtime the app packages support.
+    "lib": ["ES2025", "DOM", "DOM.Iterable"]
+  },
+  // Every Node-side script the repo ships: the operator CLIs and seeds here,
+  // plus the CI helpers under .github/scripts.
+  "include": ["**/*.ts", "../.github/scripts/*.ts"]
+}

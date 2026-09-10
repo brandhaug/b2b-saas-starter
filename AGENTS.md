@@ -27,7 +27,6 @@ For issue/spec implementation, follow the [implement skill](.agents/skills/imple
 | Email             | [packages/email/AGENTS.md](packages/email/AGENTS.md)                   |
 | Environment       | [packages/env/AGENTS.md](packages/env/AGENTS.md)                       |
 | Observability     | [packages/logger/AGENTS.md](packages/logger/AGENTS.md)                 |
-| Typed SDK         | [packages/sdk/AGENTS.md](packages/sdk/AGENTS.md)                       |
 | Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md)   |
 
 ## Setup

@@ -28,7 +28,6 @@
     "@b2b-saas-starter/billing": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/email-delivery": "workspace:*",
-    "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/failure": "workspace:*",
     "@b2b-saas-starter/i18n": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",

@@ -34,9 +34,7 @@ export function CommandPaletteProvider({
   }, [])
 
   return (
-    <CommandPaletteContext
-      value={{ state: { open }, actions: { setOpen }, meta: { viewer, systemRole } }}
-    >
+    <CommandPaletteContext value={{ open, setOpen, viewer, systemRole }}>
       {children}
       {open ? (
         <Suspense fallback={null}>
@@ -80,7 +78,7 @@ export function SearchButton() {
       <Button
         variant="outline"
         size="icon"
-        onClick={() => value?.actions.setOpen(true)}
+        onClick={() => value?.setOpen(true)}
         onMouseEnter={preloadCommandPalette}
         onFocus={preloadCommandPalette}
         aria-label={m.common_search()}
@@ -90,7 +88,7 @@ export function SearchButton() {
       </Button>
       <Button
         variant="outline"
-        onClick={() => value?.actions.setOpen(true)}
+        onClick={() => value?.setOpen(true)}
         onMouseEnter={preloadCommandPalette}
         onFocus={preloadCommandPalette}
         aria-label={m.common_search()}

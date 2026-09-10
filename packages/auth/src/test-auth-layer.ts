@@ -44,6 +44,11 @@ async function noop(): Promise<void> {
   return undefined
 }
 
+// oxlint-disable-next-line effect/noAsyncFunction, eslint/require-await -- Better Auth's port signature is Promise<boolean>; the fail-closed default is the point
+async function denyRecentAuthentication(): Promise<boolean> {
+  return false
+}
+
 /**
  * Boots an isolated, non-persisted local D1 (workerd, every committed
  * migration applied) and opens the promise-based drizzle client Better Auth's
@@ -100,6 +105,10 @@ export function buildAuthLayer(
           void promise.catch(() => undefined)
         },
         recoveryHooks: { onRecoveryStarted: noop },
+        userDeleteHooks: { beforeDelete: noop, afterDelete: noop },
+        // Fail-closed by default, matching an app that cannot prove recent
+        // authentication; the social-linking suite supplies its own proof.
+        hasRecentAuthentication: denyRecentAuthentication,
         mcp: testMcpConfig(),
         ...overrides
       }))

@@ -39,12 +39,14 @@ describe('runWorkspaceCapabilities authorization', () => {
     expect(created.token).toBeTruthy()
   })
 
-  it('refuses a member with a message the calling form can show', async () => {
-    // Server functions serialize a thrown error to `name`/`message`, so the
-    // message has to carry the explanation — the tag does not survive.
+  it('refuses a member with a code the calling form can translate', async () => {
+    // `uiErrorAdapter` serializes code, allowlisted details and name — never
+    // the message — so the refusal has to carry its explanation as data the
+    // receiving locale words itself.
     await expect(createToken('usr_dev')).rejects.toThrow(ForbiddenError)
-    await expect(createToken('usr_dev')).rejects.toThrow(
-      /do not have permission|not allowed/i
-    )
+    await expect(createToken('usr_dev')).rejects.toMatchObject({
+      code: 'forbidden',
+      details: { reason: 'denied' }
+    })
   })
 })

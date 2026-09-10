@@ -71,17 +71,13 @@ catalog:
   jsdom: 30.0.1
   jose: 6.2.10
   lucide-react: 1.40.0
-  mermaid: 11.17.2
   oxlint: 1.80.0
   oxlint-plugin-effect: 0.11.0
   oxlint-plugin-react-doctor: 0.9.12
-  posthog-js: 1.426.2
-  posthog-node: 5.51.4
   qrcode.react: ^4.2.0
   react: 19.2.8
   react-dom: 19.2.8
   react-email: 6.9.3
-  recharts: 3.10.1
   rehype-pretty-code: 0.14.5
   rehype-slug: 6.0.0
   remark-frontmatter: 5.0.0

@@ -7,7 +7,7 @@ import { WorkspaceContext } from '../workspace-context.ts'
 import {
   ApiTokenRegistry,
   MAX_TOKEN_OVERLAP_SECONDS,
-  type CreateApiTokenInput,
+  type CreateApiTokenPayload,
   type ReplaceApiTokenPayload
 } from './api-token-registry.ts'
 
@@ -240,7 +240,7 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
         yield* TestClock.setTime(START)
         const registry = yield* ApiTokenRegistry
         const before = yield* registry.list
-        const invalid: ReadonlyArray<CreateApiTokenInput> = [
+        const invalid: ReadonlyArray<CreateApiTokenPayload> = [
           { name: '', scopes: ['read'] },
           { name: 'empty scopes', scopes: [] },
           { name: 'duplicates', scopes: ['read', 'read'] },

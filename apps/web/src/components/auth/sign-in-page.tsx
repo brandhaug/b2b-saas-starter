@@ -14,11 +14,13 @@ import {
 } from '@/components/auth/social-sign-in'
 import {
   sendMagicLinkWithAuthClient,
-  TWO_FACTOR_REQUIRED_ERROR_CODE,
-  twoFactorRequiredMessage,
   type SendMagicLink,
   type SocialProviderId
 } from '@/components/auth/auth-client-ports'
+import {
+  TWO_FACTOR_REQUIRED_ERROR_CODE,
+  twoFactorRequiredMessage
+} from '@/lib/two-factor-refusal'
 import { FormTextField } from '@/components/form-text-field'
 import { TurnstileWidget } from '@/components/auth/turnstile-widget'
 import { Button } from '@/components/ui/button'
@@ -45,7 +47,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  * import: the route ships statically, so nothing here may load the
  * capability runtime.
  */
-export type ResolveSsoRouting = (email: string) => Promise<SsoRoutingDecision | null>
+type ResolveSsoRouting = (email: string) => Promise<SsoRoutingDecision | null>
 
 async function resolveSsoRouting(email: string) {
   // A failed ask must not dead-end the form: the password path is the
@@ -63,13 +65,6 @@ type SignInValues = {
 
 /** Stable empty default: a fresh `[]` literal per render would defeat memoing. */
 const NO_SOCIAL_PROVIDERS: ReadonlyArray<SocialProviderId> = []
-
-function ssoFailedMessage() {
-  return m.sso_failed()
-}
-function linkSendFailedMessage() {
-  return m.auth_send_link_failed()
-}
 
 /**
  * Whether the sign-in response asks for the two-factor hop. A plain field
@@ -105,9 +100,6 @@ function wasRefusedForSso(error: unknown): boolean {
 // One message for every outcome, by design: the send endpoint answers
 // identically whether or not the email exists (account enumeration defense),
 // and the screen must not know more than the endpoint does.
-function linkSentMessage() {
-  return m.sign_in_link_sent_notice()
-}
 
 /**
  * The credential sign-in's outcome ladder, in the one order the hops chain:
@@ -151,7 +143,7 @@ async function applySignInOutcome({
       callbackURL: `${window.location.origin}${safeRedirect(redirect)}`
     })
     if (sso.error) {
-      onSubmitError(authErrorCopy(sso.error, ssoFailedMessage()))
+      onSubmitError(authErrorCopy(sso.error, m.sso_failed()))
       return
     }
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- a routing match without a URL is the plugin's own degenerate answer; the explicit failure below beats a silent password retry
@@ -162,7 +154,7 @@ async function applySignInOutcome({
     // Unreachable while the plugin answers a routing match with a URL, but an
     // explicit failure beats silently attempting the password path the
     // routing decision just refused.
-    onSubmitError(ssoFailedMessage())
+    onSubmitError(m.sso_failed())
     return
   }
   const result = await authClient.signIn.email({ email, password })
@@ -295,7 +287,7 @@ export function SignInPage({
         // are codes in the shared table, so the challenge-reset below is the
         // only thing this branch adds to the mapped copy.
         setTurnstileToken(null)
-        setSubmitError(authErrorCopy(result.error, linkSendFailedMessage()))
+        setSubmitError(authErrorCopy(result.error, m.auth_send_link_failed()))
         return
       }
       setLinkSent(true)
@@ -312,7 +304,7 @@ export function SignInPage({
           footer={signInFooter({ mode, redirect, socialProviders })}
         >
           <p role="alert" className="text-sm text-muted-foreground">
-            {linkSentMessage()}
+            {m.sign_in_link_sent_notice()}
           </p>
         </AuthNoticeCard>
       )

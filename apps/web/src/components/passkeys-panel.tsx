@@ -32,7 +32,7 @@ type PasskeyRecord = {
 }
 
 /** One row of the panel's own view model — dates formatted client-side only. */
-export type PasskeyRowView = {
+type PasskeyRowView = {
   readonly id: string
   readonly label: string
   readonly synced: boolean

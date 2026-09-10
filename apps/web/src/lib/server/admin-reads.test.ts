@@ -28,32 +28,31 @@ vi.mock(
   async (importOriginal) => {
     const actual = await importOriginal<typeof AuthenticationModule>()
     const { Effect, Layer } = await import('effect')
-    const weak = actual.SeedStrongAuthentication()
+    const weak = actual.SeedStrongAuthentication
     return {
       ...actual,
-      SeedStrongAuthentication: () =>
-        Layer.succeed(actual.StrongAuthentication)({
-          status: (input) =>
-            Effect.flatMap(actual.StrongAuthentication, (service) =>
-              service.status(input)
-            ).pipe(Effect.provide(weak)),
-          requireRecent: (input) =>
-            Effect.flatMap(actual.StrongAuthentication, (service) =>
-              service.requireRecent(input)
-            ).pipe(Effect.provide(weak)),
-          require: (input) => {
-            if (
-              actor.qualified &&
-              input.userId === 'usr_global_admin' &&
-              input.sessionId === 'ses_usr_global_admin'
-            ) {
-              return Effect.void
-            }
-            return Effect.flatMap(actual.StrongAuthentication, (service) =>
-              service.require(input)
-            ).pipe(Effect.provide(weak))
+      SeedStrongAuthentication: Layer.succeed(actual.StrongAuthentication)({
+        status: (input) =>
+          Effect.flatMap(actual.StrongAuthentication, (service) =>
+            service.status(input)
+          ).pipe(Effect.provide(weak)),
+        requireRecent: (input) =>
+          Effect.flatMap(actual.StrongAuthentication, (service) =>
+            service.requireRecent(input)
+          ).pipe(Effect.provide(weak)),
+        require: (input) => {
+          if (
+            actor.qualified &&
+            input.userId === 'usr_global_admin' &&
+            input.sessionId === 'ses_usr_global_admin'
+          ) {
+            return Effect.void
           }
-        })
+          return Effect.flatMap(actual.StrongAuthentication, (service) =>
+            service.require(input)
+          ).pipe(Effect.provide(weak))
+        }
+      })
     }
   }
 )

@@ -4,7 +4,10 @@ import { type SQL } from 'drizzle-orm'
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 
-import { AuditEventMetadata, decodeAuditEventMetadata } from './audit-event-metadata.ts'
+import {
+  decodeAuditEventMetadata,
+  type AuditEventMetadata
+} from './audit-event-metadata.ts'
 
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
@@ -30,12 +33,10 @@ export const AuditEvent = Schema.Struct({
 })
 export type AuditEvent = typeof AuditEvent.Type
 
-export const AuditEventDetail = Schema.Struct({
-  ...AuditEvent.fields,
-  actorUserId: Schema.NullOr(Schema.String),
-  metadata: AuditEventMetadata
-})
-export type AuditEventDetail = typeof AuditEventDetail.Type
+export type AuditEventDetail = AuditEvent & {
+  readonly actorUserId: string | null
+  readonly metadata: AuditEventMetadata
+}
 
 /**
  * The keyset position every audit page cuts on — newest first on

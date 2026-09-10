@@ -1,7 +1,4 @@
-import {
-  type AuthorizeResponse,
-  type RoleAuthorizeRequest
-} from 'better-auth/plugins/access'
+import { type AuthorizeResponse, type RoleStatements } from 'better-auth/plugins/access'
 import {
   apiTokenScopeAccess,
   workspaceRoleAccess,
@@ -17,17 +14,12 @@ import { type StarterStatements } from './statements.ts'
  * the button?") as well as a route question.
  */
 
-/** What is being asked for, e.g. `{ apiToken: ['create'] }`. */
-export type PermissionRequest = RoleAuthorizeRequest<StarterStatements>
-
 /**
- * One resource's worth of a {@link PermissionRequest}: either the bare action
- * list, or Better Auth's object form carrying an explicit connector. The
- * named union is what keeps the guard's request handling off duck-typing.
+ * What is being asked for, e.g. `{ apiToken: ['create'] }`. Better Auth also
+ * accepts a `{ actions, connector }` object per resource; the starter asks
+ * only in the action-list form, so the guard never has to unwrap one.
  */
-export type RequestedActions =
-  | ReadonlyArray<string>
-  | { readonly actions: ReadonlyArray<string> }
+export type PermissionRequest = RoleStatements<StarterStatements>
 
 /**
  * The actor's authorization identity, independent of how it authenticated. A
@@ -77,9 +69,6 @@ function requestsAction(
     return false
   }
   const sensitive = new Set(sensitiveActions)
-  if ('actions' in grant) {
-    return grant.actions.some((action) => sensitive.has(action))
-  }
   return grant.some((action) => sensitive.has(action))
 }
 

@@ -17,13 +17,6 @@ export const AUTHORIZATION_DENIED_REASONS = {
   tokenWorkspaceMismatch: 'token_workspace_mismatch'
 } as const
 
-/** The record's keys — exactly the denial causes the guards distinguish. */
-export type AuthorizationDeniedReasonKey = keyof typeof AUTHORIZATION_DENIED_REASONS
-
-/** The wire vocabulary of `AuthorizationDenied.reason`. */
-export type AuthorizationDeniedReasonValue =
-  (typeof AUTHORIZATION_DENIED_REASONS)[AuthorizationDeniedReasonKey]
-
 export const AuthorizationDeniedReason = Schema.Literals(
   Object.values(AUTHORIZATION_DENIED_REASONS)
 )

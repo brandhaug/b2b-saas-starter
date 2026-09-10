@@ -33,20 +33,12 @@ export function billingStoreUnavailable<A, E, R>(
 
 /** The audit metadata for a plan change: the plan plus any provider detail. */
 export function planChangeMetadata(planId: string, detail?: JsonObject): JsonObject {
-  const metadata: JsonObject = { planId }
-  if (detail === undefined) {
-    return metadata
-  }
-  return { ...metadata, ...detail }
+  return { planId, ...detail }
 }
 
 /** The audit metadata for a seat change: the quantity plus any detail. */
 export function seatChangeMetadata(quantity: number, detail?: JsonObject): JsonObject {
-  const metadata: JsonObject = { quantity }
-  if (detail === undefined) {
-    return metadata
-  }
-  return { ...metadata, ...detail }
+  return { quantity, ...detail }
 }
 
 /** The checkout handoff: where Stripe should send the browser afterwards. */
@@ -114,14 +106,9 @@ export type ReconcileResult = {
   readonly drift: ReadonlyArray<string>
 }
 
-type CheckoutSession = {
+/** A Stripe-hosted handoff: checkout or the Billing Portal, same shape. */
+type HostedSession = {
   /** The Stripe-hosted URL to redirect the browser to. */
-  readonly url: string
-}
-
-/** The Billing Portal handoff: same shape as checkout, different Stripe surface. */
-type PortalSession = {
-  /** The Stripe-hosted Billing Portal URL to redirect the browser to. */
   readonly url: string
 }
 
@@ -261,7 +248,7 @@ export type BillingInterface = {
    */
   readonly startCheckout: (
     input: CheckoutInput
-  ) => Effect.Effect<CheckoutSession, CapabilityUnavailable, WorkspaceContext>
+  ) => Effect.Effect<HostedSession, CapabilityUnavailable, WorkspaceContext>
   /**
    * Opens a Stripe Billing Portal session for the workspace's customer and
    * returns the hosted URL — invoices, payment method, and cancellation are
@@ -272,7 +259,7 @@ export type BillingInterface = {
    */
   readonly startPortalSession: (input: {
     readonly returnUrl: string
-  }) => Effect.Effect<PortalSession, CapabilityUnavailable, WorkspaceContext>
+  }) => Effect.Effect<HostedSession, CapabilityUnavailable, WorkspaceContext>
   /**
    * Mirrors the workspace's member count onto the Stripe subscription item's
    * quantity — the consumer half of seat sync, called by the background

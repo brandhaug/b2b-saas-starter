@@ -19,7 +19,7 @@ import {
   notificationEmailQueueName,
   webhookDeadLetterQueueName,
   workspaceExportQueueName
-} from '../../../infra/bindings.ts'
+} from '@b2b-saas-starter/infra'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import {
   enforceSecureEndpoints,
@@ -106,7 +106,8 @@ export default Sentry.withSentry(makeBackgroundSentryOptions, {
     enforceSecureEndpoints(env)
     wireWideEventProviders(env)
     if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
-      return Effect.runPromise(Effect.void)
+      // oxlint-disable-next-line effect/noNewPromise -- the scheduled entry point returns a promise; there is no Effect left to run
+      return Promise.resolve()
     }
     const daily = controller.cron === notificationDigestCron
     const reconciliation = controller.cron === billingReconciliationCron

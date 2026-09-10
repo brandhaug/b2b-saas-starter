@@ -6,9 +6,8 @@ import { WorkspaceSuspensionService } from '../governance/workspace-suspension.t
 import { isAllowedDuringWorkspaceSuspension } from './notification-events.ts'
 import {
   NotificationFeed,
-  type DigestCandidate,
-  type DigestWindow,
-  type NotificationEmailContext
+  type NotificationEmailContext,
+  type DigestWindow
 } from './notification-feed.ts'
 import { NotificationPreferences } from './notification-preferences.ts'
 import {
@@ -38,7 +37,7 @@ export type DigestNotificationEmailSelection = {
   /** All unread, visible candidates that passed workspace policy. */
   readonly candidateCount: number
   /** The subset selected by each recipient's current digest preference. */
-  readonly candidates: ReadonlyArray<DigestCandidate>
+  readonly candidates: ReadonlyArray<NotificationEmailContext>
   readonly suspendedCount: number
 }
 
@@ -145,8 +144,8 @@ export const make: Effect.Effect<
     window: DigestWindow
   ): Effect.fn.Return<DigestNotificationEmailSelection, CapabilityUnavailable> {
     const candidates = yield* feed.listDigestCandidates(window)
-    const eligibleCandidates: Array<DigestCandidate> = []
-    const suspendedCandidates: Array<DigestCandidate> = []
+    const eligibleCandidates: Array<NotificationEmailContext> = []
+    const suspendedCandidates: Array<NotificationEmailContext> = []
     let suspendedCount = 0
 
     for (const candidate of candidates) {

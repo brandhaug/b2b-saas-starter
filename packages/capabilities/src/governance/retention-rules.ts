@@ -1,4 +1,4 @@
-import { DateTime } from 'effect'
+import { iso } from '../internal/timestamps.ts'
 
 import { type RetentionPolicy, type RetentionRecordClass } from './retention.ts'
 
@@ -18,10 +18,6 @@ export type RetentionRule = {
 
 const DAY = 86_400_000
 const AUTH_SKEW = 5 * 60_000
-
-function iso(time: number) {
-  return DateTime.formatIso(DateTime.makeUnsafe(time))
-}
 
 export function retentionRules(
   policy: RetentionPolicy,

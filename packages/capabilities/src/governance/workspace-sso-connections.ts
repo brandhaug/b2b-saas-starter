@@ -138,24 +138,18 @@ export type SsoRoutingDecision = typeof SsoRoutingDecision.Type
  * OIDC endpoints and the SAML IdP metadata (public by definition) join the
  * sanitized fields, the client secret and any key material do not.
  */
-export const SsoConnectionDetail = Schema.Struct({
-  ...SsoConnection.fields,
-  oidc: Schema.NullOr(
-    Schema.Struct({
-      authorizationEndpoint: Schema.String,
-      tokenEndpoint: Schema.String,
-      jwksEndpoint: Schema.String,
-      userInfoEndpoint: Schema.NullOr(Schema.String)
-    })
-  ),
-  saml: Schema.NullOr(
-    Schema.Struct({
-      metadataXml: Schema.String,
-      entryPoint: Schema.String
-    })
-  )
-})
-export type SsoConnectionDetail = typeof SsoConnectionDetail.Type
+export type SsoConnectionDetail = SsoConnection & {
+  readonly oidc: {
+    readonly authorizationEndpoint: string
+    readonly tokenEndpoint: string
+    readonly jwksEndpoint: string
+    readonly userInfoEndpoint: string | null
+  } | null
+  readonly saml: {
+    readonly metadataXml: string
+    readonly entryPoint: string
+  } | null
+}
 
 type SsoConnectionsInterface = {
   /** Every connection of the current workspace, newest first. */

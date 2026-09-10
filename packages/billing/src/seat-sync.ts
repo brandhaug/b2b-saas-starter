@@ -101,41 +101,47 @@ export type SeatSyncQueueBinding = {
   readonly send: (message: BillingQueueMessage) => Promise<void>
 }
 
+/**
+ * Drops the keys an optional input left undefined, so the queue message
+ * carries only the fields the provider actually reported.
+ */
+function defined<T extends object>(fields: {
+  readonly [K in keyof T]: T[K] | undefined
+}): T {
+  // SAFETY: every key of T is present in `fields`, and the filter removes only
+  // undefined values, which the optional keys of T already permit to be absent.
+  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see above
+  return Object.fromEntries(
+    Object.entries(fields).filter(([, value]) => value !== undefined)
+  ) as T
+}
+
 function providerEventMessage(
   input: ProcessProviderEventInput
 ): StripeProviderEventQueueMessage {
-  let message: StripeProviderEventQueueMessage = {
+  const message = defined<StripeProviderEventQueueMessage>({
     kind: 'billing.provider_event',
     providerEventId: input.providerEventId,
-    eventType: input.eventType
+    eventType: input.eventType,
+    providerCreatedAt: input.providerCreatedAt,
+    workspaceId: input.workspaceId
+  })
+  if (input.subscription === undefined) {
+    return message
   }
-  if (input.providerCreatedAt !== undefined) {
-    message = { ...message, providerCreatedAt: input.providerCreatedAt }
+  const subscription = input.subscription
+  return {
+    ...message,
+    subscription: defined<NonNullable<StripeProviderEventQueueMessage['subscription']>>(
+      {
+        customerId: subscription.customerId,
+        subscriptionId: subscription.subscriptionId,
+        subscriptionItemId: subscription.subscriptionItemId,
+        quantity: subscription.quantity,
+        deleted: subscription.deleted
+      }
+    )
   }
-  if (input.workspaceId !== undefined) {
-    message = { ...message, workspaceId: input.workspaceId }
-  }
-  if (input.subscription !== undefined) {
-    const subscription = input.subscription
-    let routing: NonNullable<StripeProviderEventQueueMessage['subscription']> = {}
-    if (subscription.customerId !== undefined) {
-      routing = { ...routing, customerId: subscription.customerId }
-    }
-    if (subscription.subscriptionId !== undefined) {
-      routing = { ...routing, subscriptionId: subscription.subscriptionId }
-    }
-    if (subscription.subscriptionItemId !== undefined) {
-      routing = { ...routing, subscriptionItemId: subscription.subscriptionItemId }
-    }
-    if (subscription.quantity !== undefined) {
-      routing = { ...routing, quantity: subscription.quantity }
-    }
-    if (subscription.deleted !== undefined) {
-      routing = { ...routing, deleted: subscription.deleted }
-    }
-    message = { ...message, subscription: routing }
-  }
-  return message
 }
 
 export const publishProviderEvent = Effect.fn('Billing.publishProviderEvent')(

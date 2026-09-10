@@ -12,7 +12,6 @@
     "@b2b-saas-starter/ai": "workspace:*",
     "@b2b-saas-starter/api": "workspace:*",
     "@b2b-saas-starter/authz": "workspace:*",
-    "@b2b-saas-starter/billing": "workspace:*",
     "@b2b-saas-starter/capabilities": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",
     "@b2b-saas-starter/env": "workspace:*",
