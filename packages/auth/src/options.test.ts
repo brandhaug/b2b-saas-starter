@@ -104,9 +104,7 @@ describe('makeAuthOptions', () => {
     // the stored session, and a cached copy would keep answering for its TTL
     // after the row changed — a revoked or impersonated session that still
     // passes. The absence is the decision, so the test states it.
-    const session: { readonly cookieCache?: { readonly enabled?: boolean } } =
-      makeAuthOptions(baseConfig).session
-    expect(session.cookieCache?.enabled ?? false).toBe(false)
+    expect(makeAuthOptions(baseConfig).session).not.toHaveProperty('cookieCache')
   })
 
   it('tightens the fresh-session window to one hour', () => {
